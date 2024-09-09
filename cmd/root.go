@@ -11,12 +11,8 @@ import (
 )
 
 type rootCommand struct {
-	viper *viper.Viper
-	cmd   *cobra.Command
-
+	cmd *cobra.Command
 	cfg *config.Config
-	//
-	// exitCode int
 }
 
 var (
@@ -28,8 +24,7 @@ var (
 
 func newRunCommand() *rootCommand {
 	c := &rootCommand{
-		viper: viper.New(),
-		cfg:   config.NewDefault(),
+		cfg: config.NewDefault(),
 	}
 
 	// rootCmd represents the base command when called without any subcommands
