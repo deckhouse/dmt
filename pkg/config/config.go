@@ -7,3 +7,9 @@ type Config struct {
 	LintersSettings LintersSettings `mapstructure:"linters-settings"`
 	Linters         Linters         `mapstructure:"linters"`
 }
+
+func NewDefault() *Config {
+	return &Config{
+		LintersSettings: defaultLintersSettings,
+	}
+}

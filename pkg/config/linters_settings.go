@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-// var defaultLintersSettings = LintersSettings{}
+var defaultLintersSettings = LintersSettings{}
 
 type LintersSettings struct {
 	Custom map[string]CustomLinterSettings
