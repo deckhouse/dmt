@@ -9,7 +9,6 @@ import (
 
 	"github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/mapstructure"
-	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
 	"github.com/deckhouse/d8-lint/pkg/fsutils"
@@ -24,19 +23,15 @@ type Loader struct {
 	opts LoaderOptions
 
 	viper *viper.Viper
-	fs    *pflag.FlagSet
 
 	cfg  *Config
 	args []string
 }
 
-func NewLoader(v *viper.Viper, fs *pflag.FlagSet, opts LoaderOptions, cfg *Config, args []string) *Loader {
+func NewLoader(cfg *Config) *Loader {
 	return &Loader{
-		opts:  opts,
-		viper: v,
-		fs:    fs,
+		viper: viper.New(),
 		cfg:   cfg,
-		args:  args,
 	}
 }
 
@@ -47,11 +42,6 @@ func (l *Loader) Load() error {
 	}
 
 	err = l.parseConfig()
-	if err != nil {
-		return err
-	}
-
-	err = l.handleEnableOnlyOption()
 	if err != nil {
 		return err
 	}
@@ -197,27 +187,6 @@ func (l *Loader) setConfigDir() error {
 	}
 
 	l.cfg.cfgDir = usedConfigDir
-
-	return nil
-}
-
-func (l *Loader) handleEnableOnlyOption() error {
-	lookup := l.fs.Lookup("enable-only")
-	if lookup == nil {
-		return nil
-	}
-
-	only, err := l.fs.GetStringSlice("enable-only")
-	if err != nil {
-		return err
-	}
-
-	if len(only) > 0 {
-		l.cfg.Linters = Linters{
-			Enable:     only,
-			DisableAll: true,
-		}
-	}
 
 	return nil
 }
