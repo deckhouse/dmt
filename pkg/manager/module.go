@@ -18,6 +18,8 @@ type Module struct {
 	Chart     *chart.Chart
 }
 
+type ModuleList []*Module
+
 func (m *Module) String() string {
 	return fmt.Sprintf("{Name: %s, Namespace: %s, Path: %s}", m.Name, m.Namespace, m.Path)
 }

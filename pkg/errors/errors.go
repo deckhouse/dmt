@@ -1,6 +1,7 @@
 package errors
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -39,20 +40,27 @@ type LintRuleErrorsList struct {
 	data []LintRuleError
 }
 
+// Add adds new error to the list if it doesn't exist yet.
+// It first checks if error is empty (i.e. all its fields are empty strings)
+// and then checks if error with the same ID, ObjectId and Text already exists in the list.
 func (l *LintRuleErrorsList) Add(e LintRuleError) {
 	if e.IsEmpty() {
 		return
 	}
-	if slices.ContainsFunc(l.data, func(el LintRuleError) bool { return e.EqualsTo(el) }) {
+	if slices.ContainsFunc(l.data, e.EqualsTo) {
 		return
 	}
 	l.data = append(l.data, e)
 }
 
+// Merge merges another LintRuleErrorsList into current one, removing all duplicate errors.
 func (l *LintRuleErrorsList) Merge(e LintRuleErrorsList) {
 	l.data = append(l.data, e.data...)
 }
 
+// ConvertToError converts LintRuleErrorsList to a single error.
+// It returns an error that contains all errors from the list with a nice formatting.
+// If the list is empty, it returns nil.
 func (l *LintRuleErrorsList) ConvertToError() error {
 	if len(l.data) == 0 {
 		return nil
@@ -73,5 +81,5 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 		}
 		builder.WriteString("\n")
 	}
-	return fmt.Errorf(builder.String())
+	return errors.New(builder.String())
 }

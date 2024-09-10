@@ -11,14 +11,14 @@ const (
 )
 
 type Manager struct {
-	Modules []*Module
+	Modules ModuleList
 }
 
 func NewManager() *Manager {
 	return &Manager{}
 }
 
-func (m Manager) LoadModules(dirs []string) []*Module {
+func (m Manager) LoadModules(dirs []string) ModuleList {
 	var paths []string
 
 	for i := range dirs {
