@@ -46,6 +46,11 @@ func (l *Loader) Load() error {
 		return err
 	}
 
+	err = l.cfg.Validate()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

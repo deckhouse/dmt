@@ -25,7 +25,8 @@ func Warnf(format string, a ...any) {
 
 func CheckErr(msg any) {
 	if msg != nil {
-		logger.Error("Error:", msg)
+		logger.Error(
+			fmt.Sprintf("Error: %s", msg))
 		os.Exit(1)
 	}
 }

@@ -10,9 +10,6 @@ type Linters struct {
 	Disable    []string
 	EnableAll  bool `mapstructure:"enable-all"`
 	DisableAll bool `mapstructure:"disable-all"`
-	Fast       bool
-
-	Presets []string
 }
 
 func (l *Linters) Validate() error {
@@ -33,7 +30,7 @@ func (l *Linters) validateAllDisableEnableOptions() error {
 	}
 
 	if l.DisableAll {
-		if len(l.Enable) == 0 && len(l.Presets) == 0 {
+		if len(l.Enable) == 0 {
 			return errors.New("all linters were disabled, but no one linter was enabled: must enable at least one")
 		}
 
@@ -42,7 +39,7 @@ func (l *Linters) validateAllDisableEnableOptions() error {
 		}
 	}
 
-	if l.EnableAll && len(l.Enable) != 0 && !l.Fast {
+	if l.EnableAll && len(l.Enable) != 0 {
 		return errors.New("can't combine options --enable-all and --enable")
 	}
 

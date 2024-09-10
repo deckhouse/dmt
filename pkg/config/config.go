@@ -13,3 +13,18 @@ func NewDefault() *Config {
 		LintersSettings: defaultLintersSettings,
 	}
 }
+
+func (c *Config) Validate() error {
+	validators := []func() error{
+		c.LintersSettings.Validate,
+		c.Linters.Validate,
+	}
+
+	for _, v := range validators {
+		if err := v(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
