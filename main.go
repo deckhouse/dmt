@@ -22,5 +22,4 @@ func main() {
 	for i := range modules {
 		logger.Infof("module[%d]: %s", i, modules[i])
 	}
-
 }
