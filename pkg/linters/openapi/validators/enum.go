@@ -7,7 +7,6 @@ import (
 	"unicode"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/pkg/errors"
 )
 
 var (
@@ -210,7 +209,7 @@ func NewEnumValidator() EnumValidator {
 	}
 }
 
-func (en EnumValidator) Run(fileName, absoluteKey string, value interface{}) error {
+func (en EnumValidator) Run(fileName, absoluteKey string, value any) error {
 	for _, exc := range fileExcludes[fileName] {
 		en.excludes[exc+".enum"] = struct{}{}
 	}
@@ -229,7 +228,7 @@ func (en EnumValidator) Run(fileName, absoluteKey string, value interface{}) err
 		}
 	}
 
-	values := value.([]interface{})
+	values := value.([]any)
 	enum := make([]string, 0, len(values))
 	for _, val := range values {
 		valStr, ok := val.(string)
@@ -249,7 +248,7 @@ func (en EnumValidator) validateEnumValues(enumKey string, values []string) *mul
 	for _, value := range values {
 		err := en.validateEnumValue(value)
 		if err != nil {
-			res = multierror.Append(res, errors.Wrap(err, fmt.Sprintf("Enum '%s' is invalid", enumKey)))
+			res = multierror.Append(res, fmt.Errorf("enum '%s' is invalid: %w", enumKey, err))
 		}
 	}
 
@@ -257,7 +256,7 @@ func (en EnumValidator) validateEnumValues(enumKey string, values []string) *mul
 }
 
 func (en EnumValidator) validateEnumValue(value string) error {
-	if len(value) == 0 {
+	if value == "" {
 		return nil
 	}
 

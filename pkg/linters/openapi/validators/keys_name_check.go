@@ -16,7 +16,7 @@ func NewKeyNameValidator() KeyNameValidator {
 	return KeyNameValidator{}
 }
 
-func checkMapForBannedKey(m map[interface{}]interface{}, banned []string) error {
+func checkMapForBannedKey(m map[any]any, banned []string) error {
 	for k, v := range m {
 		if strKey, ok := k.(string); ok {
 			for _, ban := range banned {
@@ -25,13 +25,13 @@ func checkMapForBannedKey(m map[interface{}]interface{}, banned []string) error 
 				}
 			}
 		}
-		if nestedMap, ok := v.(map[interface{}]interface{}); ok {
+		if nestedMap, ok := v.(map[any]any); ok {
 			err := checkMapForBannedKey(nestedMap, banned)
 			if err != nil {
 				return err
 			}
 		}
-		if nestedSlise, ok := v.([]interface{}); ok {
+		if nestedSlise, ok := v.([]any); ok {
 			for _, item := range nestedSlise {
 				if strKey, ok := item.(string); ok {
 					for _, ban := range banned {
@@ -40,7 +40,7 @@ func checkMapForBannedKey(m map[interface{}]interface{}, banned []string) error 
 						}
 					}
 				}
-				if nestedMap, ok := item.(map[interface{}]interface{}); ok {
+				if nestedMap, ok := item.(map[any]any); ok {
 					err := checkMapForBannedKey(nestedMap, banned)
 					if err != nil {
 						return err
@@ -52,8 +52,8 @@ func checkMapForBannedKey(m map[interface{}]interface{}, banned []string) error 
 	return nil
 }
 
-func (knv KeyNameValidator) Run(file, _ string, value interface{}) error {
-	object, ok := value.(map[interface{}]interface{})
+func (knv KeyNameValidator) Run(file, _ string, value any) error {
+	object, ok := value.(map[any]any)
 	if !ok {
 		fmt.Println("Possible Bug? Have to be a map", reflect.TypeOf(value))
 		return nil

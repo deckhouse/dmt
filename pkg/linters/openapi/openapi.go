@@ -10,19 +10,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestValidationOpenAPI(t *testing.T) {
-	apiFiles, err := GetOpenAPIYAMLFiles(deckhousePath)
-	require.NoError(t, err)
-
-	filesC := make(chan fileValidation, len(apiFiles))
-	resultC := RunOpenAPIValidator(filesC)
-
-	for _, apiFile := range apiFiles {
-		filesC <- fileValidation{
-			filePath: apiFile,
-		}
+func ValidateOpenAPI(path string) error {
+	apiFiles, err := GetOpenAPIYAMLFiles(path)
+	if err != nil {
+		return err
 	}
-	close(filesC)
+
+	resultC := RunOpenAPIValidator(path, apiFiles)
 
 	for result := range resultC {
 		assert.NoError(t, result.validationError, "File '%s' has invalid spec", strings.TrimPrefix(result.filePath, deckhousePath))

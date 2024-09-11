@@ -8,14 +8,12 @@ import (
 	"strings"
 
 	"github.com/deckhouse/d8-lint/pkg/linters/openapi/validators"
-
 	"github.com/hashicorp/go-multierror"
+
 	"gopkg.in/yaml.v3"
 )
 
 const (
-	deckhousePath = "/deckhouse/"
-
 	// magic number to limit count of concurrent parses. Way to avoid CPU throttling if it would be huge amount of files
 	parserConcurrentCount = 50
 )
