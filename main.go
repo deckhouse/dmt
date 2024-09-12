@@ -18,8 +18,11 @@ func main() {
 	err := config.NewLoader(cfg).Load()
 	logger.CheckErr(err)
 
-	modules := manager.NewManager().LoadModules(dirs)
-	for i := range modules {
-		logger.Infof("module[%d]: %s", i, modules[i])
+	mng := manager.NewManager(dirs)
+	for i := range mng.Modules {
+		logger.Infof("module[%d]: %s", i, mng.Modules[i])
 	}
+
+	result := mng.Run()
+	logger.CheckErr(result.ConvertToError())
 }

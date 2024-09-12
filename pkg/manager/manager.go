@@ -1,9 +1,14 @@
 package manager
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/deckhouse/d8-lint/pkg/errors"
+	"github.com/deckhouse/d8-lint/pkg/linters/openapi"
+	"github.com/deckhouse/d8-lint/pkg/module"
 )
 
 const (
@@ -11,14 +16,17 @@ const (
 )
 
 type Manager struct {
-	Modules ModuleList
+	Linters LinterList
+	Modules module.ModuleList
 }
 
-func NewManager() *Manager {
-	return &Manager{}
-}
+func NewManager(dirs []string) *Manager {
+	m := &Manager{}
 
-func (m Manager) LoadModules(dirs []string) ModuleList {
+	m.Linters = []Linter{
+		openapi.New(),
+	}
+
 	var paths []string
 
 	for i := range dirs {
@@ -34,14 +42,30 @@ func (m Manager) LoadModules(dirs []string) ModuleList {
 	}
 
 	for i := range paths {
-		module := NewModule(paths[i])
-		if module.Chart == nil {
+		mdl := module.NewModule(paths[i])
+		if mdl.Chart == nil {
 			continue
 		}
-		m.Modules = append(m.Modules, module)
+		m.Modules = append(m.Modules, mdl)
 	}
 
-	return m.Modules
+	return m
+}
+
+func (m *Manager) Run() errors.LintRuleErrorsList {
+	result := errors.LintRuleErrorsList{}
+
+	for i := range m.Linters {
+		for j := range m.Modules {
+			errs, err := m.Linters[i].Run(context.Background(), m.Modules[j])
+			if err != nil {
+				continue
+			}
+			result.Merge(errs)
+		}
+	}
+
+	return result
 }
 
 func isExistsOnFilesystem(parts ...string) bool {
@@ -65,15 +89,15 @@ func getModulePaths(modulesDir string) ([]string, error) {
 			return nil
 		}
 
-		// Check if first level subdirectory has a helm chart configuration file
-		if isExistsOnFilesystem(path, ChartConfigFilename) {
-			chartDirs = append(chartDirs, path)
-		}
-
 		// root path can be module dir, if we run one module for local testing
 		// usually, root dir contains another modules and should not be ignored
 		if path == modulesDir {
 			return nil
+		}
+
+		// Check if first level subdirectory has a helm chart configuration file
+		if isExistsOnFilesystem(path, ChartConfigFilename) {
+			chartDirs = append(chartDirs, path)
 		}
 
 		return filepath.SkipDir

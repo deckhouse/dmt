@@ -5,13 +5,17 @@ import (
 	"strings"
 
 	"github.com/deckhouse/d8-lint/pkg/errors"
-	"github.com/deckhouse/d8-lint/pkg/manager"
+	"github.com/deckhouse/d8-lint/pkg/module"
 )
 
 // OpenAPI linter
 type OpenAPI struct{}
 
-func (*OpenAPI) Run(_ context.Context, m manager.Module) (errors.LintRuleErrorsList, error) {
+func New() *OpenAPI {
+	return &OpenAPI{}
+}
+
+func (*OpenAPI) Run(_ context.Context, m *module.Module) (errors.LintRuleErrorsList, error) {
 	apiFiles, err := GetOpenAPIYAMLFiles(m.Path)
 	if err != nil {
 		return errors.LintRuleErrorsList{}, err

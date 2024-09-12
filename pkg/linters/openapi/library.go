@@ -192,7 +192,7 @@ func runFileParser(fileName string, data map[any]any, resultC chan error) {
 		keyValidators: map[string]validator{
 			"enum":             validators.NewEnumValidator(),
 			"highAvailability": validators.NewHAValidator(),
-			"https":            validators.NewHAValidator(),
+			"https":            validators.NewKeyNameValidator(),
 		},
 		resultC: resultC,
 	}

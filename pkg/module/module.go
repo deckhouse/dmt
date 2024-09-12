@@ -1,4 +1,4 @@
-package manager
+package module
 
 import (
 	"fmt"
@@ -9,6 +9,10 @@ import (
 	"gopkg.in/yaml.v3"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
+)
+
+const (
+	ChartConfigFilename = "Chart.yaml"
 )
 
 type Module struct {
