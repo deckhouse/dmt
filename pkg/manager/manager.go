@@ -33,15 +33,18 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 		cfg: cfg,
 	}
 
-	// TODO check enabled linters
+	// fill all linters
 	m.Linters = []Linter{
-		openapi.New(),
+		openapi.New(&cfg.LintersSettings.OpenAPI),
 	}
 
-	lintersMap := make(map[string]Linter)
+	m.lintersMap = make(map[string]Linter)
 	for _, linter := range m.Linters {
-		lintersMap[strings.ToLower(linter.Name())] = linter
+		m.lintersMap[strings.ToLower(linter.Name())] = linter
 	}
+
+	// filter linters from config file
+	m.Linters = m.getEnabledLinters()
 
 	var paths []string
 
@@ -142,6 +145,7 @@ func (m *Manager) getEnabledLinters() LinterList {
 	}
 
 	for _, name := range m.cfg.Linters.Enable {
+		name = strings.ToLower(name)
 		if m.lintersMap[name] == nil {
 			continue
 		}

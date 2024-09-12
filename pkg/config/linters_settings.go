@@ -8,7 +8,8 @@ import (
 var defaultLintersSettings = LintersSettings{}
 
 type LintersSettings struct {
-	Custom map[string]CustomLinterSettings
+	OpenAPI OpenAPISettings
+	Custom  map[string]CustomLinterSettings
 }
 
 func (s *LintersSettings) Validate() error {
@@ -57,7 +58,7 @@ func (s *CustomLinterSettings) Validate() error {
 }
 
 type OpenAPISettings struct {
-	Exclude              []string `mapstructure:"exclude"`
-	UseBuiltinExclusions bool     `mapstructure:"use-builtin-exclusions"`
-	IgnoreTest           bool     `mapstructure:"ignore-test"`
+	EnumFileExcludes       map[string][]string `mapstructure:"enum-file-excludes"`
+	HAAbsoluteKeysExcludes map[string]string   `mapstructure:"ha-absolute-keys-excludes"`
+	KeyBannedNames         []string            `mapstructure:"key-banned-names"`
 }

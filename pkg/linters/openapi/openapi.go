@@ -4,15 +4,23 @@ import (
 	"context"
 	"strings"
 
+	"github.com/deckhouse/d8-lint/pkg/config"
 	"github.com/deckhouse/d8-lint/pkg/errors"
 	"github.com/deckhouse/d8-lint/pkg/module"
 )
 
 // OpenAPI linter
-type OpenAPI struct{}
+type OpenAPI struct {
+	name, desc string
+	cfg        *config.OpenAPISettings
+}
 
-func New() *OpenAPI {
-	return &OpenAPI{}
+func New(cfg *config.OpenAPISettings) *OpenAPI {
+	return &OpenAPI{
+		name: "openapi",
+		desc: "OpenAPI will check all openapi files in the module",
+		cfg:  cfg,
+	}
 }
 
 func (*OpenAPI) Run(_ context.Context, m *module.Module) (errors.LintRuleErrorsList, error) {
@@ -47,10 +55,10 @@ func (*OpenAPI) Run(_ context.Context, m *module.Module) (errors.LintRuleErrorsL
 	return errors.LintRuleErrorsList{}, nil
 }
 
-func (*OpenAPI) Name() string {
-	return "openapi"
+func (o *OpenAPI) Name() string {
+	return o.name
 }
 
-func (*OpenAPI) Desc() string {
-	return "OpenAPI will check all openapi files in the module"
+func (o *OpenAPI) Desc() string {
+	return o.desc
 }
