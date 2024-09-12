@@ -83,6 +83,10 @@ func RunOpenAPIValidator(fileC chan fileValidation) chan fileValidation {
 
 			yamlStruct := getFileYAMLContent(vfile.filePath)
 
+			if yamlStruct == nil {
+				continue
+			}
+
 			runFileParser(strings.TrimPrefix(vfile.filePath, vfile.rootPath), yamlStruct, parseResultC)
 
 			var result *multierror.Error
@@ -126,7 +130,7 @@ func getFileYAMLContent(path string) map[any]any {
 
 	err = yaml.Unmarshal(data, &m)
 	if err != nil {
-		panic(err)
+		return nil
 	}
 
 	return m
@@ -239,7 +243,16 @@ func (fp fileParser) parseValue(upperKey string, v any) {
 
 	switch typ {
 	case reflect.Map:
-		fp.parseMap(upperKey, v.(map[any]any))
+		if m, ok := v.(map[any]any); ok {
+			fp.parseMap(upperKey, m)
+		}
+		if m, ok := v.(map[string]any); ok {
+			nm := make(map[any]any)
+			for k, v := range m {
+				nm[k] = v
+			}
+			fp.parseMap(upperKey, nm)
+		}
 	case reflect.Slice:
 		fp.parseSlice(upperKey, v.([]any))
 	}
