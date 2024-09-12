@@ -12,11 +12,7 @@ require (
 	helm.sh/helm/v3 v3.15.4
 )
 
-require (
-	github.com/hashicorp/errwrap v1.1.0 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
-	sigs.k8s.io/yaml v1.4.0 // indirect
-)
+require github.com/hashicorp/errwrap v1.1.0 // indirect
 
 require (
 	github.com/Masterminds/semver/v3 v3.2.1 // indirect

@@ -87,7 +87,6 @@ func RunOpenAPIValidator(fileC chan fileValidation) chan fileValidation {
 				continue
 			}
 
-			//runFileParser(strings.TrimPrefix(vfile.filePath, vfile.rootPath), yamlStruct, parseResultC)
 			runFileParser(vfile.filePath, yamlStruct, parseResultC)
 
 			var result *multierror.Error
@@ -257,7 +256,6 @@ func (fp fileParser) parseValue(upperKey string, v any) {
 	case reflect.Slice:
 		fp.parseSlice(upperKey, v.([]any))
 	default:
-
 	}
 }
 

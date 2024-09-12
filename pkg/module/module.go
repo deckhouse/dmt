@@ -34,13 +34,6 @@ func NewModule(path string) *Module {
 		Path:      path,
 	}
 
-	//var err error
-	//module.Chart, err = loader.Load(path)
-	//if err != nil {
-	//	logger.ErrorF("Failed to load module %s: %s\n", module.Name, err)
-	//	return &Module{}
-	//}
-
 	return module
 }
 

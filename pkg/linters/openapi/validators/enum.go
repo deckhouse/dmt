@@ -24,7 +24,7 @@ func NewEnumValidator() EnumValidator {
 	}
 }
 
-func (en EnumValidator) Run(fileName, absoluteKey string, value any) error {
+func (en EnumValidator) Run(_, absoluteKey string, value any) error {
 	// check for slice path with wildcard
 	index := arrayPathRegex.FindString(absoluteKey)
 	if index != "" {

@@ -62,11 +62,7 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 	}
 
 	for i := range paths {
-		mdl := module.NewModule(paths[i])
-		//if mdl.Chart == nil {
-		//	continue
-		//}
-		m.Modules = append(m.Modules, mdl)
+		m.Modules = append(m.Modules, module.NewModule(paths[i]))
 	}
 
 	return m
