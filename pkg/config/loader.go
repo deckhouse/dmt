@@ -88,7 +88,7 @@ func (l *Loader) setupConfigFileSearch() {
 
 	configSearchPaths := l.getConfigSearchPaths()
 
-	logger.Infof("Config search paths: %s", configSearchPaths)
+	logger.InfoF("Config search paths: %s", configSearchPaths)
 
 	for _, p := range configSearchPaths {
 		l.viper.AddConfigPath(p)
@@ -102,7 +102,7 @@ func (l *Loader) getConfigSearchPaths() []string {
 
 	absPath, err := filepath.Abs(firstArg)
 	if err != nil {
-		logger.Warnf("Can't make abs path for %q: %s", firstArg, err)
+		logger.WarnF("Can't make abs path for %q: %s", firstArg, err)
 		absPath = filepath.Clean(firstArg)
 	}
 
@@ -130,7 +130,7 @@ func (l *Loader) getConfigSearchPaths() []string {
 
 	// find home directory for global config
 	if home, err := homedir.Dir(); err != nil {
-		logger.Warnf("Can't get user's home directory: %v", err)
+		logger.WarnF("Can't get user's home directory: %v", err)
 	} else if !slices.Contains(searchPaths, home) {
 		searchPaths = append(searchPaths, home)
 	}
@@ -175,15 +175,15 @@ func (l *Loader) setConfigDir() error {
 
 	if usedConfigFile == os.Stdin.Name() {
 		usedConfigFile = ""
-		logger.Infof("Reading config file stdin")
+		logger.InfoF("Reading config file stdin")
 	} else {
 		var err error
 		usedConfigFile, err = fsutils.ShortestRelPath(usedConfigFile, "")
 		if err != nil {
-			logger.Warnf("Can't pretty print config file path: %v", err)
+			logger.WarnF("Can't pretty print config file path: %v", err)
 		}
 
-		logger.Infof("Used config file %s", usedConfigFile)
+		logger.InfoF("Used config file %s", usedConfigFile)
 	}
 
 	usedConfigDir, err := filepath.Abs(filepath.Dir(usedConfigFile))

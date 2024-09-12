@@ -3,6 +3,8 @@ package validators
 import (
 	"fmt"
 	"reflect"
+
+	"github.com/deckhouse/d8-lint/pkg/logger"
 )
 
 var (
@@ -20,13 +22,24 @@ func NewHAValidator() HAValidator {
 }
 
 func (HAValidator) Run(file, absoluteKey string, value any) error {
-	values, ok := value.(map[any]any)
-	if !ok {
-		fmt.Printf("Possible Bug? Have to be a map. Type: %s, Value: %s, File: %s, Key: %s\n", reflect.TypeOf(value), value, file, absoluteKey)
-		return nil
+	//values, ok := value.(map[string]any)
+	//if !ok {
+	//	logger.ErrorF("Possible Bug? Have to be a map. Type: %s, Value: %s, File: %s, Key: %s", reflect.TypeOf(value), value, file, absoluteKey)
+	//	return nil
+	//}
+
+	m := make(map[any]any)
+	rv := reflect.ValueOf(value)
+	if rv.Kind() != reflect.Map {
+		logger.ErrorF("Possible Bug? Have to be a map. Type: %s, Value: %s, File: %s", reflect.TypeOf(value), value, file)
+		return fmt.Errorf("not map")
+	}
+	for _, key := range rv.MapKeys() {
+		value := rv.MapIndex(key)
+		m[key.Interface()] = value.Interface()
 	}
 
-	for key := range values {
+	for key := range m {
 		if key == "default" {
 			if absoluteKeysExcludes[file] == absoluteKey {
 				continue

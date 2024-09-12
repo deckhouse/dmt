@@ -87,7 +87,8 @@ func RunOpenAPIValidator(fileC chan fileValidation) chan fileValidation {
 				continue
 			}
 
-			runFileParser(strings.TrimPrefix(vfile.filePath, vfile.rootPath), yamlStruct, parseResultC)
+			//runFileParser(strings.TrimPrefix(vfile.filePath, vfile.rootPath), yamlStruct, parseResultC)
+			runFileParser(vfile.filePath, yamlStruct, parseResultC)
 
 			var result *multierror.Error
 
@@ -196,7 +197,7 @@ func runFileParser(fileName string, data map[any]any, resultC chan error) {
 		keyValidators: map[string]validator{
 			"enum":             validators.NewEnumValidator(),
 			"highAvailability": validators.NewHAValidator(),
-			"https":            validators.NewKeyNameValidator(),
+			"https":            validators.NewHAValidator(),
 		},
 		resultC: resultC,
 	}
@@ -255,9 +256,11 @@ func (fp fileParser) parseValue(upperKey string, v any) {
 		}
 	case reflect.Slice:
 		fp.parseSlice(upperKey, v.([]any))
+	default:
+
 	}
 }
 
 type validator interface {
-	Run(fileName, absoulteKey string, value any) error
+	Run(fileName, absoluteKey string, value any) error
 }

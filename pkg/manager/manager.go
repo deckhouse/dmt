@@ -6,8 +6,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/mitchellh/go-homedir"
+
 	"github.com/deckhouse/d8-lint/pkg/errors"
 	"github.com/deckhouse/d8-lint/pkg/linters/openapi"
+	"github.com/deckhouse/d8-lint/pkg/logger"
 	"github.com/deckhouse/d8-lint/pkg/module"
 )
 
@@ -23,6 +26,7 @@ type Manager struct {
 func NewManager(dirs []string) *Manager {
 	m := &Manager{}
 
+	// TODO check enabled linters
 	m.Linters = []Linter{
 		openapi.New(),
 	}
@@ -30,7 +34,7 @@ func NewManager(dirs []string) *Manager {
 	var paths []string
 
 	for i := range dirs {
-		dir, err := filepath.Abs(dirs[i])
+		dir, err := homedir.Expand(dirs[i])
 		if err != nil {
 			continue
 		}
@@ -59,9 +63,12 @@ func (m *Manager) Run() errors.LintRuleErrorsList {
 		for j := range m.Modules {
 			errs, err := m.Linters[i].Run(context.Background(), m.Modules[j])
 			if err != nil {
+				logger.WarnF("Error running Linter %s: %s\n", m.Linters[i].Name(), err)
 				continue
 			}
-			result.Merge(errs)
+			if errs.ConvertToError() != nil {
+				result.Merge(errs)
+			}
 		}
 	}
 

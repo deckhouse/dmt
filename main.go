@@ -12,9 +12,7 @@ func main() {
 	logger.InitLogger()
 
 	dirs := parseFlags()
-	if dirs == nil {
-		return
-	}
+	logger.InfoF("Dirs: %v", dirs)
 
 	cfg := config.NewDefault()
 	err := config.NewLoader(cfg).Load()
@@ -22,10 +20,10 @@ func main() {
 
 	mng := manager.NewManager(dirs)
 	// for i := range mng.Modules {
-	// 	logger.Infof("module[%d]: %s", i, mng.Modules[i])
+	// 	logger.InfoF("module[%d]: %s", i, mng.Modules[i])
 	// }
 
 	result := mng.Run()
-	fmt.Printf("%s\n", result)
+	fmt.Printf("%v\n", result.ConvertToError())
 	logger.CheckErr(result.ConvertToError())
 }

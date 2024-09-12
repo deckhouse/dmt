@@ -2,6 +2,8 @@ package logger
 
 import (
 	"fmt"
+	"io"
+	"log"
 	"log/slog"
 	"os"
 )
@@ -9,17 +11,23 @@ import (
 var logger *slog.Logger
 
 func InitLogger() {
+	log.SetOutput(io.Discard)
 	slog.SetLogLoggerLevel(slog.LevelInfo)
 	logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
 }
 
-func Infof(format string, a ...any) {
+func InfoF(format string, a ...any) {
 	logger.Info(
 		fmt.Sprintf(format, a...))
 }
 
-func Warnf(format string, a ...any) {
+func WarnF(format string, a ...any) {
 	logger.Warn(
+		fmt.Sprintf(format, a...))
+}
+
+func ErrorF(format string, a ...any) {
+	logger.Error(
 		fmt.Sprintf(format, a...))
 }
 

@@ -3,6 +3,8 @@ package validators
 import (
 	"fmt"
 	"reflect"
+
+	"github.com/deckhouse/d8-lint/pkg/logger"
 )
 
 var (
@@ -18,11 +20,9 @@ func NewKeyNameValidator() KeyNameValidator {
 
 func checkMapForBannedKey(m map[any]any, banned []string) error {
 	for k, v := range m {
-		if strKey, ok := k.(string); ok {
-			for _, ban := range banned {
-				if strKey == ban {
-					return fmt.Errorf("%s is invalid name for property %s", ban, strKey)
-				}
+		for _, ban := range banned {
+			if k == ban {
+				return fmt.Errorf("%s is invalid name for property %s", ban, k)
 			}
 		}
 		if nestedMap, ok := v.(map[any]any); ok {
@@ -53,12 +53,24 @@ func checkMapForBannedKey(m map[any]any, banned []string) error {
 }
 
 func (KeyNameValidator) Run(file, _ string, value any) error {
-	object, ok := value.(map[any]any)
-	if !ok {
-		fmt.Println("Possible Bug? Have to be a map", reflect.TypeOf(value))
-		return nil
+	m := make(map[any]any)
+	rv := reflect.ValueOf(value)
+	if rv.Kind() != reflect.Map {
+		logger.ErrorF("Possible Bug? Have to be a map. Type: %s, Value: %s, File: %s", reflect.TypeOf(value), value, file)
+		return fmt.Errorf("not map")
 	}
-	err := checkMapForBannedKey(object, bannedNames)
+	for _, key := range rv.MapKeys() {
+		value := rv.MapIndex(key)
+		m[key.Interface()] = value.Interface()
+	}
+
+	//object, ok := value.(map[any]any)
+	//if !ok {
+	//	logger.ErrorF("Possible Bug? Have to be a map. Type: %s, Value: %s, File: %s", reflect.TypeOf(value), value, file)
+	//	return nil
+	//}
+
+	err := checkMapForBannedKey(m, bannedNames)
 	if err != nil {
 		return fmt.Errorf("%s file validation error: wrong property: %w", file, err)
 	}
