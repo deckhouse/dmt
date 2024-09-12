@@ -52,7 +52,7 @@ func checkMapForBannedKey(m map[any]any, banned []string) error {
 	return nil
 }
 
-func (knv KeyNameValidator) Run(file, _ string, value any) error {
+func (KeyNameValidator) Run(file, _ string, value any) error {
 	object, ok := value.(map[any]any)
 	if !ok {
 		fmt.Println("Possible Bug? Have to be a map", reflect.TypeOf(value))

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/deckhouse/d8-lint/pkg/linters/openapi/validators"
+
 	"github.com/hashicorp/go-multierror"
 
 	"gopkg.in/yaml.v3"
@@ -21,61 +22,9 @@ const (
 type fileValidation struct {
 	filePath string
 
+	rootPath string
+
 	validationError error
-}
-
-type moduleVersions struct {
-	specVersion        int
-	conversionsVersion int
-}
-
-func modulesVersions(rootPath string) (map[string]*moduleVersions, error) {
-	result := map[string]*moduleVersions{}
-
-	globPattern := filepath.Join(rootPath, "*", "openapi", "*.yaml")
-	matches, err := filepath.Glob(globPattern)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, path := range matches {
-		module := filepath.Dir(filepath.Dir(path))
-		module = filepath.Base(module)
-		if module == "" {
-			continue
-		}
-
-		if strings.HasSuffix(path, "config-values.yaml") {
-			config := getFileYAMLContent(path)
-			if val, ok := config["x-config-version"]; ok && val.(int) > 1 {
-				if mv, ok := result[module]; ok {
-					mv.specVersion = val.(int)
-				} else {
-					result[module] = &moduleVersions{specVersion: val.(int)}
-				}
-			}
-		} else if strings.Contains(path, "/conversions/") {
-			data, err := os.ReadFile(path)
-			if err != nil {
-				return nil, err
-			}
-			var parsed struct {
-				Version int
-			}
-			if err := yaml.Unmarshal(data, &parsed); err != nil {
-				return nil, err
-			}
-			if mv, ok := result[module]; ok {
-				if parsed.Version > mv.conversionsVersion {
-					mv.conversionsVersion = parsed.Version
-				}
-			} else {
-				result[module] = &moduleVersions{conversionsVersion: parsed.Version}
-			}
-		}
-	}
-
-	return result, nil
 }
 
 // GetOpenAPIYAMLFiles returns all .yaml files which are placed into openapi/ | crds/ directory
@@ -125,7 +74,6 @@ func GetOpenAPIYAMLFiles(rootPath string) ([]string, error) {
 }
 
 // RunOpenAPIValidator runs validator, get channel with file paths and returns channel with results
-// nolint: revive // its a private lib, we dont need an exported struct
 func RunOpenAPIValidator(fileC chan fileValidation) chan fileValidation {
 	resultC := make(chan fileValidation, 1)
 
@@ -135,7 +83,7 @@ func RunOpenAPIValidator(fileC chan fileValidation) chan fileValidation {
 
 			yamlStruct := getFileYAMLContent(vfile.filePath)
 
-			runFileParser(strings.TrimPrefix(vfile.filePath, deckhousePath), yamlStruct, parseResultC)
+			runFileParser(strings.TrimPrefix(vfile.filePath, vfile.rootPath), yamlStruct, parseResultC)
 
 			var result *multierror.Error
 
@@ -168,13 +116,13 @@ type fileParser struct {
 	resultC chan error
 }
 
-func getFileYAMLContent(path string) map[interface{}]interface{} {
+func getFileYAMLContent(path string) map[any]any {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		panic(err)
 	}
 
-	m := make(map[interface{}]interface{})
+	m := make(map[any]any)
 
 	err = yaml.Unmarshal(data, &m)
 	if err != nil {
@@ -184,7 +132,7 @@ func getFileYAMLContent(path string) map[interface{}]interface{} {
 	return m
 }
 
-func isCRD(data map[interface{}]interface{}) bool {
+func isCRD(data map[any]any) bool {
 	kind, ok := data["kind"].(string)
 	if !ok {
 		return false
@@ -197,7 +145,7 @@ func isCRD(data map[interface{}]interface{}) bool {
 	return true
 }
 
-func isDeckhouseCRD(data map[interface{}]interface{}) bool {
+func isDeckhouseCRD(data map[any]any) bool {
 	kind, ok := data["kind"].(string)
 	if !ok {
 		return false
@@ -207,7 +155,7 @@ func isDeckhouseCRD(data map[interface{}]interface{}) bool {
 		return false
 	}
 
-	metadata, ok := data["metadata"].(map[interface{}]interface{})
+	metadata, ok := data["metadata"].(map[any]any)
 	if !ok {
 		return false
 	}
@@ -224,7 +172,7 @@ func isDeckhouseCRD(data map[interface{}]interface{}) bool {
 	return false
 }
 
-func (fp fileParser) parseForWrongKeys(m map[interface{}]interface{}) {
+func (fp fileParser) parseForWrongKeys(m map[any]any) {
 	keysValidator := validators.NewKeyNameValidator()
 	err := keysValidator.Run(fp.fileName, "allfile", m)
 	if err != nil {
@@ -232,7 +180,7 @@ func (fp fileParser) parseForWrongKeys(m map[interface{}]interface{}) {
 	}
 }
 
-func runFileParser(fileName string, data map[interface{}]interface{}, resultC chan error) {
+func runFileParser(fileName string, data map[any]any, resultC chan error) {
 	// exclude external CRDs
 	if isCRD(data) && !isDeckhouseCRD(data) {
 		close(resultC)
@@ -254,7 +202,7 @@ func runFileParser(fileName string, data map[interface{}]interface{}, resultC ch
 	go parser.startParsing(data, resultC)
 }
 
-func (fp fileParser) startParsing(m map[interface{}]interface{}, resultC chan error) {
+func (fp fileParser) startParsing(m map[any]any, resultC chan error) {
 	for k, v := range m {
 		fp.parseValue(k.(string), v)
 	}
@@ -262,7 +210,7 @@ func (fp fileParser) startParsing(m map[interface{}]interface{}, resultC chan er
 	close(resultC)
 }
 
-func (fp fileParser) parseMap(upperKey string, m map[interface{}]interface{}) {
+func (fp fileParser) parseMap(upperKey string, m map[any]any) {
 	for k, v := range m {
 		absKey := fmt.Sprintf("%s.%s", upperKey, k)
 		if key, ok := k.(string); ok {
@@ -277,13 +225,13 @@ func (fp fileParser) parseMap(upperKey string, m map[interface{}]interface{}) {
 	}
 }
 
-func (fp fileParser) parseSlice(upperKey string, slc []interface{}) {
+func (fp fileParser) parseSlice(upperKey string, slc []any) {
 	for k, v := range slc {
 		fp.parseValue(fmt.Sprintf("%s[%d]", upperKey, k), v)
 	}
 }
 
-func (fp fileParser) parseValue(upperKey string, v interface{}) {
+func (fp fileParser) parseValue(upperKey string, v any) {
 	if v == nil {
 		return
 	}
@@ -291,12 +239,12 @@ func (fp fileParser) parseValue(upperKey string, v interface{}) {
 
 	switch typ {
 	case reflect.Map:
-		fp.parseMap(upperKey, v.(map[interface{}]interface{}))
+		fp.parseMap(upperKey, v.(map[any]any))
 	case reflect.Slice:
-		fp.parseSlice(upperKey, v.([]interface{}))
+		fp.parseSlice(upperKey, v.([]any))
 	}
 }
 
 type validator interface {
-	Run(fileName, absoulteKey string, value interface{}) error
+	Run(fileName, absoulteKey string, value any) error
 }

@@ -255,7 +255,7 @@ func (en EnumValidator) validateEnumValues(enumKey string, values []string) *mul
 	return res
 }
 
-func (en EnumValidator) validateEnumValue(value string) error {
+func (EnumValidator) validateEnumValue(value string) error {
 	if value == "" {
 		return nil
 	}

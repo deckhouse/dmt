@@ -1,31 +1,21 @@
 package openapi
 
 import (
-	"fmt"
+	"context"
 	"strings"
-	"testing"
 
-	"github.com/hashicorp/go-multierror"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/deckhouse/d8-lint/pkg/errors"
+	"github.com/deckhouse/d8-lint/pkg/manager"
 )
 
-func ValidateOpenAPI(path string) error {
-	apiFiles, err := GetOpenAPIYAMLFiles(path)
+// OpenAPI linter
+type OpenAPI struct{}
+
+func (*OpenAPI) Run(_ context.Context, m manager.Module) (errors.LintRuleErrorsList, error) {
+	apiFiles, err := GetOpenAPIYAMLFiles(m.Path)
 	if err != nil {
-		return err
+		return errors.LintRuleErrorsList{}, err
 	}
-
-	resultC := RunOpenAPIValidator(path, apiFiles)
-
-	for result := range resultC {
-		assert.NoError(t, result.validationError, "File '%s' has invalid spec", strings.TrimPrefix(result.filePath, deckhousePath))
-	}
-}
-
-// TestValidators test that validation hooks are working
-func TestValidators(t *testing.T) {
-	apiFiles := []string{deckhousePath + "testing/openapi_validation/openapi_testdata/values.yaml"}
 
 	filesC := make(chan fileValidation, len(apiFiles))
 	resultC := RunOpenAPIValidator(filesC)
@@ -33,56 +23,30 @@ func TestValidators(t *testing.T) {
 	for _, apiFile := range apiFiles {
 		filesC <- fileValidation{
 			filePath: apiFile,
+			rootPath: m.Path,
 		}
 	}
 	close(filesC)
 
+	var result errors.LintRuleErrorsList
 	for res := range resultC {
-		assert.Error(t, res.validationError)
-		err, ok := res.validationError.(*multierror.Error)
-		require.True(t, ok)
-		require.Len(t, err.Errors, 6)
-
-		// we can't guarantee order here, thats why test contains
-		assert.Contains(t, res.validationError.Error(), "properties.https is invalid: must have no default value")
-		assert.Contains(t, res.validationError.Error(), "Enum 'properties.https.properties.mode.enum' is invalid: value 'disabled' must start with Capital letter")
-		assert.Contains(t, res.validationError.Error(), "Enum 'properties.https.properties.mode.enum' is invalid: value: 'Cert-Manager' must be in CamelCase")
-		assert.Contains(t, res.validationError.Error(), "Enum 'properties.https.properties.mode.enum' is invalid: value: 'Some:Thing' must be in CamelCase")
-		assert.Contains(t, res.validationError.Error(), "Enum 'properties.https.properties.mode.enum' is invalid: value: 'Any.Thing' must be in CamelCase")
-		assert.Contains(t, res.validationError.Error(), "properties.highAvailability is invalid: must have no default value")
-	}
-}
-
-func TestCRDValidators(t *testing.T) {
-	apiFiles := []string{deckhousePath + "testing/openapi_validation/openapi_testdata/crd.yaml"}
-
-	filesC := make(chan fileValidation, len(apiFiles))
-	resultC := RunOpenAPIValidator(filesC)
-
-	for _, apiFile := range apiFiles {
-		filesC <- fileValidation{
-			filePath: apiFile,
+		if res.validationError != nil {
+			result.Add(errors.LintRuleError{
+				Text:     res.validationError.Error(),
+				ID:       "openapi",
+				ObjectID: strings.TrimPrefix(res.filePath, m.Path),
+				Value:    res.validationError,
+			})
 		}
 	}
-	close(filesC)
 
-	for res := range resultC {
-		assert.Error(t, res.validationError)
-		err, ok := res.validationError.(*multierror.Error)
-		require.True(t, ok)
-		require.Len(t, err.Errors, 1)
-
-		// we can't guarantee order here, thats why test contains
-		assert.Contains(t, res.validationError.Error(), "file validation error: wrong property")
-	}
+	return errors.LintRuleErrorsList{}, nil
 }
 
-func TestModulesVersionsValidation(t *testing.T) {
-	mv, err := modulesVersions(deckhousePath)
-	require.NoError(t, err)
-	for m, v := range mv {
-		message := fmt.Sprintf("conversions version(%d) and spec version(%d) for module %s are not equal",
-			v.conversionsVersion, v.specVersion, m)
-		assert.Equal(t, true, v.conversionsVersion == v.specVersion, message)
-	}
+func (*OpenAPI) Name() string {
+	return "OpenAPI Linter"
+}
+
+func (*OpenAPI) Desc() string {
+	return "OpenAPI will check all openapi files in the module"
 }
