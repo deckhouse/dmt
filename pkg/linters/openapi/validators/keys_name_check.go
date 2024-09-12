@@ -60,15 +60,9 @@ func (KeyNameValidator) Run(file, _ string, value any) error {
 		return fmt.Errorf("not map")
 	}
 	for _, key := range rv.MapKeys() {
-		value := rv.MapIndex(key)
-		m[key.Interface()] = value.Interface()
+		v := rv.MapIndex(key)
+		m[key.Interface()] = v.Interface()
 	}
-
-	//object, ok := value.(map[any]any)
-	//if !ok {
-	//	logger.ErrorF("Possible Bug? Have to be a map. Type: %s, Value: %s, File: %s", reflect.TypeOf(value), value, file)
-	//	return nil
-	//}
 
 	err := checkMapForBannedKey(m, bannedNames)
 	if err != nil {

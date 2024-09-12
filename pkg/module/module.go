@@ -8,7 +8,6 @@ import (
 
 	"gopkg.in/yaml.v3"
 	"helm.sh/helm/v3/pkg/chart"
-	"helm.sh/helm/v3/pkg/chart/loader"
 )
 
 const (
@@ -35,11 +34,12 @@ func NewModule(path string) *Module {
 		Path:      path,
 	}
 
-	var err error
-	module.Chart, err = loader.Load(path)
-	if err != nil {
-		return &Module{}
-	}
+	//var err error
+	//module.Chart, err = loader.Load(path)
+	//if err != nil {
+	//	logger.ErrorF("Failed to load module %s: %s\n", module.Name, err)
+	//	return &Module{}
+	//}
 
 	return module
 }

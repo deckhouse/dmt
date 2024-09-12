@@ -55,3 +55,9 @@ func (s *CustomLinterSettings) Validate() error {
 
 	return nil
 }
+
+type OpenAPISettings struct {
+	Exclude              []string `mapstructure:"exclude"`
+	UseBuiltinExclusions bool     `mapstructure:"use-builtin-exclusions"`
+	IgnoreTest           bool     `mapstructure:"ignore-test"`
+}

@@ -48,7 +48,7 @@ func (*OpenAPI) Run(_ context.Context, m *module.Module) (errors.LintRuleErrorsL
 }
 
 func (*OpenAPI) Name() string {
-	return "OpenAPI Linter"
+	return "openapi"
 }
 
 func (*OpenAPI) Desc() string {

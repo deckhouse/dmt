@@ -22,12 +22,6 @@ func NewHAValidator() HAValidator {
 }
 
 func (HAValidator) Run(file, absoluteKey string, value any) error {
-	//values, ok := value.(map[string]any)
-	//if !ok {
-	//	logger.ErrorF("Possible Bug? Have to be a map. Type: %s, Value: %s, File: %s, Key: %s", reflect.TypeOf(value), value, file, absoluteKey)
-	//	return nil
-	//}
-
 	m := make(map[any]any)
 	rv := reflect.ValueOf(value)
 	if rv.Kind() != reflect.Map {
@@ -35,8 +29,8 @@ func (HAValidator) Run(file, absoluteKey string, value any) error {
 		return fmt.Errorf("not map")
 	}
 	for _, key := range rv.MapKeys() {
-		value := rv.MapIndex(key)
-		m[key.Interface()] = value.Interface()
+		v := rv.MapIndex(key)
+		m[key.Interface()] = v.Interface()
 	}
 
 	for key := range m {

@@ -14,16 +14,16 @@ func main() {
 	dirs := parseFlags()
 	logger.InfoF("Dirs: %v", dirs)
 
-	cfg := config.NewDefault()
-	err := config.NewLoader(cfg).Load()
+	cfg, err := config.NewDefault()
 	logger.CheckErr(err)
 
-	mng := manager.NewManager(dirs)
-	// for i := range mng.Modules {
-	// 	logger.InfoF("module[%d]: %s", i, mng.Modules[i])
-	// }
+	logger.InfoF("Config: %#v", cfg)
+	mng := manager.NewManager(dirs, cfg)
+	for i := range mng.Modules {
+		logger.InfoF("module[%d]: %s", i, mng.Modules[i])
+	}
 
 	result := mng.Run()
-	fmt.Printf("%v\n", result.ConvertToError())
+	fmt.Printf("%v\n", result)
 	logger.CheckErr(result.ConvertToError())
 }

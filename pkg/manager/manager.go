@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/mitchellh/go-homedir"
 
+	"github.com/deckhouse/d8-lint/pkg/config"
 	"github.com/deckhouse/d8-lint/pkg/errors"
 	"github.com/deckhouse/d8-lint/pkg/linters/openapi"
 	"github.com/deckhouse/d8-lint/pkg/logger"
@@ -19,16 +21,26 @@ const (
 )
 
 type Manager struct {
+	cfg     *config.Config
 	Linters LinterList
 	Modules module.ModuleList
+
+	lintersMap map[string]Linter
 }
 
-func NewManager(dirs []string) *Manager {
-	m := &Manager{}
+func NewManager(dirs []string, cfg *config.Config) *Manager {
+	m := &Manager{
+		cfg: cfg,
+	}
 
 	// TODO check enabled linters
 	m.Linters = []Linter{
 		openapi.New(),
+	}
+
+	lintersMap := make(map[string]Linter)
+	for _, linter := range m.Linters {
+		lintersMap[strings.ToLower(linter.Name())] = linter
 	}
 
 	var paths []string
@@ -36,20 +48,21 @@ func NewManager(dirs []string) *Manager {
 	for i := range dirs {
 		dir, err := homedir.Expand(dirs[i])
 		if err != nil {
+			logger.ErrorF("Failed to expand home dir: %v", err)
 			continue
 		}
 		result, err := getModulePaths(dir)
 		if err != nil {
-			continue
+			logger.ErrorF("Error getting module paths: %v", err)
 		}
 		paths = append(paths, result...)
 	}
 
 	for i := range paths {
 		mdl := module.NewModule(paths[i])
-		if mdl.Chart == nil {
-			continue
-		}
+		//if mdl.Chart == nil {
+		//	continue
+		//}
 		m.Modules = append(m.Modules, mdl)
 	}
 
@@ -115,4 +128,36 @@ func getModulePaths(modulesDir string) ([]string, error) {
 	}
 
 	return chartDirs, nil
+}
+
+func (m *Manager) getEnabledLinters() LinterList {
+	resultLintersSet := map[string]Linter{}
+	switch {
+	case m.cfg.Linters.DisableAll:
+		// no default linters
+	case m.cfg.Linters.EnableAll:
+		resultLintersSet = m.lintersMap
+	default:
+		resultLintersSet = m.lintersMap
+	}
+
+	for _, name := range m.cfg.Linters.Enable {
+		if m.lintersMap[name] == nil {
+			continue
+		}
+		resultLintersSet[name] = m.lintersMap[name]
+	}
+
+	for _, name := range m.cfg.Linters.Disable {
+		if m.lintersMap[name] == nil {
+			continue
+		}
+		delete(resultLintersSet, name)
+	}
+	result := make(LinterList, 0)
+	for _, linter := range resultLintersSet {
+		result = append(result, linter)
+	}
+
+	return result
 }
