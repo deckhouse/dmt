@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/deckhouse/d8-lint/pkg/config"
 	"github.com/deckhouse/d8-lint/pkg/linters/openapi/validators"
 
 	"github.com/hashicorp/go-multierror"
@@ -74,7 +75,7 @@ func GetOpenAPIYAMLFiles(rootPath string) ([]string, error) {
 }
 
 // RunOpenAPIValidator runs validator, get channel with file paths and returns channel with results
-func RunOpenAPIValidator(fileC chan fileValidation) chan fileValidation {
+func RunOpenAPIValidator(fileC chan fileValidation, cfg *config.OpenAPISettings) chan fileValidation {
 	resultC := make(chan fileValidation, 1)
 
 	go func() {
@@ -87,7 +88,7 @@ func RunOpenAPIValidator(fileC chan fileValidation) chan fileValidation {
 				continue
 			}
 
-			runFileParser(vfile.filePath, yamlStruct, parseResultC)
+			runFileParser(vfile.filePath, yamlStruct, cfg, parseResultC)
 
 			var result *multierror.Error
 
@@ -176,15 +177,15 @@ func isDeckhouseCRD(data map[any]any) bool {
 	return false
 }
 
-func (fp fileParser) parseForWrongKeys(m map[any]any) {
-	keysValidator := validators.NewKeyNameValidator()
+func (fp fileParser) parseForWrongKeys(m map[any]any, cfg *config.OpenAPISettings) {
+	keysValidator := validators.NewKeyNameValidator(cfg)
 	err := keysValidator.Run(fp.fileName, "allfile", m)
 	if err != nil {
 		fp.resultC <- err
 	}
 }
 
-func runFileParser(fileName string, data map[any]any, resultC chan error) {
+func runFileParser(fileName string, data map[any]any, cfg *config.OpenAPISettings, resultC chan error) {
 	// exclude external CRDs
 	if isCRD(data) && !isDeckhouseCRD(data) {
 		close(resultC)
@@ -194,14 +195,14 @@ func runFileParser(fileName string, data map[any]any, resultC chan error) {
 	parser := fileParser{
 		fileName: fileName,
 		keyValidators: map[string]validator{
-			"enum":             validators.NewEnumValidator(),
-			"highAvailability": validators.NewHAValidator(),
-			"https":            validators.NewHAValidator(),
+			"enum":             validators.NewEnumValidator(cfg),
+			"highAvailability": validators.NewHAValidator(cfg),
+			"https":            validators.NewHAValidator(cfg),
 		},
 		resultC: resultC,
 	}
 	if isDeckhouseCRD(data) {
-		parser.parseForWrongKeys(data)
+		parser.parseForWrongKeys(data, cfg)
 	}
 	go parser.startParsing(data, resultC)
 }

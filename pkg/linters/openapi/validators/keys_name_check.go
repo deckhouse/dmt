@@ -4,18 +4,18 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/deckhouse/d8-lint/pkg/config"
 	"github.com/deckhouse/d8-lint/pkg/logger"
 )
 
-var (
-	bannedNames = []string{"x-examples", "examples", "example"}
-)
-
 type KeyNameValidator struct {
+	bannedNames []string
 }
 
-func NewKeyNameValidator() KeyNameValidator {
-	return KeyNameValidator{}
+func NewKeyNameValidator(cfg *config.OpenAPISettings) KeyNameValidator {
+	return KeyNameValidator{
+		bannedNames: cfg.KeyBannedNames,
+	}
 }
 
 func checkMapForBannedKey(m map[any]any, banned []string) error {
@@ -52,7 +52,7 @@ func checkMapForBannedKey(m map[any]any, banned []string) error {
 	return nil
 }
 
-func (KeyNameValidator) Run(file, _ string, value any) error {
+func (kn KeyNameValidator) Run(file, _ string, value any) error {
 	m := make(map[any]any)
 	rv := reflect.ValueOf(value)
 	if rv.Kind() != reflect.Map {
@@ -64,7 +64,7 @@ func (KeyNameValidator) Run(file, _ string, value any) error {
 		m[key.Interface()] = v.Interface()
 	}
 
-	err := checkMapForBannedKey(m, bannedNames)
+	err := checkMapForBannedKey(m, kn.bannedNames)
 	if err != nil {
 		return fmt.Errorf("%s file validation error: wrong property: %w", file, err)
 	}

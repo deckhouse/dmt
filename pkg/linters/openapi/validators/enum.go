@@ -7,6 +7,8 @@ import (
 	"unicode"
 
 	"github.com/hashicorp/go-multierror"
+
+	"github.com/deckhouse/d8-lint/pkg/config"
 )
 
 var (
@@ -15,12 +17,13 @@ var (
 
 type EnumValidator struct {
 	key      string
-	excludes map[string]struct{}
+	excludes map[string][]string
 }
 
-func NewEnumValidator() EnumValidator {
+func NewEnumValidator(cfg *config.OpenAPISettings) EnumValidator {
 	return EnumValidator{
-		key: "enum",
+		key:      "enum",
+		excludes: cfg.EnumFileExcludes,
 	}
 }
 

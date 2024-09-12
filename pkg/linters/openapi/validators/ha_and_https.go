@@ -4,24 +4,21 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/deckhouse/d8-lint/pkg/config"
 	"github.com/deckhouse/d8-lint/pkg/logger"
 )
 
-var (
-	absoluteKeysExcludes = map[string]string{
-		"modules/150-user-authn/openapi/config-values.yaml": "properties.publishAPI.properties.https",
-		"global-hooks/openapi/config-values.yaml":           "properties.modules.properties.https",
-	}
-)
-
 type HAValidator struct {
+	absoluteKeysExcludes map[string]string
 }
 
-func NewHAValidator() HAValidator {
-	return HAValidator{}
+func NewHAValidator(cfg *config.OpenAPISettings) HAValidator {
+	return HAValidator{
+		absoluteKeysExcludes: cfg.HAAbsoluteKeysExcludes,
+	}
 }
 
-func (HAValidator) Run(file, absoluteKey string, value any) error {
+func (ha HAValidator) Run(file, absoluteKey string, value any) error {
 	m := make(map[any]any)
 	rv := reflect.ValueOf(value)
 	if rv.Kind() != reflect.Map {
@@ -35,7 +32,7 @@ func (HAValidator) Run(file, absoluteKey string, value any) error {
 
 	for key := range m {
 		if key == "default" {
-			if absoluteKeysExcludes[file] == absoluteKey {
+			if ha.absoluteKeysExcludes[file] == absoluteKey {
 				continue
 			}
 			return fmt.Errorf("%s is invalid: must have no default value", absoluteKey)

@@ -5,7 +5,15 @@ import (
 	"fmt"
 )
 
-var defaultLintersSettings = LintersSettings{}
+var defaultLintersSettings = LintersSettings{
+	OpenAPI: OpenAPISettings{
+		EnumFileExcludes: nil,
+		HAAbsoluteKeysExcludes: map[string]string{
+			"modules/150-user-authn/openapi/config-values.yaml": "properties.publishAPI.properties.https",
+		},
+		KeyBannedNames: []string{"x-examples", "examples", "example"},
+	},
+}
 
 type LintersSettings struct {
 	OpenAPI OpenAPISettings

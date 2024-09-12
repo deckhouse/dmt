@@ -23,14 +23,14 @@ func New(cfg *config.OpenAPISettings) *OpenAPI {
 	}
 }
 
-func (*OpenAPI) Run(_ context.Context, m *module.Module) (errors.LintRuleErrorsList, error) {
+func (o *OpenAPI) Run(_ context.Context, m *module.Module) (errors.LintRuleErrorsList, error) {
 	apiFiles, err := GetOpenAPIYAMLFiles(m.Path)
 	if err != nil {
 		return errors.LintRuleErrorsList{}, err
 	}
 
 	filesC := make(chan fileValidation, len(apiFiles))
-	resultC := RunOpenAPIValidator(filesC)
+	resultC := RunOpenAPIValidator(filesC, o.cfg)
 
 	for _, apiFile := range apiFiles {
 		filesC <- fileValidation{
@@ -52,7 +52,7 @@ func (*OpenAPI) Run(_ context.Context, m *module.Module) (errors.LintRuleErrorsL
 		}
 	}
 
-	return errors.LintRuleErrorsList{}, nil
+	return result, nil
 }
 
 func (o *OpenAPI) Name() string {
