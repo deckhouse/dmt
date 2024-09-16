@@ -1,8 +1,6 @@
 package openapi
 
 import (
-	"strings"
-
 	"github.com/deckhouse/d8-lint/pkg/config"
 	"github.com/deckhouse/d8-lint/pkg/errors"
 	"github.com/deckhouse/d8-lint/pkg/module"
@@ -48,10 +46,9 @@ func (o *OpenAPI) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 	var result errors.LintRuleErrorsList
 	for res := range resultC {
 		if res.validationError != nil {
-			path, _ := strings.CutPrefix(res.filePath, res.rootPath)
 			result.Add(errors.NewLintRuleError(
 				"openapi",
-				path,
+				res.filePath,
 				res.validationError,
 				"errors in `%s` module",
 				m.GetName(),

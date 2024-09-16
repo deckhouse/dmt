@@ -119,7 +119,7 @@ var defaultLintersSettings = LintersSettings{
 			},
 		},
 		HAAbsoluteKeysExcludes: map[string]string{
-			"modules/150-user-authn/openapi/config-values.yaml": "properties.publishAPI.properties.https",
+			"user-authn:/openapi/config-values.yaml": "properties.publishAPI.properties.https",
 		},
 		KeyBannedNames: []string{"x-examples", "examples", "example"},
 	},

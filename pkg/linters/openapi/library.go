@@ -86,8 +86,8 @@ func RunOpenAPIValidator(fileC chan fileValidation, cfg *config.OpenAPISettings)
 			if yamlStruct == nil {
 				continue
 			}
-
-			runFileParser(vfile.moduleName, vfile.filePath, yamlStruct, cfg, parseResultC)
+			path, _ := strings.CutPrefix(vfile.filePath, vfile.rootPath)
+			runFileParser(vfile.moduleName, path, yamlStruct, cfg, parseResultC)
 
 			var result *multierror.Error
 
@@ -103,7 +103,7 @@ func RunOpenAPIValidator(fileC chan fileValidation, cfg *config.OpenAPISettings)
 			}
 			resultC <- fileValidation{
 				moduleName:      vfile.moduleName,
-				filePath:        vfile.filePath,
+				filePath:        path,
 				rootPath:        vfile.rootPath,
 				validationError: resultErr,
 			}

@@ -18,7 +18,7 @@ func NewHAValidator(cfg *config.OpenAPISettings) HAValidator {
 	}
 }
 
-func (ha HAValidator) Run(_, file, absoluteKey string, value any) error {
+func (ha HAValidator) Run(moduleName, file, absoluteKey string, value any) error {
 	m := make(map[any]any)
 	rv := reflect.ValueOf(value)
 	if rv.Kind() != reflect.Map {
@@ -32,7 +32,7 @@ func (ha HAValidator) Run(_, file, absoluteKey string, value any) error {
 
 	for key := range m {
 		if key == "default" {
-			if ha.absoluteKeysExcludes[file] == absoluteKey {
+			if ha.absoluteKeysExcludes[moduleName+":"+file] == absoluteKey {
 				continue
 			}
 			return fmt.Errorf("%s is invalid: must have no default value", absoluteKey)
