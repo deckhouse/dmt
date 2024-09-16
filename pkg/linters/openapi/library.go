@@ -64,8 +64,8 @@ func GetOpenAPIYAMLFiles(rootPath string) ([]string, error) {
 		default:
 			return nil
 		}
-
-		result = append(result, path)
+		p, _ := strings.CutPrefix(path, rootPath)
+		result = append(result, p)
 
 		return nil
 	})
@@ -80,14 +80,12 @@ func RunOpenAPIValidator(fileC chan fileValidation, cfg *config.OpenAPISettings)
 	go func() {
 		for vfile := range fileC {
 			parseResultC := make(chan error, parserConcurrentCount)
-
-			yamlStruct := getFileYAMLContent(vfile.filePath)
+			yamlStruct := getFileYAMLContent(filepath.Join(vfile.rootPath, vfile.filePath))
 
 			if yamlStruct == nil {
 				continue
 			}
-			path, _ := strings.CutPrefix(vfile.filePath, vfile.rootPath)
-			runFileParser(vfile.moduleName, path, yamlStruct, cfg, parseResultC)
+			runFileParser(vfile.moduleName, vfile.filePath, yamlStruct, cfg, parseResultC)
 
 			var result *multierror.Error
 
@@ -103,7 +101,7 @@ func RunOpenAPIValidator(fileC chan fileValidation, cfg *config.OpenAPISettings)
 			}
 			resultC <- fileValidation{
 				moduleName:      vfile.moduleName,
-				filePath:        path,
+				filePath:        vfile.filePath,
 				rootPath:        vfile.rootPath,
 				validationError: resultErr,
 			}
