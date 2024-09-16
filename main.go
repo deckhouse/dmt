@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/deckhouse/d8-lint/pkg/config"
 	"github.com/deckhouse/d8-lint/pkg/logger"
@@ -26,4 +27,8 @@ func main() {
 	result := mng.Run()
 	fmt.Printf("%v\n", result)
 	logger.CheckErr(result.ConvertToError())
+
+	if result.ConvertToError() != nil {
+		os.Exit(1)
+	}
 }
