@@ -17,12 +17,7 @@ func main() {
 	cfg, err := config.NewDefault()
 	logger.CheckErr(err)
 
-	//logger.InfoF("Config: %#v", cfg)
 	mng := manager.NewManager(dirs, cfg)
-	//for i := range mng.Modules {
-	//	logger.InfoF("module[%d]: %s", i, mng.Modules[i])
-	//}
-
 	result := mng.Run()
 	fmt.Printf("%s\n", result.ConvertToError())
 }
