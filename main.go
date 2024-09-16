@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/deckhouse/d8-lint/pkg/config"
 	"github.com/deckhouse/d8-lint/pkg/logger"
@@ -19,5 +20,8 @@ func main() {
 
 	mng := manager.NewManager(dirs, cfg)
 	result := mng.Run()
-	fmt.Printf("%s\n", result.ConvertToError())
+	if result.ConvertToError() != nil {
+		fmt.Printf("%s\n", result.ConvertToError())
+		os.Exit(1)
+	}
 }

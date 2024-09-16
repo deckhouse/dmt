@@ -46,7 +46,7 @@ func (en EnumValidator) Run(moduleName, fileName, absoluteKey string, value any)
 	// check for slice path with wildcard
 	index := arrayPathRegex.FindString(absoluteKey)
 	if index != "" {
-		wildcardKey := strings.ReplaceAll(absoluteKey, index, "[*]")
+		wildcardKey := strings.ReplaceAll(absoluteKey, index, "*")
 		if _, ok := en.excludes[wildcardKey]; ok {
 			// excluding key with wildcard
 			return nil
