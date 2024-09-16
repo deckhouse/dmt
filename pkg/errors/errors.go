@@ -77,9 +77,10 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 		))
 
 		if err.Value != nil {
-			builder.WriteString(fmt.Sprintf("\tValue\t- %v\n", err.Value))
+			builder.WriteString(fmt.Sprintf("\tValue\t- %s\n", err.Value))
 		}
 		builder.WriteString("\n")
 	}
+
 	return errors.New(builder.String())
 }

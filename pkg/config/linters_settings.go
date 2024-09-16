@@ -7,7 +7,117 @@ import (
 
 var defaultLintersSettings = LintersSettings{
 	OpenAPI: OpenAPISettings{
-		EnumFileExcludes: nil,
+		// EnumFileExcludes contains map with key string contained module name and file path separated by :
+		EnumFileExcludes: map[string][]string{
+			// all files
+			"*": {"apiVersions[*].openAPISpec.properties.apiVersion"},
+			"user-authn-crd:/crds/dex-provider.yaml": {
+				// v1alpha1 migrated to v1
+				"spec.versions[0].schema.openAPIV3Schema.properties.spec.properties.github.properties.teamNameField",
+			},
+			"prometheus-crd:/crds/grafanaadditionaldatasources.yaml": {
+				// v1alpha1 migrated to v1
+				"spec.versions[0].schema.openAPIV3Schema.properties.spec.properties.access",
+			},
+			"admission-policy-engine:/crds/operation-policy.yaml": {
+				// probes are inherited from Kubernetes
+				"spec.versions[0].schema.openAPIV3Schema.properties.spec.properties.policies.properties.requiredProbes.items",
+				// requests and limits are cpu and memory, they are taken from kubernetes
+				"spec.versions[0].schema.openAPIV3Schema.properties.spec.properties.policies.properties.requiredResources.properties.requests.items",
+				"spec.versions[0].schema.openAPIV3Schema.properties.spec.properties.policies.properties.requiredResources.properties.limits.items",
+			},
+			"admission-policy-engine:/crds/security-policy.yaml": {
+				// volumes are inherited from kubernetes
+				"spec.versions[0].schema.openAPIV3Schema.properties.spec.properties.policies.properties.allowedVolumes.items",
+				// capabilities names are hardcoded, it's not ours
+				"spec.versions[0].schema.openAPIV3Schema.properties.spec.properties.policies.properties.allowedCapabilities.items",
+				"spec.versions[0].schema.openAPIV3Schema.properties.spec.properties.policies.properties.requiredDropCapabilities.items",
+			},
+			"admission-policy-engine:/openapi/values.yaml": {
+				// enforcement actions are discovered from label values and should be propagated further into the helm chart as is
+				"properties.internal.properties.podSecurityStandards.properties.enforcementActions.items",
+			},
+			"cloud-provider-azure:/openapi/config-values.yaml": {
+				// ignore Azure disk types
+				"properties.storageClass.properties.provision.items.properties.type",
+				"properties.storageClass.properties.provision.items.oneOf[*].properties.type",
+			},
+			"cloud-provider-aws:/openapi/config-values.yaml": {
+				// ignore AWS disk types
+				"properties.storageClass.properties.provision.items.properties.type",
+				"properties.storageClass.properties.provision.items.oneOf[*].properties.type",
+			},
+			"cloud-provider-openstack:/openapi/values.yaml": {
+				// ignore internal values
+				"properties.internal.properties.discoveryData.properties.apiVersion",
+			},
+			"cloud-provider-aws:/openapi/values.yaml": {
+				// ignore AWS disk types
+				"properties.internal.properties.storageClasses.items.oneOf[*].properties.type",
+			},
+			"cloud-provider-vsphere:/openapi/config-values.yaml": {
+				// ignore temporary flag that is already used (will be deleted after all CSIs are migrated)
+				"properties.storageClass.properties.compatibilityFlag",
+			},
+			"cloud-provider-vsphere:/openapi/values.yaml": {
+				// ignore internal values
+				"properties.internal.properties.providerDiscoveryData.properties.apiVersion",
+				"properties.internal.properties.providerClusterConfiguration.properties.apiVersion",
+			},
+			"cloud-provider-vcd:/openapi/values.yaml": {
+				// ignore internal values
+				"properties.internal.properties.discoveryData.properties.apiVersion",
+				"properties.internal.properties.providerDiscoveryData.properties.apiVersion",
+				"properties.internal.properties.providerClusterConfiguration.properties.apiVersion",
+			},
+			"cloud-provider-zvirt:/openapi/values.yaml": {
+				// ignore internal values
+				"properties.internal.properties.providerClusterConfiguration.properties.apiVersion",
+				"properties.internal.properties.providerDiscoveryData.properties.apiVersion",
+			},
+			"cloud-provider-yandex:/openapi/values.yaml": {
+				// ignore internal values
+				"properties.internal.properties.providerDiscoveryData.properties.apiVersion",
+				"properties.internal.properties.providerClusterConfiguration.properties.apiVersion",
+				"properties.internal.properties.providerClusterConfiguration.properties.zones.items",
+				"properties.internal.properties.providerClusterConfiguration.properties.nodeGroups.items.properties.zones.items",
+				"properties.internal.properties.providerClusterConfiguration.properties.masterNodeGroup.properties.zones.items",
+			},
+			"cni-flannel:/openapi/values.yaml": {
+				// ignore internal values
+				"properties.internal.properties.podNetworkMode",
+			},
+			"node-manager:/openapi/config-values.yaml": {
+				// ignore internal values
+				"properties.allowedBundles.items",
+			},
+			"kube-dns:/openapi/values.yaml": {
+				// ignore internal values
+				"properties.internal.properties.specificNodeType",
+			},
+			"prometheus:/openapi/values.yaml": {
+				// grafana constant in internal values
+				"properties.internal.properties.grafana.properties.alertsChannelsConfig.properties.notifiers.items.properties.type",
+			},
+			"ingress-nginx:/crds/ingress-nginx.yaml": {
+				// GeoIP base constants: GeoIP2-ISP, GeoIP2-ASN, ...
+				"spec.versions[*].schema.openAPIV3Schema.properties.spec.properties.geoIP2.properties.maxmindEditionIDs.items",
+			},
+			"ceph-csi:/crds/cephcsi.yaml": {
+				// ignore file system names: ext4, xfs, etc.
+				"properties.internal.properties.crs.items.properties.spec.properties.rbd.properties.storageClasses.items.properties.defaultFSType",
+				"spec.versions[*].schema.openAPIV3Schema.properties.spec.properties.rbd.properties.storageClasses.items.properties.defaultFSType",
+			},
+			"ceph-csi:/openapi/values.yaml": {
+				// ignore file system names: ext4, xfs, etc.
+				"properties.internal.properties.crs.items.properties.spec.properties.rbd.properties.storageClasses.items.properties.defaultFSType",
+				"spec.versions[*].schema.openAPIV3Schema.properties.spec.properties.rbd.properties.storageClasses.items.properties.defaultFSType",
+			},
+			"metallb:/openapi/config-values.yaml": {
+				// ignore enum values
+				"properties.addressPools.items.properties.protocol",
+			},
+		},
 		HAAbsoluteKeysExcludes: map[string]string{
 			"modules/150-user-authn/openapi/config-values.yaml": "properties.publishAPI.properties.https",
 		},
@@ -66,6 +176,7 @@ func (s *CustomLinterSettings) Validate() error {
 }
 
 type OpenAPISettings struct {
+	// EnumFileExcludes contains map with key string contained module name and file path separated by :
 	EnumFileExcludes       map[string][]string `mapstructure:"enum-file-excludes"`
 	HAAbsoluteKeysExcludes map[string]string   `mapstructure:"ha-absolute-keys-excludes"`
 	KeyBannedNames         []string            `mapstructure:"key-banned-names"`

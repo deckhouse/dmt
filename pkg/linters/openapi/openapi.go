@@ -1,7 +1,6 @@
 package openapi
 
 import (
-	"context"
 	"strings"
 
 	"github.com/deckhouse/d8-lint/pkg/config"
@@ -15,6 +14,11 @@ type OpenAPI struct {
 	cfg        *config.OpenAPISettings
 }
 
+type Module interface {
+	GetName() string
+	GetPath() string
+}
+
 func New(cfg *config.OpenAPISettings) *OpenAPI {
 	return &OpenAPI{
 		name: "openapi",
@@ -23,8 +27,8 @@ func New(cfg *config.OpenAPISettings) *OpenAPI {
 	}
 }
 
-func (o *OpenAPI) Run(_ context.Context, m *module.Module) (errors.LintRuleErrorsList, error) {
-	apiFiles, err := GetOpenAPIYAMLFiles(m.Path)
+func (o *OpenAPI) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
+	apiFiles, err := GetOpenAPIYAMLFiles(m.GetPath())
 	if err != nil {
 		return errors.LintRuleErrorsList{}, err
 	}
@@ -34,8 +38,9 @@ func (o *OpenAPI) Run(_ context.Context, m *module.Module) (errors.LintRuleError
 
 	for _, apiFile := range apiFiles {
 		filesC <- fileValidation{
-			filePath: apiFile,
-			rootPath: m.Path,
+			moduleName: m.GetName(),
+			filePath:   apiFile,
+			rootPath:   m.GetPath(),
 		}
 	}
 	close(filesC)
@@ -43,12 +48,14 @@ func (o *OpenAPI) Run(_ context.Context, m *module.Module) (errors.LintRuleError
 	var result errors.LintRuleErrorsList
 	for res := range resultC {
 		if res.validationError != nil {
-			result.Add(errors.LintRuleError{
-				Text:     res.validationError.Error(),
-				ID:       "openapi",
-				ObjectID: strings.TrimPrefix(res.filePath, m.Path),
-				Value:    res.validationError,
-			})
+			path, _ := strings.CutPrefix(res.filePath, res.rootPath)
+			result.Add(errors.NewLintRuleError(
+				"openapi",
+				path,
+				res.validationError,
+				"errors in `%s` module",
+				m.GetName(),
+			))
 		}
 	}
 

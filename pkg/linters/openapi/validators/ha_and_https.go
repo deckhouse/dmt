@@ -18,7 +18,7 @@ func NewHAValidator(cfg *config.OpenAPISettings) HAValidator {
 	}
 }
 
-func (ha HAValidator) Run(file, absoluteKey string, value any) error {
+func (ha HAValidator) Run(moduleName, file, absoluteKey string, value any) error {
 	m := make(map[any]any)
 	rv := reflect.ValueOf(value)
 	if rv.Kind() != reflect.Map {

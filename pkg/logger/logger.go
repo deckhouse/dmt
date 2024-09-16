@@ -13,7 +13,7 @@ var logger *slog.Logger
 func InitLogger() {
 	log.SetOutput(io.Discard)
 	slog.SetLogLoggerLevel(slog.LevelInfo)
-	logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	logger = slog.New(slog.NewTextHandler(os.Stdout, nil))
 }
 
 func InfoF(format string, a ...any) {

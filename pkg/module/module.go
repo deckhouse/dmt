@@ -27,6 +27,14 @@ func (m *Module) String() string {
 	return fmt.Sprintf("{Name: %s, Namespace: %s, Path: %s}", m.Name, m.Namespace, m.Path)
 }
 
+func (m *Module) GetName() string {
+	return m.Name
+}
+
+func (m *Module) GetPath() string {
+	return m.Path
+}
+
 func NewModule(path string) *Module {
 	module := &Module{
 		Name:      getModuleName(path),

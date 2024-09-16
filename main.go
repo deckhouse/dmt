@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/deckhouse/d8-lint/pkg/config"
 	"github.com/deckhouse/d8-lint/pkg/logger"
@@ -18,17 +17,12 @@ func main() {
 	cfg, err := config.NewDefault()
 	logger.CheckErr(err)
 
-	logger.InfoF("Config: %#v", cfg)
+	//logger.InfoF("Config: %#v", cfg)
 	mng := manager.NewManager(dirs, cfg)
-	for i := range mng.Modules {
-		logger.InfoF("module[%d]: %s", i, mng.Modules[i])
-	}
+	//for i := range mng.Modules {
+	//	logger.InfoF("module[%d]: %s", i, mng.Modules[i])
+	//}
 
 	result := mng.Run()
-	fmt.Printf("%v\n", result)
-	logger.CheckErr(result.ConvertToError())
-
-	if result.ConvertToError() != nil {
-		os.Exit(1)
-	}
+	fmt.Printf("%s\n", result.ConvertToError())
 }

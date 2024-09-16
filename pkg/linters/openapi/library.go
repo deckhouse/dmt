@@ -21,10 +21,9 @@ const (
 )
 
 type fileValidation struct {
-	filePath string
-
-	rootPath string
-
+	moduleName      string
+	filePath        string
+	rootPath        string
 	validationError error
 }
 
@@ -88,7 +87,7 @@ func RunOpenAPIValidator(fileC chan fileValidation, cfg *config.OpenAPISettings)
 				continue
 			}
 
-			runFileParser(vfile.filePath, yamlStruct, cfg, parseResultC)
+			runFileParser(vfile.moduleName, vfile.filePath, yamlStruct, cfg, parseResultC)
 
 			var result *multierror.Error
 
@@ -103,7 +102,9 @@ func RunOpenAPIValidator(fileC chan fileValidation, cfg *config.OpenAPISettings)
 				continue
 			}
 			resultC <- fileValidation{
+				moduleName:      vfile.moduleName,
 				filePath:        vfile.filePath,
+				rootPath:        vfile.rootPath,
 				validationError: resultErr,
 			}
 		}
@@ -115,6 +116,7 @@ func RunOpenAPIValidator(fileC chan fileValidation, cfg *config.OpenAPISettings)
 }
 
 type fileParser struct {
+	moduleName    string
 	fileName      string
 	keyValidators map[string]validator
 
@@ -185,7 +187,7 @@ func (fp fileParser) parseForWrongKeys(m map[any]any, cfg *config.OpenAPISetting
 	}
 }
 
-func runFileParser(fileName string, data map[any]any, cfg *config.OpenAPISettings, resultC chan error) {
+func runFileParser(moduleName, fileName string, data map[any]any, cfg *config.OpenAPISettings, resultC chan error) {
 	// exclude external CRDs
 	if isCRD(data) && !isDeckhouseCRD(data) {
 		close(resultC)
@@ -193,7 +195,8 @@ func runFileParser(fileName string, data map[any]any, cfg *config.OpenAPISetting
 	}
 
 	parser := fileParser{
-		fileName: fileName,
+		moduleName: moduleName,
+		fileName:   fileName,
 		keyValidators: map[string]validator{
 			"enum":             validators.NewEnumValidator(cfg),
 			"highAvailability": validators.NewHAValidator(cfg),
@@ -220,7 +223,7 @@ func (fp fileParser) parseMap(upperKey string, m map[any]any) {
 		absKey := fmt.Sprintf("%s.%s", upperKey, k)
 		if key, ok := k.(string); ok {
 			if val, ok := fp.keyValidators[key]; ok {
-				err := val.Run(fp.fileName, absKey, v)
+				err := val.Run(fp.moduleName, fp.fileName, absKey, v)
 				if err != nil {
 					fp.resultC <- err
 				}
@@ -261,5 +264,5 @@ func (fp fileParser) parseValue(upperKey string, v any) {
 }
 
 type validator interface {
-	Run(fileName, absoluteKey string, value any) error
+	Run(moduleName, fileName, absoluteKey string, value any) error
 }

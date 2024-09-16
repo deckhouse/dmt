@@ -1,7 +1,6 @@
 package manager
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -23,7 +22,7 @@ const (
 type Manager struct {
 	cfg     *config.Config
 	Linters LinterList
-	Modules module.ModuleList
+	Modules []*module.Module
 
 	lintersMap map[string]Linter
 }
@@ -73,7 +72,7 @@ func (m *Manager) Run() errors.LintRuleErrorsList {
 
 	for i := range m.Linters {
 		for j := range m.Modules {
-			errs, err := m.Linters[i].Run(context.Background(), m.Modules[j])
+			errs, err := m.Linters[i].Run(m.Modules[j])
 			if err != nil {
 				logger.WarnF("Error running Linter %s: %s\n", m.Linters[i].Name(), err)
 				continue

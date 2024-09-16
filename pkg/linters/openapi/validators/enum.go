@@ -16,18 +16,33 @@ var (
 )
 
 type EnumValidator struct {
+	cfg      *config.OpenAPISettings
 	key      string
-	excludes map[string][]string
+	excludes map[string]struct{}
 }
 
 func NewEnumValidator(cfg *config.OpenAPISettings) EnumValidator {
+	keyExcludes := make(map[string]struct{})
+
+	for _, exc := range cfg.EnumFileExcludes["*"] {
+		keyExcludes[exc+".enum"] = struct{}{}
+	}
+
 	return EnumValidator{
+		cfg:      cfg,
 		key:      "enum",
-		excludes: cfg.EnumFileExcludes,
+		excludes: keyExcludes,
 	}
 }
 
-func (en EnumValidator) Run(_, absoluteKey string, value any) error {
+func (en EnumValidator) Run(moduleName, fileName, absoluteKey string, value any) error {
+	for _, exc := range en.cfg.EnumFileExcludes[moduleName+":"+fileName] {
+		en.excludes[exc+".enum"] = struct{}{}
+	}
+	if _, ok := en.excludes[absoluteKey]; ok {
+		return nil
+	}
+
 	// check for slice path with wildcard
 	index := arrayPathRegex.FindString(absoluteKey)
 	if index != "" {
