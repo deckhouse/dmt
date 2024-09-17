@@ -123,11 +123,29 @@ var defaultLintersSettings = LintersSettings{
 		},
 		KeyBannedNames: []string{"x-examples", "examples", "example"},
 	},
+	NoCyrillic: NoCyrillicSettings{
+		NoCyrillicFileExcludes: map[string]struct{}{
+			"deckhouse:/oss.yaml":                                      {},
+			"user-authn:/images/dex/web/templates/approval.html":       {},
+			"user-authn:/images/dex/web/templates/device.html":         {},
+			"user-authn:/images/dex/web/templates/device_success.html": {},
+			"user-authn:/images/dex/web/templates/login.html":          {},
+			"user-authn:/images/dex/web/templates/oob.html":            {},
+			"user-authn:/images/dex/web/templates/password.html":       {},
+			"documentation:/images/web/modules-docs/hugo.yaml":         {},
+			"documentation:/images/web/site/_data/topnav.yml":          {},
+		},
+		FileExtensions: []string{".yaml", ".yml", ".md", ".txt", ".go", ".sh", ".html"},
+		SkipSelfRe:     `no_cyrillic(_test)?.go$`,
+		SkipDocRe:      `doc-ru-.+\.ya?ml$|_RU\.md$|_ru\.html$|docs/site/_.+|docs/documentation/_.+|tools/spelling/.+`,
+		SkipI18NRe:     `/i18n/`,
+	},
 }
 
 type LintersSettings struct {
-	OpenAPI OpenAPISettings
-	Custom  map[string]CustomLinterSettings
+	OpenAPI    OpenAPISettings
+	NoCyrillic NoCyrillicSettings
+	Custom     map[string]CustomLinterSettings
 }
 
 func (s *LintersSettings) Validate() error {
@@ -180,4 +198,12 @@ type OpenAPISettings struct {
 	EnumFileExcludes       map[string][]string `mapstructure:"enum-file-excludes"`
 	HAAbsoluteKeysExcludes map[string]string   `mapstructure:"ha-absolute-keys-excludes"`
 	KeyBannedNames         []string            `mapstructure:"key-banned-names"`
+}
+
+type NoCyrillicSettings struct {
+	NoCyrillicFileExcludes map[string]struct{} `mapstructure:"no-cyrillic-file-excludes"`
+	FileExtensions         []string            `mapstructure:"file-extensions"`
+	SkipDocRe              string              `mapstructure:"skip-doc-re"`
+	SkipI18NRe             string              `mapstructure:"skip-i18n-re"`
+	SkipSelfRe             string              `mapstructure:"skip-self-re"`
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/deckhouse/d8-lint/pkg/config"
 	"github.com/deckhouse/d8-lint/pkg/linters/openapi/validators"
+	"github.com/deckhouse/d8-lint/pkg/logger"
 
 	"github.com/hashicorp/go-multierror"
 
@@ -123,9 +124,7 @@ type fileParser struct {
 
 func getFileYAMLContent(path string) map[any]any {
 	data, err := os.ReadFile(path)
-	if err != nil {
-		panic(err)
-	}
+	logger.CheckErr(err)
 
 	m := make(map[any]any)
 

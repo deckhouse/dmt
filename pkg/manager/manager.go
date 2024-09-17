@@ -10,6 +10,7 @@ import (
 
 	"github.com/deckhouse/d8-lint/pkg/config"
 	"github.com/deckhouse/d8-lint/pkg/errors"
+	no_cyrillic "github.com/deckhouse/d8-lint/pkg/linters/no-cyrillic"
 	"github.com/deckhouse/d8-lint/pkg/linters/openapi"
 	"github.com/deckhouse/d8-lint/pkg/logger"
 	"github.com/deckhouse/d8-lint/pkg/module"
@@ -35,6 +36,7 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 	// fill all linters
 	m.Linters = []Linter{
 		openapi.New(&cfg.LintersSettings.OpenAPI),
+		no_cyrillic.New(&cfg.LintersSettings.NoCyrillic),
 	}
 
 	m.lintersMap = make(map[string]Linter)
@@ -74,7 +76,7 @@ func (m *Manager) Run() errors.LintRuleErrorsList {
 		for j := range m.Modules {
 			errs, err := m.Linters[i].Run(m.Modules[j])
 			if err != nil {
-				logger.WarnF("Error running Linter %s: %s\n", m.Linters[i].Name(), err)
+				logger.WarnF("Error running linter `%s`: %s\n", m.Linters[i].Name(), err)
 				continue
 			}
 			if errs.ConvertToError() != nil {
@@ -136,7 +138,7 @@ func (m *Manager) getEnabledLinters() LinterList {
 	case m.cfg.Linters.EnableAll:
 		resultLintersSet = m.lintersMap
 	default:
-		resultLintersSet = m.lintersMap
+		//resultLintersSet = m.lintersMap
 	}
 
 	for _, name := range m.cfg.Linters.Enable {
