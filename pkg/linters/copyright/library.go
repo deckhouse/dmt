@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"strings"
 )
 
-var EELicenseRe = regexp.MustCompile(`(?s)Copyright 202[1-9] Flant JSC.*Licensed under the Deckhouse Platform Enterprise Edition \(EE\) license.*See https://github.com/deckhouse/deckhouse/blob/main/ee/LICENSE`)
+var EELicenseRe = regexp.MustCompile(`(?s)Copyright 202[1-9] Flant JSC.*Licensed under the Deckhouse Platform Enterprise Edition \(EE\) license.*See https://github\.com/deckhouse/deckhouse/blob/main/ee/LICENSE`)
 
 var CELicenseRe = regexp.MustCompile(`(?s)[/#{!-]*(\s)*Copyright 202[1-9] Flant JSC[-!}\n#/]*
 [/#{!-]*(\s)*Licensed under the Apache License, Version 2.0 \(the "License"\);[-!}\n]*
@@ -53,20 +52,6 @@ func checkFileCopyright(fName string) (bool, error) {
 	}
 
 	return false, errors.New("no copyright or license information")
-}
-
-func checkFlantLicense(fName string, buf []byte) error {
-	if strings.HasPrefix(fName, "/ee/") || strings.HasPrefix(fName, "ee/") {
-		if !EELicenseRe.Match(buf) {
-			return errors.New("EE related file should contain EE license")
-		}
-	} else {
-		if !CELicenseRe.Match(buf) {
-			return errors.New("should contain CE license")
-		}
-	}
-
-	return nil
 }
 
 func readFileHead(fName string, size int) ([]byte, error) {

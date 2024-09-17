@@ -59,7 +59,7 @@ func (o *Copyright) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 	return result, nil
 }
 
-func (o *Copyright) getFiles(rootPath string) ([]string, error) {
+func (*Copyright) getFiles(rootPath string) ([]string, error) {
 	var result []string
 	err := filepath.Walk(rootPath, func(path string, info os.FileInfo, _ error) error {
 		if info.Mode()&os.ModeSymlink != 0 {

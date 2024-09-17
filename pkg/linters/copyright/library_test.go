@@ -215,12 +215,11 @@ print("Hello")
 
 	for _, c := range validCases {
 		t.Run(c.title, func(t *testing.T) {
-			res = CELicenseRe.Match([]byte(c.content))
+			res = CELicenseRe.MatchString(c.content)
 
 			if !res {
 				t.Errorf("should detect license")
 			}
 		})
 	}
-
 }

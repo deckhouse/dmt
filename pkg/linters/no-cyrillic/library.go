@@ -23,7 +23,7 @@ func checkCyrillicLettersInString(line string) (string, bool) {
 	}
 
 	// Replace all tabs with spaces to prevent shifted cursor.
-	line = strings.Replace(line, "\t", "    ", -1)
+	line = strings.ReplaceAll(line, "\t", "    ")
 
 	// Make string with pointers to Cyrillic letters so user can detect hidden letters.
 	cursor := cyrFillerRe.ReplaceAllString(line, "-")
