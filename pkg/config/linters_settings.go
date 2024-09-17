@@ -140,11 +140,15 @@ var defaultLintersSettings = LintersSettings{
 		SkipDocRe:      `doc-ru-.+\.ya?ml$|_RU\.md$|_ru\.html$|docs/site/_.+|docs/documentation/_.+|tools/spelling/.+`,
 		SkipI18NRe:     `/i18n/`,
 	},
+	Copyright: CopyrightSettings{
+		CopyrightExcludes: map[string]struct{}{},
+	},
 }
 
 type LintersSettings struct {
 	OpenAPI    OpenAPISettings
 	NoCyrillic NoCyrillicSettings
+	Copyright  CopyrightSettings
 	Custom     map[string]CustomLinterSettings
 }
 
@@ -206,4 +210,8 @@ type NoCyrillicSettings struct {
 	SkipDocRe              string              `mapstructure:"skip-doc-re"`
 	SkipI18NRe             string              `mapstructure:"skip-i18n-re"`
 	SkipSelfRe             string              `mapstructure:"skip-self-re"`
+}
+
+type CopyrightSettings struct {
+	CopyrightExcludes map[string]struct{} `mapstructure:"copyright-excludes"`
 }
