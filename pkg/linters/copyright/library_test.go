@@ -8,7 +8,7 @@ func Test_copyright_re(t *testing.T) {
 no license
 `
 
-	res := CELicenseRe.Match([]byte(in))
+	res := CELicenseRe.MatchString(in)
 
 	if res {
 		t.Errorf("should not detect license")

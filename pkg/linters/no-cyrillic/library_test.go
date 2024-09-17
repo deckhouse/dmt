@@ -1,4 +1,4 @@
-package no_cyrillic
+package nocyrillic
 
 import (
 	"fmt"
