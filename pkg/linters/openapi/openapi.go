@@ -12,11 +12,6 @@ type OpenAPI struct {
 	cfg        *config.OpenAPISettings
 }
 
-type Module interface {
-	GetName() string
-	GetPath() string
-}
-
 func New(cfg *config.OpenAPISettings) *OpenAPI {
 	return &OpenAPI{
 		name: "openapi",

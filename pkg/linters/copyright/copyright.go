@@ -16,11 +16,6 @@ type Copyright struct {
 	cfg        *config.CopyrightSettings
 }
 
-type Module interface {
-	GetName() string
-	GetPath() string
-}
-
 func New(cfg *config.CopyrightSettings) *Copyright {
 	return &Copyright{
 		name: "copyright",

@@ -22,11 +22,6 @@ type NoCyrillic struct {
 	skipSelfRe *regexp.Regexp
 }
 
-type Module interface {
-	GetName() string
-	GetPath() string
-}
-
 func New(cfg *config.NoCyrillicSettings) *NoCyrillic {
 	return &NoCyrillic{
 		name:       "no-cyrillic",
