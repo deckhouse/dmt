@@ -13,6 +13,16 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
+const (
+	deploymentString  = "Deployment"
+	daemonSetString   = "DaemonSet"
+	statefulSetString = "StatefulSet"
+	podString         = "Pod"
+	jobString         = "Job"
+	cronJobString     = "CronJob"
+	replicaSetString  = "ReplicaSet"
+)
+
 type ResourceIndex struct {
 	Kind      string
 	Name      string
@@ -46,7 +56,7 @@ func (s *StoreObject) GetInitContainers() ([]v1.Container, error) {
 	converter := runtime.DefaultUnstructuredConverter
 
 	switch s.Unstructured.GetKind() {
-	case "Deployment":
+	case deploymentString:
 		deployment := new(appsv1.Deployment)
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), deployment)
@@ -55,7 +65,7 @@ func (s *StoreObject) GetInitContainers() ([]v1.Container, error) {
 		}
 
 		containers = deployment.Spec.Template.Spec.InitContainers
-	case "DaemonSet":
+	case daemonSetString:
 		daemonSet := new(appsv1.DaemonSet)
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), daemonSet)
@@ -64,7 +74,7 @@ func (s *StoreObject) GetInitContainers() ([]v1.Container, error) {
 		}
 
 		containers = daemonSet.Spec.Template.Spec.InitContainers
-	case "StatefulSet":
+	case statefulSetString:
 		statefulSet := new(appsv1.StatefulSet)
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), statefulSet)
@@ -73,7 +83,7 @@ func (s *StoreObject) GetInitContainers() ([]v1.Container, error) {
 		}
 
 		containers = statefulSet.Spec.Template.Spec.InitContainers
-	case "Pod":
+	case podString:
 		pod := new(v1.Pod)
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), pod)
@@ -82,7 +92,7 @@ func (s *StoreObject) GetInitContainers() ([]v1.Container, error) {
 		}
 
 		containers = pod.Spec.InitContainers
-	case "Job":
+	case jobString:
 		job := new(batchv1.Job)
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), job)
@@ -91,7 +101,7 @@ func (s *StoreObject) GetInitContainers() ([]v1.Container, error) {
 		}
 
 		containers = job.Spec.Template.Spec.InitContainers
-	case "CronJob":
+	case cronJobString:
 		cronJob := new(batchv1.CronJob)
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), cronJob)
@@ -109,7 +119,7 @@ func (s *StoreObject) GetContainers() ([]v1.Container, error) {
 	converter := runtime.DefaultUnstructuredConverter
 
 	switch s.Unstructured.GetKind() {
-	case "Deployment":
+	case deploymentString:
 		deployment := new(appsv1.Deployment)
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), deployment)
@@ -118,7 +128,7 @@ func (s *StoreObject) GetContainers() ([]v1.Container, error) {
 		}
 
 		containers = deployment.Spec.Template.Spec.Containers
-	case "DaemonSet":
+	case daemonSetString:
 		daemonSet := new(appsv1.DaemonSet)
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), daemonSet)
@@ -127,7 +137,7 @@ func (s *StoreObject) GetContainers() ([]v1.Container, error) {
 		}
 
 		containers = daemonSet.Spec.Template.Spec.Containers
-	case "StatefulSet":
+	case statefulSetString:
 		statefulSet := new(appsv1.StatefulSet)
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), statefulSet)
@@ -136,7 +146,7 @@ func (s *StoreObject) GetContainers() ([]v1.Container, error) {
 		}
 
 		containers = statefulSet.Spec.Template.Spec.Containers
-	case "Pod":
+	case podString:
 		pod := new(v1.Pod)
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), pod)
@@ -145,7 +155,7 @@ func (s *StoreObject) GetContainers() ([]v1.Container, error) {
 		}
 
 		containers = pod.Spec.Containers
-	case "Job":
+	case jobString:
 		job := new(batchv1.Job)
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), job)
@@ -154,7 +164,7 @@ func (s *StoreObject) GetContainers() ([]v1.Container, error) {
 		}
 
 		containers = job.Spec.Template.Spec.Containers
-	case "CronJob":
+	case cronJobString:
 		cronJob := new(batchv1.CronJob)
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), cronJob)
@@ -163,7 +173,7 @@ func (s *StoreObject) GetContainers() ([]v1.Container, error) {
 		}
 
 		containers = cronJob.Spec.JobTemplate.Spec.Template.Spec.Containers
-	case "ReplicaSet":
+	case replicaSetString:
 		replicaSet := new(appsv1.ReplicaSet)
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), replicaSet)
 		if err != nil {
@@ -179,7 +189,7 @@ func (s *StoreObject) GetPodSecurityContext() (*v1.PodSecurityContext, error) {
 	converter := runtime.DefaultUnstructuredConverter
 
 	switch s.Unstructured.GetKind() {
-	case "Deployment":
+	case deploymentString:
 		deployment := new(appsv1.Deployment)
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), deployment)
@@ -188,7 +198,7 @@ func (s *StoreObject) GetPodSecurityContext() (*v1.PodSecurityContext, error) {
 		}
 
 		return deployment.Spec.Template.Spec.SecurityContext, nil
-	case "DaemonSet":
+	case daemonSetString:
 		daemonSet := new(appsv1.DaemonSet)
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), daemonSet)
@@ -197,7 +207,7 @@ func (s *StoreObject) GetPodSecurityContext() (*v1.PodSecurityContext, error) {
 		}
 
 		return daemonSet.Spec.Template.Spec.SecurityContext, nil
-	case "StatefulSet":
+	case statefulSetString:
 		statefulSet := new(appsv1.StatefulSet)
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), statefulSet)
@@ -206,7 +216,7 @@ func (s *StoreObject) GetPodSecurityContext() (*v1.PodSecurityContext, error) {
 		}
 
 		return statefulSet.Spec.Template.Spec.SecurityContext, nil
-	case "Pod":
+	case podString:
 		pod := new(v1.Pod)
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), pod)
@@ -215,7 +225,7 @@ func (s *StoreObject) GetPodSecurityContext() (*v1.PodSecurityContext, error) {
 		}
 
 		return pod.Spec.SecurityContext, nil
-	case "Job":
+	case jobString:
 		job := new(batchv1.Job)
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), job)
@@ -224,7 +234,7 @@ func (s *StoreObject) GetPodSecurityContext() (*v1.PodSecurityContext, error) {
 		}
 
 		return job.Spec.Template.Spec.SecurityContext, nil
-	case "CronJob":
+	case cronJobString:
 		cronJob := new(batchv1.CronJob)
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), cronJob)
@@ -233,7 +243,7 @@ func (s *StoreObject) GetPodSecurityContext() (*v1.PodSecurityContext, error) {
 		}
 
 		return cronJob.Spec.JobTemplate.Spec.Template.Spec.SecurityContext, nil
-	case "ReplicaSet":
+	case replicaSetString:
 		replicaSet := new(appsv1.ReplicaSet)
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), replicaSet)
 		if err != nil {
@@ -249,7 +259,7 @@ func (s *StoreObject) IsHostNetwork() (bool, error) {
 	converter := runtime.DefaultUnstructuredConverter
 
 	switch s.Unstructured.GetKind() {
-	case "Deployment":
+	case deploymentString:
 		deployment := new(appsv1.Deployment)
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), deployment)
@@ -258,7 +268,7 @@ func (s *StoreObject) IsHostNetwork() (bool, error) {
 		}
 
 		return deployment.Spec.Template.Spec.HostNetwork, nil
-	case "DaemonSet":
+	case daemonSetString:
 		daemonSet := new(appsv1.DaemonSet)
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), daemonSet)
@@ -267,7 +277,7 @@ func (s *StoreObject) IsHostNetwork() (bool, error) {
 		}
 
 		return daemonSet.Spec.Template.Spec.HostNetwork, nil
-	case "StatefulSet":
+	case statefulSetString:
 		statefulSet := new(appsv1.StatefulSet)
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), statefulSet)
@@ -276,7 +286,7 @@ func (s *StoreObject) IsHostNetwork() (bool, error) {
 		}
 
 		return statefulSet.Spec.Template.Spec.HostNetwork, nil
-	case "Pod":
+	case podString:
 		pod := new(v1.Pod)
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), pod)
@@ -285,7 +295,7 @@ func (s *StoreObject) IsHostNetwork() (bool, error) {
 		}
 
 		return pod.Spec.HostNetwork, nil
-	case "Job":
+	case jobString:
 		job := new(batchv1.Job)
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), job)
@@ -294,7 +304,7 @@ func (s *StoreObject) IsHostNetwork() (bool, error) {
 		}
 
 		return job.Spec.Template.Spec.HostNetwork, nil
-	case "CronJob":
+	case cronJobString:
 		cronJob := new(batchv1.CronJob)
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), cronJob)

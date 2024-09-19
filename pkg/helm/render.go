@@ -2,8 +2,6 @@ package helm
 
 import (
 	"fmt"
-	"log"
-	"os"
 
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
@@ -11,20 +9,16 @@ import (
 	"helm.sh/helm/v3/pkg/engine"
 )
 
-func init() {
-	log.SetOutput(&FilteredHelmWriter{Writer: os.Stderr})
-}
-
 type Renderer struct {
 	Name      string
 	Namespace string
 	LintMode  bool
 }
 
-func (r Renderer) RenderChartFromDir(dir string, values string) (files map[string]string, err error) {
+func (r Renderer) RenderChartFromDir(dir, values string) (files map[string]string, err error) {
 	c, err := loader.Load(dir)
 	if err != nil {
-		panic(fmt.Errorf("chart load from '%s': %v", dir, err))
+		panic(fmt.Errorf("chart load from '%s': %w", dir, err))
 	}
 	return r.RenderChart(c, values)
 }
@@ -32,7 +26,7 @@ func (r Renderer) RenderChartFromDir(dir string, values string) (files map[strin
 func (r Renderer) RenderChart(c *chart.Chart, values string) (files map[string]string, err error) {
 	vals, err := chartutil.ReadValues([]byte(values))
 	if err != nil {
-		return nil, fmt.Errorf("helm chart read raw values: %v", err)
+		return nil, fmt.Errorf("helm chart read raw values: %w", err)
 	}
 
 	releaseName := "release"
@@ -65,7 +59,7 @@ func (r Renderer) RenderChart(c *chart.Chart, values string) (files map[string]s
 
 	valuesToRender, err := chartutil.ToRenderValues(c, vals, releaseOptions, nil)
 	if err != nil {
-		return nil, fmt.Errorf("helm chart prepare render values: %v", err)
+		return nil, fmt.Errorf("helm chart prepare render values: %w", err)
 	}
 
 	return r.RenderChartFromRawValues(c, valuesToRender)
@@ -78,7 +72,7 @@ func (r Renderer) RenderChartFromRawValues(c *chart.Chart, values chartutil.Valu
 
 	out, err := e.Render(c, values)
 	if err != nil {
-		return nil, fmt.Errorf("helm chart render: %v", err)
+		return nil, fmt.Errorf("helm chart render: %w", err)
 	}
 
 	return out, nil
