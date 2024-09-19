@@ -1,4 +1,4 @@
-package probes
+package k8s
 
 import (
 	"regexp"

@@ -5,11 +5,11 @@ import (
 	"strings"
 
 	"helm.sh/helm/v3/pkg/chart/loader"
-	"helm.sh/helm/v3/pkg/chartutil"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/deckhouse/d8-lint/pkg/config"
 	"github.com/deckhouse/d8-lint/pkg/errors"
+	"github.com/deckhouse/d8-lint/pkg/k8s"
 	"github.com/deckhouse/d8-lint/pkg/module"
 	"github.com/deckhouse/d8-lint/pkg/storage"
 )
@@ -32,24 +32,19 @@ func (o *Probes) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 	var result errors.LintRuleErrorsList
 	var err error
 
-	{
-		m.Chart, err = loader.Load(m.GetPath())
-		if err != nil {
-			return result, err
-		}
+	m.Chart, err = loader.Load(m.GetPath())
+	if err != nil {
+		return result, err
 	}
 
-	var values []chartutil.Values
-	{
-		values, err = ComposeValuesFromSchemas(m)
-		if err != nil {
-			return result, fmt.Errorf("saving values from openapi: %v", err)
-		}
+	values, err := k8s.ComposeValuesFromSchemas(m)
+	if err != nil {
+		return result, fmt.Errorf("saving values from openapi: %v", err)
 	}
 
 	for _, valuesData := range values {
 		objectStore := storage.NewUnstructuredObjectStore()
-		err = RunRender(m, valuesData, objectStore)
+		err = k8s.RunRender(m, valuesData, objectStore)
 
 		for _, object := range objectStore.Storage {
 			containers, err := object.GetContainers()

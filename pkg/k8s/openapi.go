@@ -1,4 +1,4 @@
-package probes
+package k8s
 
 import (
 	"encoding/json"
@@ -104,7 +104,15 @@ func ComposeValuesFromSchemas(m *module.Module) ([]chartutil.Values, error) {
 		return nil, fmt.Errorf("schemas load: %v", err)
 	}
 
+	if valueValidator == nil {
+		return nil, nil
+	}
+
 	camelizedModuleName := ToLowerCamel(m.Name)
+
+	if valueValidator.ModuleSchemaStorages[m.Name].Schemas == nil {
+		return nil, nil
+	}
 
 	values := valueValidator.ModuleSchemaStorages[m.Name].Schemas["values"]
 	if values == nil {

@@ -1,4 +1,4 @@
-package probes
+package k8s
 
 var DefaultImagesDigests = map[string]interface{}{
 	"admissionPolicyEngine": map[string]interface{}{
