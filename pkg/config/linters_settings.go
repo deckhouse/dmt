@@ -143,12 +143,14 @@ var defaultLintersSettings = LintersSettings{
 	Copyright: CopyrightSettings{
 		CopyrightExcludes: map[string]struct{}{},
 	},
+	Probes: ProbesSettings{},
 }
 
 type LintersSettings struct {
 	OpenAPI    OpenAPISettings
 	NoCyrillic NoCyrillicSettings
 	Copyright  CopyrightSettings
+	Probes     ProbesSettings
 	Custom     map[string]CustomLinterSettings
 }
 
@@ -215,3 +217,5 @@ type NoCyrillicSettings struct {
 type CopyrightSettings struct {
 	CopyrightExcludes map[string]struct{} `mapstructure:"copyright-excludes"`
 }
+
+type ProbesSettings struct{}

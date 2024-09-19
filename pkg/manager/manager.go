@@ -13,6 +13,7 @@ import (
 	"github.com/deckhouse/d8-lint/pkg/linters/copyright"
 	no_cyrillic "github.com/deckhouse/d8-lint/pkg/linters/no-cyrillic"
 	"github.com/deckhouse/d8-lint/pkg/linters/openapi"
+	"github.com/deckhouse/d8-lint/pkg/linters/probes"
 	"github.com/deckhouse/d8-lint/pkg/logger"
 	"github.com/deckhouse/d8-lint/pkg/module"
 )
@@ -39,6 +40,7 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 		openapi.New(&cfg.LintersSettings.OpenAPI),
 		no_cyrillic.New(&cfg.LintersSettings.NoCyrillic),
 		copyright.New(&cfg.LintersSettings.Copyright),
+		probes.New(&cfg.LintersSettings.Probes),
 	}
 
 	m.lintersMap = make(map[string]Linter)
