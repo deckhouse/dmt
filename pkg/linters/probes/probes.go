@@ -96,7 +96,7 @@ func containerProbes(object storage.StoreObject, containers []v1.Container) erro
 
 		if len(errStrings) > 0 {
 			errorList.Add(errors.NewLintRuleError(
-				"PROBES001",
+				"probes",
 				object.Identity()+" ; container = "+container.Name,
 				nil,
 				"Container does not use correct "+strings.Join(errStrings, " and "),
