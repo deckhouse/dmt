@@ -39,12 +39,15 @@ func (o *Probes) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 
 	values, err := k8s.ComposeValuesFromSchemas(m)
 	if err != nil {
-		return result, fmt.Errorf("saving values from openapi: %v", err)
+		return result, fmt.Errorf("saving values from openapi: %w", err)
 	}
 
 	for _, valuesData := range values {
 		objectStore := storage.NewUnstructuredObjectStore()
 		err = k8s.RunRender(m, valuesData, objectStore)
+		if err != nil {
+			continue
+		}
 
 		for _, object := range objectStore.Storage {
 			containers, err := object.GetContainers()
@@ -54,7 +57,6 @@ func (o *Probes) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 
 			result = o.containerProbes(m.GetName(), object, containers, result)
 		}
-
 	}
 
 	return result, nil
@@ -74,7 +76,8 @@ func (o *Probes) containerProbes(
 	containers []v1.Container,
 	errorList errors.LintRuleErrorsList,
 ) errors.LintRuleErrorsList {
-	for _, container := range containers {
+	for i := range containers {
+		container := containers[i]
 		if o.skipCheckProbeHandler(object.Unstructured.GetNamespace(), container.Name) {
 			continue
 		}

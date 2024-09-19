@@ -19,7 +19,7 @@ type ValuesValidator struct {
 }
 
 func NewValuesValidator(moduleName, modulePath string) (*ValuesValidator, error) {
-	openAPIDir := filepath.Join("/deckhouse", "global-hooks", "openapi")
+	openAPIDir := filepath.Join(modulePath, "..", "..", "global-hooks", "openapi")
 	configBytes, valuesBytes, err := utils.ReadOpenAPIFiles(openAPIDir)
 	if err != nil {
 		return nil, fmt.Errorf("read global openAPI schemas: %w", err)
@@ -55,7 +55,7 @@ func NewValuesValidator(moduleName, modulePath string) (*ValuesValidator, error)
 
 // ValidateValues is an adapter between JSONRepr and Values
 func (vv *ValuesValidator) ValidateValues(moduleName string, values chartutil.Values) error {
-	obj := values["Values"].(map[string]interface{})
+	obj := values["Values"].(map[string]any)
 
 	err := vv.ValidateGlobalValues(obj)
 	if err != nil {
@@ -71,7 +71,7 @@ func (vv *ValuesValidator) ValidateValues(moduleName string, values chartutil.Va
 }
 
 func (vv *ValuesValidator) ValidateHelmValues(moduleName, values string) error {
-	var obj map[string]interface{}
+	var obj map[string]any
 	err := yaml.Unmarshal([]byte(values), &obj)
 	if err != nil {
 		return err
@@ -91,7 +91,7 @@ func (vv *ValuesValidator) ValidateHelmValues(moduleName, values string) error {
 }
 
 func (vv *ValuesValidator) ValidateJSONValues(moduleName string, values []byte, configValues bool) error {
-	obj := map[string]interface{}{}
+	obj := map[string]any{}
 	err := json.Unmarshal(values, &obj)
 	if err != nil {
 		return err

@@ -1,32 +1,32 @@
 package k8s
 
-var DefaultImagesDigests = map[string]interface{}{
-	"admissionPolicyEngine": map[string]interface{}{
+var DefaultImagesDigests = map[string]any{
+	"admissionPolicyEngine": map[string]any{
 		"constraintExporter": "imageHash-admissionPolicyEngine-constraintExporter",
 		"gatekeeper":         "imageHash-admissionPolicyEngine-gatekeeper",
 		"trivyProvider":      "imageHash-admissionPolicyEngine-trivyProvider",
 	},
-	"basicAuth": map[string]interface{}{
+	"basicAuth": map[string]any{
 		"nginx": "imageHash-basicAuth-nginx",
 	},
-	"cephCsi": map[string]interface{}{
+	"cephCsi": map[string]any{
 		"cephcsi": "imageHash-cephCsi-cephcsi",
 	},
-	"certManager": map[string]interface{}{
+	"certManager": map[string]any{
 		"certManagerAcmeSolver": "imageHash-certManager-certManagerAcmeSolver",
 		"certManagerCainjector": "imageHash-certManager-certManagerCainjector",
 		"certManagerController": "imageHash-certManager-certManagerController",
 		"certManagerWebhook":    "imageHash-certManager-certManagerWebhook",
 	},
-	"chrony": map[string]interface{}{
+	"chrony": map[string]any{
 		"chrony": "imageHash-chrony-chrony",
 	},
-	"ciliumHubble": map[string]interface{}{
+	"ciliumHubble": map[string]any{
 		"relay":      "imageHash-ciliumHubble-relay",
 		"uiBackend":  "imageHash-ciliumHubble-uiBackend",
 		"uiFrontend": "imageHash-ciliumHubble-uiFrontend",
 	},
-	"cloudProviderAws": map[string]interface{}{
+	"cloudProviderAws": map[string]any{
 		"cloudControllerManager126": "imageHash-cloudProviderAws-cloudControllerManager126",
 		"cloudControllerManager127": "imageHash-cloudProviderAws-cloudControllerManager127",
 		"cloudControllerManager128": "imageHash-cloudProviderAws-cloudControllerManager128",
@@ -36,7 +36,7 @@ var DefaultImagesDigests = map[string]interface{}{
 		"ebsCsiPlugin":              "imageHash-cloudProviderAws-ebsCsiPlugin",
 		"nodeTerminationHandler":    "imageHash-cloudProviderAws-nodeTerminationHandler",
 	},
-	"cloudProviderAzure": map[string]interface{}{
+	"cloudProviderAzure": map[string]any{
 		"azurediskCsi":              "imageHash-cloudProviderAzure-azurediskCsi",
 		"cloudControllerManager126": "imageHash-cloudProviderAzure-cloudControllerManager126",
 		"cloudControllerManager127": "imageHash-cloudProviderAzure-cloudControllerManager127",
@@ -45,7 +45,7 @@ var DefaultImagesDigests = map[string]interface{}{
 		"cloudControllerManager130": "imageHash-cloudProviderAzure-cloudControllerManager130",
 		"cloudDataDiscoverer":       "imageHash-cloudProviderAzure-cloudDataDiscoverer",
 	},
-	"cloudProviderGcp": map[string]interface{}{
+	"cloudProviderGcp": map[string]any{
 		"cloudControllerManager126": "imageHash-cloudProviderGcp-cloudControllerManager126",
 		"cloudControllerManager127": "imageHash-cloudProviderGcp-cloudControllerManager127",
 		"cloudControllerManager128": "imageHash-cloudProviderGcp-cloudControllerManager128",
@@ -54,7 +54,7 @@ var DefaultImagesDigests = map[string]interface{}{
 		"cloudDataDiscoverer":       "imageHash-cloudProviderGcp-cloudDataDiscoverer",
 		"pdCsiPlugin":               "imageHash-cloudProviderGcp-pdCsiPlugin",
 	},
-	"cloudProviderOpenstack": map[string]interface{}{
+	"cloudProviderOpenstack": map[string]any{
 		"cinderCsiPlugin126":        "imageHash-cloudProviderOpenstack-cinderCsiPlugin126",
 		"cinderCsiPlugin127":        "imageHash-cloudProviderOpenstack-cinderCsiPlugin127",
 		"cinderCsiPlugin128":        "imageHash-cloudProviderOpenstack-cinderCsiPlugin128",
@@ -67,7 +67,7 @@ var DefaultImagesDigests = map[string]interface{}{
 		"cloudControllerManager130": "imageHash-cloudProviderOpenstack-cloudControllerManager130",
 		"cloudDataDiscoverer":       "imageHash-cloudProviderOpenstack-cloudDataDiscoverer",
 	},
-	"cloudProviderVcd": map[string]interface{}{
+	"cloudProviderVcd": map[string]any{
 		"capcdControllerManager126": "imageHash-cloudProviderVcd-capcdControllerManager126",
 		"capcdControllerManager127": "imageHash-cloudProviderVcd-capcdControllerManager127",
 		"capcdControllerManager128": "imageHash-cloudProviderVcd-capcdControllerManager128",
@@ -82,7 +82,7 @@ var DefaultImagesDigests = map[string]interface{}{
 		"vcdCsiPlugin":              "imageHash-cloudProviderVcd-vcdCsiPlugin",
 		"vcdCsiPluginLegacy":        "imageHash-cloudProviderVcd-vcdCsiPluginLegacy",
 	},
-	"cloudProviderVsphere": map[string]interface{}{
+	"cloudProviderVsphere": map[string]any{
 		"cloudControllerManager126": "imageHash-cloudProviderVsphere-cloudControllerManager126",
 		"cloudControllerManager127": "imageHash-cloudProviderVsphere-cloudControllerManager127",
 		"cloudControllerManager128": "imageHash-cloudProviderVsphere-cloudControllerManager128",
@@ -96,7 +96,7 @@ var DefaultImagesDigests = map[string]interface{}{
 		"vsphereCsiPlugin130":       "imageHash-cloudProviderVsphere-vsphereCsiPlugin130",
 		"vsphereCsiPluginLegacy":    "imageHash-cloudProviderVsphere-vsphereCsiPluginLegacy",
 	},
-	"cloudProviderYandex": map[string]interface{}{
+	"cloudProviderYandex": map[string]any{
 		"cloudControllerManager126": "imageHash-cloudProviderYandex-cloudControllerManager126",
 		"cloudControllerManager127": "imageHash-cloudProviderYandex-cloudControllerManager127",
 		"cloudControllerManager128": "imageHash-cloudProviderYandex-cloudControllerManager128",
@@ -107,13 +107,13 @@ var DefaultImagesDigests = map[string]interface{}{
 		"cloudMigrator":             "imageHash-cloudProviderYandex-cloudMigrator",
 		"yandexCsiPlugin":           "imageHash-cloudProviderYandex-yandexCsiPlugin",
 	},
-	"cloudProviderZvirt": map[string]interface{}{
+	"cloudProviderZvirt": map[string]any{
 		"capzControllerManager":  "imageHash-cloudProviderZvirt-capzControllerManager",
 		"cloudControllerManager": "imageHash-cloudProviderZvirt-cloudControllerManager",
 		"cloudDataDiscoverer":    "imageHash-cloudProviderZvirt-cloudDataDiscoverer",
 		"zvirtCsiDriver":         "imageHash-cloudProviderZvirt-zvirtCsiDriver",
 	},
-	"cniCilium": map[string]interface{}{
+	"cniCilium": map[string]any{
 		"agentDistroless":    "imageHash-cniCilium-agentDistroless",
 		"checkKernelVersion": "imageHash-cniCilium-checkKernelVersion",
 		"egressGatewayAgent": "imageHash-cniCilium-egressGatewayAgent",
@@ -121,13 +121,13 @@ var DefaultImagesDigests = map[string]interface{}{
 		"operator":           "imageHash-cniCilium-operator",
 		"safeAgentUpdater":   "imageHash-cniCilium-safeAgentUpdater",
 	},
-	"cniFlannel": map[string]interface{}{
+	"cniFlannel": map[string]any{
 		"flanneld": "imageHash-cniFlannel-flanneld",
 	},
-	"cniSimpleBridge": map[string]interface{}{
+	"cniSimpleBridge": map[string]any{
 		"simpleBridge": "imageHash-cniSimpleBridge-simpleBridge",
 	},
-	"common": map[string]interface{}{
+	"common": map[string]any{
 		"alpine":                    "imageHash-common-alpine",
 		"checkKernelVersion":        "imageHash-common-checkKernelVersion",
 		"csiExternalAttacher126":    "imageHash-common-csiExternalAttacher126",
@@ -174,7 +174,7 @@ var DefaultImagesDigests = map[string]interface{}{
 		"redisStatic":               "imageHash-common-redisStatic",
 		"shellOperator":             "imageHash-common-shellOperator",
 	},
-	"controlPlaneManager": map[string]interface{}{
+	"controlPlaneManager": map[string]any{
 		"controlPlaneManager126":   "imageHash-controlPlaneManager-controlPlaneManager126",
 		"controlPlaneManager127":   "imageHash-controlPlaneManager-controlPlaneManager127",
 		"controlPlaneManager128":   "imageHash-controlPlaneManager-controlPlaneManager128",
@@ -199,42 +199,42 @@ var DefaultImagesDigests = map[string]interface{}{
 		"kubeScheduler130":         "imageHash-controlPlaneManager-kubeScheduler130",
 		"kubernetesApiProxy":       "imageHash-controlPlaneManager-kubernetesApiProxy",
 	},
-	"dashboard": map[string]interface{}{
+	"dashboard": map[string]any{
 		"dashboard":      "imageHash-dashboard-dashboard",
 		"metricsScraper": "imageHash-dashboard-metricsScraper",
 	},
-	"deckhouse": map[string]interface{}{
+	"deckhouse": map[string]any{
 		"webhookHandler": "imageHash-deckhouse-webhookHandler",
 	},
-	"deckhouseTools": map[string]interface{}{
+	"deckhouseTools": map[string]any{
 		"web": "imageHash-deckhouseTools-web",
 	},
-	"delivery": map[string]interface{}{
+	"delivery": map[string]any{
 		"argocd":               "imageHash-delivery-argocd",
 		"argocdImageUpdater":   "imageHash-delivery-argocdImageUpdater",
 		"werfArgocdCmpSidecar": "imageHash-delivery-werfArgocdCmpSidecar",
 	},
-	"descheduler": map[string]interface{}{
+	"descheduler": map[string]any{
 		"descheduler": "imageHash-descheduler-descheduler",
 	},
-	"docsBuilder": map[string]interface{}{
+	"docsBuilder": map[string]any{
 		"docsBuilder": "imageHash-docsBuilder-docsBuilder",
 	},
-	"documentation": map[string]interface{}{
+	"documentation": map[string]any{
 		"web": "imageHash-documentation-web",
 	},
-	"extendedMonitoring": map[string]interface{}{
+	"extendedMonitoring": map[string]any{
 		"certExporter":               "imageHash-extendedMonitoring-certExporter",
 		"eventsExporter":             "imageHash-extendedMonitoring-eventsExporter",
 		"extendedMonitoringExporter": "imageHash-extendedMonitoring-extendedMonitoringExporter",
 		"imageAvailabilityExporter":  "imageHash-extendedMonitoring-imageAvailabilityExporter",
 	},
-	"flantIntegration": map[string]interface{}{
+	"flantIntegration": map[string]any{
 		"flantPricing": "imageHash-flantIntegration-flantPricing",
 		"grafanaAgent": "imageHash-flantIntegration-grafanaAgent",
 		"madisonProxy": "imageHash-flantIntegration-madisonProxy",
 	},
-	"ingressNginx": map[string]interface{}{
+	"ingressNginx": map[string]any{
 		"controller110":         "imageHash-ingressNginx-controller110",
 		"controller16":          "imageHash-ingressNginx-controller16",
 		"controller19":          "imageHash-ingressNginx-controller19",
@@ -246,7 +246,7 @@ var DefaultImagesDigests = map[string]interface{}{
 		"proxyFailover":         "imageHash-ingressNginx-proxyFailover",
 		"proxyFailoverIptables": "imageHash-ingressNginx-proxyFailoverIptables",
 	},
-	"istio": map[string]interface{}{
+	"istio": map[string]any{
 		"apiProxy":          "imageHash-istio-apiProxy",
 		"cniV1x16x2":        "imageHash-istio-cniV1x16x2",
 		"cniV1x19x7":        "imageHash-istio-cniV1x19x7",
@@ -260,16 +260,16 @@ var DefaultImagesDigests = map[string]interface{}{
 		"proxyv2V1x16x2":    "imageHash-istio-proxyv2V1x16x2",
 		"proxyv2V1x19x7":    "imageHash-istio-proxyv2V1x19x7",
 	},
-	"keepalived": map[string]interface{}{
+	"keepalived": map[string]any{
 		"keepalived": "imageHash-keepalived-keepalived",
 	},
-	"kubeDns": map[string]interface{}{
+	"kubeDns": map[string]any{
 		"coredns":                           "imageHash-kubeDns-coredns",
 		"resolvWatcher":                     "imageHash-kubeDns-resolvWatcher",
 		"stsPodsHostsAppenderInitContainer": "imageHash-kubeDns-stsPodsHostsAppenderInitContainer",
 		"stsPodsHostsAppenderWebhook":       "imageHash-kubeDns-stsPodsHostsAppenderWebhook",
 	},
-	"kubeProxy": map[string]interface{}{
+	"kubeProxy": map[string]any{
 		"initContainer": "imageHash-kubeProxy-initContainer",
 		"kubeProxy126":  "imageHash-kubeProxy-kubeProxy126",
 		"kubeProxy127":  "imageHash-kubeProxy-kubeProxy127",
@@ -277,49 +277,49 @@ var DefaultImagesDigests = map[string]interface{}{
 		"kubeProxy129":  "imageHash-kubeProxy-kubeProxy129",
 		"kubeProxy130":  "imageHash-kubeProxy-kubeProxy130",
 	},
-	"l2LoadBalancer": map[string]interface{}{
+	"l2LoadBalancer": map[string]any{
 		"controller": "imageHash-l2LoadBalancer-controller",
 		"speaker":    "imageHash-l2LoadBalancer-speaker",
 	},
-	"localPathProvisioner": map[string]interface{}{
+	"localPathProvisioner": map[string]any{
 		"helper":               "imageHash-localPathProvisioner-helper",
 		"localPathProvisioner": "imageHash-localPathProvisioner-localPathProvisioner",
 	},
-	"logShipper": map[string]interface{}{
+	"logShipper": map[string]any{
 		"vector": "imageHash-logShipper-vector",
 	},
-	"loki": map[string]interface{}{
+	"loki": map[string]any{
 		"loki": "imageHash-loki-loki",
 	},
-	"metallb": map[string]interface{}{
+	"metallb": map[string]any{
 		"controller": "imageHash-metallb-controller",
 		"speaker":    "imageHash-metallb-speaker",
 	},
-	"monitoringKubernetes": map[string]interface{}{
+	"monitoringKubernetes": map[string]any{
 		"ebpfExporter":                      "imageHash-monitoringKubernetes-ebpfExporter",
 		"kubeStateMetrics":                  "imageHash-monitoringKubernetes-kubeStateMetrics",
 		"kubeletEvictionThresholdsExporter": "imageHash-monitoringKubernetes-kubeletEvictionThresholdsExporter",
 		"nodeExporter":                      "imageHash-monitoringKubernetes-nodeExporter",
 	},
-	"monitoringPing": map[string]interface{}{
+	"monitoringPing": map[string]any{
 		"monitoringPing": "imageHash-monitoringPing-monitoringPing",
 	},
-	"multitenancyManager": map[string]interface{}{
+	"multitenancyManager": map[string]any{
 		"multitenancyManager": "imageHash-multitenancyManager-multitenancyManager",
 	},
-	"networkGateway": map[string]interface{}{
+	"networkGateway": map[string]any{
 		"dnsmasq": "imageHash-networkGateway-dnsmasq",
 		"snat":    "imageHash-networkGateway-snat",
 	},
-	"networkPolicyEngine": map[string]interface{}{
+	"networkPolicyEngine": map[string]any{
 		"kubeRouter": "imageHash-networkPolicyEngine-kubeRouter",
 	},
-	"nodeLocalDns": map[string]interface{}{
+	"nodeLocalDns": map[string]any{
 		"coredns":                    "imageHash-nodeLocalDns-coredns",
 		"iptablesLoop":               "imageHash-nodeLocalDns-iptablesLoop",
 		"staleDnsConnectionsCleaner": "imageHash-nodeLocalDns-staleDnsConnectionsCleaner",
 	},
-	"nodeManager": map[string]interface{}{
+	"nodeManager": map[string]any{
 		"bashibleApiserver":        "imageHash-nodeManager-bashibleApiserver",
 		"capiControllerManager":    "imageHash-nodeManager-capiControllerManager",
 		"capsControllerManager":    "imageHash-nodeManager-capsControllerManager",
@@ -332,26 +332,26 @@ var DefaultImagesDigests = map[string]interface{}{
 		"fencingAgent":             "imageHash-nodeManager-fencingAgent",
 		"machineControllerManager": "imageHash-nodeManager-machineControllerManager",
 	},
-	"openvpn": map[string]interface{}{
+	"openvpn": map[string]any{
 		"easyrsaMigrator": "imageHash-openvpn-easyrsaMigrator",
 		"openvpn":         "imageHash-openvpn-openvpn",
 		"ovpnAdmin":       "imageHash-openvpn-ovpnAdmin",
 		"pmacct":          "imageHash-openvpn-pmacct",
 	},
-	"operatorPrometheus": map[string]interface{}{
+	"operatorPrometheus": map[string]any{
 		"prometheusConfigReloader": "imageHash-operatorPrometheus-prometheusConfigReloader",
 		"prometheusOperator":       "imageHash-operatorPrometheus-prometheusOperator",
 	},
-	"operatorTrivy": map[string]interface{}{
+	"operatorTrivy": map[string]any{
 		"nodeCollector": "imageHash-operatorTrivy-nodeCollector",
 		"operator":      "imageHash-operatorTrivy-operator",
 		"reportUpdater": "imageHash-operatorTrivy-reportUpdater",
 		"trivy":         "imageHash-operatorTrivy-trivy",
 	},
-	"podReloader": map[string]interface{}{
+	"podReloader": map[string]any{
 		"podReloader": "imageHash-podReloader-podReloader",
 	},
-	"prometheus": map[string]interface{}{
+	"prometheus": map[string]any{
 		"alertmanager":                "imageHash-prometheus-alertmanager",
 		"alertsReceiver":              "imageHash-prometheus-alertsReceiver",
 		"grafana":                     "imageHash-prometheus-grafana",
@@ -364,17 +364,17 @@ var DefaultImagesDigests = map[string]interface{}{
 		"promxy":                      "imageHash-prometheus-promxy",
 		"trickster":                   "imageHash-prometheus-trickster",
 	},
-	"prometheusMetricsAdapter": map[string]interface{}{
+	"prometheusMetricsAdapter": map[string]any{
 		"k8sPrometheusAdapter":   "imageHash-prometheusMetricsAdapter-k8sPrometheusAdapter",
 		"prometheusReverseProxy": "imageHash-prometheusMetricsAdapter-prometheusReverseProxy",
 	},
-	"prometheusPushgateway": map[string]interface{}{
+	"prometheusPushgateway": map[string]any{
 		"pushgateway": "imageHash-prometheusPushgateway-pushgateway",
 	},
-	"registryPackagesProxy": map[string]interface{}{
+	"registryPackagesProxy": map[string]any{
 		"registryPackagesProxy": "imageHash-registryPackagesProxy-registryPackagesProxy",
 	},
-	"registrypackages": map[string]interface{}{
+	"registrypackages": map[string]any{
 		"amazonEc2Utils220":         "imageHash-registrypackages-amazonEc2Utils220",
 		"containerd1713":            "imageHash-registrypackages-containerd1713",
 		"crictl126":                 "imageHash-registrypackages-crictl126",
@@ -418,20 +418,20 @@ var DefaultImagesDigests = map[string]interface{}{
 		"virtWhat125":               "imageHash-registrypackages-virtWhat125",
 		"xfsprogs670":               "imageHash-registrypackages-xfsprogs670",
 	},
-	"runtimeAuditEngine": map[string]interface{}{
+	"runtimeAuditEngine": map[string]any{
 		"falco":            "imageHash-runtimeAuditEngine-falco",
 		"falcosidekick":    "imageHash-runtimeAuditEngine-falcosidekick",
 		"k8sMetacollector": "imageHash-runtimeAuditEngine-k8sMetacollector",
 		"rulesLoader":      "imageHash-runtimeAuditEngine-rulesLoader",
 	},
-	"snapshotController": map[string]interface{}{
+	"snapshotController": map[string]any{
 		"snapshotController":        "imageHash-snapshotController-snapshotController",
 		"snapshotValidationWebhook": "imageHash-snapshotController-snapshotValidationWebhook",
 	},
-	"staticRoutingManager": map[string]interface{}{
+	"staticRoutingManager": map[string]any{
 		"agent": "imageHash-staticRoutingManager-agent",
 	},
-	"terraformManager": map[string]interface{}{
+	"terraformManager": map[string]any{
 		"baseTerraformManager":      "imageHash-terraformManager-baseTerraformManager",
 		"terraformManagerAws":       "imageHash-terraformManager-terraformManagerAws",
 		"terraformManagerAzure":     "imageHash-terraformManager-terraformManagerAzure",
@@ -442,23 +442,23 @@ var DefaultImagesDigests = map[string]interface{}{
 		"terraformManagerYandex":    "imageHash-terraformManager-terraformManagerYandex",
 		"terraformManagerZvirt":     "imageHash-terraformManager-terraformManagerZvirt",
 	},
-	"upmeter": map[string]interface{}{
+	"upmeter": map[string]any{
 		"smokeMini": "imageHash-upmeter-smokeMini",
 		"status":    "imageHash-upmeter-status",
 		"upmeter":   "imageHash-upmeter-upmeter",
 		"webui":     "imageHash-upmeter-webui",
 	},
-	"userAuthn": map[string]interface{}{
+	"userAuthn": map[string]any{
 		"basicAuthProxy":      "imageHash-userAuthn-basicAuthProxy",
 		"dex":                 "imageHash-userAuthn-dex",
 		"dexAuthenticator":    "imageHash-userAuthn-dexAuthenticator",
 		"kubeconfigGenerator": "imageHash-userAuthn-kubeconfigGenerator",
 		"selfSignedGenerator": "imageHash-userAuthn-selfSignedGenerator",
 	},
-	"userAuthz": map[string]interface{}{
+	"userAuthz": map[string]any{
 		"webhook": "imageHash-userAuthz-webhook",
 	},
-	"verticalPodAutoscaler": map[string]interface{}{
+	"verticalPodAutoscaler": map[string]any{
 		"admissionController": "imageHash-verticalPodAutoscaler-admissionController",
 		"recommender":         "imageHash-verticalPodAutoscaler-recommender",
 		"updater":             "imageHash-verticalPodAutoscaler-updater",

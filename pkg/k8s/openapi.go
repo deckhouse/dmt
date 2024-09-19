@@ -22,11 +22,22 @@ const (
 )
 
 // applyDigests if ugly because values now are strongly untyped. We have to rewrite this after adding proper global schema
-func applyDigests(digests map[string]interface{}, values interface{}) {
-	values.(map[string]interface{})["global"].(map[string]interface{})["modulesImages"].(map[string]interface{})["digests"] = digests
+func applyDigests(digests map[string]any, values any) {
+	if values == nil {
+		return
+	}
+	value, _ := values.(map[string]any)["global"]
+	if value == nil {
+		return
+	}
+	value, _ = value.(map[string]any)["modulesImages"]
+	if value == nil {
+		return
+	}
+	value.(map[string]any)["digests"] = digests
 }
 
-func helmFormatModuleImages(m *module.Module, rawValues []interface{}) ([]chartutil.Values, error) {
+func helmFormatModuleImages(m *module.Module, rawValues []any) ([]chartutil.Values, error) {
 	caps := chartutil.DefaultCapabilities
 	vers := []string(caps.APIVersions)
 	vers = append(vers, "autoscaling.k8s.io/v1/VerticalPodAutoscaler")
@@ -41,10 +52,10 @@ func helmFormatModuleImages(m *module.Module, rawValues []interface{}) ([]chartu
 	for _, singleValue := range rawValues {
 		applyDigests(digests, singleValue)
 
-		top := map[string]interface{}{
+		top := map[string]any{
 			"Chart":        m.Chart.Metadata,
 			"Capabilities": caps,
-			"Release": map[string]interface{}{
+			"Release": map[string]any{
 				"Name":      m.Name,
 				"Namespace": m.Namespace,
 				"IsUpgrade": true,
@@ -60,9 +71,9 @@ func helmFormatModuleImages(m *module.Module, rawValues []interface{}) ([]chartu
 	return values, nil
 }
 
-func GetModulesImagesDigests(modulePath string) (map[string]interface{}, error) {
+func GetModulesImagesDigests(modulePath string) (map[string]any, error) {
 	var (
-		modulesDigests map[string]interface{}
+		modulesDigests map[string]any
 		search         bool
 	)
 
@@ -83,8 +94,8 @@ func GetModulesImagesDigests(modulePath string) (map[string]interface{}, error) 
 	return modulesDigests, nil
 }
 
-func getModulesImagesDigestsFromLocalPath(modulePath string) (map[string]interface{}, error) {
-	var digests map[string]interface{}
+func getModulesImagesDigestsFromLocalPath(modulePath string) (map[string]any, error) {
+	var digests map[string]any
 
 	imageDigestsRaw, err := os.ReadFile(filepath.Join(filepath.Dir(modulePath), "images_digests.json"))
 	if err != nil {
@@ -101,7 +112,7 @@ func getModulesImagesDigestsFromLocalPath(modulePath string) (map[string]interfa
 func ComposeValuesFromSchemas(m *module.Module) ([]chartutil.Values, error) {
 	valueValidator, err := valuesvalidation.NewValuesValidator(m.Name, m.Path)
 	if err != nil {
-		return nil, fmt.Errorf("schemas load: %v", err)
+		return nil, fmt.Errorf("schemas load: %w", err)
 	}
 
 	if valueValidator == nil {
@@ -114,23 +125,27 @@ func ComposeValuesFromSchemas(m *module.Module) ([]chartutil.Values, error) {
 		return nil, nil
 	}
 
-	values := valueValidator.ModuleSchemaStorages[m.Name].Schemas["values"]
+	values, _ := valueValidator.ModuleSchemaStorages[m.Name].Schemas["values"]
 	if values == nil {
 		return nil, fmt.Errorf("cannot find openapi values schema for module %s", m.Name)
 	}
 
 	moduleSchema := *values
-	moduleSchema.Default = make(map[string]interface{})
+	moduleSchema.Default = make(map[string]any)
 
-	globalSchema := *valueValidator.GlobalSchemaStorage.Schemas["values"]
-	globalSchema.Default = make(map[string]interface{})
+	values, _ = valueValidator.GlobalSchemaStorage.Schemas["values"]
+	var globalSchema spec.Schema
+	globalSchema.Default = make(map[string]any)
+	if values != nil {
+		globalSchema = *values
+	}
 
 	combinedSchema := spec.Schema{}
 	combinedSchema.Properties = map[string]spec.Schema{camelizedModuleName: moduleSchema, "global": globalSchema}
 
 	rawValues, err := NewOpenAPIValuesGenerator(&combinedSchema).Do()
 	if err != nil {
-		return nil, fmt.Errorf("generate vlues: %v", err)
+		return nil, fmt.Errorf("generate vlues: %w", err)
 	}
 
 	return helmFormatModuleImages(m, rawValues)
@@ -157,7 +172,7 @@ func NewOpenAPIValuesGenerator(schema *spec.Schema) *OpenAPIValuesGenerator {
 type SchemaNode struct {
 	Schema *spec.Schema
 
-	Leaf *map[string]interface{}
+	Leaf *map[string]any
 }
 
 type InteractionsCounter struct {
@@ -172,8 +187,8 @@ func (c *InteractionsCounter) Zero() bool {
 	return c.counter == 0
 }
 
-func (g *OpenAPIValuesGenerator) Do() ([]interface{}, error) {
-	newItem := make(map[string]interface{})
+func (g *OpenAPIValuesGenerator) Do() ([]any, error) {
+	newItem := make(map[string]any)
 	g.schemaQueue.PushBack(SchemaNode{Schema: g.rootSchema, Leaf: &newItem})
 
 	for g.schemaQueue.Len() > 0 {
@@ -189,7 +204,7 @@ func (g *OpenAPIValuesGenerator) Do() ([]interface{}, error) {
 		}
 	}
 
-	values := make([]interface{}, 0, g.resultQueue.Len())
+	values := make([]any, 0, g.resultQueue.Len())
 	for g.resultQueue.Len() > 0 {
 		resultNode := g.resultQueue.PopFront()
 		values = append(values, *resultNode.Leaf)
@@ -198,17 +213,18 @@ func (g *OpenAPIValuesGenerator) Do() ([]interface{}, error) {
 	return values, nil
 }
 
-func (g *OpenAPIValuesGenerator) pushBackNodesFromValues(tempNode *SchemaNode, key string, items []interface{}, counter *InteractionsCounter) {
+func (g *OpenAPIValuesGenerator) pushBackNodesFromValues(tempNode *SchemaNode, key string, items []any, counter *InteractionsCounter) {
 	for _, item := range items {
 		headNode := copyNode(tempNode, key, item)
 		g.deleteNodeAndPushBack(&headNode, key, counter)
 	}
 }
 
-func (g *OpenAPIValuesGenerator) generateAndPushBackNodes(tempNode *SchemaNode, key string, prop spec.Schema, counter *InteractionsCounter) error {
-	downwardSchema := deepcopy.Copy(prop).(spec.Schema)
+func (g *OpenAPIValuesGenerator) generateAndPushBackNodes(
+	tempNode *SchemaNode, key string, prop *spec.Schema, counter *InteractionsCounter) error {
+	downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
 	// Recursive call, consider switching to a better solution.
-	values, err := NewOpenAPIValuesGenerator(&downwardSchema).Do()
+	values, err := NewOpenAPIValuesGenerator(downwardSchema).Do()
 	if err != nil {
 		return err
 	}
@@ -218,10 +234,11 @@ func (g *OpenAPIValuesGenerator) generateAndPushBackNodes(tempNode *SchemaNode, 
 }
 
 func (g *OpenAPIValuesGenerator) parseProperties(tempNode *SchemaNode, counter *InteractionsCounter) error {
-	for key, prop := range tempNode.Schema.Properties {
+	for key := range tempNode.Schema.Properties {
+		prop := tempNode.Schema.Properties[key]
 		switch {
 		case prop.Extensions[ExamplesKey] != nil:
-			examples := prop.Extensions[ExamplesKey].([]interface{})
+			examples := prop.Extensions[ExamplesKey].([]any)
 			g.pushBackNodesFromValues(tempNode, key, examples, counter)
 			return nil
 
@@ -234,7 +251,7 @@ func (g *OpenAPIValuesGenerator) parseProperties(tempNode *SchemaNode, counter *
 				g.deleteNodeAndPushBack(tempNode, key, counter)
 				return nil
 			}
-			return g.generateAndPushBackNodes(tempNode, key, prop, counter)
+			return g.generateAndPushBackNodes(tempNode, key, &prop, counter)
 
 		case prop.Default != nil:
 			g.schemaQueue.PushBack(copyNode(tempNode, key, prop.Default))
@@ -244,7 +261,7 @@ func (g *OpenAPIValuesGenerator) parseProperties(tempNode *SchemaNode, counter *
 		case prop.Type.Contains(ArrayObject) && prop.Items.Schema != nil:
 			switch {
 			case prop.Items.Schema.Default != nil:
-				var wrapped []interface{}
+				var wrapped []any
 				wrapped = append(wrapped, prop.Items.Schema.Default)
 
 				g.schemaQueue.PushBack(copyNode(tempNode, key, wrapped))
@@ -264,7 +281,7 @@ func (g *OpenAPIValuesGenerator) parseProperties(tempNode *SchemaNode, counter *
 				}
 
 				for index, value := range values {
-					var wrapped []interface{}
+					var wrapped []any
 					wrapped = append(wrapped, value)
 
 					values[index] = wrapped
@@ -279,24 +296,26 @@ func (g *OpenAPIValuesGenerator) parseProperties(tempNode *SchemaNode, counter *
 			// not implemented
 			continue
 		case prop.OneOf != nil:
-			for _, schema := range prop.OneOf {
-				downwardSchema := deepcopy.Copy(prop).(spec.Schema)
+			for i := range prop.OneOf {
+				schema := prop.OneOf[i]
+				downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
 
 				mergedSchema := mergeSchemas(downwardSchema, schema)
-				return g.generateAndPushBackNodes(tempNode, key, mergedSchema, counter)
+				return g.generateAndPushBackNodes(tempNode, key, &mergedSchema, counter)
 			}
 			return nil
 
 		case prop.AnyOf != nil:
-			for _, schema := range prop.AnyOf {
-				downwardSchema := deepcopy.Copy(prop).(spec.Schema)
+			for i := range prop.AnyOf {
+				schema := prop.AnyOf[i]
+				downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
 				mergedSchema := mergeSchemas(downwardSchema, schema)
 
-				if err := g.generateAndPushBackNodes(tempNode, key, mergedSchema, counter); err != nil {
+				if err := g.generateAndPushBackNodes(tempNode, key, &mergedSchema, counter); err != nil {
 					return err
 				}
 			}
-			return g.generateAndPushBackNodes(tempNode, key, prop, counter)
+			return g.generateAndPushBackNodes(tempNode, key, &prop, counter)
 		default:
 			g.deleteNodeAndPushBack(tempNode, key, counter)
 			return nil
@@ -312,7 +331,7 @@ func (g *OpenAPIValuesGenerator) deleteNodeAndPushBack(tempNode *SchemaNode, key
 	counter.Inc()
 }
 
-func copyNode(previousNode *SchemaNode, key string, value interface{}) SchemaNode {
+func copyNode(previousNode *SchemaNode, key string, value any) SchemaNode {
 	tempNode := *previousNode
 
 	newSchema := deepcopy.Copy(*previousNode.Schema).(spec.Schema)
@@ -321,23 +340,24 @@ func copyNode(previousNode *SchemaNode, key string, value interface{}) SchemaNod
 	leaf := *tempNode.Leaf
 	leaf[key] = value
 
-	newItem := deepcopy.Copy(leaf).(map[string]interface{})
+	newItem := deepcopy.Copy(leaf).(map[string]any)
 	return SchemaNode{Leaf: &newItem, Schema: &newSchema}
 }
 
-func mergeSchemas(rootSchema spec.Schema, schemas ...spec.Schema) spec.Schema {
+func mergeSchemas(rootSchema *spec.Schema, schemas ...spec.Schema) spec.Schema {
 	rootSchema.OneOf = nil
 	rootSchema.AllOf = nil
 	rootSchema.AnyOf = nil
 
-	for _, schema := range schemas {
-		for key, prop := range schema.Properties {
-			rootSchema.Properties[key] = prop
+	for i := range schemas {
+		schema := schemas[i]
+		for key := range schema.Properties {
+			rootSchema.Properties[key] = schema.Properties[key]
 		}
 		rootSchema.OneOf = schema.OneOf
 		rootSchema.AllOf = schema.AllOf
 		rootSchema.AnyOf = schema.AnyOf
 	}
 
-	return rootSchema
+	return *rootSchema
 }

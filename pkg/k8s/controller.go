@@ -28,18 +28,16 @@ func RunRender(m *module.Module, values chartutil.Values, objectStore *storage.U
 
 	files, err := renderer.RenderChartFromRawValues(m.Chart, values)
 	if err != nil {
-		lintError = fmt.Errorf("helm chart render: %v", err)
-		return
+		return fmt.Errorf("helm chart render: %w", err)
 	}
 
 	hash, err := hashstructure.Hash(files, hashstructure.FormatV2, nil)
 	if err != nil {
-		lintError = fmt.Errorf("helm chart render: %v", err)
-		return
+		return fmt.Errorf("helm chart render: %w", err)
 	}
 
 	if _, ok := renderedTemplatesHash.Load(hash); ok {
-		return // the same files were already checked
+		return nil
 	}
 
 	defer renderedTemplatesHash.Store(hash, struct{}{})
@@ -51,7 +49,7 @@ func RunRender(m *module.Module, values chartutil.Values, objectStore *storage.U
 		scanner.Split(SplitAt("---"))
 
 		for scanner.Scan() {
-			var node map[string]interface{}
+			var node map[string]any
 			docBytes = scanner.Bytes()
 
 			err := yaml.Unmarshal(docBytes, &node)
@@ -65,11 +63,11 @@ func RunRender(m *module.Module, values chartutil.Values, objectStore *storage.U
 
 			err = objectStore.Put(path, node, docBytes)
 			if err != nil {
-				return fmt.Errorf("helm chart object already exists: %v", err)
+				return fmt.Errorf("helm chart object already exists: %w", err)
 			}
 		}
 	}
-	return
+	return lintError
 }
 
 func SplitAt(substring string) func(data []byte, atEOF bool) (advance int, token []byte, err error) {

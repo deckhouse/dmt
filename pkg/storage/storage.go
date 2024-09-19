@@ -61,7 +61,7 @@ func (s *StoreObject) GetInitContainers() ([]v1.Container, error) {
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), deployment)
 		if err != nil {
-			return []v1.Container{}, fmt.Errorf("convert Unstructured to Deployment failed: %v", err)
+			return []v1.Container{}, fmt.Errorf("convert Unstructured to Deployment failed: %w", err)
 		}
 
 		containers = deployment.Spec.Template.Spec.InitContainers
@@ -70,7 +70,7 @@ func (s *StoreObject) GetInitContainers() ([]v1.Container, error) {
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), daemonSet)
 		if err != nil {
-			return []v1.Container{}, fmt.Errorf("convert Unstructured to DaemonSet failed: %v", err)
+			return []v1.Container{}, fmt.Errorf("convert Unstructured to DaemonSet failed: %w", err)
 		}
 
 		containers = daemonSet.Spec.Template.Spec.InitContainers
@@ -79,7 +79,7 @@ func (s *StoreObject) GetInitContainers() ([]v1.Container, error) {
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), statefulSet)
 		if err != nil {
-			return []v1.Container{}, fmt.Errorf("convert Unstructured to StatefulSet failed: %v", err)
+			return []v1.Container{}, fmt.Errorf("convert Unstructured to StatefulSet failed: %w", err)
 		}
 
 		containers = statefulSet.Spec.Template.Spec.InitContainers
@@ -88,7 +88,7 @@ func (s *StoreObject) GetInitContainers() ([]v1.Container, error) {
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), pod)
 		if err != nil {
-			return []v1.Container{}, fmt.Errorf("convert Unstructured to Pod failed: %v", err)
+			return []v1.Container{}, fmt.Errorf("convert Unstructured to Pod failed: %w", err)
 		}
 
 		containers = pod.Spec.InitContainers
@@ -97,7 +97,7 @@ func (s *StoreObject) GetInitContainers() ([]v1.Container, error) {
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), job)
 		if err != nil {
-			return []v1.Container{}, fmt.Errorf("convert Unstructured to Job failed: %v", err)
+			return []v1.Container{}, fmt.Errorf("convert Unstructured to Job failed: %w", err)
 		}
 
 		containers = job.Spec.Template.Spec.InitContainers
@@ -106,7 +106,7 @@ func (s *StoreObject) GetInitContainers() ([]v1.Container, error) {
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), cronJob)
 		if err != nil {
-			return []v1.Container{}, fmt.Errorf("convert Unstructured to CronJob failed: %v", err)
+			return []v1.Container{}, fmt.Errorf("convert Unstructured to CronJob failed: %w", err)
 		}
 
 		containers = cronJob.Spec.JobTemplate.Spec.Template.Spec.InitContainers
@@ -124,7 +124,7 @@ func (s *StoreObject) GetContainers() ([]v1.Container, error) {
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), deployment)
 		if err != nil {
-			return []v1.Container{}, fmt.Errorf("convert Unstructured to Deployment failed: %v", err)
+			return []v1.Container{}, fmt.Errorf("convert Unstructured to Deployment failed: %w", err)
 		}
 
 		containers = deployment.Spec.Template.Spec.Containers
@@ -133,7 +133,7 @@ func (s *StoreObject) GetContainers() ([]v1.Container, error) {
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), daemonSet)
 		if err != nil {
-			return []v1.Container{}, fmt.Errorf("convert Unstructured to DaemonSet failed: %v", err)
+			return []v1.Container{}, fmt.Errorf("convert Unstructured to DaemonSet failed: %w", err)
 		}
 
 		containers = daemonSet.Spec.Template.Spec.Containers
@@ -142,7 +142,7 @@ func (s *StoreObject) GetContainers() ([]v1.Container, error) {
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), statefulSet)
 		if err != nil {
-			return []v1.Container{}, fmt.Errorf("convert Unstructured to StatefulSet failed: %v", err)
+			return []v1.Container{}, fmt.Errorf("convert Unstructured to StatefulSet failed: %w", err)
 		}
 
 		containers = statefulSet.Spec.Template.Spec.Containers
@@ -151,7 +151,7 @@ func (s *StoreObject) GetContainers() ([]v1.Container, error) {
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), pod)
 		if err != nil {
-			return []v1.Container{}, fmt.Errorf("convert Unstructured to Pod failed: %v", err)
+			return []v1.Container{}, fmt.Errorf("convert Unstructured to Pod failed: %w", err)
 		}
 
 		containers = pod.Spec.Containers
@@ -160,7 +160,7 @@ func (s *StoreObject) GetContainers() ([]v1.Container, error) {
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), job)
 		if err != nil {
-			return []v1.Container{}, fmt.Errorf("convert Unstructured to Job failed: %v", err)
+			return []v1.Container{}, fmt.Errorf("convert Unstructured to Job failed: %w", err)
 		}
 
 		containers = job.Spec.Template.Spec.Containers
@@ -169,7 +169,7 @@ func (s *StoreObject) GetContainers() ([]v1.Container, error) {
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), cronJob)
 		if err != nil {
-			return []v1.Container{}, fmt.Errorf("convert Unstructured to CronJob failed: %v", err)
+			return []v1.Container{}, fmt.Errorf("convert Unstructured to CronJob failed: %w", err)
 		}
 
 		containers = cronJob.Spec.JobTemplate.Spec.Template.Spec.Containers
@@ -177,7 +177,7 @@ func (s *StoreObject) GetContainers() ([]v1.Container, error) {
 		replicaSet := new(appsv1.ReplicaSet)
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), replicaSet)
 		if err != nil {
-			return []v1.Container{}, fmt.Errorf("convert Unstructured to ReplicaSet failed: %v", err)
+			return []v1.Container{}, fmt.Errorf("convert Unstructured to ReplicaSet failed: %w", err)
 		}
 
 		containers = replicaSet.Spec.Template.Spec.Containers
@@ -194,7 +194,7 @@ func (s *StoreObject) GetPodSecurityContext() (*v1.PodSecurityContext, error) {
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), deployment)
 		if err != nil {
-			return nil, fmt.Errorf("convert Unstructured to Deployment failed: %v", err)
+			return nil, fmt.Errorf("convert Unstructured to Deployment failed: %w", err)
 		}
 
 		return deployment.Spec.Template.Spec.SecurityContext, nil
@@ -203,7 +203,7 @@ func (s *StoreObject) GetPodSecurityContext() (*v1.PodSecurityContext, error) {
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), daemonSet)
 		if err != nil {
-			return nil, fmt.Errorf("convert Unstructured to DaemonSet failed: %v", err)
+			return nil, fmt.Errorf("convert Unstructured to DaemonSet failed: %w", err)
 		}
 
 		return daemonSet.Spec.Template.Spec.SecurityContext, nil
@@ -212,7 +212,7 @@ func (s *StoreObject) GetPodSecurityContext() (*v1.PodSecurityContext, error) {
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), statefulSet)
 		if err != nil {
-			return nil, fmt.Errorf("convert Unstructured to StatefulSet failed: %v", err)
+			return nil, fmt.Errorf("convert Unstructured to StatefulSet failed: %w", err)
 		}
 
 		return statefulSet.Spec.Template.Spec.SecurityContext, nil
@@ -221,7 +221,7 @@ func (s *StoreObject) GetPodSecurityContext() (*v1.PodSecurityContext, error) {
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), pod)
 		if err != nil {
-			return nil, fmt.Errorf("convert Unstructured to Pod failed: %v", err)
+			return nil, fmt.Errorf("convert Unstructured to Pod failed: %w", err)
 		}
 
 		return pod.Spec.SecurityContext, nil
@@ -230,7 +230,7 @@ func (s *StoreObject) GetPodSecurityContext() (*v1.PodSecurityContext, error) {
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), job)
 		if err != nil {
-			return nil, fmt.Errorf("convert Unstructured to Job failed: %v", err)
+			return nil, fmt.Errorf("convert Unstructured to Job failed: %w", err)
 		}
 
 		return job.Spec.Template.Spec.SecurityContext, nil
@@ -239,7 +239,7 @@ func (s *StoreObject) GetPodSecurityContext() (*v1.PodSecurityContext, error) {
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), cronJob)
 		if err != nil {
-			return nil, fmt.Errorf("convert Unstructured to CronJob failed: %v", err)
+			return nil, fmt.Errorf("convert Unstructured to CronJob failed: %w", err)
 		}
 
 		return cronJob.Spec.JobTemplate.Spec.Template.Spec.SecurityContext, nil
@@ -247,7 +247,7 @@ func (s *StoreObject) GetPodSecurityContext() (*v1.PodSecurityContext, error) {
 		replicaSet := new(appsv1.ReplicaSet)
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), replicaSet)
 		if err != nil {
-			return nil, fmt.Errorf("convert Unstructured to ReplicaSet failed: %v", err)
+			return nil, fmt.Errorf("convert Unstructured to ReplicaSet failed: %w", err)
 		}
 
 		return replicaSet.Spec.Template.Spec.SecurityContext, nil
@@ -264,7 +264,7 @@ func (s *StoreObject) IsHostNetwork() (bool, error) {
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), deployment)
 		if err != nil {
-			return false, fmt.Errorf("convert Unstructured to Deployment failed: %v", err)
+			return false, fmt.Errorf("convert Unstructured to Deployment failed: %w", err)
 		}
 
 		return deployment.Spec.Template.Spec.HostNetwork, nil
@@ -273,7 +273,7 @@ func (s *StoreObject) IsHostNetwork() (bool, error) {
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), daemonSet)
 		if err != nil {
-			return false, fmt.Errorf("convert Unstructured to DaemonSet failed: %v", err)
+			return false, fmt.Errorf("convert Unstructured to DaemonSet failed: %w", err)
 		}
 
 		return daemonSet.Spec.Template.Spec.HostNetwork, nil
@@ -282,7 +282,7 @@ func (s *StoreObject) IsHostNetwork() (bool, error) {
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), statefulSet)
 		if err != nil {
-			return false, fmt.Errorf("convert Unstructured to StatefulSet failed: %v", err)
+			return false, fmt.Errorf("convert Unstructured to StatefulSet failed: %w", err)
 		}
 
 		return statefulSet.Spec.Template.Spec.HostNetwork, nil
@@ -291,7 +291,7 @@ func (s *StoreObject) IsHostNetwork() (bool, error) {
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), pod)
 		if err != nil {
-			return false, fmt.Errorf("convert Unstructured to Pod failed: %v", err)
+			return false, fmt.Errorf("convert Unstructured to Pod failed: %w", err)
 		}
 
 		return pod.Spec.HostNetwork, nil
@@ -300,7 +300,7 @@ func (s *StoreObject) IsHostNetwork() (bool, error) {
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), job)
 		if err != nil {
-			return false, fmt.Errorf("convert Unstructured to Job failed: %v", err)
+			return false, fmt.Errorf("convert Unstructured to Job failed: %w", err)
 		}
 
 		return job.Spec.Template.Spec.HostNetwork, nil
@@ -309,7 +309,7 @@ func (s *StoreObject) IsHostNetwork() (bool, error) {
 
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), cronJob)
 		if err != nil {
-			return false, fmt.Errorf("convert Unstructured to CronJob failed: %v", err)
+			return false, fmt.Errorf("convert Unstructured to CronJob failed: %w", err)
 		}
 
 		return cronJob.Spec.JobTemplate.Spec.Template.Spec.HostNetwork, nil
@@ -340,7 +340,7 @@ func NewUnstructuredObjectStore() *UnstructuredObjectStore {
 	return &UnstructuredObjectStore{Storage: make(map[ResourceIndex]StoreObject)}
 }
 
-func (s *UnstructuredObjectStore) Put(path string, object map[string]interface{}, raw []byte) error {
+func (s *UnstructuredObjectStore) Put(path string, object map[string]any, raw []byte) error {
 	var u unstructured.Unstructured
 	u.SetUnstructuredContent(object)
 
