@@ -1,4 +1,4 @@
-package values_validation
+package valuesvalidation
 
 import (
 	"encoding/json"
@@ -7,9 +7,10 @@ import (
 
 	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/flant/addon-operator/pkg/values/validation"
-	log "github.com/sirupsen/logrus"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"sigs.k8s.io/yaml"
+
+	"github.com/deckhouse/d8-lint/pkg/logger"
 )
 
 type ValuesValidator struct {
@@ -21,12 +22,12 @@ func NewValuesValidator(moduleName, modulePath string) (*ValuesValidator, error)
 	openAPIDir := filepath.Join("/deckhouse", "global-hooks", "openapi")
 	configBytes, valuesBytes, err := utils.ReadOpenAPIFiles(openAPIDir)
 	if err != nil {
-		return nil, fmt.Errorf("read global openAPI schemas: %v", err)
+		return nil, fmt.Errorf("read global openAPI schemas: %w", err)
 	}
 
 	globalSchemaStorage, err := validation.NewSchemaStorage(configBytes, valuesBytes)
 	if err != nil {
-		return nil, fmt.Errorf("parse global openAPI schemas: %v", err)
+		return nil, fmt.Errorf("parse global openAPI schemas: %w", err)
 	}
 
 	if moduleName == "" || modulePath == "" {
@@ -36,12 +37,12 @@ func NewValuesValidator(moduleName, modulePath string) (*ValuesValidator, error)
 	openAPIPath := filepath.Join(modulePath, "openapi")
 	configBytes, valuesBytes, err = utils.ReadOpenAPIFiles(openAPIPath)
 	if err != nil {
-		return nil, fmt.Errorf("module '%s' read openAPI schemas: %v", moduleName, err)
+		return nil, fmt.Errorf("module '%s' read openAPI schemas: %w", moduleName, err)
 	}
 
 	moduleSchemaStorage, err := validation.NewSchemaStorage(configBytes, valuesBytes)
 	if err != nil {
-		return nil, fmt.Errorf("parse module openAPI schemas: %v", err)
+		return nil, fmt.Errorf("parse module openAPI schemas: %w", err)
 	}
 
 	return &ValuesValidator{
@@ -69,7 +70,7 @@ func (vv *ValuesValidator) ValidateValues(moduleName string, values chartutil.Va
 	return nil
 }
 
-func (vv *ValuesValidator) ValidateHelmValues(moduleName string, values string) error {
+func (vv *ValuesValidator) ValidateHelmValues(moduleName, values string) error {
 	var obj map[string]interface{}
 	err := yaml.Unmarshal([]byte(values), &obj)
 	if err != nil {
@@ -122,7 +123,7 @@ func (vv *ValuesValidator) ValidateGlobalValues(obj utils.Values) error {
 func (vv *ValuesValidator) ValidateModuleValues(moduleName string, obj utils.Values) error {
 	ss := vv.ModuleSchemaStorages[moduleName]
 	if ss == nil {
-		log.Warnf("schema storage for '%s' is not found", moduleName)
+		logger.WarnF("schema storage for '%s' is not found", moduleName)
 		return nil
 	}
 
@@ -132,7 +133,7 @@ func (vv *ValuesValidator) ValidateModuleValues(moduleName string, obj utils.Val
 func (vv *ValuesValidator) ValidateModuleHelmValues(moduleName string, obj utils.Values) error {
 	ss := vv.ModuleSchemaStorages[moduleName]
 	if ss == nil {
-		log.Warnf("schema storage for '%s' is not found", moduleName)
+		logger.WarnF("schema storage for '%s' is not found", moduleName)
 		return nil
 	}
 
@@ -142,7 +143,7 @@ func (vv *ValuesValidator) ValidateModuleHelmValues(moduleName string, obj utils
 func (vv *ValuesValidator) ValidateConfigValues(moduleName string, obj utils.Values) error {
 	ss := vv.ModuleSchemaStorages[moduleName]
 	if ss == nil {
-		log.Warnf("schema storage for '%s' is not found", moduleName)
+		logger.WarnF("schema storage for '%s' is not found", moduleName)
 		return nil
 	}
 

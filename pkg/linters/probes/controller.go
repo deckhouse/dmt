@@ -2,6 +2,7 @@ package probes
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"strings"
 	"sync"
@@ -79,7 +80,7 @@ func SplitAt(substring string) func(data []byte, atEOF bool) (advance int, token
 		}
 
 		// Find the index of the input of the separator substring
-		if i := strings.Index(string(data), substring); i >= 0 {
+		if i := bytes.Index(data, []byte(substring)); i >= 0 {
 			return i + len(substring), data[0:i], nil
 		}
 

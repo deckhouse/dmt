@@ -12,7 +12,7 @@ import (
 	"helm.sh/helm/v3/pkg/chartutil"
 
 	"github.com/deckhouse/d8-lint/pkg/module"
-	"github.com/deckhouse/d8-lint/pkg/values_validation"
+	"github.com/deckhouse/d8-lint/pkg/valuesvalidation"
 )
 
 const (
@@ -99,7 +99,7 @@ func getModulesImagesDigestsFromLocalPath(modulePath string) (map[string]interfa
 }
 
 func ComposeValuesFromSchemas(m *module.Module) ([]chartutil.Values, error) {
-	valueValidator, err := values_validation.NewValuesValidator(m.Name, m.Path)
+	valueValidator, err := valuesvalidation.NewValuesValidator(m.Name, m.Path)
 	if err != nil {
 		return nil, fmt.Errorf("schemas load: %v", err)
 	}
