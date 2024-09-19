@@ -57,8 +57,7 @@ func (o *Probes) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 				continue
 			}
 
-			data := o.containerProbes(m.GetName(), object, containers)
-			result.Merge(data)
+			result = o.containerProbes(m.GetName(), object, containers, result)
 		}
 
 	}
@@ -74,8 +73,12 @@ func (o *Probes) Desc() string {
 	return o.desc
 }
 
-func (o *Probes) containerProbes(moduleName string, object storage.StoreObject, containers []v1.Container) errors.LintRuleErrorsList {
-	var errorList errors.LintRuleErrorsList
+func (o *Probes) containerProbes(
+	moduleName string,
+	object storage.StoreObject,
+	containers []v1.Container,
+	errorList errors.LintRuleErrorsList,
+) errors.LintRuleErrorsList {
 	for _, container := range containers {
 		if o.skipCheckProbeHandler(object.Unstructured.GetNamespace(), container.Name) {
 			continue
