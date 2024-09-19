@@ -143,7 +143,241 @@ var defaultLintersSettings = LintersSettings{
 	Copyright: CopyrightSettings{
 		CopyrightExcludes: map[string]struct{}{},
 	},
-	Probes: ProbesSettings{},
+	Probes: ProbesSettings{
+		ProbesExcludes: map[string]map[string]struct{}{
+			"d8-system": {
+				"handler":         {},
+				"deckhouse":       {},
+				"kube-rbac-proxy": {},
+				"kube-router":     {},
+				"web":             {},
+			},
+			"d8-admission-policy-engine": {
+				"constraint-exporter": {},
+				"kube-rbac-proxy":     {},
+			},
+			"d8-cni-cilium": {
+				"kube-rbac-proxy":          {},
+				"operator":                 {},
+				"pause-cilium":             {},
+				"pause-check-linux-kernel": {},
+				"pause-kube-rbac-proxy":    {},
+				"frontend":                 {},
+				"backend":                  {},
+			},
+			"d8-cloud-provider-aws": {
+				"node-driver-registrar":    {},
+				"node":                     {},
+				"kube-rbac-proxy":          {},
+				"node-termination-handler": {},
+				"provisioner":              {},
+				"attacher":                 {},
+				"resizer":                  {},
+				"snapshotter":              {},
+				"livenessprobe":            {},
+				"controller":               {},
+			},
+			"d8-cloud-provider-azure": {
+				"node-driver-registrar":    {},
+				"node":                     {},
+				"kube-rbac-proxy":          {},
+				"node-termination-handler": {},
+				"provisioner":              {},
+				"attacher":                 {},
+				"resizer":                  {},
+				"snapshotter":              {},
+				"livenessprobe":            {},
+				"controller":               {},
+			},
+			"d8-cloud-provider-gcp": {
+				"node-driver-registrar":    {},
+				"node":                     {},
+				"kube-rbac-proxy":          {},
+				"node-termination-handler": {},
+				"provisioner":              {},
+				"attacher":                 {},
+				"resizer":                  {},
+				"snapshotter":              {},
+				"livenessprobe":            {},
+				"controller":               {},
+			},
+			"d8-cloud-provider-yandex": {
+				"node-driver-registrar":    {},
+				"node":                     {},
+				"kube-rbac-proxy":          {},
+				"node-termination-handler": {},
+				"provisioner":              {},
+				"attacher":                 {},
+				"resizer":                  {},
+				"snapshotter":              {},
+				"livenessprobe":            {},
+				"controller":               {},
+			},
+			"d8-local-path-provisioner": {
+				"local-path-provisioner": {},
+			},
+			"d8-cni-flannel": {
+				"kube-flannel": {},
+			},
+			"d8-cni-simple-bridge": {
+				"simple-bridge": {},
+			},
+			"kube-system": {
+				"kube-proxy":                              {},
+				"kube-rbac-proxy":                         {},
+				"image-holder-etcd":                       {},
+				"image-holder-kube-apiserver129":          {},
+				"image-holder-kube-apiserver-healthcheck": {},
+				"image-holder-kube-controller-manager129": {},
+				"image-holder-kube-scheduler129":          {},
+				"admission-controller":                    {},
+				"recommender":                             {},
+				"updater":                                 {},
+				"iptables-loop":                           {},
+			},
+			"d8-snapshot-controller": {
+				"snapshot-controller": {},
+				"kube-rbac-proxy":     {},
+				"snapshot-validation": {},
+			},
+			"d8-cert-manager": {
+				"cainjector":      {},
+				"kube-rbac-proxy": {},
+				"cert-manager":    {},
+			},
+			"d8-istio": {
+				"kube-rbac-proxy": {},
+				"operator":        {},
+			},
+			"test-namespace": {
+				"redis": {},
+			},
+			"dex-authenticator-namespace": {
+				"redis": {},
+			},
+			"d8-operator-prometheus": {
+				"prometheus-operator": {},
+				"kube-rbac-proxy":     {},
+			},
+			"d8-monitoring": {
+				"grafana":                              {},
+				"dashboard-provisioner":                {},
+				"kube-rbac-proxy":                      {},
+				"exporter":                             {},
+				"prometheus-metrics-adapter":           {},
+				"image-availability-exporter":          {},
+				"node-exporter":                        {},
+				"kubelet-eviction-thresholds-exporter": {},
+				"monitoring-ping":                      {},
+			},
+			"d8-ingress-nginx": {
+				"kruise": {},
+			},
+			"d8-log-shipper": {
+				"vector-reloader": {},
+			},
+			"d8-pod-reloader": {
+				"kube-rbac-proxy": {},
+			},
+			"d8-chrony": {
+				"chrony": {},
+			},
+			"d8-okmeter": {
+				"okagent": {},
+			},
+			"d8-openvpn": {
+				"openvpn-tcp":     {},
+				"ovpn-admin":      {},
+				"kube-rbac-proxy": {},
+			},
+			"d8-upmeter": {
+				"agent":           {},
+				"kube-rbac-proxy": {},
+			},
+			"d8-metallb": {
+				"controller":      {},
+				"kube-rbac-proxy": {},
+			},
+			"d8-delivery": {
+				"redis":                            {},
+				"werf-argocd-cmp-sidecar":          {},
+				"argocd-applicationset-controller": {},
+				"argocd-notifications-controller":  {},
+				"argocd-application-controller":    {},
+			},
+			"d8-static-routing-manager": {
+				"agent": {},
+			},
+			"d8-cloud-provider-openstack": {
+				"node-driver-registrar":    {},
+				"node":                     {},
+				"kube-rbac-proxy":          {},
+				"node-termination-handler": {},
+				"provisioner":              {},
+				"attacher":                 {},
+				"resizer":                  {},
+				"snapshotter":              {},
+				"livenessprobe":            {},
+				"controller":               {},
+			},
+			"d8-cloud-provider-vcd": {
+				"node-driver-registrar":    {},
+				"node":                     {},
+				"kube-rbac-proxy":          {},
+				"node-termination-handler": {},
+				"provisioner":              {},
+				"attacher":                 {},
+				"resizer":                  {},
+				"snapshotter":              {},
+				"livenessprobe":            {},
+				"controller":               {},
+			},
+			"d8-cloud-provider-vsphere": {
+				"node-driver-registrar":    {},
+				"node":                     {},
+				"kube-rbac-proxy":          {},
+				"node-termination-handler": {},
+				"provisioner":              {},
+				"attacher":                 {},
+				"resizer":                  {},
+				"snapshotter":              {},
+				"livenessprobe":            {},
+				"controller":               {},
+				"syncer":                   {},
+			},
+			"d8-cloud-provider-zvirt": {
+				"node-driver-registrar":    {},
+				"node":                     {},
+				"kube-rbac-proxy":          {},
+				"node-termination-handler": {},
+				"provisioner":              {},
+				"attacher":                 {},
+				"resizer":                  {},
+				"snapshotter":              {},
+				"livenessprobe":            {},
+				"controller":               {},
+			},
+			"d8-l2-load-balancer": {
+				"kube-rbac-proxy": {},
+				"controller":      {},
+			},
+			"d8-network-gateway": {
+				"dhcp": {},
+				"snat": {},
+			},
+			"d8-operator-trivy": {
+				"kube-rbac-proxy": {},
+				"report-updater":  {},
+			},
+			"d8-runtime-audit-engine": {
+				"rules-loader": {},
+			},
+			"d8-dashboard": {
+				"dashboard":       {},
+				"metrics-scraper": {},
+			},
+		},
+	},
 }
 
 type LintersSettings struct {
@@ -218,4 +452,6 @@ type CopyrightSettings struct {
 	CopyrightExcludes map[string]struct{} `mapstructure:"copyright-excludes"`
 }
 
-type ProbesSettings struct{}
+type ProbesSettings struct {
+	ProbesExcludes map[string]map[string]struct{} `mapstructure:"probes-excludes"`
+}

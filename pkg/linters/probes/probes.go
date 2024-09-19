@@ -57,7 +57,7 @@ func (o *Probes) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 				continue
 			}
 
-			data := containerProbes(object, containers)
+			data := o.containerProbes(object, containers)
 			result.Merge(data)
 		}
 
@@ -74,12 +74,12 @@ func (o *Probes) Desc() string {
 	return o.desc
 }
 
-func containerProbes(object storage.StoreObject, containers []v1.Container) errors.LintRuleErrorsList {
+func (o *Probes) containerProbes(object storage.StoreObject, containers []v1.Container) errors.LintRuleErrorsList {
 	var errorList errors.LintRuleErrorsList
 	for _, container := range containers {
-		//if skipCheckProbeHandler(object.Unstructured.GetNamespace(), container.Name) {
-		//	continue
-		//}
+		if o.skipCheckProbeHandler(object.Unstructured.GetNamespace(), container.Name) {
+			continue
+		}
 
 		var errStrings []string
 		// check livenessProbe exist and correct
@@ -123,6 +123,16 @@ func probeHandlerIsNotValid(probe v1.ProbeHandler) bool {
 	}
 	if count != 1 {
 		return true
+	}
+
+	return false
+}
+
+func (o *Probes) skipCheckProbeHandler(namespace, container string) bool {
+	containers, ok := o.cfg.ProbesExcludes[namespace]
+	if ok {
+		_, ok = containers[container]
+		return ok
 	}
 
 	return false
