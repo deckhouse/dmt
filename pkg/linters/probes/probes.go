@@ -53,11 +53,11 @@ func (o *Probes) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 
 		for _, object := range objectStore.Storage {
 			containers, err := object.GetContainers()
-			if err != nil {
+			if err != nil || containers == nil {
 				continue
 			}
 
-			data := o.containerProbes(object, containers)
+			data := o.containerProbes(m.GetName(), object, containers)
 			result.Merge(data)
 		}
 
@@ -74,7 +74,7 @@ func (o *Probes) Desc() string {
 	return o.desc
 }
 
-func (o *Probes) containerProbes(object storage.StoreObject, containers []v1.Container) errors.LintRuleErrorsList {
+func (o *Probes) containerProbes(moduleName string, object storage.StoreObject, containers []v1.Container) errors.LintRuleErrorsList {
 	var errorList errors.LintRuleErrorsList
 	for _, container := range containers {
 		if o.skipCheckProbeHandler(object.Unstructured.GetNamespace(), container.Name) {
@@ -97,7 +97,7 @@ func (o *Probes) containerProbes(object storage.StoreObject, containers []v1.Con
 		if len(errStrings) > 0 {
 			errorList.Add(errors.NewLintRuleError(
 				"probes",
-				object.Identity()+" ; container = "+container.Name,
+				"module = "+moduleName+" ; "+object.Identity()+" ; container = "+container.Name,
 				nil,
 				"Container does not use correct "+strings.Join(errStrings, " and "),
 			))
