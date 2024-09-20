@@ -43,7 +43,7 @@ func helmFormatModuleImages(m *module.Module, rawValues []any) ([]chartutil.Valu
 	vers = append(vers, "autoscaling.k8s.io/v1/VerticalPodAutoscaler")
 	caps.APIVersions = vers
 
-	digests, err := GetModulesImagesDigests(m.Path)
+	digests, err := GetModulesImagesDigests(m.GetPath())
 	if err != nil {
 		return nil, err
 	}
@@ -53,11 +53,11 @@ func helmFormatModuleImages(m *module.Module, rawValues []any) ([]chartutil.Valu
 		applyDigests(digests, singleValue)
 
 		top := map[string]any{
-			"Chart":        m.Chart.Metadata,
+			"Chart":        m.GetMetadata(),
 			"Capabilities": caps,
 			"Release": map[string]any{
-				"Name":      m.Name,
-				"Namespace": m.Namespace,
+				"Name":      m.GetName(),
+				"Namespace": m.GetNamespace(),
 				"IsUpgrade": true,
 				"IsInstall": true,
 				"Revision":  0,
@@ -110,7 +110,7 @@ func getModulesImagesDigestsFromLocalPath(modulePath string) (map[string]any, er
 }
 
 func ComposeValuesFromSchemas(m *module.Module) ([]chartutil.Values, error) {
-	valueValidator, err := valuesvalidation.NewValuesValidator(m.Name, m.Path)
+	valueValidator, err := valuesvalidation.NewValuesValidator(m.GetName(), m.GetPath())
 	if err != nil {
 		return nil, fmt.Errorf("schemas load: %w", err)
 	}
@@ -119,15 +119,15 @@ func ComposeValuesFromSchemas(m *module.Module) ([]chartutil.Values, error) {
 		return nil, nil
 	}
 
-	camelizedModuleName := ToLowerCamel(m.Name)
+	camelizedModuleName := ToLowerCamel(m.GetName())
 
-	if valueValidator.ModuleSchemaStorages[m.Name].Schemas == nil {
+	if valueValidator.ModuleSchemaStorages[m.GetName()].Schemas == nil {
 		return nil, nil
 	}
 
-	values, _ := valueValidator.ModuleSchemaStorages[m.Name].Schemas["values"]
+	values, _ := valueValidator.ModuleSchemaStorages[m.GetName()].Schemas["values"]
 	if values == nil {
-		return nil, fmt.Errorf("cannot find openapi values schema for module %s", m.Name)
+		return nil, fmt.Errorf("cannot find openapi values schema for module %s", m.GetName())
 	}
 
 	moduleSchema := *values

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"helm.sh/helm/v3/pkg/chart/loader"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/deckhouse/d8-lint/pkg/config"
@@ -30,11 +29,9 @@ func New(cfg *config.ProbesSettings) *Probes {
 
 func (o *Probes) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 	var result errors.LintRuleErrorsList
-	var err error
 
-	m.Chart, err = loader.Load(m.GetPath())
-	if err != nil {
-		return result, err
+	if err := m.LoadChart(); err != nil {
+		return errors.LintRuleErrorsList{}, err
 	}
 
 	values, err := k8s.ComposeValuesFromSchemas(m)
@@ -55,7 +52,7 @@ func (o *Probes) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 				continue
 			}
 
-			result = o.containerProbes(m.GetName(), object, containers, result)
+			result.Merge(o.containerProbes(m.GetName(), object, containers))
 		}
 	}
 
@@ -74,8 +71,8 @@ func (o *Probes) containerProbes(
 	moduleName string,
 	object storage.StoreObject,
 	containers []v1.Container,
-	errorList errors.LintRuleErrorsList,
 ) errors.LintRuleErrorsList {
+	var errorList errors.LintRuleErrorsList
 	for i := range containers {
 		container := containers[i]
 		if o.skipCheckProbeHandler(object.Unstructured.GetNamespace(), container.Name) {

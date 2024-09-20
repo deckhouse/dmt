@@ -8,6 +8,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 	"helm.sh/helm/v3/pkg/chart"
+	"helm.sh/helm/v3/pkg/chart/loader"
 )
 
 const (
@@ -15,31 +16,58 @@ const (
 )
 
 type Module struct {
-	Name      string
-	Namespace string
-	Path      string
-	Chart     *chart.Chart
+	name      string
+	namespace string
+	path      string
+	chart     *chart.Chart
 }
 
 type ModuleList []*Module
 
 func (m *Module) String() string {
-	return fmt.Sprintf("{Name: %s, Namespace: %s, Path: %s}", m.Name, m.Namespace, m.Path)
+	return fmt.Sprintf("{Name: %s, Namespace: %s, Path: %s}", m.name, m.namespace, m.path)
 }
 
 func (m *Module) GetName() string {
-	return m.Name
+	return m.name
+}
+
+func (m *Module) GetNamespace() string {
+	return m.namespace
 }
 
 func (m *Module) GetPath() string {
-	return m.Path
+	return m.path
+}
+
+func (m *Module) GetChart() *chart.Chart {
+	return m.chart
+}
+
+func (m *Module) GetMetadata() *chart.Metadata {
+	if m.chart == nil {
+		return nil
+	}
+	if m.chart.Metadata == nil {
+		m.chart.Metadata = &chart.Metadata{}
+	}
+	return m.chart.Metadata
+}
+
+func (m *Module) LoadChart() (err error) {
+	m.chart, err = loader.Load(m.GetPath())
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func NewModule(path string) *Module {
 	module := &Module{
-		Name:      getModuleName(path),
-		Namespace: getNamespace(path),
-		Path:      path,
+		name:      getModuleName(path),
+		namespace: getNamespace(path),
+		path:      path,
 	}
 
 	return module

@@ -22,11 +22,11 @@ var (
 
 func RunRender(m *module.Module, values chartutil.Values, objectStore *storage.UnstructuredObjectStore) (lintError error) {
 	var renderer helm.Renderer
-	renderer.Name = m.Name
-	renderer.Namespace = m.Namespace
+	renderer.Name = m.GetName()
+	renderer.Namespace = m.GetNamespace()
 	renderer.LintMode = true
 
-	files, err := renderer.RenderChartFromRawValues(m.Chart, values)
+	files, err := renderer.RenderChartFromRawValues(m.GetChart(), values)
 	if err != nil {
 		return fmt.Errorf("helm chart render: %w", err)
 	}

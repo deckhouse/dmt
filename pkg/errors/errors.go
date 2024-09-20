@@ -55,7 +55,9 @@ func (l *LintRuleErrorsList) Add(e LintRuleError) {
 
 // Merge merges another LintRuleErrorsList into current one, removing all duplicate errors.
 func (l *LintRuleErrorsList) Merge(e LintRuleErrorsList) {
-	l.data = append(l.data, e.data...)
+	for _, el := range e.data {
+		l.Add(el)
+	}
 }
 
 // ConvertToError converts LintRuleErrorsList to a single error.
