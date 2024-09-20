@@ -108,8 +108,8 @@ func (o *Probes) containerProbes(
 			errorList.Add(errors.NewLintRuleError(
 				"probes",
 				"module = "+moduleName+" ; "+object.Identity()+" ; container = "+container.Name,
-				nil,
-				"Container does not use correct "+strings.Join(errStrings, " and "),
+				strings.Join(errStrings, " and "),
+				"Container does not use correct probes",
 			))
 		}
 	}

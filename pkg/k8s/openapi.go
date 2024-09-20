@@ -145,7 +145,7 @@ func ComposeValuesFromSchemas(m *module.Module) ([]chartutil.Values, error) {
 
 	rawValues, err := NewOpenAPIValuesGenerator(&combinedSchema).Do()
 	if err != nil {
-		return nil, fmt.Errorf("generate vlues: %w", err)
+		return nil, fmt.Errorf("generate values: %w", err)
 	}
 
 	return helmFormatModuleImages(m, rawValues)

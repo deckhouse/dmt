@@ -52,9 +52,9 @@ func RunRender(m *module.Module, values chartutil.Values, objectStore *storage.U
 			var node map[string]any
 			docBytes = scanner.Bytes()
 
-			err := yaml.Unmarshal(docBytes, &node)
+			err = yaml.Unmarshal(docBytes, &node)
 			if err != nil {
-				return fmt.Errorf(manifestErrorMessage, err, numerateManifestLines(string(docBytes)))
+				return fmt.Errorf(manifestErrorMessage, err)
 			}
 
 			if len(node) == 0 {
@@ -92,32 +92,5 @@ func SplitAt(substring string) func(data []byte, atEOF bool) (advance int, token
 }
 
 const (
-	manifestErrorMessage = `manifest unmarshal: %v
-
---- Manifest:
-%s
-`
-	testsSuccessfulMessage = `
-%sModule %s - %v test cases passed!
-
-`
-	testsErrorMessage = `test #%v failed:
---- Error:
-%s
-
---- Values:
-%s
-
-`
+	manifestErrorMessage = `manifest unmarshal: %v`
 )
-
-func numerateManifestLines(manifest string) string {
-	manifestLines := strings.Split(manifest, "\n")
-	builder := strings.Builder{}
-
-	for index, line := range manifestLines {
-		builder.WriteString(fmt.Sprintf("%d\t%s\n", index+1, line))
-	}
-
-	return builder.String()
-}
