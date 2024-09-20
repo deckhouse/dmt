@@ -233,6 +233,7 @@ func (g *OpenAPIValuesGenerator) generateAndPushBackNodes(
 	return nil
 }
 
+//nolint:funlen,gocyclo // complex diff
 func (g *OpenAPIValuesGenerator) parseProperties(tempNode *SchemaNode, counter *InteractionsCounter) error {
 	for key := range tempNode.Schema.Properties {
 		prop := tempNode.Schema.Properties[key]
