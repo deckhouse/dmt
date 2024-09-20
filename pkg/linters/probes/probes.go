@@ -3,7 +3,9 @@ package probes
 import (
 	"fmt"
 	"strings"
+	"sync"
 
+	"golang.org/x/sync/errgroup"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/deckhouse/d8-lint/pkg/config"
@@ -39,24 +41,34 @@ func (o *Probes) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 		return result, fmt.Errorf("saving values from openapi: %w", err)
 	}
 
+	var g errgroup.Group
+	sm := sync.Mutex{}
 	for _, valuesData := range values {
-		objectStore := storage.NewUnstructuredObjectStore()
-		err = k8s.RunRender(m, valuesData, objectStore)
-		if err != nil {
-			continue
-		}
-
-		for _, object := range objectStore.Storage {
-			containers, err := object.GetContainers()
-			if err != nil || containers == nil {
-				continue
+		g.Go(func() error {
+			objectStore := storage.NewUnstructuredObjectStore()
+			err = k8s.RunRender(m, valuesData, objectStore)
+			if err != nil {
+				return err
 			}
 
-			result.Merge(o.containerProbes(m.GetName(), object, containers))
-		}
+			for _, object := range objectStore.Storage {
+				containers, er := object.GetContainers()
+				if er != nil || containers == nil {
+					continue
+				}
+
+				sm.Lock()
+				result.Merge(o.containerProbes(m.GetName(), object, containers))
+				sm.Unlock()
+			}
+
+			return nil
+		})
 	}
 
-	return result, nil
+	err = g.Wait()
+
+	return result, err
 }
 
 func (o *Probes) Name() string {

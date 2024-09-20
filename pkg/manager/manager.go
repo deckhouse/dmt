@@ -5,8 +5,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/mitchellh/go-homedir"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/deckhouse/d8-lint/pkg/config"
 	"github.com/deckhouse/d8-lint/pkg/errors"
@@ -77,16 +79,24 @@ func (m *Manager) Run() errors.LintRuleErrorsList {
 	result := errors.LintRuleErrorsList{}
 
 	for i := range m.Linters {
+		var g errgroup.Group
+		sm := sync.Mutex{}
 		for j := range m.Modules {
-			errs, err := m.Linters[i].Run(m.Modules[j])
-			if err != nil {
-				logger.WarnF("Error running linter `%s`: %s\n", m.Linters[i].Name(), err)
-				continue
-			}
-			if errs.ConvertToError() != nil {
-				result.Merge(errs)
-			}
+			g.Go(func() error {
+				errs, err := m.Linters[i].Run(m.Modules[j])
+				if err != nil {
+					logger.WarnF("Error running linter `%s`: %s\n", m.Linters[i].Name(), err)
+					return err
+				}
+				if errs.ConvertToError() != nil {
+					sm.Lock()
+					result.Merge(errs)
+					sm.Unlock()
+				}
+				return nil
+			})
 		}
+		_ = g.Wait()
 	}
 
 	return result

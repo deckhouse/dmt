@@ -19,7 +19,7 @@ type ValuesValidator struct {
 }
 
 func NewValuesValidator(moduleName, modulePath string) (*ValuesValidator, error) {
-	openAPIDir := filepath.Join(modulePath, "..", "..", "global-hooks", "openapi")
+	openAPIDir := "/" + filepath.Join("deckhouse", "global-hooks", "openapi")
 	configBytes, valuesBytes, err := utils.ReadOpenAPIFiles(openAPIDir)
 	if err != nil {
 		return nil, fmt.Errorf("read global openAPI schemas: %w", err)
