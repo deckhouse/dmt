@@ -75,11 +75,16 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 	return m
 }
 
+const (
+	modulesLimit = 10
+)
+
 func (m *Manager) Run() errors.LintRuleErrorsList {
 	result := errors.LintRuleErrorsList{}
 
 	for i := range m.Linters {
 		var g errgroup.Group
+		g.SetLimit(modulesLimit)
 		sm := sync.Mutex{}
 		for j := range m.Modules {
 			g.Go(func() error {
