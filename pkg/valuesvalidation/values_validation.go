@@ -91,7 +91,7 @@ func (vv *ValuesValidator) ValidateHelmValues(moduleName, values string) error {
 }
 
 func (vv *ValuesValidator) ValidateJSONValues(moduleName string, values []byte, configValues bool) error {
-	obj := map[string]any{}
+	obj := make(map[string]any)
 	err := json.Unmarshal(values, &obj)
 	if err != nil {
 		return err
