@@ -26,12 +26,12 @@ func applyDigests(digests map[string]any, values any) {
 	if values == nil {
 		return
 	}
-	value, _ := values.(map[string]any)["global"]
-	if value == nil {
+	value, ok := values.(map[string]any)["global"]
+	if value == nil || !ok {
 		return
 	}
-	value, _ = value.(map[string]any)["modulesImages"]
-	if value == nil {
+	value, ok = value.(map[string]any)["modulesImages"]
+	if value == nil || !ok {
 		return
 	}
 	value.(map[string]any)["digests"] = digests
@@ -125,18 +125,18 @@ func ComposeValuesFromSchemas(m *module.Module) ([]chartutil.Values, error) {
 		return nil, nil
 	}
 
-	values, _ := valueValidator.ModuleSchemaStorages[m.GetName()].Schemas["values"]
-	if values == nil {
+	values, ok := valueValidator.ModuleSchemaStorages[m.GetName()].Schemas["values"]
+	if values == nil || !ok {
 		return nil, fmt.Errorf("cannot find openapi values schema for module %s", m.GetName())
 	}
 
 	moduleSchema := *values
 	moduleSchema.Default = make(map[string]any)
 
-	values, _ = valueValidator.GlobalSchemaStorage.Schemas["values"]
+	values, ok = valueValidator.GlobalSchemaStorage.Schemas["values"]
 	var globalSchema spec.Schema
 	globalSchema.Default = make(map[string]any)
-	if values != nil {
+	if ok && values != nil {
 		globalSchema = *values
 	}
 
