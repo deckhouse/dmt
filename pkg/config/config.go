@@ -9,9 +9,7 @@ type Config struct {
 }
 
 func NewDefault() (*Config, error) {
-	cfg := &Config{
-		LintersSettings: defaultLintersSettings,
-	}
+	cfg := &Config{}
 
 	if err := NewLoader(cfg).Load(); err != nil {
 		return nil, err
