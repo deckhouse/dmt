@@ -1,12 +1,11 @@
 package copyright
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/deckhouse/d8-lint/pkg/config"
 	"github.com/deckhouse/d8-lint/pkg/errors"
+	"github.com/deckhouse/d8-lint/pkg/fsutils"
 	"github.com/deckhouse/d8-lint/pkg/module"
 )
 
@@ -25,7 +24,7 @@ func New(cfg *config.CopyrightSettings) *Copyright {
 }
 
 func (o *Copyright) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
-	files, err := o.getFiles(m.GetPath())
+	files, err := getFiles(m.GetPath())
 	if err != nil {
 		return errors.LintRuleErrorsList{}, err
 	}
@@ -54,29 +53,20 @@ func (o *Copyright) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 	return result, nil
 }
 
-func (*Copyright) getFiles(rootPath string) ([]string, error) {
+func getFiles(rootPath string) ([]string, error) {
+	files, err := fsutils.GetFiles(rootPath)
+	if err != nil {
+		return nil, err
+	}
+
 	var result []string
-	err := filepath.Walk(rootPath, func(path string, info os.FileInfo, _ error) error {
-		if info.Mode()&os.ModeSymlink != 0 {
-			return filepath.SkipDir
-		}
-
-		if info.IsDir() {
-			if info.Name() == ".git" {
-				return filepath.SkipDir
-			}
-
-			return nil
-		}
-
+	for _, path := range files {
 		if fileToCheckRe.MatchString(path) && !fileToSkipRe.MatchString(path) {
 			result = append(result, path)
 		}
+	}
 
-		return nil
-	})
-
-	return result, err
+	return result, nil
 }
 
 func (o *Copyright) Name() string {

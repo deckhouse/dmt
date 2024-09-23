@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/deckhouse/d8-lint/pkg/config"
+	"github.com/deckhouse/d8-lint/pkg/fsutils"
 	"github.com/deckhouse/d8-lint/pkg/linters/openapi/validators"
 	"github.com/deckhouse/d8-lint/pkg/logger"
 
@@ -31,29 +32,25 @@ type fileValidation struct {
 // GetOpenAPIYAMLFiles returns all .yaml files which are placed into openapi/ | crds/ directory
 func GetOpenAPIYAMLFiles(rootPath string) ([]string, error) {
 	var result []string
-	err := filepath.Walk(rootPath, func(path string, info os.FileInfo, _ error) error {
-		if info.IsDir() {
-			if info.Name() == ".git" {
-				return filepath.SkipDir
-			}
-
-			return nil
-		}
-
-		if !strings.HasSuffix(path, ".yaml") {
-			return nil
+	files, err := fsutils.GetFiles(rootPath)
+	if err != nil {
+		return nil, err
+	}
+	for _, file := range files {
+		if !strings.HasSuffix(file, ".yaml") {
+			continue
 		}
 
 		// ignore matrix test specs
-		if strings.HasSuffix(path, "-tests.yaml") {
-			return nil
+		if strings.HasSuffix(file, "-tests.yaml") {
+			continue
 		}
 
-		if strings.HasPrefix(info.Name(), "doc-ru-") {
-			return nil
+		if strings.HasPrefix(filepath.Base(file), "doc-ru-") {
+			continue
 		}
 
-		arr := strings.Split(path, "/")
+		arr := strings.Split(file, "/")
 
 		parentDir := arr[len(arr)-2]
 
@@ -63,13 +60,12 @@ func GetOpenAPIYAMLFiles(rootPath string) ([]string, error) {
 		// pass
 
 		default:
-			return nil
+			continue
 		}
-		p, _ := strings.CutPrefix(path, rootPath)
+		p, _ := strings.CutPrefix(file, rootPath)
 		result = append(result, p)
 
-		return nil
-	})
+	}
 
 	return result, err
 }

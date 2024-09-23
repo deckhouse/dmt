@@ -2,13 +2,13 @@ package nocyrillic
 
 import (
 	"os"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
 
 	"github.com/deckhouse/d8-lint/pkg/config"
 	"github.com/deckhouse/d8-lint/pkg/errors"
+	"github.com/deckhouse/d8-lint/pkg/fsutils"
 	"github.com/deckhouse/d8-lint/pkg/module"
 )
 
@@ -80,31 +80,21 @@ func (o *NoCyrillic) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 
 func (o *NoCyrillic) getFiles(rootPath string) ([]string, error) {
 	var result []string
-	err := filepath.Walk(rootPath, func(path string, info os.FileInfo, _ error) error {
-		if info.Mode()&os.ModeSymlink != 0 {
-			return filepath.SkipDir
-		}
+	files, err := fsutils.GetFiles(rootPath)
+	if err != nil {
+		return nil, err
+	}
 
+	for _, file := range files {
 		if !slices.ContainsFunc(o.cfg.FileExtensions, func(s string) bool {
-			return strings.HasSuffix(path, s)
+			return strings.HasSuffix(file, s)
 		}) {
-			return nil
+			continue
 		}
+		result = append(result, file)
+	}
 
-		if info.IsDir() {
-			if info.Name() == ".git" {
-				return filepath.SkipDir
-			}
-
-			return nil
-		}
-
-		result = append(result, path)
-
-		return nil
-	})
-
-	return result, err
+	return result, nil
 }
 
 func getFileContent(filename string) ([]string, error) {
