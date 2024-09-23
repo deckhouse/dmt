@@ -54,7 +54,7 @@ func (o *Copyright) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 }
 
 func getFiles(rootPath string) ([]string, error) {
-	files, err := fsutils.GetFiles(rootPath)
+	files, err := fsutils.GetFiles(rootPath, true)
 	if err != nil {
 		return nil, err
 	}

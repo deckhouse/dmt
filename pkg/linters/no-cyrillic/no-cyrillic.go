@@ -80,7 +80,7 @@ func (o *NoCyrillic) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 
 func (o *NoCyrillic) getFiles(rootPath string) ([]string, error) {
 	var result []string
-	files, err := fsutils.GetFiles(rootPath)
+	files, err := fsutils.GetFiles(rootPath, false)
 	if err != nil {
 		return nil, err
 	}

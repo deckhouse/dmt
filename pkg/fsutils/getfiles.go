@@ -5,10 +5,10 @@ import (
 	"path/filepath"
 )
 
-func GetFiles(rootPath string) ([]string, error) {
+func GetFiles(rootPath string, skipSymlink bool) ([]string, error) {
 	var result []string
 	err := filepath.Walk(rootPath, func(path string, info os.FileInfo, _ error) error {
-		if info.Mode()&os.ModeSymlink != 0 {
+		if skipSymlink && info.Mode()&os.ModeSymlink != 0 {
 			return filepath.SkipDir
 		}
 
