@@ -64,7 +64,6 @@ func GetOpenAPIYAMLFiles(rootPath string) ([]string, error) {
 		}
 		p, _ := strings.CutPrefix(file, rootPath)
 		result = append(result, p)
-
 	}
 
 	return result, err
