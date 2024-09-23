@@ -381,11 +381,11 @@ var defaultLintersSettings = LintersSettings{
 }
 
 type LintersSettings struct {
-	OpenAPI    OpenAPISettings
-	NoCyrillic NoCyrillicSettings
-	Copyright  CopyrightSettings
-	Probes     ProbesSettings
-	Custom     map[string]CustomLinterSettings
+	OpenAPI    OpenAPISettings                 `mapstructure:"openapi"`
+	NoCyrillic NoCyrillicSettings              `mapstructure:"nocyrillic"`
+	Copyright  CopyrightSettings               `mapstructure:"copyright"`
+	Probes     ProbesSettings                  `mapstructure:"probes"`
+	Custom     map[string]CustomLinterSettings `mapstructure:"custom"`
 }
 
 func (s *LintersSettings) Validate() error {
