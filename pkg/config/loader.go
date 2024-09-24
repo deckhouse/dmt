@@ -28,10 +28,11 @@ type Loader struct {
 	args []string
 }
 
-func NewLoader(cfg *Config) *Loader {
+func NewLoader(cfg *Config, dirs []string) *Loader {
 	return &Loader{
 		viper: viper.New(),
 		cfg:   cfg,
+		args:  dirs,
 	}
 }
 
@@ -94,6 +95,7 @@ func (l *Loader) setupConfigFileSearch() {
 		l.viper.AddConfigPath(p)
 	}
 }
+
 func (l *Loader) getConfigSearchPaths() []string {
 	firstArg := "./..."
 	if len(l.args) > 0 {

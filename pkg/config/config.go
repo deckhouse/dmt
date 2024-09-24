@@ -8,10 +8,10 @@ type Config struct {
 	Linters         Linters         `mapstructure:"linters"`
 }
 
-func NewDefault() (*Config, error) {
+func NewDefault(dirs []string) (*Config, error) {
 	cfg := &Config{}
 
-	if err := NewLoader(cfg).Load(); err != nil {
+	if err := NewLoader(cfg, dirs).Load(); err != nil {
 		return nil, err
 	}
 

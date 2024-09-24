@@ -15,7 +15,7 @@ func main() {
 	dirs := parseFlags()
 	logger.InfoF("Dirs: %v", dirs)
 
-	cfg, err := config.NewDefault()
+	cfg, err := config.NewDefault(dirs)
 	logger.CheckErr(err)
 
 	mng := manager.NewManager(dirs, cfg)
