@@ -69,8 +69,12 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 	}
 
 	for i := range paths {
+		fmt.Println("ADD", paths[i])
+		//TODO: print "Found XXX module" in debug mode
 		m.Modules = append(m.Modules, module.NewModule(paths[i]))
 	}
+
+	logger.InfoF("Found %d modules", len(m.Modules))
 
 	return m
 }
@@ -88,6 +92,9 @@ func (m *Manager) Run() errors.LintRuleErrorsList {
 		sm := sync.Mutex{}
 		for j := range m.Modules {
 			g.Go(func() error {
+				// TODO: print INFO "Run linters for XXX module"
+				// TODO: print DEBUG "Run linter YYY" <optional>
+				logger.InfoF("Running linter `%s` on module `%s`", m.Linters[i].Name(), m.Modules[j].GetName())
 				errs, err := m.Linters[i].Run(m.Modules[j])
 				if err != nil {
 					logger.WarnF("Error running linter `%s`: %s\n", m.Linters[i].Name(), err)

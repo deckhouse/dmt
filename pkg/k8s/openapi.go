@@ -259,7 +259,7 @@ func (g *OpenAPIValuesGenerator) parseProperties(tempNode *SchemaNode, counter *
 			counter.Inc()
 			return nil
 
-		case prop.Type.Contains(ArrayObject) && prop.Items.Schema != nil:
+		case prop.Type.Contains(ArrayObject) && prop.Items != nil && prop.Items.Schema != nil:
 			switch {
 			case prop.Items.Schema.Default != nil:
 				var wrapped []any
