@@ -12,6 +12,10 @@ var (
 	LogLevel     string
 )
 
+const (
+	numThreads = 10
+)
+
 func ParseFlags() []string {
 	var (
 		printHelp    bool
@@ -23,7 +27,7 @@ func ParseFlags() []string {
 
 	flagSet.BoolVarP(&printHelp, "help", "h", false, "help message")
 	flagSet.BoolVarP(&printVersion, "version", "v", false, "version message")
-	flagSet.IntVarP(&LintersLimit, "parallel", "p", 10, "number of threads for parallel processing")
+	flagSet.IntVarP(&LintersLimit, "parallel", "p", numThreads, "number of threads for parallel processing")
 	flagSet.StringVarP(&LogLevel, "log-level", "l", "INFO", "log-level [DEBUG | INFO | WARN | ERROR]")
 
 	flagSet.Usage = func() {
