@@ -23,6 +23,9 @@ import (
 
 const (
 	ChartConfigFilename = "Chart.yaml"
+	ModuleYamlFilename  = "module.yaml"
+	HooksDir            = "hooks"
+	ImagesDir           = "images"
 )
 
 type Manager struct {
@@ -133,7 +136,9 @@ func getModulePaths(modulesDir string) ([]string, error) {
 		}
 
 		// Check if first level subdirectory has a helm chart configuration file
-		if isExistsOnFilesystem(path, ChartConfigFilename) {
+		if isExistsOnFilesystem(path, ModuleYamlFilename) ||
+			(isExistsOnFilesystem(path, ChartConfigFilename) &&
+				(isExistsOnFilesystem(path, HooksDir) || isExistsOnFilesystem(path, ImagesDir))) {
 			chartDirs = append(chartDirs, path)
 		}
 
