@@ -19,7 +19,7 @@ func parseFlags() []string {
 
 	flagSet.BoolVarP(&printHelp, "help", "h", false, "help message")
 	flagSet.BoolVarP(&printVersion, "version", "v", false, "version message")
-	flagSet.StringVarP(&cfgFile, "config", "c", "", "config file (default is $HOME/.d8lint.yaml)")
+	flagSet.StringVarP(&cfgFile, "config", "c", "", "config file (default is $(pwd)/.d8lint.yaml)")
 
 	flagSet.Usage = func() {
 		_, _ = fmt.Fprintln(os.Stderr, "Usage: d8-lint [OPTIONS] [dirs...]")

@@ -47,13 +47,13 @@ func (l *Linters) validateAllDisableEnableOptions() error {
 }
 
 func (l *Linters) validateDisabledAndEnabledAtOneMoment() error {
-	enabledLintersSet := map[string]bool{}
+	enabledLintersSet := map[string]struct{}{}
 	for _, name := range l.Enable {
-		enabledLintersSet[name] = true
+		enabledLintersSet[name] = struct{}{}
 	}
 
 	for _, name := range l.Disable {
-		if enabledLintersSet[name] {
+		if _, ok := enabledLintersSet[name]; ok {
 			return fmt.Errorf("linter %q can't be disabled and enabled at one moment", name)
 		}
 	}

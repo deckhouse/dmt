@@ -157,7 +157,7 @@ func (m *Manager) getEnabledLinters() LinterList {
 	case m.cfg.Linters.EnableAll:
 		resultLintersSet = m.lintersMap
 	default:
-		// no default linters
+		resultLintersSet = m.lintersMap
 	}
 
 	for _, name := range m.cfg.Linters.Enable {
