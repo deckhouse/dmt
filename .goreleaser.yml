@@ -4,7 +4,7 @@ project_name: d8-lint
 
 builds:
   - binary: d8-lint
-    main: .
+    main: ./cmd/d8-lint
     flags:
       - -trimpath
     ldflags: -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}}
@@ -58,7 +58,7 @@ changelog:
 release:
   github:
     owner: deckhouse
-    name: d8--lint
+    name: d8-lint
 
 source:
   enabled: true

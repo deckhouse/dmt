@@ -33,7 +33,7 @@ test: build
 # Non-PHONY targets (real files)
 
 $(BINARY): FORCE
-	go build -o $@ .
+	go build -o $@ ./cmd/d8-lint
 
 go.mod: FORCE
 	go mod tidy
