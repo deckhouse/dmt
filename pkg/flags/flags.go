@@ -1,4 +1,4 @@
-package main
+package flags
 
 import (
 	"fmt"
@@ -7,11 +7,15 @@ import (
 	"github.com/spf13/pflag"
 )
 
-func parseFlags() []string {
+var (
+	LintersLimit int
+	LogLevel     string
+)
+
+func ParseFlags() []string {
 	var (
 		printHelp    bool
 		printVersion bool
-		cfgFile      string
 		version      = "HEAD"
 	)
 
@@ -19,7 +23,8 @@ func parseFlags() []string {
 
 	flagSet.BoolVarP(&printHelp, "help", "h", false, "help message")
 	flagSet.BoolVarP(&printVersion, "version", "v", false, "version message")
-	flagSet.StringVarP(&cfgFile, "config", "c", "", "config file (default is $(pwd)/.d8lint.yaml)")
+	flagSet.IntVarP(&LintersLimit, "parallel", "p", 10, "number of threads for parallel processing")
+	flagSet.StringVarP(&LogLevel, "log-level", "l", "INFO", "log-level [DEBUG | INFO | WARN | ERROR]")
 
 	flagSet.Usage = func() {
 		_, _ = fmt.Fprintln(os.Stderr, "Usage: d8-lint [OPTIONS] [dirs...]")

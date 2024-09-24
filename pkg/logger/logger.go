@@ -6,14 +6,37 @@ import (
 	"log"
 	"log/slog"
 	"os"
+
+	"github.com/deckhouse/d8-lint/pkg/flags"
 )
 
 var logger *slog.Logger
 
 func InitLogger() {
 	log.SetOutput(io.Discard)
-	slog.SetLogLoggerLevel(slog.LevelInfo)
-	logger = slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	lvl := new(slog.LevelVar)
+	lvl.Set(slog.LevelInfo)
+
+	logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: lvl}))
+
+	if flags.LogLevel == "DEBUG" {
+		lvl.Set(slog.LevelDebug)
+	}
+	if flags.LogLevel == "INFO" {
+		lvl.Set(slog.LevelInfo)
+	}
+	if flags.LogLevel == "WARN" {
+		lvl.Set(slog.LevelWarn)
+	}
+	if flags.LogLevel == "ERROR" {
+		lvl.Set(slog.LevelError)
+	}
+}
+
+func DebugF(format string, a ...any) {
+	logger.Debug(
+		fmt.Sprintf(format, a...))
 }
 
 func InfoF(format string, a ...any) {
