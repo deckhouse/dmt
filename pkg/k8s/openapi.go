@@ -135,10 +135,10 @@ func ComposeValuesFromSchemas(m *module.Module) ([]chartutil.Values, error) {
 
 	values, ok = valueValidator.GlobalSchemaStorage.Schemas["values"]
 	var globalSchema spec.Schema
-	globalSchema.Default = make(map[string]any)
 	if ok && values != nil {
 		globalSchema = *values
 	}
+	globalSchema.Default = make(map[string]any)
 
 	combinedSchema := spec.Schema{}
 	combinedSchema.Properties = map[string]spec.Schema{camelizedModuleName: moduleSchema, "global": globalSchema}
