@@ -235,11 +235,17 @@ func (g *OpenAPIValuesGenerator) generateAndPushBackNodes(
 
 //nolint:funlen,gocyclo // complex diff
 func (g *OpenAPIValuesGenerator) parseProperties(tempNode *SchemaNode, counter *InteractionsCounter) error {
+	if tempNode.Schema == nil {
+		return nil
+	}
 	for key := range tempNode.Schema.Properties {
 		prop := tempNode.Schema.Properties[key]
 		switch {
 		case prop.Extensions[ExamplesKey] != nil:
-			examples := prop.Extensions[ExamplesKey].([]any)
+			examples, ok := prop.Extensions[ExamplesKey].([]any)
+			if !ok {
+				return fmt.Errorf("examples property not an array")
+			}
 			g.pushBackNodesFromValues(tempNode, key, examples, counter)
 			return nil
 
