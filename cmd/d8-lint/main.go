@@ -26,6 +26,9 @@ func main() {
 	result := mng.Run()
 	if result.ConvertToError() != nil {
 		fmt.Printf("%s\n", result.ConvertToError())
+	}
+
+	if result.Critical() {
 		os.Exit(1)
 	}
 }

@@ -1,11 +1,15 @@
 package config
 
-// Config encapsulates the config data specified in the golangci-lint YAML config file.
+import (
+	"github.com/deckhouse/d8-lint/pkg/errors"
+)
+
+// Config encapsulates the config data specified in the YAML config file.
 type Config struct {
-	cfgDir string // The directory containing the golangci-lint config file.
+	cfgDir string // The directory containing the config file.
 
 	LintersSettings LintersSettings `mapstructure:"linters-settings"`
-	Linters         Linters         `mapstructure:"linters"`
+	WarningsOnly    []string        `mapstructure:"warnings-only"`
 }
 
 func NewDefault(dirs []string) (*Config, error) {
@@ -15,13 +19,14 @@ func NewDefault(dirs []string) (*Config, error) {
 		return nil, err
 	}
 
+	errors.WarningsOnly = cfg.WarningsOnly
+
 	return cfg, nil
 }
 
 func (c *Config) Validate() error {
 	validators := []func() error{
 		c.LintersSettings.Validate,
-		c.Linters.Validate,
 	}
 
 	for _, v := range validators {

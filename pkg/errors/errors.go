@@ -86,3 +86,16 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 
 	return errors.New(builder.String())
 }
+
+var WarningsOnly []string
+
+func (l *LintRuleErrorsList) Critical() bool {
+	for _, err := range l.data {
+		if slices.Contains(WarningsOnly, err.ID) {
+			continue
+		}
+		return true
+	}
+
+	return false
+}
