@@ -5,7 +5,7 @@ import (
 	"strings"
 	"sync"
 
-	"golang.org/x/sync/errgroup"
+	"github.com/sourcegraph/conc/pool"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/deckhouse/d8-lint/pkg/config"
@@ -41,7 +41,7 @@ func (o *Probes) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 		return result, fmt.Errorf("saving values from openapi: %w", err)
 	}
 
-	var g errgroup.Group
+	var g = pool.New().WithErrors()
 	sm := sync.Mutex{}
 	for _, valuesData := range values {
 		g.Go(func() error {

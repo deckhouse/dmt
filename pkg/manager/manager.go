@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/mitchellh/go-homedir"
-	"golang.org/x/sync/errgroup"
+	"github.com/sourcegraph/conc/pool"
 
 	"github.com/deckhouse/d8-lint/pkg/config"
 	"github.com/deckhouse/d8-lint/pkg/errors"
@@ -89,26 +89,25 @@ func (m *Manager) Run() errors.LintRuleErrorsList {
 
 	for i := range m.Modules {
 		logger.InfoF("Run linters for `%s` module", m.Modules[i].GetName())
-		var g errgroup.Group
-		g.SetLimit(flags.LintersLimit)
+		var g = pool.New().WithMaxGoroutines(flags.LintersLimit)
 		sm := sync.Mutex{}
 		for j := range m.Linters {
-			g.Go(func() error {
+			g.Go(func() {
 				logger.DebugF("Running linter `%s` on module `%s`", m.Linters[j].Name(), m.Modules[i].GetName())
 				errs, err := m.Linters[j].Run(m.Modules[i])
 				if err != nil {
 					logger.ErrorF("Error running linter `%s`: %s\n", m.Linters[j].Name(), err)
-					return err
+					return
 				}
 				if errs.ConvertToError() != nil {
 					sm.Lock()
 					result.Merge(errs)
 					sm.Unlock()
 				}
-				return nil
+				return
 			})
 		}
-		_ = g.Wait()
+		g.Wait()
 	}
 
 	return result
