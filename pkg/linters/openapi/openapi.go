@@ -44,6 +44,7 @@ func (o *OpenAPI) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 			result.Add(errors.NewLintRuleError(
 				"openapi",
 				res.filePath,
+				m.GetName(),
 				res.validationError,
 				"errors in `%s` module",
 				m.GetName(),

@@ -68,6 +68,7 @@ func (o *NoCyrillic) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 			result.Add(errors.NewLintRuleError(
 				"no-cyrillic",
 				fileName,
+				m.GetName(),
 				addPrefix(strings.Split(cyrMsg, "\n"), "\t"),
 				"errors in `%s` module",
 				m.GetName(),

@@ -43,6 +43,7 @@ func (o *Copyright) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 			result.Add(errors.NewLintRuleError(
 				"copyright",
 				path,
+				m.GetName(),
 				er,
 				"errors in `%s` module",
 				m.GetName(),
