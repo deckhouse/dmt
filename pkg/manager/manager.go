@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"github.com/mitchellh/go-homedir"
 	"github.com/sourcegraph/conc/pool"
@@ -87,27 +86,31 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 func (m *Manager) Run() errors.LintRuleErrorsList {
 	result := errors.LintRuleErrorsList{}
 
-	for i := range m.Modules {
-		logger.InfoF("Run linters for `%s` module", m.Modules[i].GetName())
+	var ch = make(chan errors.LintRuleErrorsList)
+	go func() {
 		var g = pool.New().WithMaxGoroutines(flags.LintersLimit)
-		sm := sync.Mutex{}
-		for j := range m.Linters {
-			g.Go(func() {
-				logger.DebugF("Running linter `%s` on module `%s`", m.Linters[j].Name(), m.Modules[i].GetName())
-				errs, err := m.Linters[j].Run(m.Modules[i])
-				if err != nil {
-					logger.ErrorF("Error running linter `%s`: %s\n", m.Linters[j].Name(), err)
-					return
-				}
-				if errs.ConvertToError() != nil {
-					sm.Lock()
-					result.Merge(errs)
-					sm.Unlock()
-				}
-				return
-			})
+		for i := range m.Modules {
+			logger.InfoF("Run linters for `%s` module", m.Modules[i].GetName())
+			for j := range m.Linters {
+				g.Go(func() {
+					logger.DebugF("Running linter `%s` on module `%s`", m.Linters[j].Name(), m.Modules[i].GetName())
+					errs, err := m.Linters[j].Run(m.Modules[i])
+					if err != nil {
+						logger.ErrorF("Error running linter `%s`: %s\n", m.Linters[j].Name(), err)
+						return
+					}
+					if errs.ConvertToError() != nil {
+						ch <- errs
+					}
+				})
+			}
 		}
 		g.Wait()
+		close(ch)
+	}()
+
+	for er := range ch {
+		result.Merge(er)
 	}
 
 	return result

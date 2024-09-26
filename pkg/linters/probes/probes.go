@@ -3,7 +3,6 @@ package probes
 import (
 	"fmt"
 	"strings"
-	"sync"
 
 	"github.com/sourcegraph/conc/pool"
 	v1 "k8s.io/api/core/v1"
@@ -33,7 +32,7 @@ func (o *Probes) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 	var result errors.LintRuleErrorsList
 
 	if err := m.LoadChart(); err != nil {
-		return errors.LintRuleErrorsList{}, err
+		return result, err
 	}
 
 	values, err := k8s.ComposeValuesFromSchemas(m)
@@ -41,32 +40,36 @@ func (o *Probes) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 		return result, fmt.Errorf("saving values from openapi: %w", err)
 	}
 
-	var g = pool.New().WithErrors()
-	sm := sync.Mutex{}
-	for _, valuesData := range values {
-		g.Go(func() error {
-			objectStore := storage.NewUnstructuredObjectStore()
-			err = k8s.RunRender(m, valuesData, objectStore)
-			if err != nil {
-				return err
-			}
-
-			for _, object := range objectStore.Storage {
-				containers, er := object.GetContainers()
-				if er != nil || containers == nil {
-					continue
+	var ch = make(chan errors.LintRuleErrorsList)
+	go func() {
+		var g = pool.New().WithErrors()
+		for _, valuesData := range values {
+			g.Go(func() error {
+				objectStore := storage.NewUnstructuredObjectStore()
+				err = k8s.RunRender(m, valuesData, objectStore)
+				if err != nil {
+					return err
 				}
 
-				sm.Lock()
-				result.Merge(o.containerProbes(m.GetName(), object, containers))
-				sm.Unlock()
-			}
+				for _, object := range objectStore.Storage {
+					containers, er := object.GetContainers()
+					if er != nil || containers == nil {
+						continue
+					}
+					ch <- o.containerProbes(m.GetName(), object, containers)
+				}
 
-			return nil
-		})
+				return nil
+			})
+		}
+
+		err = g.Wait()
+		close(ch)
+	}()
+
+	for er := range ch {
+		result.Merge(er)
 	}
-
-	err = g.Wait()
 
 	return result, err
 }
