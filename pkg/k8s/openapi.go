@@ -280,9 +280,9 @@ func (g *OpenAPIValuesGenerator) parseProperties(tempNode *SchemaNode, counter *
 					return nil
 				}
 
-				downwardSchema := deepcopy.Copy(prop.Items.Schema).(spec.Schema)
+				downwardSchema := deepcopy.Copy(prop.Items.Schema).(*spec.Schema)
 				// Recursive call, consider switching to a better solution.
-				values, err := NewOpenAPIValuesGenerator(&downwardSchema).Do()
+				values, err := NewOpenAPIValuesGenerator(downwardSchema).Do()
 				if err != nil {
 					return err
 				}
@@ -339,16 +339,15 @@ func (g *OpenAPIValuesGenerator) deleteNodeAndPushBack(tempNode *SchemaNode, key
 }
 
 func copyNode(previousNode *SchemaNode, key string, value any) SchemaNode {
-	tempNode := *previousNode
+	tempNode := deepcopy.Copy(*previousNode).(SchemaNode)
 
-	newSchema := deepcopy.Copy(*previousNode.Schema).(spec.Schema)
+	newSchema := tempNode.Schema
 	delete(newSchema.Properties, key)
 
 	leaf := *tempNode.Leaf
 	leaf[key] = value
 
-	newItem := deepcopy.Copy(leaf).(map[string]any)
-	return SchemaNode{Leaf: &newItem, Schema: &newSchema}
+	return SchemaNode{Leaf: &leaf, Schema: newSchema}
 }
 
 func mergeSchemas(rootSchema *spec.Schema, schemas ...spec.Schema) spec.Schema {
