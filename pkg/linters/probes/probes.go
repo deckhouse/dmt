@@ -43,26 +43,23 @@ func (o *Probes) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 	var ch = make(chan errors.LintRuleErrorsList)
 	go func() {
 		var g = pool.New().WithErrors()
-		for _, valuesData := range values {
-			g.Go(func() error {
-				objectStore := storage.NewUnstructuredObjectStore()
-				err = k8s.RunRender(m, valuesData, objectStore)
-				if err != nil {
-					return err
+		g.Go(func() error {
+			objectStore := storage.NewUnstructuredObjectStore()
+			err = k8s.RunRender(m, values, objectStore)
+			if err != nil {
+				return err
+			}
+
+			for _, object := range objectStore.Storage {
+				containers, er := object.GetContainers()
+				if er != nil || containers == nil {
+					continue
 				}
+				ch <- o.containerProbes(m.GetName(), object, containers)
+			}
 
-				for _, object := range objectStore.Storage {
-					containers, er := object.GetContainers()
-					if er != nil || containers == nil {
-						continue
-					}
-					ch <- o.containerProbes(m.GetName(), object, containers)
-				}
-
-				return nil
-			})
-		}
-
+			return nil
+		})
 		err = g.Wait()
 		close(ch)
 	}()

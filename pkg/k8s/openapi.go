@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gammazero/deque"
 	"github.com/go-openapi/spec"
 	"github.com/mohae/deepcopy"
 	"helm.sh/helm/v3/pkg/chartutil"
@@ -37,7 +36,7 @@ func applyDigests(digests map[string]any, values any) {
 	value.(map[string]any)["digests"] = digests
 }
 
-func helmFormatModuleImages(m *module.Module, rawValues []any) ([]chartutil.Values, error) {
+func helmFormatModuleImages(m *module.Module, rawValues map[string]any) (chartutil.Values, error) {
 	caps := chartutil.DefaultCapabilities
 	vers := []string(caps.APIVersions)
 	vers = append(vers, "autoscaling.k8s.io/v1/VerticalPodAutoscaler")
@@ -48,27 +47,22 @@ func helmFormatModuleImages(m *module.Module, rawValues []any) ([]chartutil.Valu
 		return nil, err
 	}
 
-	values := make([]chartutil.Values, 0, len(rawValues))
-	for _, singleValue := range rawValues {
-		applyDigests(digests, singleValue)
-
-		top := map[string]any{
-			"Chart":        m.GetMetadata(),
-			"Capabilities": caps,
-			"Release": map[string]any{
-				"Name":      m.GetName(),
-				"Namespace": m.GetNamespace(),
-				"IsUpgrade": true,
-				"IsInstall": true,
-				"Revision":  0,
-				"Service":   "Helm",
-			},
-			"Values": singleValue,
-		}
-
-		values = append(values, top)
+	applyDigests(digests, rawValues)
+	top := map[string]any{
+		"Chart":        m.GetMetadata(),
+		"Capabilities": caps,
+		"Release": map[string]any{
+			"Name":      m.GetName(),
+			"Namespace": m.GetNamespace(),
+			"IsUpgrade": true,
+			"IsInstall": true,
+			"Revision":  0,
+			"Service":   "Helm",
+		},
+		"Values": rawValues,
 	}
-	return values, nil
+
+	return top, nil
 }
 
 func GetModulesImagesDigests(modulePath string) (map[string]any, error) {
@@ -109,7 +103,7 @@ func getModulesImagesDigestsFromLocalPath(modulePath string) (map[string]any, er
 	return digests, nil
 }
 
-func ComposeValuesFromSchemas(m *module.Module) ([]chartutil.Values, error) {
+func ComposeValuesFromSchemas(m *module.Module) (chartutil.Values, error) {
 	valueValidator, err := valuesvalidation.NewValuesValidator(m.GetName(), m.GetPath())
 	if err != nil {
 		return nil, fmt.Errorf("schemas load: %w", err)
@@ -153,154 +147,66 @@ func ComposeValuesFromSchemas(m *module.Module) ([]chartutil.Values, error) {
 
 type OpenAPIValuesGenerator struct {
 	rootSchema *spec.Schema
-
-	schemaQueue *deque.Deque[SchemaNode]
-	resultQueue *deque.Deque[SchemaNode]
 }
 
 func NewOpenAPIValuesGenerator(schema *spec.Schema) *OpenAPIValuesGenerator {
-	s := deque.Deque[SchemaNode]{}
-	r := deque.Deque[SchemaNode]{}
 
 	return &OpenAPIValuesGenerator{
-		rootSchema:  schema,
-		schemaQueue: &s,
-		resultQueue: &r,
+		rootSchema: schema,
 	}
 }
 
-type SchemaNode struct {
-	Schema *spec.Schema
-
-	Leaf *map[string]any
-}
-
-type InteractionsCounter struct {
-	counter int
-}
-
-func (c *InteractionsCounter) Inc() {
-	c.counter++
-}
-
-func (c *InteractionsCounter) Zero() bool {
-	return c.counter == 0
-}
-
-func (g *OpenAPIValuesGenerator) Do() ([]any, error) {
-	newItem := make(map[string]any)
-	g.schemaQueue.PushBack(SchemaNode{Schema: g.rootSchema, Leaf: &newItem})
-
-	for g.schemaQueue.Len() > 0 {
-		tempNode := g.schemaQueue.PopFront()
-		counter := InteractionsCounter{}
-
-		err := g.parseProperties(&tempNode, &counter)
-		if err != nil {
-			return nil, err
-		}
-		if counter.Zero() {
-			g.resultQueue.PushBack(tempNode)
-		}
-	}
-
-	values := make(map[string]any, g.resultQueue.Len())
-	for g.resultQueue.Len() > 0 {
-		resultNode := g.resultQueue.PopFront()
-		for k, v := range *resultNode.Leaf {
-			values[k] = v
-		}
-	}
-
-	return []any{values}, nil
-}
-
-func (g *OpenAPIValuesGenerator) pushBackNodesFromValues(
-	tempNode *SchemaNode, key string, items []any, counter *InteractionsCounter) {
-	for _, item := range items {
-		headNode := copyNode(tempNode, key, item)
-		g.deleteNodeAndPushBack(&headNode, key, counter)
-	}
-}
-
-func (g *OpenAPIValuesGenerator) generateAndPushBackNodes(
-	tempNode *SchemaNode, key string, prop *spec.Schema, counter *InteractionsCounter) error {
-	downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
-	// Recursive call, consider switching to a better solution.
-	values, err := NewOpenAPIValuesGenerator(downwardSchema).Do()
-	if err != nil {
-		return err
-	}
-
-	g.pushBackNodesFromValues(tempNode, key, values, counter)
-	return nil
+func (g *OpenAPIValuesGenerator) Do() (map[string]any, error) {
+	return parseProperties(g.rootSchema)
 }
 
 //nolint:funlen,gocyclo // complex diff
-func (g *OpenAPIValuesGenerator) parseProperties(tempNode *SchemaNode, counter *InteractionsCounter) error {
-	if tempNode.Schema == nil {
-		return nil
+func parseProperties(tempNode *spec.Schema) (map[string]any, error) {
+	result := make(map[string]any)
+
+	if tempNode == nil {
+		return nil, nil
 	}
-	for key := range tempNode.Schema.Properties {
-		prop := tempNode.Schema.Properties[key]
+
+	for key := range tempNode.Properties {
+		prop := tempNode.Properties[key]
 		switch {
 		case prop.Extensions[ExamplesKey] != nil:
 			examples, ok := prop.Extensions[ExamplesKey].([]any)
 			if !ok {
-				return fmt.Errorf("examples property not an array")
+				return result, fmt.Errorf("examples property not an array")
 			}
-			g.pushBackNodesFromValues(tempNode, key, examples, counter)
-			return nil
-
+			if len(examples) > 0 {
+				result[key] = examples[0]
+			}
 		case len(prop.Enum) > 0:
-			g.pushBackNodesFromValues(tempNode, key, prop.Enum, counter)
-			return nil
-
+			result[key] = prop.Enum
 		case prop.Type.Contains(ObjectKey):
 			if prop.Default == nil {
-				g.deleteNodeAndPushBack(tempNode, key, counter)
-				return nil
+				continue
 			}
-			return g.generateAndPushBackNodes(tempNode, key, &prop, counter)
-
+			t, err := parseProperties(&prop)
+			if err != nil {
+				return nil, err
+			}
+			result[key] = t
 		case prop.Default != nil:
-			g.schemaQueue.PushBack(copyNode(tempNode, key, prop.Default))
-			counter.Inc()
-			return nil
-
+			result[key] = prop.Default
 		case prop.Type.Contains(ArrayObject) && prop.Items != nil && prop.Items.Schema != nil:
 			switch {
 			case prop.Items.Schema.Default != nil:
-				var wrapped []any
-				wrapped = append(wrapped, prop.Items.Schema.Default)
-
-				g.schemaQueue.PushBack(copyNode(tempNode, key, wrapped))
-				counter.Inc()
-				return nil
+				result[key] = prop.Items.Schema.Default
 			case prop.Items.Schema.Type.Contains(ObjectKey):
 				if prop.Items.Schema.Default == nil {
-					g.deleteNodeAndPushBack(tempNode, key, counter)
-					return nil
+					continue
 				}
-
-				downwardSchema := deepcopy.Copy(prop.Items.Schema).(*spec.Schema)
-				// Recursive call, consider switching to a better solution.
-				values, err := NewOpenAPIValuesGenerator(downwardSchema).Do()
+				t, err := parseProperties(prop.Items.Schema)
 				if err != nil {
-					return err
+					return nil, err
 				}
-
-				for index, value := range values {
-					var wrapped []any
-					wrapped = append(wrapped, value)
-
-					values[index] = wrapped
-				}
-				g.pushBackNodesFromValues(tempNode, key, values, counter)
-				return nil
+				result[key] = t
 			default:
-				g.deleteNodeAndPushBack(tempNode, key, counter)
-				return nil
+				continue
 			}
 		case prop.AllOf != nil:
 			// not implemented
@@ -309,48 +215,22 @@ func (g *OpenAPIValuesGenerator) parseProperties(tempNode *SchemaNode, counter *
 			for i := range prop.OneOf {
 				schema := prop.OneOf[i]
 				downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
-
 				mergedSchema := mergeSchemas(downwardSchema, schema)
-				return g.generateAndPushBackNodes(tempNode, key, mergedSchema, counter)
+				result[key] = mergedSchema
 			}
-			return nil
-
 		case prop.AnyOf != nil:
 			for i := range prop.AnyOf {
 				schema := prop.AnyOf[i]
 				downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
 				mergedSchema := mergeSchemas(downwardSchema, schema)
-
-				if err := g.generateAndPushBackNodes(tempNode, key, mergedSchema, counter); err != nil {
-					return err
-				}
+				result[key] = mergedSchema
 			}
-			return g.generateAndPushBackNodes(tempNode, key, &prop, counter)
 		default:
-			g.deleteNodeAndPushBack(tempNode, key, counter)
-			return nil
+			continue
 		}
 	}
-	return nil
-}
 
-func (g *OpenAPIValuesGenerator) deleteNodeAndPushBack(tempNode *SchemaNode, key string, counter *InteractionsCounter) {
-	delete(tempNode.Schema.Properties, key)
-
-	g.schemaQueue.PushBack(*tempNode)
-	counter.Inc()
-}
-
-func copyNode(previousNode *SchemaNode, key string, value any) SchemaNode {
-	tempNode := deepcopy.Copy(*previousNode).(SchemaNode)
-
-	newSchema := tempNode.Schema
-	delete(newSchema.Properties, key)
-
-	leaf := *tempNode.Leaf
-	leaf[key] = value
-
-	return SchemaNode{Leaf: &leaf, Schema: newSchema}
+	return result, nil
 }
 
 func mergeSchemas(rootSchema *spec.Schema, schemas ...spec.Schema) *spec.Schema {
