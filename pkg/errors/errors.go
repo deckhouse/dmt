@@ -19,7 +19,7 @@ type LintRuleError struct {
 	Module   string
 }
 
-func (l *LintRuleError) EqualsTo(candidate LintRuleError) bool {
+func (l *LintRuleError) EqualsTo(candidate *LintRuleError) bool {
 	return l.ID == candidate.ID && l.Text == candidate.Text && l.ObjectID == candidate.ObjectID
 }
 
@@ -27,8 +27,8 @@ func (l *LintRuleError) IsEmpty() bool {
 	return l.ID == "" && l.Text == "" && l.ObjectID == ""
 }
 
-func NewLintRuleError(id, objectID string, module string, value any, template string, a ...any) LintRuleError {
-	return LintRuleError{
+func NewLintRuleError(id, objectID, module string, value any, template string, a ...any) *LintRuleError {
+	return &LintRuleError{
 		ObjectID: objectID,
 		Value:    value,
 		Text:     fmt.Sprintf(template, a...),
@@ -40,13 +40,13 @@ func NewLintRuleError(id, objectID string, module string, value any, template st
 var EmptyRuleError = LintRuleError{Text: "", ID: "", ObjectID: ""}
 
 type LintRuleErrorsList struct {
-	data []LintRuleError
+	data []*LintRuleError
 }
 
 // Add adds new error to the list if it doesn't exist yet.
 // It first checks if error is empty (i.e. all its fields are empty strings)
 // and then checks if error with the same ID, ObjectId and Text already exists in the list.
-func (l *LintRuleErrorsList) Add(e LintRuleError) {
+func (l *LintRuleErrorsList) Add(e *LintRuleError) {
 	if e.IsEmpty() {
 		return
 	}
@@ -70,7 +70,7 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 	if len(l.data) == 0 {
 		return nil
 	}
-	slices.SortFunc(l.data, func(a, b LintRuleError) int {
+	slices.SortFunc(l.data, func(a, b *LintRuleError) int {
 		return cmp.Or(
 			cmp.Compare(a.Module, b.Module),
 			cmp.Compare(a.ObjectID, b.ObjectID),
