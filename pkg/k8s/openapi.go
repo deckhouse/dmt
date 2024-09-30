@@ -204,16 +204,19 @@ func (g *OpenAPIValuesGenerator) Do() ([]any, error) {
 		}
 	}
 
-	values := make([]any, 0, g.resultQueue.Len())
+	values := make(map[string]any, g.resultQueue.Len())
 	for g.resultQueue.Len() > 0 {
 		resultNode := g.resultQueue.PopFront()
-		values = append(values, *resultNode.Leaf)
+		for k, v := range *resultNode.Leaf {
+			values[k] = v
+		}
 	}
 
-	return values, nil
+	return []any{values}, nil
 }
 
-func (g *OpenAPIValuesGenerator) pushBackNodesFromValues(tempNode *SchemaNode, key string, items []any, counter *InteractionsCounter) {
+func (g *OpenAPIValuesGenerator) pushBackNodesFromValues(
+	tempNode *SchemaNode, key string, items []any, counter *InteractionsCounter) {
 	for _, item := range items {
 		headNode := copyNode(tempNode, key, item)
 		g.deleteNodeAndPushBack(&headNode, key, counter)
@@ -308,7 +311,7 @@ func (g *OpenAPIValuesGenerator) parseProperties(tempNode *SchemaNode, counter *
 				downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
 
 				mergedSchema := mergeSchemas(downwardSchema, schema)
-				return g.generateAndPushBackNodes(tempNode, key, &mergedSchema, counter)
+				return g.generateAndPushBackNodes(tempNode, key, mergedSchema, counter)
 			}
 			return nil
 
@@ -318,7 +321,7 @@ func (g *OpenAPIValuesGenerator) parseProperties(tempNode *SchemaNode, counter *
 				downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
 				mergedSchema := mergeSchemas(downwardSchema, schema)
 
-				if err := g.generateAndPushBackNodes(tempNode, key, &mergedSchema, counter); err != nil {
+				if err := g.generateAndPushBackNodes(tempNode, key, mergedSchema, counter); err != nil {
 					return err
 				}
 			}
@@ -350,7 +353,7 @@ func copyNode(previousNode *SchemaNode, key string, value any) SchemaNode {
 	return SchemaNode{Leaf: &leaf, Schema: newSchema}
 }
 
-func mergeSchemas(rootSchema *spec.Schema, schemas ...spec.Schema) spec.Schema {
+func mergeSchemas(rootSchema *spec.Schema, schemas ...spec.Schema) *spec.Schema {
 	rootSchema.OneOf = nil
 	rootSchema.AllOf = nil
 	rootSchema.AnyOf = nil
@@ -365,5 +368,5 @@ func mergeSchemas(rootSchema *spec.Schema, schemas ...spec.Schema) spec.Schema {
 		rootSchema.AnyOf = schema.AnyOf
 	}
 
-	return *rootSchema
+	return rootSchema
 }
