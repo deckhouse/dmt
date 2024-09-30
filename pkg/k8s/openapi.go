@@ -150,7 +150,6 @@ type OpenAPIValuesGenerator struct {
 }
 
 func NewOpenAPIValuesGenerator(schema *spec.Schema) *OpenAPIValuesGenerator {
-
 	return &OpenAPIValuesGenerator{
 		rootSchema: schema,
 	}
