@@ -5,7 +5,6 @@ go 1.23.1
 require (
 	github.com/fatih/color v1.14.1
 	github.com/flant/addon-operator v1.4.3
-	github.com/gammazero/deque v0.2.1
 	github.com/go-openapi/spec v0.21.0
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/mitchellh/go-homedir v1.1.0
