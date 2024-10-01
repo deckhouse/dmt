@@ -36,6 +36,7 @@ func NewEnumValidator(cfg *config.OpenAPISettings) EnumValidator {
 }
 
 func (en EnumValidator) Run(moduleName, fileName, absoluteKey string, value any) error {
+	en.excludes = make(map[string]struct{})
 	for _, exc := range en.cfg.EnumFileExcludes[moduleName+":"+fileName] {
 		en.excludes[exc+".enum"] = struct{}{}
 	}
