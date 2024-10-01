@@ -2,6 +2,7 @@ package probes
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/sourcegraph/conc/pool"
@@ -142,8 +143,7 @@ func probeHandlerIsNotValid(probe v1.ProbeHandler) bool {
 func (o *Probes) skipCheckProbeHandler(namespace, container string) bool {
 	containers, ok := o.cfg.ProbesExcludes[namespace]
 	if ok {
-		_, ok = containers[container]
-		return ok
+		return slices.Contains(containers, container)
 	}
 
 	return false

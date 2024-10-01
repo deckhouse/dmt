@@ -1,6 +1,7 @@
 package copyright
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/deckhouse/d8-lint/pkg/config"
@@ -33,7 +34,7 @@ func (o *Copyright) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 	for _, fileName := range files {
 		name, _ := strings.CutPrefix(fileName, m.GetPath())
 		name = m.GetName() + ":" + name
-		if _, ok := o.cfg.CopyrightExcludes[name]; ok {
+		if slices.Contains(o.cfg.CopyrightExcludes, name) {
 			continue
 		}
 

@@ -43,7 +43,7 @@ func (o *NoCyrillic) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 	for _, fileName := range files {
 		name, _ := strings.CutPrefix(fileName, m.GetPath())
 		name = m.GetName() + ":" + name
-		if _, ok := o.cfg.NoCyrillicFileExcludes[name]; ok {
+		if slices.Contains(o.cfg.NoCyrillicFileExcludes, name) {
 			continue
 		}
 		if o.skipDocRe.MatchString(fileName) {
@@ -64,6 +64,7 @@ func (o *NoCyrillic) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 		}
 
 		cyrMsg, hasCyr := checkCyrillicLettersInArray(lines)
+		fileName, _ := strings.CutPrefix(fileName, m.GetPath())
 		if hasCyr {
 			result.Add(errors.NewLintRuleError(
 				"no-cyrillic",

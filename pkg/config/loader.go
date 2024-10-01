@@ -47,44 +47,30 @@ func (l *Loader) Load() error {
 		return err
 	}
 
-	err = l.cfg.Validate()
-	if err != nil {
-		return err
+	// default settings for no-cyrillic
+	if len(l.cfg.LintersSettings.NoCyrillic.FileExtensions) == 0 {
+		l.cfg.LintersSettings.NoCyrillic.FileExtensions = []string{
+			"yaml", "yml", "json",
+			"go",
+		}
+	}
+
+	if l.cfg.LintersSettings.NoCyrillic.SkipDocRe == "" {
+		l.cfg.LintersSettings.NoCyrillic.SkipDocRe = `doc-ru-.+\.y[a]?ml$|_RU\.md$|_ru\.html$|docs/site/_.+|docs/documentation/_.+|tools/spelling/.+`
+	}
+
+	if l.cfg.LintersSettings.NoCyrillic.SkipSelfRe == "" {
+		l.cfg.LintersSettings.NoCyrillic.SkipSelfRe = `no_cyrillic(_test)?.go$`
+	}
+
+	if l.cfg.LintersSettings.NoCyrillic.SkipI18NRe == "" {
+		l.cfg.LintersSettings.NoCyrillic.SkipI18NRe = `/i18n/`
 	}
 
 	return nil
 }
 
 func (l *Loader) setConfigFile() error {
-	configFile, err := l.evaluateOptions()
-	if err != nil {
-		return fmt.Errorf("can't parse --config option: %w", err)
-	}
-
-	if configFile != "" {
-		l.viper.SetConfigFile(configFile)
-
-		// Assume YAML if the file has no extension.
-		if filepath.Ext(configFile) == "" {
-			l.viper.SetConfigType("yaml")
-		}
-	} else {
-		l.setupConfigFileSearch()
-	}
-
-	return nil
-}
-
-func (l *Loader) evaluateOptions() (string, error) {
-	configFile, err := homedir.Expand(l.opts.Config)
-	if err != nil {
-		return "", errors.New("failed to expand configuration path")
-	}
-
-	return configFile, nil
-}
-
-func (l *Loader) setupConfigFileSearch() {
 	l.viper.SetConfigName(".d8lint")
 
 	configSearchPaths := l.getConfigSearchPaths()
@@ -94,6 +80,8 @@ func (l *Loader) setupConfigFileSearch() {
 	for _, p := range configSearchPaths {
 		l.viper.AddConfigPath(p)
 	}
+
+	return nil
 }
 
 func (l *Loader) getConfigSearchPaths() []string {
@@ -162,7 +150,7 @@ func (l *Loader) parseConfig() error {
 	}
 
 	// Load configuration from all sources (flags, file).
-	if err := l.viper.Unmarshal(l.cfg, customDecoderHook()); err != nil {
+	if err = l.viper.Unmarshal(l.cfg, customDecoderHook()); err != nil {
 		return fmt.Errorf("can't unmarshal config by viper (flags, file): %w", err)
 	}
 

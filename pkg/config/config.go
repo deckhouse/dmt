@@ -23,17 +23,3 @@ func NewDefault(dirs []string) (*Config, error) {
 
 	return cfg, nil
 }
-
-func (c *Config) Validate() error {
-	validators := []func() error{
-		c.LintersSettings.Validate,
-	}
-
-	for _, v := range validators {
-		if err := v(); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
