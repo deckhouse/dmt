@@ -23,6 +23,26 @@ type NoCyrillic struct {
 }
 
 func New(cfg *config.NoCyrillicSettings) *NoCyrillic {
+	// default settings for no-cyrillic
+	if len(cfg.FileExtensions) == 0 {
+		cfg.FileExtensions = []string{
+			"yaml", "yml", "json",
+			"go",
+		}
+	}
+
+	if cfg.SkipDocRe == "" {
+		cfg.SkipDocRe = `doc-ru-.+\.y[a]?ml$|_RU\.md$|_ru\.html$|docs/site/_.+|docs/documentation/_.+|tools/spelling/.+`
+	}
+
+	if cfg.SkipSelfRe == "" {
+		cfg.SkipSelfRe = `no_cyrillic(_test)?.go$`
+	}
+
+	if cfg.SkipI18NRe == "" {
+		cfg.SkipI18NRe = `/i18n/`
+	}
+
 	return &NoCyrillic{
 		name:       "no-cyrillic",
 		desc:       "NoCyrillic will check all files in the modules for contains cyrillic symbols",

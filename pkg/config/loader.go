@@ -47,26 +47,6 @@ func (l *Loader) Load() error {
 		return err
 	}
 
-	// default settings for no-cyrillic
-	if len(l.cfg.LintersSettings.NoCyrillic.FileExtensions) == 0 {
-		l.cfg.LintersSettings.NoCyrillic.FileExtensions = []string{
-			"yaml", "yml", "json",
-			"go",
-		}
-	}
-
-	if l.cfg.LintersSettings.NoCyrillic.SkipDocRe == "" {
-		l.cfg.LintersSettings.NoCyrillic.SkipDocRe = `doc-ru-.+\.y[a]?ml$|_RU\.md$|_ru\.html$|docs/site/_.+|docs/documentation/_.+|tools/spelling/.+`
-	}
-
-	if l.cfg.LintersSettings.NoCyrillic.SkipSelfRe == "" {
-		l.cfg.LintersSettings.NoCyrillic.SkipSelfRe = `no_cyrillic(_test)?.go$`
-	}
-
-	if l.cfg.LintersSettings.NoCyrillic.SkipI18NRe == "" {
-		l.cfg.LintersSettings.NoCyrillic.SkipI18NRe = `/i18n/`
-	}
-
 	return nil
 }
 
