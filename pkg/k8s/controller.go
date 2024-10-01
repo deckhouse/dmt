@@ -20,7 +20,7 @@ var (
 	renderedTemplatesHash = sync.Map{}
 )
 
-func RunRender(m *module.Module, values chartutil.Values, objectStore *storage.UnstructuredObjectStore) (lintError error) {
+func RunRender(m *module.Module, values chartutil.Values, objectStore *storage.UnstructuredObjectStore) error {
 	var renderer helm.Renderer
 	renderer.Name = m.GetName()
 	renderer.Namespace = m.GetNamespace()
@@ -67,7 +67,8 @@ func RunRender(m *module.Module, values chartutil.Values, objectStore *storage.U
 			}
 		}
 	}
-	return lintError
+
+	return nil
 }
 
 func SplitAt(substring string) func(data []byte, atEOF bool) (advance int, token []byte, err error) {

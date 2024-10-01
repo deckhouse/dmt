@@ -32,10 +32,6 @@ func New(cfg *config.ProbesSettings) *Probes {
 func (o *Probes) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 	var result errors.LintRuleErrorsList
 
-	if err := m.LoadChart(); err != nil {
-		return result, err
-	}
-
 	values, err := k8s.ComposeValuesFromSchemas(m)
 	if err != nil {
 		return result, fmt.Errorf("saving values from openapi: %w", err)

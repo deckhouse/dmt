@@ -54,23 +54,17 @@ func (m *Module) GetMetadata() *chart.Metadata {
 	return m.chart.Metadata
 }
 
-func (m *Module) LoadChart() (err error) {
-	m.chart, err = loader.Load(m.GetPath())
-	if err != nil {
-		return err
-	}
+func NewModule(path string) (*Module, error) {
+	ch, err := loader.Load(path)
 
-	return nil
-}
-
-func NewModule(path string) *Module {
 	module := &Module{
 		name:      getModuleName(path),
 		namespace: getNamespace(path),
 		path:      path,
+		chart:     ch,
 	}
 
-	return module
+	return module, err
 }
 
 func getModuleName(path string) string {

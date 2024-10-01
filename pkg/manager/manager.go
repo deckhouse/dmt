@@ -75,7 +75,12 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 
 	for i := range paths {
 		logger.DebugF("Found `%s` module", paths[i])
-		m.Modules = append(m.Modules, module.NewModule(paths[i]))
+		mdl, err := module.NewModule(paths[i])
+		if err != nil {
+			// this error not critical, just notice what we have error on setting module chart
+			logger.ErrorF("Chart fill not success for module `%s`: %v", mdl.GetName(), err)
+		}
+		m.Modules = append(m.Modules, mdl)
 	}
 
 	logger.InfoF("Found %d modules", len(m.Modules))
