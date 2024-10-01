@@ -20,8 +20,6 @@ type LoaderOptions struct {
 }
 
 type Loader struct {
-	opts LoaderOptions
-
 	viper *viper.Viper
 
 	cfg  *Config

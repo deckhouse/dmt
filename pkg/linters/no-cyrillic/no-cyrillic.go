@@ -84,11 +84,11 @@ func (o *NoCyrillic) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 		}
 
 		cyrMsg, hasCyr := checkCyrillicLettersInArray(lines)
-		fileName, _ := strings.CutPrefix(fileName, m.GetPath())
+		fName, _ := strings.CutPrefix(fileName, m.GetPath())
 		if hasCyr {
 			result.Add(errors.NewLintRuleError(
 				"no-cyrillic",
-				fileName,
+				fName,
 				m.GetName(),
 				addPrefix(strings.Split(cyrMsg, "\n"), "\t"),
 				"errors in `%s` module",
