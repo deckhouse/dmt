@@ -7,12 +7,12 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/deckhouse/d8-lint/pkg/config"
-	"github.com/deckhouse/d8-lint/pkg/fsutils"
-	"github.com/deckhouse/d8-lint/pkg/linters/openapi/validators"
-	"github.com/deckhouse/d8-lint/pkg/logger"
-
 	"github.com/hashicorp/go-multierror"
+
+	"github.com/deckhouse/d8-lint/internal/fsutils"
+	"github.com/deckhouse/d8-lint/internal/logger"
+	"github.com/deckhouse/d8-lint/pkg/config"
+	"github.com/deckhouse/d8-lint/pkg/linters/openapi/validators"
 
 	"gopkg.in/yaml.v3"
 )

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/deckhouse/d8-lint/internal/logger"
 	"github.com/deckhouse/d8-lint/pkg/config"
-	"github.com/deckhouse/d8-lint/pkg/logger"
 )
 
 type KeyNameValidator struct {

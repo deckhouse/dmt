@@ -9,15 +9,15 @@ import (
 	"github.com/mitchellh/go-homedir"
 	"github.com/sourcegraph/conc/pool"
 
+	"github.com/deckhouse/d8-lint/internal/flags"
+	"github.com/deckhouse/d8-lint/internal/logger"
+	"github.com/deckhouse/d8-lint/internal/module"
 	"github.com/deckhouse/d8-lint/pkg/config"
 	"github.com/deckhouse/d8-lint/pkg/errors"
-	"github.com/deckhouse/d8-lint/pkg/flags"
 	"github.com/deckhouse/d8-lint/pkg/linters/copyright"
 	no_cyrillic "github.com/deckhouse/d8-lint/pkg/linters/no-cyrillic"
 	"github.com/deckhouse/d8-lint/pkg/linters/openapi"
 	"github.com/deckhouse/d8-lint/pkg/linters/probes"
-	"github.com/deckhouse/d8-lint/pkg/logger"
-	"github.com/deckhouse/d8-lint/pkg/module"
 )
 
 const (
@@ -78,7 +78,8 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 		mdl, err := module.NewModule(paths[i])
 		if err != nil {
 			// this error not critical, just notice what we have error on setting module chart
-			logger.ErrorF("Chart fill not success for module `%s`: %v", mdl.GetName(), err)
+			logger.ErrorF("Chart fill not success for path module `%s`: %v", paths[i], err)
+			continue
 		}
 		m.Modules = append(m.Modules, mdl)
 	}

@@ -6,10 +6,10 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/deckhouse/d8-lint/internal/fsutils"
+	"github.com/deckhouse/d8-lint/internal/module"
 	"github.com/deckhouse/d8-lint/pkg/config"
 	"github.com/deckhouse/d8-lint/pkg/errors"
-	"github.com/deckhouse/d8-lint/pkg/fsutils"
-	"github.com/deckhouse/d8-lint/pkg/module"
 )
 
 // NoCyrillic linter

@@ -11,9 +11,9 @@ import (
 	"gopkg.in/yaml.v3"
 	"helm.sh/helm/v3/pkg/chartutil"
 
-	"github.com/deckhouse/d8-lint/pkg/helm"
-	"github.com/deckhouse/d8-lint/pkg/module"
-	"github.com/deckhouse/d8-lint/pkg/storage"
+	"github.com/deckhouse/d8-lint/internal/helm"
+	"github.com/deckhouse/d8-lint/internal/module"
+	"github.com/deckhouse/d8-lint/internal/storage"
 )
 
 var (

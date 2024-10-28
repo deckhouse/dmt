@@ -11,8 +11,8 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/viper"
 
-	"github.com/deckhouse/d8-lint/pkg/fsutils"
-	"github.com/deckhouse/d8-lint/pkg/logger"
+	"github.com/deckhouse/d8-lint/internal/fsutils"
+	"github.com/deckhouse/d8-lint/internal/logger"
 )
 
 type LoaderOptions struct {
