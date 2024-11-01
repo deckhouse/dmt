@@ -9,15 +9,15 @@ import (
 	"github.com/mitchellh/go-homedir"
 	"github.com/sourcegraph/conc/pool"
 
+	"github.com/deckhouse/d8-lint/internal/flags"
+	"github.com/deckhouse/d8-lint/internal/logger"
+	"github.com/deckhouse/d8-lint/internal/module"
 	"github.com/deckhouse/d8-lint/pkg/config"
 	"github.com/deckhouse/d8-lint/pkg/errors"
-	"github.com/deckhouse/d8-lint/pkg/flags"
 	"github.com/deckhouse/d8-lint/pkg/linters/copyright"
 	no_cyrillic "github.com/deckhouse/d8-lint/pkg/linters/no-cyrillic"
 	"github.com/deckhouse/d8-lint/pkg/linters/openapi"
 	"github.com/deckhouse/d8-lint/pkg/linters/probes"
-	"github.com/deckhouse/d8-lint/pkg/logger"
-	"github.com/deckhouse/d8-lint/pkg/module"
 )
 
 const (

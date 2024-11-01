@@ -10,8 +10,8 @@ import (
 	"github.com/mohae/deepcopy"
 	"helm.sh/helm/v3/pkg/chartutil"
 
-	"github.com/deckhouse/d8-lint/pkg/module"
-	"github.com/deckhouse/d8-lint/pkg/valuesvalidation"
+	"github.com/deckhouse/d8-lint/internal/module"
+	"github.com/deckhouse/d8-lint/internal/valuesvalidation"
 )
 
 const (

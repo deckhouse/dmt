@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/deckhouse/d8-lint/pkg/flags"
+	"github.com/deckhouse/d8-lint/internal/flags"
 )
 
 var logger *slog.Logger
