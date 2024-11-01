@@ -144,24 +144,24 @@ func containersImagePullPolicy(object storage.StoreObject, containers []v1.Conta
 
 func containerNameDuplicates(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	names := make(map[string]struct{})
-	for _, c := range containers {
-		if _, ok := names[c.Name]; ok {
-			return errors.NewLintRuleError("CONTAINER001", object.Identity(), c.Name, nil, "Duplicate container name")
+	for i := range containers {
+		if _, ok := names[containers[i].Name]; ok {
+			return errors.NewLintRuleError("CONTAINER001", object.Identity(), containers[i].Name, nil, "Duplicate container name")
 		}
-		names[c.Name] = struct{}{}
+		names[containers[i].Name] = struct{}{}
 	}
 	return errors.EmptyRuleError
 }
 
 func containerEnvVariablesDuplicates(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
-	for _, c := range containers {
+	for i := range containers {
 		envVariables := make(map[string]struct{})
-		for _, variable := range c.Env {
+		for _, variable := range containers[i].Env {
 			if _, ok := envVariables[variable.Name]; ok {
 				return errors.NewLintRuleError(
 					"CONTAINER002",
-					object.Identity()+"; container = "+c.Name,
-					c.Name,
+					object.Identity()+"; container = "+containers[i].Name,
+					containers[i].Name,
 					variable.Name,
 					"Container has two env variables with same name",
 				)
@@ -172,31 +172,31 @@ func containerEnvVariablesDuplicates(object storage.StoreObject, containers []v1
 	return errors.EmptyRuleError
 }
 
-func shouldSkipModuleContainer(module string, container string) bool {
+func shouldSkipModuleContainer(md string, container string) bool {
 	// okmeter module uses images from external repo - registry.okmeter.io/agent/okagent:stub
-	if module == "okmeter" && container == "okagent" {
+	if md == "okmeter" && container == "okagent" {
 		return true
 	}
 	// control-plane-manager uses `$images` as dict to render static pod manifests,
 	// so we cannot use helm lib `helm_lib_module_image` helper because `$images`
 	// is also rendered in `dhctl` tool on cluster bootstrap.
-	if module == "d8-control-plane-manager" && strings.HasPrefix(container, "image-holder") {
+	if md == "d8-control-plane-manager" && strings.HasPrefix(container, "image-holder") {
 		return true
 	}
 	return false
 }
 
 func containerImageDigestCheck(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
-	for _, c := range containers {
-		if shouldSkipModuleContainer(object.Unstructured.GetName(), c.Name) {
+	for i := range containers {
+		if shouldSkipModuleContainer(object.Unstructured.GetName(), containers[i].Name) {
 			continue
 		}
 
 		re := regexp.MustCompile(`(?P<repository>.+)([@:])imageHash[-a-z0-9A-Z]+$`)
-		match := re.FindStringSubmatch(c.Image)
+		match := re.FindStringSubmatch(containers[i].Image)
 		if len(match) == 0 {
 			return errors.NewLintRuleError("CONTAINER003",
-				object.Identity()+"; container = "+c.Name,
+				object.Identity()+"; container = "+containers[i].Name,
 				object.Unstructured.GetName(),
 				nil,
 				"Cannot parse repository from image",
@@ -205,16 +205,16 @@ func containerImageDigestCheck(object storage.StoreObject, containers []v1.Conta
 		repo, err := name.NewRepository(match[re.SubexpIndex("repository")])
 		if err != nil {
 			return errors.NewLintRuleError("CONTAINER003",
-				object.Identity()+"; container = "+c.Name,
+				object.Identity()+"; container = "+containers[i].Name,
 				object.Unstructured.GetName(),
 				nil,
-				"Cannot parse repository from image: %s", c.Image,
+				"Cannot parse repository from image: %s", containers[i].Image,
 			)
 		}
 
 		if repo.Name() != defaultRegistry {
 			return errors.NewLintRuleError("CONTAINER003",
-				object.Identity()+"; container = "+c.Name,
+				object.Identity()+"; container = "+containers[i].Name,
 				object.Unstructured.GetName(),
 				nil,
 				"All images must be deployed from the same default registry: "+defaultRegistry+" current:"+repo.RepositoryStr(),
@@ -225,15 +225,15 @@ func containerImageDigestCheck(object storage.StoreObject, containers []v1.Conta
 }
 
 func containerImagePullPolicyIfNotPresent(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
-	for _, c := range containers {
-		if c.ImagePullPolicy == "" || c.ImagePullPolicy == "IfNotPresent" {
+	for i := range containers {
+		if containers[i].ImagePullPolicy == "" || containers[i].ImagePullPolicy == "IfNotPresent" {
 			continue
 		}
 		return errors.NewLintRuleError(
 			"CONTAINER004",
-			object.Identity()+"; container = "+c.Name,
-			c.Name,
-			c.ImagePullPolicy,
+			object.Identity()+"; container = "+containers[i].Name,
+			containers[i].Name,
+			containers[i].ImagePullPolicy,
 			"Container imagePullPolicy should be unspecified or \"IfNotPresent\"",
 		)
 	}
@@ -799,8 +799,8 @@ func objectDNSPolicy(object storage.StoreObject) *errors.LintRuleError {
 	)
 }
 
-func shouldSkipDNSPolicyResource(name string, kind string, namespace string, hostNetwork bool, dnsPolicy string) bool {
-	switch name {
+func shouldSkipDNSPolicyResource(n string, kind string, namespace string, hostNetwork bool, dnsPolicy string) bool {
+	switch n {
 	// Cloud controller manager should work if cluster dns isn't responding or if cni isn't working
 	case "cloud-controller-manager":
 		return kind == "Deployment" && strings.HasPrefix(namespace, "d8-cloud-provider-") && hostNetwork && dnsPolicy == "Default"

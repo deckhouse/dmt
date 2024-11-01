@@ -72,7 +72,7 @@ func verifyOssFile(name, moduleRoot string) []error {
 
 	var errs []error
 	for i, p := range projects {
-		err := assertOssProject(i+1, p)
+		err := assertOssProject(i+1, &p)
 		if err != nil {
 			errs = append(errs, err)
 		}
@@ -81,7 +81,7 @@ func verifyOssFile(name, moduleRoot string) []error {
 	return errs
 }
 
-func assertOssProject(i int, p ossProject) error {
+func assertOssProject(i int, p *ossProject) error {
 	var complaints []string
 
 	// prefix to make it easier navigate among errors

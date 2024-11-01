@@ -108,7 +108,7 @@ func Test_assertProject(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := assertOssProject(0, test.project)
+			err := assertOssProject(0, &test.project)
 			if test.wantErr {
 				if err == nil {
 					t.Errorf("expected error, not nil")

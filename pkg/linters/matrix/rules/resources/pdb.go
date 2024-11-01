@@ -200,7 +200,7 @@ func parsePDBSelector(pdbObj storage.StoreObject) (labels.Selector, *errors.Lint
 		return nil, lerr
 	}
 
-	if len(pdb.Annotations["helm.sh/hook"]) > 0 || len(pdb.Annotations["helm.sh/hook-delete-policy"]) > 0 {
+	if pdb.Annotations["helm.sh/hook"] != "" || pdb.Annotations["helm.sh/hook-delete-policy"] != "" {
 		lerr := errors.NewLintRuleError(
 			"PDB005",
 			pdbObj.Identity(),
