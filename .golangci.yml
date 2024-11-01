@@ -106,7 +106,7 @@ linters:
     - gocheckcompilerdirectives
     - gochecknoinits
     - gochecknoinits
-    - goconst
+#    - goconst
     - gocritic
     - gocyclo
     - godox
