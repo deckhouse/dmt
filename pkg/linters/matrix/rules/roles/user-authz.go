@@ -20,13 +20,17 @@ import (
 	"fmt"
 
 	"github.com/iancoleman/strcase"
+
+	"github.com/deckhouse/d8-lint/internal/module"
+	"github.com/deckhouse/d8-lint/internal/storage"
+	"github.com/deckhouse/d8-lint/pkg/errors"
 )
 
 /*
 ObjectUserAuthzClusterRolePath validates that files for user-authz contains only cluster roles.
 Also, it validates that role names equals to d8:user-authz:<ChartName>:<AccessLevel>
 */
-func ObjectUserAuthzClusterRolePath(m utils.Module, object storage.StoreObject) errors.LintRuleError {
+func ObjectUserAuthzClusterRolePath(m *module.Module, object storage.StoreObject) *errors.LintRuleError {
 	objectKind := object.Unstructured.GetKind()
 
 	shortPath := object.ShortPath()
@@ -35,6 +39,7 @@ func ObjectUserAuthzClusterRolePath(m utils.Module, object storage.StoreObject) 
 			return errors.NewLintRuleError(
 				"MANIFEST051",
 				object.Identity(),
+				m.GetName(),
 				nil,
 				"Only ClusterRoles can be specified in \"templates/user-authz-cluster-roles.yaml\"",
 			)
@@ -46,16 +51,18 @@ func ObjectUserAuthzClusterRolePath(m utils.Module, object storage.StoreObject) 
 			return errors.NewLintRuleError(
 				"MANIFEST051",
 				object.Identity(),
+				m.GetName(),
 				nil,
 				"User-authz access ClusterRoles should have annotation \"user-authz.deckhouse.io/access-level\"",
 			)
 		}
 
-		expectedName := fmt.Sprintf("d8:user-authz:%s:%s", m.Name, strcase.ToKebab(accessLevel))
+		expectedName := fmt.Sprintf("d8:user-authz:%s:%s", m.GetName(), strcase.ToKebab(accessLevel))
 		if objectName != expectedName {
 			return errors.NewLintRuleError(
 				"MANIFEST051",
 				object.Identity(),
+				m.GetName(),
 				nil,
 				"Name of user-authz ClusterRoles should be %q", expectedName,
 			)

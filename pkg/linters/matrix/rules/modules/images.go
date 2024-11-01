@@ -125,9 +125,8 @@ func isImageNameUnacceptable(imageName string) (bool, string) {
 }
 
 func checkImageNamesInDockerAndWerfFiles(
-	lintRuleErrorsList *errors.LintRuleErrorsList,
 	name, path string,
-) {
+) (lintRuleErrorsList errors.LintRuleErrorsList) {
 	var filePaths []string
 	imagesPath := filepath.Join(path, imagesDir)
 
@@ -162,6 +161,8 @@ func checkImageNamesInDockerAndWerfFiles(
 		}
 		lintRuleErrorsList.Add(lintOneDockerfileOrWerfYAML(name, filePath, imagesPath))
 	}
+
+	return
 }
 
 func lintOneDockerfileOrWerfYAML(name, filePath, imagesPath string) *errors.LintRuleError {

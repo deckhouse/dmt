@@ -103,7 +103,7 @@ var skipCheckWildcards = map[string][]string{
 
 // ObjectRolesWildcard is a linter for checking the presence
 // of a wildcard in a Role and ClusterRole
-func ObjectRolesWildcard(object storage.StoreObject) errors.LintRuleError {
+func ObjectRolesWildcard(object storage.StoreObject) *errors.LintRuleError {
 	// check only `rbac-for-us.yaml` files
 	if !strings.HasSuffix(object.ShortPath(), "rbac-for-us.yaml") {
 		return errors.EmptyRuleError
@@ -119,7 +119,7 @@ func ObjectRolesWildcard(object storage.StoreObject) errors.LintRuleError {
 	}
 }
 
-func checkRoles(object storage.StoreObject) errors.LintRuleError {
+func checkRoles(object storage.StoreObject) *errors.LintRuleError {
 	// check rules for skip
 	for path, rules := range skipCheckWildcards {
 		if strings.EqualFold(object.Path, path) {
@@ -153,6 +153,7 @@ func checkRoles(object storage.StoreObject) errors.LintRuleError {
 				"WILDCARD001",
 				object.Identity(),
 				object.Path,
+				nil,
 				strings.Join(objs, ", ")+" contains a wildcards. Replace them with an explicit list of resources",
 			)
 		}

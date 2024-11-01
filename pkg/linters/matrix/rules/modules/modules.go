@@ -24,7 +24,6 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/deckhouse/d8-lint/internal/module"
 	"github.com/deckhouse/d8-lint/pkg/errors"
 )
 
@@ -223,25 +222,26 @@ func getModulePaths(modulesDir string) ([]string, error) {
 	return chartDirs, nil
 }
 
-// lintModuleStructure collects linting errors
+// LintModuleStructure collects linting errors
 // for helmignore, hooks, docker and werf files, namespace, and CRDs
-func lintModuleStructure(lintRuleErrorsList *errors.LintRuleErrorsList, modulePath string) (*module.Module, bool) {
+func LintModuleStructure(modulePath string) (lintRuleErrorsList errors.LintRuleErrorsList) {
+	lintRuleErrorsList = errors.LintRuleErrorsList{}
 	moduleName := filepath.Base(modulePath)
 
 	lintRuleErrorsList.Add(helmignoreModuleRule(moduleName, modulePath))
 	lintRuleErrorsList.Add(commonTestGoForHooks(moduleName, modulePath))
-	checkImageNamesInDockerAndWerfFiles(lintRuleErrorsList, moduleName, modulePath)
+	lintRuleErrorsList.Merge(checkImageNamesInDockerAndWerfFiles(moduleName, modulePath))
 
 	name, lintError := chartModuleRule(moduleName, modulePath)
 	lintRuleErrorsList.Add(lintError)
 	if name == "" {
-		return &module.Module{}, false
+		return lintRuleErrorsList
 	}
 
 	namespace, lintError := namespaceModuleRule(moduleName, modulePath)
 	lintRuleErrorsList.Add(lintError)
 	if namespace == "" {
-		return &module.Module{}, false
+		return lintRuleErrorsList
 	}
 
 	if isExistsOnFilesystem(modulePath, crdsDir) {
@@ -251,6 +251,5 @@ func lintModuleStructure(lintRuleErrorsList *errors.LintRuleErrorsList, modulePa
 	lintRuleErrorsList.Merge(ossModuleRule(moduleName, modulePath))
 	lintRuleErrorsList.Add(monitoringModuleRule(moduleName, modulePath, namespace))
 
-	mdl, _ := module.NewModule(modulePath)
-	return mdl, true
+	return lintRuleErrorsList
 }

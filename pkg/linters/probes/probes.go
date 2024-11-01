@@ -8,7 +8,7 @@ import (
 	"github.com/sourcegraph/conc/pool"
 	v1 "k8s.io/api/core/v1"
 
-	k8s2 "github.com/deckhouse/d8-lint/internal/k8s"
+	"github.com/deckhouse/d8-lint/internal/k8s"
 	"github.com/deckhouse/d8-lint/internal/module"
 	"github.com/deckhouse/d8-lint/internal/storage"
 	"github.com/deckhouse/d8-lint/pkg/config"
@@ -32,7 +32,7 @@ func New(cfg *config.ProbesSettings) *Probes {
 func (o *Probes) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 	var result errors.LintRuleErrorsList
 
-	values, err := k8s2.ComposeValuesFromSchemas(m)
+	values, err := k8s.ComposeValuesFromSchemas(m)
 	if err != nil {
 		return result, fmt.Errorf("saving values from openapi: %w", err)
 	}
@@ -42,7 +42,7 @@ func (o *Probes) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 		var g = pool.New().WithErrors()
 		g.Go(func() error {
 			objectStore := storage.NewUnstructuredObjectStore()
-			err = k8s2.RunRender(m, values, objectStore)
+			err = k8s.RunRender(m, values, objectStore)
 			if err != nil {
 				return err
 			}

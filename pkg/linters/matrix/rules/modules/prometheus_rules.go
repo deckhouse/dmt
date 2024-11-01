@@ -73,7 +73,7 @@ func marshalChartYaml(object storage.StoreObject) ([]byte, error) {
 	return marshal, nil
 }
 
-func writeTempRuleFileFromObject(m module.Module, marshalledYaml []byte) (path string, err error) {
+func writeTempRuleFileFromObject(m *module.Module, marshalledYaml []byte) (path string, err error) {
 	renderedFile, err := os.CreateTemp("", m.GetName()+".*.yml")
 	if err != nil {
 		return "", err
@@ -96,7 +96,7 @@ func checkRuleFile(path string) error {
 	return err
 }
 
-func createPromtoolError(m module.Module, errMsg string) *errors.LintRuleError {
+func createPromtoolError(m *module.Module, errMsg string) *errors.LintRuleError {
 	return errors.NewLintRuleError(
 		"MODULE060",
 		moduleLabel(m.GetName()),
@@ -107,7 +107,7 @@ func createPromtoolError(m module.Module, errMsg string) *errors.LintRuleError {
 	)
 }
 
-func PromtoolRuleCheck(m module.Module, object storage.StoreObject) *errors.LintRuleError {
+func PromtoolRuleCheck(m *module.Module, object storage.StoreObject) *errors.LintRuleError {
 	if object.Unstructured.GetKind() != "PrometheusRule" {
 		return errors.EmptyRuleError
 	}

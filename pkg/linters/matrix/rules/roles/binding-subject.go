@@ -19,10 +19,14 @@ package roles
 import (
 	v1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/deckhouse/d8-lint/internal/module"
+	"github.com/deckhouse/d8-lint/internal/storage"
+	"github.com/deckhouse/d8-lint/pkg/errors"
 )
 
-func ObjectBindingSubjectServiceAccountCheck(m utils.Module, object storage.StoreObject, objectStore *storage.UnstructuredObjectStore) errors.LintRuleError {
-	if m.Name == "user-authz" {
+func ObjectBindingSubjectServiceAccountCheck(m *module.Module, object storage.StoreObject, objectStore *storage.UnstructuredObjectStore) *errors.LintRuleError {
+	if m.GetName() == "user-authz" {
 		return errors.EmptyRuleError
 	}
 	converter := runtime.DefaultUnstructuredConverter
@@ -62,16 +66,16 @@ func ObjectBindingSubjectServiceAccountCheck(m utils.Module, object storage.Stor
 		}
 
 		// Grafana service account has binding in loki module.
-		if m.Name == "loki" && subject.Name == "grafana" && subject.Namespace == "d8-monitoring" {
+		if m.GetName() == "loki" && subject.Name == "grafana" && subject.Namespace == "d8-monitoring" {
 			continue
 		}
 
 		// Log-shipper service account has binding in loki module.
-		if m.Name == "loki" && subject.Name == "log-shipper" && subject.Namespace == "d8-log-shipper" {
+		if m.GetPath() == "loki" && subject.Name == "log-shipper" && subject.Namespace == "d8-log-shipper" {
 			continue
 		}
 
-		if subject.Namespace == m.Namespace && !objectStore.Exists(storage.ResourceIndex{
+		if subject.Namespace == m.GetNamespace() && !objectStore.Exists(storage.ResourceIndex{
 			Name: subject.Name, Kind: subject.Kind, Namespace: subject.Namespace,
 		}) {
 			return errors.NewLintRuleError(

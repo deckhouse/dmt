@@ -32,10 +32,6 @@ import (
 
 // ControllerMustHaveVPA fills linting error regarding VPA
 func ControllerMustHaveVPA(linter *rules.ObjectLinter) {
-	if !linter.EnabledModules.Has("vertical-pod-autoscaler") {
-		return
-	}
-
 	scope := newLintingScope(linter.ObjectStore, linter.ErrorsList)
 
 	vpaTargets, vpaTolerationGroups, vpaContainerNamesMap, vpaUpdateModes := parseTargetsAndTolerationGroups(scope)
