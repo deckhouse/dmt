@@ -95,6 +95,11 @@ func (m *Manager) Run() errors.LintRuleErrorsList {
 
 	var ch = make(chan errors.LintRuleErrorsList)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logger.ErrorF("Recovered from panic: %v", r)
+			}
+		}()
 		var g = pool.New().WithMaxGoroutines(flags.LintersLimit)
 		for i := range m.Modules {
 			logger.InfoF("Run linters for `%s` module", m.Modules[i].GetName())

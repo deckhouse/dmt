@@ -57,7 +57,7 @@ func namespaceModuleRule(name, path string) (string, *errors.LintRuleError) {
 		return "", errors.NewLintRuleError(
 			"MODULE002",
 			name,
-			moduleLabel(name),
+			name,
 			nil,
 			`Module does not contain ".namespace" file, module will be ignored`,
 		)
@@ -69,7 +69,7 @@ func chartModuleRule(name, path string) (string, *errors.LintRuleError) {
 	lintError := errors.NewLintRuleError(
 		"MODULE002",
 		name,
-		moduleLabel(name),
+		name,
 		nil,
 		"Module does not contain valid %q file, module will be ignored", ChartConfigFilename,
 	)
@@ -91,7 +91,7 @@ func chartModuleRule(name, path string) (string, *errors.LintRuleError) {
 		return "", errors.NewLintRuleError(
 			"MODULE002",
 			name,
-			moduleLabel(name),
+			name,
 			nil,
 			"Module does not contain %q file or %s folder, module will be ignored",
 			ValuesConfigFilename, openapiDir,
@@ -118,7 +118,7 @@ func helmignoreModuleRule(name, path string) *errors.LintRuleError {
 		return errors.NewLintRuleError(
 			"MODULE001",
 			name,
-			moduleLabel(name),
+			name,
 			nil,
 			`Module does not contain ".helmignore" file`,
 		)
@@ -137,7 +137,7 @@ func helmignoreModuleRule(name, path string) *errors.LintRuleError {
 		return errors.NewLintRuleError(
 			"MODULE001",
 			name,
-			moduleLabel(name),
+			name,
 			strings.Join(moduleErrors, ", "),
 			`Module does not have desired entries in ".helmignore" file`,
 		)

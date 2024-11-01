@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
-	"github.com/hashicorp/go-multierror"
 	"github.com/kyokomi/emoji"
 )
 
@@ -95,9 +94,7 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 				value = fmt.Sprintf("%d", err.Value)
 			case float32, float64:
 				value = fmt.Sprintf("%f", err.Value)
-			case string:
-				value = fmt.Sprintf("%s", err.Value)
-			case *multierror.Error:
+			default:
 				value = fmt.Sprintf("%s", err.Value)
 			}
 			builder.WriteString(fmt.Sprintf("\tValue\t- %s\n", value))

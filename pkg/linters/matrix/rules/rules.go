@@ -197,25 +197,25 @@ func containerImageDigestCheck(object storage.StoreObject, containers []v1.Conta
 		if len(match) == 0 {
 			return errors.NewLintRuleError("CONTAINER003",
 				object.Identity()+"; container = "+c.Name,
-				c.Name,
+				object.Unstructured.GetName(),
 				nil,
-				"Cannot parse repository from image: "+c.Image,
+				"Cannot parse repository from image",
 			)
 		}
 		repo, err := name.NewRepository(match[re.SubexpIndex("repository")])
 		if err != nil {
 			return errors.NewLintRuleError("CONTAINER003",
 				object.Identity()+"; container = "+c.Name,
-				c.Name,
+				object.Unstructured.GetName(),
 				nil,
-				"Cannot parse repository from image: "+c.Image,
+				"Cannot parse repository from image: %s", c.Image,
 			)
 		}
 
 		if repo.Name() != defaultRegistry {
 			return errors.NewLintRuleError("CONTAINER003",
 				object.Identity()+"; container = "+c.Name,
-				c.Name,
+				object.Unstructured.GetName(),
 				nil,
 				"All images must be deployed from the same default registry: "+defaultRegistry+" current:"+repo.RepositoryStr(),
 			)
@@ -326,7 +326,7 @@ func objectRecommendedLabels(object storage.StoreObject) *errors.LintRuleError {
 		return errors.NewLintRuleError(
 			"MANIFEST001",
 			object.Identity(),
-			object.Identity(),
+			object.Unstructured.GetName(),
 			labels,
 			"Object does not have the label \"module\"",
 		)
@@ -335,7 +335,7 @@ func objectRecommendedLabels(object storage.StoreObject) *errors.LintRuleError {
 		return errors.NewLintRuleError(
 			"MANIFEST001",
 			object.Identity(),
-			object.Identity(),
+			object.Unstructured.GetName(),
 			labels,
 			"Object does not have the label \"heritage\"",
 		)
@@ -361,7 +361,7 @@ func namespaceLabels(object storage.StoreObject) *errors.LintRuleError {
 	return errors.NewLintRuleError(
 		"MANIFEST001",
 		object.Identity(),
-		object.Identity(),
+		object.Unstructured.GetName(),
 		labels,
 		"Namespace object does not have the label \"prometheus.deckhouse.io/rules-watcher-enabled\"")
 }
@@ -405,7 +405,7 @@ func newConvertError(object storage.StoreObject, err error) *errors.LintRuleErro
 	return errors.NewLintRuleError(
 		"MANIFEST007",
 		object.Identity(),
-		object.Identity(),
+		object.Unstructured.GetName(),
 		nil,
 		"Cannot convert object to %s: %v", object.Unstructured.GetKind(), err,
 	)
@@ -434,7 +434,7 @@ func objectRevisionHistoryLimit(object storage.StoreObject) *errors.LintRuleErro
 			return errors.NewLintRuleError(
 				"MANIFEST008",
 				object.Identity(),
-				object.Identity(),
+				object.Unstructured.GetName(),
 				nil,
 				"Deployment spec.revisionHistoryLimit must be less or equal to %d", maxHistoryLimit,
 			)
@@ -444,7 +444,7 @@ func objectRevisionHistoryLimit(object storage.StoreObject) *errors.LintRuleErro
 			return errors.NewLintRuleError(
 				"MANIFEST008",
 				object.Identity(),
-				object.Identity(),
+				object.Unstructured.GetName(),
 				*actualLimit,
 				"Deployment spec.revisionHistoryLimit must be less or equal to %d", maxHistoryLimit,
 			)
@@ -496,7 +496,7 @@ func objectPriorityClass(object storage.StoreObject) *errors.LintRuleError {
 		return errors.NewLintRuleError(
 			"MANIFEST007",
 			object.Identity(),
-			object.Identity(),
+			object.Unstructured.GetName(),
 			priorityClass,
 			"Priority class must not be empty",
 		)
@@ -505,7 +505,7 @@ func objectPriorityClass(object storage.StoreObject) *errors.LintRuleError {
 		return errors.NewLintRuleError(
 			"MANIFEST007",
 			object.Identity(),
-			object.Identity(),
+			object.Unstructured.GetName(),
 			priorityClass,
 			"Priority class is not allowed",
 		)
@@ -526,7 +526,7 @@ func objectSecurityContext(object storage.StoreObject) *errors.LintRuleError {
 		return errors.NewLintRuleError(
 			"MANIFEST003",
 			object.Identity(),
-			object.Identity(),
+			object.Unstructured.GetName(),
 			nil,
 			fmt.Sprintf("GetPodSecurityContext failed: %v", err),
 		)
@@ -536,7 +536,7 @@ func objectSecurityContext(object storage.StoreObject) *errors.LintRuleError {
 		return errors.NewLintRuleError(
 			"MANIFEST003",
 			object.Identity(),
-			object.Identity(),
+			object.Unstructured.GetName(),
 			nil,
 			"Object's SecurityContext is not defined",
 		)
@@ -545,7 +545,7 @@ func objectSecurityContext(object storage.StoreObject) *errors.LintRuleError {
 		return errors.NewLintRuleError(
 			"MANIFEST003",
 			object.Identity(),
-			object.Identity(),
+			object.Unstructured.GetName(),
 			nil,
 			"Object's SecurityContext missing parameter RunAsNonRoot",
 		)
@@ -555,7 +555,7 @@ func objectSecurityContext(object storage.StoreObject) *errors.LintRuleError {
 		return errors.NewLintRuleError(
 			"MANIFEST003",
 			object.Identity(),
-			object.Identity(),
+			object.Unstructured.GetName(),
 			nil,
 			"Object's SecurityContext missing parameter RunAsUser",
 		)
@@ -564,7 +564,7 @@ func objectSecurityContext(object storage.StoreObject) *errors.LintRuleError {
 		return errors.NewLintRuleError(
 			"MANIFEST003",
 			object.Identity(),
-			object.Identity(),
+			object.Unstructured.GetName(),
 			nil,
 			"Object's SecurityContext missing parameter RunAsGroup",
 		)
@@ -576,7 +576,7 @@ func objectSecurityContext(object storage.StoreObject) *errors.LintRuleError {
 			return errors.NewLintRuleError(
 				"MANIFEST003",
 				object.Identity(),
-				object.Identity(),
+				object.Unstructured.GetName(),
 				fmt.Sprintf("%d:%d", *securityContext.RunAsUser, *securityContext.RunAsGroup),
 				"Object's SecurityContext has `RunAsNonRoot: true`, but RunAsUser:RunAsGroup differs from 65534:65534 (nobody) or 64535:64535 (deckhouse)",
 			)
@@ -586,7 +586,7 @@ func objectSecurityContext(object storage.StoreObject) *errors.LintRuleError {
 			return errors.NewLintRuleError(
 				"MANIFEST003",
 				object.Identity(),
-				object.Identity(),
+				object.Unstructured.GetName(),
 				fmt.Sprintf("%d:%d", *securityContext.RunAsUser, *securityContext.RunAsGroup),
 				"Object's SecurityContext has `RunAsNonRoot: false`, but RunAsUser:RunAsGroup differs from 0:0",
 			)
@@ -625,7 +625,7 @@ func objectServiceTargetPort(object storage.StoreObject) *errors.LintRuleError {
 				return errors.NewLintRuleError(
 					"MANIFEST004",
 					object.Identity(),
-					object.Identity(),
+					object.Unstructured.GetName(),
 					nil,
 					"Service port must use an explicit named (non-numeric) target port",
 				)
@@ -636,7 +636,7 @@ func objectServiceTargetPort(object storage.StoreObject) *errors.LintRuleError {
 			return errors.NewLintRuleError(
 				"MANIFEST004",
 				object.Identity(),
-				object.Identity(),
+				object.Unstructured.GetName(),
 				port.TargetPort.IntVal,
 				"Service port must use a named (non-numeric) target port",
 			)
@@ -677,7 +677,7 @@ func objectHostNetworkPorts(object storage.StoreObject) *errors.LintRuleError {
 		return errors.NewLintRuleError(
 			"MANIFEST003",
 			object.Identity(),
-			object.Identity(),
+			object.Unstructured.GetName(),
 			nil,
 			fmt.Sprintf("IsHostNetwork failed: %v", err),
 		)
@@ -688,7 +688,7 @@ func objectHostNetworkPorts(object storage.StoreObject) *errors.LintRuleError {
 		return errors.NewLintRuleError(
 			"MANIFEST003",
 			object.Identity(),
-			object.Identity(),
+			object.Unstructured.GetName(),
 			nil,
 			fmt.Sprintf("GetContainers failed: %v", err),
 		)
@@ -698,7 +698,7 @@ func objectHostNetworkPorts(object storage.StoreObject) *errors.LintRuleError {
 		return errors.NewLintRuleError(
 			"MANIFEST003",
 			object.Identity(),
-			object.Identity(),
+			object.Unstructured.GetName(),
 			nil,
 			fmt.Sprintf("GetInitContainers failed: %v", err),
 		)
@@ -714,7 +714,7 @@ func objectHostNetworkPorts(object storage.StoreObject) *errors.LintRuleError {
 				return errors.NewLintRuleError(
 					"CONTAINER007",
 					object.Identity()+" ; container = "+c.Name,
-					object.Identity(),
+					object.Unstructured.GetName(),
 					p.ContainerPort,
 					"Pod running in hostNetwork and it's container port doesn't fit the range [4200,4299]",
 				)
@@ -723,7 +723,7 @@ func objectHostNetworkPorts(object storage.StoreObject) *errors.LintRuleError {
 				return errors.NewLintRuleError(
 					"CONTAINER007",
 					object.Identity()+" ; container = "+c.Name,
-					object.Identity(),
+					object.Unstructured.GetName(),
 					p.HostPort,
 					"Container uses hostPort that doesn't fit the range [4200,4299]",
 				)
@@ -793,7 +793,7 @@ func objectDNSPolicy(object storage.StoreObject) *errors.LintRuleError {
 	return errors.NewLintRuleError(
 		"MANIFEST007",
 		object.Identity(),
-		object.Identity(),
+		object.Unstructured.GetName(),
 		dnsPolicy,
 		"dnsPolicy must be `ClusterFirstWithHostNet` when hostNetwork is `true`",
 	)
