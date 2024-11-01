@@ -5,6 +5,7 @@ type LintersSettings struct {
 	NoCyrillic NoCyrillicSettings `mapstructure:"nocyrillic"`
 	Copyright  CopyrightSettings  `mapstructure:"copyright"`
 	Probes     ProbesSettings     `mapstructure:"probes"`
+	Matrix     MatrixSettings     `mapstructure:"matrix"`
 }
 
 type OpenAPISettings struct {
@@ -29,3 +30,5 @@ type CopyrightSettings struct {
 type ProbesSettings struct {
 	ProbesExcludes map[string][]string `mapstructure:"probes-excludes"`
 }
+
+type MatrixSettings struct{}

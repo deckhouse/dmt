@@ -37,7 +37,7 @@ func NewLintRuleError(id, objectID, module string, value any, template string, a
 	}
 }
 
-var EmptyRuleError = LintRuleError{Text: "", ID: "", ObjectID: ""}
+var EmptyRuleError = &LintRuleError{Text: "", ID: "", ObjectID: ""}
 
 type LintRuleErrorsList struct {
 	data []*LintRuleError
