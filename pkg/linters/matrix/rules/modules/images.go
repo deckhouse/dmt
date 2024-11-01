@@ -131,7 +131,7 @@ func checkImageNamesInDockerAndWerfFiles(
 	imagesPath := filepath.Join(path, imagesDir)
 
 	if !isExistsOnFilesystem(imagesPath) {
-		return
+		return lintRuleErrorsList
 	}
 
 	err := filepath.Walk(imagesPath, func(fullPath string, _ os.FileInfo, err error) error {
@@ -150,10 +150,11 @@ func checkImageNamesInDockerAndWerfFiles(
 			"MODULE001",
 			moduleLabel(name),
 			imagesPath,
-			"Cannot read directory structure:%s",
+			nil,
+			"Cannot read directory structure: %s",
 			err.Error(),
 		))
-		return
+		return lintRuleErrorsList
 	}
 	for _, filePath := range filePaths {
 		if skipModuleImageNameIfNeeded(filePath) {
@@ -162,7 +163,7 @@ func checkImageNamesInDockerAndWerfFiles(
 		lintRuleErrorsList.Add(lintOneDockerfileOrWerfYAML(name, filePath, imagesPath))
 	}
 
-	return
+	return lintRuleErrorsList
 }
 
 func lintOneDockerfileOrWerfYAML(name, filePath, imagesPath string) *errors.LintRuleError {
@@ -187,7 +188,8 @@ func lintOneDockerfileOrWerfYAML(name, filePath, imagesPath string) *errors.Lint
 			"MODULE001",
 			moduleLabel(name),
 			filePath,
-			"Error calculating relative file path:%s",
+			nil,
+			"Error calculating relative file path: %s",
 			err.Error(),
 		)
 	}
@@ -207,6 +209,7 @@ func lintOneDockerfileOrWerfYAML(name, filePath, imagesPath string) *errors.Lint
 				"MODULE001",
 				fmt.Sprintf("module = %s, image = %s, line = %d", name, relativeFilePath, linePos),
 				line,
+				nil,
 				"Please use %s as an image name", ciVariable,
 			)
 		}
@@ -229,6 +232,7 @@ func lintOneDockerfileOrWerfYAML(name, filePath, imagesPath string) *errors.Lint
 							"MODULE001",
 							name,
 							fmt.Sprintf("module = %s, image = %s", name, relativeFilePath),
+							nil,
 							fromTrimmed,
 							message,
 						)
@@ -254,6 +258,7 @@ func lintOneDockerfileOrWerfYAML(name, filePath, imagesPath string) *errors.Lint
 		if result {
 			return errors.NewLintRuleError(
 				"MODULE001",
+				name,
 				name,
 				fmt.Sprintf("module = %s, image = %s", name, relativeFilePath),
 				fromInstruction,

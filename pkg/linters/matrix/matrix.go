@@ -27,7 +27,7 @@ func New(cfg *config.MatrixSettings) *Matrix {
 	}
 }
 
-func (o *Matrix) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
+func (*Matrix) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 	var result errors.LintRuleErrorsList
 
 	values, err := k8s.ComposeValuesFromSchemas(m)

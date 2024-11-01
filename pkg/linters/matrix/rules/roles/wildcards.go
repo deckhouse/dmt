@@ -154,7 +154,8 @@ func checkRoles(object storage.StoreObject) *errors.LintRuleError {
 				object.Identity(),
 				object.Path,
 				nil,
-				strings.Join(objs, ", ")+" contains a wildcards. Replace them with an explicit list of resources",
+				"%s contains a wildcards. Replace them with an explicit list of resources",
+				strings.Join(objs, ", "),
 			)
 		}
 	}

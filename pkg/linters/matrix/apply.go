@@ -24,10 +24,10 @@ import (
 	"github.com/deckhouse/d8-lint/pkg/linters/matrix/rules/resources"
 )
 
-func ApplyLintRules(module *module.Module, objectStore *storage.UnstructuredObjectStore) errors.LintRuleErrorsList {
+func ApplyLintRules(md *module.Module, objectStore *storage.UnstructuredObjectStore) errors.LintRuleErrorsList {
 	linter := rules.ObjectLinter{
 		ObjectStore: objectStore,
-		Module:      module,
+		Module:      md,
 		ErrorsList:  errors.LintRuleErrorsList{},
 	}
 

@@ -25,6 +25,7 @@ import (
 	"github.com/deckhouse/d8-lint/pkg/errors"
 )
 
+//nolint:gocyclo // because
 func ObjectBindingSubjectServiceAccountCheck(m *module.Module, object storage.StoreObject, objectStore *storage.UnstructuredObjectStore) *errors.LintRuleError {
 	if m.GetName() == "user-authz" {
 		return errors.EmptyRuleError
@@ -82,6 +83,7 @@ func ObjectBindingSubjectServiceAccountCheck(m *module.Module, object storage.St
 				"MANIFEST054",
 				object.Identity(),
 				subject.Name,
+				nil,
 				"%s bind to the wrong ServiceAccount (doesn't exist in the store)", objectKind,
 			)
 		}

@@ -40,6 +40,7 @@ func ossModuleRule(name, moduleRoot string) errors.LintRuleErrorsList {
 				name,
 				moduleLabel(name),
 				nil,
+				"%v",
 				ossFileErrorMessage(err),
 			)
 
@@ -109,10 +110,10 @@ func assertOssProject(i int, p *ossProject) error {
 		complaints = append(complaints, fmt.Sprintf("link URL is malformed (%q)", p.Link))
 	}
 
-	// Licence
+	// License
 
-	if strings.TrimSpace(p.Licence) == "" {
-		complaints = append(complaints, "licence must not be empty")
+	if strings.TrimSpace(p.License) == "" {
+		complaints = append(complaints, "License must not be empty")
 	}
 
 	// Logo
@@ -195,5 +196,5 @@ type ossProject struct {
 	Description string `yaml:"description"`    // example: A Federated OpenID Connect Provider with pluggable connectors
 	Link        string `yaml:"link"`           // example: https://github.com/dexidp/dex
 	Logo        string `yaml:"logo,omitempty"` // example: https://dexidp.io/img/logos/dex-horizontal-color.png
-	Licence     string `yaml:"licence"`        // example: Apache License 2.0
+	License     string `yaml:"License"`        // example: Apache License 2.0
 }

@@ -45,24 +45,19 @@ var rulesCache = rulesCacheStruct{
 	mu:    sync.RWMutex{},
 }
 
-func (r *rulesCacheStruct) Put(hash string, value checkResult) {
+func (*rulesCacheStruct) Put(hash string, value checkResult) {
 	rulesCache.mu.Lock()
 	defer rulesCache.mu.Unlock()
 
 	rulesCache.cache[hash] = value
 }
 
-func (r *rulesCacheStruct) Get(hash string) (checkResult, bool) {
+func (*rulesCacheStruct) Get(hash string) (checkResult, bool) {
 	rulesCache.mu.RLock()
 	defer rulesCache.mu.RUnlock()
 
 	res, ok := rulesCache.cache[hash]
 	return res, ok
-}
-
-func PromtoolAvailable() bool {
-	info, err := os.Stat(promtoolPath)
-	return err == nil && (info.Mode().Perm()&0111 != 0)
 }
 
 func marshalChartYaml(object storage.StoreObject) ([]byte, error) {
@@ -127,7 +122,7 @@ func PromtoolRuleCheck(m *module.Module, object storage.StoreObject) *errors.Lin
 			m.GetName(),
 			m.GetPath(),
 			nil,
-			"Error marshalling Helm chart to yaml",
+			"Error marshaling Helm chart to yaml",
 		)
 	}
 

@@ -37,7 +37,7 @@ func dirExists(moduleName, modulePath string, path ...string) (bool, *errors.Lin
 			moduleName,
 			moduleLabel(moduleName),
 			path,
-			err.Error(),
+			"%v", err.Error(),
 		)
 	}
 	return info.IsDir(), errors.EmptyRuleError
@@ -89,6 +89,7 @@ func monitoringModuleRule(moduleName, modulePath, moduleNamespace string) *error
 			moduleName,
 			moduleLabel(moduleName),
 			searchingFilePath,
+			"%v",
 			err.Error(),
 		)
 	}

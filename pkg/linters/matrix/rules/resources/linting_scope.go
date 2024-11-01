@@ -43,7 +43,7 @@ func (p *lintingScope) Objects() map[storage.ResourceIndex]storage.StoreObject {
 }
 
 // AddError repeats the signature of errors.NewLintRuleError to collect linting errors
-func (p *lintingScope) AddError(id, objectID string, value interface{}, template string, a ...interface{}) {
+func (p *lintingScope) AddError(id, objectID string, value any, template string, a ...any) {
 	ruleErr := errors.NewLintRuleError(id, objectID, "", value, template, a...)
 	p.errors.Add(ruleErr)
 }

@@ -43,14 +43,6 @@ func moduleLabel(n string) string {
 	return fmt.Sprintf("module = %s", n)
 }
 
-func shouldSkipModule(name string) bool {
-	switch name {
-	case "helm_lib", "400-nginx-ingress", "500-dashboard":
-		return true
-	}
-	return false
-}
-
 func namespaceModuleRule(name, path string) (string, *errors.LintRuleError) {
 	content, err := os.ReadFile(filepath.Join(path, ".namespace"))
 	if err != nil {
@@ -145,81 +137,9 @@ func helmignoreModuleRule(name, path string) *errors.LintRuleError {
 	return errors.EmptyRuleError
 }
 
-type edition struct {
-	Name       string `yaml:"name,omitempty"`
-	ModulesDir string `yaml:"modulesDir,omitempty"`
-}
-
-type editions struct {
-	Editions []edition `yaml:"editions,omitempty"`
-}
-
-func getPossiblePathToModules() []string {
-	content, err := os.ReadFile("/deckhouse/editions.yaml")
-	if err != nil {
-		panic(fmt.Sprintf("cannot read editions file: %v", err))
-	}
-
-	e := editions{}
-	err = yaml.Unmarshal(content, &e)
-	if err != nil {
-		panic(fmt.Errorf("cannot unmarshal editions file: %v", err))
-	}
-
-	modulesDir := make([]string, 0)
-	for i, ed := range e.Editions {
-		if ed.Name == "" {
-			panic(fmt.Sprintf("name for %d index is empty", i))
-		}
-		modulesDir = append(modulesDir, fmt.Sprintf("/deckhouse/%s", ed.ModulesDir))
-	}
-
-	return modulesDir
-}
-
 func isExistsOnFilesystem(parts ...string) bool {
 	_, err := os.Stat(filepath.Join(parts...))
 	return err == nil
-}
-
-// getModulePaths returns all paths with Chart.yaml
-// modulesDir can be a module directory or a directory that contains modules in subdirectories.
-func getModulePaths(modulesDir string) ([]string, error) {
-	var chartDirs = make([]string, 0)
-
-	// Here we find all dirs and check for Chart.yaml in them.
-	err := filepath.Walk(modulesDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return fmt.Errorf("file access '%s': %v", path, err)
-		}
-
-		// Ignore non-dirs
-		if !info.IsDir() {
-			return nil
-		}
-
-		if shouldSkipModule(filepath.Base(path)) {
-			return filepath.SkipDir
-		}
-
-		// Check if first level subdirectory has a helm chart configuration file
-		if isExistsOnFilesystem(path, ChartConfigFilename) {
-			chartDirs = append(chartDirs, path)
-		}
-
-		// root path can be module dir, if we run one module for local testing
-		// usually, root dir contains another modules and should not be ignored
-		if path == modulesDir {
-			return nil
-		}
-
-		return filepath.SkipDir
-	})
-
-	if err != nil {
-		return nil, err
-	}
-	return chartDirs, nil
 }
 
 // LintModuleStructure collects linting errors

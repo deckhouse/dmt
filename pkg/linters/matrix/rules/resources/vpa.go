@@ -68,11 +68,15 @@ func isPodControllerDaemonSet(kind string) bool {
 }
 
 // parseTargetsAndTolerationGroups resolves target resource indexes
-func parseTargetsAndTolerationGroups(scope *lintingScope) (map[storage.ResourceIndex]struct{}, map[storage.ResourceIndex]string, map[storage.ResourceIndex]set.Set, map[storage.ResourceIndex]utils.UpdateMode) {
-	vpaTargets := make(map[storage.ResourceIndex]struct{})
-	vpaTolerationGroups := make(map[storage.ResourceIndex]string)
-	vpaContainerNamesMap := make(map[storage.ResourceIndex]set.Set)
-	vpaUpdateModes := make(map[storage.ResourceIndex]utils.UpdateMode)
+func parseTargetsAndTolerationGroups(scope *lintingScope) (
+	vpaTargets map[storage.ResourceIndex]struct{}, vpaTolerationGroups map[storage.ResourceIndex]string,
+	vpaContainerNamesMap map[storage.ResourceIndex]set.Set,
+	vpaUpdateModes map[storage.ResourceIndex]utils.UpdateMode,
+) {
+	vpaTargets = make(map[storage.ResourceIndex]struct{})
+	vpaTolerationGroups = make(map[storage.ResourceIndex]string)
+	vpaContainerNamesMap = make(map[storage.ResourceIndex]set.Set)
+	vpaUpdateModes = make(map[storage.ResourceIndex]utils.UpdateMode)
 
 	for _, object := range scope.Objects() {
 		kind := object.Unstructured.GetKind()
@@ -96,7 +100,7 @@ func fillVPAMaps(scope *lintingScope, vpaTargets map[storage.ResourceIndex]struc
 	vpaTargets[target] = struct{}{}
 
 	labels := vpa.Unstructured.GetLabels()
-	if label, ok := labels["workload-resource-policy.deckhouse.io"]; ok {
+	if label, lok := labels["workload-resource-policy.deckhouse.io"]; lok {
 		vpaTolerationGroups[target] = label
 	}
 
@@ -171,13 +175,13 @@ func parseVPAResourcePolicyContainers(scope *lintingScope, vpaObject storage.Sto
 func parseVPATargetIndex(scope *lintingScope, vpaObject storage.StoreObject) (storage.ResourceIndex, bool) {
 	target := storage.ResourceIndex{}
 
-	specs, ok := vpaObject.Unstructured.Object["spec"].(map[string]interface{})
+	specs, ok := vpaObject.Unstructured.Object["spec"].(map[string]any)
 	if !ok {
 		scope.AddError("VPA005", vpaObject.Identity(), false, "No VPA specs is found for object")
 		return target, false
 	}
 
-	targetRef, ok := specs["targetRef"].(map[string]interface{})
+	targetRef, ok := specs["targetRef"].(map[string]any)
 	if !ok {
 		scope.AddError("VPA005", vpaObject.Identity(), false, "No VPA specs targetRef is found for object")
 		return target, false
@@ -217,8 +221,8 @@ func ensureVPAContainersMatchControllerContainers(scope *lintingScope, object st
 	}
 
 	containerNames := set.New()
-	for _, v := range containers {
-		containerNames.Add(v.Name)
+	for i := range containers {
+		containerNames.Add(containers[i].Name)
 	}
 
 	for k := range containerNames {

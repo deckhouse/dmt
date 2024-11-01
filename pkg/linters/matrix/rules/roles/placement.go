@@ -80,6 +80,7 @@ func ObjectRBACPlacement(m *module.Module, object storage.StoreObject) *errors.L
 	}
 }
 
+//nolint:gocyclo // because
 func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObject) *errors.LintRuleError {
 	objectName := object.Unstructured.GetName()
 	shortPath := object.ShortPath()
@@ -213,7 +214,7 @@ func objectRBACPlacementClusterRole(kind string, m *module.Module, object storag
 			strings.TrimPrefix(strings.TrimSuffix(shortPath, "/rbac-for-us.yaml"), "templates/"),
 			string(os.PathSeparator),
 		)
-		name := name + ":" + strings.Join(parts, ":")
+		n := name + ":" + strings.Join(parts, ":")
 		if !strings.HasPrefix(objectName, name) {
 			return errors.NewLintRuleError(
 				"MANIFEST053",
@@ -221,7 +222,7 @@ func objectRBACPlacementClusterRole(kind string, m *module.Module, object storag
 				object.Unstructured.GetName(),
 				nil,
 				"Name of %s should start with %q",
-				kind, name,
+				kind, n,
 			)
 		}
 	default:

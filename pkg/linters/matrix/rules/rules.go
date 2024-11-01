@@ -172,7 +172,7 @@ func containerEnvVariablesDuplicates(object storage.StoreObject, containers []v1
 	return errors.EmptyRuleError
 }
 
-func shouldSkipModuleContainer(md string, container string) bool {
+func shouldSkipModuleContainer(md, container string) bool {
 	// okmeter module uses images from external repo - registry.okmeter.io/agent/okagent:stub
 	if md == "okmeter" && container == "okagent" {
 		return true
@@ -217,7 +217,9 @@ func containerImageDigestCheck(object storage.StoreObject, containers []v1.Conta
 				object.Identity()+"; container = "+containers[i].Name,
 				object.Unstructured.GetName(),
 				nil,
-				"All images must be deployed from the same default registry: "+defaultRegistry+" current:"+repo.RepositoryStr(),
+				"All images must be deployed from the same default registry: %s current: %s",
+				defaultRegistry,
+				repo.RepositoryStr(),
 			)
 		}
 	}
@@ -241,15 +243,16 @@ func containerImagePullPolicyIfNotPresent(object storage.StoreObject, containers
 }
 
 func containerStorageEphemeral(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
-	for _, c := range containers {
-		if skipObjectContainerIfNeeded(&object, &c) {
+	for i := range containers {
+		if skipObjectContainerIfNeeded(&object, &containers[i]) {
 			continue
 		}
-		if c.Resources.Requests.StorageEphemeral() == nil || c.Resources.Requests.StorageEphemeral().Value() == 0 {
+		if containers[i].Resources.Requests.StorageEphemeral() == nil ||
+			containers[i].Resources.Requests.StorageEphemeral().Value() == 0 {
 			return errors.NewLintRuleError(
 				"CONTAINER006",
-				object.Identity()+"; container = "+c.Name,
-				c.Name,
+				object.Identity()+"; container = "+containers[i].Name,
+				containers[i].Name,
 				nil,
 				"Ephemeral storage for container is not defined in Resources.Requests",
 			)
@@ -259,15 +262,15 @@ func containerStorageEphemeral(object storage.StoreObject, containers []v1.Conta
 }
 
 func containerSecurityContext(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
-	for _, c := range containers {
-		if skipObjectContainerIfNeeded(&object, &c) {
+	for i := range containers {
+		if skipObjectContainerIfNeeded(&object, &containers[i]) {
 			continue
 		}
-		if c.SecurityContext == nil {
+		if containers[i].SecurityContext == nil {
 			return errors.NewLintRuleError(
 				"CONTAINER005",
-				object.Identity()+"; container = "+c.Name,
-				c.Name,
+				object.Identity()+"; container = "+containers[i].Name,
+				containers[i].Name,
 				nil,
 				"Container SecurityContext is not defined",
 			)
@@ -277,16 +280,17 @@ func containerSecurityContext(object storage.StoreObject, containers []v1.Contai
 }
 
 func containerPorts(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
-	for _, c := range containers {
-		if skipObjectContainerIfNeeded(&object, &c) {
+	for i := range containers {
+		if skipObjectContainerIfNeeded(&object, &containers[i]) {
 			continue
 		}
-		for _, p := range c.Ports {
-			if p.ContainerPort <= 1024 {
+		for _, p := range containers[i].Ports {
+			const t = 1024
+			if p.ContainerPort <= t {
 				return errors.NewLintRuleError(
 					"CONTAINER006",
-					object.Identity()+"; container = "+c.Name,
-					c.Name,
+					object.Identity()+"; container = "+containers[i].Name,
+					containers[i].Name,
 					p.ContainerPort,
 					"Container uses port <= 1024",
 				)
@@ -528,7 +532,8 @@ func objectSecurityContext(object storage.StoreObject) *errors.LintRuleError {
 			object.Identity(),
 			object.Unstructured.GetName(),
 			nil,
-			fmt.Sprintf("GetPodSecurityContext failed: %v", err),
+			"GetPodSecurityContext failed: %v",
+			err,
 		)
 	}
 
@@ -679,7 +684,8 @@ func objectHostNetworkPorts(object storage.StoreObject) *errors.LintRuleError {
 			object.Identity(),
 			object.Unstructured.GetName(),
 			nil,
-			fmt.Sprintf("IsHostNetwork failed: %v", err),
+			"IsHostNetwork failed: %v",
+			err,
 		)
 	}
 
@@ -690,7 +696,8 @@ func objectHostNetworkPorts(object storage.StoreObject) *errors.LintRuleError {
 			object.Identity(),
 			object.Unstructured.GetName(),
 			nil,
-			fmt.Sprintf("GetContainers failed: %v", err),
+			"GetContainers failed: %v",
+			err,
 		)
 	}
 	initContainers, err := object.GetInitContainers()
@@ -700,20 +707,21 @@ func objectHostNetworkPorts(object storage.StoreObject) *errors.LintRuleError {
 			object.Identity(),
 			object.Unstructured.GetName(),
 			nil,
-			fmt.Sprintf("GetInitContainers failed: %v", err),
+			"GetInitContainers failed: %v",
+			err,
 		)
 	}
 	containers = append(containers, initContainers...)
 
-	for _, c := range containers {
-		for _, p := range c.Ports {
-			if skipHostNetworkPorts(&object, &c, &p, hostNetworkUsed) {
+	for i := range containers {
+		for _, p := range containers[i].Ports {
+			if skipHostNetworkPorts(&object, &containers[i], &p, hostNetworkUsed) {
 				continue
 			}
 			if hostNetworkUsed && (p.ContainerPort < 4200 || p.ContainerPort >= 4300) {
 				return errors.NewLintRuleError(
 					"CONTAINER007",
-					object.Identity()+" ; container = "+c.Name,
+					object.Identity()+" ; container = "+containers[i].Name,
 					object.Unstructured.GetName(),
 					p.ContainerPort,
 					"Pod running in hostNetwork and it's container port doesn't fit the range [4200,4299]",
@@ -722,7 +730,7 @@ func objectHostNetworkPorts(object storage.StoreObject) *errors.LintRuleError {
 			if p.HostPort != 0 && (p.HostPort < 4200 || p.HostPort >= 4300) {
 				return errors.NewLintRuleError(
 					"CONTAINER007",
-					object.Identity()+" ; container = "+c.Name,
+					object.Identity()+" ; container = "+containers[i].Name,
 					object.Unstructured.GetName(),
 					p.HostPort,
 					"Container uses hostPort that doesn't fit the range [4200,4299]",
@@ -799,7 +807,7 @@ func objectDNSPolicy(object storage.StoreObject) *errors.LintRuleError {
 	)
 }
 
-func shouldSkipDNSPolicyResource(n string, kind string, namespace string, hostNetwork bool, dnsPolicy string) bool {
+func shouldSkipDNSPolicyResource(n, kind, namespace string, hostNetwork bool, dnsPolicy string) bool {
 	switch n {
 	// Cloud controller manager should work if cluster dns isn't responding or if cni isn't working
 	case "cloud-controller-manager":
