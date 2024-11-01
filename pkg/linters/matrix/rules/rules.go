@@ -194,6 +194,14 @@ func containerImageDigestCheck(object storage.StoreObject, containers []v1.Conta
 
 		re := regexp.MustCompile(`(?P<repository>.+)([@:])imageHash[-a-z0-9A-Z]+$`)
 		match := re.FindStringSubmatch(c.Image)
+		if len(match) == 0 {
+			return errors.NewLintRuleError("CONTAINER003",
+				object.Identity()+"; container = "+c.Name,
+				c.Name,
+				nil,
+				"Cannot parse repository from image: "+c.Image,
+			)
+		}
 		repo, err := name.NewRepository(match[re.SubexpIndex("repository")])
 		if err != nil {
 			return errors.NewLintRuleError("CONTAINER003",

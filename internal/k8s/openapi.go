@@ -115,7 +115,8 @@ func ComposeValuesFromSchemas(m *module.Module) (chartutil.Values, error) {
 
 	camelizedModuleName := ToLowerCamel(m.GetName())
 
-	if valueValidator.ModuleSchemaStorages[m.GetName()].Schemas == nil {
+	schema, ok := valueValidator.ModuleSchemaStorages[m.GetName()]
+	if !ok || schema.Schemas == nil {
 		return nil, nil
 	}
 

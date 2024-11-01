@@ -66,6 +66,9 @@ func (r Renderer) RenderChart(c *chart.Chart, values string) (files map[string]s
 }
 
 func (r Renderer) RenderChartFromRawValues(c *chart.Chart, values chartutil.Values) (files map[string]string, err error) {
+	if r.Name == "" {
+		return nil, fmt.Errorf("helm chart must have a name")
+	}
 	// render chart with prepared values
 	var e engine.Engine
 	e.LintMode = r.LintMode
