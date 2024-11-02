@@ -31,4 +31,6 @@ type ProbesSettings struct {
 	ProbesExcludes map[string][]string `mapstructure:"probes-excludes"`
 }
 
-type MatrixSettings struct{}
+type MatrixSettings struct {
+	SkipOssChecks []string `mapstructure:"skip-oss-checks"`
+}

@@ -87,7 +87,7 @@ func skipObjectContainerIfNeeded(o *storage.StoreObject, c *v1.Container) bool {
 
 type ObjectLinter struct {
 	ObjectStore *storage.UnstructuredObjectStore
-	ErrorsList  errors.LintRuleErrorsList
+	ErrorsList  *errors.LintRuleErrorsList
 	Module      *module.Module
 }
 

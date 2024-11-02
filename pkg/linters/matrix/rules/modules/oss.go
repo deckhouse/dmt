@@ -21,11 +21,13 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"sigs.k8s.io/yaml"
 
 	"github.com/deckhouse/d8-lint/pkg/errors"
+	matrixConfig "github.com/deckhouse/d8-lint/pkg/linters/matrix/config"
 )
 
 const ossFilename = "oss.yaml"
@@ -187,8 +189,7 @@ var skipOssChecks = map[string]struct{}{
 
 // TODO When lintignore files will be implemented in modules, detect "oss.yaml" line in it
 func shouldIgnoreOssInfo(moduleName string) bool {
-	_, found := skipOssChecks[moduleName]
-	return found
+	return slices.Contains(matrixConfig.Cfg.SkipOssChecks, moduleName)
 }
 
 type ossProject struct {

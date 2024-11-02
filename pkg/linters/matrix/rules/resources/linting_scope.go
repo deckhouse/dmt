@@ -24,14 +24,14 @@ import (
 // lintingScope is the wrapper for linting state
 type lintingScope struct {
 	// errors is linting error list from the outside that is to be fulfilled on the go
-	errors errors.LintRuleErrorsList
+	errors *errors.LintRuleErrorsList
 
 	// store keeps parsed module Objects, not to modify
 	store *storage.UnstructuredObjectStore
 }
 
 // newLintingScope creates linting scope to iterate over module objects and gather errors
-func newLintingScope(objectStore *storage.UnstructuredObjectStore, lintRuleErrorsList errors.LintRuleErrorsList) *lintingScope {
+func newLintingScope(objectStore *storage.UnstructuredObjectStore, lintRuleErrorsList *errors.LintRuleErrorsList) *lintingScope {
 	return &lintingScope{
 		errors: lintRuleErrorsList,
 		store:  objectStore,

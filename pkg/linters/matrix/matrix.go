@@ -10,6 +10,7 @@ import (
 	"github.com/deckhouse/d8-lint/internal/storage"
 	"github.com/deckhouse/d8-lint/pkg/config"
 	"github.com/deckhouse/d8-lint/pkg/errors"
+	matrixConfig "github.com/deckhouse/d8-lint/pkg/linters/matrix/config"
 	"github.com/deckhouse/d8-lint/pkg/linters/matrix/rules/modules"
 )
 
@@ -20,6 +21,8 @@ type Matrix struct {
 }
 
 func New(cfg *config.MatrixSettings) *Matrix {
+	matrixConfig.Cfg = cfg
+
 	return &Matrix{
 		name: "matrix",
 		desc: "Matrix check a group of tests to module",
@@ -27,7 +30,7 @@ func New(cfg *config.MatrixSettings) *Matrix {
 	}
 }
 
-func (*Matrix) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
+func (o *Matrix) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 	var result errors.LintRuleErrorsList
 
 	values, err := k8s.ComposeValuesFromSchemas(m)
@@ -35,7 +38,7 @@ func (*Matrix) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 		return result, fmt.Errorf("saving values from openapi: %w", err)
 	}
 
-	var ch = make(chan errors.LintRuleErrorsList)
+	var ch = make(chan *errors.LintRuleErrorsList)
 	go func() {
 		var g = pool.New().WithErrors()
 		g.Go(func() error {
@@ -59,7 +62,7 @@ func (*Matrix) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 	}()
 
 	for er := range ch {
-		result.Merge(er)
+		result.Merge(*er)
 	}
 
 	return result, err

@@ -144,8 +144,8 @@ func isExistsOnFilesystem(parts ...string) bool {
 
 // LintModuleStructure collects linting errors
 // for helmignore, hooks, docker and werf files, namespace, and CRDs
-func LintModuleStructure(modulePath string) (lintRuleErrorsList errors.LintRuleErrorsList) {
-	lintRuleErrorsList = errors.LintRuleErrorsList{}
+func LintModuleStructure(modulePath string) (lintRuleErrorsList *errors.LintRuleErrorsList) {
+	lintRuleErrorsList = &errors.LintRuleErrorsList{}
 	moduleName := filepath.Base(modulePath)
 
 	lintRuleErrorsList.Add(helmignoreModuleRule(moduleName, modulePath))
