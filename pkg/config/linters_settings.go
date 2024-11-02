@@ -32,6 +32,7 @@ type ProbesSettings struct {
 }
 
 type MatrixSettings struct {
-	SkipOssChecks      []string            `mapstructure:"skip-oss-checks"`
-	SkipCheckWildcards map[string][]string `mapstructure:"skip-check-wildcards"`
+	SkipOssChecks       []string            `mapstructure:"skip-oss-checks"`
+	SkipCheckWildcards  map[string][]string `mapstructure:"skip-check-wildcards"`
+	SkipModuleImageName []string            `mapstructure:"skip-module-image-name"`
 }

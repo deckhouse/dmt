@@ -26,14 +26,14 @@ import (
 	"strings"
 
 	"github.com/deckhouse/d8-lint/pkg/errors"
+	matrixConfig "github.com/deckhouse/d8-lint/pkg/linters/matrix/config"
 )
 
 func skipModuleImageNameIfNeeded(filePath string) bool {
-	switch filePath {
-	case
-		"/deckhouse/modules/021-cni-cilium/images/cilium/Dockerfile",
-		"/deckhouse/modules/021-cni-cilium/images/virt-cilium/Dockerfile":
-		return true
+	for _, img := range matrixConfig.Cfg.SkipModuleImageName {
+		if strings.HasSuffix(filePath, img) {
+			return true
+		}
 	}
 	return false
 }
