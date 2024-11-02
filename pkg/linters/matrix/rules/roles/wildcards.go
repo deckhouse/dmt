@@ -25,81 +25,8 @@ import (
 
 	"github.com/deckhouse/d8-lint/internal/storage"
 	"github.com/deckhouse/d8-lint/pkg/errors"
+	matrixConfig "github.com/deckhouse/d8-lint/pkg/linters/matrix/config"
 )
-
-// skipCheckWildcards is exclusion rules for wildcard verification
-//
-// the key is the file name
-// value is an array of rule names that allow wildcards
-//
-// !!IMPORTANT NOTE!!: will be fixed by separated issues
-var skipCheckWildcards = map[string][]string{
-	// Confirmed excludes
-	"admission-policy-engine/templates/rbac-for-us.yaml": {
-		// Some resources are created dynamically from CR. See more details in the target file
-		"d8:admission-policy-engine:gatekeeper",
-	},
-	"deckhouse/templates/webhook-handler/rbac-for-us.yaml": {
-		// We read all resources from the `deckhouse.io` api group
-		"d8:deckhouse:webhook-handler",
-	},
-	"vertical-pod-autoscaler/templates/rbac-for-us.yaml": {
-		// VPA can scale CR and must have access to */scale subresources.
-		"d8:vertical-pod-autoscaler:controllers-reader",
-	},
-
-	// Have to be reviewed
-
-	"cloud-provider-aws/templates/cloud-controller-manager/rbac-for-us.yaml": {
-		"d8:cloud-provider-aws:cloud-controller-manager",
-	},
-	"cloud-provider-azure/templates/cloud-controller-manager/rbac-for-us.yaml": {
-		"d8:cloud-provider-azure:cloud-controller-manager",
-	},
-	"cloud-provider-gcp/templates/cloud-controller-manager/rbac-for-us.yaml": {
-		"d8:cloud-provider-gcp:cloud-controller-manager",
-	},
-	"cloud-provider-yandex/templates/cloud-controller-manager/rbac-for-us.yaml": {
-		"d8:cloud-provider-yandex:cloud-controller-manager",
-	},
-	"operator-prometheus/templates/rbac-for-us.yaml": {
-		"d8:operator-prometheus",
-	},
-	"prometheus-metrics-adapter/templates/rbac-for-us.yaml": {
-		"d8:prometheus-metrics-adapter:horizontal-pod-autoscaler-external-metrics",
-	},
-	"ingress-nginx/templates/kruise/rbac-for-us.yaml": {
-		"d8:ingress-nginx:kruise-role",
-	},
-	"okmeter/templates/rbac-for-us.yaml": {
-		"d8:okmeter",
-	},
-	"upmeter/templates/upmeter-agent/rbac-for-us.yaml": {
-		"upmeter-agent",
-		"d8:upmeter:upmeter-agent",
-	},
-	"upmeter/templates/upmeter/rbac-for-us.yaml": {
-		"d8:upmeter:upmeter",
-	},
-	"delivery/templates/argocd/application-controller/rbac-for-us.yaml": {
-		"d8:delivery:argocd:application-controller",
-	},
-	"delivery/templates/argocd/server/rbac-for-us.yaml": {
-		"d8:delivery:argocd:server",
-	},
-	"cloud-provider-openstack/templates/cloud-controller-manager/rbac-for-us.yaml": {
-		"d8:cloud-provider-openstack:cloud-controller-manager",
-	},
-	"cloud-provider-vcd/templates/cloud-controller-manager/rbac-for-us.yaml": {
-		"d8:cloud-provider-vcd:cloud-controller-manager",
-	},
-	"cloud-provider-vsphere/templates/cloud-controller-manager/rbac-for-us.yaml": {
-		"d8:cloud-provider-vsphere:cloud-controller-manager",
-	},
-	"cloud-provider-zvirt/templates/cloud-controller-manager/rbac-for-us.yaml": {
-		"d8:cloud-provider-zvirt:cloud-controller-manager",
-	},
-}
 
 // ObjectRolesWildcard is a linter for checking the presence
 // of a wildcard in a Role and ClusterRole
@@ -121,7 +48,7 @@ func ObjectRolesWildcard(object storage.StoreObject) *errors.LintRuleError {
 
 func checkRoles(object storage.StoreObject) *errors.LintRuleError {
 	// check rules for skip
-	for path, rules := range skipCheckWildcards {
+	for path, rules := range matrixConfig.Cfg.SkipCheckWildcards {
 		if strings.EqualFold(object.Path, path) {
 			if slices.Contains(rules, object.Unstructured.GetName()) {
 				return errors.EmptyRuleError

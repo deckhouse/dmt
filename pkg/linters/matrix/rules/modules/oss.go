@@ -151,42 +151,6 @@ func parseProjectList(b []byte) ([]ossProject, error) {
 	return projects, nil
 }
 
-var skipOssChecks = map[string]struct{}{
-	// module name
-	"001-priority-class":                      {},
-	"039-registry-packages-proxy":             {},
-	"011-flow-schema":                         {},
-	"013-helm":                                {}, // helm in 002-deckhouse
-	"036-kube-proxy":                          {},
-	"025-static-routing-manager":              {},
-	"030-cloud-provider-aws":                  {},
-	"030-cloud-provider-azure":                {},
-	"030-cloud-provider-gcp":                  {},
-	"030-cloud-provider-openstack":            {},
-	"030-cloud-provider-vsphere":              {},
-	"030-cloud-provider-vcd":                  {},
-	"030-cloud-provider-yandex":               {},
-	"030-cloud-provider-zvirt":                {},
-	"035-cni-simple-bridge":                   {},
-	"140-user-authz":                          {},
-	"160-multitenancy-manager":                {},
-	"340-extended-monitoring":                 {},
-	"340-monitoring-applications":             {},
-	"340-monitoring-custom":                   {},
-	"340-monitoring-deckhouse":                {},
-	"340-monitoring-kubernetes-control-plane": {},
-	"340-monitoring-ping":                     {},
-	"350-node-local-dns":                      {},
-	"400-nginx-ingress":                       {}, // nginx in 402-ingress-nginx
-	"450-network-gateway":                     {},
-	"500-basic-auth":                          {}, // nginx in 402-ingress-nginx
-	"500-okmeter":                             {},
-	"500-upmeter":                             {},
-	"600-secret-copier":                       {},
-	"800-deckhouse-tools":                     {},
-	"810-documentation":                       {},
-}
-
 // TODO When lintignore files will be implemented in modules, detect "oss.yaml" line in it
 func shouldIgnoreOssInfo(moduleName string) bool {
 	return slices.Contains(matrixConfig.Cfg.SkipOssChecks, moduleName)
