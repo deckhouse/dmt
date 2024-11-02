@@ -63,50 +63,12 @@ var distrolessImagesPrefix = map[string][]string{
 }
 
 func skipDistrolessImageCheckIfNeeded(image string) bool {
-	switch image {
-	case "base-cilium-dev/werf.inc.yaml",
-		"cilium-envoy/werf.inc.yaml",
-		"drbd-reactor/Dockerfile",
-		"linstor-affinity-controller/Dockerfile",
-		"linstor-csi/Dockerfile",
-		"linstor-drbd-wait/Dockerfile",
-		"linstor-pools-importer/Dockerfile",
-		"linstor-scheduler-admission/Dockerfile",
-		"linstor-scheduler-extender/Dockerfile",
-		"linstor-server/Dockerfile",
-		"piraeus-operator/Dockerfile",
-		"spaas/Dockerfile",
-		"snapshot-controller/Dockerfile",
-		"snapshot-validation-webhook/Dockerfile",
-		"api-proxy/Dockerfile",
-		"kiali/Dockerfile",
-		"metadata-discovery/Dockerfile",
-		"metadata-exporter/Dockerfile",
-		"operator-v1x12x6/Dockerfile",
-		"operator-v1x13x7/Dockerfile",
-		"operator-v1x16x2/Dockerfile",
-		"operator-v1x19x7/Dockerfile",
-		"pilot-v1x12x6/Dockerfile",
-		"pilot-v1x13x7/Dockerfile",
-		"pilot-v1x16x2/Dockerfile",
-		"pilot-v1x19x7/Dockerfile",
-		"proxyv2-v1x12x6/Dockerfile",
-		"proxyv2-v1x13x7/Dockerfile",
-		"proxyv2-v1x16x2/Dockerfile",
-		"proxyv2-v1x19x7/Dockerfile",
-		"cni-v1x12x6/Dockerfile",
-		"cni-v1x13x7/Dockerfile",
-		"cni-v1x16x2/Dockerfile",
-		"cni-v1x19x7/Dockerfile",
-		"ebpf-exporter/Dockerfile",
-		"controller-1-1/Dockerfile",
-		"easyrsa-migrator/Dockerfile",
-		"pmacct/Dockerfile",
-		"argocd/Dockerfile",
-		"argocd-image-updater/Dockerfile",
-		"werf-argocd-cmp-sidecar/Dockerfile":
-		return true
+	for _, img := range matrixConfig.Cfg.SkipDistrolessImageCheck {
+		if strings.HasSuffix(image, img) {
+			return true
+		}
 	}
+
 	return false
 }
 
