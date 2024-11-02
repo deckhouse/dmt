@@ -36,55 +36,6 @@ import (
 
 const defaultRegistry = "registry.example.com/deckhouse"
 
-func skipObjectIfNeeded(o *storage.StoreObject) bool {
-	// Dynatrace module deprecated and will be removed
-	if o.Unstructured.GetKind() == "Deployment" && o.Unstructured.GetNamespace() == "d8-dynatrace" {
-		return true
-	}
-	// Control plane configurator module used only in kops clusters and will be removed
-	if o.Unstructured.GetKind() == "DaemonSet" && o.Unstructured.GetNamespace() == "d8-system" &&
-		o.Unstructured.GetName() == "control-plane-configurator" {
-		return true
-	}
-	// Control plane proxy uses `flant/kube-ca-auth-proxy` with nginx and should be refactored
-	if o.Unstructured.GetKind() == "DaemonSet" && o.Unstructured.GetNamespace() == "d8-monitoring" &&
-		strings.HasPrefix(o.Unstructured.GetName(), "control-plane-proxy") {
-		return true
-	}
-	// Ingress Nginx has a lot of hardcoded configuration, which makes it hard to get secured
-	if o.Unstructured.GetKind() == "DaemonSet" && o.Unstructured.GetNamespace() == "d8-ingress-nginx" {
-		return true
-	}
-	// Istio kiali needs to patch index.html file
-	if o.Unstructured.GetKind() == "Deployment" && o.Unstructured.GetNamespace() == "d8-istio" &&
-		o.Unstructured.GetName() == "kiali" {
-		return true
-	}
-
-	return false
-}
-
-func skipObjectContainerIfNeeded(o *storage.StoreObject, c *v1.Container) bool {
-	// Control plane manager image-holder containers run `/pause` and has no additional parameters
-	if o.Unstructured.GetKind() == "DaemonSet" && o.Unstructured.GetNamespace() == "kube-system" &&
-		o.Unstructured.GetName() == "d8-control-plane-manager" &&
-		strings.HasPrefix(c.Name, "image-holder") {
-		return true
-	}
-	// Coredns listens :53 port in hostNetwork
-	if o.Unstructured.GetKind() == "DaemonSet" && (o.Unstructured.GetNamespace() == "d8-system") || (o.Unstructured.GetNamespace() == "kube-system") &&
-		o.Unstructured.GetName() == "node-local-dns" && c.Name == "coredns" {
-		return true
-	}
-	// Chrony listens :123 port in hostNetwork
-	if o.Unstructured.GetKind() == "DaemonSet" && o.Unstructured.GetNamespace() == "d8-chrony" &&
-		strings.HasPrefix(o.Unstructured.GetName(), "chrony") && c.Name == "chrony" {
-		return true
-	}
-
-	return false
-}
-
 type ObjectLinter struct {
 	ObjectStore *storage.UnstructuredObjectStore
 	ErrorsList  *errors.LintRuleErrorsList
@@ -110,11 +61,9 @@ func (l *ObjectLinter) ApplyContainerRules(object storage.StoreObject) {
 	l.ErrorsList.Add(containerImageDigestCheck(object, containers))
 	l.ErrorsList.Add(containersImagePullPolicy(object, containers))
 
-	if !skipObjectIfNeeded(&object) {
-		l.ErrorsList.Add(containerStorageEphemeral(object, containers))
-		l.ErrorsList.Add(containerSecurityContext(object, containers))
-		l.ErrorsList.Add(containerPorts(object, containers))
-	}
+	l.ErrorsList.Add(containerStorageEphemeral(object, containers))
+	l.ErrorsList.Add(containerSecurityContext(object, containers))
+	l.ErrorsList.Add(containerPorts(object, containers))
 }
 
 func containersImagePullPolicy(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
@@ -244,9 +193,6 @@ func containerImagePullPolicyIfNotPresent(object storage.StoreObject, containers
 
 func containerStorageEphemeral(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	for i := range containers {
-		if skipObjectContainerIfNeeded(&object, &containers[i]) {
-			continue
-		}
 		if containers[i].Resources.Requests.StorageEphemeral() == nil ||
 			containers[i].Resources.Requests.StorageEphemeral().Value() == 0 {
 			return errors.NewLintRuleError(
@@ -263,9 +209,6 @@ func containerStorageEphemeral(object storage.StoreObject, containers []v1.Conta
 
 func containerSecurityContext(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	for i := range containers {
-		if skipObjectContainerIfNeeded(&object, &containers[i]) {
-			continue
-		}
 		if containers[i].SecurityContext == nil {
 			return errors.NewLintRuleError(
 				"CONTAINER005",
@@ -281,9 +224,6 @@ func containerSecurityContext(object storage.StoreObject, containers []v1.Contai
 
 func containerPorts(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	for i := range containers {
-		if skipObjectContainerIfNeeded(&object, &containers[i]) {
-			continue
-		}
 		for _, p := range containers[i].Ports {
 			const t = 1024
 			if p.ContainerPort <= t {
@@ -311,9 +251,7 @@ func (l *ObjectLinter) ApplyObjectRules(object storage.StoreObject) {
 	l.ErrorsList.Add(roles.ObjectRBACPlacement(l.Module, object))
 	l.ErrorsList.Add(roles.ObjectBindingSubjectServiceAccountCheck(l.Module, object, l.ObjectStore))
 
-	if !skipObjectIfNeeded(&object) {
-		l.ErrorsList.Add(objectSecurityContext(object))
-	}
+	l.ErrorsList.Add(objectSecurityContext(object))
 
 	l.ErrorsList.Add(objectRevisionHistoryLimit(object))
 	l.ErrorsList.Add(objectHostNetworkPorts(object))
