@@ -4,7 +4,6 @@ import (
 	"github.com/deckhouse/d8-lint/internal/module"
 	"github.com/deckhouse/d8-lint/pkg/config"
 	"github.com/deckhouse/d8-lint/pkg/errors"
-	matrixConfig "github.com/deckhouse/d8-lint/pkg/linters/matrix/config"
 )
 
 // Matrix linter
@@ -14,8 +13,6 @@ type Matrix struct {
 }
 
 func New(cfg *config.MatrixSettings) *Matrix {
-	matrixConfig.Cfg = cfg
-
 	return &Matrix{
 		name: "matrix",
 		desc: "Matrix check a group of tests to module",
