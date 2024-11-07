@@ -20,7 +20,6 @@ import (
 	"github.com/deckhouse/d8-lint/internal/module"
 	"github.com/deckhouse/d8-lint/internal/storage"
 	"github.com/deckhouse/d8-lint/pkg/errors"
-	"github.com/deckhouse/d8-lint/pkg/linters/matrix/rules/modules"
 	"github.com/deckhouse/d8-lint/pkg/linters/matrix/rules/roles"
 )
 
@@ -35,7 +34,4 @@ func (l *ObjectLinter) ApplyObjectRules(object storage.StoreObject) {
 	l.ErrorsList.Add(roles.ObjectRBACPlacement(l.Module, object))
 	l.ErrorsList.Add(roles.ObjectBindingSubjectServiceAccountCheck(l.Module, object, l.ObjectStore))
 	l.ErrorsList.Add(roles.ObjectRolesWildcard(object))
-
-	l.ErrorsList.Add(modules.PromtoolRuleCheck(l.Module, object))
-
 }

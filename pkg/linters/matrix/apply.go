@@ -31,10 +31,10 @@ func ApplyLintRules(md *module.Module, objectStore *storage.UnstructuredObjectSt
 		ErrorsList:  &errors.LintRuleErrorsList{},
 	}
 
-	for _, object := range objectStore.Storage {
-		linter.ApplyObjectRules(object)
-		//linter.ApplyContainerRules(object)
-	}
+	//for _, object := range objectStore.Storage {
+	//linter.ApplyObjectRules(object)
+	//linter.ApplyContainerRules(object)
+	//}
 
 	resources.ControllerMustHaveVPA(&linter)
 	resources.ControllerMustHavePDB(&linter)
