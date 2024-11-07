@@ -14,13 +14,20 @@ type Container struct {
 
 func New(cfg *config.ContainerSettings) *Container {
 	return &Container{
-		name: "copyright",
-		desc: "Copyright will check all files in the modules for contains copyright",
+		name: "container",
+		desc: "Lint container objects",
 		cfg:  cfg,
 	}
 }
 
 func (o *Container) Run(m *module.Module) (result errors.LintRuleErrorsList, err error) {
+	if m == nil {
+		return result, err
+	}
+
+	for _, object := range m.GetStorage() {
+		result.Merge(o.applyContainerRules(object))
+	}
 
 	return result, nil
 }

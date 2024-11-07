@@ -33,7 +33,7 @@ func ApplyLintRules(md *module.Module, objectStore *storage.UnstructuredObjectSt
 
 	for _, object := range objectStore.Storage {
 		linter.ApplyObjectRules(object)
-		linter.ApplyContainerRules(object)
+		//linter.ApplyContainerRules(object)
 	}
 
 	resources.ControllerMustHaveVPA(&linter)

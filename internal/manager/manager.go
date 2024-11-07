@@ -16,8 +16,8 @@ import (
 	"github.com/deckhouse/d8-lint/pkg/errors"
 	"github.com/deckhouse/d8-lint/pkg/linters/container"
 	"github.com/deckhouse/d8-lint/pkg/linters/copyright"
-	"github.com/deckhouse/d8-lint/pkg/linters/matrix"
 	no_cyrillic "github.com/deckhouse/d8-lint/pkg/linters/no-cyrillic"
+	"github.com/deckhouse/d8-lint/pkg/linters/object"
 	"github.com/deckhouse/d8-lint/pkg/linters/openapi"
 	"github.com/deckhouse/d8-lint/pkg/linters/probes"
 )
@@ -48,8 +48,9 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 		no_cyrillic.New(&cfg.LintersSettings.NoCyrillic),
 		copyright.New(&cfg.LintersSettings.Copyright),
 		probes.New(&cfg.LintersSettings.Probes),
-		matrix.New(&cfg.LintersSettings.Matrix),
+		//matrix.New(&cfg.LintersSettings.Matrix),
 		container.New(&cfg.LintersSettings.Container),
+		object.New(&cfg.LintersSettings.Object),
 	}
 
 	m.lintersMap = make(map[string]Linter)

@@ -7,6 +7,7 @@ type LintersSettings struct {
 	Probes     ProbesSettings     `mapstructure:"probes"`
 	Matrix     MatrixSettings     `mapstructure:"matrix"`
 	Container  ContainerSettings  `mapstructure:"container"`
+	Object     ObjectSettings     `mapstructure:"object"`
 }
 
 type OpenAPISettings struct {
@@ -40,3 +41,5 @@ type MatrixSettings struct {
 }
 
 type ContainerSettings struct{}
+
+type ObjectSettings struct{}
