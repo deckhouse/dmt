@@ -1,4 +1,4 @@
-package k8s
+package module
 
 import (
 	"bufio"
@@ -12,7 +12,6 @@ import (
 	"helm.sh/helm/v3/pkg/chartutil"
 
 	"github.com/deckhouse/d8-lint/internal/helm"
-	"github.com/deckhouse/d8-lint/internal/module"
 	"github.com/deckhouse/d8-lint/internal/storage"
 )
 
@@ -20,7 +19,7 @@ var (
 	renderedTemplatesHash = sync.Map{}
 )
 
-func RunRender(m *module.Module, values chartutil.Values, objectStore *storage.UnstructuredObjectStore) error {
+func RunRender(m *Module, values chartutil.Values, objectStore *storage.UnstructuredObjectStore) error {
 	var renderer helm.Renderer
 	renderer.Name = m.GetName()
 	renderer.Namespace = m.GetNamespace()

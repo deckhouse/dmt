@@ -6,6 +6,7 @@ type LintersSettings struct {
 	Copyright  CopyrightSettings  `mapstructure:"copyright"`
 	Probes     ProbesSettings     `mapstructure:"probes"`
 	Matrix     MatrixSettings     `mapstructure:"matrix"`
+	Container  ContainerSettings  `mapstructure:"container"`
 }
 
 type OpenAPISettings struct {
@@ -37,3 +38,5 @@ type MatrixSettings struct {
 	SkipModuleImageName      []string            `mapstructure:"skip-module-image-name"`
 	SkipDistrolessImageCheck []string            `mapstructure:"skip-distroless-image-check"`
 }
+
+type ContainerSettings struct{}

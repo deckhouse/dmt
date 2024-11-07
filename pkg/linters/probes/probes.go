@@ -1,14 +1,12 @@
 package probes
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 
 	"github.com/sourcegraph/conc/pool"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/deckhouse/d8-lint/internal/k8s"
 	"github.com/deckhouse/d8-lint/internal/module"
 	"github.com/deckhouse/d8-lint/internal/storage"
 	"github.com/deckhouse/d8-lint/pkg/config"
@@ -29,25 +27,12 @@ func New(cfg *config.ProbesSettings) *Probes {
 	}
 }
 
-func (o *Probes) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
-	var result errors.LintRuleErrorsList
-
-	values, err := k8s.ComposeValuesFromSchemas(m)
-	if err != nil {
-		return result, fmt.Errorf("saving values from openapi: %w", err)
-	}
-
+func (o *Probes) Run(m *module.Module) (result errors.LintRuleErrorsList, err error) {
 	var ch = make(chan errors.LintRuleErrorsList)
 	go func() {
 		var g = pool.New().WithErrors()
 		g.Go(func() error {
-			objectStore := storage.NewUnstructuredObjectStore()
-			err = k8s.RunRender(m, values, objectStore)
-			if err != nil {
-				return err
-			}
-
-			for _, object := range objectStore.Storage {
+			for _, object := range m.GetStorage() {
 				containers, er := object.GetContainers()
 				if er != nil || containers == nil {
 					continue

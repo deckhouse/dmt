@@ -1,13 +1,9 @@
 package matrix
 
 import (
-	"fmt"
-
 	"github.com/sourcegraph/conc/pool"
 
-	"github.com/deckhouse/d8-lint/internal/k8s"
 	"github.com/deckhouse/d8-lint/internal/module"
-	"github.com/deckhouse/d8-lint/internal/storage"
 	"github.com/deckhouse/d8-lint/pkg/config"
 	"github.com/deckhouse/d8-lint/pkg/errors"
 	matrixConfig "github.com/deckhouse/d8-lint/pkg/linters/matrix/config"
@@ -30,13 +26,11 @@ func New(cfg *config.MatrixSettings) *Matrix {
 	}
 }
 
-func (*Matrix) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
-	var result errors.LintRuleErrorsList
-
-	values, err := k8s.ComposeValuesFromSchemas(m)
-	if err != nil {
-		return result, fmt.Errorf("saving values from openapi: %w", err)
-	}
+func (*Matrix) Run(m *module.Module) (result errors.LintRuleErrorsList, err error) {
+	//values, err := module.ComposeValuesFromSchemas(m)
+	//if err != nil {
+	//	return result, fmt.Errorf("saving values from openapi: %w", err)
+	//}
 
 	var ch = make(chan *errors.LintRuleErrorsList)
 	go func() {
@@ -46,17 +40,17 @@ func (*Matrix) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 			return nil
 		})
 
-		g.Go(func() error {
-			objectStore := storage.NewUnstructuredObjectStore()
-			err = k8s.RunRender(m, values, objectStore)
-			if err != nil {
-				return err
-			}
-
-			ch <- ApplyLintRules(m, objectStore)
-
-			return nil
-		})
+		//g.Go(func() error {
+		//	objectStore := storage.NewUnstructuredObjectStore()
+		//	err = module.RunRender(m, values, objectStore)
+		//	if err != nil {
+		//		return err
+		//	}
+		//
+		//	ch <- ApplyLintRules(m, objectStore)
+		//
+		//	return nil
+		//})
 		err = g.Wait()
 		close(ch)
 	}()
