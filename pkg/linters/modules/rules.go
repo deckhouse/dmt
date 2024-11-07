@@ -1,19 +1,3 @@
-/*
-Copyright 2021 Flant JSC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package modules
 
 import (
@@ -24,6 +8,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/deckhouse/d8-lint/internal/module"
 	"github.com/deckhouse/d8-lint/pkg/errors"
 )
 
@@ -43,11 +28,11 @@ func moduleLabel(n string) string {
 	return fmt.Sprintf("module = %s", n)
 }
 
-func namespaceModuleRule(name, path string) (string, *errors.LintRuleError) {
+func (o *Modules) namespaceModuleRule(name, path string) (string, *errors.LintRuleError) {
 	content, err := os.ReadFile(filepath.Join(path, ".namespace"))
 	if err != nil {
 		return "", errors.NewLintRuleError(
-			"MODULE002",
+			o.Name(),
 			name,
 			name,
 			nil,
@@ -57,9 +42,9 @@ func namespaceModuleRule(name, path string) (string, *errors.LintRuleError) {
 	return strings.TrimRight(string(content), " \t\n"), errors.EmptyRuleError
 }
 
-func chartModuleRule(name, path string) (string, *errors.LintRuleError) {
+func (o *Modules) chartModuleRule(name, path string) (string, *errors.LintRuleError) {
 	lintError := errors.NewLintRuleError(
-		"MODULE002",
+		o.Name(),
 		name,
 		name,
 		nil,
@@ -81,7 +66,7 @@ func chartModuleRule(name, path string) (string, *errors.LintRuleError) {
 
 	if !isExistsOnFilesystem(path, ValuesConfigFilename) && !isExistsOnFilesystem(path, openapiDir) {
 		return "", errors.NewLintRuleError(
-			"MODULE002",
+			o.Name(),
 			name,
 			name,
 			nil,
@@ -93,7 +78,7 @@ func chartModuleRule(name, path string) (string, *errors.LintRuleError) {
 	return chart.Name, errors.EmptyRuleError
 }
 
-func helmignoreModuleRule(name, path string) *errors.LintRuleError {
+func (o *Modules) helmignoreModuleRule(name, path string) *errors.LintRuleError {
 	var existedFiles []string
 	for _, file := range toHelmignore {
 		if isExistsOnFilesystem(path, file) {
@@ -108,7 +93,7 @@ func helmignoreModuleRule(name, path string) *errors.LintRuleError {
 	contentBytes, err := os.ReadFile(filepath.Join(path, ".helmignore"))
 	if err != nil {
 		return errors.NewLintRuleError(
-			"MODULE001",
+			o.Name(),
 			name,
 			name,
 			nil,
@@ -127,7 +112,7 @@ func helmignoreModuleRule(name, path string) *errors.LintRuleError {
 
 	if len(moduleErrors) > 0 {
 		return errors.NewLintRuleError(
-			"MODULE001",
+			o.Name(),
 			name,
 			name,
 			strings.Join(moduleErrors, ", "),
@@ -142,34 +127,35 @@ func isExistsOnFilesystem(parts ...string) bool {
 	return err == nil
 }
 
-// LintModuleStructure collects linting errors
-// for helmignore, hooks, docker and werf files, namespace, and CRDs
-func LintModuleStructure(modulePath string) (lintRuleErrorsList *errors.LintRuleErrorsList) {
-	lintRuleErrorsList = &errors.LintRuleErrorsList{}
-	moduleName := filepath.Base(modulePath)
+func (o *Modules) applyModuleRules(m *module.Module) (result errors.LintRuleErrorsList) {
+	moduleName := filepath.Base(m.GetPath())
 
-	lintRuleErrorsList.Add(helmignoreModuleRule(moduleName, modulePath))
-	lintRuleErrorsList.Add(commonTestGoForHooks(moduleName, modulePath))
-	lintRuleErrorsList.Merge(checkImageNamesInDockerAndWerfFiles(moduleName, modulePath))
+	result.Add(o.helmignoreModuleRule(moduleName, m.GetPath()))
+	result.Add(o.commonTestGoForHooks(moduleName, m.GetPath()))
+	result.Merge(o.checkImageNamesInDockerAndWerfFiles(moduleName, m.GetPath()))
 
-	name, lintError := chartModuleRule(moduleName, modulePath)
-	lintRuleErrorsList.Add(lintError)
+	name, lintError := o.chartModuleRule(moduleName, m.GetPath())
+	result.Add(lintError)
 	if name == "" {
-		return lintRuleErrorsList
+		return result
 	}
 
-	namespace, lintError := namespaceModuleRule(moduleName, modulePath)
-	lintRuleErrorsList.Add(lintError)
+	namespace, lintError := o.namespaceModuleRule(moduleName, m.GetPath())
+	result.Add(lintError)
 	if namespace == "" {
-		return lintRuleErrorsList
+		return result
 	}
 
-	if isExistsOnFilesystem(modulePath, crdsDir) {
-		lintRuleErrorsList.Merge(crdsModuleRule(moduleName, filepath.Join(modulePath, crdsDir)))
+	if isExistsOnFilesystem(m.GetPath(), crdsDir) {
+		result.Merge(o.crdsModuleRule(moduleName, filepath.Join(m.GetPath(), crdsDir)))
 	}
 
-	lintRuleErrorsList.Merge(ossModuleRule(moduleName, modulePath))
-	lintRuleErrorsList.Add(monitoringModuleRule(moduleName, modulePath, namespace))
+	result.Merge(o.ossModuleRule(moduleName, m.GetPath()))
+	result.Add(o.monitoringModuleRule(moduleName, m.GetPath(), namespace))
 
-	return lintRuleErrorsList
+	for _, object := range m.GetStorage() {
+		result.Add(o.promtoolRuleCheck(m, object))
+	}
+
+	return result
 }

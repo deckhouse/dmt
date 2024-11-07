@@ -25,7 +25,7 @@ import (
 	"github.com/deckhouse/d8-lint/pkg/errors"
 )
 
-func dirExists(moduleName, modulePath string, path ...string) (bool, *errors.LintRuleError) {
+func (o *Modules) dirExists(moduleName, modulePath string, path ...string) (bool, *errors.LintRuleError) {
 	searchPath := filepath.Join(append([]string{modulePath}, path...)...)
 	info, err := os.Stat(searchPath)
 	if err != nil {
@@ -33,7 +33,7 @@ func dirExists(moduleName, modulePath string, path ...string) (bool, *errors.Lin
 			return false, errors.EmptyRuleError
 		}
 		return false, errors.NewLintRuleError(
-			"MODULE060",
+			o.Name(),
 			moduleName,
 			moduleLabel(moduleName),
 			path,
@@ -43,7 +43,7 @@ func dirExists(moduleName, modulePath string, path ...string) (bool, *errors.Lin
 	return info.IsDir(), errors.EmptyRuleError
 }
 
-func monitoringModuleRule(moduleName, modulePath, moduleNamespace string) *errors.LintRuleError {
+func (o *Modules) monitoringModuleRule(moduleName, modulePath, moduleNamespace string) *errors.LintRuleError {
 	switch moduleName {
 	// These modules deploy common rules and dashboards to the cluster according to their configurations.
 	// That's why they have custom monitoring templates.
@@ -51,7 +51,7 @@ func monitoringModuleRule(moduleName, modulePath, moduleNamespace string) *error
 		return errors.EmptyRuleError
 	}
 
-	folderEx, lerr := dirExists(moduleName, modulePath, "monitoring")
+	folderEx, lerr := o.dirExists(moduleName, modulePath, "monitoring")
 	if !lerr.IsEmpty() {
 		return lerr
 	}
@@ -60,12 +60,12 @@ func monitoringModuleRule(moduleName, modulePath, moduleNamespace string) *error
 		return errors.EmptyRuleError
 	}
 
-	rulesEx, lerr := dirExists(moduleName, modulePath, "monitoring", "prometheus-rules")
+	rulesEx, lerr := o.dirExists(moduleName, modulePath, "monitoring", "prometheus-rules")
 	if !lerr.IsEmpty() {
 		return lerr
 	}
 
-	dashboardsEx, lerr := dirExists(moduleName, modulePath, "monitoring", "grafana-dashboards")
+	dashboardsEx, lerr := o.dirExists(moduleName, modulePath, "monitoring", "grafana-dashboards")
 	if !lerr.IsEmpty() {
 		return lerr
 	}
@@ -74,7 +74,7 @@ func monitoringModuleRule(moduleName, modulePath, moduleNamespace string) *error
 	info, _ := os.Stat(searchingFilePath)
 	if info == nil {
 		return errors.NewLintRuleError(
-			"MODULE060",
+			o.Name(),
 			moduleName,
 			moduleLabel(moduleName),
 			searchingFilePath,
@@ -85,7 +85,7 @@ func monitoringModuleRule(moduleName, modulePath, moduleNamespace string) *error
 	content, err := os.ReadFile(searchingFilePath)
 	if err != nil {
 		return errors.NewLintRuleError(
-			"MODULE060",
+			o.Name(),
 			moduleName,
 			moduleLabel(moduleName),
 			searchingFilePath,
@@ -118,7 +118,7 @@ func monitoringModuleRule(moduleName, modulePath, moduleNamespace string) *error
 
 	if !res {
 		return errors.NewLintRuleError(
-			"MODULE060",
+			o.Name(),
 			searchingFilePath,
 			moduleLabel(moduleName),
 			"The content of the 'templates/monitoring.yaml' should be equal to:\n%s\nGot:\n%s",

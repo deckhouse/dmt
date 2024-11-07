@@ -36,7 +36,7 @@ func Test(t *testing.T) {
 `
 )
 
-func commonTestGoForHooks(name, path string) *errors.LintRuleError {
+func (o *Modules) commonTestGoForHooks(name, path string) *errors.LintRuleError {
 	if !isExistsOnFilesystem(path, hooksDir) {
 		return errors.EmptyRuleError
 	}
@@ -48,7 +48,7 @@ func commonTestGoForHooks(name, path string) *errors.LintRuleError {
 	commonTestPath := filepath.Join(path, hooksDir, "common_test.go")
 	if !isExistsOnFilesystem(commonTestPath) {
 		return errors.NewLintRuleError(
-			"MODULE001",
+			o.Name(),
 			name,
 			moduleLabel(name),
 			nil,
@@ -59,7 +59,7 @@ func commonTestGoForHooks(name, path string) *errors.LintRuleError {
 	contentBytes, err := os.ReadFile(commonTestPath)
 	if err != nil {
 		return errors.NewLintRuleError(
-			"MODULE001",
+			o.Name(),
 			name,
 			moduleLabel(name),
 			nil,
@@ -90,7 +90,7 @@ func commonTestGoForHooks(name, path string) *errors.LintRuleError {
 		errstr := strings.Join(errs, "\n")
 
 		return errors.NewLintRuleError(
-			"MODULE001",
+			o.Name(),
 			name,
 			moduleLabel(name),
 			nil,

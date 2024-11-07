@@ -37,7 +37,7 @@ func shouldSkipCrd(name string) bool {
 	return !strings.Contains(name, "deckhouse.io")
 }
 
-func crdsModuleRule(name, path string) errors.LintRuleErrorsList {
+func (o *Modules) crdsModuleRule(name, path string) errors.LintRuleErrorsList {
 	var lintRuleErrorsList errors.LintRuleErrorsList
 	_ = filepath.Walk(path, func(path string, _ os.FileInfo, _ error) error {
 		if filepath.Ext(path) != ".yaml" {
@@ -62,7 +62,7 @@ func crdsModuleRule(name, path string) errors.LintRuleErrorsList {
 			err = yaml.Unmarshal([]byte(d), &crd)
 			if err != nil {
 				lintRuleErrorsList.Add(errors.NewLintRuleError(
-					"MODULE004",
+					o.Name(),
 					"module = "+name,
 					err.Error(),
 					"Can't parse manifests in %s folder", crdsDir,
@@ -75,11 +75,11 @@ func crdsModuleRule(name, path string) errors.LintRuleErrorsList {
 
 			if crd.APIVersion != "apiextensions.k8s.io/v1" {
 				lintRuleErrorsList.Add(errors.NewLintRuleError(
-					"MODULE004",
+					o.Name(),
 					d,
 					fmt.Sprintf("kind = %s ; name = %s ; module = %s ; file = %s", crd.Kind, crd.Name, name, path),
 					crd.APIVersion,
-					"CRD specified using deprecated api version, wanted \"apiextensions.k8s.io/v1\"",
+					`CRD specified using deprecated api version, wanted "apiextensions.k8s.io/v1"`,
 				))
 			}
 		}

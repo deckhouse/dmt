@@ -26,11 +26,11 @@ import (
 	"strings"
 
 	"github.com/deckhouse/d8-lint/pkg/errors"
-	matrixConfig "github.com/deckhouse/d8-lint/pkg/linters/matrix/config"
+	modulesconfig "github.com/deckhouse/d8-lint/pkg/linters/modules/config"
 )
 
 func skipModuleImageNameIfNeeded(filePath string) bool {
-	for _, img := range matrixConfig.Cfg.SkipModuleImageName {
+	for _, img := range modulesconfig.Cfg.SkipModuleImageName {
 		if strings.HasSuffix(filePath, img) {
 			return true
 		}
@@ -63,7 +63,7 @@ var distrolessImagesPrefix = map[string][]string{
 }
 
 func skipDistrolessImageCheckIfNeeded(image string) bool {
-	for _, img := range matrixConfig.Cfg.SkipDistrolessImageCheck {
+	for _, img := range modulesconfig.Cfg.SkipDistrolessImageCheck {
 		if strings.HasSuffix(image, img) {
 			return true
 		}
@@ -86,7 +86,7 @@ func isImageNameUnacceptable(imageName string) (b bool, s string) {
 	return false, ""
 }
 
-func checkImageNamesInDockerAndWerfFiles(
+func (o *Modules) checkImageNamesInDockerAndWerfFiles(
 	name, path string,
 ) (lintRuleErrorsList errors.LintRuleErrorsList) {
 	var filePaths []string
@@ -109,7 +109,7 @@ func checkImageNamesInDockerAndWerfFiles(
 	})
 	if err != nil {
 		lintRuleErrorsList.Add(errors.NewLintRuleError(
-			"MODULE001",
+			o.Name(),
 			moduleLabel(name),
 			imagesPath,
 			nil,
@@ -122,17 +122,17 @@ func checkImageNamesInDockerAndWerfFiles(
 		if skipModuleImageNameIfNeeded(filePath) {
 			continue
 		}
-		lintRuleErrorsList.Add(lintOneDockerfileOrWerfYAML(name, filePath, imagesPath))
+		lintRuleErrorsList.Add(o.lintOneDockerfileOrWerfYAML(name, filePath, imagesPath))
 	}
 
 	return lintRuleErrorsList
 }
 
-func lintOneDockerfileOrWerfYAML(name, filePath, imagesPath string) *errors.LintRuleError {
+func (o *Modules) lintOneDockerfileOrWerfYAML(name, filePath, imagesPath string) *errors.LintRuleError {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return errors.NewLintRuleError(
-			"MODULE001",
+			o.Name(),
 			filePath,
 			moduleLabel(name),
 			filePath,
@@ -147,7 +147,7 @@ func lintOneDockerfileOrWerfYAML(name, filePath, imagesPath string) *errors.Lint
 	relativeFilePath, err := filepath.Rel(imagesPath, filePath)
 	if err != nil {
 		return errors.NewLintRuleError(
-			"MODULE001",
+			o.Name(),
 			moduleLabel(name),
 			filePath,
 			nil,
@@ -168,7 +168,7 @@ func lintOneDockerfileOrWerfYAML(name, filePath, imagesPath string) *errors.Lint
 		result, ciVariable := isImageNameUnacceptable(line)
 		if result {
 			return errors.NewLintRuleError(
-				"MODULE001",
+				o.Name(),
 				fmt.Sprintf("module = %s, image = %s, line = %d", name, relativeFilePath, linePos),
 				line,
 				nil,
@@ -191,7 +191,7 @@ func lintOneDockerfileOrWerfYAML(name, filePath, imagesPath string) *errors.Lint
 					result, message := isWerfInstructionUnacceptable(fromTrimmed)
 					if result {
 						return errors.NewLintRuleError(
-							"MODULE001",
+							o.Name(),
 							name,
 							fmt.Sprintf("module = %s, image = %s", name, relativeFilePath),
 							nil,
@@ -219,7 +219,7 @@ func lintOneDockerfileOrWerfYAML(name, filePath, imagesPath string) *errors.Lint
 		result, message := isDockerfileInstructionUnacceptable(fromInstruction, lastInstruction)
 		if result {
 			return errors.NewLintRuleError(
-				"MODULE001",
+				o.Name(),
 				name,
 				name,
 				fmt.Sprintf("module = %s, image = %s", name, relativeFilePath),

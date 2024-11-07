@@ -1,13 +1,10 @@
 package matrix
 
 import (
-	"github.com/sourcegraph/conc/pool"
-
 	"github.com/deckhouse/d8-lint/internal/module"
 	"github.com/deckhouse/d8-lint/pkg/config"
 	"github.com/deckhouse/d8-lint/pkg/errors"
 	matrixConfig "github.com/deckhouse/d8-lint/pkg/linters/matrix/config"
-	"github.com/deckhouse/d8-lint/pkg/linters/matrix/rules/modules"
 )
 
 // Matrix linter
@@ -34,11 +31,11 @@ func (*Matrix) Run(m *module.Module) (result errors.LintRuleErrorsList, err erro
 
 	var ch = make(chan *errors.LintRuleErrorsList)
 	go func() {
-		var g = pool.New().WithErrors()
-		g.Go(func() error {
-			ch <- modules.LintModuleStructure(m.GetPath())
-			return nil
-		})
+		//var g = pool.New().WithErrors()
+		//g.Go(func() error {
+		//	ch <- modules.LintModuleStructure(m.GetPath())
+		//	return nil
+		//})
 
 		//g.Go(func() error {
 		//	objectStore := storage.NewUnstructuredObjectStore()
@@ -51,7 +48,7 @@ func (*Matrix) Run(m *module.Module) (result errors.LintRuleErrorsList, err erro
 		//
 		//	return nil
 		//})
-		err = g.Wait()
+		//err = g.Wait()
 		close(ch)
 	}()
 

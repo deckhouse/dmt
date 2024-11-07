@@ -91,9 +91,9 @@ func checkRuleFile(path string) error {
 	return err
 }
 
-func createPromtoolError(m *module.Module, errMsg string) *errors.LintRuleError {
+func (o *Modules) createPromtoolError(m *module.Module, errMsg string) *errors.LintRuleError {
 	return errors.NewLintRuleError(
-		"MODULE060",
+		o.Name(),
 		moduleLabel(m.GetName()),
 		m.GetPath(),
 		nil,
@@ -102,7 +102,7 @@ func createPromtoolError(m *module.Module, errMsg string) *errors.LintRuleError 
 	)
 }
 
-func PromtoolRuleCheck(m *module.Module, object storage.StoreObject) *errors.LintRuleError {
+func (o *Modules) promtoolRuleCheck(m *module.Module, object storage.StoreObject) *errors.LintRuleError {
 	if object.Unstructured.GetKind() != "PrometheusRule" {
 		return errors.EmptyRuleError
 	}
@@ -110,7 +110,7 @@ func PromtoolRuleCheck(m *module.Module, object storage.StoreObject) *errors.Lin
 	res, ok := rulesCache.Get(object.Hash)
 	if ok {
 		if !res.success {
-			return createPromtoolError(m, res.errMsg)
+			return o.createPromtoolError(m, res.errMsg)
 		}
 		return errors.EmptyRuleError
 	}
@@ -118,7 +118,7 @@ func PromtoolRuleCheck(m *module.Module, object storage.StoreObject) *errors.Lin
 	marshal, err := marshalChartYaml(object)
 	if err != nil {
 		return errors.NewLintRuleError(
-			"MODULE060",
+			o.Name(),
 			m.GetName(),
 			m.GetPath(),
 			nil,
@@ -131,7 +131,7 @@ func PromtoolRuleCheck(m *module.Module, object storage.StoreObject) *errors.Lin
 
 	if err != nil {
 		return errors.NewLintRuleError(
-			"MODULE060",
+			o.Name(),
 			m.GetName(),
 			m.GetPath(),
 			nil,
@@ -147,7 +147,7 @@ func PromtoolRuleCheck(m *module.Module, object storage.StoreObject) *errors.Lin
 			success: false,
 			errMsg:  errorMessage,
 		})
-		return createPromtoolError(m, errorMessage)
+		return o.createPromtoolError(m, errorMessage)
 	}
 
 	rulesCache.Put(object.Hash, checkResult{success: true})

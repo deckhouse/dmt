@@ -16,6 +16,7 @@ import (
 	"github.com/deckhouse/d8-lint/pkg/errors"
 	"github.com/deckhouse/d8-lint/pkg/linters/container"
 	"github.com/deckhouse/d8-lint/pkg/linters/copyright"
+	"github.com/deckhouse/d8-lint/pkg/linters/modules"
 	no_cyrillic "github.com/deckhouse/d8-lint/pkg/linters/no-cyrillic"
 	"github.com/deckhouse/d8-lint/pkg/linters/object"
 	"github.com/deckhouse/d8-lint/pkg/linters/openapi"
@@ -51,6 +52,7 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 		//matrix.New(&cfg.LintersSettings.Matrix),
 		container.New(&cfg.LintersSettings.Container),
 		object.New(&cfg.LintersSettings.Object),
+		modules.New(&cfg.LintersSettings.Modules),
 	}
 
 	m.lintersMap = make(map[string]Linter)
@@ -79,11 +81,12 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 	}
 
 	for i := range paths {
-		logger.DebugF("Found `%s` module", paths[i])
+		moduleName := filepath.Base(paths[i])
+		logger.DebugF("Found `%s` module", moduleName)
 		mdl, err := module.NewModule(paths[i])
 		if err != nil {
 			// this error not critical, just notice what we have error on setting module chart
-			logger.ErrorF("Chart fill not success for module `%s`: %v", mdl.GetName(), err)
+			logger.ErrorF("Chart fill not success for module `%s`: %v", moduleName, err)
 		}
 		m.Modules = append(m.Modules, mdl)
 	}
