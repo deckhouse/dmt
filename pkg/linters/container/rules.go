@@ -13,7 +13,7 @@ import (
 
 const defaultRegistry = "registry.example.com/deckhouse"
 
-func (o *Container) applyContainerRules(object storage.StoreObject) (result errors.LintRuleErrorsList) {
+func applyContainerRules(object storage.StoreObject) (result errors.LintRuleErrorsList) {
 	containers, err := object.GetContainers()
 	if err != nil {
 		return
@@ -29,19 +29,19 @@ func (o *Container) applyContainerRules(object storage.StoreObject) (result erro
 
 	result = errors.LintRuleErrorsList{}
 
-	result.Add(o.containerNameDuplicates(object, containers))
-	result.Add(o.containerEnvVariablesDuplicates(object, containers))
-	result.Add(o.containerImageDigestCheck(object, containers))
-	result.Add(o.containersImagePullPolicy(object, containers))
+	result.Add(containerNameDuplicates(object, containers))
+	result.Add(containerEnvVariablesDuplicates(object, containers))
+	result.Add(containerImageDigestCheck(object, containers))
+	result.Add(containersImagePullPolicy(object, containers))
 
-	result.Add(o.containerStorageEphemeral(object, containers))
-	result.Add(o.containerSecurityContext(object, containers))
-	result.Add(o.containerPorts(object, containers))
+	result.Add(containerStorageEphemeral(object, containers))
+	result.Add(containerSecurityContext(object, containers))
+	result.Add(containerPorts(object, containers))
 
 	return result
 }
 
-func (o *Container) containersImagePullPolicy(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
+func containersImagePullPolicy(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	ob := object.Unstructured
 	if ob.GetNamespace() == "d8-system" && ob.GetKind() == "Deployment" && ob.GetName() == "deckhouse" {
 		c := containers[0]
@@ -52,7 +52,7 @@ func (o *Container) containersImagePullPolicy(object storage.StoreObject, contai
 			// and restarting deckhouse with invalid creads will break all static pods on masters
 			// and bashible
 			return errors.NewLintRuleError(
-				o.Name(),
+				ID,
 				object.Identity()+"; container = "+c.Name,
 				c.Name,
 				c.ImagePullPolicy,
@@ -63,27 +63,27 @@ func (o *Container) containersImagePullPolicy(object storage.StoreObject, contai
 		return errors.EmptyRuleError
 	}
 
-	return o.containerImagePullPolicyIfNotPresent(object, containers)
+	return containerImagePullPolicyIfNotPresent(object, containers)
 }
 
-func (o *Container) containerNameDuplicates(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
+func containerNameDuplicates(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	names := make(map[string]struct{})
 	for i := range containers {
 		if _, ok := names[containers[i].Name]; ok {
-			return errors.NewLintRuleError(o.Name(), object.Identity(), containers[i].Name, nil, "Duplicate container name")
+			return errors.NewLintRuleError(ID, object.Identity(), containers[i].Name, nil, "Duplicate container name")
 		}
 		names[containers[i].Name] = struct{}{}
 	}
 	return errors.EmptyRuleError
 }
 
-func (o *Container) containerEnvVariablesDuplicates(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
+func containerEnvVariablesDuplicates(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	for i := range containers {
 		envVariables := make(map[string]struct{})
 		for _, variable := range containers[i].Env {
 			if _, ok := envVariables[variable.Name]; ok {
 				return errors.NewLintRuleError(
-					o.Name(),
+					ID,
 					object.Identity()+"; container = "+containers[i].Name,
 					containers[i].Name,
 					variable.Name,
@@ -96,7 +96,7 @@ func (o *Container) containerEnvVariablesDuplicates(object storage.StoreObject, 
 	return errors.EmptyRuleError
 }
 
-func (o *Container) shouldSkipModuleContainer(md, container string) bool {
+func shouldSkipModuleContainer(md, container string) bool {
 	// okmeter module uses images from external repo - registry.okmeter.io/agent/okagent:stub
 	if md == "okmeter" && container == "okagent" {
 		return true
@@ -110,16 +110,16 @@ func (o *Container) shouldSkipModuleContainer(md, container string) bool {
 	return false
 }
 
-func (o *Container) containerImageDigestCheck(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
+func containerImageDigestCheck(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	for i := range containers {
-		if o.shouldSkipModuleContainer(object.Unstructured.GetName(), containers[i].Name) {
+		if shouldSkipModuleContainer(object.Unstructured.GetName(), containers[i].Name) {
 			continue
 		}
 
 		re := regexp.MustCompile(`(?P<repository>.+)([@:])imageHash[-a-z0-9A-Z]+$`)
 		match := re.FindStringSubmatch(containers[i].Image)
 		if len(match) == 0 {
-			return errors.NewLintRuleError(o.Name(),
+			return errors.NewLintRuleError(ID,
 				object.Identity()+"; container = "+containers[i].Name,
 				object.Unstructured.GetName(),
 				nil,
@@ -128,7 +128,7 @@ func (o *Container) containerImageDigestCheck(object storage.StoreObject, contai
 		}
 		repo, err := name.NewRepository(match[re.SubexpIndex("repository")])
 		if err != nil {
-			return errors.NewLintRuleError(o.Name(),
+			return errors.NewLintRuleError(ID,
 				object.Identity()+"; container = "+containers[i].Name,
 				object.Unstructured.GetName(),
 				nil,
@@ -137,7 +137,7 @@ func (o *Container) containerImageDigestCheck(object storage.StoreObject, contai
 		}
 
 		if repo.Name() != defaultRegistry {
-			return errors.NewLintRuleError(o.Name(),
+			return errors.NewLintRuleError(ID,
 				object.Identity()+"; container = "+containers[i].Name,
 				object.Unstructured.GetName(),
 				nil,
@@ -150,13 +150,13 @@ func (o *Container) containerImageDigestCheck(object storage.StoreObject, contai
 	return errors.EmptyRuleError
 }
 
-func (o *Container) containerImagePullPolicyIfNotPresent(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
+func containerImagePullPolicyIfNotPresent(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	for i := range containers {
 		if containers[i].ImagePullPolicy == "" || containers[i].ImagePullPolicy == "IfNotPresent" {
 			continue
 		}
 		return errors.NewLintRuleError(
-			o.Name(),
+			ID,
 			object.Identity()+"; container = "+containers[i].Name,
 			containers[i].Name,
 			containers[i].ImagePullPolicy,
@@ -166,12 +166,12 @@ func (o *Container) containerImagePullPolicyIfNotPresent(object storage.StoreObj
 	return errors.EmptyRuleError
 }
 
-func (o *Container) containerStorageEphemeral(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
+func containerStorageEphemeral(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	for i := range containers {
 		if containers[i].Resources.Requests.StorageEphemeral() == nil ||
 			containers[i].Resources.Requests.StorageEphemeral().Value() == 0 {
 			return errors.NewLintRuleError(
-				o.Name(),
+				ID,
 				object.Identity()+"; container = "+containers[i].Name,
 				containers[i].Name,
 				nil,
@@ -182,11 +182,11 @@ func (o *Container) containerStorageEphemeral(object storage.StoreObject, contai
 	return errors.EmptyRuleError
 }
 
-func (o *Container) containerSecurityContext(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
+func containerSecurityContext(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	for i := range containers {
 		if containers[i].SecurityContext == nil {
 			return errors.NewLintRuleError(
-				o.Name(),
+				ID,
 				object.Identity()+"; container = "+containers[i].Name,
 				containers[i].Name,
 				nil,
@@ -197,13 +197,13 @@ func (o *Container) containerSecurityContext(object storage.StoreObject, contain
 	return errors.EmptyRuleError
 }
 
-func (o *Container) containerPorts(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
+func containerPorts(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	for i := range containers {
 		for _, p := range containers[i].Ports {
 			const t = 1024
 			if p.ContainerPort <= t {
 				return errors.NewLintRuleError(
-					o.Name(),
+					ID,
 					object.Identity()+"; container = "+containers[i].Name,
 					containers[i].Name,
 					p.ContainerPort,

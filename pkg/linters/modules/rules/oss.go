@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package modules
+package rules
 
 import (
 	"fmt"
@@ -27,20 +27,20 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/deckhouse/d8-lint/pkg/errors"
-	modulesconfig "github.com/deckhouse/d8-lint/pkg/linters/modules/config"
+	"github.com/deckhouse/d8-lint/pkg/linters/modules"
 )
 
 const ossFilename = "oss.yaml"
 
-func (o *Modules) ossModuleRule(name, moduleRoot string) errors.LintRuleErrorsList {
+func OssModuleRule(name, moduleRoot string) errors.LintRuleErrorsList {
 	lintErrors := errors.LintRuleErrorsList{}
 
 	if errs := verifyOssFile(name, moduleRoot); len(errs) > 0 {
 		for _, err := range errs {
 			ruleErr := errors.NewLintRuleError(
-				o.Name(),
+				modules.ID,
 				name,
-				moduleLabel(name),
+				modules.ModuleLabel(name),
 				nil,
 				"%v",
 				ossFileErrorMessage(err),
@@ -153,7 +153,7 @@ func parseProjectList(b []byte) ([]ossProject, error) {
 
 // TODO When lintignore files will be implemented in modules, detect "oss.yaml" line in it
 func shouldIgnoreOssInfo(moduleName string) bool {
-	return slices.Contains(modulesconfig.Cfg.SkipOssChecks, moduleName)
+	return slices.Contains(modules.Cfg.SkipOssChecks, moduleName)
 }
 
 type ossProject struct {

@@ -4,7 +4,6 @@ import (
 	"github.com/deckhouse/d8-lint/internal/module"
 	"github.com/deckhouse/d8-lint/pkg/config"
 	"github.com/deckhouse/d8-lint/pkg/errors"
-	modulesconfig "github.com/deckhouse/d8-lint/pkg/linters/modules/config"
 )
 
 // Modules linter
@@ -13,8 +12,14 @@ type Modules struct {
 	cfg        *config.ModulesSettings
 }
 
+const (
+	ID = "modules"
+)
+
+var Cfg *config.ModulesSettings
+
 func New(cfg *config.ModulesSettings) *Modules {
-	modulesconfig.Cfg = cfg
+	Cfg = cfg
 
 	return &Modules{
 		name: "modules",
@@ -28,7 +33,7 @@ func (o *Modules) Run(m *module.Module) (result errors.LintRuleErrorsList, err e
 		return result, err
 	}
 
-	result.Merge(o.applyModuleRules(m))
+	result.Merge(applyModuleRules(m))
 
 	return result, nil
 }

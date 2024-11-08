@@ -9,6 +9,7 @@ type LintersSettings struct {
 	Container ContainerSettings `mapstructure:"container"`
 	Object    ObjectSettings    `mapstructure:"object"`
 	Modules   ModulesSettings   `mapstructure:"modules"`
+	Rbac      RbacSettings      `mapstructure:"rbac"`
 }
 
 type OpenAPISettings struct {
@@ -40,9 +41,12 @@ type ContainerSettings struct{}
 
 type ObjectSettings struct{}
 
+type RbacSettings struct {
+	SkipCheckWildcards map[string][]string `mapstructure:"skip-check-wildcards"`
+}
+
 type ModulesSettings struct {
-	SkipOssChecks            []string            `mapstructure:"skip-oss-checks"`
-	SkipCheckWildcards       map[string][]string `mapstructure:"skip-check-wildcards"`
-	SkipModuleImageName      []string            `mapstructure:"skip-module-image-name"`
-	SkipDistrolessImageCheck []string            `mapstructure:"skip-distroless-image-check"`
+	SkipOssChecks            []string `mapstructure:"skip-oss-checks"`
+	SkipModuleImageName      []string `mapstructure:"skip-module-image-name"`
+	SkipDistrolessImageCheck []string `mapstructure:"skip-distroless-image-check"`
 }

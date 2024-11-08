@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package modules
+package rules
 
 import (
 	"bufio"
@@ -26,11 +26,11 @@ import (
 	"strings"
 
 	"github.com/deckhouse/d8-lint/pkg/errors"
-	modulesconfig "github.com/deckhouse/d8-lint/pkg/linters/modules/config"
+	"github.com/deckhouse/d8-lint/pkg/linters/modules"
 )
 
 func skipModuleImageNameIfNeeded(filePath string) bool {
-	for _, img := range modulesconfig.Cfg.SkipModuleImageName {
+	for _, img := range modules.Cfg.SkipModuleImageName {
 		if strings.HasSuffix(filePath, img) {
 			return true
 		}
@@ -63,7 +63,7 @@ var distrolessImagesPrefix = map[string][]string{
 }
 
 func skipDistrolessImageCheckIfNeeded(image string) bool {
-	for _, img := range modulesconfig.Cfg.SkipDistrolessImageCheck {
+	for _, img := range modules.Cfg.SkipDistrolessImageCheck {
 		if strings.HasSuffix(image, img) {
 			return true
 		}
@@ -86,13 +86,13 @@ func isImageNameUnacceptable(imageName string) (b bool, s string) {
 	return false, ""
 }
 
-func (o *Modules) checkImageNamesInDockerAndWerfFiles(
+func CheckImageNamesInDockerAndWerfFiles(
 	name, path string,
 ) (lintRuleErrorsList errors.LintRuleErrorsList) {
 	var filePaths []string
-	imagesPath := filepath.Join(path, imagesDir)
+	imagesPath := filepath.Join(path, modules.ImagesDir)
 
-	if !isExistsOnFilesystem(imagesPath) {
+	if !modules.IsExistsOnFilesystem(imagesPath) {
 		return lintRuleErrorsList
 	}
 
@@ -109,8 +109,8 @@ func (o *Modules) checkImageNamesInDockerAndWerfFiles(
 	})
 	if err != nil {
 		lintRuleErrorsList.Add(errors.NewLintRuleError(
-			o.Name(),
-			moduleLabel(name),
+			modules.ID,
+			modules.ModuleLabel(name),
 			imagesPath,
 			nil,
 			"Cannot read directory structure: %s",
@@ -122,19 +122,19 @@ func (o *Modules) checkImageNamesInDockerAndWerfFiles(
 		if skipModuleImageNameIfNeeded(filePath) {
 			continue
 		}
-		lintRuleErrorsList.Add(o.lintOneDockerfileOrWerfYAML(name, filePath, imagesPath))
+		lintRuleErrorsList.Add(lintOneDockerfileOrWerfYAML(name, filePath, imagesPath))
 	}
 
 	return lintRuleErrorsList
 }
 
-func (o *Modules) lintOneDockerfileOrWerfYAML(name, filePath, imagesPath string) *errors.LintRuleError {
+func lintOneDockerfileOrWerfYAML(name, filePath, imagesPath string) *errors.LintRuleError {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return errors.NewLintRuleError(
-			o.Name(),
+			modules.ID,
 			filePath,
-			moduleLabel(name),
+			modules.ModuleLabel(name),
 			filePath,
 			"Error opening file:%s",
 			err,
@@ -147,8 +147,8 @@ func (o *Modules) lintOneDockerfileOrWerfYAML(name, filePath, imagesPath string)
 	relativeFilePath, err := filepath.Rel(imagesPath, filePath)
 	if err != nil {
 		return errors.NewLintRuleError(
-			o.Name(),
-			moduleLabel(name),
+			modules.ID,
+			modules.ModuleLabel(name),
 			filePath,
 			nil,
 			"Error calculating relative file path: %s",
@@ -168,7 +168,7 @@ func (o *Modules) lintOneDockerfileOrWerfYAML(name, filePath, imagesPath string)
 		result, ciVariable := isImageNameUnacceptable(line)
 		if result {
 			return errors.NewLintRuleError(
-				o.Name(),
+				modules.ID,
 				fmt.Sprintf("module = %s, image = %s, line = %d", name, relativeFilePath, linePos),
 				line,
 				nil,
@@ -191,7 +191,7 @@ func (o *Modules) lintOneDockerfileOrWerfYAML(name, filePath, imagesPath string)
 					result, message := isWerfInstructionUnacceptable(fromTrimmed)
 					if result {
 						return errors.NewLintRuleError(
-							o.Name(),
+							modules.ID,
 							name,
 							fmt.Sprintf("module = %s, image = %s", name, relativeFilePath),
 							nil,
@@ -219,7 +219,7 @@ func (o *Modules) lintOneDockerfileOrWerfYAML(name, filePath, imagesPath string)
 		result, message := isDockerfileInstructionUnacceptable(fromInstruction, lastInstruction)
 		if result {
 			return errors.NewLintRuleError(
-				o.Name(),
+				modules.ID,
 				name,
 				name,
 				fmt.Sprintf("module = %s, image = %s", name, relativeFilePath),

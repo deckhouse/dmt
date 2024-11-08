@@ -24,6 +24,7 @@ import (
 	"github.com/deckhouse/d8-lint/internal/module"
 	"github.com/deckhouse/d8-lint/internal/storage"
 	"github.com/deckhouse/d8-lint/pkg/errors"
+	"github.com/deckhouse/d8-lint/pkg/linters/rbac"
 )
 
 const (
@@ -69,7 +70,7 @@ func ObjectRBACPlacement(m *module.Module, object storage.StoreObject) *errors.L
 		shortPath := object.ShortPath()
 		if strings.HasSuffix(shortPath, "rbac-for-us.yaml") || strings.HasSuffix(shortPath, "rbac-to-us.yaml") {
 			return errors.NewLintRuleError(
-				"MANIFEST053",
+				rbac.ID,
 				object.Identity(),
 				m.GetName(),
 				nil,
@@ -90,7 +91,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 		if isSystemNamespace(namespace) {
 			if objectName != "d8-"+m.GetName() {
 				return errors.NewLintRuleError(
-					"MANIFEST053",
+					rbac.ID,
 					object.Identity(),
 					m.GetName(),
 					nil,
@@ -102,7 +103,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 		}
 		if objectName != m.GetName() {
 			return errors.NewLintRuleError(
-				"MANIFEST053",
+				rbac.ID,
 				object.Identity(),
 				m.GetName(),
 				nil,
@@ -112,7 +113,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 		}
 		if !isDeckhouseSystemNamespace(namespace) && m.GetNamespace() != namespace {
 			return errors.NewLintRuleError(
-				"MANIFEST053",
+				rbac.ID,
 				object.Identity(),
 				m.GetName(),
 				nil,
@@ -132,7 +133,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 		if isSystemNamespace(namespace) {
 			if objectName != "d8-"+expectedServiceAccountName {
 				return errors.NewLintRuleError(
-					"MANIFEST053",
+					rbac.ID,
 					object.Identity(),
 					m.GetName(),
 					nil,
@@ -145,7 +146,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 		if objectName == serviceAccountName {
 			if m.GetNamespace() != namespace {
 				return errors.NewLintRuleError(
-					"MANIFEST053",
+					rbac.ID,
 					object.Identity(),
 					object.Unstructured.GetName(),
 					nil,
@@ -156,7 +157,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 		} else if objectName == expectedServiceAccountName {
 			if !isDeckhouseSystemNamespace(namespace) {
 				return errors.NewLintRuleError(
-					"MANIFEST053",
+					rbac.ID,
 					object.Identity(),
 					m.GetName(),
 					namespace,
@@ -175,7 +176,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 		}
 
 		return errors.NewLintRuleError(
-			"MANIFEST053",
+			rbac.ID,
 			object.Identity(),
 			object.Unstructured.GetName(),
 			nil,
@@ -184,7 +185,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 		)
 	}
 	return errors.NewLintRuleError(
-		"MANIFEST053",
+		rbac.ID,
 		object.Identity(),
 		object.Unstructured.GetName(),
 		nil,
@@ -201,7 +202,7 @@ func objectRBACPlacementClusterRole(kind string, m *module.Module, object storag
 	case shortPath == RootRBACForUsPath:
 		if !strings.HasPrefix(objectName, name) {
 			return errors.NewLintRuleError(
-				"MANIFEST053",
+				rbac.ID,
 				object.Identity(),
 				object.Unstructured.GetName(),
 				nil,
@@ -217,7 +218,7 @@ func objectRBACPlacementClusterRole(kind string, m *module.Module, object storag
 		n := name + ":" + strings.Join(parts, ":")
 		if !strings.HasPrefix(objectName, name) {
 			return errors.NewLintRuleError(
-				"MANIFEST053",
+				rbac.ID,
 				object.Identity(),
 				object.Unstructured.GetName(),
 				nil,
@@ -227,7 +228,7 @@ func objectRBACPlacementClusterRole(kind string, m *module.Module, object storag
 		}
 	default:
 		return errors.NewLintRuleError(
-			"MANIFEST053",
+			rbac.ID,
 			object.Identity(),
 			object.Unstructured.GetName(),
 			nil,
@@ -256,7 +257,7 @@ func objectRBACPlacementRole(kind string, m *module.Module, object storage.Store
 	default:
 		msgTemplate := `%s should be in "templates/rbac-for-us.yaml", "templates/rbac-to-us.yaml", ".*/rbac-to-us.yaml" or ".*/rbac-for-us.yaml"`
 		return errors.NewLintRuleError(
-			"MANIFEST053",
+			rbac.ID,
 			object.Identity(),
 			object.Unstructured.GetName(),
 			nil,
@@ -275,7 +276,7 @@ func handleRootRBACForUs(m *module.Module, object storage.StoreObject, objectNam
 	case objectName == m.GetName() && namespace != m.GetNamespace():
 		if !isDeckhouseSystemNamespace(namespace) {
 			return errors.NewLintRuleError(
-				"MANIFEST053",
+				rbac.ID,
 				object.Identity(),
 				object.Unstructured.GetName(),
 				nil,
@@ -286,7 +287,7 @@ func handleRootRBACForUs(m *module.Module, object storage.StoreObject, objectNam
 	case strings.HasPrefix(objectName, prefix):
 		if !isSystemNamespace(namespace) {
 			return errors.NewLintRuleError(
-				"MANIFEST053",
+				rbac.ID,
 				object.Identity(),
 				object.Unstructured.GetName(),
 				nil,
@@ -297,7 +298,7 @@ func handleRootRBACForUs(m *module.Module, object storage.StoreObject, objectNam
 	case !strings.HasPrefix(objectName, prefix):
 		if !isDeckhouseSystemNamespace(namespace) {
 			return errors.NewLintRuleError(
-				"MANIFEST053",
+				rbac.ID,
 				object.Identity(),
 				object.Unstructured.GetName(),
 				nil,
@@ -315,7 +316,7 @@ func handleRootRBACToUs(m *module.Module, object storage.StoreObject, objectName
 	prefix := "access-to-" + m.GetName()
 	if !strings.HasPrefix(objectName, prefix) {
 		return errors.NewLintRuleError(
-			"MANIFEST053",
+			rbac.ID,
 			object.Identity(),
 			object.Unstructured.GetName(),
 			nil,
@@ -327,7 +328,7 @@ func handleRootRBACToUs(m *module.Module, object storage.StoreObject, objectName
 	namespace := object.Unstructured.GetNamespace()
 	if !isDeckhouseSystemNamespace(namespace) && namespace != m.GetNamespace() {
 		return errors.NewLintRuleError(
-			"MANIFEST053",
+			rbac.ID,
 			object.Identity(),
 			object.Unstructured.GetName(),
 			nil,
@@ -356,7 +357,7 @@ func handleNestedRBACForUs(m *module.Module, object storage.StoreObject, shortPa
 	case strings.HasPrefix(objectName, localPrefix):
 		if namespace != m.GetNamespace() {
 			return errors.NewLintRuleError(
-				"MANIFEST053",
+				rbac.ID,
 				object.Identity(),
 				object.Unstructured.GetName(),
 				nil,
@@ -367,7 +368,7 @@ func handleNestedRBACForUs(m *module.Module, object storage.StoreObject, shortPa
 	case strings.HasPrefix(objectName, globalPrefix):
 		if !isDeckhouseSystemNamespace(namespace) {
 			return errors.NewLintRuleError(
-				"MANIFEST053",
+				rbac.ID,
 				object.Identity(),
 				object.Unstructured.GetName(),
 				nil,
@@ -378,7 +379,7 @@ func handleNestedRBACForUs(m *module.Module, object storage.StoreObject, shortPa
 	case strings.HasPrefix(objectName, systemPrefix):
 		if !isSystemNamespace(namespace) {
 			return errors.NewLintRuleError(
-				"MANIFEST053",
+				rbac.ID,
 				object.Identity(),
 				object.Unstructured.GetName(),
 				nil,
@@ -388,7 +389,7 @@ func handleNestedRBACForUs(m *module.Module, object storage.StoreObject, shortPa
 		}
 	default:
 		return errors.NewLintRuleError(
-			"MANIFEST053",
+			rbac.ID,
 			object.Identity(),
 			object.Unstructured.GetName(),
 			nil,
@@ -415,7 +416,7 @@ func handleNestedRBACToUs(m *module.Module, object storage.StoreObject, shortPat
 	case strings.HasPrefix(objectName, localPrefix):
 		if namespace != m.GetNamespace() {
 			return errors.NewLintRuleError(
-				"MANIFEST053",
+				rbac.ID,
 				object.Identity(),
 				object.Unstructured.GetName(),
 				nil,
@@ -426,7 +427,7 @@ func handleNestedRBACToUs(m *module.Module, object storage.StoreObject, shortPat
 	case strings.HasPrefix(objectName, globalPrefix):
 		if !isDeckhouseSystemNamespace(namespace) {
 			return errors.NewLintRuleError(
-				"MANIFEST053",
+				rbac.ID,
 				object.Identity(),
 				object.Unstructured.GetName(),
 				nil,
@@ -436,7 +437,7 @@ func handleNestedRBACToUs(m *module.Module, object storage.StoreObject, shortPat
 		}
 	default:
 		return errors.NewLintRuleError(
-			"MANIFEST053",
+			rbac.ID,
 			object.Identity(),
 			object.Unstructured.GetName(),
 			nil,

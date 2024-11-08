@@ -21,6 +21,7 @@ import (
 	"github.com/deckhouse/d8-lint/pkg/linters/object"
 	"github.com/deckhouse/d8-lint/pkg/linters/openapi"
 	"github.com/deckhouse/d8-lint/pkg/linters/probes"
+	"github.com/deckhouse/d8-lint/pkg/linters/rbac"
 )
 
 const (
@@ -53,6 +54,7 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 		container.New(&cfg.LintersSettings.Container),
 		object.New(&cfg.LintersSettings.Object),
 		modules.New(&cfg.LintersSettings.Modules),
+		rbac.New(&cfg.LintersSettings.Rbac),
 	}
 
 	m.lintersMap = make(map[string]Linter)

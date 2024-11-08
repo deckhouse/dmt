@@ -20,12 +20,12 @@ import (
 	"slices"
 	"strings"
 
-	rbac "k8s.io/api/rbac/v1"
+	k8SRbac "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/deckhouse/d8-lint/internal/storage"
 	"github.com/deckhouse/d8-lint/pkg/errors"
-	matrixConfig "github.com/deckhouse/d8-lint/pkg/linters/matrix/config"
+	"github.com/deckhouse/d8-lint/pkg/linters/rbac"
 )
 
 // ObjectRolesWildcard is a linter for checking the presence
@@ -48,7 +48,7 @@ func ObjectRolesWildcard(object storage.StoreObject) *errors.LintRuleError {
 
 func checkRoles(object storage.StoreObject) *errors.LintRuleError {
 	// check rules for skip
-	for path, rules := range matrixConfig.Cfg.SkipCheckWildcards {
+	for path, rules := range rbac.Cfg.SkipCheckWildcards {
 		if strings.EqualFold(object.Path, path) {
 			if slices.Contains(rules, object.Unstructured.GetName()) {
 				return errors.EmptyRuleError
@@ -58,7 +58,7 @@ func checkRoles(object storage.StoreObject) *errors.LintRuleError {
 
 	converter := runtime.DefaultUnstructuredConverter
 
-	role := new(rbac.Role)
+	role := new(k8SRbac.Role)
 	err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), role)
 	if err != nil {
 		panic(err)
@@ -77,7 +77,7 @@ func checkRoles(object storage.StoreObject) *errors.LintRuleError {
 		}
 		if len(objs) > 0 {
 			return errors.NewLintRuleError(
-				"WILDCARD001",
+				rbac.ID,
 				object.Identity(),
 				object.Path,
 				nil,

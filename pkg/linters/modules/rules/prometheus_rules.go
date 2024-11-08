@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package modules
+package rules
 
 import (
 	"os"
@@ -26,6 +26,7 @@ import (
 	"github.com/deckhouse/d8-lint/internal/module"
 	"github.com/deckhouse/d8-lint/internal/storage"
 	"github.com/deckhouse/d8-lint/pkg/errors"
+	"github.com/deckhouse/d8-lint/pkg/linters/modules"
 )
 
 type checkResult struct {
@@ -91,10 +92,10 @@ func checkRuleFile(path string) error {
 	return err
 }
 
-func (o *Modules) createPromtoolError(m *module.Module, errMsg string) *errors.LintRuleError {
+func createPromtoolError(m *module.Module, errMsg string) *errors.LintRuleError {
 	return errors.NewLintRuleError(
-		o.Name(),
-		moduleLabel(m.GetName()),
+		modules.ID,
+		modules.ModuleLabel(m.GetName()),
 		m.GetPath(),
 		nil,
 		"Promtool check failed for Helm chart:\n%s",
@@ -102,7 +103,7 @@ func (o *Modules) createPromtoolError(m *module.Module, errMsg string) *errors.L
 	)
 }
 
-func (o *Modules) promtoolRuleCheck(m *module.Module, object storage.StoreObject) *errors.LintRuleError {
+func PromtoolRuleCheck(m *module.Module, object storage.StoreObject) *errors.LintRuleError {
 	if object.Unstructured.GetKind() != "PrometheusRule" {
 		return errors.EmptyRuleError
 	}
@@ -110,7 +111,7 @@ func (o *Modules) promtoolRuleCheck(m *module.Module, object storage.StoreObject
 	res, ok := rulesCache.Get(object.Hash)
 	if ok {
 		if !res.success {
-			return o.createPromtoolError(m, res.errMsg)
+			return createPromtoolError(m, res.errMsg)
 		}
 		return errors.EmptyRuleError
 	}
@@ -118,7 +119,7 @@ func (o *Modules) promtoolRuleCheck(m *module.Module, object storage.StoreObject
 	marshal, err := marshalChartYaml(object)
 	if err != nil {
 		return errors.NewLintRuleError(
-			o.Name(),
+			modules.ID,
 			m.GetName(),
 			m.GetPath(),
 			nil,
@@ -131,7 +132,7 @@ func (o *Modules) promtoolRuleCheck(m *module.Module, object storage.StoreObject
 
 	if err != nil {
 		return errors.NewLintRuleError(
-			o.Name(),
+			modules.ID,
 			m.GetName(),
 			m.GetPath(),
 			nil,
@@ -147,7 +148,7 @@ func (o *Modules) promtoolRuleCheck(m *module.Module, object storage.StoreObject
 			success: false,
 			errMsg:  errorMessage,
 		})
-		return o.createPromtoolError(m, errorMessage)
+		return createPromtoolError(m, errorMessage)
 	}
 
 	rulesCache.Put(object.Hash, checkResult{success: true})

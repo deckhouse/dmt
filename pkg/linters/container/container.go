@@ -6,6 +6,10 @@ import (
 	"github.com/deckhouse/d8-lint/pkg/errors"
 )
 
+const (
+	ID = "container"
+)
+
 // Container linter
 type Container struct {
 	name, desc string
@@ -26,7 +30,7 @@ func (o *Container) Run(m *module.Module) (result errors.LintRuleErrorsList, err
 	}
 
 	for _, object := range m.GetStorage() {
-		result.Merge(o.applyContainerRules(object))
+		result.Merge(applyContainerRules(object))
 	}
 
 	return result, nil

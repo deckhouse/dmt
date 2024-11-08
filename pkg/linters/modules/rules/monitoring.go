@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package modules
+package rules
 
 import (
 	"fmt"
@@ -23,9 +23,10 @@ import (
 	"strings"
 
 	"github.com/deckhouse/d8-lint/pkg/errors"
+	"github.com/deckhouse/d8-lint/pkg/linters/modules"
 )
 
-func (o *Modules) dirExists(moduleName, modulePath string, path ...string) (bool, *errors.LintRuleError) {
+func dirExists(moduleName, modulePath string, path ...string) (bool, *errors.LintRuleError) {
 	searchPath := filepath.Join(append([]string{modulePath}, path...)...)
 	info, err := os.Stat(searchPath)
 	if err != nil {
@@ -33,9 +34,9 @@ func (o *Modules) dirExists(moduleName, modulePath string, path ...string) (bool
 			return false, errors.EmptyRuleError
 		}
 		return false, errors.NewLintRuleError(
-			o.Name(),
+			modules.ID,
 			moduleName,
-			moduleLabel(moduleName),
+			modules.ModuleLabel(moduleName),
 			path,
 			"%v", err.Error(),
 		)
@@ -43,7 +44,7 @@ func (o *Modules) dirExists(moduleName, modulePath string, path ...string) (bool
 	return info.IsDir(), errors.EmptyRuleError
 }
 
-func (o *Modules) monitoringModuleRule(moduleName, modulePath, moduleNamespace string) *errors.LintRuleError {
+func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string) *errors.LintRuleError {
 	switch moduleName {
 	// These modules deploy common rules and dashboards to the cluster according to their configurations.
 	// That's why they have custom monitoring templates.
@@ -51,7 +52,7 @@ func (o *Modules) monitoringModuleRule(moduleName, modulePath, moduleNamespace s
 		return errors.EmptyRuleError
 	}
 
-	folderEx, lerr := o.dirExists(moduleName, modulePath, "monitoring")
+	folderEx, lerr := dirExists(moduleName, modulePath, "monitoring")
 	if !lerr.IsEmpty() {
 		return lerr
 	}
@@ -60,12 +61,12 @@ func (o *Modules) monitoringModuleRule(moduleName, modulePath, moduleNamespace s
 		return errors.EmptyRuleError
 	}
 
-	rulesEx, lerr := o.dirExists(moduleName, modulePath, "monitoring", "prometheus-rules")
+	rulesEx, lerr := dirExists(moduleName, modulePath, "monitoring", "prometheus-rules")
 	if !lerr.IsEmpty() {
 		return lerr
 	}
 
-	dashboardsEx, lerr := o.dirExists(moduleName, modulePath, "monitoring", "grafana-dashboards")
+	dashboardsEx, lerr := dirExists(moduleName, modulePath, "monitoring", "grafana-dashboards")
 	if !lerr.IsEmpty() {
 		return lerr
 	}
@@ -74,9 +75,9 @@ func (o *Modules) monitoringModuleRule(moduleName, modulePath, moduleNamespace s
 	info, _ := os.Stat(searchingFilePath)
 	if info == nil {
 		return errors.NewLintRuleError(
-			o.Name(),
+			modules.ID,
 			moduleName,
-			moduleLabel(moduleName),
+			modules.ModuleLabel(moduleName),
 			searchingFilePath,
 			"Module with the 'monitoring' folder should have the 'templates/monitoring.yaml' file",
 		)
@@ -85,9 +86,9 @@ func (o *Modules) monitoringModuleRule(moduleName, modulePath, moduleNamespace s
 	content, err := os.ReadFile(searchingFilePath)
 	if err != nil {
 		return errors.NewLintRuleError(
-			o.Name(),
+			modules.ID,
 			moduleName,
-			moduleLabel(moduleName),
+			modules.ModuleLabel(moduleName),
 			searchingFilePath,
 			"%v",
 			err.Error(),
@@ -118,9 +119,9 @@ func (o *Modules) monitoringModuleRule(moduleName, modulePath, moduleNamespace s
 
 	if !res {
 		return errors.NewLintRuleError(
-			o.Name(),
+			modules.ID,
 			searchingFilePath,
-			moduleLabel(moduleName),
+			modules.ModuleLabel(moduleName),
 			"The content of the 'templates/monitoring.yaml' should be equal to:\n%s\nGot:\n%s",
 			fmt.Sprintf(desiredContentBuilder.String(), "YOUR NAMESPACE TO DEPLOY RULES: d8-monitoring, d8-system or module namespaces"),
 			string(content),
