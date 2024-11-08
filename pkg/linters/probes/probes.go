@@ -30,7 +30,7 @@ func New(cfg *config.ProbesSettings) *Probes {
 	}
 }
 
-func (o *Probes) Run(m *module.Module) (result errors.LintRuleErrorsList, err error) {
+func (*Probes) Run(m *module.Module) (result errors.LintRuleErrorsList, err error) {
 	var ch = make(chan errors.LintRuleErrorsList)
 	go func() {
 		var g = pool.New().WithErrors()

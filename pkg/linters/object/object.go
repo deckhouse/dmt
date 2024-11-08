@@ -24,7 +24,7 @@ func New(cfg *config.ObjectSettings) *Object {
 	}
 }
 
-func (o *Object) Run(m *module.Module) (result errors.LintRuleErrorsList, err error) {
+func (*Object) Run(m *module.Module) (result errors.LintRuleErrorsList, err error) {
 	if m == nil {
 		return result, err
 	}

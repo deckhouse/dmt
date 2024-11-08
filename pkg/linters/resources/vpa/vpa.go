@@ -161,42 +161,36 @@ func parseVPAResourcePolicyContainers(md *module.Module, vpaObject storage.Store
 			result.Add(errors.NewLintRuleError(
 				ID, vpaObject.Identity(), md.GetName(), false, "No VPA specs minAllowed.cpu is found for container %s", cp.ContainerName,
 			))
-			//return updateMode, containers, false, result
 		}
 
 		if cp.MinAllowed.Memory().IsZero() {
 			result.Add(errors.NewLintRuleError(
 				ID, vpaObject.Identity(), md.GetName(), false, "No VPA specs minAllowed.memory is found for container %s", cp.ContainerName,
 			))
-			//return updateMode, containers, false, result
 		}
 
 		if cp.MaxAllowed.Cpu().IsZero() {
 			result.Add(errors.NewLintRuleError(
 				ID, vpaObject.Identity(), md.GetName(), false, "No VPA specs maxAllowed.cpu is found for container %s", cp.ContainerName,
 			))
-			//return updateMode, containers, false, result
 		}
 
 		if cp.MaxAllowed.Memory().IsZero() {
 			result.Add(errors.NewLintRuleError(
 				ID, vpaObject.Identity(), md.GetName(), false, "No VPA specs maxAllowed.memory is found for container %s", cp.ContainerName,
 			))
-			//return updateMode, containers, false, result
 		}
 
 		if cp.MinAllowed.Cpu().Cmp(*cp.MaxAllowed.Cpu()) > 0 {
 			result.Add(errors.NewLintRuleError(
 				ID, vpaObject.Identity(), md.GetName(), false, "MinAllowed.cpu for container %s should be less than maxAllowed.cpu", cp.ContainerName,
 			))
-			//return updateMode, containers, false, result
 		}
 
 		if cp.MinAllowed.Memory().Cmp(*cp.MaxAllowed.Memory()) > 0 {
 			result.Add(errors.NewLintRuleError(
 				ID, vpaObject.Identity(), md.GetName(), false, "MinAllowed.memory for container %s should be less than maxAllowed.memory", cp.ContainerName,
 			))
-			//return updateMode, containers, false, result
 		}
 
 		containers.Add(cp.ContainerName)

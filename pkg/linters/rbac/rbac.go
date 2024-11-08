@@ -22,7 +22,7 @@ func New(cfg *config.RbacSettings) *Rbac {
 	}
 }
 
-func (o *Rbac) Run(m *module.Module) (result errors.LintRuleErrorsList, err error) {
+func (*Rbac) Run(m *module.Module) (result errors.LintRuleErrorsList, err error) {
 	if m == nil {
 		return result, err
 	}

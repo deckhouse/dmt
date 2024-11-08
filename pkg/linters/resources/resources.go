@@ -7,7 +7,7 @@ import (
 	"github.com/deckhouse/d8-lint/pkg/config"
 	"github.com/deckhouse/d8-lint/pkg/errors"
 	"github.com/deckhouse/d8-lint/pkg/linters/resources/pdb"
-	"github.com/deckhouse/d8-lint/pkg/linters/resources/rbac-proxy"
+	rbacproxy "github.com/deckhouse/d8-lint/pkg/linters/resources/rbac-proxy"
 	"github.com/deckhouse/d8-lint/pkg/linters/resources/vpa"
 )
 
@@ -24,7 +24,7 @@ func New(cfg *config.ResourcesSettings) *Resources {
 	}
 }
 
-func (o *Resources) Run(m *module.Module) (result errors.LintRuleErrorsList, err error) {
+func (*Resources) Run(m *module.Module) (result errors.LintRuleErrorsList, err error) {
 	var ch = make(chan errors.LintRuleErrorsList)
 	go func() {
 		var g = pool.New().WithErrors()
@@ -56,7 +56,7 @@ func applyLintRules(md *module.Module) (result errors.LintRuleErrorsList) {
 	result.Merge(vpa.ControllerMustHaveVPA(md))
 	result.Merge(pdb.ControllerMustHavePDB(md))
 	result.Merge(pdb.DaemonSetMustNotHavePDB(md))
-	result.Merge(rbac_proxy.NamespaceMustContainKubeRBACProxyCA(md.GetObjectStore()))
+	result.Merge(rbacproxy.NamespaceMustContainKubeRBACProxyCA(md.GetObjectStore()))
 
 	return result
 }

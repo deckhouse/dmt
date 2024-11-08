@@ -23,7 +23,7 @@ func New(cfg *config.ModulesSettings) *Modules {
 	}
 }
 
-func (o *Modules) Run(m *module.Module) (result errors.LintRuleErrorsList, err error) {
+func (*Modules) Run(m *module.Module) (result errors.LintRuleErrorsList, err error) {
 	if m == nil {
 		return result, err
 	}
