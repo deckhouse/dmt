@@ -27,7 +27,6 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/deckhouse/d8-lint/pkg/errors"
-	"github.com/deckhouse/d8-lint/pkg/linters/modules"
 )
 
 const ossFilename = "oss.yaml"
@@ -38,9 +37,9 @@ func OssModuleRule(name, moduleRoot string) errors.LintRuleErrorsList {
 	if errs := verifyOssFile(name, moduleRoot); len(errs) > 0 {
 		for _, err := range errs {
 			ruleErr := errors.NewLintRuleError(
-				modules.ID,
+				ID,
 				name,
-				modules.ModuleLabel(name),
+				ModuleLabel(name),
 				nil,
 				"%v",
 				ossFileErrorMessage(err),
@@ -153,7 +152,7 @@ func parseProjectList(b []byte) ([]ossProject, error) {
 
 // TODO When lintignore files will be implemented in modules, detect "oss.yaml" line in it
 func shouldIgnoreOssInfo(moduleName string) bool {
-	return slices.Contains(modules.Cfg.SkipOssChecks, moduleName)
+	return slices.Contains(Cfg.SkipOssChecks, moduleName)
 }
 
 type ossProject struct {

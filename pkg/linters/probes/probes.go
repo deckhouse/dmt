@@ -19,10 +19,10 @@ type Probes struct {
 	cfg        *config.ProbesSettings
 }
 
-var cfg *config.ProbesSettings
+var Cfg *config.ProbesSettings
 
 func New(cfg *config.ProbesSettings) *Probes {
-	cfg = cfg
+	Cfg = cfg
 	return &Probes{
 		name: "probes",
 		desc: "Probes will check all containers for correct liveness and readiness probes",
@@ -125,7 +125,7 @@ func probeHandlerIsNotValid(probe v1.ProbeHandler) bool {
 }
 
 func skipCheckProbeHandler(namespace, container string) bool {
-	containers, ok := cfg.ProbesExcludes[namespace]
+	containers, ok := Cfg.ProbesExcludes[namespace]
 	if ok {
 		return slices.Contains(containers, container)
 	}

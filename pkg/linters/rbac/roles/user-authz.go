@@ -24,7 +24,6 @@ import (
 	"github.com/deckhouse/d8-lint/internal/module"
 	"github.com/deckhouse/d8-lint/internal/storage"
 	"github.com/deckhouse/d8-lint/pkg/errors"
-	"github.com/deckhouse/d8-lint/pkg/linters/rbac"
 )
 
 /*
@@ -38,7 +37,7 @@ func ObjectUserAuthzClusterRolePath(m *module.Module, object storage.StoreObject
 	if shortPath == UserAuthzClusterRolePath {
 		if objectKind != "ClusterRole" {
 			return errors.NewLintRuleError(
-				rbac.ID,
+				ID,
 				object.Identity(),
 				m.GetName(),
 				nil,
@@ -50,7 +49,7 @@ func ObjectUserAuthzClusterRolePath(m *module.Module, object storage.StoreObject
 		accessLevel, ok := object.Unstructured.GetAnnotations()["user-authz.deckhouse.io/access-level"]
 		if !ok {
 			return errors.NewLintRuleError(
-				rbac.ID,
+				ID,
 				object.Identity(),
 				m.GetName(),
 				nil,
@@ -61,7 +60,7 @@ func ObjectUserAuthzClusterRolePath(m *module.Module, object storage.StoreObject
 		expectedName := fmt.Sprintf("d8:user-authz:%s:%s", m.GetName(), strcase.ToKebab(accessLevel))
 		if objectName != expectedName {
 			return errors.NewLintRuleError(
-				rbac.ID,
+				ID,
 				object.Identity(),
 				m.GetName(),
 				nil,

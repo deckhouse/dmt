@@ -7,14 +7,6 @@ import (
 	"github.com/deckhouse/d8-lint/pkg/linters/rbac/roles"
 )
 
-const (
-	ID = "rbac"
-)
-
-var (
-	Cfg *config.RbacSettings
-)
-
 // Rbac linter
 type Rbac struct {
 	name, desc string
@@ -22,7 +14,7 @@ type Rbac struct {
 }
 
 func New(cfg *config.RbacSettings) *Rbac {
-	Cfg = cfg
+	roles.Cfg = cfg
 	return &Rbac{
 		name: "rbac",
 		desc: "Lint rbac objects",

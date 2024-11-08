@@ -27,7 +27,6 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 
 	"github.com/deckhouse/d8-lint/pkg/errors"
-	"github.com/deckhouse/d8-lint/pkg/linters/modules"
 )
 
 var (
@@ -63,10 +62,10 @@ func CrdsModuleRule(name, path string) errors.LintRuleErrorsList {
 			err = yaml.Unmarshal([]byte(d), &crd)
 			if err != nil {
 				lintRuleErrorsList.Add(errors.NewLintRuleError(
-					modules.ID,
+					ID,
 					"module = "+name,
 					err.Error(),
-					"Can't parse manifests in %s folder", modules.CrdsDir,
+					"Can't parse manifests in %s folder", CrdsDir,
 				))
 			}
 
@@ -76,7 +75,7 @@ func CrdsModuleRule(name, path string) errors.LintRuleErrorsList {
 
 			if crd.APIVersion != "apiextensions.k8s.io/v1" {
 				lintRuleErrorsList.Add(errors.NewLintRuleError(
-					modules.ID,
+					ID,
 					d,
 					fmt.Sprintf("kind = %s ; name = %s ; module = %s ; file = %s", crd.Kind, crd.Name, name, path),
 					crd.APIVersion,

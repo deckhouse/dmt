@@ -23,7 +23,6 @@ import (
 	"strings"
 
 	"github.com/deckhouse/d8-lint/pkg/errors"
-	"github.com/deckhouse/d8-lint/pkg/linters/modules"
 )
 
 func dirExists(moduleName, modulePath string, path ...string) (bool, *errors.LintRuleError) {
@@ -34,9 +33,9 @@ func dirExists(moduleName, modulePath string, path ...string) (bool, *errors.Lin
 			return false, errors.EmptyRuleError
 		}
 		return false, errors.NewLintRuleError(
-			modules.ID,
+			ID,
 			moduleName,
-			modules.ModuleLabel(moduleName),
+			ModuleLabel(moduleName),
 			path,
 			"%v", err.Error(),
 		)
@@ -75,9 +74,9 @@ func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string) *error
 	info, _ := os.Stat(searchingFilePath)
 	if info == nil {
 		return errors.NewLintRuleError(
-			modules.ID,
+			ID,
 			moduleName,
-			modules.ModuleLabel(moduleName),
+			ModuleLabel(moduleName),
 			searchingFilePath,
 			"Module with the 'monitoring' folder should have the 'templates/monitoring.yaml' file",
 		)
@@ -86,9 +85,9 @@ func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string) *error
 	content, err := os.ReadFile(searchingFilePath)
 	if err != nil {
 		return errors.NewLintRuleError(
-			modules.ID,
+			ID,
 			moduleName,
-			modules.ModuleLabel(moduleName),
+			ModuleLabel(moduleName),
 			searchingFilePath,
 			"%v",
 			err.Error(),
@@ -119,9 +118,9 @@ func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string) *error
 
 	if !res {
 		return errors.NewLintRuleError(
-			modules.ID,
+			ID,
 			searchingFilePath,
-			modules.ModuleLabel(moduleName),
+			ModuleLabel(moduleName),
 			"The content of the 'templates/monitoring.yaml' should be equal to:\n%s\nGot:\n%s",
 			fmt.Sprintf(desiredContentBuilder.String(), "YOUR NAMESPACE TO DEPLOY RULES: d8-monitoring, d8-system or module namespaces"),
 			string(content),

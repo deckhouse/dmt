@@ -25,7 +25,6 @@ import (
 
 	"github.com/deckhouse/d8-lint/internal/storage"
 	"github.com/deckhouse/d8-lint/pkg/errors"
-	"github.com/deckhouse/d8-lint/pkg/linters/rbac"
 )
 
 // ObjectRolesWildcard is a linter for checking the presence
@@ -48,7 +47,7 @@ func ObjectRolesWildcard(object storage.StoreObject) *errors.LintRuleError {
 
 func checkRoles(object storage.StoreObject) *errors.LintRuleError {
 	// check rbac-proxy for skip
-	for path, rules := range rbac.Cfg.SkipCheckWildcards {
+	for path, rules := range Cfg.SkipCheckWildcards {
 		if strings.EqualFold(object.Path, path) {
 			if slices.Contains(rules, object.Unstructured.GetName()) {
 				return errors.EmptyRuleError
@@ -77,7 +76,7 @@ func checkRoles(object storage.StoreObject) *errors.LintRuleError {
 		}
 		if len(objs) > 0 {
 			return errors.NewLintRuleError(
-				rbac.ID,
+				ID,
 				object.Identity(),
 				object.Path,
 				nil,

@@ -1,4 +1,4 @@
-package modules
+package rules
 
 import (
 	"fmt"
@@ -9,8 +9,8 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/deckhouse/d8-lint/internal/module"
+	"github.com/deckhouse/d8-lint/pkg/config"
 	"github.com/deckhouse/d8-lint/pkg/errors"
-	"github.com/deckhouse/d8-lint/pkg/linters/modules/rules"
 )
 
 const (
@@ -23,11 +23,13 @@ const (
 	ImagesDir  = "images"
 )
 
-var toHelmignore = []string{HooksDir, openapiDir, CrdsDir, ImagesDir, "enabled"}
+const (
+	ID = "modules"
+)
 
-func ModuleLabel(n string) string {
-	return fmt.Sprintf("module = %s", n)
-}
+var Cfg *config.ModulesSettings
+
+var toHelmignore = []string{HooksDir, openapiDir, CrdsDir, ImagesDir, "enabled"}
 
 func namespaceModuleRule(name, path string) (string, *errors.LintRuleError) {
 	content, err := os.ReadFile(filepath.Join(path, ".namespace"))
@@ -128,12 +130,12 @@ func IsExistsOnFilesystem(parts ...string) bool {
 	return err == nil
 }
 
-func applyModuleRules(m *module.Module) (result errors.LintRuleErrorsList) {
+func ApplyModuleRules(m *module.Module) (result errors.LintRuleErrorsList) {
 	moduleName := filepath.Base(m.GetPath())
 
 	result.Add(helmignoreModuleRule(moduleName, m.GetPath()))
-	result.Add(rules.CommonTestGoForHooks(moduleName, m.GetPath()))
-	result.Merge(rules.CheckImageNamesInDockerAndWerfFiles(moduleName, m.GetPath()))
+	result.Add(CommonTestGoForHooks(moduleName, m.GetPath()))
+	result.Merge(CheckImageNamesInDockerAndWerfFiles(moduleName, m.GetPath()))
 
 	name, lintError := chartModuleRule(moduleName, m.GetPath())
 	result.Add(lintError)
@@ -148,15 +150,19 @@ func applyModuleRules(m *module.Module) (result errors.LintRuleErrorsList) {
 	}
 
 	if IsExistsOnFilesystem(m.GetPath(), CrdsDir) {
-		result.Merge(rules.CrdsModuleRule(moduleName, filepath.Join(m.GetPath(), CrdsDir)))
+		result.Merge(CrdsModuleRule(moduleName, filepath.Join(m.GetPath(), CrdsDir)))
 	}
 
-	result.Merge(rules.OssModuleRule(moduleName, m.GetPath()))
-	result.Add(rules.MonitoringModuleRule(moduleName, m.GetPath(), namespace))
+	result.Merge(OssModuleRule(moduleName, m.GetPath()))
+	result.Add(MonitoringModuleRule(moduleName, m.GetPath(), namespace))
 
 	for _, object := range m.GetStorage() {
-		result.Add(rules.PromtoolRuleCheck(m, object))
+		result.Add(PromtoolRuleCheck(m, object))
 	}
 
 	return result
+}
+
+func ModuleLabel(n string) string {
+	return fmt.Sprintf("module = %s", n)
 }

@@ -23,7 +23,6 @@ import (
 	"github.com/deckhouse/d8-lint/internal/module"
 	"github.com/deckhouse/d8-lint/internal/storage"
 	"github.com/deckhouse/d8-lint/pkg/errors"
-	"github.com/deckhouse/d8-lint/pkg/linters/rbac"
 )
 
 //nolint:gocyclo // because
@@ -81,7 +80,7 @@ func ObjectBindingSubjectServiceAccountCheck(m *module.Module, object storage.St
 			Name: subject.Name, Kind: subject.Kind, Namespace: subject.Namespace,
 		}) {
 			return errors.NewLintRuleError(
-				rbac.ID,
+				ID,
 				object.Identity(),
 				subject.Name,
 				nil,

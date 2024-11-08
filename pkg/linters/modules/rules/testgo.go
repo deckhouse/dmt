@@ -23,7 +23,6 @@ import (
 	"strings"
 
 	"github.com/deckhouse/d8-lint/pkg/errors"
-	"github.com/deckhouse/d8-lint/pkg/linters/modules"
 )
 
 const (
@@ -38,20 +37,20 @@ func Test(t *testing.T) {
 )
 
 func CommonTestGoForHooks(name, path string) *errors.LintRuleError {
-	if !modules.IsExistsOnFilesystem(path, modules.HooksDir) {
+	if !IsExistsOnFilesystem(path, HooksDir) {
 		return errors.EmptyRuleError
 	}
 
-	if matches, _ := filepath.Glob(filepath.Join(path, modules.HooksDir, "*.go")); len(matches) == 0 {
+	if matches, _ := filepath.Glob(filepath.Join(path, HooksDir, "*.go")); len(matches) == 0 {
 		return errors.EmptyRuleError
 	}
 
-	commonTestPath := filepath.Join(path, modules.HooksDir, "common_test.go")
-	if !modules.IsExistsOnFilesystem(commonTestPath) {
+	commonTestPath := filepath.Join(path, HooksDir, "common_test.go")
+	if !IsExistsOnFilesystem(commonTestPath) {
 		return errors.NewLintRuleError(
-			modules.ID,
+			ID,
 			name,
-			modules.ModuleLabel(name),
+			ModuleLabel(name),
 			nil,
 			"Module does not contain %q file", commonTestPath,
 		)
@@ -60,9 +59,9 @@ func CommonTestGoForHooks(name, path string) *errors.LintRuleError {
 	contentBytes, err := os.ReadFile(commonTestPath)
 	if err != nil {
 		return errors.NewLintRuleError(
-			modules.ID,
+			ID,
 			name,
-			modules.ModuleLabel(name),
+			ModuleLabel(name),
 			nil,
 			"Module does not contain %q file", commonTestPath,
 		)
@@ -91,9 +90,9 @@ func CommonTestGoForHooks(name, path string) *errors.LintRuleError {
 		errstr := strings.Join(errs, "\n")
 
 		return errors.NewLintRuleError(
-			modules.ID,
+			ID,
 			name,
-			modules.ModuleLabel(name),
+			ModuleLabel(name),
 			nil,
 			"%v",
 			errstr,
