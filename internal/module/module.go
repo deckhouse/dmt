@@ -73,6 +73,9 @@ func (m *Module) GetStorage() map[storage.ResourceIndex]storage.StoreObject {
 
 func NewModule(path string) (*Module, error) {
 	ch, err := loader.Load(path)
+	if err != nil {
+		return nil, err
+	}
 
 	module := &Module{
 		name:      getModuleName(path),
