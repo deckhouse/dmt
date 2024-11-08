@@ -50,7 +50,6 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 		no_cyrillic.New(&cfg.LintersSettings.NoCyrillic),
 		copyright.New(&cfg.LintersSettings.Copyright),
 		probes.New(&cfg.LintersSettings.Probes),
-		//matrix.New(&cfg.LintersSettings.Matrix),
 		container.New(&cfg.LintersSettings.Container),
 		object.New(&cfg.LintersSettings.Object),
 		modules.New(&cfg.LintersSettings.Modules),
@@ -103,11 +102,6 @@ func (m *Manager) Run() errors.LintRuleErrorsList {
 
 	var ch = make(chan errors.LintRuleErrorsList)
 	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				logger.ErrorF("Recovered from panic: %v", r)
-			}
-		}()
 		var g = pool.New().WithMaxGoroutines(flags.LintersLimit)
 		for i := range m.Modules {
 			logger.InfoF("Run linters for `%s` module", m.Modules[i].GetName())

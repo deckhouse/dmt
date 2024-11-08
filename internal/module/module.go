@@ -32,18 +32,31 @@ func (m *Module) String() string {
 }
 
 func (m *Module) GetName() string {
+	if m == nil {
+		return ""
+	}
+
 	return m.name
 }
 
 func (m *Module) GetNamespace() string {
+	if m == nil {
+		return ""
+	}
 	return m.namespace
 }
 
 func (m *Module) GetPath() string {
+	if m == nil {
+		return ""
+	}
 	return m.path
 }
 
 func (m *Module) GetChart() *chart.Chart {
+	if m == nil {
+		return nil
+	}
 	return m.chart
 }
 
@@ -72,17 +85,18 @@ func (m *Module) GetStorage() map[storage.ResourceIndex]storage.StoreObject {
 }
 
 func NewModule(path string) (*Module, error) {
-	ch, err := loader.Load(path)
-	if err != nil {
-		return nil, err
-	}
-
 	module := &Module{
 		name:      getModuleName(path),
 		namespace: getNamespace(path),
 		path:      path,
-		chart:     ch,
 	}
+
+	ch, err := loader.Load(path)
+	if err != nil {
+		return module, err
+	}
+
+	module.chart = ch
 
 	values, err := ComposeValuesFromSchemas(module)
 	if err != nil {
