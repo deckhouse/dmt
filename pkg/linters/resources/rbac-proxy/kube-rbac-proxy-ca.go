@@ -14,29 +14,33 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package resources
+package rbac_proxy
 
 import (
 	"fmt"
 
 	"github.com/deckhouse/d8-lint/internal/set"
+	"github.com/deckhouse/d8-lint/internal/storage"
 	"github.com/deckhouse/d8-lint/pkg/errors"
-	"github.com/deckhouse/d8-lint/pkg/linters/matrix/rules"
 )
 
-func NamespaceMustContainKubeRBACProxyCA(linter *rules.ObjectLinter) {
+const (
+	ID = "kube-rbac-proxy-ca"
+)
+
+func NamespaceMustContainKubeRBACProxyCA(objectStore *storage.UnstructuredObjectStore) (result errors.LintRuleErrorsList) {
 	proxyInNamespaces := set.New()
 
-	for index := range linter.ObjectStore.Storage {
+	for index := range objectStore.Storage {
 		if index.Kind == "ConfigMap" && index.Name == "kube-rbac-proxy-ca.crt" {
 			proxyInNamespaces.Add(index.Namespace)
 		}
 	}
 
-	for index := range linter.ObjectStore.Storage {
+	for index := range objectStore.Storage {
 		if index.Kind == "Namespace" && !proxyInNamespaces.Has(index.Name) {
-			linter.ErrorsList.Add(errors.NewLintRuleError(
-				"MODULE004",
+			result.Add(errors.NewLintRuleError(
+				ID,
 				fmt.Sprintf("namespace = %s", index.Name),
 				index.Name,
 				proxyInNamespaces.Slice(),
@@ -45,4 +49,6 @@ func NamespaceMustContainKubeRBACProxyCA(linter *rules.ObjectLinter) {
 			))
 		}
 	}
+
+	return result
 }

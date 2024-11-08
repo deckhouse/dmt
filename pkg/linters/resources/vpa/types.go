@@ -1,4 +1,4 @@
-package utils
+package vpa
 
 import (
 	autoscaling "k8s.io/api/autoscaling/v1"
@@ -77,7 +77,7 @@ type VerticalPodAutoscalerSpec struct {
 	// the target resource.
 	TargetRef *autoscaling.CrossVersionObjectReference `json:"targetRef" protobuf:"bytes,1,name=targetRef"`
 
-	// Describes the rules on how changes are applied to the pods.
+	// Describes the rbac-proxy on how changes are applied to the pods.
 	// If not specified, all fields in the `PodUpdatePolicy` are set to their
 	// default values.
 	// +optional
@@ -91,7 +91,7 @@ type VerticalPodAutoscalerSpec struct {
 	ResourcePolicy *PodResourcePolicy `json:"resourcePolicy,omitempty" protobuf:"bytes,3,opt,name=resourcePolicy"`
 }
 
-// PodUpdatePolicy describes the rules on how changes are applied to the pods.
+// PodUpdatePolicy describes the rbac-proxy on how changes are applied to the pods.
 type PodUpdatePolicy struct {
 	// Controls when autoscaler applies changes to the pod resources.
 	// The default is 'Auto'.

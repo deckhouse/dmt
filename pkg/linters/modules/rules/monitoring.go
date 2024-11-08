@@ -46,7 +46,7 @@ func dirExists(moduleName, modulePath string, path ...string) (bool, *errors.Lin
 
 func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string) *errors.LintRuleError {
 	switch moduleName {
-	// These modules deploy common rules and dashboards to the cluster according to their configurations.
+	// These modules deploy common rbac-proxy and dashboards to the cluster according to their configurations.
 	// That's why they have custom monitoring templates.
 	case "340-extended-monitoring", "030-cloud-provider-yandex":
 		return errors.EmptyRuleError

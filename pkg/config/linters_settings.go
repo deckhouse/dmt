@@ -5,11 +5,11 @@ type LintersSettings struct {
 	NoCyrillic NoCyrillicSettings `mapstructure:"nocyrillic"`
 	Copyright  CopyrightSettings  `mapstructure:"copyright"`
 	Probes     ProbesSettings     `mapstructure:"probes"`
-	//Matrix     MatrixSettings     `mapstructure:"matrix"`
-	Container ContainerSettings `mapstructure:"container"`
-	Object    ObjectSettings    `mapstructure:"object"`
-	Modules   ModulesSettings   `mapstructure:"modules"`
-	Rbac      RbacSettings      `mapstructure:"rbac"`
+	Container  ContainerSettings  `mapstructure:"container"`
+	Object     ObjectSettings     `mapstructure:"object"`
+	Modules    ModulesSettings    `mapstructure:"modules"`
+	Rbac       RbacSettings       `mapstructure:"rbac"`
+	Resources  ResourcesSettings  `mapstructure:"resources"`
 }
 
 type OpenAPISettings struct {
@@ -40,6 +40,8 @@ type MatrixSettings struct{}
 type ContainerSettings struct{}
 
 type ObjectSettings struct{}
+
+type ResourcesSettings struct{}
 
 type RbacSettings struct {
 	SkipCheckWildcards map[string][]string `mapstructure:"skip-check-wildcards"`

@@ -47,7 +47,7 @@ func ObjectRolesWildcard(object storage.StoreObject) *errors.LintRuleError {
 }
 
 func checkRoles(object storage.StoreObject) *errors.LintRuleError {
-	// check rules for skip
+	// check rbac-proxy for skip
 	for path, rules := range rbac.Cfg.SkipCheckWildcards {
 		if strings.EqualFold(object.Path, path) {
 			if slices.Contains(rules, object.Unstructured.GetName()) {
