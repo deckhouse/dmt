@@ -1,4 +1,4 @@
-package k8s
+package module
 
 import (
 	"encoding/json"
@@ -10,8 +10,7 @@ import (
 	"github.com/mohae/deepcopy"
 	"helm.sh/helm/v3/pkg/chartutil"
 
-	"github.com/deckhouse/d8-lint/pkg/module"
-	"github.com/deckhouse/d8-lint/pkg/valuesvalidation"
+	"github.com/deckhouse/d8-lint/internal/valuesvalidation"
 )
 
 const (
@@ -36,7 +35,7 @@ func applyDigests(digests map[string]any, values any) {
 	value.(map[string]any)["digests"] = digests
 }
 
-func helmFormatModuleImages(m *module.Module, rawValues map[string]any) (chartutil.Values, error) {
+func helmFormatModuleImages(m *Module, rawValues map[string]any) (chartutil.Values, error) {
 	caps := chartutil.DefaultCapabilities
 	vers := []string(caps.APIVersions)
 	vers = append(vers, "autoscaling.k8s.io/v1/VerticalPodAutoscaler")
@@ -103,7 +102,7 @@ func getModulesImagesDigestsFromLocalPath(modulePath string) (map[string]any, er
 	return digests, nil
 }
 
-func ComposeValuesFromSchemas(m *module.Module) (chartutil.Values, error) {
+func ComposeValuesFromSchemas(m *Module) (chartutil.Values, error) {
 	valueValidator, err := valuesvalidation.NewValuesValidator(m.GetName(), m.GetPath())
 	if err != nil {
 		return nil, fmt.Errorf("schemas load: %w", err)
@@ -115,7 +114,8 @@ func ComposeValuesFromSchemas(m *module.Module) (chartutil.Values, error) {
 
 	camelizedModuleName := ToLowerCamel(m.GetName())
 
-	if valueValidator.ModuleSchemaStorages[m.GetName()].Schemas == nil {
+	schema, ok := valueValidator.ModuleSchemaStorages[m.GetName()]
+	if !ok || schema.Schemas == nil {
 		return nil, nil
 	}
 

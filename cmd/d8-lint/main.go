@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/deckhouse/d8-lint/internal/flags"
+	"github.com/deckhouse/d8-lint/internal/logger"
+	"github.com/deckhouse/d8-lint/internal/manager"
 	"github.com/deckhouse/d8-lint/pkg/config"
-	"github.com/deckhouse/d8-lint/pkg/flags"
-	"github.com/deckhouse/d8-lint/pkg/logger"
-	"github.com/deckhouse/d8-lint/pkg/manager"
 )
 
 func main() {

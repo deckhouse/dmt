@@ -5,6 +5,11 @@ type LintersSettings struct {
 	NoCyrillic NoCyrillicSettings `mapstructure:"nocyrillic"`
 	Copyright  CopyrightSettings  `mapstructure:"copyright"`
 	Probes     ProbesSettings     `mapstructure:"probes"`
+	Container  ContainerSettings  `mapstructure:"container"`
+	Object     ObjectSettings     `mapstructure:"object"`
+	Modules    ModulesSettings    `mapstructure:"modules"`
+	Rbac       RbacSettings       `mapstructure:"rbac"`
+	Resources  ResourcesSettings  `mapstructure:"resources"`
 }
 
 type OpenAPISettings struct {
@@ -28,4 +33,22 @@ type CopyrightSettings struct {
 
 type ProbesSettings struct {
 	ProbesExcludes map[string][]string `mapstructure:"probes-excludes"`
+}
+
+type MatrixSettings struct{}
+
+type ContainerSettings struct{}
+
+type ObjectSettings struct{}
+
+type ResourcesSettings struct{}
+
+type RbacSettings struct {
+	SkipCheckWildcards map[string][]string `mapstructure:"skip-check-wildcards"`
+}
+
+type ModulesSettings struct {
+	SkipOssChecks            []string `mapstructure:"skip-oss-checks"`
+	SkipModuleImageName      []string `mapstructure:"skip-module-image-name"`
+	SkipDistrolessImageCheck []string `mapstructure:"skip-distroless-image-check"`
 }

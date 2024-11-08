@@ -1,9 +1,13 @@
 package openapi
 
 import (
+	"github.com/deckhouse/d8-lint/internal/module"
 	"github.com/deckhouse/d8-lint/pkg/config"
 	"github.com/deckhouse/d8-lint/pkg/errors"
-	"github.com/deckhouse/d8-lint/pkg/module"
+)
+
+const (
+	ID = "openapi"
 )
 
 // OpenAPI linter
@@ -42,7 +46,7 @@ func (o *OpenAPI) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 	for res := range resultC {
 		if res.validationError != nil {
 			result.Add(errors.NewLintRuleError(
-				"openapi",
+				ID,
 				res.filePath,
 				m.GetName(),
 				res.validationError,

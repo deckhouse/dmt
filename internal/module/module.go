@@ -9,6 +9,8 @@ import (
 	"gopkg.in/yaml.v3"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
+
+	"github.com/deckhouse/d8-lint/internal/storage"
 )
 
 const (
@@ -16,10 +18,11 @@ const (
 )
 
 type Module struct {
-	name      string
-	namespace string
-	path      string
-	chart     *chart.Chart
+	name        string
+	namespace   string
+	path        string
+	chart       *chart.Chart
+	objectStore *storage.UnstructuredObjectStore
 }
 
 type ModuleList []*Module
@@ -29,18 +32,31 @@ func (m *Module) String() string {
 }
 
 func (m *Module) GetName() string {
+	if m == nil {
+		return ""
+	}
+
 	return m.name
 }
 
 func (m *Module) GetNamespace() string {
+	if m == nil {
+		return ""
+	}
 	return m.namespace
 }
 
 func (m *Module) GetPath() string {
+	if m == nil {
+		return ""
+	}
 	return m.path
 }
 
 func (m *Module) GetChart() *chart.Chart {
+	if m == nil {
+		return nil
+	}
 	return m.chart
 }
 
@@ -54,15 +70,44 @@ func (m *Module) GetMetadata() *chart.Metadata {
 	return m.chart.Metadata
 }
 
-func NewModule(path string) (*Module, error) {
-	ch, err := loader.Load(path)
+func (m *Module) GetObjectStore() *storage.UnstructuredObjectStore {
+	if m == nil {
+		return nil
+	}
+	return m.objectStore
+}
 
+func (m *Module) GetStorage() map[storage.ResourceIndex]storage.StoreObject {
+	if m == nil || m.objectStore == nil {
+		return nil
+	}
+	return m.objectStore.Storage
+}
+
+func NewModule(path string) (*Module, error) {
 	module := &Module{
 		name:      getModuleName(path),
 		namespace: getNamespace(path),
 		path:      path,
-		chart:     ch,
 	}
+
+	ch, err := loader.Load(path)
+	if err != nil {
+		return module, err
+	}
+
+	module.chart = ch
+
+	values, err := ComposeValuesFromSchemas(module)
+	if err != nil {
+		return module, nil
+	}
+	objectStore := storage.NewUnstructuredObjectStore()
+	err = RunRender(module, values, objectStore)
+	if err != nil {
+		return module, nil
+	}
+	module.objectStore = objectStore
 
 	return module, err
 }

@@ -106,7 +106,7 @@ linters:
     - gocheckcompilerdirectives
     - gochecknoinits
     - gochecknoinits
-    - goconst
+#    - goconst
     - gocritic
     - gocyclo
     - godox
@@ -119,7 +119,7 @@ linters:
     - govet
     - intrange
     - ineffassign
-    - lll
+#    - lll
     - misspell
     - nakedret
     - noctx

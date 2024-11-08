@@ -29,6 +29,18 @@ linters-settings:
     no-cyrillic-file-excludes:
       - "user-authz:/rbac.yaml"
       - "documentation:/images/web/site/_data/topnav.yml"
+  matrix:
+    skip-oss-checks:
+      - 001-priority-class
+    skip-check-wildcards:
+      - "admission-policy-engine/templates/rbac-for-us.yaml":
+          - "d8:admission-policy-engine:gatekeeper"
+    skip-module-image-name:
+      - "021-cni-cilium/images/cilium/Dockerfile"
+      - "021-cni-cilium/images/virt-cilium/Dockerfile"
+    skip-distroless-image-check:
+      - "base-cilium-dev/werf.inc.yaml"
+      - "cilium-envoy/werf.inc.yaml"
 
 warnings-only:
   - openapi

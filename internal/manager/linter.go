@@ -1,8 +1,8 @@
 package manager
 
 import (
+	"github.com/deckhouse/d8-lint/internal/module"
 	"github.com/deckhouse/d8-lint/pkg/errors"
-	"github.com/deckhouse/d8-lint/pkg/module"
 )
 
 type Linter interface {

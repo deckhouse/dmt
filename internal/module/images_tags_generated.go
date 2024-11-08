@@ -1,4 +1,4 @@
-package k8s
+package module
 
 var DefaultImagesDigests = map[string]any{
 	"admissionPolicyEngine": map[string]any{

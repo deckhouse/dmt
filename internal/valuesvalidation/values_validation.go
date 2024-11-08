@@ -10,7 +10,7 @@ import (
 	"helm.sh/helm/v3/pkg/chartutil"
 	"sigs.k8s.io/yaml"
 
-	"github.com/deckhouse/d8-lint/pkg/logger"
+	"github.com/deckhouse/d8-lint/internal/logger"
 )
 
 type ValuesValidator struct {

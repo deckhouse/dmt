@@ -32,12 +32,12 @@ func NewLintRuleError(id, objectID, module string, value any, template string, a
 		ObjectID: objectID,
 		Value:    value,
 		Text:     fmt.Sprintf(template, a...),
-		ID:       id,
+		ID:       strings.ToLower(id),
 		Module:   module,
 	}
 }
 
-var EmptyRuleError = LintRuleError{Text: "", ID: "", ObjectID: ""}
+var EmptyRuleError = &LintRuleError{Text: "", ID: "", ObjectID: ""}
 
 type LintRuleErrorsList struct {
 	data []*LintRuleError
@@ -88,7 +88,16 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 		))
 
 		if err.Value != nil {
-			builder.WriteString(fmt.Sprintf("\tValue\t- %s\n", err.Value))
+			var value string
+			switch err.Value.(type) {
+			case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+				value = fmt.Sprintf("%d", err.Value)
+			case float32, float64:
+				value = fmt.Sprintf("%f", err.Value)
+			default:
+				value = fmt.Sprintf("%s", err.Value)
+			}
+			builder.WriteString(fmt.Sprintf("\tValue\t- %s\n", value))
 		}
 		builder.WriteString("\n")
 	}

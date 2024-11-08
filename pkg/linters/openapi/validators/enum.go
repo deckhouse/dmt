@@ -64,15 +64,15 @@ func (en EnumValidator) Run(moduleName, fileName, absoluteKey string, value any)
 		enum = append(enum, valStr)
 	}
 
-	err := en.validateEnumValues(absoluteKey, enum)
+	err := validateEnumValues(absoluteKey, enum)
 
 	return err
 }
 
-func (en EnumValidator) validateEnumValues(enumKey string, values []string) *multierror.Error {
+func validateEnumValues(enumKey string, values []string) *multierror.Error {
 	var res *multierror.Error
 	for _, value := range values {
-		err := en.validateEnumValue(value)
+		err := validateEnumValue(value)
 		if err != nil {
 			res = multierror.Append(res, fmt.Errorf("enum '%s' is invalid: %w", enumKey, err))
 		}
@@ -81,7 +81,7 @@ func (en EnumValidator) validateEnumValues(enumKey string, values []string) *mul
 	return res
 }
 
-func (EnumValidator) validateEnumValue(value string) error {
+func validateEnumValue(value string) error {
 	if value == "" {
 		return nil
 	}
