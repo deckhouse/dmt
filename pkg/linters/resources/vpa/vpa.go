@@ -35,11 +35,11 @@ const (
 )
 
 // ControllerMustHaveVPA fills linting error regarding VPA
-func ControllerMustHaveVPA(md *module.Module, objectStore *storage.UnstructuredObjectStore) (result errors.LintRuleErrorsList) {
-	vpaTargets, vpaTolerationGroups, vpaContainerNamesMap, vpaUpdateModes, errs := parseTargetsAndTolerationGroups(md, objectStore)
+func ControllerMustHaveVPA(md *module.Module) (result errors.LintRuleErrorsList) {
+	vpaTargets, vpaTolerationGroups, vpaContainerNamesMap, vpaUpdateModes, errs := parseTargetsAndTolerationGroups(md)
 	result.Merge(errs)
 
-	for index, object := range objectStore.Storage {
+	for index, object := range md.GetObjectStore().Storage {
 		// Skip non-pod controllers
 		if !IsPodController(object.Unstructured.GetKind()) {
 			continue
@@ -73,7 +73,7 @@ func IsPodController(kind string) bool {
 }
 
 // parseTargetsAndTolerationGroups resolves target resource indexes
-func parseTargetsAndTolerationGroups(md *module.Module, objectStore *storage.UnstructuredObjectStore) (
+func parseTargetsAndTolerationGroups(md *module.Module) (
 	vpaTargets map[storage.ResourceIndex]struct{}, vpaTolerationGroups map[storage.ResourceIndex]string,
 	vpaContainerNamesMap map[storage.ResourceIndex]set.Set,
 	vpaUpdateModes map[storage.ResourceIndex]UpdateMode,
@@ -84,7 +84,7 @@ func parseTargetsAndTolerationGroups(md *module.Module, objectStore *storage.Uns
 	vpaContainerNamesMap = make(map[storage.ResourceIndex]set.Set)
 	vpaUpdateModes = make(map[storage.ResourceIndex]UpdateMode)
 
-	for _, object := range objectStore.Storage {
+	for _, object := range md.GetObjectStore().Storage {
 		kind := object.Unstructured.GetKind()
 
 		if kind != "VerticalPodAutoscaler" {

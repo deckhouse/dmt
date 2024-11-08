@@ -4,7 +4,6 @@ import (
 	"github.com/sourcegraph/conc/pool"
 
 	"github.com/deckhouse/d8-lint/internal/module"
-	"github.com/deckhouse/d8-lint/internal/storage"
 	"github.com/deckhouse/d8-lint/pkg/config"
 	"github.com/deckhouse/d8-lint/pkg/errors"
 	"github.com/deckhouse/d8-lint/pkg/linters/resources/pdb"
@@ -30,13 +29,7 @@ func (o *Resources) Run(m *module.Module) (result errors.LintRuleErrorsList, err
 	go func() {
 		var g = pool.New().WithErrors()
 		g.Go(func() error {
-			for _, object := range m.GetStorage() {
-				containers, er := object.GetContainers()
-				if er != nil || containers == nil {
-					continue
-				}
-				ch <- containerProbes(m.GetName(), object, containers)
-			}
+			ch <- applyLintRules(m)
 
 			return nil
 		})
@@ -59,12 +52,11 @@ func (o *Resources) Desc() string {
 	return o.desc
 }
 
-func applyLintRules(md *module.Module, objectStore *storage.UnstructuredObjectStore) (result *errors.LintRuleErrorsList) {
+func applyLintRules(md *module.Module) (result errors.LintRuleErrorsList) {
+	result.Merge(vpa.ControllerMustHaveVPA(md))
+	result.Merge(pdb.ControllerMustHavePDB(md))
+	result.Merge(pdb.DaemonSetMustNotHavePDB(md))
+	result.Merge(rbac_proxy.NamespaceMustContainKubeRBACProxyCA(md.GetObjectStore()))
 
-	result.Merge(vpa.ControllerMustHaveVPA(md, objectStore))
-	result.Merge(pdb.ControllerMustHavePDB(md, objectStore))
-	pdb.DaemonSetMustNotHavePDB(&linter)
-	rbac_proxy.NamespaceMustContainKubeRBACProxyCA(&linter)
-
-	return linter.ErrorsList
+	return result
 }

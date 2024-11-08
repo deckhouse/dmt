@@ -46,11 +46,11 @@ func (s *nsLabelSelector) Matches(namespace string, labelSet labels.Set) bool {
 
 // ControllerMustHavePDB adds linting errors if there are pods from controllers which are not covered (except DaemonSets)
 // by a PodDisruptionBudget
-func ControllerMustHavePDB(md *module.Module, objectStore *storage.UnstructuredObjectStore) (result errors.LintRuleErrorsList) {
-	pdbSelectors, lerr := collectPDBSelectors(md, objectStore)
+func ControllerMustHavePDB(md *module.Module) (result errors.LintRuleErrorsList) {
+	pdbSelectors, lerr := collectPDBSelectors(md)
 	result.Merge(lerr)
 
-	for _, object := range objectStore.Storage {
+	for _, object := range md.GetObjectStore().Storage {
 		if !vpa.IsPodController(object.Unstructured.GetKind()) {
 			continue
 		}
@@ -72,11 +72,11 @@ func isPodControllerDaemonSet(kind string) bool {
 
 // DaemonSetMustNotHavePDB adds linting errors if there are pods from DaemonSets which are covered
 // by a PodDisruptionBudget
-func DaemonSetMustNotHavePDB(md *module.Module, objectStore *storage.UnstructuredObjectStore) (result errors.LintRuleErrorsList) {
-	pdbSelectors, lerr := collectPDBSelectors(md, objectStore)
+func DaemonSetMustNotHavePDB(md *module.Module) (result errors.LintRuleErrorsList) {
+	pdbSelectors, lerr := collectPDBSelectors(md)
 	result.Merge(lerr)
 
-	for _, object := range objectStore.Storage {
+	for _, object := range md.GetObjectStore().Storage {
 		if !vpa.IsPodController(object.Unstructured.GetKind()) {
 			continue
 		}
@@ -93,8 +93,8 @@ func DaemonSetMustNotHavePDB(md *module.Module, objectStore *storage.Unstructure
 }
 
 // collectPDBSelectors collects selectors for matching pods
-func collectPDBSelectors(md *module.Module, objectStore *storage.UnstructuredObjectStore) (selectors []nsLabelSelector, result errors.LintRuleErrorsList) {
-	for _, object := range objectStore.Storage {
+func collectPDBSelectors(md *module.Module) (selectors []nsLabelSelector, result errors.LintRuleErrorsList) {
+	for _, object := range md.GetObjectStore().Storage {
 		if object.Unstructured.GetKind() != "PodDisruptionBudget" {
 			continue
 		}
