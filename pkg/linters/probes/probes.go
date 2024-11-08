@@ -19,7 +19,10 @@ type Probes struct {
 	cfg        *config.ProbesSettings
 }
 
+var cfg *config.ProbesSettings
+
 func New(cfg *config.ProbesSettings) *Probes {
+	cfg = cfg
 	return &Probes{
 		name: "probes",
 		desc: "Probes will check all containers for correct liveness and readiness probes",
@@ -37,7 +40,7 @@ func (o *Probes) Run(m *module.Module) (result errors.LintRuleErrorsList, err er
 				if er != nil || containers == nil {
 					continue
 				}
-				ch <- o.containerProbes(m.GetName(), object, containers)
+				ch <- containerProbes(m.GetName(), object, containers)
 			}
 
 			return nil
@@ -61,7 +64,7 @@ func (o *Probes) Desc() string {
 	return o.desc
 }
 
-func (o *Probes) containerProbes(
+func containerProbes(
 	moduleName string,
 	object storage.StoreObject,
 	containers []v1.Container,
@@ -69,7 +72,7 @@ func (o *Probes) containerProbes(
 	var errorList errors.LintRuleErrorsList
 	for i := range containers {
 		container := containers[i]
-		if o.skipCheckProbeHandler(object.Unstructured.GetNamespace(), container.Name) {
+		if skipCheckProbeHandler(object.Unstructured.GetNamespace(), container.Name) {
 			continue
 		}
 
@@ -121,8 +124,8 @@ func probeHandlerIsNotValid(probe v1.ProbeHandler) bool {
 	return false
 }
 
-func (o *Probes) skipCheckProbeHandler(namespace, container string) bool {
-	containers, ok := o.cfg.ProbesExcludes[namespace]
+func skipCheckProbeHandler(namespace, container string) bool {
+	containers, ok := cfg.ProbesExcludes[namespace]
 	if ok {
 		return slices.Contains(containers, container)
 	}

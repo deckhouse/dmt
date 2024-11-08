@@ -6,6 +6,10 @@ import (
 	"github.com/deckhouse/d8-lint/pkg/errors"
 )
 
+const (
+	ID = "openapi"
+)
+
 // OpenAPI linter
 type OpenAPI struct {
 	name, desc string
@@ -42,7 +46,7 @@ func (o *OpenAPI) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 	for res := range resultC {
 		if res.validationError != nil {
 			result.Add(errors.NewLintRuleError(
-				"openapi",
+				ID,
 				res.filePath,
 				m.GetName(),
 				res.validationError,
