@@ -83,9 +83,17 @@ func (m *Module) GetStorage() map[storage.ResourceIndex]storage.StoreObject {
 }
 
 func NewModule(path string) (*Module, error) {
+	name, err := getModuleName(path)
+	if err != nil {
+		return nil, err
+	}
+	namespace, err := getNamespace(path)
+	if err != nil {
+		return nil, err
+	}
 	module := &Module{
-		name:      getModuleName(path),
-		namespace: getNamespace(path),
+		name:      name,
+		namespace: namespace,
 		path:      path,
 	}
 
@@ -110,10 +118,10 @@ func NewModule(path string) (*Module, error) {
 	return module, nil
 }
 
-func getModuleName(path string) string {
+func getModuleName(path string) (name string, err error) {
 	yamlFile, err := os.ReadFile(filepath.Join(path, ChartConfigFilename))
 	if err != nil {
-		return ""
+		return "", err
 	}
 
 	var ch struct {
@@ -121,17 +129,17 @@ func getModuleName(path string) string {
 	}
 	err = yaml.Unmarshal(yamlFile, &ch)
 	if err != nil {
-		return ""
+		return "", err
 	}
 
-	return ch.Name
+	return ch.Name, nil
 }
 
-func getNamespace(path string) string {
+func getNamespace(path string) (name string, err error) {
 	content, err := os.ReadFile(filepath.Join(path, ".namespace"))
 	if err != nil {
-		return ""
+		return "", err
 	}
 
-	return strings.TrimRight(string(content), " \t\n")
+	return strings.TrimRight(string(content), " \t\n"), nil
 }
