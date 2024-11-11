@@ -61,12 +61,10 @@ func (m *Module) GetChart() *chart.Chart {
 }
 
 func (m *Module) GetMetadata() *chart.Metadata {
-	if m.chart == nil {
+	if m.chart == nil || m.chart.Metadata == nil {
 		return nil
 	}
-	if m.chart.Metadata == nil {
-		m.chart.Metadata = &chart.Metadata{}
-	}
+
 	return m.chart.Metadata
 }
 
