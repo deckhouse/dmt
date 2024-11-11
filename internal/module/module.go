@@ -109,7 +109,7 @@ func NewModule(path string) (*Module, error) {
 	}
 	module.objectStore = objectStore
 
-	return module, err
+	return module, nil
 }
 
 func getModuleName(path string) string {

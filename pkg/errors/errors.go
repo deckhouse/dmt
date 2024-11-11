@@ -88,15 +88,7 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 		))
 
 		if err.Value != nil {
-			var value string
-			switch err.Value.(type) {
-			case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
-				value = fmt.Sprintf("%d", err.Value)
-			case float32, float64:
-				value = fmt.Sprintf("%f", err.Value)
-			default:
-				value = fmt.Sprintf("%s", err.Value)
-			}
+			value := fmt.Sprintf("%v", err.Value)
 			builder.WriteString(fmt.Sprintf("\tValue\t- %s\n", value))
 		}
 		builder.WriteString("\n")
@@ -109,10 +101,9 @@ var WarningsOnly []string
 
 func (l *LintRuleErrorsList) Critical() bool {
 	for _, err := range l.data {
-		if slices.Contains(WarningsOnly, err.ID) {
-			continue
+		if !slices.Contains(WarningsOnly, err.ID) {
+			return true
 		}
-		return true
 	}
 
 	return false

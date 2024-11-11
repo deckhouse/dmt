@@ -19,6 +19,10 @@ const (
 	ObjectKey   = "object"
 )
 
+const (
+	imageDigestfile string = "images_digests.json"
+)
+
 // applyDigests if ugly because values now are strongly untyped. We have to rewrite this after adding proper global schema
 func applyDigests(digests map[string]any, values any) {
 	if values == nil {
@@ -64,24 +68,22 @@ func helmFormatModuleImages(m *Module, rawValues map[string]any) (chartutil.Valu
 	return top, nil
 }
 
-func GetModulesImagesDigests(modulePath string) (map[string]any, error) {
+func GetModulesImagesDigests(modulePath string) (modulesDigests map[string]any, err error) {
 	var (
-		modulesDigests map[string]any
-		search         bool
+		search bool
 	)
 
-	if fi, err := os.Stat(filepath.Join(filepath.Dir(modulePath), "images_digests.json")); err != nil || fi.Size() == 0 {
+	if fi, err := os.Stat(filepath.Join(filepath.Dir(modulePath), imageDigestfile)); err != nil || fi.Size() == 0 {
 		search = true
 	}
 
-	var err error
 	if search {
-		modulesDigests = DefaultImagesDigests
-	} else {
-		modulesDigests, err = getModulesImagesDigestsFromLocalPath(modulePath)
-		if err != nil {
-			return nil, err
-		}
+		return DefaultImagesDigests, nil
+	}
+
+	modulesDigests, err = getModulesImagesDigestsFromLocalPath(modulePath)
+	if err != nil {
+		return nil, err
 	}
 
 	return modulesDigests, nil
@@ -90,7 +92,7 @@ func GetModulesImagesDigests(modulePath string) (map[string]any, error) {
 func getModulesImagesDigestsFromLocalPath(modulePath string) (map[string]any, error) {
 	var digests map[string]any
 
-	imageDigestsRaw, err := os.ReadFile(filepath.Join(filepath.Dir(modulePath), "images_digests.json"))
+	imageDigestsRaw, err := os.ReadFile(filepath.Join(filepath.Dir(modulePath), imageDigestfile))
 	if err != nil {
 		return nil, err
 	}

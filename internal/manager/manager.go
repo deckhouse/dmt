@@ -77,6 +77,7 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 		result, err := getModulePaths(dir)
 		if err != nil {
 			logger.ErrorF("Error getting module paths: %v", err)
+			continue
 		}
 		paths = append(paths, result...)
 	}
