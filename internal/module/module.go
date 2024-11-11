@@ -99,19 +99,19 @@ func NewModule(path string) (*Module, error) {
 
 	ch, err := loader.Load(path)
 	if err != nil {
-		return module, err
+		return nil, err
 	}
 
 	module.chart = ch
 
 	values, err := ComposeValuesFromSchemas(module)
 	if err != nil {
-		return module, nil
+		return nil, nil
 	}
 	objectStore := storage.NewUnstructuredObjectStore()
 	err = RunRender(module, values, objectStore)
 	if err != nil {
-		return module, nil
+		return nil, nil
 	}
 	module.objectStore = objectStore
 

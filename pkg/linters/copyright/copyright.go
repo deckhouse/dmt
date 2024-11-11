@@ -25,6 +25,9 @@ func New(cfg *config.CopyrightSettings) *Copyright {
 }
 
 func (o *Copyright) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
+	if m.GetPath() == "" {
+		return errors.LintRuleErrorsList{}, nil
+	}
 	files, err := getFiles(m.GetPath())
 	if err != nil {
 		return errors.LintRuleErrorsList{}, err

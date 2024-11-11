@@ -25,6 +25,9 @@ func New(cfg *config.OpenAPISettings) *OpenAPI {
 }
 
 func (o *OpenAPI) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
+	if m.GetPath() == "" {
+		return errors.LintRuleErrorsList{}, nil
+	}
 	apiFiles, err := GetOpenAPIYAMLFiles(m.GetPath())
 	if err != nil {
 		return errors.LintRuleErrorsList{}, err

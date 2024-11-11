@@ -54,6 +54,9 @@ func New(cfg *config.NoCyrillicSettings) *NoCyrillic {
 }
 
 func (o *NoCyrillic) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
+	if m.GetPath() == "" {
+		return errors.LintRuleErrorsList{}, nil
+	}
 	files, err := o.getFiles(m.GetPath())
 	if err != nil {
 		return errors.LintRuleErrorsList{}, err
