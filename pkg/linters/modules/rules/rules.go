@@ -42,7 +42,7 @@ func namespaceModuleRule(name, path string) (string, *errors.LintRuleError) {
 			`Module does not contain ".namespace" file, module will be ignored`,
 		)
 	}
-	return strings.TrimRight(string(content), " \t\n"), errors.EmptyRuleError
+	return strings.TrimRight(string(content), " \t\n"), nil
 }
 
 func chartModuleRule(name, path string) (string, *errors.LintRuleError) {
@@ -78,7 +78,7 @@ func chartModuleRule(name, path string) (string, *errors.LintRuleError) {
 		)
 	}
 
-	return chart.Name, errors.EmptyRuleError
+	return chart.Name, nil
 }
 
 func helmignoreModuleRule(name, path string) *errors.LintRuleError {
@@ -90,7 +90,7 @@ func helmignoreModuleRule(name, path string) *errors.LintRuleError {
 	}
 
 	if len(existedFiles) == 0 {
-		return errors.EmptyRuleError
+		return nil
 	}
 
 	contentBytes, err := os.ReadFile(filepath.Join(path, ".helmignore"))
@@ -122,7 +122,7 @@ func helmignoreModuleRule(name, path string) *errors.LintRuleError {
 			`Module does not have desired entries in ".helmignore" file`,
 		)
 	}
-	return errors.EmptyRuleError
+	return nil
 }
 
 func IsExistsOnFilesystem(parts ...string) bool {

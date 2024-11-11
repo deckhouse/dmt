@@ -228,7 +228,7 @@ func lintOneDockerfileOrWerfYAML(name, filePath, imagesPath string) *errors.Lint
 		}
 	}
 
-	return errors.EmptyRuleError
+	return nil
 }
 
 func isWerfInstructionUnacceptable(from string) (b bool, s string) {

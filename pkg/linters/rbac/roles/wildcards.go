@@ -32,7 +32,7 @@ import (
 func ObjectRolesWildcard(object storage.StoreObject) *errors.LintRuleError {
 	// check only `rbac-for-us.yaml` files
 	if !strings.HasSuffix(object.ShortPath(), "rbac-for-us.yaml") {
-		return errors.EmptyRuleError
+		return nil
 	}
 
 	// check Role and ClusterRole for wildcards
@@ -41,7 +41,7 @@ func ObjectRolesWildcard(object storage.StoreObject) *errors.LintRuleError {
 	case "Role", "ClusterRole":
 		return checkRoles(object)
 	default:
-		return errors.EmptyRuleError
+		return nil
 	}
 }
 
@@ -50,7 +50,7 @@ func checkRoles(object storage.StoreObject) *errors.LintRuleError {
 	for path, rules := range Cfg.SkipCheckWildcards {
 		if strings.EqualFold(object.Path, path) {
 			if slices.Contains(rules, object.Unstructured.GetName()) {
-				return errors.EmptyRuleError
+				return nil
 			}
 		}
 	}
@@ -86,5 +86,5 @@ func checkRoles(object storage.StoreObject) *errors.LintRuleError {
 		}
 	}
 
-	return errors.EmptyRuleError
+	return nil
 }

@@ -132,7 +132,7 @@ func ensurePDBIsPresent(md *module.Module, selectors []nsLabelSelector, podContr
 
 	for _, sel := range selectors {
 		if sel.Matches(podNamespace, podLabelsSet) {
-			return errors.EmptyRuleError
+			return nil
 		}
 	}
 
@@ -171,7 +171,7 @@ func ensurePDBIsNotPresent(md *module.Module, selectors []nsLabelSelector, podCo
 		}
 	}
 
-	return errors.EmptyRuleError
+	return nil
 }
 
 func parsePDBSelector(md *module.Module, pdbObj storage.StoreObject) (labels.Selector, *errors.LintRuleError) {
@@ -211,7 +211,7 @@ func parsePDBSelector(md *module.Module, pdbObj storage.StoreObject) (labels.Sel
 		return nil, lerr
 	}
 
-	return sel, errors.EmptyRuleError
+	return sel, nil
 }
 
 func parsePodControllerLabels(object storage.StoreObject) (map[string]string, error) {

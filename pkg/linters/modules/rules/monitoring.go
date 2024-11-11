@@ -30,7 +30,7 @@ func dirExists(moduleName, modulePath string, path ...string) (bool, *errors.Lin
 	info, err := os.Stat(searchPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return false, errors.EmptyRuleError
+			return false, nil
 		}
 		return false, errors.NewLintRuleError(
 			ID,
@@ -40,7 +40,7 @@ func dirExists(moduleName, modulePath string, path ...string) (bool, *errors.Lin
 			"%v", err.Error(),
 		)
 	}
-	return info.IsDir(), errors.EmptyRuleError
+	return info.IsDir(), nil
 }
 
 func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string) *errors.LintRuleError {
@@ -48,25 +48,25 @@ func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string) *error
 	// These modules deploy common rbac-proxy and dashboards to the cluster according to their configurations.
 	// That's why they have custom monitoring templates.
 	case "340-extended-monitoring", "030-cloud-provider-yandex":
-		return errors.EmptyRuleError
+		return nil
 	}
 
 	folderEx, lerr := dirExists(moduleName, modulePath, "monitoring")
-	if !lerr.IsEmpty() {
+	if lerr != nil {
 		return lerr
 	}
 
 	if !folderEx {
-		return errors.EmptyRuleError
+		return nil
 	}
 
 	rulesEx, lerr := dirExists(moduleName, modulePath, "monitoring", "prometheus-rules")
-	if !lerr.IsEmpty() {
+	if lerr != nil {
 		return lerr
 	}
 
 	dashboardsEx, lerr := dirExists(moduleName, modulePath, "monitoring", "grafana-dashboards")
-	if !lerr.IsEmpty() {
+	if lerr != nil {
 		return lerr
 	}
 
@@ -127,5 +127,5 @@ func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string) *error
 		)
 	}
 
-	return errors.EmptyRuleError
+	return nil
 }

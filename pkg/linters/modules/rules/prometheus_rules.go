@@ -104,7 +104,7 @@ func createPromtoolError(m *module.Module, errMsg string) *errors.LintRuleError 
 
 func PromtoolRuleCheck(m *module.Module, object storage.StoreObject) *errors.LintRuleError {
 	if object.Unstructured.GetKind() != "PrometheusRule" {
-		return errors.EmptyRuleError
+		return nil
 	}
 
 	res, ok := rulesCache.Get(object.Hash)
@@ -112,7 +112,7 @@ func PromtoolRuleCheck(m *module.Module, object storage.StoreObject) *errors.Lin
 		if !res.success {
 			return createPromtoolError(m, res.errMsg)
 		}
-		return errors.EmptyRuleError
+		return nil
 	}
 
 	marshal, err := marshalChartYaml(object)
@@ -151,5 +151,5 @@ func PromtoolRuleCheck(m *module.Module, object storage.StoreObject) *errors.Lin
 	}
 
 	rulesCache.Put(object.Hash, checkResult{success: true})
-	return errors.EmptyRuleError
+	return nil
 }

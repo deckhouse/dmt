@@ -51,10 +51,10 @@ func isDeckhouseSystemNamespace(actual string) bool {
 
 func ObjectRBACPlacement(m *module.Module, object storage.StoreObject) *errors.LintRuleError {
 	if m.GetName() == "user-authz" || m.GetName() == "deckhouse" {
-		return errors.EmptyRuleError
+		return nil
 	}
 	if object.ShortPath() == UserAuthzClusterRolePath || strings.HasPrefix(object.ShortPath(), RBACv2Path) {
-		return errors.EmptyRuleError
+		return nil
 	}
 
 	objectKind := object.Unstructured.GetName()
@@ -76,7 +76,7 @@ func ObjectRBACPlacement(m *module.Module, object storage.StoreObject) *errors.L
 				"kind %s not allowed in %q", objectKind, shortPath,
 			)
 		}
-		return errors.EmptyRuleError
+		return nil
 	}
 }
 
@@ -98,7 +98,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 					RootRBACForUsPath, namespace, m.GetName(),
 				)
 			}
-			return errors.EmptyRuleError
+			return nil
 		}
 		if objectName != m.GetName() {
 			return errors.NewLintRuleError(
@@ -119,7 +119,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 				"ServiceAccount should be deployed to \"d8-system\", \"d8-monitoring\" or %q", m.GetNamespace(),
 			)
 		}
-		return errors.EmptyRuleError
+		return nil
 	} else if strings.HasSuffix(shortPath, "rbac-for-us.yaml") {
 		parts := strings.Split(
 			strings.TrimPrefix(strings.TrimSuffix(shortPath, "/rbac-for-us.yaml"), "templates/"),
@@ -140,7 +140,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 					shortPath, namespace, expectedServiceAccountName,
 				)
 			}
-			return errors.EmptyRuleError
+			return nil
 		}
 		if objectName == serviceAccountName {
 			if m.GetNamespace() != namespace {
@@ -152,7 +152,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 					"ServiceAccount should be deployed to %q", m.GetNamespace(),
 				)
 			}
-			return errors.EmptyRuleError
+			return nil
 		} else if objectName == expectedServiceAccountName {
 			if !isDeckhouseSystemNamespace(namespace) {
 				return errors.NewLintRuleError(
@@ -163,7 +163,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 					"ServiceAccount should be deployed to \"d8-system\" or \"d8-monitoring\"",
 				)
 			}
-			return errors.EmptyRuleError
+			return nil
 		}
 
 		if strings.HasPrefix(objectName, "istiod") && namespace == "d8-istio" {
@@ -171,7 +171,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 			// naming conventions we can't change (i.e. istiod-v1x19).
 			// In our convention it has to be named as "iop" according to template folder, but within the folder we render
 			// not a single istiod instance, but several for different versions and can't use the shared ServiceAccount for them.
-			return errors.EmptyRuleError
+			return nil
 		}
 
 		return errors.NewLintRuleError(
@@ -236,7 +236,7 @@ func objectRBACPlacementClusterRole(kind string, m *module.Module, object storag
 		)
 	}
 
-	return errors.EmptyRuleError
+	return nil
 }
 
 func objectRBACPlacementRole(kind string, m *module.Module, object storage.StoreObject) *errors.LintRuleError {
@@ -307,7 +307,7 @@ func handleRootRBACForUs(m *module.Module, object storage.StoreObject, objectNam
 		}
 	}
 
-	return errors.EmptyRuleError
+	return nil
 }
 
 // handleRootRBACToUs applies to templates/rbac-to-us.yaml file's objects
@@ -336,13 +336,13 @@ func handleRootRBACToUs(m *module.Module, object storage.StoreObject, objectName
 		)
 	}
 
-	return errors.EmptyRuleError
+	return nil
 }
 
 // handleNestedRBACForUs applies to templates/**/rbac-for-us.yaml file's objects
 func handleNestedRBACForUs(m *module.Module, object storage.StoreObject, shortPath, objectName, namespace, kind string) *errors.LintRuleError {
 	if m == nil {
-		return errors.EmptyRuleError
+		return nil
 	}
 	parts := strings.Split(
 		strings.TrimPrefix(strings.TrimSuffix(shortPath, "/rbac-for-us.yaml"), "templates/"),
@@ -397,7 +397,7 @@ func handleNestedRBACForUs(m *module.Module, object storage.StoreObject, shortPa
 		)
 	}
 
-	return errors.EmptyRuleError
+	return nil
 }
 
 // handleNestedRBACToUs applies to templates/**/rbac-to-us.yaml file's objects
@@ -444,5 +444,5 @@ func handleNestedRBACToUs(m *module.Module, object storage.StoreObject, shortPat
 		)
 	}
 
-	return errors.EmptyRuleError
+	return nil
 }

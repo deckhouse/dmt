@@ -68,5 +68,5 @@ func ObjectUserAuthzClusterRolePath(m *module.Module, object storage.StoreObject
 			)
 		}
 	}
-	return errors.EmptyRuleError
+	return nil
 }

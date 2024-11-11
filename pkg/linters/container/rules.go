@@ -42,6 +42,9 @@ func applyContainerRules(object storage.StoreObject) (result errors.LintRuleErro
 }
 
 func containersImagePullPolicy(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
+	if len(containers) == 0 {
+		return nil
+	}
 	ob := object.Unstructured
 	if ob.GetNamespace() == "d8-system" && ob.GetKind() == "Deployment" && ob.GetName() == "deckhouse" {
 		c := containers[0]
@@ -60,7 +63,7 @@ func containersImagePullPolicy(object storage.StoreObject, containers []v1.Conta
 			)
 		}
 
-		return errors.EmptyRuleError
+		return nil
 	}
 
 	return containerImagePullPolicyIfNotPresent(object, containers)
@@ -74,7 +77,7 @@ func containerNameDuplicates(object storage.StoreObject, containers []v1.Contain
 		}
 		names[containers[i].Name] = struct{}{}
 	}
-	return errors.EmptyRuleError
+	return nil
 }
 
 func containerEnvVariablesDuplicates(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
@@ -93,7 +96,7 @@ func containerEnvVariablesDuplicates(object storage.StoreObject, containers []v1
 			envVariables[variable.Name] = struct{}{}
 		}
 	}
-	return errors.EmptyRuleError
+	return nil
 }
 
 func shouldSkipModuleContainer(md, container string) bool {
@@ -147,7 +150,7 @@ func containerImageDigestCheck(object storage.StoreObject, containers []v1.Conta
 			)
 		}
 	}
-	return errors.EmptyRuleError
+	return nil
 }
 
 func containerImagePullPolicyIfNotPresent(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
@@ -163,7 +166,7 @@ func containerImagePullPolicyIfNotPresent(object storage.StoreObject, containers
 			`Container imagePullPolicy should be unspecified or "IfNotPresent"`,
 		)
 	}
-	return errors.EmptyRuleError
+	return nil
 }
 
 func containerStorageEphemeral(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
@@ -179,7 +182,7 @@ func containerStorageEphemeral(object storage.StoreObject, containers []v1.Conta
 			)
 		}
 	}
-	return errors.EmptyRuleError
+	return nil
 }
 
 func containerSecurityContext(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
@@ -194,7 +197,7 @@ func containerSecurityContext(object storage.StoreObject, containers []v1.Contai
 			)
 		}
 	}
-	return errors.EmptyRuleError
+	return nil
 }
 
 func containerPorts(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
@@ -212,5 +215,5 @@ func containerPorts(object storage.StoreObject, containers []v1.Container) *erro
 			}
 		}
 	}
-	return errors.EmptyRuleError
+	return nil
 }

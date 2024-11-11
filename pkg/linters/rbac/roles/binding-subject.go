@@ -28,7 +28,7 @@ import (
 //nolint:gocyclo // because
 func ObjectBindingSubjectServiceAccountCheck(m *module.Module, object storage.StoreObject, objectStore *storage.UnstructuredObjectStore) *errors.LintRuleError {
 	if m.GetName() == "user-authz" {
-		return errors.EmptyRuleError
+		return nil
 	}
 	converter := runtime.DefaultUnstructuredConverter
 
@@ -53,7 +53,7 @@ func ObjectBindingSubjectServiceAccountCheck(m *module.Module, object storage.St
 		subjects = roleBinding.Subjects
 
 	default:
-		return errors.EmptyRuleError
+		return nil
 	}
 
 	for _, subject := range subjects {
@@ -89,5 +89,5 @@ func ObjectBindingSubjectServiceAccountCheck(m *module.Module, object storage.St
 		}
 	}
 
-	return errors.EmptyRuleError
+	return nil
 }

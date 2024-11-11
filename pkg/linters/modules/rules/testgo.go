@@ -38,11 +38,11 @@ func Test(t *testing.T) {
 
 func CommonTestGoForHooks(name, path string) *errors.LintRuleError {
 	if !IsExistsOnFilesystem(path, HooksDir) {
-		return errors.EmptyRuleError
+		return nil
 	}
 
 	if matches, _ := filepath.Glob(filepath.Join(path, HooksDir, "*.go")); len(matches) == 0 {
-		return errors.EmptyRuleError
+		return nil
 	}
 
 	commonTestPath := filepath.Join(path, HooksDir, "common_test.go")
@@ -99,5 +99,5 @@ func CommonTestGoForHooks(name, path string) *errors.LintRuleError {
 		)
 	}
 
-	return errors.EmptyRuleError
+	return nil
 }

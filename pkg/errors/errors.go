@@ -23,10 +23,6 @@ func (l *LintRuleError) EqualsTo(candidate *LintRuleError) bool {
 	return l.ID == candidate.ID && l.Text == candidate.Text && l.ObjectID == candidate.ObjectID
 }
 
-func (l *LintRuleError) IsEmpty() bool {
-	return l.ID == "" && l.Text == "" && l.ObjectID == ""
-}
-
 func NewLintRuleError(id, objectID, module string, value any, template string, a ...any) *LintRuleError {
 	return &LintRuleError{
 		ObjectID: objectID,
@@ -37,8 +33,6 @@ func NewLintRuleError(id, objectID, module string, value any, template string, a
 	}
 }
 
-var EmptyRuleError = &LintRuleError{Text: "", ID: "", ObjectID: ""}
-
 type LintRuleErrorsList struct {
 	data []*LintRuleError
 }
@@ -47,7 +41,7 @@ type LintRuleErrorsList struct {
 // It first checks if error is empty (i.e. all its fields are empty strings)
 // and then checks if error with the same ID, ObjectId and Text already exists in the list.
 func (l *LintRuleErrorsList) Add(e *LintRuleError) {
-	if e.IsEmpty() {
+	if e == nil {
 		return
 	}
 	if slices.ContainsFunc(l.data, e.EqualsTo) {

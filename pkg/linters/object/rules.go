@@ -63,22 +63,22 @@ func objectRecommendedLabels(object storage.StoreObject) *errors.LintRuleError {
 			`Object does not have the label "heritage"`,
 		)
 	}
-	return errors.EmptyRuleError
+	return nil
 }
 
 func namespaceLabels(object storage.StoreObject) *errors.LintRuleError {
 	if object.Unstructured.GetKind() != "Namespace" {
-		return errors.EmptyRuleError
+		return nil
 	}
 
 	if !strings.HasPrefix(object.Unstructured.GetName(), "d8-") {
-		return errors.EmptyRuleError
+		return nil
 	}
 
 	labels := object.Unstructured.GetLabels()
 
 	if label := labels["prometheus.deckhouse.io/rules-watcher-enabled"]; label == "true" {
-		return errors.EmptyRuleError
+		return nil
 	}
 
 	return errors.NewLintRuleError(
@@ -99,7 +99,7 @@ func newAPIVersionError(wanted, version, objectID string) *errors.LintRuleError 
 			"Object defined using deprecated api version, wanted %q", wanted,
 		)
 	}
-	return errors.EmptyRuleError
+	return nil
 }
 
 func objectAPIVersion(object storage.StoreObject) *errors.LintRuleError {
@@ -120,7 +120,7 @@ func objectAPIVersion(object storage.StoreObject) *errors.LintRuleError {
 	case "NetworkPolicy":
 		return newAPIVersionError("networking.k8s.io/v1", version, object.Identity())
 	default:
-		return errors.EmptyRuleError
+		return nil
 	}
 }
 
@@ -173,7 +173,7 @@ func objectRevisionHistoryLimit(object storage.StoreObject) *errors.LintRuleErro
 			)
 		}
 	}
-	return errors.EmptyRuleError
+	return nil
 }
 
 func objectPriorityClass(object storage.StoreObject) *errors.LintRuleError {
@@ -211,7 +211,7 @@ func objectPriorityClass(object storage.StoreObject) *errors.LintRuleError {
 
 		priorityClass = statefulset.Spec.Template.Spec.PriorityClassName
 	default:
-		return errors.EmptyRuleError
+		return nil
 	}
 
 	switch priorityClass {
@@ -234,14 +234,14 @@ func objectPriorityClass(object storage.StoreObject) *errors.LintRuleError {
 		)
 	}
 
-	return errors.EmptyRuleError
+	return nil
 }
 
 func objectSecurityContext(object storage.StoreObject) *errors.LintRuleError {
 	switch object.Unstructured.GetKind() {
 	case "Deployment", "DaemonSet", "StatefulSet", "Pod", "Job", "CronJob":
 	default:
-		return errors.EmptyRuleError
+		return nil
 	}
 
 	securityContext, err := object.GetPodSecurityContext()
@@ -317,14 +317,14 @@ func objectSecurityContext(object storage.StoreObject) *errors.LintRuleError {
 		}
 	}
 
-	return errors.EmptyRuleError
+	return nil
 }
 
 func objectServiceTargetPort(object storage.StoreObject) *errors.LintRuleError {
 	switch object.Unstructured.GetKind() {
 	case "Service":
 	default:
-		return errors.EmptyRuleError
+		return nil
 	}
 
 	converter := runtime.DefaultUnstructuredConverter
@@ -354,14 +354,14 @@ func objectServiceTargetPort(object storage.StoreObject) *errors.LintRuleError {
 			)
 		}
 	}
-	return errors.EmptyRuleError
+	return nil
 }
 
 func objectHostNetworkPorts(object storage.StoreObject) *errors.LintRuleError {
 	switch object.Unstructured.GetKind() {
 	case "Deployment", "DaemonSet", "StatefulSet", "Pod", "Job", "CronJob":
 	default:
-		return errors.EmptyRuleError
+		return nil
 	}
 
 	hostNetworkUsed, err := object.IsHostNetwork()
@@ -423,7 +423,7 @@ func objectHostNetworkPorts(object storage.StoreObject) *errors.LintRuleError {
 		}
 	}
 
-	return errors.EmptyRuleError
+	return nil
 }
 
 func objectDNSPolicy(object storage.StoreObject) *errors.LintRuleError {
@@ -465,15 +465,15 @@ func objectDNSPolicy(object storage.StoreObject) *errors.LintRuleError {
 		dnsPolicy = string(statefulset.Spec.Template.Spec.DNSPolicy)
 		hostNetwork = statefulset.Spec.Template.Spec.HostNetwork
 	default:
-		return errors.EmptyRuleError
+		return nil
 	}
 
 	if !hostNetwork {
-		return errors.EmptyRuleError
+		return nil
 	}
 
 	if dnsPolicy == "ClusterFirstWithHostNet" {
-		return errors.EmptyRuleError
+		return nil
 	}
 
 	return errors.NewLintRuleError(
