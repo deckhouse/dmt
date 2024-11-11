@@ -100,7 +100,7 @@ func collectPDBSelectors(md *module.Module) (selectors []nsLabelSelector, result
 		}
 
 		labelSelector, lerr := parsePDBSelector(md, object)
-		if !lerr.IsEmpty() {
+		if lerr != nil {
 			result.Add(lerr)
 		}
 

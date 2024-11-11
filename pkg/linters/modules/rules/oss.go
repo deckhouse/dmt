@@ -65,16 +65,16 @@ func verifyOssFile(name, moduleRoot string) []error {
 	}
 
 	projects, err := readOssFile(moduleRoot)
-	if err == nil && len(projects) == 0 {
-		err = fmt.Errorf("no projects described")
-	}
 	if err != nil {
 		return []error{err}
+	}
+	if len(projects) == 0 {
+		return []error{fmt.Errorf("no projects described")}
 	}
 
 	var errs []error
 	for i, p := range projects {
-		err := assertOssProject(i+1, &p)
+		err = assertOssProject(i+1, &p)
 		if err != nil {
 			errs = append(errs, err)
 		}
