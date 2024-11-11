@@ -73,7 +73,7 @@ func GetModulesImagesDigests(modulePath string) (modulesDigests map[string]any, 
 		search bool
 	)
 
-	if fi, err := os.Stat(filepath.Join(filepath.Dir(modulePath), imageDigestfile)); err != nil || fi.Size() == 0 {
+	if fi, errs := os.Stat(filepath.Join(filepath.Dir(modulePath), imageDigestfile)); errs != nil || fi.Size() == 0 {
 		search = true
 	}
 
