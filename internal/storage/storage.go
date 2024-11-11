@@ -318,7 +318,12 @@ func (s *StoreObject) IsHostNetwork() (bool, error) {
 }
 
 func (s *StoreObject) ShortPath() string {
-	return strings.Join(strings.Split(s.Path, string(os.PathSeparator))[1:], string(os.PathSeparator))
+	elements := strings.Split(s.Path, string(os.PathSeparator))
+	if len(elements) == 0 {
+		return ""
+	}
+	path := elements[1:]
+	return strings.Join(path, string(os.PathSeparator))
 }
 
 func (s *StoreObject) Identity() string {
