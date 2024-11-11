@@ -375,9 +375,7 @@ func (s *UnstructuredObjectStore) Exists(key ResourceIndex) bool {
 }
 
 func (s *UnstructuredObjectStore) Close() {
-	for k := range s.Storage {
-		delete(s.Storage, k)
-	}
+	s.Storage = make(map[ResourceIndex]StoreObject)
 }
 
 func NewSHA256(data []byte) string {
