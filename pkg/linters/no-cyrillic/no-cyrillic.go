@@ -111,12 +111,11 @@ func (o *NoCyrillic) getFiles(rootPath string) ([]string, error) {
 	}
 
 	for _, file := range files {
-		if !slices.ContainsFunc(o.cfg.FileExtensions, func(s string) bool {
+		if slices.ContainsFunc(o.cfg.FileExtensions, func(s string) bool {
 			return strings.HasSuffix(file, s)
 		}) {
-			continue
+			result = append(result, file)
 		}
-		result = append(result, file)
 	}
 
 	return result, nil
