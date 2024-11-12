@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	k8s_resources "github.com/deckhouse/d8-lint/pkg/linters/k8s-resources"
+	"github.com/deckhouse/d8-lint/pkg/linters/monitoring"
 
 	"github.com/mitchellh/go-homedir"
 	"github.com/sourcegraph/conc/pool"
@@ -17,8 +18,8 @@ import (
 	"github.com/deckhouse/d8-lint/pkg/config"
 	"github.com/deckhouse/d8-lint/pkg/errors"
 	"github.com/deckhouse/d8-lint/pkg/linters/container"
+	"github.com/deckhouse/d8-lint/pkg/linters/helm"
 	"github.com/deckhouse/d8-lint/pkg/linters/license"
-	"github.com/deckhouse/d8-lint/pkg/linters/modules"
 	no_cyrillic "github.com/deckhouse/d8-lint/pkg/linters/no-cyrillic"
 	"github.com/deckhouse/d8-lint/pkg/linters/openapi"
 	"github.com/deckhouse/d8-lint/pkg/linters/probes"
@@ -53,8 +54,9 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 		probes.New(&cfg.LintersSettings.Probes),
 		container.New(&cfg.LintersSettings.Container),
 		k8s_resources.New(&cfg.LintersSettings.Object),
-		modules.New(&cfg.LintersSettings.Modules),
+		helm.New(&cfg.LintersSettings.Helm),
 		rbac.New(&cfg.LintersSettings.Rbac),
+		monitoring.New(&cfg.LintersSettings.Monitoring),
 	}
 
 	m.lintersMap = make(map[string]Linter)
@@ -138,7 +140,7 @@ func isExistsOnFilesystem(parts ...string) bool {
 }
 
 // getModulePaths returns all paths with Chart.yaml
-// modulesDir can be a module directory or a directory that contains modules in subdirectories.
+// modulesDir can be a module directory or a directory that contains helm in subdirectories.
 func getModulePaths(modulesDir string) ([]string, error) {
 	var chartDirs = make([]string, 0)
 

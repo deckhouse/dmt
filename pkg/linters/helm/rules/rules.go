@@ -24,10 +24,10 @@ const (
 )
 
 const (
-	ID = "modules"
+	ID = "helm"
 )
 
-var Cfg *config.ModulesSettings
+var Cfg *config.HelmSettings
 
 var toHelmignore = []string{HooksDir, openapiDir, CrdsDir, ImagesDir, "enabled"}
 
@@ -131,30 +131,21 @@ func IsExistsOnFilesystem(parts ...string) bool {
 	return err == nil
 }
 
-func ApplyModuleRules(m *module.Module) (result errors.LintRuleErrorsList) {
-	moduleName := filepath.Base(m.GetPath())
+func ApplyHelmRules(m *module.Module) (result errors.LintRuleErrorsList) {
 
-	result.Add(helmignoreModuleRule(moduleName, m.GetPath()))
-	result.Merge(CheckImageNamesInDockerAndWerfFiles(moduleName, m.GetPath()))
+	result.Add(helmignoreModuleRule(m.GetName(), m.GetPath()))
+	result.Merge(CheckImageNamesInDockerAndWerfFiles(m.GetName(), m.GetPath()))
 
-	name, lintError := chartModuleRule(moduleName, m.GetPath())
+	name, lintError := chartModuleRule(m.GetName(), m.GetPath())
 	result.Add(lintError)
 	if name == "" {
 		return result
 	}
 
-	namespace, lintError := namespaceModuleRule(moduleName, m.GetPath())
+	namespace, lintError := namespaceModuleRule(m.GetName(), m.GetPath())
 	result.Add(lintError)
 	if namespace == "" {
 		return result
-	}
-
-	result.Add(MonitoringModuleRule(moduleName, m.GetPath(), namespace))
-
-	// TODO: compile code instead of external binary - promtool
-	//  tmp: check binary existance, if exists - run the tool
-	for _, object := range m.GetStorage() {
-		result.Add(PromtoolRuleCheck(m, object))
 	}
 
 	return result

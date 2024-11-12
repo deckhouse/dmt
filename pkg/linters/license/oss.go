@@ -150,7 +150,7 @@ func parseProjectList(b []byte) ([]ossProject, error) {
 	return projects, nil
 }
 
-// TODO When lintignore files will be implemented in modules, detect "oss.yaml" line in it
+// TODO When lintignore files will be implemented in helm, detect "oss.yaml" line in it
 func shouldIgnoreOssInfo(moduleName string) bool {
 	return slices.Contains(Cfg.SkipOssChecks, moduleName)
 }

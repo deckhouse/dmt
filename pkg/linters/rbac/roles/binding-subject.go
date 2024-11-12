@@ -61,7 +61,7 @@ func ObjectBindingSubjectServiceAccountCheck(m *module.Module, object storage.St
 			continue
 		}
 
-		// Prometheus service account has bindings across modules to scrape metrics.
+		// Prometheus service account has bindings across helm to scrape metrics.
 		if subject.Name == "prometheus" && subject.Namespace == "d8-monitoring" {
 			continue
 		}

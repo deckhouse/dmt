@@ -7,9 +7,10 @@ type LintersSettings struct {
 	Probes     ProbesSettings     `mapstructure:"probes"`
 	Container  ContainerSettings  `mapstructure:"container"`
 	Object     ObjectSettings     `mapstructure:"object"`
-	Modules    ModulesSettings    `mapstructure:"modules"`
+	Helm       HelmSettings       `mapstructure:"helm"`
 	Rbac       RbacSettings       `mapstructure:"rbac"`
 	Resources  ResourcesSettings  `mapstructure:"resources"`
+	Monitoring MonitoringSettings `mapstructure:"monitoring"`
 }
 
 type OpenAPISettings struct {
@@ -36,19 +37,19 @@ type ProbesSettings struct {
 	ProbesExcludes map[string][]string `mapstructure:"probes-excludes"`
 }
 
-type MatrixSettings struct{}
-
 type ContainerSettings struct{}
 
 type ObjectSettings struct{}
 
 type ResourcesSettings struct{}
 
+type MonitoringSettings struct{}
+
 type RbacSettings struct {
 	SkipCheckWildcards map[string][]string `mapstructure:"skip-check-wildcards"`
 }
 
-type ModulesSettings struct {
+type HelmSettings struct {
 	SkipModuleImageName      []string `mapstructure:"skip-module-image-name"`
 	SkipDistrolessImageCheck []string `mapstructure:"skip-distroless-image-check"`
 }

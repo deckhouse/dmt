@@ -115,7 +115,7 @@ func shouldSkipModuleContainer(md, container string) bool {
 
 func containerImageDigestCheck(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	for i := range containers {
-		// TODO: skip modules and containers via the linter settings, not hardcode
+		// TODO: skip helm and containers via the linter settings, not hardcode
 		if shouldSkipModuleContainer(object.Unstructured.GetName(), containers[i].Name) {
 			continue
 		}

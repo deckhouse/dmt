@@ -27,7 +27,7 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 
 	"github.com/deckhouse/d8-lint/pkg/errors"
-	"github.com/deckhouse/d8-lint/pkg/linters/modules/rules"
+	"github.com/deckhouse/d8-lint/pkg/linters/helm/rules"
 )
 
 var (

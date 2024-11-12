@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package rules
+package monitoring
 
 import (
 	"os"
@@ -26,6 +26,7 @@ import (
 	"github.com/deckhouse/d8-lint/internal/module"
 	"github.com/deckhouse/d8-lint/internal/storage"
 	"github.com/deckhouse/d8-lint/pkg/errors"
+	"github.com/deckhouse/d8-lint/pkg/linters/helm/rules"
 )
 
 type checkResult struct {
@@ -93,8 +94,8 @@ func checkRuleFile(path string) error {
 
 func createPromtoolError(m *module.Module, errMsg string) *errors.LintRuleError {
 	return errors.NewLintRuleError(
-		ID,
-		ModuleLabel(m.GetName()),
+		rules.ID,
+		rules.ModuleLabel(m.GetName()),
 		m.GetPath(),
 		nil,
 		"Promtool check failed for Helm chart:\n%s",
@@ -103,6 +104,11 @@ func createPromtoolError(m *module.Module, errMsg string) *errors.LintRuleError 
 }
 
 func PromtoolRuleCheck(m *module.Module, object storage.StoreObject) *errors.LintRuleError {
+	// check promtoolPath exist, if not do not run linter
+	if _, err := os.Stat(promtoolPath); err != nil {
+		return nil
+	}
+
 	if object.Unstructured.GetKind() != "PrometheusRule" {
 		return nil
 	}
@@ -118,7 +124,7 @@ func PromtoolRuleCheck(m *module.Module, object storage.StoreObject) *errors.Lin
 	marshal, err := marshalChartYaml(object)
 	if err != nil {
 		return errors.NewLintRuleError(
-			ID,
+			rules.ID,
 			m.GetName(),
 			m.GetPath(),
 			nil,
@@ -131,7 +137,7 @@ func PromtoolRuleCheck(m *module.Module, object storage.StoreObject) *errors.Lin
 
 	if err != nil {
 		return errors.NewLintRuleError(
-			ID,
+			rules.ID,
 			m.GetName(),
 			m.GetPath(),
 			nil,

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package rules
+package monitoring
 
 import (
 	"fmt"
@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/deckhouse/d8-lint/pkg/errors"
+	"github.com/deckhouse/d8-lint/pkg/linters/helm/rules"
 )
 
 func dirExists(moduleName, modulePath string, path ...string) (bool, *errors.LintRuleError) {
@@ -33,9 +34,9 @@ func dirExists(moduleName, modulePath string, path ...string) (bool, *errors.Lin
 			return false, nil
 		}
 		return false, errors.NewLintRuleError(
-			ID,
+			rules.ID,
 			moduleName,
-			ModuleLabel(moduleName),
+			rules.ModuleLabel(moduleName),
 			path,
 			"%v", err.Error(),
 		)
@@ -45,7 +46,7 @@ func dirExists(moduleName, modulePath string, path ...string) (bool, *errors.Lin
 
 func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string) *errors.LintRuleError {
 	switch moduleName {
-	// These modules deploy common rbac-proxy and dashboards to the cluster according to their configurations.
+	// These helm deploy common rbac-proxy and dashboards to the cluster according to their configurations.
 	// That's why they have custom monitoring templates.
 	// TODO: move to the config excludes
 	case "340-extended-monitoring", "030-cloud-provider-yandex":
@@ -75,9 +76,9 @@ func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string) *error
 	info, _ := os.Stat(searchingFilePath)
 	if info == nil {
 		return errors.NewLintRuleError(
-			ID,
+			rules.ID,
 			moduleName,
-			ModuleLabel(moduleName),
+			rules.ModuleLabel(moduleName),
 			searchingFilePath,
 			"Module with the 'monitoring' folder should have the 'templates/monitoring.yaml' file",
 		)
@@ -86,9 +87,9 @@ func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string) *error
 	content, err := os.ReadFile(searchingFilePath)
 	if err != nil {
 		return errors.NewLintRuleError(
-			ID,
+			rules.ID,
 			moduleName,
-			ModuleLabel(moduleName),
+			rules.ModuleLabel(moduleName),
 			searchingFilePath,
 			"%v",
 			err.Error(),
@@ -119,9 +120,9 @@ func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string) *error
 
 	if !res {
 		return errors.NewLintRuleError(
-			ID,
+			rules.ID,
 			searchingFilePath,
-			ModuleLabel(moduleName),
+			rules.ModuleLabel(moduleName),
 			"The content of the 'templates/monitoring.yaml' should be equal to:\n%s\nGot:\n%s",
 			fmt.Sprintf(desiredContentBuilder.String(), "YOUR NAMESPACE TO DEPLOY RULES: d8-monitoring, d8-system or module namespaces"),
 			string(content),
