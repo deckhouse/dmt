@@ -160,5 +160,5 @@ type ossProject struct {
 	Description string `yaml:"description"`    // example: A Federated OpenID Connect Provider with pluggable connectors
 	Link        string `yaml:"link"`           // example: https://github.com/dexidp/dex
 	Logo        string `yaml:"logo,omitempty"` // example: https://dexidp.io/img/logos/dex-horizontal-color.png
-	License     string `yaml:"License"`        // example: Apache License 2.0
+	License     string `yaml:"licence"`        // example: Apache License 2.0
 }
