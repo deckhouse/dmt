@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package rules
+package license
 
 import (
 	"fmt"
@@ -31,16 +31,15 @@ import (
 
 const ossFilename = "oss.yaml"
 
-// TODO: move to license package
 func OssModuleRule(name, moduleRoot string) errors.LintRuleErrorsList {
 	lintErrors := errors.LintRuleErrorsList{}
 
 	if errs := verifyOssFile(name, moduleRoot); len(errs) > 0 {
 		for _, err := range errs {
 			ruleErr := errors.NewLintRuleError(
-				ID,
+				"oss",
 				name,
-				ModuleLabel(name),
+				name,
 				nil,
 				"%v",
 				ossFileErrorMessage(err),

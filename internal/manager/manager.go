@@ -2,11 +2,11 @@ package manager
 
 import (
 	"fmt"
-	k8s_resources "github.com/deckhouse/d8-lint/pkg/linters/k8s-resources"
-	"github.com/deckhouse/d8-lint/pkg/linters/resources"
 	"os"
 	"path/filepath"
 	"strings"
+
+	k8s_resources "github.com/deckhouse/d8-lint/pkg/linters/k8s-resources"
 
 	"github.com/mitchellh/go-homedir"
 	"github.com/sourcegraph/conc/pool"
@@ -49,13 +49,12 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 	m.Linters = []Linter{
 		openapi.New(&cfg.LintersSettings.OpenAPI),
 		no_cyrillic.New(&cfg.LintersSettings.NoCyrillic),
-		license.New(&cfg.LintersSettings.Copyright),
+		license.New(&cfg.LintersSettings.License),
 		probes.New(&cfg.LintersSettings.Probes),
 		container.New(&cfg.LintersSettings.Container),
 		k8s_resources.New(&cfg.LintersSettings.Object),
 		modules.New(&cfg.LintersSettings.Modules),
 		rbac.New(&cfg.LintersSettings.Rbac),
-		resources.New(&cfg.LintersSettings.Resources),
 	}
 
 	m.lintersMap = make(map[string]Linter)

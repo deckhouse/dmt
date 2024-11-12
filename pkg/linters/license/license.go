@@ -13,12 +13,15 @@ import (
 // Copyright linter
 type Copyright struct {
 	name, desc string
-	cfg        *config.CopyrightSettings
+	cfg        *config.LicenseSettings
 }
 
-func New(cfg *config.CopyrightSettings) *Copyright {
+var Cfg *config.LicenseSettings
+
+func New(cfg *config.LicenseSettings) *Copyright {
+	Cfg = cfg
 	return &Copyright{
-		name: "copyright",
+		name: "license",
 		desc: "Copyright will check all files in the modules for contains copyright",
 		cfg:  cfg,
 	}
@@ -34,6 +37,9 @@ func (o *Copyright) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 	}
 
 	var result errors.LintRuleErrorsList
+
+	result.Merge(OssModuleRule(m.GetName(), m.GetPath()))
+
 	for _, fileName := range files {
 		name, _ := strings.CutPrefix(fileName, m.GetPath())
 		name = m.GetName() + ":" + name

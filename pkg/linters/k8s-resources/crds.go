@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package rules
+package k8s_resources
 
 import (
 	"fmt"
@@ -27,6 +27,7 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 
 	"github.com/deckhouse/d8-lint/pkg/errors"
+	"github.com/deckhouse/d8-lint/pkg/linters/modules/rules"
 )
 
 var (
@@ -37,7 +38,6 @@ func shouldSkipCrd(name string) bool {
 	return !strings.Contains(name, "deckhouse.io")
 }
 
-// TODO: move to k8s-resources
 func CrdsModuleRule(name, path string) errors.LintRuleErrorsList {
 	var lintRuleErrorsList errors.LintRuleErrorsList
 	_ = filepath.Walk(path, func(path string, _ os.FileInfo, _ error) error {
@@ -63,10 +63,10 @@ func CrdsModuleRule(name, path string) errors.LintRuleErrorsList {
 			err = yaml.Unmarshal([]byte(d), &crd)
 			if err != nil {
 				lintRuleErrorsList.Add(errors.NewLintRuleError(
-					ID,
+					rules.ID,
 					"module = "+name,
 					err.Error(),
-					"Can't parse manifests in %s folder", CrdsDir,
+					"Can't parse manifests in %s folder", rules.CrdsDir,
 				))
 			}
 
@@ -76,7 +76,7 @@ func CrdsModuleRule(name, path string) errors.LintRuleErrorsList {
 
 			if crd.APIVersion != "apiextensions.k8s.io/v1" {
 				lintRuleErrorsList.Add(errors.NewLintRuleError(
-					ID,
+					rules.ID,
 					d,
 					fmt.Sprintf("kind = %s ; name = %s ; module = %s ; file = %s", crd.Kind, crd.Name, name, path),
 					crd.APIVersion,

@@ -149,11 +149,6 @@ func ApplyModuleRules(m *module.Module) (result errors.LintRuleErrorsList) {
 		return result
 	}
 
-	if IsExistsOnFilesystem(m.GetPath(), CrdsDir) {
-		result.Merge(CrdsModuleRule(moduleName, filepath.Join(m.GetPath(), CrdsDir)))
-	}
-
-	result.Merge(OssModuleRule(moduleName, m.GetPath()))
 	result.Add(MonitoringModuleRule(moduleName, m.GetPath(), namespace))
 
 	// TODO: compile code instead of external binary - promtool

@@ -3,7 +3,7 @@ package config
 type LintersSettings struct {
 	OpenAPI    OpenAPISettings    `mapstructure:"openapi"`
 	NoCyrillic NoCyrillicSettings `mapstructure:"nocyrillic"`
-	Copyright  CopyrightSettings  `mapstructure:"copyright"`
+	License    LicenseSettings    `mapstructure:"copyright"`
 	Probes     ProbesSettings     `mapstructure:"probes"`
 	Container  ContainerSettings  `mapstructure:"container"`
 	Object     ObjectSettings     `mapstructure:"object"`
@@ -27,8 +27,9 @@ type NoCyrillicSettings struct {
 	SkipSelfRe             string   `mapstructure:"skip-self-re"`
 }
 
-type CopyrightSettings struct {
+type LicenseSettings struct {
 	CopyrightExcludes []string `mapstructure:"copyright-excludes"`
+	SkipOssChecks     []string `mapstructure:"skip-oss-checks"`
 }
 
 type ProbesSettings struct {
@@ -48,7 +49,6 @@ type RbacSettings struct {
 }
 
 type ModulesSettings struct {
-	SkipOssChecks            []string `mapstructure:"skip-oss-checks"`
 	SkipModuleImageName      []string `mapstructure:"skip-module-image-name"`
 	SkipDistrolessImageCheck []string `mapstructure:"skip-distroless-image-check"`
 }

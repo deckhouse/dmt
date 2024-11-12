@@ -28,7 +28,7 @@ import (
 	"github.com/deckhouse/d8-lint/internal/module"
 	"github.com/deckhouse/d8-lint/internal/storage"
 	"github.com/deckhouse/d8-lint/pkg/errors"
-	"github.com/deckhouse/d8-lint/pkg/linters/resources/vpa"
+	"github.com/deckhouse/d8-lint/pkg/linters/k8s-resources/vpa"
 )
 
 type nsLabelSelector struct {

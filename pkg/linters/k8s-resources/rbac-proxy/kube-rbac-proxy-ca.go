@@ -24,11 +24,6 @@ import (
 	"github.com/deckhouse/d8-lint/pkg/errors"
 )
 
-const (
-	ID = "kube-rbac-proxy-ca"
-)
-
-// TODO: move to k8s-resources
 func NamespaceMustContainKubeRBACProxyCA(objectStore *storage.UnstructuredObjectStore) (result errors.LintRuleErrorsList) {
 	proxyInNamespaces := set.New()
 
@@ -41,7 +36,7 @@ func NamespaceMustContainKubeRBACProxyCA(objectStore *storage.UnstructuredObject
 	for index := range objectStore.Storage {
 		if index.Kind == "Namespace" && !proxyInNamespaces.Has(index.Name) {
 			result.Add(errors.NewLintRuleError(
-				ID,
+				"kube-rbac-proxy-ca",
 				fmt.Sprintf("namespace = %s", index.Name),
 				index.Name,
 				proxyInNamespaces.Slice(),
