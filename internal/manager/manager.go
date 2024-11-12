@@ -53,7 +53,7 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 		license.New(&cfg.LintersSettings.License),
 		probes.New(&cfg.LintersSettings.Probes),
 		container.New(&cfg.LintersSettings.Container),
-		k8s_resources.New(&cfg.LintersSettings.Object),
+		k8s_resources.New(&cfg.LintersSettings.K8SResources),
 		helm.New(&cfg.LintersSettings.Helm),
 		rbac.New(&cfg.LintersSettings.Rbac),
 		monitoring.New(&cfg.LintersSettings.Monitoring),
