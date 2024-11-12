@@ -155,6 +155,7 @@ func shouldIgnoreOssInfo(moduleName string) bool {
 	return slices.Contains(Cfg.SkipOssChecks, moduleName)
 }
 
+//nolint:misspell  // licence needed
 type ossProject struct {
 	Name        string `yaml:"name"`           // example: Dex
 	Description string `yaml:"description"`    // example: A Federated OpenID Connect Provider with pluggable connectors

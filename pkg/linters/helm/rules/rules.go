@@ -132,7 +132,6 @@ func IsExistsOnFilesystem(parts ...string) bool {
 }
 
 func ApplyHelmRules(m *module.Module) (result errors.LintRuleErrorsList) {
-
 	result.Add(helmignoreModuleRule(m.GetName(), m.GetPath()))
 	result.Merge(CheckImageNamesInDockerAndWerfFiles(m.GetName(), m.GetPath()))
 
