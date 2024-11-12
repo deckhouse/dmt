@@ -47,6 +47,7 @@ func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string) *error
 	switch moduleName {
 	// These modules deploy common rbac-proxy and dashboards to the cluster according to their configurations.
 	// That's why they have custom monitoring templates.
+	// TODO: move to the config excludes
 	case "340-extended-monitoring", "030-cloud-provider-yandex":
 		return nil
 	}

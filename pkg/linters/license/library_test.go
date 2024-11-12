@@ -1,4 +1,4 @@
-package copyright
+package license
 
 import "testing"
 

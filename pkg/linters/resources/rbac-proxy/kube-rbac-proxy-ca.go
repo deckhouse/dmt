@@ -28,6 +28,7 @@ const (
 	ID = "kube-rbac-proxy-ca"
 )
 
+// TODO: move to k8s-resources
 func NamespaceMustContainKubeRBACProxyCA(objectStore *storage.UnstructuredObjectStore) (result errors.LintRuleErrorsList) {
 	proxyInNamespaces := set.New()
 

@@ -1,4 +1,4 @@
-package object
+package k8s_resources
 
 import (
 	"github.com/deckhouse/d8-lint/internal/module"

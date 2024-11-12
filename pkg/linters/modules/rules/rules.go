@@ -54,6 +54,7 @@ func chartModuleRule(name, path string) (string, *errors.LintRuleError) {
 		"Module does not contain valid %q file, module will be ignored", ChartConfigFilename,
 	)
 
+	// TODO: Chart.yaml could be absent if we have module.yaml
 	yamlFile, err := os.ReadFile(filepath.Join(path, ChartConfigFilename))
 	if err != nil {
 		return "", lintError
@@ -134,7 +135,6 @@ func ApplyModuleRules(m *module.Module) (result errors.LintRuleErrorsList) {
 	moduleName := filepath.Base(m.GetPath())
 
 	result.Add(helmignoreModuleRule(moduleName, m.GetPath()))
-	result.Add(CommonTestGoForHooks(moduleName, m.GetPath()))
 	result.Merge(CheckImageNamesInDockerAndWerfFiles(moduleName, m.GetPath()))
 
 	name, lintError := chartModuleRule(moduleName, m.GetPath())
@@ -156,6 +156,8 @@ func ApplyModuleRules(m *module.Module) (result errors.LintRuleErrorsList) {
 	result.Merge(OssModuleRule(moduleName, m.GetPath()))
 	result.Add(MonitoringModuleRule(moduleName, m.GetPath(), namespace))
 
+	// TODO: compile code instead of external binary - promtool
+	//  tmp: check binary existance, if exists - run the tool
 	for _, object := range m.GetStorage() {
 		result.Add(PromtoolRuleCheck(m, object))
 	}

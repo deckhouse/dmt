@@ -16,6 +16,7 @@ type Resources struct {
 	cfg        *config.ResourcesSettings
 }
 
+// TODO: move to k8s-resources
 func New(cfg *config.ResourcesSettings) *Resources {
 	return &Resources{
 		name: "resources",

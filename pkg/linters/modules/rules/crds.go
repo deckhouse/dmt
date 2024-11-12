@@ -37,6 +37,7 @@ func shouldSkipCrd(name string) bool {
 	return !strings.Contains(name, "deckhouse.io")
 }
 
+// TODO: move to k8s-resources
 func CrdsModuleRule(name, path string) errors.LintRuleErrorsList {
 	var lintRuleErrorsList errors.LintRuleErrorsList
 	_ = filepath.Walk(path, func(path string, _ os.FileInfo, _ error) error {

@@ -2,6 +2,8 @@ package manager
 
 import (
 	"fmt"
+	k8s_resources "github.com/deckhouse/d8-lint/pkg/linters/k8s-resources"
+	"github.com/deckhouse/d8-lint/pkg/linters/resources"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,10 +17,9 @@ import (
 	"github.com/deckhouse/d8-lint/pkg/config"
 	"github.com/deckhouse/d8-lint/pkg/errors"
 	"github.com/deckhouse/d8-lint/pkg/linters/container"
-	"github.com/deckhouse/d8-lint/pkg/linters/copyright"
+	"github.com/deckhouse/d8-lint/pkg/linters/license"
 	"github.com/deckhouse/d8-lint/pkg/linters/modules"
 	no_cyrillic "github.com/deckhouse/d8-lint/pkg/linters/no-cyrillic"
-	"github.com/deckhouse/d8-lint/pkg/linters/object"
 	"github.com/deckhouse/d8-lint/pkg/linters/openapi"
 	"github.com/deckhouse/d8-lint/pkg/linters/probes"
 	"github.com/deckhouse/d8-lint/pkg/linters/rbac"
@@ -48,12 +49,13 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 	m.Linters = []Linter{
 		openapi.New(&cfg.LintersSettings.OpenAPI),
 		no_cyrillic.New(&cfg.LintersSettings.NoCyrillic),
-		copyright.New(&cfg.LintersSettings.Copyright),
+		license.New(&cfg.LintersSettings.Copyright),
 		probes.New(&cfg.LintersSettings.Probes),
 		container.New(&cfg.LintersSettings.Container),
-		object.New(&cfg.LintersSettings.Object),
+		k8s_resources.New(&cfg.LintersSettings.Object),
 		modules.New(&cfg.LintersSettings.Modules),
 		rbac.New(&cfg.LintersSettings.Rbac),
+		resources.New(&cfg.LintersSettings.Resources),
 	}
 
 	m.lintersMap = make(map[string]Linter)

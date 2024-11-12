@@ -31,6 +31,7 @@ import (
 
 const ossFilename = "oss.yaml"
 
+// TODO: move to license package
 func OssModuleRule(name, moduleRoot string) errors.LintRuleErrorsList {
 	lintErrors := errors.LintRuleErrorsList{}
 

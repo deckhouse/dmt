@@ -1,4 +1,4 @@
-package object
+package k8s_resources
 
 import (
 	"fmt"
@@ -14,19 +14,6 @@ import (
 )
 
 func applyContainerRules(object storage.StoreObject) (result errors.LintRuleErrorsList) {
-	containers, err := object.GetContainers()
-	if err != nil {
-		return
-	}
-	initContainers, err := object.GetInitContainers()
-	if err != nil {
-		return
-	}
-	containers = append(initContainers, containers...)
-	if len(containers) == 0 {
-		return
-	}
-
 	result = errors.LintRuleErrorsList{}
 
 	result.Add(objectRecommendedLabels(object))
