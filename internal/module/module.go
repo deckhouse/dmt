@@ -10,7 +10,7 @@ import (
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
 
-	"github.com/deckhouse/d8-lint/internal/storage"
+	"github.com/deckhouse/dmt/internal/storage"
 )
 
 const (

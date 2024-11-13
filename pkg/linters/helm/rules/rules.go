@@ -8,9 +8,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/deckhouse/d8-lint/internal/module"
-	"github.com/deckhouse/d8-lint/pkg/config"
-	"github.com/deckhouse/d8-lint/pkg/errors"
+	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/pkg/config"
+	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 const (

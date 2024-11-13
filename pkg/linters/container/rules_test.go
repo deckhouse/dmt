@@ -3,7 +3,7 @@ package container
 import (
 	"testing"
 
-	"github.com/deckhouse/d8-lint/pkg/config"
+	"github.com/deckhouse/dmt/pkg/config"
 )
 
 func Test_shouldSkipModuleContainer(t *testing.T) {

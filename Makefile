@@ -4,7 +4,7 @@
 # enable consistent Go 1.12/1.13 GOPROXY behavior.
 export GOPROXY = https://proxy.golang.org
 
-BINARY = d8-lint
+BINARY = dmt
 ifeq ($(OS),Windows_NT)
 	BINARY := $(BINARY).exe
 endif
@@ -15,7 +15,7 @@ build: $(BINARY)
 .PHONY: build
 
 build_race:
-	go build -race -o $(BINARY) ./cmd/d8-lint
+	go build -race -o $(BINARY) ./cmd/dmt
 .PHONY: build_race
 
 clean:
@@ -30,7 +30,7 @@ test:
 # Non-PHONY targets (real files)
 
 $(BINARY): FORCE
-	go build -o $@ ./cmd/d8-lint
+	go build -o $@ ./cmd/dmt
 
 go.mod: FORCE
 	go mod tidy

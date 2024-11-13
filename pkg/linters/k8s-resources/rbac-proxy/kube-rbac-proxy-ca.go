@@ -19,9 +19,9 @@ package rbacproxy
 import (
 	"fmt"
 
-	"github.com/deckhouse/d8-lint/internal/set"
-	"github.com/deckhouse/d8-lint/internal/storage"
-	"github.com/deckhouse/d8-lint/pkg/errors"
+	"github.com/deckhouse/dmt/internal/set"
+	"github.com/deckhouse/dmt/internal/storage"
+	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 func NamespaceMustContainKubeRBACProxyCA(objectStore *storage.UnstructuredObjectStore) (result errors.LintRuleErrorsList) {

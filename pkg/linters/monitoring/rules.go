@@ -23,8 +23,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/deckhouse/d8-lint/pkg/errors"
-	"github.com/deckhouse/d8-lint/pkg/linters/helm/rules"
+	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters/helm/rules"
 )
 
 func dirExists(moduleName, modulePath string, path ...string) (bool, *errors.LintRuleError) {

@@ -25,7 +25,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/deckhouse/d8-lint/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 func skipModuleImageNameIfNeeded(filePath string) bool {

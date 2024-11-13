@@ -9,8 +9,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
-	"github.com/deckhouse/d8-lint/internal/storage"
-	"github.com/deckhouse/d8-lint/pkg/errors"
+	"github.com/deckhouse/dmt/internal/storage"
+	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 func applyContainerRules(object storage.StoreObject) (result errors.LintRuleErrorsList) {

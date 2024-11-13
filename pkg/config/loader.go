@@ -11,8 +11,8 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/viper"
 
-	"github.com/deckhouse/d8-lint/internal/fsutils"
-	"github.com/deckhouse/d8-lint/internal/logger"
+	"github.com/deckhouse/dmt/internal/fsutils"
+	"github.com/deckhouse/dmt/internal/logger"
 )
 
 type LoaderOptions struct {
@@ -49,7 +49,7 @@ func (l *Loader) Load() error {
 }
 
 func (l *Loader) setConfigFile() error {
-	l.viper.SetConfigName(".d8lint")
+	l.viper.SetConfigName(".dmtlint")
 
 	configSearchPaths := l.getConfigSearchPaths()
 

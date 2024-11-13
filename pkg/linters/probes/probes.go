@@ -7,10 +7,10 @@ import (
 	"github.com/sourcegraph/conc/pool"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/deckhouse/d8-lint/internal/module"
-	"github.com/deckhouse/d8-lint/internal/storage"
-	"github.com/deckhouse/d8-lint/pkg/config"
-	"github.com/deckhouse/d8-lint/pkg/errors"
+	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/internal/storage"
+	"github.com/deckhouse/dmt/pkg/config"
+	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 // Probes linter

@@ -23,8 +23,8 @@ import (
 	k8SRbac "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/deckhouse/d8-lint/internal/storage"
-	"github.com/deckhouse/d8-lint/pkg/errors"
+	"github.com/deckhouse/dmt/internal/storage"
+	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 // ObjectRolesWildcard is a linter for checking the presence

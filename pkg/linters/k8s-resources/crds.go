@@ -26,8 +26,8 @@ import (
 	"github.com/ghodss/yaml"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 
-	"github.com/deckhouse/d8-lint/pkg/errors"
-	"github.com/deckhouse/d8-lint/pkg/linters/helm/rules"
+	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters/helm/rules"
 )
 
 var (

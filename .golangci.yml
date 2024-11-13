@@ -53,7 +53,7 @@ linters-settings:
       - pattern: 'interface{}'
         replacement: 'any'
   goimports:
-    local-prefixes: github.com/deckhouse/d8-lint
+    local-prefixes: github.com/deckhouse/dmt
   mnd:
     # don't include the "operation" and "assign"
     checks:
