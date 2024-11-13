@@ -8,7 +8,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
-	"github.com/deckhouse/d8-lint/pkg/config"
+	"github.com/deckhouse/dmt/pkg/config"
 )
 
 var (

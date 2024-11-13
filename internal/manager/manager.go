@@ -6,24 +6,24 @@ import (
 	"path/filepath"
 	"strings"
 
-	k8s_resources "github.com/deckhouse/d8-lint/pkg/linters/k8s-resources"
-	"github.com/deckhouse/d8-lint/pkg/linters/monitoring"
+	k8s_resources "github.com/deckhouse/dmt/pkg/linters/k8s-resources"
+	"github.com/deckhouse/dmt/pkg/linters/monitoring"
 
 	"github.com/mitchellh/go-homedir"
 	"github.com/sourcegraph/conc/pool"
 
-	"github.com/deckhouse/d8-lint/internal/flags"
-	"github.com/deckhouse/d8-lint/internal/logger"
-	"github.com/deckhouse/d8-lint/internal/module"
-	"github.com/deckhouse/d8-lint/pkg/config"
-	"github.com/deckhouse/d8-lint/pkg/errors"
-	"github.com/deckhouse/d8-lint/pkg/linters/container"
-	"github.com/deckhouse/d8-lint/pkg/linters/helm"
-	"github.com/deckhouse/d8-lint/pkg/linters/license"
-	no_cyrillic "github.com/deckhouse/d8-lint/pkg/linters/no-cyrillic"
-	"github.com/deckhouse/d8-lint/pkg/linters/openapi"
-	"github.com/deckhouse/d8-lint/pkg/linters/probes"
-	"github.com/deckhouse/d8-lint/pkg/linters/rbac"
+	"github.com/deckhouse/dmt/internal/flags"
+	"github.com/deckhouse/dmt/internal/logger"
+	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/pkg/config"
+	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters/container"
+	"github.com/deckhouse/dmt/pkg/linters/helm"
+	"github.com/deckhouse/dmt/pkg/linters/license"
+	no_cyrillic "github.com/deckhouse/dmt/pkg/linters/no-cyrillic"
+	"github.com/deckhouse/dmt/pkg/linters/openapi"
+	"github.com/deckhouse/dmt/pkg/linters/probes"
+	"github.com/deckhouse/dmt/pkg/linters/rbac"
 )
 
 const (

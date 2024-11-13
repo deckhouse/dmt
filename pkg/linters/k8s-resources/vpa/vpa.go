@@ -24,10 +24,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/deckhouse/d8-lint/internal/module"
-	"github.com/deckhouse/d8-lint/internal/set"
-	"github.com/deckhouse/d8-lint/internal/storage"
-	"github.com/deckhouse/d8-lint/pkg/errors"
+	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/internal/set"
+	"github.com/deckhouse/dmt/internal/storage"
+	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 const (

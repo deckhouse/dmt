@@ -1,4 +1,4 @@
-module github.com/deckhouse/d8-lint
+module github.com/deckhouse/dmt
 
 go 1.23.1
 

@@ -4,10 +4,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/deckhouse/d8-lint/internal/fsutils"
-	"github.com/deckhouse/d8-lint/internal/module"
-	"github.com/deckhouse/d8-lint/pkg/config"
-	"github.com/deckhouse/d8-lint/pkg/errors"
+	"github.com/deckhouse/dmt/internal/fsutils"
+	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/pkg/config"
+	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 // Copyright linter

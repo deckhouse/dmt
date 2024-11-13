@@ -23,10 +23,10 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	"github.com/deckhouse/d8-lint/internal/module"
-	"github.com/deckhouse/d8-lint/internal/storage"
-	"github.com/deckhouse/d8-lint/pkg/errors"
-	"github.com/deckhouse/d8-lint/pkg/linters/helm/rules"
+	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/internal/storage"
+	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters/helm/rules"
 )
 
 type checkResult struct {

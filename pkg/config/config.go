@@ -1,7 +1,7 @@
 package config
 
 import (
-	"github.com/deckhouse/d8-lint/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 // Config encapsulates the config data specified in the YAML config file.

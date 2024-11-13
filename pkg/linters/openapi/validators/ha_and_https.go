@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/deckhouse/d8-lint/internal/logger"
-	"github.com/deckhouse/d8-lint/pkg/config"
+	"github.com/deckhouse/dmt/internal/logger"
+	"github.com/deckhouse/dmt/pkg/config"
 )
 
 type HAValidator struct {

@@ -1,10 +1,10 @@
 version: 2
 
-project_name: d8-lint
+project_name: dmt
 
 builds:
-  - binary: d8-lint
-    main: ./cmd/d8-lint
+  - binary: dmt
+    main: ./cmd/dmt
     flags:
       - -trimpath
     ldflags: -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}}
@@ -58,7 +58,7 @@ changelog:
 release:
   github:
     owner: deckhouse
-    name: d8-lint
+    name: dmt
 
 source:
   enabled: true

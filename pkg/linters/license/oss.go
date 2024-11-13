@@ -26,7 +26,7 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	"github.com/deckhouse/d8-lint/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 const ossFilename = "oss.yaml"

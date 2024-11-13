@@ -23,7 +23,7 @@ func ParseFlags() []string {
 		version      = "HEAD"
 	)
 
-	flagSet := pflag.NewFlagSet("d8-lint", pflag.ContinueOnError)
+	flagSet := pflag.NewFlagSet("dmt", pflag.ContinueOnError)
 
 	flagSet.BoolVarP(&printHelp, "help", "h", false, "help message")
 	flagSet.BoolVarP(&printVersion, "version", "v", false, "version message")
@@ -31,7 +31,7 @@ func ParseFlags() []string {
 	flagSet.StringVarP(&LogLevel, "log-level", "l", "INFO", "log-level [DEBUG | INFO | WARN | ERROR]")
 
 	flagSet.Usage = func() {
-		_, _ = fmt.Fprintln(os.Stderr, "Usage: d8-lint [OPTIONS] [dirs...]")
+		_, _ = fmt.Fprintln(os.Stderr, "Usage: dmt [OPTIONS] [dirs...]")
 		flagSet.PrintDefaults()
 	}
 
@@ -46,7 +46,7 @@ func ParseFlags() []string {
 	}
 
 	if printVersion {
-		fmt.Println("d8-lint version: ", version)
+		fmt.Println("dmt version: ", version)
 		return nil
 	}
 

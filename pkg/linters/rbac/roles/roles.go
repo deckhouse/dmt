@@ -1,7 +1,7 @@
 package roles
 
 import (
-	"github.com/deckhouse/d8-lint/pkg/config"
+	"github.com/deckhouse/dmt/pkg/config"
 )
 
 const (
