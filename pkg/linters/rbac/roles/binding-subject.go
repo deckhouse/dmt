@@ -17,6 +17,8 @@ limitations under the License.
 package roles
 
 import (
+	"slices"
+
 	v1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -26,10 +28,15 @@ import (
 )
 
 //nolint:gocyclo // because
-func ObjectBindingSubjectServiceAccountCheck(m *module.Module, object storage.StoreObject, objectStore *storage.UnstructuredObjectStore) *errors.LintRuleError {
-	if m.GetName() == "user-authz" {
+func ObjectBindingSubjectServiceAccountCheck(
+	m *module.Module,
+	object storage.StoreObject,
+	objectStore *storage.UnstructuredObjectStore,
+) *errors.LintRuleError {
+	if slices.Contains(Cfg.SkipModuleCheckBinding, m.GetName()) {
 		return nil
 	}
+
 	converter := runtime.DefaultUnstructuredConverter
 
 	var subjects []v1.Subject

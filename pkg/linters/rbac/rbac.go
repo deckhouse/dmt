@@ -15,6 +15,7 @@ type Rbac struct {
 
 func New(cfg *config.RbacSettings) *Rbac {
 	roles.Cfg = cfg
+
 	return &Rbac{
 		name: "rbac",
 		desc: "Lint rbac objects",

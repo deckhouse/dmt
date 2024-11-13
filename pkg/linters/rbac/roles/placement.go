@@ -19,6 +19,7 @@ package roles
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/deckhouse/d8-lint/internal/module"
@@ -50,7 +51,7 @@ func isDeckhouseSystemNamespace(actual string) bool {
 }
 
 func ObjectRBACPlacement(m *module.Module, object storage.StoreObject) *errors.LintRuleError {
-	if m.GetName() == "user-authz" || m.GetName() == "deckhouse" {
+	if slices.Contains(Cfg.SkipObjectCheckBinding, m.GetName()) {
 		return nil
 	}
 	if object.ShortPath() == UserAuthzClusterRolePath || strings.HasPrefix(object.ShortPath(), RBACv2Path) {

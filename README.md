@@ -29,6 +29,11 @@ linters-settings:
     skip-check-wildcards:
       - "admission-policy-engine/templates/rbac-for-us.yaml":
           - "d8:admission-policy-engine:gatekeeper"
+    skip-module-check-binding:
+      - "user-authz"
+    skip-object-check-binding:
+      - "user-authz"
+      - "deckhouse"
   helm:
     skip-module-image-name:
       - "021-cni-cilium/images/cilium/Dockerfile"

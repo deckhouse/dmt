@@ -50,7 +50,9 @@ type MonitoringSettings struct {
 }
 
 type RbacSettings struct {
-	SkipCheckWildcards map[string][]string `mapstructure:"skip-check-wildcards"`
+	SkipCheckWildcards     map[string][]string `mapstructure:"skip-check-wildcards"`
+	SkipModuleCheckBinding []string            `mapstructure:"skip-module-check-binding"`
+	SkipObjectCheckBinding []string            `mapstructure:"skip-object-check-binding"`
 }
 
 type HelmSettings struct {
