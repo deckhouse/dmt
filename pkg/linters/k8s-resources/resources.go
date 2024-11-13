@@ -20,10 +20,10 @@ const (
 // Object linter
 type Object struct {
 	name, desc string
-	cfg        *config.ObjectSettings
+	cfg        *config.K8SResourcesSettings
 }
 
-func New(cfg *config.ObjectSettings) *Object {
+func New(cfg *config.K8SResourcesSettings) *Object {
 	return &Object{
 		name: "object",
 		desc: "Lint objects",

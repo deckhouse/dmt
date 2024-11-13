@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/deckhouse/d8-lint/pkg/errors"
@@ -45,11 +46,7 @@ func dirExists(moduleName, modulePath string, path ...string) (bool, *errors.Lin
 }
 
 func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string) *errors.LintRuleError {
-	switch moduleName {
-	// These helm deploy common rbac-proxy and dashboards to the cluster according to their configurations.
-	// That's why they have custom monitoring templates.
-	// TODO: move to the config excludes
-	case "340-extended-monitoring", "030-cloud-provider-yandex":
+	if slices.Contains(Cfg.SkipModuleChecks, moduleName) {
 		return nil
 	}
 

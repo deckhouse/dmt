@@ -40,6 +40,10 @@ linters-settings:
     skip-containers:
       - "okmeter:okagent"
       - "d8-control-plane-manager:*.image-holder"
+  monitoring:
+    skip-module-checks:
+      - "340-extended-monitoring"
+      - "030-cloud-provider-yandex"
 warnings-only:
   - openapi
   - no-cyrillic

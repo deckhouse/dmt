@@ -1,16 +1,16 @@
 package config
 
 type LintersSettings struct {
-	OpenAPI      OpenAPISettings    `mapstructure:"openapi"`
-	NoCyrillic   NoCyrillicSettings `mapstructure:"nocyrillic"`
-	License      LicenseSettings    `mapstructure:"license"`
-	Probes       ProbesSettings     `mapstructure:"probes"`
-	Container    ContainerSettings  `mapstructure:"container"`
-	K8SResources ObjectSettings     `mapstructure:"k8s_resources"`
-	Helm         HelmSettings       `mapstructure:"helm"`
-	Rbac         RbacSettings       `mapstructure:"rbac"`
-	Resources    ResourcesSettings  `mapstructure:"resources"`
-	Monitoring   MonitoringSettings `mapstructure:"monitoring"`
+	OpenAPI      OpenAPISettings      `mapstructure:"openapi"`
+	NoCyrillic   NoCyrillicSettings   `mapstructure:"nocyrillic"`
+	License      LicenseSettings      `mapstructure:"license"`
+	Probes       ProbesSettings       `mapstructure:"probes"`
+	Container    ContainerSettings    `mapstructure:"container"`
+	K8SResources K8SResourcesSettings `mapstructure:"k8s_resources"`
+	Helm         HelmSettings         `mapstructure:"helm"`
+	Rbac         RbacSettings         `mapstructure:"rbac"`
+	Resources    ResourcesSettings    `mapstructure:"resources"`
+	Monitoring   MonitoringSettings   `mapstructure:"monitoring"`
 }
 
 type OpenAPISettings struct {
@@ -41,11 +41,13 @@ type ContainerSettings struct {
 	SkipContainers []string `mapstructure:"skip-containers"`
 }
 
-type ObjectSettings struct{}
+type K8SResourcesSettings struct{}
 
 type ResourcesSettings struct{}
 
-type MonitoringSettings struct{}
+type MonitoringSettings struct {
+	SkipModuleChecks []string `mapstructure:"skip-module-checks"`
+}
 
 type RbacSettings struct {
 	SkipCheckWildcards map[string][]string `mapstructure:"skip-check-wildcards"`

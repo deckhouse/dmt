@@ -12,7 +12,11 @@ type Monitoring struct {
 	cfg        *config.MonitoringSettings
 }
 
+var Cfg *config.MonitoringSettings
+
 func New(cfg *config.MonitoringSettings) *Monitoring {
+	Cfg = cfg
+
 	return &Monitoring{
 		name: "monitoring",
 		desc: "Lint monitoring rules",
