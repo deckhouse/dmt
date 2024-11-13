@@ -1,0 +1,1 @@
+Checks the copyright header in files.

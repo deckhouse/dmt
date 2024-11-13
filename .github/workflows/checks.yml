@@ -1,0 +1,49 @@
+name: CI
+on:
+  push:
+  pull_request:
+
+env:
+  # https://github.com/actions/setup-go#supported-version-syntax
+  # ex:
+  # - 1.18beta1 -> 1.18.0-beta.1
+  # - 1.18rc1 -> 1.18.0-rc.1
+  GO_VERSION: '1.23'
+
+jobs:
+  # Check if there is any dirty change for go mod tidy
+  go-mod:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Check go mod
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod
+          git diff --exit-code go.sum
+
+  golangci-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: lint
+        uses: golangci/golangci-lint-action@v6.1.0
+        with:
+          version: latest
+
+  tests:
+    needs: golangci-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Run tests
+        run: make test
