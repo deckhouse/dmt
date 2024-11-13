@@ -100,16 +100,24 @@ func containerEnvVariablesDuplicates(object storage.StoreObject, containers []v1
 }
 
 func shouldSkipModuleContainer(md, container string) bool {
-	// okmeter module uses images from external repo - registry.okmeter.io/agent/okagent:stub
-	if md == "okmeter" && container == "okagent" {
-		return true
+	for _, line := range Cfg.SkipContainers {
+		els := strings.Split(line, ":")
+		if len(els) != 2 {
+			continue
+		}
+		moduleName := strings.TrimSpace(els[0])
+		containerName := strings.TrimSpace(els[1])
+
+		checkContainer := container == containerName
+		if strings.HasPrefix(containerName, "*.") {
+			checkContainer = strings.HasSuffix(container, containerName[2:])
+		}
+
+		if md == moduleName && checkContainer {
+			return true
+		}
 	}
-	// control-plane-manager uses `$images` as dict to render static pod manifests,
-	// so we cannot use helm lib `helm_lib_module_image` helper because `$images`
-	// is also rendered in `dhctl` tool on cluster bootstrap.
-	if md == "d8-control-plane-manager" && strings.HasPrefix(container, "image-holder") {
-		return true
-	}
+
 	return false
 }
 

@@ -3,7 +3,7 @@ package config
 type LintersSettings struct {
 	OpenAPI      OpenAPISettings    `mapstructure:"openapi"`
 	NoCyrillic   NoCyrillicSettings `mapstructure:"nocyrillic"`
-	License      LicenseSettings    `mapstructure:"copyright"`
+	License      LicenseSettings    `mapstructure:"license"`
 	Probes       ProbesSettings     `mapstructure:"probes"`
 	Container    ContainerSettings  `mapstructure:"container"`
 	K8SResources ObjectSettings     `mapstructure:"k8s_resources"`
@@ -37,7 +37,9 @@ type ProbesSettings struct {
 	ProbesExcludes map[string][]string `mapstructure:"probes-excludes"`
 }
 
-type ContainerSettings struct{}
+type ContainerSettings struct {
+	SkipContainers []string `mapstructure:"skip-containers"`
+}
 
 type ObjectSettings struct{}
 

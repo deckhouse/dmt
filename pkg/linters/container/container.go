@@ -10,6 +10,8 @@ const (
 	ID = "container"
 )
 
+var Cfg *config.ContainerSettings
+
 // Container linter
 type Container struct {
 	name, desc string
@@ -17,6 +19,8 @@ type Container struct {
 }
 
 func New(cfg *config.ContainerSettings) *Container {
+	Cfg = cfg
+
 	return &Container{
 		name: "container",
 		desc: "Lint container objects",
