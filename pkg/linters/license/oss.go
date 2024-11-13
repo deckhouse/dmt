@@ -155,11 +155,10 @@ func shouldIgnoreOssInfo(moduleName string) bool {
 	return slices.Contains(Cfg.SkipOssChecks, moduleName)
 }
 
-//nolint:misspell  // licence needed
 type ossProject struct {
 	Name        string `yaml:"name"`           // example: Dex
 	Description string `yaml:"description"`    // example: A Federated OpenID Connect Provider with pluggable connectors
 	Link        string `yaml:"link"`           // example: https://github.com/dexidp/dex
 	Logo        string `yaml:"logo,omitempty"` // example: https://dexidp.io/img/logos/dex-horizontal-color.png
-	License     string `yaml:"licence"`        // example: Apache License 2.0
+	License     string `yaml:"license"`        // example: Apache License 2.0
 }
