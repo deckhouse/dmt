@@ -72,6 +72,9 @@ func containersImagePullPolicy(object storage.StoreObject, containers []v1.Conta
 func containerNameDuplicates(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	names := make(map[string]struct{})
 	for i := range containers {
+		if shouldSkipModuleContainer(object.Unstructured.GetName(), containers[i].Name) {
+			continue
+		}
 		if _, ok := names[containers[i].Name]; ok {
 			return errors.NewLintRuleError(ID, object.Identity(), containers[i].Name, nil, "Duplicate container name")
 		}
@@ -82,6 +85,9 @@ func containerNameDuplicates(object storage.StoreObject, containers []v1.Contain
 
 func containerEnvVariablesDuplicates(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	for i := range containers {
+		if shouldSkipModuleContainer(object.Unstructured.GetName(), containers[i].Name) {
+			continue
+		}
 		envVariables := make(map[string]struct{})
 		for _, variable := range containers[i].Env {
 			if _, ok := envVariables[variable.Name]; ok {
@@ -123,7 +129,6 @@ func shouldSkipModuleContainer(md, container string) bool {
 
 func containerImageDigestCheck(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	for i := range containers {
-		// TODO: skip helm and containers via the linter settings, not hardcode
 		if shouldSkipModuleContainer(object.Unstructured.GetName(), containers[i].Name) {
 			continue
 		}
@@ -164,6 +169,9 @@ func containerImageDigestCheck(object storage.StoreObject, containers []v1.Conta
 
 func containerImagePullPolicyIfNotPresent(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	for i := range containers {
+		if shouldSkipModuleContainer(object.Unstructured.GetName(), containers[i].Name) {
+			continue
+		}
 		if containers[i].ImagePullPolicy == "" || containers[i].ImagePullPolicy == "IfNotPresent" {
 			continue
 		}
@@ -180,6 +188,9 @@ func containerImagePullPolicyIfNotPresent(object storage.StoreObject, containers
 
 func containerStorageEphemeral(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	for i := range containers {
+		if shouldSkipModuleContainer(object.Unstructured.GetName(), containers[i].Name) {
+			continue
+		}
 		if containers[i].Resources.Requests.StorageEphemeral() == nil ||
 			containers[i].Resources.Requests.StorageEphemeral().Value() == 0 {
 			return errors.NewLintRuleError(
@@ -196,6 +207,9 @@ func containerStorageEphemeral(object storage.StoreObject, containers []v1.Conta
 
 func containerSecurityContext(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	for i := range containers {
+		if shouldSkipModuleContainer(object.Unstructured.GetName(), containers[i].Name) {
+			continue
+		}
 		if containers[i].SecurityContext == nil {
 			return errors.NewLintRuleError(
 				ID,
@@ -211,6 +225,9 @@ func containerSecurityContext(object storage.StoreObject, containers []v1.Contai
 
 func containerPorts(object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	for i := range containers {
+		if shouldSkipModuleContainer(object.Unstructured.GetName(), containers[i].Name) {
+			continue
+		}
 		for _, p := range containers[i].Ports {
 			const t = 1024
 			if p.ContainerPort <= t {

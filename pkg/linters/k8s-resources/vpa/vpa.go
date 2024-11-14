@@ -18,6 +18,7 @@ package vpa
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/flant/addon-operator/sdk"
 	appsv1 "k8s.io/api/apps/v1"
@@ -34,8 +35,14 @@ const (
 	ID = "vpa"
 )
 
+var SkipVPAChecks []string
+
 // ControllerMustHaveVPA fills linting error regarding VPA
 func ControllerMustHaveVPA(md *module.Module) (result errors.LintRuleErrorsList) {
+	if slices.Contains(SkipVPAChecks, md.GetNamespace()+":"+md.GetName()) {
+		return errors.LintRuleErrorsList{}
+	}
+
 	vpaTargets, vpaTolerationGroups, vpaContainerNamesMap, vpaUpdateModes, errs := parseTargetsAndTolerationGroups(md)
 	result.Merge(errs)
 

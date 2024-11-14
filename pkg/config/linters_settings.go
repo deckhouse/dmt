@@ -41,7 +41,12 @@ type ContainerSettings struct {
 	SkipContainers []string `mapstructure:"skip-containers"`
 }
 
-type K8SResourcesSettings struct{}
+type K8SResourcesSettings struct {
+	SkipKubeRbacProxyChecks []string `mapstructure:"skip-kube-rbac-proxy-checks"`
+	SkipContainerChecks     []string `mapstructure:"skip-container-checks"`
+	SkipVPAChecks           []string `mapstructure:"skip-vpa-checks"`
+	SkipPDBChecks           []string `mapstructure:"skip-pdb-checks"`
+}
 
 type ResourcesSettings struct{}
 
