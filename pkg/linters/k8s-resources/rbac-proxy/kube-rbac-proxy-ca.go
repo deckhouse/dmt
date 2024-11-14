@@ -18,11 +18,14 @@ package rbacproxy
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/deckhouse/dmt/internal/set"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
+
+var SkipKubeRbacProxyChecks []string
 
 func NamespaceMustContainKubeRBACProxyCA(objectStore *storage.UnstructuredObjectStore) (result errors.LintRuleErrorsList) {
 	proxyInNamespaces := set.New()
@@ -34,15 +37,20 @@ func NamespaceMustContainKubeRBACProxyCA(objectStore *storage.UnstructuredObject
 	}
 
 	for index := range objectStore.Storage {
-		if index.Kind == "Namespace" && !proxyInNamespaces.Has(index.Name) {
-			result.Add(errors.NewLintRuleError(
-				"kube-rbac-proxy-ca",
-				fmt.Sprintf("namespace = %s", index.Name),
-				index.Name,
-				proxyInNamespaces.Slice(),
-				"All system namespaces should contain kube-rbac-proxy CA certificate."+
-					"\n\tConsider using corresponding helm_lib helper 'helm_lib_kube_rbac_proxy_ca_certificate'.",
-			))
+		if index.Kind == "Namespace" {
+			if slices.Contains(SkipKubeRbacProxyChecks, index.Namespace) {
+				continue
+			}
+			if !proxyInNamespaces.Has(index.Name) {
+				result.Add(errors.NewLintRuleError(
+					"kube-rbac-proxy-ca",
+					fmt.Sprintf("namespace = %s", index.Name),
+					index.Name,
+					proxyInNamespaces.Slice(),
+					"All system namespaces should contain kube-rbac-proxy CA certificate."+
+						"\n\tConsider using corresponding helm_lib helper 'helm_lib_kube_rbac_proxy_ca_certificate'.",
+				))
+			}
 		}
 	}
 

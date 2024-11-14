@@ -23,10 +23,17 @@ type Object struct {
 	cfg        *config.K8SResourcesSettings
 }
 
+var Cfg *config.K8SResourcesSettings
+
 func New(cfg *config.K8SResourcesSettings) *Object {
+	Cfg = cfg
+	pdb.SkipPDBChecks = cfg.SkipPDBChecks
+	vpa.SkipVPAChecks = cfg.SkipVPAChecks
+	rbacproxy.SkipKubeRbacProxyChecks = cfg.SkipKubeRbacProxyChecks
+
 	return &Object{
-		name: "object",
-		desc: "Lint objects",
+		name: "k8s-resources",
+		desc: "Lint k8s-resources",
 		cfg:  cfg,
 	}
 }

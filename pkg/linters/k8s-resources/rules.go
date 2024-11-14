@@ -2,6 +2,7 @@ package k8sresources
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -14,6 +15,10 @@ import (
 )
 
 func applyContainerRules(object storage.StoreObject) (result errors.LintRuleErrorsList) {
+	if slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName()) {
+		return errors.LintRuleErrorsList{}
+	}
+
 	result = errors.LintRuleErrorsList{}
 
 	result.Add(objectRecommendedLabels(object))
