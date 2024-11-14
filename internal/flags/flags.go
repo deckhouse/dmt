@@ -61,7 +61,7 @@ func InitGenFlagSet() *pflag.FlagSet {
 }
 
 func GeneralParse(flagSet *pflag.FlagSet) {
-	if err := flagSet.Parse(os.Args[2:]); err != nil {
+	if err := flagSet.Parse(os.Args[1:]); err != nil {
 		flagSet.Usage()
 		os.Exit(0)
 	}

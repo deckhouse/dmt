@@ -22,6 +22,7 @@ func main() {
 	gen.AddFlagSet(defaults)
 
 	if len(os.Args) < 2 {
+		flags.GeneralParse(defaults)
 		defaults.Usage()
 		return
 	}
