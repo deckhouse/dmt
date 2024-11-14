@@ -10,7 +10,10 @@ import (
 	"github.com/deckhouse/dmt/pkg/config"
 )
 
+var Version = "HEAD"
+
 func main() {
+	flags.Version = Version
 	logger.InitLogger()
 
 	defaults := flags.InitDefaultFlagSet()

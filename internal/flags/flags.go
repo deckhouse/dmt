@@ -19,7 +19,7 @@ var (
 var (
 	PrintHelp    bool
 	PrintVersion bool
-	Version      = "HEAD"
+	Version      string
 )
 
 func InitDefaultFlagSet() *pflag.FlagSet {
