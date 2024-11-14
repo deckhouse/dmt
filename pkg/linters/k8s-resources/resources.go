@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	ID      = "object"
+	ID      = "k8s-resources"
 	CrdsDir = "crds"
 )
 

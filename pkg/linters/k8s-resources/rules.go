@@ -464,7 +464,7 @@ func objectDNSPolicy(object storage.StoreObject) *errors.LintRuleError {
 	}
 
 	return errors.NewLintRuleError(
-		"MANIFEST007",
+		ID,
 		object.Identity(),
 		object.Unstructured.GetName(),
 		dnsPolicy,
