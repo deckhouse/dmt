@@ -144,15 +144,9 @@ func (l *Loader) setConfigDir() error {
 	if usedConfigFile == os.Stdin.Name() {
 		usedConfigFile = ""
 		logger.InfoF("Reading config file stdin")
-	} else {
-		var err error
-		usedConfigFile, err = fsutils.ShortestRelPath(usedConfigFile, "")
-		if err != nil {
-			logger.WarnF("Can't pretty print config file path: %v", err)
-		}
-
-		logger.InfoF("Used config file %s", usedConfigFile)
 	}
+
+	logger.InfoF("Used config file %s", usedConfigFile)
 
 	usedConfigDir, err := filepath.Abs(filepath.Dir(usedConfigFile))
 	if err != nil {

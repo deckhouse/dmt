@@ -34,7 +34,7 @@ func main() {
 	case "lint":
 		flags.GeneralParse(lint)
 
-		var dirs = lint.Args()
+		var dirs = lint.Args()[1:]
 		if len(dirs) == 0 {
 			dirs = []string{"."}
 		}

@@ -90,7 +90,7 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 		logger.DebugF("Found `%s` module", moduleName)
 		mdl, err := module.NewModule(paths[i])
 		if err != nil {
-			logger.ErrorF("Chart fill not success for module `%s`: %v", moduleName, err)
+			logger.ErrorF("Cannot create module `%s`: %s", moduleName, err)
 			continue
 		}
 		m.Modules = append(m.Modules, mdl)
