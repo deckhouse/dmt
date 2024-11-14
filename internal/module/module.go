@@ -106,12 +106,12 @@ func NewModule(path string) (*Module, error) {
 
 	values, err := ComposeValuesFromSchemas(module)
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
 	objectStore := storage.NewUnstructuredObjectStore()
 	err = RunRender(module, values, objectStore)
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
 	module.objectStore = objectStore
 
