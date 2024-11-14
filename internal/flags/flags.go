@@ -7,53 +7,72 @@ import (
 	"github.com/spf13/pflag"
 )
 
+const (
+	numThreads = 10
+)
+
 var (
 	LintersLimit int
 	LogLevel     string
 )
 
-const (
-	numThreads = 10
+var (
+	PrintHelp    bool
+	PrintVersion bool
+	Version      string
 )
 
-func ParseFlags() []string {
-	var (
-		printHelp    bool
-		printVersion bool
-		version      = "HEAD"
-	)
+func InitDefaultFlagSet() *pflag.FlagSet {
+	defaults := pflag.NewFlagSet("defaults for all commands", pflag.ExitOnError)
+	defaults.BoolVarP(&PrintHelp, "help", "h", false, "help message")
+	defaults.BoolVarP(&PrintVersion, "version", "v", false, "version message")
 
-	flagSet := pflag.NewFlagSet("dmt", pflag.ContinueOnError)
-
-	flagSet.BoolVarP(&printHelp, "help", "h", false, "help message")
-	flagSet.BoolVarP(&printVersion, "version", "v", false, "version message")
-	flagSet.IntVarP(&LintersLimit, "parallel", "p", numThreads, "number of threads for parallel processing")
-	flagSet.StringVarP(&LogLevel, "log-level", "l", "INFO", "log-level [DEBUG | INFO | WARN | ERROR]")
-
-	flagSet.Usage = func() {
-		_, _ = fmt.Fprintln(os.Stderr, "Usage: dmt [OPTIONS] [dirs...]")
-		flagSet.PrintDefaults()
+	defaults.Usage = func() {
+		_, _ = fmt.Fprintln(os.Stderr, "Usage: dmt [gen|lint] [OPTIONS]")
+		defaults.PrintDefaults()
 	}
 
+	return defaults
+}
+
+func InitLintFlagSet() *pflag.FlagSet {
+	lint := pflag.NewFlagSet("lint", pflag.ContinueOnError)
+
+	lint.IntVarP(&LintersLimit, "parallel", "p", numThreads, "number of threads for parallel processing")
+	lint.StringVarP(&LogLevel, "log-level", "l", "INFO", "log-level [DEBUG | INFO | WARN | ERROR]")
+
+	lint.Usage = func() {
+		_, _ = fmt.Fprintln(os.Stderr, "Usage: dmt lint [OPTIONS] [dirs...]")
+		lint.PrintDefaults()
+	}
+
+	return lint
+}
+
+func InitGenFlagSet() *pflag.FlagSet {
+	gen := pflag.NewFlagSet("gen", pflag.ContinueOnError)
+
+	gen.Usage = func() {
+		_, _ = fmt.Fprintln(os.Stderr, "Usage: dmt gen [OPTIONS]")
+		pflag.PrintDefaults()
+	}
+
+	return gen
+}
+
+func GeneralParse(flagSet *pflag.FlagSet) {
 	if err := flagSet.Parse(os.Args[1:]); err != nil {
 		flagSet.Usage()
-		return nil
+		os.Exit(0)
 	}
 
-	if printHelp {
+	if PrintHelp {
 		flagSet.Usage()
-		return nil
+		os.Exit(0)
 	}
 
-	if printVersion {
-		fmt.Println("dmt version: ", version)
-		return nil
+	if PrintVersion {
+		fmt.Println("dmt version: ", Version)
+		os.Exit(0)
 	}
-
-	var dirs = flagSet.Args()
-	if len(dirs) == 0 {
-		dirs = []string{"."}
-	}
-
-	return dirs
 }
