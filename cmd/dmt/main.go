@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/fatih/color"
+
 	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/manager"
@@ -14,6 +16,7 @@ var Version = "HEAD"
 
 func main() {
 	flags.Version = Version
+	color.NoColor = false
 	logger.InitLogger()
 
 	defaults := flags.InitDefaultFlagSet()
