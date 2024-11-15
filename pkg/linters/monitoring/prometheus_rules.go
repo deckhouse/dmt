@@ -26,7 +26,6 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/linters/helm/rules"
 )
 
 type checkResult struct {
@@ -94,8 +93,8 @@ func checkRuleFile(path string) error {
 
 func createPromtoolError(m *module.Module, errMsg string) *errors.LintRuleError {
 	return errors.NewLintRuleError(
-		rules.ID,
-		rules.ModuleLabel(m.GetName()),
+		ID,
+		m.GetName(),
 		m.GetPath(),
 		nil,
 		"Promtool check failed for Helm chart:\n%s",
@@ -124,7 +123,7 @@ func PromtoolRuleCheck(m *module.Module, object storage.StoreObject) *errors.Lin
 	marshal, err := marshalChartYaml(object)
 	if err != nil {
 		return errors.NewLintRuleError(
-			rules.ID,
+			ID,
 			m.GetName(),
 			m.GetPath(),
 			nil,
@@ -137,7 +136,7 @@ func PromtoolRuleCheck(m *module.Module, object storage.StoreObject) *errors.Lin
 
 	if err != nil {
 		return errors.NewLintRuleError(
-			rules.ID,
+			ID,
 			m.GetName(),
 			m.GetPath(),
 			nil,
