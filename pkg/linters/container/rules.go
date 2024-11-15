@@ -115,8 +115,9 @@ func shouldSkipModuleContainer(md, container string) bool {
 		containerName := strings.TrimSpace(els[1])
 
 		checkContainer := container == containerName
-		if strings.HasPrefix(containerName, "*.") {
-			checkContainer = strings.HasSuffix(container, containerName[2:])
+		subString := strings.Trim(containerName, "*")
+		if len(subString) != len(containerName) {
+			checkContainer = strings.Contains(container, subString)
 		}
 
 		if md == moduleName && checkContainer {

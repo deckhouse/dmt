@@ -10,7 +10,7 @@ func Test_shouldSkipModuleContainer(t *testing.T) {
 	Cfg = new(config.ContainerSettings)
 	Cfg.SkipContainers = []string{
 		"okmeter:okagent",
-		"d8-control-plane-manager:*.image-holder",
+		"d8-control-plane-manager:*image-holder",
 	}
 	type args struct {
 		md        string
