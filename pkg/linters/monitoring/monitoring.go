@@ -12,6 +12,8 @@ type Monitoring struct {
 	cfg        *config.MonitoringSettings
 }
 
+const ID = "monitoring"
+
 var Cfg *config.MonitoringSettings
 
 func New(cfg *config.MonitoringSettings) *Monitoring {
