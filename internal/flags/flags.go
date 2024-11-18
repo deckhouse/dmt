@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/deckhouse/dmt/internal/logger"
+
 	"github.com/spf13/pflag"
 )
 
@@ -65,6 +67,8 @@ func GeneralParse(flagSet *pflag.FlagSet) {
 		flagSet.Usage()
 		os.Exit(0)
 	}
+
+	logger.InitLogger(LogLevel)
 
 	if PrintHelp {
 		flagSet.Usage()
