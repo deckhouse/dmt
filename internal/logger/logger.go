@@ -6,13 +6,11 @@ import (
 	"log"
 	"log/slog"
 	"os"
-
-	"github.com/deckhouse/dmt/internal/flags"
 )
 
 var logger *slog.Logger
 
-func InitLogger() {
+func InitLogger(logLevel string) {
 	log.SetOutput(io.Discard)
 
 	lvl := new(slog.LevelVar)
@@ -20,16 +18,16 @@ func InitLogger() {
 
 	logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: lvl}))
 
-	if flags.LogLevel == "DEBUG" {
+	if logLevel == "DEBUG" {
 		lvl.Set(slog.LevelDebug)
 	}
-	if flags.LogLevel == "INFO" {
+	if logLevel == "INFO" {
 		lvl.Set(slog.LevelInfo)
 	}
-	if flags.LogLevel == "WARN" {
+	if logLevel == "WARN" {
 		lvl.Set(slog.LevelWarn)
 	}
-	if flags.LogLevel == "ERROR" {
+	if logLevel == "ERROR" {
 		lvl.Set(slog.LevelError)
 	}
 }

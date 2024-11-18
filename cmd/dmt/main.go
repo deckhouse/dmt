@@ -17,7 +17,6 @@ var Version = "HEAD"
 func main() {
 	flags.Version = Version
 	color.NoColor = false
-	logger.InitLogger()
 
 	defaults := flags.InitDefaultFlagSet()
 
