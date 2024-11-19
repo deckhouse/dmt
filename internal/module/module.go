@@ -179,5 +179,6 @@ func createChartYaml(name, chartPath string) error {
 	data := fmt.Sprintf(`name: %s
 version: 0.2.0`, name)
 
+	//nolint:mnd  // false positive
 	return os.WriteFile(chartPath, []byte(data), 0o600)
 }
