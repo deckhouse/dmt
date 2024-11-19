@@ -181,7 +181,11 @@ func parseProperties(tempNode *spec.Schema) (map[string]any, error) {
 				result[key] = examples[0]
 			}
 		case len(prop.Enum) > 0:
-			result[key] = prop.Enum
+			if prop.Default != nil {
+				result[key] = prop.Default
+				continue
+			}
+			result[key] = prop.Enum[0]
 		case prop.Type.Contains(ObjectKey):
 			if prop.Default == nil {
 				continue
