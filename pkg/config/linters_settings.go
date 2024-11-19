@@ -63,4 +63,6 @@ type RbacSettings struct {
 type HelmSettings struct {
 	SkipModuleImageName      []string `mapstructure:"skip-module-image-name"`
 	SkipDistrolessImageCheck []string `mapstructure:"skip-distroless-image-check"`
+	SkipHelmIgnoreCheck      []string `mapstructure:"skip-helm-ignore-check"`
+	SkipNamespaceCheck       []string `mapstructure:"skip-namespace-check"`
 }
