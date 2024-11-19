@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	ChartConfigFilename = "Chart.yaml"
+	ChartConfigFilename  = "Chart.yaml"
+	ModuleConfigFilename = "module.yaml"
 )
 
 type Module struct {
@@ -87,14 +88,16 @@ func NewModule(path string) (*Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	namespace, err := getNamespace(path)
-	if err != nil {
-		return nil, err
-	}
+
 	module := &Module{
 		name:      name,
-		namespace: namespace,
+		namespace: getNamespace(path),
 		path:      path,
+	}
+
+	err = checkHelmChart(name, path)
+	if err != nil {
+		return nil, err
 	}
 
 	ch, err := loader.Load(path)
@@ -119,7 +122,14 @@ func NewModule(path string) (*Module, error) {
 }
 
 func getModuleName(path string) (name string, err error) {
-	yamlFile, err := os.ReadFile(filepath.Join(path, ChartConfigFilename))
+	stat, err := os.Stat(filepath.Join(path, ChartConfigFilename))
+	if err != nil {
+		stat, err = os.Stat(filepath.Join(path, ModuleConfigFilename))
+		if err != nil {
+			return "", err
+		}
+	}
+	yamlFile, err := os.ReadFile(filepath.Join(path, stat.Name()))
 	if err != nil {
 		return "", err
 	}
@@ -135,11 +145,39 @@ func getModuleName(path string) (name string, err error) {
 	return ch.Name, nil
 }
 
-func getNamespace(path string) (name string, err error) {
+func getNamespace(path string) (name string) {
 	content, err := os.ReadFile(filepath.Join(path, ".namespace"))
 	if err != nil {
-		return "", err
+		return ""
 	}
 
-	return strings.TrimRight(string(content), " \t\n"), nil
+	return strings.TrimRight(string(content), " \t\n")
+}
+
+// isHelmChart check, could it be considered as helm chart or not
+func checkHelmChart(name, path string) error {
+	chartPath := filepath.Join(path, "Chart.yaml")
+
+	_, err := os.Stat(chartPath)
+	if err == nil {
+		// Chart.yaml exists, consider this module as helm chart
+		return nil
+	}
+
+	if os.IsNotExist(err) {
+		// Chart.yaml does not exist
+		return createChartYaml(name, chartPath)
+	}
+
+	return err
+}
+
+func createChartYaml(name, chartPath string) error {
+	// we already have versions like 0.1.0 or 0.1.1
+	// to keep helm updatable, we have to increment this version
+	// new minor version of addon-operator seems reasonable to increase minor version of a helm chart
+	data := fmt.Sprintf(`name: %s
+version: 0.2.0`, name)
+
+	return os.WriteFile(chartPath, []byte(data), 0o600)
 }
