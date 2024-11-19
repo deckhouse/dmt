@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -32,6 +33,9 @@ var Cfg *config.HelmSettings
 var toHelmignore = []string{HooksDir, openapiDir, CrdsDir, ImagesDir, "enabled"}
 
 func namespaceModuleRule(name, path string) (string, *errors.LintRuleError) {
+	if slices.Contains(Cfg.SkipNamespaceCheck, name) {
+		return "", nil
+	}
 	content, err := os.ReadFile(filepath.Join(path, ".namespace"))
 	if err != nil {
 		return "", errors.NewLintRuleError(
@@ -83,6 +87,10 @@ func chartModuleRule(name, path string) (string, *errors.LintRuleError) {
 }
 
 func helmignoreModuleRule(name, path string) *errors.LintRuleError {
+	if slices.Contains(Cfg.SkipHelmIgnoreCheck, name) {
+		return nil
+	}
+
 	var existedFiles []string
 	for _, file := range toHelmignore {
 		if IsExistsOnFilesystem(path, file) {
