@@ -166,7 +166,9 @@ func checkHelmChart(name, path string) error {
 
 	if os.IsNotExist(err) {
 		// Chart.yaml does not exist
-		return createChartYaml(name, chartPath)
+		if dirExists(filepath.Join(path, "templates")) || dirExists(filepath.Join(path, "openapi")) {
+			return createChartYaml(name, chartPath)
+		}
 	}
 
 	return err
@@ -181,4 +183,13 @@ version: 0.2.0`, name)
 
 	//nolint:mnd  // false positive
 	return os.WriteFile(chartPath, []byte(data), 0o600)
+}
+
+func dirExists(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+
+	return info.IsDir()
 }
