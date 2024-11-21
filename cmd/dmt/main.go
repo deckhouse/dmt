@@ -3,8 +3,10 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/fatih/color"
+	"github.com/mitchellh/go-homedir"
 
 	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/logger"
@@ -45,7 +47,21 @@ func main() {
 			return
 		}
 
-		runLint(dirs)
+		var parsedDirs []string
+		for _, dir := range dirs {
+			d, err := homedir.Expand(dir)
+			if err != nil {
+				logger.ErrorF("Error expanding directory: %v", err)
+				continue
+			}
+			d, err = filepath.Abs(d)
+			if err != nil {
+				logger.ErrorF("Error expanding directory: %v\n", err)
+				continue
+			}
+			parsedDirs = append(parsedDirs, d)
+		}
+		runLint(parsedDirs)
 	case "gen":
 		flags.GeneralParse(gen)
 	default:

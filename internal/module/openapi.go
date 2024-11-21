@@ -219,15 +219,15 @@ func parseProperties(tempNode *spec.Schema) (map[string]any, error) {
 		case prop.OneOf != nil:
 			for i := range prop.OneOf {
 				schema := prop.OneOf[i]
-				downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
-				mergedSchema := mergeSchemas(downwardSchema, schema)
+				downwardSchema := deepcopy.Copy(prop).(spec.Schema)
+				mergedSchema := mergeSchemas(&downwardSchema, schema)
 				result[key] = mergedSchema
 			}
 		case prop.AnyOf != nil:
 			for i := range prop.AnyOf {
 				schema := prop.AnyOf[i]
-				downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
-				mergedSchema := mergeSchemas(downwardSchema, schema)
+				downwardSchema := deepcopy.Copy(prop).(spec.Schema)
+				mergedSchema := mergeSchemas(&downwardSchema, schema)
 				result[key] = mergedSchema
 			}
 		default:
