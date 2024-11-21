@@ -32,7 +32,7 @@ Generate some automatic rules for you module
 
 ## Configuration
 
-You can exclude linters or setup them via the config file `.dmt-lint`
+You can exclude linters or setup them via the config file `.dmtlint.yaml`. This config file can be either in the module directory or in any of the top-level directories up to /.
 
 Example settings:
 
@@ -54,6 +54,7 @@ linters-settings:
   license:
     copyright-excludes:
       - upmeter:/images/upmeter/stress.sh
+      - upmeter:/hooks/.venv/**/*
       - cni-simple-bridge:/images/simple-bridge/rootfs/bin/simple-bridge
     skip-oss-checks:
       - 001-priority-class

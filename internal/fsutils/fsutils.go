@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sync"
 )
 
@@ -90,4 +91,45 @@ func EvalSymlinks(path string) (string, error) {
 	evalSymlinkCache.Store(path, er)
 
 	return er.path, er.err
+}
+
+// code from https://github.com/guillermo/doubleglob/blob/main/double_glob.go
+var replaces = regexp.MustCompile(`(\.)|(\*\*\/)|(\*)|([^\/\*]+)|(\/)`)
+
+func toRegexp(pattern string) string {
+	pat := replaces.ReplaceAllStringFunc(pattern, func(s string) string {
+		switch s {
+		case "/":
+			return "\\/"
+		case ".":
+			return "\\."
+		case "**/":
+			return ".*"
+		case "*":
+			return "[^/]*"
+		default:
+			return s
+		}
+	})
+	return "^" + pat + "$"
+}
+
+func FileNameMatchMask(name, pattern string) bool {
+	regexpPat := regexp.MustCompile(toRegexp(pattern))
+
+	matched := regexpPat.MatchString(name)
+
+	return matched
+}
+
+func FileNameMatchAnyMask(name string, patterns []string) bool {
+	for _, p := range patterns {
+		matched := FileNameMatchMask(name, p)
+
+		if matched {
+			return true
+		}
+	}
+
+	return false
 }
