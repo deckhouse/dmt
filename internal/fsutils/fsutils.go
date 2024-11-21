@@ -94,7 +94,7 @@ func EvalSymlinks(path string) (string, error) {
 }
 
 // code from https://github.com/guillermo/doubleglob/blob/main/double_glob.go
-var replaces = regexp.MustCompile(`(\.)|(\*\*\/)|(\*)|([^\/\*]+)|(\/)`)
+var replaces = regexp.MustCompile(`(\.)|(\*\*/)|(\*)|([^/\*]+)|(/)`)
 
 func toRegexp(pattern string) string {
 	pat := replaces.ReplaceAllStringFunc(pattern, func(s string) string {

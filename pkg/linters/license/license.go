@@ -39,26 +39,13 @@ func (o *Copyright) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 
 	result.Merge(OssModuleRule(m.GetName(), m.GetPath()))
 
-	var copyrightExcludes = make([]string, 0)
-
-	// prepare excludes by removing module name prefix
-	for _, exclude := range o.cfg.CopyrightExcludes {
-		replaced := strings.Replace(exclude, m.GetName() + ":", "", 1)
-		// if length of replaced is equal to length of exclude - exclude is not for this module. So do not add it to result list
-		if len(replaced) == len(exclude) {
-			continue
-		}
-		copyrightExcludes = append(copyrightExcludes, replaced)
-	}
-
 	for _, fileName := range files {
 		name, _ := strings.CutPrefix(fileName, m.GetPath())
+		name = m.GetName() + ":" + name
 
-		if fsutils.FileNameMatchAnyMask(name, copyrightExcludes) {
+		if fsutils.FileNameMatchAnyMask(name, o.cfg.CopyrightExcludes) {
 			continue
 		}
-
-		name = m.GetName() + ":" + name
 
 		ok, er := checkFileCopyright(fileName)
 		if !ok {
