@@ -51,6 +51,7 @@ linters-settings:
     no-cyrillic-file-excludes:
       - user-authz:/rbac.yaml
       - documentation:/images/web/site/_data/topnav.yml
+      - other-module:/external/**/*.txt
   license:
     copyright-excludes:
       - upmeter:/images/upmeter/stress.sh
