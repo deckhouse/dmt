@@ -43,7 +43,7 @@ func (o *Copyright) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 		name, _ := strings.CutPrefix(fileName, m.GetPath())
 		name = m.GetName() + ":" + name
 
-		if fsutils.FileNameMatchAnyMask(name, o.cfg.CopyrightExcludes) {
+		if fsutils.StringMatchAnyMask(name, o.cfg.CopyrightExcludes) {
 			continue
 		}
 

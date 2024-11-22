@@ -33,14 +33,14 @@ func Test_FSUtils_toRegexp(t *testing.T) {
 			args: args{
 				pattern: "/home/user/**/project.txt",
 			},
-			want: "^\\/home\\/user\\/.*project\\.txt$",
+			want: "^\\/home\\/user\\/.*\\/project\\.txt$",
 		},
 		{
 			name: "test glob mask ** and file mask",
 			args: args{
 				pattern: "/home/user/**/*.txt",
 			},
-			want: "^\\/home\\/user\\/.*[^/]*\\.txt$",
+			want: "^\\/home\\/user\\/.*\\/[^/]*\\.txt$",
 		},
 	}
 
@@ -53,7 +53,7 @@ func Test_FSUtils_toRegexp(t *testing.T) {
 	}
 }
 
-func TestFSUtils_FileNameMatchMask(t *testing.T) {
+func TestFSUtils_StringMatchMask(t *testing.T) {
 	type args struct {
 		name    string
 		pattern string
@@ -96,12 +96,28 @@ func TestFSUtils_FileNameMatchMask(t *testing.T) {
 			want: true,
 		},
 		{
+			name: "with glob mask and exact filename which not match with pattern",
+			args: args{
+				name:    "/home/user/test/newproject.txt",
+				pattern: "/home/user/**/project.txt",
+			},
+			want: false,
+		},
+		{
 			name: "with glob mask and any extension with exact filename",
 			args: args{
 				name:    "/home/user/test/project.txt",
 				pattern: "/home/user/**/project.*",
 			},
 			want: true,
+		},
+		{
+			name: "with mask without subdirectories",
+			args: args{
+				name:    "/home/user/test/project.txt",
+				pattern: "/home/user/*.txt",
+			},
+			want: false,
 		},
 		{
 			name: "with glob mask and any file inside directories",
@@ -114,8 +130,8 @@ func TestFSUtils_FileNameMatchMask(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := FileNameMatchMask(tt.args.name, tt.args.pattern); got != tt.want {
-				t.Errorf("FileNameMatchMask() = %v, want %v", got, tt.want)
+			if got := StringMatchMask(tt.args.name, tt.args.pattern); got != tt.want {
+				t.Errorf("StringMatchMask() = %v, want %v", got, tt.want)
 			}
 		})
 	}

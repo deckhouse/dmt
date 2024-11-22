@@ -93,10 +93,10 @@ func EvalSymlinks(path string) (string, error) {
 	return er.path, er.err
 }
 
-// code from https://github.com/guillermo/doubleglob/blob/main/double_glob.go
-var replaces = regexp.MustCompile(`(\.)|(\*\*/)|(\*)|([^/\*.]+)|(/)`)
-
 func toRegexp(pattern string) string {
+	// code from https://github.com/guillermo/doubleglob/blob/main/double_glob.go
+	replaces := regexp.MustCompile(`(\.)|(\*\*/)|(\*)|([^/\*.]+)|(/)`)
+
 	pat := replaces.ReplaceAllStringFunc(pattern, func(s string) string {
 		switch s {
 		case "/":
@@ -104,7 +104,7 @@ func toRegexp(pattern string) string {
 		case ".":
 			return "\\."
 		case "**/":
-			return ".*"
+			return ".*\\/"
 		case "*":
 			return "[^/]*"
 		default:
@@ -114,19 +114,17 @@ func toRegexp(pattern string) string {
 	return "^" + pat + "$"
 }
 
-func FileNameMatchMask(name, pattern string) bool {
+func StringMatchMask(str, pattern string) bool {
 	regexpPat := regexp.MustCompile(toRegexp(pattern))
 
-	matched := regexpPat.MatchString(name)
+	matched := regexpPat.MatchString(str)
 
 	return matched
 }
 
-func FileNameMatchAnyMask(name string, patterns []string) bool {
+func StringMatchAnyMask(str string, patterns []string) bool {
 	for _, p := range patterns {
-		matched := FileNameMatchMask(name, p)
-
-		if matched {
+		if StringMatchMask(str, p) {
 			return true
 		}
 	}

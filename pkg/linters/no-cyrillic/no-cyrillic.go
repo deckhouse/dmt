@@ -66,7 +66,7 @@ func (o *NoCyrillic) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 	for _, fileName := range files {
 		name, _ := strings.CutPrefix(fileName, m.GetPath())
 		name = m.GetName() + ":" + name
-		if fsutils.FileNameMatchAnyMask(name, o.cfg.NoCyrillicFileExcludes) {
+		if fsutils.StringMatchAnyMask(name, o.cfg.NoCyrillicFileExcludes) {
 			continue
 		}
 		if o.skipDocRe.MatchString(fileName) {
