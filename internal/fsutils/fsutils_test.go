@@ -53,7 +53,7 @@ func Test_FSUtils_toRegexp(t *testing.T) {
 	}
 }
 
-func TestFSUtils_StringMatchMask(t *testing.T) {
+func TestFSUtils_FileNames_StringMatchMask(t *testing.T) {
 	type args struct {
 		name    string
 		pattern string
@@ -131,6 +131,50 @@ func TestFSUtils_StringMatchMask(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := StringMatchMask(tt.args.name, tt.args.pattern); got != tt.want {
+				t.Errorf("StringMatchMask() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFSUtils_PlainStrings_StringMatchMask(t *testing.T) {
+	type args struct {
+		str     string
+		pattern string
+	}
+	tests := []struct {
+		name string
+		args args
+		want bool
+	}{
+		{
+			name: "test module-name:filename with exact name",
+			args: args{
+				str:     "managed-pg:/enabled",
+				pattern: "managed-pg:/enabled",
+			},
+			want: true,
+		},
+		{
+			name: "test module-name:filename with glob mask",
+			args: args{
+				str:     "managed-pg:/.venv/lib/python3.13/site-packages/deckhouse/__init__.py",
+				pattern: "managed-pg:/.venv/**/*",
+			},
+			want: true,
+		},
+		{
+			name: "plain string with mask",
+			args: args{
+				str:     "test-string.delimited.by.dots",
+				pattern: "*.by.dots",
+			},
+			want: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := StringMatchMask(tt.args.str, tt.args.pattern); got != tt.want {
 				t.Errorf("StringMatchMask() = %v, want %v", got, tt.want)
 			}
 		})
