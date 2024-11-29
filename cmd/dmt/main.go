@@ -14,10 +14,10 @@ import (
 	"github.com/deckhouse/dmt/pkg/config"
 )
 
-var Version = "HEAD"
+var version = "HEAD"
 
 func main() {
-	flags.Version = Version
+	flags.Version = version
 	color.NoColor = false
 
 	defaults := flags.InitDefaultFlagSet()
