@@ -1,7 +1,6 @@
 package license
 
 import (
-	"slices"
 	"strings"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
@@ -40,10 +39,12 @@ func (o *Copyright) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 
 	result.Merge(OssModuleRule(m.GetName(), m.GetPath()))
 
+	moduleExcludes := getExcludes(o.cfg.CopyrightExcludes, m.GetName())
+
 	for _, fileName := range files {
 		name, _ := strings.CutPrefix(fileName, m.GetPath())
-		name = m.GetName() + ":" + name
-		if slices.Contains(o.cfg.CopyrightExcludes, name) {
+
+		if fsutils.StringMatchAnyMask(name, moduleExcludes) {
 			continue
 		}
 
@@ -78,6 +79,20 @@ func getFiles(rootPath string) ([]string, error) {
 	}
 
 	return result, nil
+}
+
+func getExcludes(excludesList []string, moduleName string) []string {
+	var result = make([]string, 0)
+
+	// prepare excludes by removing module name prefix
+	for _, exclude := range excludesList {
+		pattern, ok := strings.CutPrefix(exclude, moduleName+":")
+		if ok {
+			result = append(result, pattern)
+		}
+	}
+
+	return result
 }
 
 func (o *Copyright) Name() string {
