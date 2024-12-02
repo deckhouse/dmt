@@ -3,6 +3,7 @@ package module
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 
@@ -161,7 +162,6 @@ func (g *OpenAPIValuesGenerator) Do() (map[string]any, error) {
 	return parseProperties(g.rootSchema)
 }
 
-//nolint:funlen,gocyclo // complex diff
 func parseProperties(tempNode *spec.Schema) (map[string]any, error) {
 	result := make(map[string]any)
 
@@ -169,73 +169,110 @@ func parseProperties(tempNode *spec.Schema) (map[string]any, error) {
 		return nil, nil
 	}
 
-	for key := range tempNode.Properties {
-		prop := tempNode.Properties[key]
-		switch {
-		case prop.Extensions[ExamplesKey] != nil:
-			examples, ok := prop.Extensions[ExamplesKey].([]any)
-			if !ok {
-				return result, fmt.Errorf("examples property not an array")
-			}
-			if len(examples) > 0 {
-				result[key] = examples[0]
-			}
-		case len(prop.Enum) > 0:
-			if prop.Default != nil {
-				result[key] = prop.Default
-				continue
-			}
-			result[key] = prop.Enum[0]
-		case prop.Type.Contains(ObjectKey):
-			if prop.Default == nil {
-				continue
-			}
-			t, err := parseProperties(&prop)
-			if err != nil {
-				return nil, err
-			}
-			result[key] = t
-		case prop.Default != nil:
-			result[key] = prop.Default
-		case prop.Type.Contains(ArrayObject) && prop.Items != nil && prop.Items.Schema != nil:
-			switch {
-			case prop.Items.Schema.Default != nil:
-				result[key] = prop.Items.Schema.Default
-			case prop.Items.Schema.Type.Contains(ObjectKey):
-				if prop.Items.Schema.Default == nil {
-					continue
-				}
-				t, err := parseProperties(prop.Items.Schema)
-				if err != nil {
-					return nil, err
-				}
-				result[key] = t
-			default:
-				continue
-			}
-		case prop.AllOf != nil:
-			// not implemented
-			continue
-		case prop.OneOf != nil:
-			for i := range prop.OneOf {
-				schema := prop.OneOf[i]
-				downwardSchema := deepcopy.Copy(prop).(spec.Schema)
-				mergedSchema := mergeSchemas(&downwardSchema, schema)
-				result[key] = mergedSchema
-			}
-		case prop.AnyOf != nil:
-			for i := range prop.AnyOf {
-				schema := prop.AnyOf[i]
-				downwardSchema := deepcopy.Copy(prop).(spec.Schema)
-				mergedSchema := mergeSchemas(&downwardSchema, schema)
-				result[key] = mergedSchema
-			}
-		default:
-			continue
+	for key, prop := range tempNode.Properties {
+		if err := parseProperty(key, prop, result); err != nil {
+			return nil, err
 		}
 	}
 
 	return result, nil
+}
+
+func parseProperty(key string, prop spec.Schema, result map[string]any) error {
+	switch {
+	case prop.Extensions[ExamplesKey] != nil:
+		return parseExamples(key, prop, result)
+	case len(prop.Enum) > 0:
+		parseEnum(key, prop, result)
+	case prop.Type.Contains(ObjectKey):
+		return parseObject(key, prop, result)
+	case prop.Default != nil:
+		result[key] = prop.Default
+	case prop.Type.Contains(ArrayObject) && prop.Items != nil && prop.Items.Schema != nil:
+		return parseArray(key, prop, result)
+	case prop.AllOf != nil:
+		// not implemented
+	case prop.OneOf != nil:
+		return parseOneOf(key, prop, result)
+	case prop.AnyOf != nil:
+		return parseAnyOf(key, prop, result)
+	}
+	return nil
+}
+
+func parseExamples(key string, prop spec.Schema, result map[string]any) error {
+	examples, ok := prop.Extensions[ExamplesKey].([]any)
+	if !ok {
+		return fmt.Errorf("examples property not an array")
+	}
+	if len(examples) > 0 {
+		result[key] = examples[0]
+		if prop.Type.Contains(ObjectKey) {
+			t, err := parseProperties(&prop)
+			if err != nil {
+				return err
+			}
+			if obj, ok := result[key].(map[string]any); ok {
+				maps.Copy(t, obj)
+				result[key] = t
+			}
+		}
+	}
+	return nil
+}
+
+func parseEnum(key string, prop spec.Schema, result map[string]any) {
+	if prop.Default != nil {
+		result[key] = prop.Default
+	} else {
+		result[key] = prop.Enum[0]
+	}
+}
+
+func parseObject(key string, prop spec.Schema, result map[string]any) error {
+	if prop.Default == nil {
+		return nil
+	}
+	t, err := parseProperties(&prop)
+	if err != nil {
+		return err
+	}
+	result[key] = t
+	return nil
+}
+
+func parseArray(key string, prop spec.Schema, result map[string]any) error {
+	if prop.Items.Schema.Default != nil {
+		result[key] = prop.Items.Schema.Default
+	} else if prop.Items.Schema.Type.Contains(ObjectKey) {
+		if prop.Items.Schema.Default == nil {
+			return nil
+		}
+		t, err := parseProperties(prop.Items.Schema)
+		if err != nil {
+			return err
+		}
+		result[key] = t
+	}
+	return nil
+}
+
+func parseOneOf(key string, prop spec.Schema, result map[string]any) error {
+	for _, schema := range prop.OneOf {
+		downwardSchema := deepcopy.Copy(prop).(spec.Schema)
+		mergedSchema := mergeSchemas(&downwardSchema, schema)
+		result[key] = mergedSchema
+	}
+	return nil
+}
+
+func parseAnyOf(key string, prop spec.Schema, result map[string]any) error {
+	for _, schema := range prop.AnyOf {
+		downwardSchema := deepcopy.Copy(prop).(spec.Schema)
+		mergedSchema := mergeSchemas(&downwardSchema, schema)
+		result[key] = mergedSchema
+	}
+	return nil
 }
 
 func mergeSchemas(rootSchema *spec.Schema, schemas ...spec.Schema) *spec.Schema {
