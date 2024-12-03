@@ -3,13 +3,14 @@ package module
 import (
 	"encoding/json"
 	"fmt"
-	"maps"
 	"os"
 	"path/filepath"
 
+	"dario.cat/mergo"
 	"github.com/go-openapi/spec"
 	"github.com/mohae/deepcopy"
 	"helm.sh/helm/v3/pkg/chartutil"
+	"k8s.io/utils/ptr"
 
 	"github.com/deckhouse/dmt/internal/valuesvalidation"
 )
@@ -24,20 +25,16 @@ const (
 	imageDigestfile string = "images_digests.json"
 )
 
-// applyDigests if ugly because values now are strongly untyped. We have to rewrite this after adding proper global schema
-func applyDigests(digests map[string]any, values any) {
-	if values == nil {
-		return
+func applyDigests(digests, values map[string]any) {
+	obj := map[string]any{
+		"global": map[string]any{
+			"modulesImages": map[string]any{
+				"digests": digests,
+			},
+		},
 	}
-	value, ok := values.(map[string]any)["global"]
-	if value == nil || !ok {
-		return
-	}
-	value, ok = value.(map[string]any)["modulesImages"]
-	if value == nil || !ok {
-		return
-	}
-	value.(map[string]any)["digests"] = digests
+
+	_ = mergo.Merge(&values, obj, mergo.WithOverride)
 }
 
 func helmFormatModuleImages(m *Module, rawValues map[string]any) (chartutil.Values, error) {
@@ -163,15 +160,13 @@ func (g *OpenAPIValuesGenerator) Do() (map[string]any, error) {
 }
 
 func parseProperties(tempNode *spec.Schema) (map[string]any, error) {
-	result := make(map[string]any)
-
 	if tempNode == nil {
 		return nil, nil
 	}
 
+	result := make(map[string]any)
 	for key := range tempNode.Properties {
-		prop := tempNode.Properties[key]
-		if err := parseProperty(key, &prop, result); err != nil {
+		if err := parseProperty(key, ptr.To(tempNode.Properties[key]), result); err != nil {
 			return nil, err
 		}
 	}
@@ -208,28 +203,33 @@ func parseExamples(key string, prop *spec.Schema, result map[string]any) error {
 		return fmt.Errorf("examples property not an array")
 	}
 	if len(examples) > 0 {
-		result[key] = examples[0]
 		if prop.Type.Contains(ObjectKey) {
 			t, err := parseProperties(prop)
 			if err != nil {
 				return err
 			}
-			if obj, ok := result[key].(map[string]any); ok {
-				maps.Copy(t, obj)
+			if obj, ok := examples[0].(map[string]any); ok {
+				if err := mergo.Merge(&t, obj, mergo.WithOverride); err != nil {
+					return err
+				}
 				result[key] = t
+
+				return nil
 			}
 		}
+
+		result[key] = examples[0]
 	}
 
 	return nil
 }
 
 func parseEnum(key string, prop *spec.Schema, result map[string]any) {
+	t := prop.Enum[0]
 	if prop.Default != nil {
-		result[key] = prop.Default
-	} else {
-		result[key] = prop.Enum[0]
+		t = prop.Default
 	}
+	result[key] = t
 }
 
 func parseObject(key string, prop *spec.Schema, result map[string]any) error {
@@ -248,38 +248,35 @@ func parseObject(key string, prop *spec.Schema, result map[string]any) error {
 func parseArray(key string, prop *spec.Schema, result map[string]any) error {
 	if prop.Items.Schema.Default != nil {
 		result[key] = prop.Items.Schema.Default
-	} else if prop.Items.Schema.Type.Contains(ObjectKey) {
-		if prop.Items.Schema.Default == nil {
-			return nil
-		}
-		t, err := parseProperties(prop.Items.Schema)
-		if err != nil {
-			return err
-		}
-		result[key] = t
+
+		return nil
 	}
 
-	return nil
+	return parseObject(key, prop.Items.Schema, result)
 }
 
 func parseOneOf(key string, prop *spec.Schema, result map[string]any) error {
-	for k := range prop.OneOf {
-		schema := prop.OneOf[k]
-		downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
-		mergedSchema := mergeSchemas(downwardSchema, schema)
-		result[key] = mergedSchema
+	downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
+	mergedSchema := mergeSchemas(downwardSchema, prop.OneOf...)
+
+	t, err := parseProperties(mergedSchema)
+	if err != nil {
+		return err
 	}
+	result[key] = t
 
 	return nil
 }
 
 func parseAnyOf(key string, prop *spec.Schema, result map[string]any) error {
-	for k := range prop.AnyOf {
-		schema := prop.AnyOf[k]
-		downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
-		mergedSchema := mergeSchemas(downwardSchema, schema)
-		result[key] = mergedSchema
+	downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
+	mergedSchema := mergeSchemas(downwardSchema, prop.AnyOf...)
+
+	t, err := parseProperties(mergedSchema)
+	if err != nil {
+		return err
 	}
+	result[key] = t
 
 	return nil
 }
