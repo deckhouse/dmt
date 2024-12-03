@@ -198,27 +198,30 @@ func parseProperty(key string, prop *spec.Schema, result map[string]any) error {
 }
 
 func parseExamples(key string, prop *spec.Schema, result map[string]any) error {
-	examples, ok := prop.Extensions[ExamplesKey].([]any)
-	if !ok {
-		return fmt.Errorf("examples property not an array")
+	var example any
+
+	switch conv := prop.Extensions[ExamplesKey].(type) {
+	case []any:
+		example = conv[0]
+	case map[string]any:
+		example = conv
 	}
-	if len(examples) > 0 {
+
+	if example != nil {
 		if prop.Type.Contains(ObjectKey) {
 			t, err := parseProperties(prop)
 			if err != nil {
 				return err
 			}
-			if obj, ok := examples[0].(map[string]any); ok {
-				if err := mergo.Merge(&t, obj, mergo.WithOverride); err != nil {
-					return err
-				}
-				result[key] = t
-
-				return nil
+			if err := mergo.Merge(&t, example, mergo.WithOverride); err != nil {
+				return err
 			}
+			result[key] = t
+
+			return nil
 		}
 
-		result[key] = examples[0]
+		result[key] = example
 	}
 
 	return nil
@@ -252,7 +255,13 @@ func parseArray(key string, prop *spec.Schema, result map[string]any) error {
 		return nil
 	}
 
-	return parseObject(key, prop.Items.Schema, result)
+	if t, err := parseProperties(prop.Items.Schema); err != nil {
+		return err
+	} else if t != nil {
+		result[key] = t
+	}
+
+	return nil
 }
 
 func parseOneOf(key string, prop *spec.Schema, result map[string]any) error {
