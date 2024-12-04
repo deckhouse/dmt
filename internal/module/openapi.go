@@ -236,9 +236,6 @@ func parseEnum(key string, prop *spec.Schema, result map[string]any) {
 }
 
 func parseObject(key string, prop *spec.Schema, result map[string]any) error {
-	if prop.Default == nil {
-		return nil
-	}
 	t, err := parseProperties(prop)
 	if err != nil {
 		return err
@@ -291,6 +288,14 @@ func parseAnyOf(key string, prop *spec.Schema, result map[string]any) error {
 }
 
 func mergeSchemas(rootSchema *spec.Schema, schemas ...spec.Schema) *spec.Schema {
+	if rootSchema == nil {
+		rootSchema = &spec.Schema{}
+	}
+
+	if rootSchema.Properties == nil {
+		rootSchema.Properties = make(map[string]spec.Schema)
+	}
+
 	rootSchema.OneOf = nil
 	rootSchema.AllOf = nil
 	rootSchema.AnyOf = nil
