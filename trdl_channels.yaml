@@ -1,0 +1,7 @@
+groups:
+  - name: "0"
+    channels:
+      - name: alpha
+        version: 0.0.11
+      - name: stable
+        version: 0.0.10
