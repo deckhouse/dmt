@@ -6,9 +6,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"dario.cat/mergo"
 	"github.com/go-openapi/spec"
 	"github.com/mohae/deepcopy"
 	"helm.sh/helm/v3/pkg/chartutil"
+	"k8s.io/utils/ptr"
 
 	"github.com/deckhouse/dmt/internal/valuesvalidation"
 )
@@ -23,20 +25,16 @@ const (
 	imageDigestfile string = "images_digests.json"
 )
 
-// applyDigests if ugly because values now are strongly untyped. We have to rewrite this after adding proper global schema
-func applyDigests(digests map[string]any, values any) {
-	if values == nil {
-		return
+func applyDigests(digests, values map[string]any) {
+	obj := map[string]any{
+		"global": map[string]any{
+			"modulesImages": map[string]any{
+				"digests": digests,
+			},
+		},
 	}
-	value, ok := values.(map[string]any)["global"]
-	if value == nil || !ok {
-		return
-	}
-	value, ok = value.(map[string]any)["modulesImages"]
-	if value == nil || !ok {
-		return
-	}
-	value.(map[string]any)["digests"] = digests
+
+	_ = mergo.Merge(&values, obj, mergo.WithOverride)
 }
 
 func helmFormatModuleImages(m *Module, rawValues map[string]any) (chartutil.Values, error) {
@@ -161,84 +159,143 @@ func (g *OpenAPIValuesGenerator) Do() (map[string]any, error) {
 	return parseProperties(g.rootSchema)
 }
 
-//nolint:funlen,gocyclo // complex diff
 func parseProperties(tempNode *spec.Schema) (map[string]any, error) {
-	result := make(map[string]any)
-
 	if tempNode == nil {
 		return nil, nil
 	}
 
+	result := make(map[string]any)
 	for key := range tempNode.Properties {
-		prop := tempNode.Properties[key]
-		switch {
-		case prop.Extensions[ExamplesKey] != nil:
-			examples, ok := prop.Extensions[ExamplesKey].([]any)
-			if !ok {
-				return result, fmt.Errorf("examples property not an array")
-			}
-			if len(examples) > 0 {
-				result[key] = examples[0]
-			}
-		case len(prop.Enum) > 0:
-			if prop.Default != nil {
-				result[key] = prop.Default
-				continue
-			}
-			result[key] = prop.Enum[0]
-		case prop.Type.Contains(ObjectKey):
-			if prop.Default == nil {
-				continue
-			}
-			t, err := parseProperties(&prop)
-			if err != nil {
-				return nil, err
-			}
-			result[key] = t
-		case prop.Default != nil:
-			result[key] = prop.Default
-		case prop.Type.Contains(ArrayObject) && prop.Items != nil && prop.Items.Schema != nil:
-			switch {
-			case prop.Items.Schema.Default != nil:
-				result[key] = prop.Items.Schema.Default
-			case prop.Items.Schema.Type.Contains(ObjectKey):
-				if prop.Items.Schema.Default == nil {
-					continue
-				}
-				t, err := parseProperties(prop.Items.Schema)
-				if err != nil {
-					return nil, err
-				}
-				result[key] = t
-			default:
-				continue
-			}
-		case prop.AllOf != nil:
-			// not implemented
-			continue
-		case prop.OneOf != nil:
-			for i := range prop.OneOf {
-				schema := prop.OneOf[i]
-				downwardSchema := deepcopy.Copy(prop).(spec.Schema)
-				mergedSchema := mergeSchemas(&downwardSchema, schema)
-				result[key] = mergedSchema
-			}
-		case prop.AnyOf != nil:
-			for i := range prop.AnyOf {
-				schema := prop.AnyOf[i]
-				downwardSchema := deepcopy.Copy(prop).(spec.Schema)
-				mergedSchema := mergeSchemas(&downwardSchema, schema)
-				result[key] = mergedSchema
-			}
-		default:
-			continue
+		if err := parseProperty(key, ptr.To(tempNode.Properties[key]), result); err != nil {
+			return nil, err
 		}
 	}
 
 	return result, nil
 }
 
+func parseProperty(key string, prop *spec.Schema, result map[string]any) error {
+	switch {
+	case prop.Extensions[ExamplesKey] != nil:
+		return parseExamples(key, prop, result)
+	case len(prop.Enum) > 0:
+		parseEnum(key, prop, result)
+	case prop.Type.Contains(ObjectKey):
+		return parseObject(key, prop, result)
+	case prop.Default != nil:
+		result[key] = prop.Default
+	case prop.Type.Contains(ArrayObject) && prop.Items != nil && prop.Items.Schema != nil:
+		return parseArray(key, prop, result)
+	case prop.AllOf != nil:
+		// not implemented
+	case prop.OneOf != nil:
+		return parseOneOf(key, prop, result)
+	case prop.AnyOf != nil:
+		return parseAnyOf(key, prop, result)
+	}
+
+	return nil
+}
+
+func parseExamples(key string, prop *spec.Schema, result map[string]any) error {
+	var example any
+
+	switch conv := prop.Extensions[ExamplesKey].(type) {
+	case []any:
+		example = conv[0]
+	case map[string]any:
+		example = conv
+	}
+
+	if example != nil {
+		if prop.Type.Contains(ObjectKey) {
+			t, err := parseProperties(prop)
+			if err != nil {
+				return err
+			}
+			if err := mergo.Merge(&t, example, mergo.WithOverride); err != nil {
+				return err
+			}
+			result[key] = t
+
+			return nil
+		}
+
+		result[key] = example
+	}
+
+	return nil
+}
+
+func parseEnum(key string, prop *spec.Schema, result map[string]any) {
+	t := prop.Enum[0]
+	if prop.Default != nil {
+		t = prop.Default
+	}
+	result[key] = t
+}
+
+func parseObject(key string, prop *spec.Schema, result map[string]any) error {
+	t, err := parseProperties(prop)
+	if err != nil {
+		return err
+	}
+	result[key] = t
+
+	return nil
+}
+
+func parseArray(key string, prop *spec.Schema, result map[string]any) error {
+	if prop.Items.Schema.Default != nil {
+		result[key] = prop.Items.Schema.Default
+
+		return nil
+	}
+
+	if t, err := parseProperties(prop.Items.Schema); err != nil {
+		return err
+	} else if t != nil {
+		result[key] = t
+	}
+
+	return nil
+}
+
+func parseOneOf(key string, prop *spec.Schema, result map[string]any) error {
+	downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
+	mergedSchema := mergeSchemas(downwardSchema, prop.OneOf...)
+
+	t, err := parseProperties(mergedSchema)
+	if err != nil {
+		return err
+	}
+	result[key] = t
+
+	return nil
+}
+
+func parseAnyOf(key string, prop *spec.Schema, result map[string]any) error {
+	downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
+	mergedSchema := mergeSchemas(downwardSchema, prop.AnyOf...)
+
+	t, err := parseProperties(mergedSchema)
+	if err != nil {
+		return err
+	}
+	result[key] = t
+
+	return nil
+}
+
 func mergeSchemas(rootSchema *spec.Schema, schemas ...spec.Schema) *spec.Schema {
+	if rootSchema == nil {
+		rootSchema = &spec.Schema{}
+	}
+
+	if rootSchema.Properties == nil {
+		rootSchema.Properties = make(map[string]spec.Schema)
+	}
+
 	rootSchema.OneOf = nil
 	rootSchema.AllOf = nil
 	rootSchema.AnyOf = nil
