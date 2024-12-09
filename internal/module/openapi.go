@@ -44,7 +44,7 @@ func helmFormatModuleImages(m *Module, rawValues map[string]any) (chartutil.Valu
 	vers = append(vers, "autoscaling.k8s.io/v1/VerticalPodAutoscaler")
 	caps.APIVersions = vers
 
-	digests, err := GetModulesImagesDigests(ToLowerCamel(m.GetName()), m.GetPath())
+	digests, err := GetModulesImagesDigests(m.GetName(), m.GetPath())
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +78,7 @@ func GetModulesImagesDigests(moduleName, modulePath string) (modulesDigests map[
 	}
 
 	allDigests := DefaultImagesDigests
-	allDigests[moduleName] = modulesDigests
+	allDigests[ToLowerCamel(moduleName)] = modulesDigests
 
 	return allDigests, nil
 }
