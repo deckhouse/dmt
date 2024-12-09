@@ -1,6 +1,7 @@
 package valuesvalidation
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
@@ -18,14 +19,14 @@ type ValuesValidator struct {
 	ModuleSchemaStorages map[string]*validation.SchemaStorage
 }
 
-func NewValuesValidator(moduleName, modulePath string) (*ValuesValidator, error) {
-	openAPIDir := "/" + filepath.Join("deckhouse", "global-hooks", "openapi")
-	configBytes, valuesBytes, err := utils.ReadOpenAPIFiles(openAPIDir)
-	if err != nil {
-		return nil, fmt.Errorf("read global openAPI schemas: %w", err)
-	}
+//go:embed global-openapi/config-values.yaml
+var globalConfigBytes []byte
 
-	globalSchemaStorage, err := validation.NewSchemaStorage(configBytes, valuesBytes)
+//go:embed global-openapi/values.yaml
+var globalValuesBytes []byte
+
+func NewValuesValidator(moduleName, modulePath string) (*ValuesValidator, error) {
+	globalSchemaStorage, err := validation.NewSchemaStorage(globalConfigBytes, globalValuesBytes)
 	if err != nil {
 		return nil, fmt.Errorf("parse global openAPI schemas: %w", err)
 	}
@@ -35,7 +36,7 @@ func NewValuesValidator(moduleName, modulePath string) (*ValuesValidator, error)
 	}
 
 	openAPIPath := filepath.Join(modulePath, "openapi")
-	configBytes, valuesBytes, err = utils.ReadOpenAPIFiles(openAPIPath)
+	configBytes, valuesBytes, err := utils.ReadOpenAPIFiles(openAPIPath)
 	if err != nil {
 		return nil, fmt.Errorf("module '%s' read openAPI schemas: %w", moduleName, err)
 	}
