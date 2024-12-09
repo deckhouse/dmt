@@ -3,6 +3,7 @@ package module
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/pkg/errors"
 	"os"
 	"path/filepath"
 
@@ -43,7 +44,7 @@ func helmFormatModuleImages(m *Module, rawValues map[string]any) (chartutil.Valu
 	vers = append(vers, "autoscaling.k8s.io/v1/VerticalPodAutoscaler")
 	caps.APIVersions = vers
 
-	digests, err := GetModulesImagesDigests(m.GetPath())
+	digests, err := GetModulesImagesDigests(ToLowerCamel(m.GetName()), m.GetPath())
 	if err != nil {
 		return nil, err
 	}
@@ -66,32 +67,40 @@ func helmFormatModuleImages(m *Module, rawValues map[string]any) (chartutil.Valu
 	return top, nil
 }
 
-func GetModulesImagesDigests(modulePath string) (modulesDigests map[string]any, err error) {
+func GetModulesImagesDigests(moduleName, modulePath string) (modulesDigests map[string]any, err error) {
 	var (
 		search bool
 	)
-
-	if fi, errs := os.Stat(filepath.Join(filepath.Dir(modulePath), imageDigestfile)); errs != nil || fi.Size() == 0 {
-		search = true
-	}
-
-	if search {
-		return DefaultImagesDigests, nil
-	}
 
 	modulesDigests, err = getModulesImagesDigestsFromLocalPath(modulePath)
 	if err != nil {
 		return nil, err
 	}
 
-	return modulesDigests, nil
+	if modulesDigests == nil {
+		if fi, errs := os.Stat(filepath.Join(filepath.Dir(modulePath), imageDigestfile)); errs != nil || fi.Size() == 0 {
+			search = true
+		}
+
+		if search {
+			return DefaultImagesDigests, nil
+		}
+	}
+
+	allDigests := DefaultImagesDigests
+	allDigests[moduleName] = modulesDigests
+
+	return allDigests, nil
 }
 
 func getModulesImagesDigestsFromLocalPath(modulePath string) (map[string]any, error) {
 	var digests map[string]any
 
-	imageDigestsRaw, err := os.ReadFile(filepath.Join(filepath.Dir(modulePath), imageDigestfile))
+	imageDigestsRaw, err := os.ReadFile(filepath.Join(modulePath, imageDigestfile))
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	err = json.Unmarshal(imageDigestsRaw, &digests)
