@@ -2,8 +2,8 @@ package module
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/pkg/errors"
 	"os"
 	"path/filepath"
 
@@ -68,23 +68,13 @@ func helmFormatModuleImages(m *Module, rawValues map[string]any) (chartutil.Valu
 }
 
 func GetModulesImagesDigests(moduleName, modulePath string) (modulesDigests map[string]any, err error) {
-	var (
-		search bool
-	)
-
 	modulesDigests, err = getModulesImagesDigestsFromLocalPath(modulePath)
 	if err != nil {
 		return nil, err
 	}
 
 	if modulesDigests == nil {
-		if fi, errs := os.Stat(filepath.Join(filepath.Dir(modulePath), imageDigestfile)); errs != nil || fi.Size() == 0 {
-			search = true
-		}
-
-		if search {
-			return DefaultImagesDigests, nil
-		}
+		return DefaultImagesDigests, nil
 	}
 
 	allDigests := DefaultImagesDigests
