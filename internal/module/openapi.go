@@ -1,11 +1,10 @@
 package module
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"dario.cat/mergo"
 	"github.com/go-openapi/spec"
@@ -20,10 +19,6 @@ const (
 	ExamplesKey = "x-examples"
 	ArrayObject = "array"
 	ObjectKey   = "object"
-)
-
-const (
-	imageDigestfile string = "images_digests.json"
 )
 
 func applyDigests(digests, values map[string]any) {
@@ -67,38 +62,52 @@ func helmFormatModuleImages(m *Module, rawValues map[string]any) (chartutil.Valu
 	return top, nil
 }
 
-func GetModulesImagesDigests(moduleName, modulePath string) (modulesDigests map[string]any, err error) {
-	modulesDigests, err = getModulesImagesDigestsFromLocalPath(modulePath)
-	if err != nil {
-		return nil, err
-	}
+func GetModulesImagesDigests(moduleName, modulePath string) (_ map[string]any, err error) {
+	digest := make(map[string]any)
+	images := make(map[string]string)
+	templatesDir := filepath.Join(modulePath, "templates")
 
-	if modulesDigests == nil {
-		return DefaultImagesDigests, nil
-	}
-
-	allDigests := DefaultImagesDigests
-	allDigests[ToLowerCamel(moduleName)] = modulesDigests
-
-	return allDigests, nil
-}
-
-func getModulesImagesDigestsFromLocalPath(modulePath string) (map[string]any, error) {
-	var digests map[string]any
-
-	imageDigestsRaw, err := os.ReadFile(filepath.Join(modulePath, imageDigestfile))
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, nil
+	err = filepath.Walk(templatesDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
 		}
-		return nil, err
-	}
-	err = json.Unmarshal(imageDigestsRaw, &digests)
+		if !info.IsDir() {
+			file, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			lines := strings.Split(string(file), "\n")
+			for _, line := range lines {
+				if strings.Contains(line, `image: {{ include `) {
+					start := strings.Index(line, `(list $ `)
+					if start == -1 {
+						start = strings.Index(line, `(list . `)
+					}
+					if start != -1 {
+						start += len(`(list $ `)
+						end := strings.Index(line[start:], `)`)
+						if end != -1 {
+							imagesList := strings.Split(line[start:start+end], `" "`)
+							for _, img := range imagesList {
+								img = strings.Trim(img, `"`)
+								lowerCamelImg := ToLowerCamel(img)
+								images[lowerCamelImg] = fmt.Sprintf("imageHash-%s-%s", ToLowerCamel(moduleName), lowerCamelImg)
+							}
+						}
+					}
+				}
+			}
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	return digests, nil
+	digest[ToLowerCamel(moduleName)] = images
+	DefaultImagesDigests[ToLowerCamel(moduleName)] = digest
+
+	return DefaultImagesDigests, nil
 }
 
 func ComposeValuesFromSchemas(m *Module) (chartutil.Values, error) {
