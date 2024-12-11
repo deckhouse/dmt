@@ -2,9 +2,6 @@ package module
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 
 	"dario.cat/mergo"
 	"github.com/go-openapi/spec"
@@ -39,9 +36,13 @@ func helmFormatModuleImages(m *Module, rawValues map[string]any) (chartutil.Valu
 	vers = append(vers, "autoscaling.k8s.io/v1/VerticalPodAutoscaler")
 	caps.APIVersions = vers
 
-	digests, err := GetModulesImagesDigests(m.GetName(), m.GetPath())
-	if err != nil {
-		return nil, err
+	digests := map[string]any{
+		"common": map[string]any{
+			"image": "registry.example.com/module@sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc",
+		},
+		m.GetName(): map[string]any{
+			"image": "registry.example.com/module@sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc",
+		},
 	}
 
 	applyDigests(digests, rawValues)
@@ -60,54 +61,6 @@ func helmFormatModuleImages(m *Module, rawValues map[string]any) (chartutil.Valu
 	}
 
 	return top, nil
-}
-
-func GetModulesImagesDigests(moduleName, modulePath string) (_ map[string]any, err error) {
-	digest := make(map[string]any)
-	images := make(map[string]string)
-	templatesDir := filepath.Join(modulePath, "templates")
-
-	err = filepath.Walk(templatesDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
-		}
-		if !info.IsDir() {
-			file, err := os.ReadFile(path)
-			if err != nil {
-				return err
-			}
-			lines := strings.Split(string(file), "\n")
-			for _, line := range lines {
-				if strings.Contains(line, `image: {{ include `) {
-					start := strings.Index(line, `(list $ `)
-					if start == -1 {
-						start = strings.Index(line, `(list . `)
-					}
-					if start != -1 {
-						start += len(`(list $ `)
-						end := strings.Index(line[start:], `)`)
-						if end != -1 {
-							imagesList := strings.Split(line[start:start+end], `" "`)
-							for _, img := range imagesList {
-								img = strings.Trim(img, `"`)
-								lowerCamelImg := ToLowerCamel(img)
-								images[lowerCamelImg] = fmt.Sprintf("imageHash-%s-%s", ToLowerCamel(moduleName), lowerCamelImg)
-							}
-						}
-					}
-				}
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	digest[ToLowerCamel(moduleName)] = images
-	DefaultImagesDigests[ToLowerCamel(moduleName)] = digest
-
-	return DefaultImagesDigests, nil
 }
 
 func ComposeValuesFromSchemas(m *Module) (chartutil.Values, error) {
