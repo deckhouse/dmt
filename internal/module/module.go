@@ -1,6 +1,8 @@
 package module
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -103,6 +105,22 @@ func NewModule(path string) (*Module, error) {
 	ch, err := loader.Load(path)
 	if err != nil {
 		return nil, err
+	}
+
+	for i := range ch.Templates {
+		var outputLines strings.Builder
+		scanner := bufio.NewScanner(bytes.NewReader(ch.Templates[i].Data))
+		for scanner.Scan() {
+			line := scanner.Text()
+			if pos := strings.Index(line, `:= include "helm_lib_module_`); pos > -1 {
+				line = line[:pos] + `:= "sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc" }}`
+			}
+			if pos := strings.Index(line, "image: "); pos > -1 {
+				line = line[:pos] + "image: registry.example.com/module@sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc"
+			}
+			outputLines.WriteString(line + "\n")
+		}
+		ch.Templates[i].Data = []byte(outputLines.String())
 	}
 
 	module.chart = ch

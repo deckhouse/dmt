@@ -1,11 +1,7 @@
 package module
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"dario.cat/mergo"
 	"github.com/go-openapi/spec"
@@ -20,10 +16,6 @@ const (
 	ExamplesKey = "x-examples"
 	ArrayObject = "array"
 	ObjectKey   = "object"
-)
-
-const (
-	imageDigestfile string = "images_digests.json"
 )
 
 func applyDigests(digests, values map[string]any) {
@@ -44,9 +36,13 @@ func helmFormatModuleImages(m *Module, rawValues map[string]any) (chartutil.Valu
 	vers = append(vers, "autoscaling.k8s.io/v1/VerticalPodAutoscaler")
 	caps.APIVersions = vers
 
-	digests, err := GetModulesImagesDigests(m.GetName(), m.GetPath())
-	if err != nil {
-		return nil, err
+	digests := map[string]any{
+		"common": map[string]any{
+			"module": "sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc",
+		},
+		m.GetName(): map[string]any{
+			"module": "sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc",
+		},
 	}
 
 	applyDigests(digests, rawValues)
@@ -65,40 +61,6 @@ func helmFormatModuleImages(m *Module, rawValues map[string]any) (chartutil.Valu
 	}
 
 	return top, nil
-}
-
-func GetModulesImagesDigests(moduleName, modulePath string) (modulesDigests map[string]any, err error) {
-	modulesDigests, err = getModulesImagesDigestsFromLocalPath(modulePath)
-	if err != nil {
-		return nil, err
-	}
-
-	if modulesDigests == nil {
-		return DefaultImagesDigests, nil
-	}
-
-	allDigests := DefaultImagesDigests
-	allDigests[ToLowerCamel(moduleName)] = modulesDigests
-
-	return allDigests, nil
-}
-
-func getModulesImagesDigestsFromLocalPath(modulePath string) (map[string]any, error) {
-	var digests map[string]any
-
-	imageDigestsRaw, err := os.ReadFile(filepath.Join(modulePath, imageDigestfile))
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	err = json.Unmarshal(imageDigestsRaw, &digests)
-	if err != nil {
-		return nil, err
-	}
-
-	return digests, nil
 }
 
 func ComposeValuesFromSchemas(m *Module) (chartutil.Values, error) {
