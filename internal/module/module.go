@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -106,7 +107,8 @@ func NewModule(path string) (*Module, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	reHelmModule := regexp.MustCompile(`{{ include "helm_lib_module_.* }}`)
+	reImageDigest := regexp.MustCompile(`\$\.Values\.global\.modulesImages\.digests\.\S*`)
 	for i := range ch.Templates {
 		var outputLines strings.Builder
 		scanner := bufio.NewScanner(bytes.NewReader(ch.Templates[i].Data))
@@ -118,6 +120,8 @@ func NewModule(path string) (*Module, error) {
 			if pos := strings.Index(line, "image: "); pos > -1 {
 				line = line[:pos] + "image: registry.example.com/deckhouse@imageHash-" + name + "-container"
 			}
+			line = reHelmModule.ReplaceAllString(line, "imageHash-"+name+"-container")
+			line = reImageDigest.ReplaceAllString(line, "$.Values.global.modulesImages.digests.common")
 			outputLines.WriteString(line + "\n")
 		}
 		ch.Templates[i].Data = []byte(outputLines.String())
