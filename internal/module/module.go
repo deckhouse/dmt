@@ -113,10 +113,10 @@ func NewModule(path string) (*Module, error) {
 		for scanner.Scan() {
 			line := scanner.Text()
 			if pos := strings.Index(line, `:= include "helm_lib_module_`); pos > -1 {
-				line = line[:pos] + `:= "sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc" }}`
+				line = line[:pos] + `:= imageHash-` + name + `-container`
 			}
 			if pos := strings.Index(line, "image: "); pos > -1 {
-				line = line[:pos] + "image: registry.example.com/module@sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc"
+				line = line[:pos] + "image: registry.example.com/deckhouse@imageHash-" + name + "-container"
 			}
 			outputLines.WriteString(line + "\n")
 		}
