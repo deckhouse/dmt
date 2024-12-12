@@ -38,10 +38,10 @@ func helmFormatModuleImages(m *Module, rawValues map[string]any) (chartutil.Valu
 
 	digests := map[string]any{
 		"common": map[string]any{
-			"image": "registry.example.com/module@sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc",
+			"module": "sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc",
 		},
 		m.GetName(): map[string]any{
-			"image": "registry.example.com/module@sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc",
+			"module": "sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc",
 		},
 	}
 
