@@ -113,7 +113,7 @@ func NewModule(path string) (*Module, error) {
 		for scanner.Scan() {
 			line := scanner.Text()
 			if pos := strings.Index(line, `:= include "helm_lib_module_`); pos > -1 {
-				line = line[:pos] + `:= imageHash-` + name + `-container`
+				line = line[:pos] + `:= "imageHash-` + name + `-container" }}`
 			}
 			if pos := strings.Index(line, "image: "); pos > -1 {
 				line = line[:pos] + "image: registry.example.com/deckhouse@imageHash-" + name + "-container"
