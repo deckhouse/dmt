@@ -169,19 +169,6 @@ func parseExamples(key string, prop *spec.Schema, result map[string]any) error {
 	}
 
 	if example != nil {
-		if prop.Type.Contains(ObjectKey) {
-			t, err := parseProperties(prop)
-			if err != nil {
-				return err
-			}
-			if err := mergo.Merge(&t, example, mergo.WithOverride); err != nil {
-				return err
-			}
-			result[key] = t
-
-			return nil
-		}
-
 		result[key] = example
 	}
 
