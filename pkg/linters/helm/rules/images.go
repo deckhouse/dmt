@@ -192,9 +192,9 @@ func lintOneDockerfileOrWerfYAML(name, filePath, imagesPath string) *errors.Lint
 						return errors.NewLintRuleError(
 							ID,
 							name,
-							fmt.Sprintf("module = %s, image = %s", name, relativeFilePath),
-							nil,
+							fmt.Sprintf("module = %s, path = %s", name, relativeFilePath),
 							fromTrimmed,
+							"%s",
 							message,
 						)
 					}
@@ -220,9 +220,9 @@ func lintOneDockerfileOrWerfYAML(name, filePath, imagesPath string) *errors.Lint
 			return errors.NewLintRuleError(
 				ID,
 				name,
-				name,
-				fmt.Sprintf("module = %s, image = %s", name, relativeFilePath),
+				fmt.Sprintf("module = %s, path = %s", name, relativeFilePath),
 				fromInstruction,
+				"%s",
 				message,
 			)
 		}
