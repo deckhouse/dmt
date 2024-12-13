@@ -330,6 +330,57 @@ func Test_parseProperties(t *testing.T) {
 			want:    map[string]any{"anyOfKey": map[string]any{"anyOfNestedKey": "anyOfValue", "anyOfNestedKey2": "anyOfValue2"}},
 			wantErr: false,
 		},
+		{
+			name: "schema with AllOf",
+			schema: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Properties: map[string]spec.Schema{
+						"allOfKey": {
+							SchemaProps: spec.SchemaProps{
+								AllOf: []spec.Schema{
+									{
+										SchemaProps: spec.SchemaProps{
+											Type: spec.StringOrArray{"object"},
+											Properties: map[string]spec.Schema{
+												"nestedKey1": {
+													SchemaProps: spec.SchemaProps{
+														Default: "nestedValue",
+													},
+												},
+												"nestedKey2": {
+													SchemaProps: spec.SchemaProps{
+														Pattern: "^[a-z]+$",
+													},
+												},
+											},
+										},
+									},
+									{
+										SchemaProps: spec.SchemaProps{
+											Type: spec.StringOrArray{"object"},
+											Properties: map[string]spec.Schema{
+												"nestedKey3": {
+													SchemaProps: spec.SchemaProps{
+														Default: "nestedValue",
+													},
+												},
+												"nestedKey4": {
+													SchemaProps: spec.SchemaProps{
+														Pattern: "^[a-z]+$",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want:    map[string]any{"allOfKey": map[string]any{"nestedKey1": "nestedValue", "nestedKey3": "nestedValue"}},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {

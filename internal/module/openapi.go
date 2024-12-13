@@ -148,7 +148,7 @@ func parseProperty(key string, prop *spec.Schema, result map[string]any) error {
 	case prop.Type.Contains(ArrayObject) && prop.Items != nil && prop.Items.Schema != nil:
 		return parseArray(key, prop, result)
 	case prop.AllOf != nil:
-		// not implemented
+		return parseAllOf(key, prop, result)
 	case prop.OneOf != nil:
 		return parseOneOf(key, prop, result)
 	case prop.AnyOf != nil:
@@ -238,6 +238,19 @@ func parseOneOf(key string, prop *spec.Schema, result map[string]any) error {
 func parseAnyOf(key string, prop *spec.Schema, result map[string]any) error {
 	downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
 	mergedSchema := mergeSchemas(downwardSchema, prop.AnyOf...)
+
+	t, err := parseProperties(mergedSchema)
+	if err != nil {
+		return err
+	}
+	result[key] = t
+
+	return nil
+}
+
+func parseAllOf(key string, prop *spec.Schema, result map[string]any) error {
+	downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
+	mergedSchema := mergeSchemas(downwardSchema, prop.AllOf...)
 
 	t, err := parseProperties(mergedSchema)
 	if err != nil {
