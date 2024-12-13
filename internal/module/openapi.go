@@ -210,10 +210,6 @@ func parseArray(key string, prop *spec.Schema, result map[string]any) error {
 }
 
 func parseOneOf(key string, prop *spec.Schema, result map[string]any) error {
-	if len(prop.OneOf) == 0 {
-		return nil
-	}
-
 	t, err := parseProperties(&prop.OneOf[0])
 	if err != nil {
 		return err
@@ -224,10 +220,6 @@ func parseOneOf(key string, prop *spec.Schema, result map[string]any) error {
 }
 
 func parseAnyOf(key string, prop *spec.Schema, result map[string]any) error {
-	if len(prop.OneOf) == 0 {
-		return nil
-	}
-
 	t, err := parseProperties(&prop.OneOf[0])
 	if err != nil {
 		return err
