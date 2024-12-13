@@ -147,11 +147,19 @@ func parseProperty(key string, prop *spec.Schema, result map[string]any) error {
 		result[key] = prop.Default
 	case prop.Type.Contains(ArrayObject) && prop.Items != nil && prop.Items.Schema != nil:
 		return parseArray(key, prop, result)
-	case prop.AllOf != nil:
-		// not implemented
-	case prop.OneOf != nil:
+	case prop.Type.Contains("string"):
+		result[key] = "e"
+	case prop.Type.Contains("integer"):
+		result[key] = 123
+	case prop.Type.Contains("number"):
+		result[key] = 123
+	case prop.Type.Contains("boolean"):
+		result[key] = true
+	case len(prop.AllOf) > 0:
+		return parseAllOf(key, prop, result)
+	case len(prop.OneOf) > 0:
 		return parseOneOf(key, prop, result)
-	case prop.AnyOf != nil:
+	case len(prop.AnyOf) > 0:
 		return parseAnyOf(key, prop, result)
 	}
 
@@ -169,12 +177,17 @@ func parseExamples(key string, prop *spec.Schema, result map[string]any) error {
 	}
 
 	if example != nil {
+		ex, ok := example.(map[string]any)
+		if !ok {
+			result[key] = example
+			return nil
+		}
 		if prop.Type.Contains(ObjectKey) {
 			t, err := parseProperties(prop)
 			if err != nil {
 				return err
 			}
-			if err := mergo.Merge(&t, example, mergo.WithOverride); err != nil {
+			if err := mergo.Merge(&t, ex, mergo.WithOverride); err != nil {
 				return err
 			}
 			result[key] = t
@@ -213,11 +226,18 @@ func parseArray(key string, prop *spec.Schema, result map[string]any) error {
 		return nil
 	}
 
-	if t, err := parseProperties(prop.Items.Schema); err != nil {
-		return err
-	} else if t != nil {
-		result[key] = t
+	element := prop.Items.Schema
+	if element == nil && len(prop.Items.Schemas) > 0 {
+		element = &prop.Items.Schemas[0]
 	}
+
+	t := make(map[string]any)
+	err := parseProperty(key, element, t)
+	if err != nil {
+		return err
+	}
+
+	result[key] = []any{t[key]}
 
 	return nil
 }
@@ -230,7 +250,10 @@ func parseOneOf(key string, prop *spec.Schema, result map[string]any) error {
 	if err != nil {
 		return err
 	}
-	result[key] = t
+
+	if t != nil {
+		result[key] = t
+	}
 
 	return nil
 }
@@ -243,7 +266,26 @@ func parseAnyOf(key string, prop *spec.Schema, result map[string]any) error {
 	if err != nil {
 		return err
 	}
-	result[key] = t
+
+	if t != nil {
+		result[key] = t
+	}
+
+	return nil
+}
+
+func parseAllOf(key string, prop *spec.Schema, result map[string]any) error {
+	downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
+	mergedSchema := mergeSchemas(downwardSchema, prop.AllOf...)
+
+	t, err := parseProperties(mergedSchema)
+	if err != nil {
+		return err
+	}
+
+	if t != nil {
+		result[key] = t
+	}
 
 	return nil
 }
