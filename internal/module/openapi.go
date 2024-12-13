@@ -220,7 +220,7 @@ func parseOneOf(key string, prop *spec.Schema, result map[string]any) error {
 }
 
 func parseAnyOf(key string, prop *spec.Schema, result map[string]any) error {
-	t, err := parseProperties(&prop.OneOf[0])
+	t, err := parseProperties(&prop.AnyOf[0])
 	if err != nil {
 		return err
 	}

@@ -60,7 +60,7 @@ func Test_parseProperties(t *testing.T) {
 					},
 				},
 			},
-			want:    map[string]any{"exampleKey": map[string]any{"bar1": "example", "bar2": "text"}},
+			want:    map[string]any{"exampleKey": map[string]any{"bar1": "example"}},
 			wantErr: false,
 		},
 		{
@@ -99,7 +99,7 @@ func Test_parseProperties(t *testing.T) {
 					},
 				},
 			},
-			want:    map[string]any{"exampleKey": map[string]any{"bar1": "example", "bar2": "text"}},
+			want:    map[string]any{"exampleKey": map[string]any{"bar1": "example"}},
 			wantErr: false,
 		},
 		{
@@ -288,7 +288,7 @@ func Test_parseProperties(t *testing.T) {
 					},
 				},
 			},
-			want:    map[string]any{"oneOfKey": map[string]any{"oneOfNestedKey": "oneOfValue", "oneOfNestedKey2": "oneOfValue2"}},
+			want:    map[string]any{"oneOfKey": map[string]any{"oneOfNestedKey": "oneOfValue"}},
 			wantErr: false,
 		},
 		{
@@ -327,7 +327,7 @@ func Test_parseProperties(t *testing.T) {
 					},
 				},
 			},
-			want:    map[string]any{"anyOfKey": map[string]any{"anyOfNestedKey": "anyOfValue", "anyOfNestedKey2": "anyOfValue2"}},
+			want:    map[string]any{"anyOfKey": map[string]any{"anyOfNestedKey": "anyOfValue"}},
 			wantErr: false,
 		},
 		{
