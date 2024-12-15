@@ -2,6 +2,7 @@ package module
 
 import (
 	"fmt"
+	"strings"
 
 	"dario.cat/mergo"
 	"github.com/go-openapi/spec"
@@ -9,6 +10,7 @@ import (
 	"helm.sh/helm/v3/pkg/chartutil"
 	"k8s.io/utils/ptr"
 
+	"github.com/deckhouse/dmt/internal/module/reggen"
 	"github.com/deckhouse/dmt/internal/valuesvalidation"
 )
 
@@ -148,7 +150,7 @@ func parseProperty(key string, prop *spec.Schema, result map[string]any) error {
 	case prop.Type.Contains(ArrayObject) && prop.Items != nil && prop.Items.Schema != nil:
 		return parseArray(key, prop, result)
 	case prop.Type.Contains("string"):
-		result[key] = "e"
+		return parseString(key, prop.Pattern, result)
 	case prop.Type.Contains("integer"):
 		result[key] = 123
 	case prop.Type.Contains("number"):
@@ -161,6 +163,36 @@ func parseProperty(key string, prop *spec.Schema, result map[string]any) error {
 		return parseOneOf(key, prop, result)
 	case len(prop.AnyOf) > 0:
 		return parseAnyOf(key, prop, result)
+	}
+
+	return nil
+}
+
+func parseString(key, pattern string, result map[string]any) error {
+	const limit = 8
+	if strings.Contains(key, "CPU") {
+		result[key] = "100m"
+		return nil
+	}
+	if strings.Contains(key, "Memory") {
+		result[key] = "128Mi"
+		return nil
+	}
+	if pattern != "" {
+		result[key] = "string"
+		r, err := reggen.Generate(pattern, limit)
+		if err != nil {
+			return err
+		}
+		result[key] = r
+	} else {
+		const pattern = "[a-zA-Z0-9]{8}"
+		result[key] = "string"
+		r, err := reggen.Generate(pattern, limit)
+		if err != nil {
+			return err
+		}
+		result[key] = r
 	}
 
 	return nil
