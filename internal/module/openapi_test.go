@@ -182,77 +182,6 @@ func Test_parseProperties(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "schema with array and objects",
-			schema: &spec.Schema{
-				SchemaProps: spec.SchemaProps{
-					Properties: map[string]spec.Schema{
-						"arrayKey": {
-							SchemaProps: spec.SchemaProps{
-								Type: spec.StringOrArray{"array"},
-								Items: &spec.SchemaOrArray{
-									Schema: &spec.Schema{
-										SchemaProps: spec.SchemaProps{
-											Properties: map[string]spec.Schema{
-												"objectKey": {
-													SchemaProps: spec.SchemaProps{
-														Type: spec.StringOrArray{"object"},
-														Properties: map[string]spec.Schema{
-															"nestedKey": {
-																SchemaProps: spec.SchemaProps{
-																	Default: "nestedValue",
-																},
-															},
-															"nestedKey2": {
-																SchemaProps: spec.SchemaProps{
-																	Pattern: "^[a-z]+$",
-																},
-															},
-														},
-													},
-												},
-											},
-										},
-									},
-									Schemas: []spec.Schema{
-										{
-											SchemaProps: spec.SchemaProps{
-												Properties: map[string]spec.Schema{
-													"objectKey": {
-														SchemaProps: spec.SchemaProps{
-															Type: spec.StringOrArray{"object"},
-															Properties: map[string]spec.Schema{
-																"nestedKey": {
-																	SchemaProps: spec.SchemaProps{
-																		Default: "nestedValue",
-																	},
-																},
-																"nestedKey2": {
-																	SchemaProps: spec.SchemaProps{
-																		Pattern: "^[a-z]+$",
-																	},
-																},
-															},
-														},
-													},
-												},
-											},
-										},
-										{
-											SchemaProps: spec.SchemaProps{
-												Default: "arrayValue2",
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			want:    map[string]any{"arrayKey": map[string]any{"objectKey": map[string]any{"nestedKey": "nestedValue"}}},
-			wantErr: false,
-		},
-		{
 			name: "schema with oneOf",
 			schema: &spec.Schema{
 				SchemaProps: spec.SchemaProps{
@@ -328,6 +257,57 @@ func Test_parseProperties(t *testing.T) {
 				},
 			},
 			want:    map[string]any{"anyOfKey": map[string]any{"anyOfNestedKey": "anyOfValue", "anyOfNestedKey2": "anyOfValue2"}},
+			wantErr: false,
+		},
+		{
+			name: "schema with AllOf",
+			schema: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Properties: map[string]spec.Schema{
+						"allOfKey": {
+							SchemaProps: spec.SchemaProps{
+								AllOf: []spec.Schema{
+									{
+										SchemaProps: spec.SchemaProps{
+											Type: spec.StringOrArray{"object"},
+											Properties: map[string]spec.Schema{
+												"nestedKey1": {
+													SchemaProps: spec.SchemaProps{
+														Default: "nestedValue",
+													},
+												},
+												"nestedKey2": {
+													SchemaProps: spec.SchemaProps{
+														Pattern: "^[a-z]+$",
+													},
+												},
+											},
+										},
+									},
+									{
+										SchemaProps: spec.SchemaProps{
+											Type: spec.StringOrArray{"object"},
+											Properties: map[string]spec.Schema{
+												"nestedKey3": {
+													SchemaProps: spec.SchemaProps{
+														Default: "nestedValue",
+													},
+												},
+												"nestedKey4": {
+													SchemaProps: spec.SchemaProps{
+														Pattern: "^[a-z]+$",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want:    map[string]any{"allOfKey": map[string]any{"nestedKey1": "nestedValue", "nestedKey3": "nestedValue"}},
 			wantErr: false,
 		},
 	}
