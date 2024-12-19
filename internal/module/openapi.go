@@ -174,6 +174,10 @@ func parseString(key, pattern string, result map[string]any) error {
 		return nil
 	}
 
+	if key == "name" {
+		result[key] = "name"
+		return nil
+	}
 	const limit = 8
 	if strings.Contains(key, "CPU") {
 		result[key] = "100m"
