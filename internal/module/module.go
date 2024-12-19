@@ -117,6 +117,9 @@ func NewModule(path string) (*Module, error) {
 			if pos := strings.Index(line, `:= include "helm_lib_module_`); pos > -1 {
 				line = line[:pos] + `:= "imageHash-` + name + `-container" }}`
 			}
+			if pos := strings.Index(line, `:= (include "helm_lib_module_`); pos > -1 {
+				line = line[:pos] + `:= "example.domain.com:tags"  | splitn ":" 2 }}`
+			}
 			if pos := strings.Index(line, "image: "); pos > -1 {
 				line = line[:pos] + "image: registry.example.com/deckhouse@imageHash-" + name + "-container"
 			}
