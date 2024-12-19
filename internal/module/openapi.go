@@ -169,6 +169,11 @@ func parseProperty(key string, prop *spec.Schema, result map[string]any) error {
 }
 
 func parseString(key, pattern string, result map[string]any) error {
+	// ignore cniSecretData key
+	if key == "cniSecretData" {
+		return nil
+	}
+
 	const limit = 8
 	if strings.Contains(key, "CPU") {
 		result[key] = "100m"
