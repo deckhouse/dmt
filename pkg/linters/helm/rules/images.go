@@ -193,7 +193,7 @@ func lintWerfFile(file *os.File, name, filePath, relativeFilePath string) *error
 				err,
 			)
 		}
-		if w.Final != nil && *w.Final == false {
+		if w.Final != nil && !*w.Final {
 			// skip image, if it's not final
 			continue
 		}
