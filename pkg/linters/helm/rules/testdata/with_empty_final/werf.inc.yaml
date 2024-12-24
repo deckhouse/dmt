@@ -1,0 +1,66 @@
+---
+image: {{ $.ModuleName }}/{{ $.ImageName }}
+from: {{ $.Images.BASE_ALT_P11 }}
+import:
+  - artifact: {{ $.ModuleName }}/{{ $.ImageName }}-reloader-artifact
+    add: /src/reloader
+    to: /usr/bin/reloader
+    before: install
+  - artifact: {{ $.ModuleName }}/{{ $.ImageName }}-artifact
+    add: /relocate
+    to: /
+    before: install
+docker:
+  ENTRYPOINT: ["/usr/bin/vector"]
+---
+artifact: {{ $.ModuleName }}/{{ $.ImageName }}-artifact
+from: {{ $.Images.BASE_ALT_P11 }}
+git:
+  - add: /{{ $.ModulePath }}modules/460-{{ $.ModuleName }}/images/{{ $.ImageName }}/patches
+    to: /patches
+    stageDependencies:
+      install:
+        - '**/*'
+shell:
+  beforeInstall:
+    - apt-get update
+    - apt-get install -y build-essential git openssl-devel wget perl-IPC-Cmd protobuf-compiler libsasl2-devel unzip zlib-devel rust rust-cargo
+  install:
+    - export CARGO_NET_GIT_FETCH_WITH_CLI=true
+    - mkdir -p ~/.ssh && echo "StrictHostKeyChecking accept-new" > ~/.ssh/config
+    - git clone --depth 1 --branch v0.40.1 {{ $.SOURCE_REPO }}/vectordotdev/vector.git
+    - cd /vector
+    - git apply /patches/*.patch --verbose
+    - |
+      cargo build \
+      --release \
+      -j $(($(nproc) /2)) \
+      --no-default-features \
+      --features "api,api-client,enrichment-tables,sources-host_metrics,sources-internal_metrics,sources-file,sources-kubernetes_logs,transforms,sinks-prometheus,sinks-blackhole,sinks-elasticsearch,sinks-file,sinks-loki,sinks-socket,sinks-console,sinks-vector,sinks-kafka,sinks-splunk_hec,unix,rdkafka?/gssapi-vendored"
+    - strip target/release/vector
+    - mkdir -p /relocate/etc /relocate/usr/bin
+    - cp target/release/vector /relocate/usr/bin/vector
+    - cp -pr /etc/pki /relocate/etc
+---
+artifact: {{ $.ModuleName }}/{{ $.ImageName }}-reloader-artifact
+from: {{ $.Images.FOOBAR }}
+git:
+  - add: /{{ $.ModulePath }}modules/460-{{ $.ModuleName }}/images/{{ $.ImageName }}/reloader
+    to: /src
+    includePaths:
+      - '**/*.go'
+      - '**/*.mod'
+      - '**/*.sum'
+    stageDependencies:
+      install:
+        - '**/*.go'
+        - 'go.mod'
+        - 'go.sum'
+mount:
+  - fromPath: ~/go-pkg-cache
+    to: /go/pkg
+shell:
+  install:
+    - cd /src
+    - export GOPROXY={{ .GOPROXY }} GOOS=linux GOARCH=amd64 CGO_ENABLED=0
+    - go build -ldflags="-s -w" -o reloader main.go
