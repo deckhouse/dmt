@@ -1,9 +1,11 @@
 package rules
 
 import (
-	"github.com/deckhouse/dmt/pkg/config"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/deckhouse/dmt/pkg/config"
 )
 
 func TestWerfFileLint(t *testing.T) {
