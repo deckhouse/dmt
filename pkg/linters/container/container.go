@@ -34,7 +34,7 @@ func (*Container) Run(m *module.Module) (result errors.LintRuleErrorsList, err e
 	}
 
 	for _, object := range m.GetStorage() {
-		result.Merge(applyContainerRules(object))
+		result.Merge(applyContainerRules(m, object))
 	}
 
 	return result, nil
