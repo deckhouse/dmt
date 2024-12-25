@@ -78,8 +78,9 @@ func runLint(dirs []string) {
 
 	mng := manager.NewManager(dirs, cfg)
 	result := mng.Run()
-	if result.ConvertToError() != nil {
-		fmt.Printf("%s\n", result.ConvertToError())
+	convertedError := result.ConvertToError()
+	if convertedError != nil {
+		fmt.Printf("%s\n", convertedError)
 	}
 
 	if result.Critical() {

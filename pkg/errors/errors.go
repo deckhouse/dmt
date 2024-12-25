@@ -70,13 +70,24 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 			cmp.Compare(a.ObjectID, b.ObjectID),
 		)
 	})
+
+	warningOnlyLinters := map[string]struct{}{}
+	for _, wo := range WarningsOnly {
+		warningOnlyLinters[wo] = struct{}{}
+	}
+
 	builder := strings.Builder{}
 	for _, err := range l.data {
+		msgColor := color.FgRed
+		if _, ok := warningOnlyLinters[err.ID]; ok {
+			msgColor = color.FgHiYellow
+		}
+
 		builder.WriteString(fmt.Sprintf(
 			"%s%s\n\tMessage\t- %s\n\tObject\t- %s\n\tModule\t- %s\n",
 			emoji.Sprintf(":monkey:"),
 			color.New(color.FgHiBlue).SprintfFunc()("[#%s]", err.ID),
-			color.New(color.FgRed).SprintfFunc()(err.Text),
+			color.New(msgColor).SprintfFunc()(err.Text),
 			err.ObjectID,
 			err.Module,
 		))
