@@ -1,5 +1,8 @@
+# Non-yaml document must be ignored
+{{- $version := "pipipi}}
 ---
-image: {{ $.ModuleName }}/{{ $.ImageName }}
+# BASE_ALT image is allowed as distroless
+image: {{ $.ModuleName }}/{{ $.ImageName }}-allowed
 from: {{ $.Images.BASE_ALT_P11 }}
 import:
   - artifact: {{ $.ModuleName }}/{{ $.ImageName }}-reloader-artifact
@@ -13,6 +16,7 @@ import:
 docker:
   ENTRYPOINT: ["/usr/bin/vector"]
 ---
+# Artifact should not be used
 artifact: {{ $.ModuleName }}/{{ $.ImageName }}-artifact
 from: {{ $.Images.BASE_ALT_P11 }}
 git:
@@ -42,23 +46,29 @@ shell:
     - cp target/release/vector /relocate/usr/bin/vector
     - cp -pr /etc/pki /relocate/etc
 ---
-artifact: {{ $.ModuleName }}/{{ $.ImageName }}-reloader-artifact
+# explicitly set `final` should give an error for non-distroless (FOOBAR) image
+image: {{ $.ModuleName }}/{{ $.ImageName }}-final-true
 from: {{ $.Images.FOOBAR }}
-git:
-  - add: /{{ $.ModulePath }}modules/460-{{ $.ModuleName }}/images/{{ $.ImageName }}/reloader
-    to: /src
-    includePaths:
-      - '**/*.go'
-      - '**/*.mod'
-      - '**/*.sum'
-    stageDependencies:
-      install:
-        - '**/*.go'
-        - 'go.mod'
-        - 'go.sum'
-mount:
-  - fromPath: ~/go-pkg-cache
-    to: /go/pkg
+final: true
+shell:
+  install:
+    - cd /src
+    - export GOPROXY={{ .GOPROXY }} GOOS=linux GOARCH=amd64 CGO_ENABLED=0
+    - go build -ldflags="-s -w" -o reloader main.go
+---
+# non-set `final` should give an error for non-distroless (FOOBAR) image
+image: {{ $.ModuleName }}/{{ $.ImageName }}-nonset-final
+from: {{ $.Images.FOOBAZ }}
+shell:
+  install:
+    - cd /src
+    - export GOPROXY={{ .GOPROXY }} GOOS=linux GOARCH=amd64 CGO_ENABLED=0
+    - go build -ldflags="-s -w" -o reloader main.go
+---
+# `final: false` should allow to use non-distroless image
+image: {{ $.ModuleName }}/{{ $.ImageName }}-non-final
+from: {{ $.Images.ANYTHING }}
+final: false
 shell:
   install:
     - cd /src
