@@ -19,13 +19,14 @@ package rules
 import (
 	"bufio"
 	"fmt"
-	"gopkg.in/yaml.v3"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/deckhouse/dmt/pkg/errors"
 )

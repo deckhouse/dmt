@@ -1,8 +1,9 @@
 package rules
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/deckhouse/dmt/pkg/config"
 )
