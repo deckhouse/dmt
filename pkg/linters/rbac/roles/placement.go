@@ -58,8 +58,8 @@ func ObjectRBACPlacement(m *module.Module, object storage.StoreObject) *errors.L
 		return nil
 	}
 
-	objectKind := object.Unstructured.GetName()
-	switch object.Unstructured.GetName() {
+	objectKind := object.Unstructured.GetKind()
+	switch objectKind {
 	case "ServiceAccount":
 		return objectRBACPlacementServiceAccount(m, object)
 	case "ClusterRole", "ClusterRoleBinding":
