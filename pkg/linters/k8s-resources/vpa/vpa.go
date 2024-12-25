@@ -112,7 +112,7 @@ func fillVPAMaps(
 	vpaUpdateModes map[storage.ResourceIndex]UpdateMode,
 	vpa storage.StoreObject,
 ) (result errors.LintRuleErrorsList) {
-	target, ok, errs := parseVPATargetIndex(vpa)
+	target, ok, errs := parseVPATargetIndex(md.GetName(), vpa)
 	result.Merge(errs)
 	if !ok {
 		return
@@ -207,13 +207,13 @@ func parseVPAResourcePolicyContainers(md *module.Module, vpaObject storage.Store
 }
 
 // parseVPATargetIndex parses VPA target resource index, writes to the passed struct pointer
-func parseVPATargetIndex(vpaObject storage.StoreObject) (target storage.ResourceIndex, ok bool, result errors.LintRuleErrorsList) {
+func parseVPATargetIndex(name string, vpaObject storage.StoreObject) (target storage.ResourceIndex, ok bool, result errors.LintRuleErrorsList) {
 	specs, ok := vpaObject.Unstructured.Object["spec"].(map[string]any)
 	if !ok {
 		result.Add(errors.NewLintRuleError(
 			ID,
 			vpaObject.Identity(),
-			"",
+			name,
 			false,
 			"No VPA specs is found for object",
 		))
@@ -225,7 +225,7 @@ func parseVPATargetIndex(vpaObject storage.StoreObject) (target storage.Resource
 		result.Add(errors.NewLintRuleError(
 			ID,
 			vpaObject.Identity(),
-			"",
+			name,
 			false,
 			"No VPA specs targetRef is found for object",
 		))
