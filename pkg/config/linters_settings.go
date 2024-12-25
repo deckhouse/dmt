@@ -7,7 +7,7 @@ type LintersSettings struct {
 	Probes       ProbesSettings       `mapstructure:"probes"`
 	Container    ContainerSettings    `mapstructure:"container"`
 	K8SResources K8SResourcesSettings `mapstructure:"k8s_resources"`
-	Helm         HelmSettings         `mapstructure:"helm"`
+	Images       ImageSettings        `mapstructure:"images"`
 	Rbac         RbacSettings         `mapstructure:"rbac"`
 	Resources    ResourcesSettings    `mapstructure:"resources"`
 	Monitoring   MonitoringSettings   `mapstructure:"monitoring"`
@@ -60,9 +60,8 @@ type RbacSettings struct {
 	SkipObjectCheckBinding []string            `mapstructure:"skip-object-check-binding"`
 }
 
-type HelmSettings struct {
+type ImageSettings struct {
 	SkipModuleImageName      []string `mapstructure:"skip-module-image-name"`
 	SkipDistrolessImageCheck []string `mapstructure:"skip-distroless-image-check"`
-	SkipHelmIgnoreCheck      []string `mapstructure:"skip-helm-ignore-check"`
 	SkipNamespaceCheck       []string `mapstructure:"skip-namespace-check"`
 }

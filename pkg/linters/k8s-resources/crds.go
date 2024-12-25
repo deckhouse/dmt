@@ -27,7 +27,7 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/linters/helm/rules"
+	"github.com/deckhouse/dmt/pkg/linters/images/rules"
 )
 
 var (

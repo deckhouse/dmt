@@ -18,7 +18,7 @@ import (
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/container"
-	"github.com/deckhouse/dmt/pkg/linters/helm"
+	"github.com/deckhouse/dmt/pkg/linters/images"
 	"github.com/deckhouse/dmt/pkg/linters/license"
 	no_cyrillic "github.com/deckhouse/dmt/pkg/linters/no-cyrillic"
 	"github.com/deckhouse/dmt/pkg/linters/openapi"
@@ -54,7 +54,7 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 		probes.New(&cfg.LintersSettings.Probes),
 		container.New(&cfg.LintersSettings.Container),
 		k8s_resources.New(&cfg.LintersSettings.K8SResources),
-		helm.New(&cfg.LintersSettings.Helm),
+		images.New(&cfg.LintersSettings.Images),
 		rbac.New(&cfg.LintersSettings.Rbac),
 		monitoring.New(&cfg.LintersSettings.Monitoring),
 	}

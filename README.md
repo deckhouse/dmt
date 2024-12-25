@@ -66,7 +66,7 @@ linters-settings:
     skip-object-check-binding:
       - "user-authz"
       - "deckhouse"
-  helm:
+  images:
     skip-module-image-name:
       - "021-cni-cilium/images/cilium/Dockerfile"
       - "021-cni-cilium/images/virt-cilium/Dockerfile"
