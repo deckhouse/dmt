@@ -1,6 +1,7 @@
 package config
 
 import (
+	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
@@ -20,6 +21,9 @@ func NewDefault(dirs []string) (*Config, error) {
 	}
 
 	errors.WarningsOnly = cfg.WarningsOnly
+	for _, w := range cfg.WarningsOnly {
+		logger.InfoF("Linter %q is marked as warnings-only. It will not fail the pipeline", w)
+	}
 
 	return cfg, nil
 }
