@@ -81,7 +81,7 @@ func namespaceLabels(name string, object storage.StoreObject) *errors.LintRuleEr
 		`Namespace object does not have the label "prometheus.deckhouse.io/rules-watcher-enabled"`)
 }
 
-func newAPIVersionError(name string, wanted, version, objectID string) *errors.LintRuleError {
+func newAPIVersionError(name, wanted, version, objectID string) *errors.LintRuleError {
 	if version != wanted {
 		return errors.NewLintRuleError(
 			ID,
