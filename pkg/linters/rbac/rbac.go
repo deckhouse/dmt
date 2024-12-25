@@ -32,7 +32,7 @@ func (*Rbac) Run(m *module.Module) (result errors.LintRuleErrorsList, err error)
 		result.Add(roles.ObjectUserAuthzClusterRolePath(m, object))
 		result.Add(roles.ObjectRBACPlacement(m, object))
 		result.Add(roles.ObjectBindingSubjectServiceAccountCheck(m, object, m.GetObjectStore()))
-		result.Add(roles.ObjectRolesWildcard(object))
+		result.Add(roles.ObjectRolesWildcard(m, object))
 	}
 
 	return result, nil

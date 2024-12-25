@@ -23,13 +23,14 @@ import (
 	k8SRbac "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 // ObjectRolesWildcard is a linter for checking the presence
 // of a wildcard in a Role and ClusterRole
-func ObjectRolesWildcard(object storage.StoreObject) *errors.LintRuleError {
+func ObjectRolesWildcard(m *module.Module, object storage.StoreObject) *errors.LintRuleError {
 	// check only `rbac-for-us.yaml` files
 	if !strings.HasSuffix(object.ShortPath(), "rbac-for-us.yaml") {
 		return nil
@@ -39,13 +40,13 @@ func ObjectRolesWildcard(object storage.StoreObject) *errors.LintRuleError {
 	objectKind := object.Unstructured.GetKind()
 	switch objectKind {
 	case "Role", "ClusterRole":
-		return checkRoles(object)
+		return checkRoles(m, object)
 	default:
 		return nil
 	}
 }
 
-func checkRoles(object storage.StoreObject) *errors.LintRuleError {
+func checkRoles(m *module.Module, object storage.StoreObject) *errors.LintRuleError {
 	// check rbac-proxy for skip
 	for path, rules := range Cfg.SkipCheckWildcards {
 		if strings.EqualFold(object.Path, path) {
@@ -78,7 +79,7 @@ func checkRoles(object storage.StoreObject) *errors.LintRuleError {
 			return errors.NewLintRuleError(
 				ID,
 				object.Identity(),
-				object.Path,
+				m.GetName(),
 				nil,
 				"%s contains a wildcards. Replace them with an explicit list of resources",
 				strings.Join(objs, ", "),

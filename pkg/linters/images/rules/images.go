@@ -209,7 +209,7 @@ func lintWerfFile(file *os.File, name, filePath, relativeFilePath string) []*err
 				errors.NewLintRuleError(
 					ID,
 					filePath,
-					ModuleLabel(name),
+					name,
 					w.From,
 					"Use `from:` or `fromImage:` and `final: false` directives instead of `artifact:` in the werf file",
 				),
@@ -232,8 +232,8 @@ func lintWerfFile(file *os.File, name, filePath, relativeFilePath string) []*err
 			lintErrors = append(lintErrors,
 				errors.NewLintRuleError(
 					ID,
+					filePath,
 					name,
-					fmt.Sprintf("module = %s, path = %s", name, relativeFilePath),
 					w.From,
 					"%s",
 					message,
