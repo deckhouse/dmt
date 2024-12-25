@@ -42,7 +42,7 @@ func applyContainerRules(m *module.Module, object storage.StoreObject) (result e
 	return result
 }
 
-func containersImagePullPolicy(module string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
+func containersImagePullPolicy(md string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	if len(containers) == 0 {
 		return nil
 	}
@@ -58,7 +58,7 @@ func containersImagePullPolicy(module string, object storage.StoreObject, contai
 			return errors.NewLintRuleError(
 				ID,
 				object.Identity()+"; container = "+c.Name,
-				module,
+				md,
 				c.ImagePullPolicy,
 				`Container imagePullPolicy should be unspecified or "Always"`,
 			)
@@ -67,24 +67,24 @@ func containersImagePullPolicy(module string, object storage.StoreObject, contai
 		return nil
 	}
 
-	return containerImagePullPolicyIfNotPresent(module, object, containers)
+	return containerImagePullPolicyIfNotPresent(md, object, containers)
 }
 
-func containerNameDuplicates(module string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
+func containerNameDuplicates(md string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	names := make(map[string]struct{})
 	for i := range containers {
 		if shouldSkipModuleContainer(object.Unstructured.GetName(), containers[i].Name) {
 			continue
 		}
 		if _, ok := names[containers[i].Name]; ok {
-			return errors.NewLintRuleError(ID, object.Identity(), module, nil, "Duplicate container name")
+			return errors.NewLintRuleError(ID, object.Identity(), md, nil, "Duplicate container name")
 		}
 		names[containers[i].Name] = struct{}{}
 	}
 	return nil
 }
 
-func containerEnvVariablesDuplicates(module string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
+func containerEnvVariablesDuplicates(md string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	for i := range containers {
 		if shouldSkipModuleContainer(object.Unstructured.GetName(), containers[i].Name) {
 			continue
@@ -95,7 +95,7 @@ func containerEnvVariablesDuplicates(module string, object storage.StoreObject, 
 				return errors.NewLintRuleError(
 					ID,
 					object.Identity()+"; container = "+containers[i].Name,
-					module,
+					md,
 					variable.Name,
 					"Container has two env variables with same name",
 				)
@@ -129,7 +129,7 @@ func shouldSkipModuleContainer(md, container string) bool {
 	return false
 }
 
-func containerImageDigestCheck(module string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
+func containerImageDigestCheck(md string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	for i := range containers {
 		if shouldSkipModuleContainer(object.Unstructured.GetName(), containers[i].Name) {
 			continue
@@ -140,7 +140,7 @@ func containerImageDigestCheck(module string, object storage.StoreObject, contai
 		if len(match) == 0 {
 			return errors.NewLintRuleError(ID,
 				object.Identity()+"; container = "+containers[i].Name,
-				module,
+				md,
 				nil,
 				"Cannot parse repository from image",
 			)
@@ -149,7 +149,7 @@ func containerImageDigestCheck(module string, object storage.StoreObject, contai
 		if err != nil {
 			return errors.NewLintRuleError(ID,
 				object.Identity()+"; container = "+containers[i].Name,
-				module,
+				md,
 				nil,
 				"Cannot parse repository from image: %s", containers[i].Image,
 			)
@@ -158,7 +158,7 @@ func containerImageDigestCheck(module string, object storage.StoreObject, contai
 		if repo.Name() != defaultRegistry {
 			return errors.NewLintRuleError(ID,
 				object.Identity()+"; container = "+containers[i].Name,
-				module,
+				md,
 				nil,
 				"All images must be deployed from the same default registry: %s current: %s",
 				defaultRegistry,
@@ -169,7 +169,7 @@ func containerImageDigestCheck(module string, object storage.StoreObject, contai
 	return nil
 }
 
-func containerImagePullPolicyIfNotPresent(module string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
+func containerImagePullPolicyIfNotPresent(md string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	for i := range containers {
 		if shouldSkipModuleContainer(object.Unstructured.GetName(), containers[i].Name) {
 			continue
@@ -180,7 +180,7 @@ func containerImagePullPolicyIfNotPresent(module string, object storage.StoreObj
 		return errors.NewLintRuleError(
 			ID,
 			object.Identity()+"; container = "+containers[i].Name,
-			module,
+			md,
 			containers[i].ImagePullPolicy,
 			`Container imagePullPolicy should be unspecified or "IfNotPresent"`,
 		)
@@ -188,7 +188,7 @@ func containerImagePullPolicyIfNotPresent(module string, object storage.StoreObj
 	return nil
 }
 
-func containerStorageEphemeral(module string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
+func containerStorageEphemeral(md string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	for i := range containers {
 		if shouldSkipModuleContainer(object.Unstructured.GetName(), containers[i].Name) {
 			continue
@@ -198,7 +198,7 @@ func containerStorageEphemeral(module string, object storage.StoreObject, contai
 			return errors.NewLintRuleError(
 				ID,
 				object.Identity()+"; container = "+containers[i].Name,
-				module,
+				md,
 				nil,
 				"Ephemeral storage for container is not defined in Resources.Requests",
 			)
@@ -207,7 +207,7 @@ func containerStorageEphemeral(module string, object storage.StoreObject, contai
 	return nil
 }
 
-func containerSecurityContext(module string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
+func containerSecurityContext(md string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	for i := range containers {
 		if shouldSkipModuleContainer(object.Unstructured.GetName(), containers[i].Name) {
 			continue
@@ -216,7 +216,7 @@ func containerSecurityContext(module string, object storage.StoreObject, contain
 			return errors.NewLintRuleError(
 				ID,
 				object.Identity()+"; container = "+containers[i].Name,
-				module,
+				md,
 				nil,
 				"Container SecurityContext is not defined",
 			)
@@ -225,7 +225,7 @@ func containerSecurityContext(module string, object storage.StoreObject, contain
 	return nil
 }
 
-func containerPorts(module string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
+func containerPorts(md string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	for i := range containers {
 		if shouldSkipModuleContainer(object.Unstructured.GetName(), containers[i].Name) {
 			continue
@@ -236,7 +236,7 @@ func containerPorts(module string, object storage.StoreObject, containers []v1.C
 				return errors.NewLintRuleError(
 					ID,
 					object.Identity()+"; container = "+containers[i].Name,
-					module,
+					md,
 					p.ContainerPort,
 					"Container uses port <= 1024",
 				)
