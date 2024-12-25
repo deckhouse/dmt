@@ -1,3 +1,4 @@
 .dmtlint.yml
 release-build
 dist
+/dmt

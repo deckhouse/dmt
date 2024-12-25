@@ -39,6 +39,8 @@ type Manager struct {
 	Modules []*module.Module
 
 	lintersMap map[string]Linter
+
+	errors errors.LintRuleErrorsList
 }
 
 func NewManager(dirs []string, cfg *config.Config) *Manager {
@@ -90,7 +92,13 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 		logger.DebugF("Found `%s` module", moduleName)
 		mdl, err := module.NewModule(paths[i])
 		if err != nil {
-			logger.ErrorF("Cannot create module `%s`: %s", moduleName, err)
+			m.errors.Add(&errors.LintRuleError{
+				Text:     "cannot create module",
+				ID:       "manager",
+				Value:    err,
+				ObjectID: paths[i],
+				Module:   moduleName,
+			})
 			continue
 		}
 		m.Modules = append(m.Modules, mdl)
@@ -130,6 +138,8 @@ func (m *Manager) Run() errors.LintRuleErrorsList {
 	for er := range ch {
 		result.Merge(er)
 	}
+
+	result.Merge(m.errors)
 
 	return result
 }
