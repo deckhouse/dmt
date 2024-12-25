@@ -89,7 +89,7 @@ func ObjectBindingSubjectServiceAccountCheck(
 			return errors.NewLintRuleError(
 				ID,
 				object.Identity(),
-				subject.Name,
+				m.GetName(),
 				nil,
 				"%s bind to the wrong ServiceAccount (doesn't exist in the store)", objectKind,
 			)

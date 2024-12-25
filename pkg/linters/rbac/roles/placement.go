@@ -148,7 +148,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 				return errors.NewLintRuleError(
 					ID,
 					object.Identity(),
-					object.Unstructured.GetName(),
+					m.GetName(),
 					nil,
 					"ServiceAccount should be deployed to %q", m.GetNamespace(),
 				)
@@ -178,7 +178,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 		return errors.NewLintRuleError(
 			ID,
 			object.Identity(),
-			object.Unstructured.GetName(),
+			m.GetName(),
 			nil,
 			"Name of ServiceAccount should be equal to %q or %q",
 			serviceAccountName, expectedServiceAccountName,
@@ -187,7 +187,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 	return errors.NewLintRuleError(
 		ID,
 		object.Identity(),
-		object.Unstructured.GetName(),
+		m.GetName(),
 		nil,
 		"ServiceAccount should be in %q or \"*/rbac-for-us.yaml\"", RootRBACForUsPath,
 	)
@@ -204,7 +204,7 @@ func objectRBACPlacementClusterRole(kind string, m *module.Module, object storag
 			return errors.NewLintRuleError(
 				ID,
 				object.Identity(),
-				object.Unstructured.GetName(),
+				m.GetName(),
 				nil,
 				"Name of %s in %q should start with %q",
 				kind, RootRBACForUsPath, name,
@@ -220,7 +220,7 @@ func objectRBACPlacementClusterRole(kind string, m *module.Module, object storag
 			return errors.NewLintRuleError(
 				ID,
 				object.Identity(),
-				object.Unstructured.GetName(),
+				m.GetName(),
 				nil,
 				"Name of %s should start with %q",
 				kind, n,
@@ -230,7 +230,7 @@ func objectRBACPlacementClusterRole(kind string, m *module.Module, object storag
 		return errors.NewLintRuleError(
 			ID,
 			object.Identity(),
-			object.Unstructured.GetName(),
+			m.GetName(),
 			nil,
 			"%s should be in %q or \"*/rbac-for-us.yaml\"",
 			kind, RootRBACForUsPath,
@@ -259,7 +259,7 @@ func objectRBACPlacementRole(kind string, m *module.Module, object storage.Store
 		return errors.NewLintRuleError(
 			ID,
 			object.Identity(),
-			object.Unstructured.GetName(),
+			m.GetName(),
 			nil,
 			msgTemplate,
 			kind,
@@ -278,7 +278,7 @@ func handleRootRBACForUs(m *module.Module, object storage.StoreObject, objectNam
 			return errors.NewLintRuleError(
 				ID,
 				object.Identity(),
-				object.Unstructured.GetName(),
+				m.GetName(),
 				nil,
 				"%s in %q should be deployed in namespace \"d8-monitoring\", \"d8-system\" or %q",
 				kind, RootRBACForUsPath, m.GetNamespace(),
@@ -289,7 +289,7 @@ func handleRootRBACForUs(m *module.Module, object storage.StoreObject, objectNam
 			return errors.NewLintRuleError(
 				ID,
 				object.Identity(),
-				object.Unstructured.GetName(),
+				m.GetName(),
 				nil,
 				"%s in %q should be deployed in namespace \"default\" or \"kube-system\"",
 				kind, RootRBACForUsPath,
@@ -300,7 +300,7 @@ func handleRootRBACForUs(m *module.Module, object storage.StoreObject, objectNam
 			return errors.NewLintRuleError(
 				ID,
 				object.Identity(),
-				object.Unstructured.GetName(),
+				m.GetName(),
 				nil,
 				"%s in %q should be deployed in namespace %q",
 				kind, RootRBACForUsPath, m.GetNamespace(),
@@ -318,7 +318,7 @@ func handleRootRBACToUs(m *module.Module, object storage.StoreObject, objectName
 		return errors.NewLintRuleError(
 			ID,
 			object.Identity(),
-			object.Unstructured.GetName(),
+			m.GetName(),
 			nil,
 			"%s in %q should start with %q",
 			kind, RootRBACToUsPath, prefix,
@@ -330,7 +330,7 @@ func handleRootRBACToUs(m *module.Module, object storage.StoreObject, objectName
 		return errors.NewLintRuleError(
 			ID,
 			object.Identity(),
-			object.Unstructured.GetName(),
+			m.GetName(),
 			nil,
 			"%s in %q should be deployed in namespace \"d8-system\", \"d8-monitoring\" or %q",
 			kind, RootRBACToUsPath, m.GetNamespace(),
@@ -359,7 +359,7 @@ func handleNestedRBACForUs(m *module.Module, object storage.StoreObject, shortPa
 			return errors.NewLintRuleError(
 				ID,
 				object.Identity(),
-				object.Unstructured.GetName(),
+				m.GetName(),
 				nil,
 				"%s with prefix %q should be deployed in namespace %q",
 				kind, localPrefix, m.GetNamespace(),
@@ -370,7 +370,7 @@ func handleNestedRBACForUs(m *module.Module, object storage.StoreObject, shortPa
 			return errors.NewLintRuleError(
 				ID,
 				object.Identity(),
-				object.Unstructured.GetName(),
+				m.GetName(),
 				nil,
 				"%s with prefix %q should be deployed in namespace \"d8-system\" or \"d8-monitoring\"",
 				kind, globalPrefix,
@@ -381,7 +381,7 @@ func handleNestedRBACForUs(m *module.Module, object storage.StoreObject, shortPa
 			return errors.NewLintRuleError(
 				ID,
 				object.Identity(),
-				object.Unstructured.GetName(),
+				m.GetName(),
 				nil,
 				"%s with prefix %q should be deployed in namespace \"default\" or \"kube-system\"",
 				kind, systemPrefix,
@@ -391,7 +391,7 @@ func handleNestedRBACForUs(m *module.Module, object storage.StoreObject, shortPa
 		return errors.NewLintRuleError(
 			ID,
 			object.Identity(),
-			object.Unstructured.GetName(),
+			m.GetName(),
 			nil,
 			"%s in %q should start with %q or %q",
 			kind, shortPath, localPrefix, globalPrefix,
@@ -418,7 +418,7 @@ func handleNestedRBACToUs(m *module.Module, object storage.StoreObject, shortPat
 			return errors.NewLintRuleError(
 				ID,
 				object.Identity(),
-				object.Unstructured.GetName(),
+				m.GetName(),
 				nil,
 				"%s with prefix %q should be deployed in namespace %q",
 				kind, globalPrefix, m.GetNamespace(),
@@ -429,7 +429,7 @@ func handleNestedRBACToUs(m *module.Module, object storage.StoreObject, shortPat
 			return errors.NewLintRuleError(
 				ID,
 				object.Identity(),
-				object.Unstructured.GetName(),
+				m.GetName(),
 				nil,
 				"%s with prefix %q should be deployed in namespace \"d8-system\" or \"d8-monitoring\"",
 				kind, globalPrefix,
@@ -439,7 +439,7 @@ func handleNestedRBACToUs(m *module.Module, object storage.StoreObject, shortPat
 		return errors.NewLintRuleError(
 			ID,
 			object.Identity(),
-			object.Unstructured.GetName(),
+			m.GetName(),
 			nil,
 			"%s should start with %q or %q", kind, localPrefix, globalPrefix,
 		)
