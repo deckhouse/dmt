@@ -38,7 +38,7 @@ func OssModuleRule(name, moduleRoot string) errors.LintRuleErrorsList {
 		for _, err := range errs {
 			ruleErr := errors.NewLintRuleError(
 				"oss",
-				name,
+				moduleRoot,
 				name,
 				nil,
 				"%v",

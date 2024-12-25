@@ -43,13 +43,14 @@ func (*Object) Run(m *module.Module) (result errors.LintRuleErrorsList, err erro
 		return result, err
 	}
 
-	result.Merge(rbacproxy.NamespaceMustContainKubeRBACProxyCA(m.GetObjectStore()))
+	name := m.GetName()
+	result.Merge(rbacproxy.NamespaceMustContainKubeRBACProxyCA(name, m.GetObjectStore()))
 	result.Merge(vpa.ControllerMustHaveVPA(m))
 	result.Merge(pdb.ControllerMustHavePDB(m))
 	result.Merge(pdb.DaemonSetMustNotHavePDB(m))
 
 	for _, object := range m.GetStorage() {
-		result.Merge(applyContainerRules(object))
+		result.Merge(applyContainerRules(m.GetName(), object))
 	}
 
 	if isExistsOnFilesystem(m.GetPath(), CrdsDir) {
