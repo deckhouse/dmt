@@ -8,6 +8,7 @@ import (
 
 	"github.com/deckhouse/dmt/pkg/linters/ingress"
 	k8s_resources "github.com/deckhouse/dmt/pkg/linters/k8s-resources"
+	moduleLinter "github.com/deckhouse/dmt/pkg/linters/module"
 	"github.com/deckhouse/dmt/pkg/linters/monitoring"
 
 	"github.com/mitchellh/go-homedir"
@@ -61,6 +62,7 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 		rbac.New(&cfg.LintersSettings.Rbac),
 		monitoring.New(&cfg.LintersSettings.Monitoring),
 		ingress.New(&cfg.LintersSettings.Ingress),
+		moduleLinter.New(&cfg.LintersSettings.Module),
 	}
 
 	m.lintersMap = make(map[string]Linter)
