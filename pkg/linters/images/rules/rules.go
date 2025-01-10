@@ -14,7 +14,7 @@ import (
 
 const (
 	ChartConfigFilename  = "Chart.yaml"
-	ValuesConfigFilename = "values_matrix_test.yaml"
+	ModuleConfigFilename = "module.yaml"
 
 	CrdsDir    = "crds"
 	openapiDir = "openapi"
@@ -28,19 +28,27 @@ const (
 
 var Cfg *config.ImageSettings
 
-func chartModuleRule(name, path string) (string, *errors.LintRuleError) {
+func chartModuleRule(name, path string) (lintRuleErrorsList errors.LintRuleErrorsList) {
 	lintError := errors.NewLintRuleError(
 		ID,
 		name,
 		name,
 		nil,
-		"Module does not contain valid %q file, module will be ignored", ChartConfigFilename,
+		"Module does not contain valid %q or %q file",
+		ChartConfigFilename, ModuleConfigFilename,
 	)
 
-	// TODO: Chart.yaml could be absent if we have module.yaml
-	yamlFile, err := os.ReadFile(filepath.Join(path, ChartConfigFilename))
+	stat, err := os.Stat(filepath.Join(path, ChartConfigFilename))
 	if err != nil {
-		return "", lintError
+		stat, err = os.Stat(filepath.Join(path, ModuleConfigFilename))
+		if err != nil {
+			lintRuleErrorsList.Add(lintError)
+		}
+	}
+
+	yamlFile, err := os.ReadFile(filepath.Join(path, stat.Name()))
+	if err != nil {
+		lintRuleErrorsList.Add(lintError)
 	}
 
 	var chart struct {
@@ -48,21 +56,21 @@ func chartModuleRule(name, path string) (string, *errors.LintRuleError) {
 	}
 	err = yaml.Unmarshal(yamlFile, &chart)
 	if err != nil {
-		return "", lintError
+		lintRuleErrorsList.Add(lintError)
 	}
 
-	if !IsExistsOnFilesystem(path, ValuesConfigFilename) && !IsExistsOnFilesystem(path, openapiDir) {
-		return "", errors.NewLintRuleError(
+	if !IsExistsOnFilesystem(path, openapiDir) {
+		lintRuleErrorsList.Add(errors.NewLintRuleError(
 			ID,
 			name,
 			name,
 			nil,
-			"Module does not contain %q file or %s folder, module will be ignored",
-			ValuesConfigFilename, openapiDir,
-		)
+			"Module does not contain %s folder",
+			openapiDir,
+		))
 	}
 
-	return chart.Name, nil
+	return lintRuleErrorsList
 }
 
 func IsExistsOnFilesystem(parts ...string) bool {
@@ -72,12 +80,7 @@ func IsExistsOnFilesystem(parts ...string) bool {
 
 func ApplyImagesRules(m *module.Module) (result errors.LintRuleErrorsList) {
 	result.Merge(CheckImageNamesInDockerAndWerfFiles(m.GetName(), m.GetPath()))
-
-	name, lintError := chartModuleRule(m.GetName(), m.GetPath())
-	result.Add(lintError)
-	if name == "" {
-		return result
-	}
+	result.Merge(chartModuleRule(m.GetName(), m.GetPath()))
 
 	return result
 }
