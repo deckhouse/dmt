@@ -59,6 +59,10 @@ func chartModuleRule(name, path string) (lintRuleErrorsList errors.LintRuleError
 		lintRuleErrorsList.Add(lintError)
 	}
 
+	if chart.Name == "" {
+		lintRuleErrorsList.Add(lintError)
+	}
+
 	if !IsExistsOnFilesystem(path, openapiDir) {
 		lintRuleErrorsList.Add(errors.NewLintRuleError(
 			ID,
