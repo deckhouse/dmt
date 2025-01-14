@@ -356,10 +356,21 @@ func objectReadOnlyRootFilesystem(name string, object storage.StoreObject) (resu
 	}
 
 	for i := range containers {
-		if containers[i].SecurityContext == nil {
+		c := &containers[i]
+		if c.VolumeMounts == nil {
 			continue
 		}
-		if containers[i].SecurityContext.ReadOnlyRootFilesystem == nil {
+		if c.SecurityContext == nil {
+			result.Add(errors.NewLintRuleError(
+				ID,
+				object.Identity()+" ; container = "+containers[i].Name,
+				name,
+				nil,
+				"Container's SecurityContext is missing",
+			))
+			continue
+		}
+		if c.SecurityContext.ReadOnlyRootFilesystem == nil {
 			result.Add(errors.NewLintRuleError(
 				ID,
 				object.Identity()+" ; container = "+containers[i].Name,
@@ -367,8 +378,9 @@ func objectReadOnlyRootFilesystem(name string, object storage.StoreObject) (resu
 				nil,
 				"Container's SecurityContext missing parameter ReadOnlyRootFilesystem",
 			))
+			continue
 		}
-		if !*containers[i].SecurityContext.ReadOnlyRootFilesystem {
+		if !*c.SecurityContext.ReadOnlyRootFilesystem {
 			result.Add(errors.NewLintRuleError(
 				ID,
 				object.Identity()+" ; container = "+containers[i].Name,
