@@ -15,93 +15,74 @@ import (
 const defaultRegistry = "registry.example.com/deckhouse"
 
 func applyContainerRules(m *module.Module, object storage.StoreObject) (result errors.LintRuleErrorsList) {
-	containers, err := object.GetContainers()
-	if err != nil {
-		return
-	}
-	initContainers, err := object.GetInitContainers()
-	if err != nil {
-		return
-	}
-	containers = append(initContainers, containers...)
-	if len(containers) == 0 {
-		return
+	containers, err := object.GetAllContainers()
+	if err != nil || len(containers) == 0 {
+		return result
 	}
 
-	result = errors.LintRuleErrorsList{}
+	rules := []func(string, storage.StoreObject, []v1.Container) *errors.LintRuleError{
+		containerNameDuplicates,
+		containerEnvVariablesDuplicates,
+		containerImageDigestCheck,
+		containersImagePullPolicy,
+		containerStorageEphemeral,
+		containerSecurityContext,
+		containerPorts,
+	}
 
-	result.Add(containerNameDuplicates(m.GetName(), object, containers))
-	result.Add(containerEnvVariablesDuplicates(m.GetName(), object, containers))
-	result.Add(containerImageDigestCheck(m.GetName(), object, containers))
-	result.Add(containersImagePullPolicy(m.GetName(), object, containers))
-
-	result.Add(containerStorageEphemeral(m.GetName(), object, containers))
-	result.Add(containerSecurityContext(m.GetName(), object, containers))
-	result.Add(containerPorts(m.GetName(), object, containers))
+	for _, rule := range rules {
+		result.Add(rule(m.GetName(), object, containers))
+	}
 
 	return result
 }
 
 func containersImagePullPolicy(md string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
-	if len(containers) == 0 {
-		return nil
+	if object.Unstructured.GetNamespace() == "d8-system" && object.Unstructured.GetKind() == "Deployment" && object.Unstructured.GetName() == "deckhouse" {
+		return checkImagePullPolicyAlways(md, object, containers)
 	}
-	ob := object.Unstructured
-	if ob.GetNamespace() == "d8-system" && ob.GetKind() == "Deployment" && ob.GetName() == "deckhouse" {
-		c := containers[0]
-		if c.ImagePullPolicy != "Always" {
-			// image pull policy must be Always,
-			// because changing d8-system/deckhouse-registry triggers restart deckhouse deployment
-			// d8-system/deckhouse-registry can contain invalid registry creds
-			// and restarting deckhouse with invalid creads will break all static pods on masters
-			// and bashible
-			return errors.NewLintRuleError(
-				ID,
-				object.Identity()+"; container = "+c.Name,
-				md,
-				c.ImagePullPolicy,
-				`Container imagePullPolicy should be unspecified or "Always"`,
-			)
-		}
-
-		return nil
-	}
-
 	return containerImagePullPolicyIfNotPresent(md, object, containers)
 }
 
-func containerNameDuplicates(md string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
-	names := make(map[string]struct{})
-	for i := range containers {
-		if shouldSkipModuleContainer(object.Unstructured.GetName(), containers[i].Name) {
-			continue
-		}
-		if _, ok := names[containers[i].Name]; ok {
-			return errors.NewLintRuleError(ID, object.Identity(), md, nil, "Duplicate container name")
-		}
-		names[containers[i].Name] = struct{}{}
+func checkImagePullPolicyAlways(md string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
+	c := containers[0]
+	if c.ImagePullPolicy != "Always" {
+		return errors.NewLintRuleError(
+			ID,
+			object.Identity()+"; container = "+c.Name,
+			md,
+			c.ImagePullPolicy,
+			`Container imagePullPolicy should be unspecified or "Always"`,
+		)
 	}
 	return nil
 }
 
+func containerNameDuplicates(md string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
+	return checkForDuplicates(md, object, containers, func(c v1.Container) string { return c.Name }, "Duplicate container name")
+}
+
 func containerEnvVariablesDuplicates(md string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	for i := range containers {
-		if shouldSkipModuleContainer(object.Unstructured.GetName(), containers[i].Name) {
+		c := &containers[i]
+		if shouldSkipModuleContainer(object.Unstructured.GetName(), c.Name) {
 			continue
 		}
-		envVariables := make(map[string]struct{})
-		for _, variable := range containers[i].Env {
-			if _, ok := envVariables[variable.Name]; ok {
-				return errors.NewLintRuleError(
-					ID,
-					object.Identity()+"; container = "+containers[i].Name,
-					md,
-					variable.Name,
-					"Container has two env variables with same name",
-				)
-			}
-			envVariables[variable.Name] = struct{}{}
+		if err := checkForDuplicates(md, object, c.Env, func(e v1.EnvVar) string { return e.Name }, "Container has two env variables with same name"); err != nil {
+			return err
 		}
+	}
+	return nil
+}
+
+func checkForDuplicates[T any](md string, object storage.StoreObject, items []T, keyFunc func(T) string, errMsg string) *errors.LintRuleError {
+	seen := make(map[string]struct{})
+	for _, item := range items {
+		key := keyFunc(item)
+		if _, ok := seen[key]; ok {
+			return errors.NewLintRuleError(ID, object.Identity(), md, nil, "%s", errMsg)
+		}
+		seen[key] = struct{}{}
 	}
 	return nil
 }
@@ -131,15 +112,16 @@ func shouldSkipModuleContainer(md, container string) bool {
 
 func containerImageDigestCheck(md string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	for i := range containers {
-		if shouldSkipModuleContainer(object.Unstructured.GetName(), containers[i].Name) {
+		c := &containers[i]
+		if shouldSkipModuleContainer(object.Unstructured.GetName(), c.Name) {
 			continue
 		}
 
 		re := regexp.MustCompile(`(?P<repository>.+)([@:])imageHash[-a-z0-9A-Z]+$`)
-		match := re.FindStringSubmatch(containers[i].Image)
+		match := re.FindStringSubmatch(c.Image)
 		if len(match) == 0 {
 			return errors.NewLintRuleError(ID,
-				object.Identity()+"; container = "+containers[i].Name,
+				object.Identity()+"; container = "+c.Name,
 				md,
 				nil,
 				"Cannot parse repository from image",
@@ -148,16 +130,16 @@ func containerImageDigestCheck(md string, object storage.StoreObject, containers
 		repo, err := name.NewRepository(match[re.SubexpIndex("repository")])
 		if err != nil {
 			return errors.NewLintRuleError(ID,
-				object.Identity()+"; container = "+containers[i].Name,
+				object.Identity()+"; container = "+c.Name,
 				md,
 				nil,
-				"Cannot parse repository from image: %s", containers[i].Image,
+				"Cannot parse repository from image: %s", c.Image,
 			)
 		}
 
 		if repo.Name() != defaultRegistry {
 			return errors.NewLintRuleError(ID,
-				object.Identity()+"; container = "+containers[i].Name,
+				object.Identity()+"; container = "+c.Name,
 				md,
 				nil,
 				"All images must be deployed from the same default registry: %s current: %s",
@@ -171,17 +153,18 @@ func containerImageDigestCheck(md string, object storage.StoreObject, containers
 
 func containerImagePullPolicyIfNotPresent(md string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	for i := range containers {
-		if shouldSkipModuleContainer(object.Unstructured.GetName(), containers[i].Name) {
+		c := &containers[i]
+		if shouldSkipModuleContainer(object.Unstructured.GetName(), c.Name) {
 			continue
 		}
-		if containers[i].ImagePullPolicy == "" || containers[i].ImagePullPolicy == "IfNotPresent" {
+		if c.ImagePullPolicy == "" || c.ImagePullPolicy == "IfNotPresent" {
 			continue
 		}
 		return errors.NewLintRuleError(
 			ID,
-			object.Identity()+"; container = "+containers[i].Name,
+			object.Identity()+"; container = "+c.Name,
 			md,
-			containers[i].ImagePullPolicy,
+			c.ImagePullPolicy,
 			`Container imagePullPolicy should be unspecified or "IfNotPresent"`,
 		)
 	}
@@ -190,14 +173,14 @@ func containerImagePullPolicyIfNotPresent(md string, object storage.StoreObject,
 
 func containerStorageEphemeral(md string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	for i := range containers {
-		if shouldSkipModuleContainer(object.Unstructured.GetName(), containers[i].Name) {
+		c := &containers[i]
+		if shouldSkipModuleContainer(object.Unstructured.GetName(), c.Name) {
 			continue
 		}
-		if containers[i].Resources.Requests.StorageEphemeral() == nil ||
-			containers[i].Resources.Requests.StorageEphemeral().Value() == 0 {
+		if c.Resources.Requests.StorageEphemeral() == nil || c.Resources.Requests.StorageEphemeral().Value() == 0 {
 			return errors.NewLintRuleError(
 				ID,
-				object.Identity()+"; container = "+containers[i].Name,
+				object.Identity()+"; container = "+c.Name,
 				md,
 				nil,
 				"Ephemeral storage for container is not defined in Resources.Requests",
@@ -209,13 +192,14 @@ func containerStorageEphemeral(md string, object storage.StoreObject, containers
 
 func containerSecurityContext(md string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	for i := range containers {
-		if shouldSkipModuleContainer(object.Unstructured.GetName(), containers[i].Name) {
+		c := &containers[i]
+		if shouldSkipModuleContainer(object.Unstructured.GetName(), c.Name) {
 			continue
 		}
-		if containers[i].SecurityContext == nil {
+		if c.SecurityContext == nil {
 			return errors.NewLintRuleError(
 				ID,
-				object.Identity()+"; container = "+containers[i].Name,
+				object.Identity()+"; container = "+c.Name,
 				md,
 				nil,
 				"Container SecurityContext is not defined",
@@ -227,15 +211,16 @@ func containerSecurityContext(md string, object storage.StoreObject, containers 
 
 func containerPorts(md string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	for i := range containers {
-		if shouldSkipModuleContainer(object.Unstructured.GetName(), containers[i].Name) {
+		c := &containers[i]
+		if shouldSkipModuleContainer(object.Unstructured.GetName(), c.Name) {
 			continue
 		}
-		for _, p := range containers[i].Ports {
+		for _, p := range c.Ports {
 			const t = 1024
 			if p.ContainerPort <= t {
 				return errors.NewLintRuleError(
 					ID,
-					object.Identity()+"; container = "+containers[i].Name,
+					object.Identity()+"; container = "+c.Name,
 					md,
 					p.ContainerPort,
 					"Container uses port <= 1024",

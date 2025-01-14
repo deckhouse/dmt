@@ -185,6 +185,20 @@ func (s *StoreObject) GetContainers() ([]v1.Container, error) {
 	return containers, nil
 }
 
+func (s *StoreObject) GetAllContainers() ([]v1.Container, error) {
+	containers, err := s.GetContainers()
+	if err != nil {
+		return nil, err
+	}
+
+	initContainers, err := s.GetInitContainers()
+	if err != nil {
+		return nil, err
+	}
+
+	return append(containers, initContainers...), nil
+}
+
 func (s *StoreObject) GetPodSecurityContext() (*v1.PodSecurityContext, error) {
 	converter := runtime.DefaultUnstructuredConverter
 
