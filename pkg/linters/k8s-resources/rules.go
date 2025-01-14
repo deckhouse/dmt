@@ -177,12 +177,25 @@ func objectRevisionHistoryLimit(name string, object storage.StoreObject) (result
 }
 
 func objectPriorityClass(name string, object storage.StoreObject) (result errors.LintRuleErrorsList) {
+	if !isPriorityClassSupportedKind(object.Unstructured.GetKind()) {
+		return result
+	}
+
 	priorityClass, err := getPriorityClass(object)
 	if err != nil {
 		return newConvertError(object, err)
 	}
 
 	return validatePriorityClass(priorityClass, name, object, result)
+}
+
+func isPriorityClassSupportedKind(kind string) bool {
+	switch kind {
+	case "Deployment", "DaemonSet", "StatefulSet":
+		return true
+	default:
+		return false
+	}
 }
 
 func validatePriorityClass(priorityClass, name string, object storage.StoreObject, result errors.LintRuleErrorsList) errors.LintRuleErrorsList {
