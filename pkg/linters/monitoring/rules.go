@@ -87,7 +87,7 @@ func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string) *error
 	}
 
 	desiredContent := buildDesiredContent(dashboardsEx, rulesEx)
-	if !isContentMatching(desiredContent, moduleNamespace) {
+	if !isContentMatching(string(content), desiredContent, moduleNamespace, rulesEx) {
 		return errors.NewLintRuleError(
 			ID,
 			searchingFilePath,
@@ -113,9 +113,13 @@ func buildDesiredContent(dashboardsEx, rulesEx bool) string {
 	return builder.String()
 }
 
-func isContentMatching(desiredContent, moduleNamespace string) bool {
+func isContentMatching(content, desiredContent, moduleNamespace string, rulesEx bool) bool {
 	for _, namespace := range []string{moduleNamespace, "d8-system", "d8-monitoring"} {
-		if desiredContent == fmt.Sprintf(desiredContent, namespace) {
+		checkContent := desiredContent
+		if rulesEx {
+			checkContent = fmt.Sprintf(desiredContent, namespace)
+		}
+		if content == checkContent {
 			return true
 		}
 	}
