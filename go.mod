@@ -6,7 +6,6 @@ require (
 	dario.cat/mergo v1.0.1
 	github.com/fatih/color v1.14.1
 	github.com/flant/addon-operator v1.5.0
-	github.com/ghodss/yaml v1.0.0
 	github.com/go-openapi/spec v0.21.0
 	github.com/google/go-containerregistry v0.20.2
 	github.com/iancoleman/strcase v0.3.0
@@ -29,6 +28,7 @@ require (
 require (
 	github.com/BurntSushi/toml v1.3.2 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
+	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/sprig/v3 v3.2.3 // indirect
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 // indirect
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137 // indirect
@@ -117,6 +117,7 @@ require (
 
 require (
 	github.com/Masterminds/semver/v3 v3.2.1 // indirect
+	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/hcl v1.0.0 // indirect
