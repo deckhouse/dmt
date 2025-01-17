@@ -45,7 +45,8 @@ type Manager struct {
 
 func NewManager(dirs []string, cfg *config.Config) *Manager {
 	m := &Manager{
-		cfg: cfg,
+		cfg:    cfg,
+		errors: &errors.LintRuleErrorsList{},
 	}
 
 	// fill all linters

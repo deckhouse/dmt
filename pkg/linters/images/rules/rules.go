@@ -27,19 +27,19 @@ const (
 
 var Cfg *config.ImageSettings
 
-func chartModuleRule(name, path string) (string, *errors.LintRuleError) {
+func chartModuleRule(name, path string) *errors.LintRuleError {
 	lintError := errors.NewLintRuleError(
 		ID,
 		name,
 		name,
 		nil,
-		"Module does not contain valid %q file, module will be ignored", ChartConfigFilename,
+		"Module does not contain valid %q file", ChartConfigFilename,
 	)
 
 	// TODO: Chart.yaml could be absent if we have module.yaml
 	yamlFile, err := os.ReadFile(filepath.Join(path, ChartConfigFilename))
 	if err != nil {
-		return "", lintError
+		return lintError
 	}
 
 	var chart struct {
@@ -47,21 +47,21 @@ func chartModuleRule(name, path string) (string, *errors.LintRuleError) {
 	}
 	err = yaml.Unmarshal(yamlFile, &chart)
 	if err != nil {
-		return "", lintError
+		return lintError
 	}
 
 	if !IsExistsOnFilesystem(path, ValuesConfigFilename) && !IsExistsOnFilesystem(path, openapiDir) {
-		return "", errors.NewLintRuleError(
+		return errors.NewLintRuleError(
 			ID,
 			name,
 			name,
 			nil,
-			"Module does not contain %q file or %s folder, module will be ignored",
+			"Module does not contain %q file or %s folder",
 			ValuesConfigFilename, openapiDir,
 		)
 	}
 
-	return chart.Name, nil
+	return nil
 }
 
 func IsExistsOnFilesystem(parts ...string) bool {
@@ -70,13 +70,10 @@ func IsExistsOnFilesystem(parts ...string) bool {
 }
 
 func ApplyImagesRules(m *module.Module) (result *errors.LintRuleErrorsList) {
-	result.Merge(CheckImageNamesInDockerFiles(m.GetName(), m.GetPath()))
-
-	name, lintError := chartModuleRule(m.GetName(), m.GetPath())
-	result.Add(lintError)
-	if name == "" {
-		return result
-	}
+	result = &errors.LintRuleErrorsList{}
+	result.Merge(checkImageNamesInDockerFiles(m.GetName(), m.GetPath()))
+	result.Merge(lintWerfFile(m.GetName(), m.GetPath()))
+	result.Add(chartModuleRule(m.GetName(), m.GetPath()))
 
 	return result
 }

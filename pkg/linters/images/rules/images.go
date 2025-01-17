@@ -2,27 +2,16 @@ package rules
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 
-	"gopkg.in/yaml.v3"
-
 	"github.com/deckhouse/dmt/pkg/errors"
 )
-
-func skipModuleImageNameIfNeeded(filePath string) bool {
-	for _, img := range Cfg.SkipModuleImageName {
-		if strings.HasSuffix(filePath, img) {
-			return true
-		}
-	}
-	return false
-}
 
 var regexPatterns = map[string]string{
 	`$BASE_ALPINE`:           imageRegexp(`alpine:[\d.]+`),
@@ -46,6 +35,15 @@ var distrolessImagesPrefix = map[string][]string{
 		"$BASE_DISTROLESS",
 		"$BASE_ALT",
 	},
+}
+
+func skipModuleImageNameIfNeeded(filePath string) bool {
+	for _, img := range Cfg.SkipModuleImageName {
+		if strings.HasSuffix(filePath, img) {
+			return true
+		}
+	}
+	return false
 }
 
 func skipDistrolessImageCheckIfNeeded(image string) bool {
@@ -72,14 +70,12 @@ func isImageNameUnacceptable(imageName string) (b bool, s string) {
 	return false, ""
 }
 
-func CheckImageNamesInDockerAndWerfFiles(
-	name, path string,
-) (lintRuleErrorsList errors.LintRuleErrorsList) {
+func checkImageNamesInDockerFiles(name, path string) (errList *errors.LintRuleErrorsList) {
 	var filePaths []string
 	imagesPath := filepath.Join(path, ImagesDir)
 
 	if !IsExistsOnFilesystem(imagesPath) {
-		return lintRuleErrorsList
+		return errList
 	}
 
 	err := filepath.Walk(imagesPath, func(fullPath string, _ os.FileInfo, err error) error {
@@ -87,167 +83,75 @@ func CheckImageNamesInDockerAndWerfFiles(
 			return err
 		}
 
-		switch filepath.Base(fullPath) {
-		case "werf.inc.yaml", "Dockerfile":
+		if filepath.Base(fullPath) == "Dockerfile" {
 			filePaths = append(filePaths, fullPath)
 		}
 		return nil
 	})
 	if err != nil {
-		lintRuleErrorsList.Add(errors.NewLintRuleError(
+		return errList.Add(errors.NewLintRuleError(
 			ID,
-			ModuleLabel(name),
+			name,
 			imagesPath,
 			nil,
 			"Cannot read directory structure: %s",
 			err.Error(),
 		))
-		return lintRuleErrorsList
 	}
-	for _, filePath := range filePaths {
-		if skipModuleImageNameIfNeeded(filePath) {
+	for _, path := range filePaths {
+		if skipModuleImageNameIfNeeded(path) {
 			continue
 		}
-		for _, lerr := range lintOneDockerfileOrWerfYAML(name, filePath, imagesPath) {
-			lintRuleErrorsList.Add(lerr)
-		}
+
+		errList.Merge(lintOneDockerfile(name, path, imagesPath))
 	}
 
-	return lintRuleErrorsList
+	return errList
 }
 
-func lintOneDockerfileOrWerfYAML(name, filePath, imagesPath string) []*errors.LintRuleError {
-	file, err := os.Open(filePath)
+func lintOneDockerfile(name, path, imagesPath string) (errList *errors.LintRuleErrorsList) {
+	relativeFilePath, err := filepath.Rel(imagesPath, path)
 	if err != nil {
-		return []*errors.LintRuleError{
-			errors.NewLintRuleError(
-				ID,
-				filePath,
-				ModuleLabel(name),
-				filePath,
-				"Error opening file:%s",
-				err,
-			),
-		}
-	}
-	defer file.Close()
-
-	relativeFilePath, err := filepath.Rel(imagesPath, filePath)
-	if err != nil {
-		return []*errors.LintRuleError{
-			errors.NewLintRuleError(
-				ID,
-				ModuleLabel(name),
-				filePath,
-				nil,
-				"Error calculating relative file path: %s",
-				err.Error(),
-			),
-		}
+		return errList.Add(errors.NewLintRuleError(
+			ID,
+			name,
+			path,
+			nil,
+			"Error calculating relative file path: %s",
+			err.Error(),
+		))
 	}
 
-	isWerfYAML := filepath.Base(filePath) == "werf.inc.yaml"
-
-	if isWerfYAML {
-		return lintWerfFile(file, name, filePath, relativeFilePath)
-	}
-
-	return []*errors.LintRuleError{lintDockerfile(file, name, filePath, relativeFilePath)}
-}
-
-func lintWerfFile(file *os.File, name, filePath, relativeFilePath string) []*errors.LintRuleError {
-	data, err := io.ReadAll(file)
-	if err != nil {
-		return []*errors.LintRuleError{
-			errors.NewLintRuleError(
-				ID,
-				filePath,
-				ModuleLabel(name),
-				filePath,
-				"Error reading werf file:%s",
-				err,
-			),
-		}
-	}
-	werfDocs := splitManifests(string(data))
-
-	lintErrors := make([]*errors.LintRuleError, 0)
-
-	for _, doc := range werfDocs {
-		doc = strings.ReplaceAll(doc, "{{", "")
-		doc = strings.ReplaceAll(doc, "}}", "")
-		var w werfFile
-		err = yaml.Unmarshal([]byte(doc), &w)
-		if err != nil {
-			// skip invalid yaml documents
-			continue
-		}
-
-		w.From = strings.TrimSpace(w.From)
-		if w.From == "" {
-			continue
-		}
-
-		if w.Artifact != "" {
-			lintErrors = append(lintErrors,
-				errors.NewLintRuleError(
-					ID,
-					filePath,
-					name,
-					w.From,
-					"Use `from:` or `fromImage:` and `final: false` directives instead of `artifact:` in the werf file",
-				),
-			)
-			continue
-		}
-
-		if w.Final != nil && !*w.Final {
-			// skip image, if it's not final
-			continue
-		}
-
-		if skipDistrolessImageCheckIfNeeded(relativeFilePath) {
-			log.Printf("WARNING!!! SKIP DISTROLESS CHECK!!!\nmodule = %s, image = %s\nvalue - %s\n\n", name, relativeFilePath, w.From)
-			return nil
-		}
-
-		result, message := isWerfInstructionUnacceptable(w.From)
-		if result {
-			lintErrors = append(lintErrors,
-				errors.NewLintRuleError(
-					ID,
-					filePath,
-					name,
-					w.From,
-					"%s",
-					message,
-				),
-			)
-			continue
-		}
-	}
-
-	return lintErrors
-}
-
-func lintDockerfile(file *os.File, name, _, relativeFilePath string) *errors.LintRuleError {
 	var (
 		dockerfileFromInstructions []string
 	)
-	scanner := bufio.NewScanner(file)
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return errList.Add(errors.NewLintRuleError(
+			ID,
+			name,
+			path,
+			nil,
+			"Error reading file: %s",
+			err.Error(),
+		))
+	}
+
+	scanner := bufio.NewScanner(bytes.NewReader(data))
 	linePos := 0
 	for scanner.Scan() {
 		line := scanner.Text()
 		linePos++
-		result, ciVariable := isImageNameUnacceptable(line)
-		if result {
-			return errors.NewLintRuleError(
+		ers, ciVariable := isImageNameUnacceptable(line)
+		if ers {
+			errList.Add(errors.NewLintRuleError(
 				ID,
 				fmt.Sprintf("module = %s, image = %s, line = %d", name, relativeFilePath, linePos),
 				line,
 				nil,
 				"Please use %s as an image name", ciVariable,
-			)
+			))
 		}
 
 		if strings.HasPrefix(line, "FROM ") {
@@ -263,27 +167,20 @@ func lintDockerfile(file *os.File, name, _, relativeFilePath string) *errors.Lin
 			continue
 		}
 
-		result, message := isDockerfileInstructionUnacceptable(fromInstruction, lastInstruction)
-		if result {
-			return errors.NewLintRuleError(
+		ers, message := isDockerfileInstructionUnacceptable(fromInstruction, lastInstruction)
+		if ers {
+			errList.Add(errors.NewLintRuleError(
 				ID,
 				name,
 				fmt.Sprintf("module = %s, path = %s", name, relativeFilePath),
 				fromInstruction,
 				"%s",
 				message,
-			)
+			))
 		}
 	}
 
-	return nil
-}
-
-func isWerfInstructionUnacceptable(from string) (b bool, s string) {
-	if !checkDistrolessPrefix(from, distrolessImagesPrefix["werf"]) {
-		return true, "`from:` parameter should be one of our BASE_DISTROLESS images"
-	}
-	return false, ""
+	return errList
 }
 
 func isDockerfileInstructionUnacceptable(from string, final bool) (b bool, s string) {
@@ -315,32 +212,4 @@ func checkDistrolessPrefix(str string, in []string) bool {
 		}
 	}
 	return result
-}
-
-var sep = regexp.MustCompile("(?:^|\\s*\n)---\\s*")
-
-func splitManifests(bigFile string) map[string]string {
-	tpl := "manifest-%d"
-	res := map[string]string{}
-	// Making sure that any extra whitespace in YAML stream doesn't interfere in splitting documents correctly.
-	bigFileTmp := strings.TrimSpace(bigFile)
-	docs := sep.Split(bigFileTmp, -1)
-	var count int
-	for _, d := range docs {
-		if d == "" {
-			continue
-		}
-
-		d = strings.TrimSpace(d)
-		res[fmt.Sprintf(tpl, count)] = d
-		count++
-	}
-	return res
-}
-
-type werfFile struct {
-	Artifact string `json:"artifact" yaml:"artifact"`
-	Image    string `json:"image" yaml:"image"`
-	From     string `json:"from" yaml:"from"`
-	Final    *bool  `json:"final" yaml:"final"`
 }

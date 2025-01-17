@@ -9,8 +9,6 @@ import (
 )
 
 func InitLogger(logLevel string) {
-	log.SetOutput(io.Discard)
-
 	lvl := new(slog.LevelVar)
 	lvl.Set(slog.LevelInfo)
 
@@ -30,6 +28,7 @@ func InitLogger(logLevel string) {
 	}
 
 	slog.SetDefault(logger)
+	log.SetOutput(io.Discard)
 }
 
 func DebugF(format string, a ...any) {

@@ -24,6 +24,7 @@ func New(cfg *config.ImageSettings) *Images {
 }
 
 func (*Images) Run(m *module.Module) (result *errors.LintRuleErrorsList, err error) {
+	result = &errors.LintRuleErrorsList{}
 	if m == nil {
 		return result, err
 	}

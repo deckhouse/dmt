@@ -59,6 +59,10 @@ func (l *LintRuleErrorsList) Add(e *LintRuleError) *LintRuleErrorsList {
 // Merge merges another LintRuleErrorsList into current one, removing all duplicate errors.
 // It returns the list itself to allow chaining.
 func (l *LintRuleErrorsList) Merge(e *LintRuleErrorsList) *LintRuleErrorsList {
+	if e == nil {
+		return l
+	}
+
 	for _, el := range e.data {
 		l.Add(el)
 	}
@@ -70,7 +74,7 @@ func (l *LintRuleErrorsList) Merge(e *LintRuleErrorsList) *LintRuleErrorsList {
 // It returns an error that contains all errors from the list with a nice formatting.
 // If the list is empty, it returns nil.
 func (l *LintRuleErrorsList) ConvertToError() error {
-	if len(l.data) == 0 {
+	if l == nil || l.data == nil || len(l.data) == 0 {
 		return nil
 	}
 	slices.SortFunc(l.data, func(a, b *LintRuleError) int {
@@ -121,4 +125,8 @@ func (l *LintRuleErrorsList) Critical() bool {
 	}
 
 	return false
+}
+
+func (l *LintRuleErrorsList) GetList() []*LintRuleError {
+	return l.data
 }
