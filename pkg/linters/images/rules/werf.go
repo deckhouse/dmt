@@ -5,16 +5,24 @@ import (
 	"regexp"
 	"strings"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/deckhouse/dmt/internal/werf"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"gopkg.in/yaml.v3"
 )
 
-func lintWerfFile(moduleName, path string) (errLint *errors.LintRuleErrorsList) {
-	errLint = &errors.LintRuleErrorsList{}
+type werfFile struct {
+	Artifact string `json:"artifact" yaml:"artifact"`
+	Image    string `json:"image" yaml:"image"`
+	From     string `json:"from" yaml:"from"`
+	Final    *bool  `json:"final" yaml:"final"`
+}
+
+func lintWerfFile(moduleName, path string) *errors.LintRuleErrorsList {
+	result := &errors.LintRuleErrorsList{}
 	data, err := werf.GetWerfConfig(path)
 	if err != nil {
-		return errLint.Add(
+		return result.Add(
 			errors.NewLintRuleError(
 				ID,
 				path,
@@ -41,7 +49,7 @@ func lintWerfFile(moduleName, path string) (errLint *errors.LintRuleErrorsList) 
 		}
 
 		if w.Artifact != "" {
-			errLint.Add(
+			result.Add(
 				errors.NewLintRuleError(
 					ID,
 					path,
@@ -58,13 +66,10 @@ func lintWerfFile(moduleName, path string) (errLint *errors.LintRuleErrorsList) 
 			continue
 		}
 
-		// if skipDistrolessImageCheckIfNeeded(relativeFilePath) {
-		// 	log.Printf("WARNING!!! SKIP DISTROLESS CHECK!!!\nmodule = %s, image = %s\nvalue - %s\n\n", moduleName, relativeFilePath, w.From)
-		// 	return nil
-		// }
+		// TODO: add skips for some images
 
-		if !checkDistrolessPrefix(w.From, distrolessImagesPrefix["werf"]) {
-			errLint.Add(
+		if !isWerfImagesCorrect(w.From) {
+			result.Add(
 				errors.NewLintRuleError(
 					ID,
 					path,
@@ -77,7 +82,7 @@ func lintWerfFile(moduleName, path string) (errLint *errors.LintRuleErrorsList) 
 		}
 	}
 
-	return errLint
+	return result
 }
 
 func splitManifests(bigFile string) map[string]string {
@@ -101,9 +106,14 @@ func splitManifests(bigFile string) map[string]string {
 	return res
 }
 
-type werfFile struct {
-	Artifact string `json:"artifact" yaml:"artifact"`
-	Image    string `json:"image" yaml:"image"`
-	From     string `json:"from" yaml:"from"`
-	Final    *bool  `json:"final" yaml:"final"`
+func isWerfImagesCorrect(img string) bool {
+	s := strings.Split(img, "/")
+	if len(s) < 2 {
+		return false
+	}
+	if s[1] != "base_images" {
+		return false
+	}
+
+	return true
 }

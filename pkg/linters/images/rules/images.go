@@ -27,10 +27,6 @@ var regexPatterns = map[string]string{
 }
 
 var distrolessImagesPrefix = map[string][]string{
-	"werf": {
-		"BASE_DISTROLESS",
-		"BASE_ALT",
-	},
 	"docker": {
 		"$BASE_DISTROLESS",
 		"$BASE_ALT",

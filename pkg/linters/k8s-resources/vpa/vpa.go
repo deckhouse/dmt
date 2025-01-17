@@ -86,6 +86,7 @@ func parseTargetsAndTolerationGroups(md *module.Module) (
 	vpaUpdateModes map[storage.ResourceIndex]UpdateMode,
 	result *errors.LintRuleErrorsList,
 ) {
+	result = &errors.LintRuleErrorsList{}
 	vpaTargets = make(map[storage.ResourceIndex]struct{})
 	vpaTolerationGroups = make(map[storage.ResourceIndex]string)
 	vpaContainerNamesMap = make(map[storage.ResourceIndex]set.Set)
@@ -112,10 +113,11 @@ func fillVPAMaps(
 	vpaUpdateModes map[storage.ResourceIndex]UpdateMode,
 	vpa storage.StoreObject,
 ) (result *errors.LintRuleErrorsList) {
+	result = &errors.LintRuleErrorsList{}
 	target, ok, errs := parseVPATargetIndex(md.GetName(), vpa)
 	result.Merge(errs)
 	if !ok {
-		return
+		return result
 	}
 
 	vpaTargets[target] = struct{}{}
@@ -128,7 +130,7 @@ func fillVPAMaps(
 	updateMode, vnm, ok, errs := parseVPAResourcePolicyContainers(md, vpa)
 	result.Merge(errs)
 	if !ok {
-		return
+		return result
 	}
 	vpaContainerNamesMap[target] = vnm
 	vpaUpdateModes[target] = updateMode
@@ -208,6 +210,7 @@ func parseVPAResourcePolicyContainers(md *module.Module, vpaObject storage.Store
 
 // parseVPATargetIndex parses VPA target resource index, writes to the passed struct pointer
 func parseVPATargetIndex(name string, vpaObject storage.StoreObject) (target storage.ResourceIndex, ok bool, result *errors.LintRuleErrorsList) {
+	result = &errors.LintRuleErrorsList{}
 	specs, ok := vpaObject.Unstructured.Object["spec"].(map[string]any)
 	if !ok {
 		result.Add(errors.NewLintRuleError(
@@ -312,6 +315,7 @@ func ensureTolerations(
 	index storage.ResourceIndex,
 	object storage.StoreObject,
 ) (result *errors.LintRuleErrorsList) {
+	result = &errors.LintRuleErrorsList{}
 	tolerations, err := getTolerationsList(object)
 
 	if err != nil {

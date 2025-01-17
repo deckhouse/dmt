@@ -65,7 +65,7 @@ func (o *Probes) Desc() string {
 }
 
 func containerProbes(moduleName string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleErrorsList {
-	var errorList *errors.LintRuleErrorsList
+	result := &errors.LintRuleErrorsList{}
 	for i := range containers {
 		container := containers[i]
 		if skipCheckProbeHandler(object.Unstructured.GetNamespace(), container.Name) {
@@ -86,7 +86,7 @@ func containerProbes(moduleName string, object storage.StoreObject, containers [
 		}
 
 		if len(errStrings) > 0 {
-			errorList.Add(errors.NewLintRuleError(
+			result.Add(errors.NewLintRuleError(
 				"probes",
 				"module = "+moduleName+" ; "+object.Identity()+" ; container = "+container.Name,
 				moduleName,
@@ -96,7 +96,7 @@ func containerProbes(moduleName string, object storage.StoreObject, containers [
 		}
 	}
 
-	return errorList
+	return result
 }
 
 func probeHandlerIsNotValid(probe v1.ProbeHandler) bool {
