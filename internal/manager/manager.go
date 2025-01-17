@@ -40,7 +40,7 @@ type Manager struct {
 
 	lintersMap map[string]Linter
 
-	errors errors.LintRuleErrorsList
+	errors *errors.LintRuleErrorsList
 }
 
 func NewManager(dirs []string, cfg *config.Config) *Manager {
@@ -112,7 +112,7 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 func (m *Manager) Run() errors.LintRuleErrorsList {
 	result := errors.LintRuleErrorsList{}
 
-	var ch = make(chan errors.LintRuleErrorsList)
+	var ch = make(chan *errors.LintRuleErrorsList)
 	go func() {
 		var g = pool.New().WithMaxGoroutines(flags.LintersLimit)
 		for i := range m.Modules {

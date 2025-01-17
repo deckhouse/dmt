@@ -40,18 +40,20 @@ type LintRuleErrorsList struct {
 // Add adds new error to the list if it doesn't exist yet.
 // It first checks if error is empty (i.e. all its fields are empty strings)
 // and then checks if error with the same ID, ObjectId and Text already exists in the list.
-func (l *LintRuleErrorsList) Add(e *LintRuleError) {
+func (l *LintRuleErrorsList) Add(e *LintRuleError) *LintRuleErrorsList {
 	if e == nil {
-		return
+		return l
 	}
 	if slices.ContainsFunc(l.data, e.EqualsTo) {
-		return
+		return l
 	}
 	l.data = append(l.data, e)
+
+	return l
 }
 
 // Merge merges another LintRuleErrorsList into current one, removing all duplicate errors.
-func (l *LintRuleErrorsList) Merge(e LintRuleErrorsList) {
+func (l *LintRuleErrorsList) Merge(e *LintRuleErrorsList) {
 	for _, el := range e.data {
 		l.Add(el)
 	}

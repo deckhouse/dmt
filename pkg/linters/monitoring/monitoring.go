@@ -26,7 +26,7 @@ func New(cfg *config.MonitoringSettings) *Monitoring {
 	}
 }
 
-func (*Monitoring) Run(m *module.Module) (result errors.LintRuleErrorsList, err error) {
+func (*Monitoring) Run(m *module.Module) (result *errors.LintRuleErrorsList, err error) {
 	if m == nil {
 		return result, err
 	}

@@ -27,16 +27,16 @@ func New(cfg *config.LicenseSettings) *Copyright {
 	}
 }
 
-func (o *Copyright) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
+func (o *Copyright) Run(m *module.Module) (*errors.LintRuleErrorsList, error) {
 	if m.GetPath() == "" {
-		return errors.LintRuleErrorsList{}, nil
+		return &errors.LintRuleErrorsList{}, nil
 	}
 	files, err := getFiles(m.GetPath())
 	if err != nil {
-		return errors.LintRuleErrorsList{}, err
+		return &errors.LintRuleErrorsList{}, err
 	}
 
-	var result errors.LintRuleErrorsList
+	var result *errors.LintRuleErrorsList
 
 	result.Merge(OssModuleRule(m.GetName(), m.GetPath()))
 

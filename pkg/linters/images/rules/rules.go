@@ -1,7 +1,6 @@
 package rules
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -70,8 +69,8 @@ func IsExistsOnFilesystem(parts ...string) bool {
 	return err == nil
 }
 
-func ApplyImagesRules(m *module.Module) (result errors.LintRuleErrorsList) {
-	result.Merge(CheckImageNamesInDockerAndWerfFiles(m.GetName(), m.GetPath()))
+func ApplyImagesRules(m *module.Module) (result *errors.LintRuleErrorsList) {
+	result.Merge(CheckImageNamesInDockerFiles(m.GetName(), m.GetPath()))
 
 	name, lintError := chartModuleRule(m.GetName(), m.GetPath())
 	result.Add(lintError)
@@ -80,8 +79,4 @@ func ApplyImagesRules(m *module.Module) (result errors.LintRuleErrorsList) {
 	}
 
 	return result
-}
-
-func ModuleLabel(n string) string {
-	return fmt.Sprintf("module = %s", n)
 }

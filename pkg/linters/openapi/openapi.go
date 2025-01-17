@@ -24,13 +24,13 @@ func New(cfg *config.OpenAPISettings) *OpenAPI {
 	}
 }
 
-func (o *OpenAPI) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
+func (o *OpenAPI) Run(m *module.Module) (*errors.LintRuleErrorsList, error) {
 	if m.GetPath() == "" {
-		return errors.LintRuleErrorsList{}, nil
+		return &errors.LintRuleErrorsList{}, nil
 	}
 	apiFiles, err := GetOpenAPIYAMLFiles(m.GetPath())
 	if err != nil {
-		return errors.LintRuleErrorsList{}, err
+		return &errors.LintRuleErrorsList{}, err
 	}
 
 	filesC := make(chan fileValidation, len(apiFiles))
@@ -45,7 +45,7 @@ func (o *OpenAPI) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 	}
 	close(filesC)
 
-	var result errors.LintRuleErrorsList
+	var result *errors.LintRuleErrorsList
 	for res := range resultC {
 		if res.validationError != nil {
 			result.Add(errors.NewLintRuleError(

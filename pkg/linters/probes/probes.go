@@ -30,8 +30,8 @@ func New(cfg *config.ProbesSettings) *Probes {
 	}
 }
 
-func (*Probes) Run(m *module.Module) (result errors.LintRuleErrorsList, err error) {
-	var ch = make(chan errors.LintRuleErrorsList)
+func (*Probes) Run(m *module.Module) (result *errors.LintRuleErrorsList, err error) {
+	var ch = make(chan *errors.LintRuleErrorsList)
 	go func() {
 		var g = pool.New().WithErrors()
 		g.Go(func() error {
@@ -64,12 +64,8 @@ func (o *Probes) Desc() string {
 	return o.desc
 }
 
-func containerProbes(
-	moduleName string,
-	object storage.StoreObject,
-	containers []v1.Container,
-) errors.LintRuleErrorsList {
-	var errorList errors.LintRuleErrorsList
+func containerProbes(moduleName string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleErrorsList {
+	var errorList *errors.LintRuleErrorsList
 	for i := range containers {
 		container := containers[i]
 		if skipCheckProbeHandler(object.Unstructured.GetNamespace(), container.Name) {

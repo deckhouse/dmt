@@ -23,7 +23,7 @@ func New(cfg *config.ImageSettings) *Images {
 	}
 }
 
-func (*Images) Run(m *module.Module) (result errors.LintRuleErrorsList, err error) {
+func (*Images) Run(m *module.Module) (result *errors.LintRuleErrorsList, err error) {
 	if m == nil {
 		return result, err
 	}

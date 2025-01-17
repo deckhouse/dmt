@@ -49,9 +49,9 @@ func (s *nsLabelSelector) Matches(namespace string, labelSet labels.Set) bool {
 
 // ControllerMustHavePDB adds linting errors if there are pods from controllers which are not covered (except DaemonSets)
 // by a PodDisruptionBudget
-func ControllerMustHavePDB(md *module.Module) (result errors.LintRuleErrorsList) {
+func ControllerMustHavePDB(md *module.Module) (result *errors.LintRuleErrorsList) {
 	if slices.Contains(SkipPDBChecks, md.GetNamespace()+":"+md.GetName()) {
-		return errors.LintRuleErrorsList{}
+		return &errors.LintRuleErrorsList{}
 	}
 
 	pdbSelectors, lerr := collectPDBSelectors(md)
@@ -79,9 +79,9 @@ func isPodControllerDaemonSet(kind string) bool {
 
 // DaemonSetMustNotHavePDB adds linting errors if there are pods from DaemonSets which are covered
 // by a PodDisruptionBudget
-func DaemonSetMustNotHavePDB(md *module.Module) (result errors.LintRuleErrorsList) {
+func DaemonSetMustNotHavePDB(md *module.Module) (result *errors.LintRuleErrorsList) {
 	if slices.Contains(SkipPDBChecks, md.GetNamespace()+":"+md.GetName()) {
-		return errors.LintRuleErrorsList{}
+		return &errors.LintRuleErrorsList{}
 	}
 
 	pdbSelectors, lerr := collectPDBSelectors(md)
@@ -104,7 +104,9 @@ func DaemonSetMustNotHavePDB(md *module.Module) (result errors.LintRuleErrorsLis
 }
 
 // collectPDBSelectors collects selectors for matching pods
-func collectPDBSelectors(md *module.Module) (selectors []nsLabelSelector, result errors.LintRuleErrorsList) {
+func collectPDBSelectors(md *module.Module) (selectors []nsLabelSelector, result *errors.LintRuleErrorsList) {
+	result = &errors.LintRuleErrorsList{}
+
 	for _, object := range md.GetObjectStore().Storage {
 		if object.Unstructured.GetKind() != "PodDisruptionBudget" {
 			continue

@@ -22,8 +22,8 @@ func shouldSkipCrd(name string) bool {
 	return !strings.Contains(name, "deckhouse.io")
 }
 
-func CrdsModuleRule(name, path string) errors.LintRuleErrorsList {
-	var lintRuleErrorsList errors.LintRuleErrorsList
+func CrdsModuleRule(name, path string) *errors.LintRuleErrorsList {
+	var lintRuleErrorsList *errors.LintRuleErrorsList
 	_ = filepath.Walk(path, func(path string, _ os.FileInfo, _ error) error {
 		if filepath.Ext(path) != ".yaml" {
 			return nil

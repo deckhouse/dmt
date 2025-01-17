@@ -53,16 +53,16 @@ func New(cfg *config.NoCyrillicSettings) *NoCyrillic {
 	}
 }
 
-func (o *NoCyrillic) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
+func (o *NoCyrillic) Run(m *module.Module) (*errors.LintRuleErrorsList, error) {
 	if m.GetPath() == "" {
-		return errors.LintRuleErrorsList{}, nil
+		return &errors.LintRuleErrorsList{}, nil
 	}
 	files, err := o.getFiles(m.GetPath())
 	if err != nil {
-		return errors.LintRuleErrorsList{}, err
+		return &errors.LintRuleErrorsList{}, err
 	}
 
-	var result errors.LintRuleErrorsList
+	var result *errors.LintRuleErrorsList
 	for _, fileName := range files {
 		name, _ := strings.CutPrefix(fileName, m.GetPath())
 		name = m.GetName() + ":" + name
@@ -83,7 +83,7 @@ func (o *NoCyrillic) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 
 		lines, er := getFileContent(fileName)
 		if er != nil {
-			return errors.LintRuleErrorsList{}, er
+			return &errors.LintRuleErrorsList{}, er
 		}
 
 		cyrMsg, hasCyr := checkCyrillicLettersInArray(lines)

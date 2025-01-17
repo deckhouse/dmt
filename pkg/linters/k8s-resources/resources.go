@@ -38,7 +38,7 @@ func New(cfg *config.K8SResourcesSettings) *Object {
 	}
 }
 
-func (*Object) Run(m *module.Module) (result errors.LintRuleErrorsList, err error) {
+func (*Object) Run(m *module.Module) (result *errors.LintRuleErrorsList, err error) {
 	if m == nil {
 		return result, err
 	}
