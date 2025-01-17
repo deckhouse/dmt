@@ -3,6 +3,8 @@ package werf
 import (
 	"os"
 	"path/filepath"
+
+	"github.com/bmatcuk/doublestar"
 )
 
 type files struct {
@@ -25,16 +27,17 @@ func (f files) Get(relPath string) string {
 
 func (f files) doGlob(pattern string) (map[string]any, error) {
 	res := map[string]any{}
-	matches, err := filepath.Glob(filepath.Join(f.rootDir, pattern))
+	matches, err := doublestar.Glob(filepath.Join(f.rootDir, pattern))
 	if err != nil {
 		return nil, err
 	}
 	for _, path := range matches {
 		data, readErr := os.ReadFile(path)
 		if readErr != nil {
-			panic(readErr.Error())
+			return nil, readErr
 		}
-		res[path] = string(data)
+		rel, _ := filepath.Rel(f.rootDir, path)
+		res[rel] = string(data)
 	}
 
 	return res, nil

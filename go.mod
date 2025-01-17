@@ -4,6 +4,7 @@ go 1.23.1
 
 require (
 	dario.cat/mergo v1.0.1
+	github.com/bmatcuk/doublestar v1.3.4
 	github.com/fatih/color v1.14.1
 	github.com/flant/addon-operator v1.5.0
 	github.com/go-openapi/spec v0.21.0
