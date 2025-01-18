@@ -3,16 +3,21 @@ package werf
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/bmatcuk/doublestar"
 )
 
 type files struct {
-	rootDir string
+	rootDir   string
+	moduleDir string
 }
 
-func NewFiles(rootDir string) files {
-	return files{rootDir}
+func NewFiles(rootDir, moduleDir string) files {
+	return files{
+		rootDir:   rootDir,
+		moduleDir: moduleDir,
+	}
 }
 
 func (f files) Get(relPath string) string {
@@ -27,7 +32,11 @@ func (f files) Get(relPath string) string {
 
 func (f files) doGlob(pattern string) (map[string]any, error) {
 	res := map[string]any{}
-	matches, err := doublestar.Glob(filepath.Join(f.rootDir, pattern))
+	dir := f.rootDir
+	if strings.Contains(pattern, "werf.inc.yaml") {
+		dir = f.moduleDir
+	}
+	matches, err := doublestar.Glob(filepath.Join(dir, pattern))
 	if err != nil {
 		return nil, err
 	}
