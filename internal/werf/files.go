@@ -14,8 +14,9 @@ type files struct {
 }
 
 func NewFiles(rootDir, moduleDir string) files {
+	moduleDir, _ = filepath.Abs(moduleDir)
 	return files{
-		rootDir:   rootDir,
+		rootDir:   filepath.Dir(rootDir),
 		moduleDir: moduleDir,
 	}
 }
@@ -35,6 +36,7 @@ func (f files) doGlob(pattern string) (map[string]any, error) {
 	dir := f.rootDir
 	if strings.Contains(pattern, "werf.inc.yaml") {
 		dir = f.moduleDir
+		pattern = strings.TrimPrefix(pattern, "modules/*")
 	}
 	matches, err := doublestar.Glob(filepath.Join(dir, pattern))
 	if err != nil {

@@ -51,7 +51,7 @@ func GetWerfConfig(dir string) (string, error) {
 	}
 
 	templateData := make(map[string]any)
-	templateData["Files"] = NewFiles(filepath.Dir(werfFile), dir)
+	templateData["Files"] = NewFiles(werfFile, dir)
 	templateData["Env"] = "EE"
 
 	templateData["Commit"] = map[string]any{

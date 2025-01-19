@@ -15,7 +15,7 @@ func TestGetWerfConfig(t *testing.T) {
 	}{
 		{
 			name:    "Valid werf.yaml file",
-			dir:     "testdata",
+			dir:     "testdata/modules/021-cni-cilium",
 			wantErr: false,
 		},
 		{
