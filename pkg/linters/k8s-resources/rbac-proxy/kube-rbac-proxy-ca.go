@@ -27,7 +27,8 @@ import (
 
 var SkipKubeRbacProxyChecks []string
 
-func NamespaceMustContainKubeRBACProxyCA(md string, objectStore *storage.UnstructuredObjectStore) (result *errors.LintRuleErrorsList) {
+func NamespaceMustContainKubeRBACProxyCA(md string, objectStore *storage.UnstructuredObjectStore) *errors.LintRuleErrorsList {
+	result := &errors.LintRuleErrorsList{}
 	proxyInNamespaces := set.New()
 
 	for index := range objectStore.Storage {

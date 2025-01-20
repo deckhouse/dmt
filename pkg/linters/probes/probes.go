@@ -30,8 +30,9 @@ func New(cfg *config.ProbesSettings) *Probes {
 	}
 }
 
-func (*Probes) Run(m *module.Module) (result *errors.LintRuleErrorsList, err error) {
+func (*Probes) Run(m *module.Module) (*errors.LintRuleErrorsList, error) {
 	var ch = make(chan *errors.LintRuleErrorsList)
+	var err error
 	go func() {
 		var g = pool.New().WithErrors()
 		g.Go(func() error {
@@ -49,6 +50,7 @@ func (*Probes) Run(m *module.Module) (result *errors.LintRuleErrorsList, err err
 		close(ch)
 	}()
 
+	result := &errors.LintRuleErrorsList{}
 	for er := range ch {
 		result.Merge(er)
 	}

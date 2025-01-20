@@ -28,10 +28,10 @@ func New(cfg *config.ContainerSettings) *Container {
 	}
 }
 
-func (*Container) Run(m *module.Module) (result *errors.LintRuleErrorsList, err error) {
-	result = &errors.LintRuleErrorsList{}
+func (*Container) Run(m *module.Module) (*errors.LintRuleErrorsList, error) {
+	result := &errors.LintRuleErrorsList{}
 	if m == nil {
-		return result, err
+		return result, nil
 	}
 
 	for _, object := range m.GetStorage() {

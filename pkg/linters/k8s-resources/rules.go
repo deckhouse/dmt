@@ -14,12 +14,12 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
-func applyContainerRules(name string, object storage.StoreObject) (result *errors.LintRuleErrorsList) {
-	if slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName()) {
-		return &errors.LintRuleErrorsList{}
-	}
+func applyContainerRules(name string, object storage.StoreObject) *errors.LintRuleErrorsList {
+	result := &errors.LintRuleErrorsList{}
 
-	result = &errors.LintRuleErrorsList{}
+	if slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName()) {
+		return result
+	}
 
 	result.Add(objectRecommendedLabels(name, object))
 	result.Add(namespaceLabels(name, object))

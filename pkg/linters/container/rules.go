@@ -14,21 +14,20 @@ import (
 
 const defaultRegistry = "registry.example.com/deckhouse"
 
-func applyContainerRules(m *module.Module, object storage.StoreObject) (result *errors.LintRuleErrorsList) {
+func applyContainerRules(m *module.Module, object storage.StoreObject) *errors.LintRuleErrorsList {
+	result := &errors.LintRuleErrorsList{}
 	containers, err := object.GetContainers()
 	if err != nil {
-		return
+		return result
 	}
 	initContainers, err := object.GetInitContainers()
 	if err != nil {
-		return
+		return result
 	}
 	containers = append(initContainers, containers...)
 	if len(containers) == 0 {
-		return
+		return result
 	}
-
-	result = &errors.LintRuleErrorsList{}
 
 	result.Add(containerNameDuplicates(m.GetName(), object, containers))
 	result.Add(containerEnvVariablesDuplicates(m.GetName(), object, containers))

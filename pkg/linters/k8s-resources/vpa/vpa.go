@@ -38,7 +38,8 @@ const (
 var SkipVPAChecks []string
 
 // ControllerMustHaveVPA fills linting error regarding VPA
-func ControllerMustHaveVPA(md *module.Module) (result *errors.LintRuleErrorsList) {
+func ControllerMustHaveVPA(md *module.Module) *errors.LintRuleErrorsList {
+	result := &errors.LintRuleErrorsList{}
 	if slices.Contains(SkipVPAChecks, md.GetNamespace()+":"+md.GetName()) {
 		return &errors.LintRuleErrorsList{}
 	}

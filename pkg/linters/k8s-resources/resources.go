@@ -38,9 +38,10 @@ func New(cfg *config.K8SResourcesSettings) *Object {
 	}
 }
 
-func (*Object) Run(m *module.Module) (result *errors.LintRuleErrorsList, err error) {
+func (*Object) Run(m *module.Module) (*errors.LintRuleErrorsList, error) {
+	result := &errors.LintRuleErrorsList{}
 	if m == nil {
-		return result, err
+		return result, nil
 	}
 
 	name := m.GetName()
