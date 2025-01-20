@@ -36,7 +36,7 @@ func (o *Copyright) Run(m *module.Module) (*errors.LintRuleErrorsList, error) {
 		return &errors.LintRuleErrorsList{}, err
 	}
 
-	var result *errors.LintRuleErrorsList
+	result := &errors.LintRuleErrorsList{}
 
 	result.Merge(OssModuleRule(m.GetName(), m.GetPath()))
 

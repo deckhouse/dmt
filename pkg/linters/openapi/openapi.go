@@ -45,7 +45,7 @@ func (o *OpenAPI) Run(m *module.Module) (*errors.LintRuleErrorsList, error) {
 	}
 	close(filesC)
 
-	var result *errors.LintRuleErrorsList
+	result := &errors.LintRuleErrorsList{}
 	for res := range resultC {
 		if res.validationError != nil {
 			result.Add(errors.NewLintRuleError(
