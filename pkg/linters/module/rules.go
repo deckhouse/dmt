@@ -1,6 +1,7 @@
 package module
 
 import (
+	errs "errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -21,7 +22,19 @@ func checkModuleYaml(moduleName, modulePath string) (lintRuleErrorsList errors.L
 	}
 
 	_, err := os.Stat(filepath.Join(modulePath, ModuleConfigFilename))
+	if errs.Is(err, os.ErrNotExist) {
+		return lintRuleErrorsList
+	}
 	if err != nil {
+		lintRuleErrorsList.Add(errors.NewLintRuleError(
+			ID,
+			moduleName,
+			moduleName,
+			nil,
+			"Cannot stat file %q: %s",
+			ModuleConfigFilename, err.Error(),
+		))
+
 		return lintRuleErrorsList
 	}
 
