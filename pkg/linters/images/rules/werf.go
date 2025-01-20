@@ -52,13 +52,12 @@ func lintWerfFile(moduleName, path string) *errors.LintRuleErrorsList {
 			result.Add(
 				errors.NewLintRuleError(
 					ID,
-					path,
+					"werf files",
 					moduleName,
 					w.From,
 					"Use `from:` or `fromImage:` and `final: false` directives instead of `artifact:` in the werf file",
 				),
 			)
-			continue
 		}
 
 		if w.Final != nil && !*w.Final {
@@ -72,13 +71,12 @@ func lintWerfFile(moduleName, path string) *errors.LintRuleErrorsList {
 			result.Add(
 				errors.NewLintRuleError(
 					ID,
-					path,
+					"werf files",
 					moduleName,
 					w.From,
 					"`from:` parameter should be one of our BASE_DISTROLESS images",
 				),
 			)
-			continue
 		}
 	}
 

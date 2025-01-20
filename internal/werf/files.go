@@ -34,6 +34,12 @@ func (f files) Get(relPath string) string {
 func (f files) doGlob(pattern string) (map[string]any, error) {
 	res := map[string]any{}
 	dir := f.rootDir
+	// Check if we are looking for werf.inc.yaml in the module directory
+	// If so, we need to change the directory to the module directory
+	// and remove the modules/* prefix from the pattern
+	// This is needed because the module directory is not a direct child of the root directory
+	// and the pattern should be relative to the root directory
+	// Specific for Deckhouse project
 	if strings.Contains(pattern, "werf.inc.yaml") {
 		dir = f.moduleDir
 		pattern = strings.TrimPrefix(pattern, "modules/*")
