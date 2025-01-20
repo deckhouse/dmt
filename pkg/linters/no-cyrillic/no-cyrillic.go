@@ -62,7 +62,7 @@ func (o *NoCyrillic) Run(m *module.Module) (*errors.LintRuleErrorsList, error) {
 		return &errors.LintRuleErrorsList{}, err
 	}
 
-	var result *errors.LintRuleErrorsList
+	result := &errors.LintRuleErrorsList{}
 	for _, fileName := range files {
 		name, _ := strings.CutPrefix(fileName, m.GetPath())
 		name = m.GetName() + ":" + name
