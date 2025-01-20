@@ -46,7 +46,7 @@ func containersImagePullPolicy(md string, object storage.StoreObject, containers
 
 func checkImagePullPolicyAlways(md string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleError {
 	c := containers[0]
-	if c.ImagePullPolicy != "Always" {
+	if c.ImagePullPolicy != v1.PullAlways {
 		return errors.NewLintRuleError(
 			ID,
 			object.Identity()+"; container = "+c.Name,
