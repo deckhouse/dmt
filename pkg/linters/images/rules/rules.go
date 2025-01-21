@@ -1,7 +1,6 @@
 package rules
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -82,8 +81,4 @@ func ApplyImagesRules(m *module.Module) *errors.LintRuleErrorsList {
 	result.Merge(chartModuleRule(m.GetName(), m.GetPath()))
 
 	return result
-}
-
-func ModuleLabel(n string) string {
-	return fmt.Sprintf("module = %s", n)
 }
