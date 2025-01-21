@@ -8,15 +8,11 @@ import (
 	"os"
 )
 
-var logger *slog.Logger
-
 func InitLogger(logLevel string) {
-	log.SetOutput(io.Discard)
-
 	lvl := new(slog.LevelVar)
 	lvl.Set(slog.LevelInfo)
 
-	logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: lvl}))
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: lvl}))
 
 	if logLevel == "DEBUG" {
 		lvl.Set(slog.LevelDebug)
@@ -30,31 +26,34 @@ func InitLogger(logLevel string) {
 	if logLevel == "ERROR" {
 		lvl.Set(slog.LevelError)
 	}
+
+	slog.SetDefault(logger)
+	log.SetOutput(io.Discard)
 }
 
 func DebugF(format string, a ...any) {
-	logger.Debug(
+	slog.Debug(
 		fmt.Sprintf(format, a...))
 }
 
 func InfoF(format string, a ...any) {
-	logger.Info(
+	slog.Info(
 		fmt.Sprintf(format, a...))
 }
 
 func WarnF(format string, a ...any) {
-	logger.Warn(
+	slog.Warn(
 		fmt.Sprintf(format, a...))
 }
 
 func ErrorF(format string, a ...any) {
-	logger.Error(
+	slog.Error(
 		fmt.Sprintf(format, a...))
 }
 
 func CheckErr(msg any) {
 	if msg != nil {
-		logger.Error(
+		slog.Error(
 			fmt.Sprintf("Error: %s", msg))
 		os.Exit(1)
 	}
