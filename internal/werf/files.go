@@ -32,7 +32,7 @@ func (f files) Get(relPath string) string {
 }
 
 func (f files) doGlob(pattern string) (map[string]any, error) {
-	res := map[string]any{}
+	res := make(map[string]any)
 	dir := f.rootDir
 	// Check if we are looking for werf.inc.yaml in the module directory
 	// If so, we need to change the directory to the module directory
@@ -49,9 +49,9 @@ func (f files) doGlob(pattern string) (map[string]any, error) {
 		return nil, err
 	}
 	for _, path := range matches {
-		data, readErr := os.ReadFile(path)
-		if readErr != nil {
-			return nil, readErr
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, err
 		}
 		rel, _ := filepath.Rel(f.rootDir, path)
 		res[rel] = string(data)
