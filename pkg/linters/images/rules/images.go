@@ -78,6 +78,7 @@ func imageRegexp(s string) string {
 	return fmt.Sprintf("^(from:|FROM)(\\s+)(%s)", s)
 }
 
+//nolint:gocritic // false positive
 func isImageNameUnacceptable(imageName string) (bool, string) {
 	for ciVariable, pattern := range regexPatterns {
 		matched, _ := regexp.MatchString(pattern, imageName)
@@ -290,6 +291,7 @@ func lintDockerfile(file *os.File, name, _, relativeFilePath string) *errors.Lin
 	return nil
 }
 
+//nolint:gocritic // false positive
 func isWerfInstructionUnacceptable(from string) (bool, string) {
 	if !checkDistrolessPrefix(from, distrolessImagesPrefix["werf"]) {
 		return true, "`from:` parameter should be one of our BASE_DISTROLESS images"
@@ -297,6 +299,7 @@ func isWerfInstructionUnacceptable(from string) (bool, string) {
 	return false, ""
 }
 
+//nolint:gocritic // false positive
 func isDockerfileInstructionUnacceptable(from string, final bool) (bool, string) {
 	if from == "scratch" {
 		return false, ""

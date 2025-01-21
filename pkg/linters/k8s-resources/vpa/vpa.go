@@ -81,6 +81,8 @@ func IsPodController(kind string) bool {
 }
 
 // parseTargetsAndTolerationGroups resolves target resource indexes
+//
+//nolint:gocritic // false positive
 func parseTargetsAndTolerationGroups(md *module.Module) (
 	map[storage.ResourceIndex]struct{}, map[storage.ResourceIndex]string,
 	map[storage.ResourceIndex]set.Set,
