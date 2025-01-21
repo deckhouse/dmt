@@ -11,6 +11,7 @@ type LintersSettings struct {
 	Rbac         RbacSettings         `mapstructure:"rbac"`
 	Resources    ResourcesSettings    `mapstructure:"resources"`
 	Monitoring   MonitoringSettings   `mapstructure:"monitoring"`
+	Ingress      IngressSettings      `mapstructure:"ingress"`
 }
 
 type OpenAPISettings struct {
@@ -64,4 +65,8 @@ type ImageSettings struct {
 	SkipModuleImageName      []string `mapstructure:"skip-module-image-name"`
 	SkipDistrolessImageCheck []string `mapstructure:"skip-distroless-image-check"`
 	SkipNamespaceCheck       []string `mapstructure:"skip-namespace-check"`
+}
+
+type IngressSettings struct {
+	SkipIngressChecks []string `mapstructure:"skip-ingress-checks"`
 }
