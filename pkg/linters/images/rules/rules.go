@@ -82,7 +82,8 @@ func IsExistsOnFilesystem(parts ...string) bool {
 	return err == nil
 }
 
-func ApplyImagesRules(m *module.Module) (result errors.LintRuleErrorsList) {
+func ApplyImagesRules(m *module.Module) errors.LintRuleErrorsList {
+	result := errors.LintRuleErrorsList{}
 	result.Merge(CheckImageNamesInDockerAndWerfFiles(m.GetName(), m.GetPath()))
 	result.Merge(chartModuleRule(m.GetName(), m.GetPath()))
 

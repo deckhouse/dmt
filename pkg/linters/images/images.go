@@ -23,9 +23,10 @@ func New(cfg *config.ImageSettings) *Images {
 	}
 }
 
-func (*Images) Run(m *module.Module) (result errors.LintRuleErrorsList, err error) {
+func (*Images) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
+	var result errors.LintRuleErrorsList
 	if m == nil {
-		return result, err
+		return result, nil
 	}
 
 	result.Merge(rules.ApplyImagesRules(m))

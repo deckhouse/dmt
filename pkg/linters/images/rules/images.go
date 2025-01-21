@@ -78,7 +78,7 @@ func imageRegexp(s string) string {
 	return fmt.Sprintf("^(from:|FROM)(\\s+)(%s)", s)
 }
 
-func isImageNameUnacceptable(imageName string) (b bool, s string) {
+func isImageNameUnacceptable(imageName string) (bool, string) {
 	for ciVariable, pattern := range regexPatterns {
 		matched, _ := regexp.MatchString(pattern, imageName)
 		if matched {
@@ -90,7 +90,9 @@ func isImageNameUnacceptable(imageName string) (b bool, s string) {
 
 func CheckImageNamesInDockerAndWerfFiles(
 	name, path string,
-) (lintRuleErrorsList errors.LintRuleErrorsList) {
+) errors.LintRuleErrorsList {
+	var lintRuleErrorsList errors.LintRuleErrorsList
+	var filePaths []string
 	imagesPath := filepath.Join(path, ImagesDir)
 	if !IsExistsOnFilesystem(imagesPath) {
 		return lintRuleErrorsList
@@ -288,14 +290,14 @@ func lintDockerfile(file *os.File, name, _, relativeFilePath string) *errors.Lin
 	return nil
 }
 
-func isWerfInstructionUnacceptable(from string) (b bool, s string) {
+func isWerfInstructionUnacceptable(from string) (bool, string) {
 	if !checkDistrolessPrefix(from, distrolessImagesPrefix["werf"]) {
 		return true, "`from:` parameter should be one of our BASE_DISTROLESS images"
 	}
 	return false, ""
 }
 
-func isDockerfileInstructionUnacceptable(from string, final bool) (b bool, s string) {
+func isDockerfileInstructionUnacceptable(from string, final bool) (bool, string) {
 	if from == "scratch" {
 		return false, ""
 	}

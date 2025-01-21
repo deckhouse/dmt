@@ -26,9 +26,10 @@ func New(cfg *config.MonitoringSettings) *Monitoring {
 	}
 }
 
-func (*Monitoring) Run(m *module.Module) (result errors.LintRuleErrorsList, err error) {
+func (*Monitoring) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
+	result := errors.LintRuleErrorsList{}
 	if m == nil {
-		return result, err
+		return result, nil
 	}
 
 	result.Add(MonitoringModuleRule(m.GetName(), m.GetPath(), m.GetNamespace()))

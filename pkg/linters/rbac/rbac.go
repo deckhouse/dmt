@@ -23,9 +23,10 @@ func New(cfg *config.RbacSettings) *Rbac {
 	}
 }
 
-func (*Rbac) Run(m *module.Module) (result errors.LintRuleErrorsList, err error) {
+func (*Rbac) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
+	result := errors.LintRuleErrorsList{}
 	if m == nil {
-		return result, err
+		return result, nil
 	}
 
 	for _, object := range m.GetStorage() {

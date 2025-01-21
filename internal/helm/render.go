@@ -15,7 +15,7 @@ type Renderer struct {
 	LintMode  bool
 }
 
-func (r Renderer) RenderChartFromDir(dir, values string) (files map[string]string, err error) {
+func (r Renderer) RenderChartFromDir(dir, values string) (map[string]string, error) {
 	c, err := loader.Load(dir)
 	if err != nil {
 		return nil, fmt.Errorf("chart load from '%s': %w", dir, err)
@@ -23,7 +23,7 @@ func (r Renderer) RenderChartFromDir(dir, values string) (files map[string]strin
 	return r.RenderChart(c, values)
 }
 
-func (r Renderer) RenderChart(c *chart.Chart, values string) (files map[string]string, err error) {
+func (r Renderer) RenderChart(c *chart.Chart, values string) (map[string]string, error) {
 	vals, err := chartutil.ReadValues([]byte(values))
 	if err != nil {
 		return nil, fmt.Errorf("helm chart read raw values: %w", err)
@@ -65,7 +65,7 @@ func (r Renderer) RenderChart(c *chart.Chart, values string) (files map[string]s
 	return r.RenderChartFromRawValues(c, valuesToRender)
 }
 
-func (r Renderer) RenderChartFromRawValues(c *chart.Chart, values chartutil.Values) (files map[string]string, err error) {
+func (r Renderer) RenderChartFromRawValues(c *chart.Chart, values chartutil.Values) (map[string]string, error) {
 	if r.Name == "" {
 		return nil, fmt.Errorf("helm chart must have a name")
 	}
