@@ -123,6 +123,7 @@ linters:
     - misspell
     - nakedret
     - noctx
+    - nonamedreturns
     - nolintlint
     - revive
     - staticcheck
