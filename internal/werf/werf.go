@@ -195,10 +195,8 @@ func funcMap(tmpl *template.Template) template.FuncMap {
 	funcMap["required"] = func(msg string, val any) (any, error) {
 		if val == nil {
 			return nil, errors.New(msg)
-		} else if _, ok := val.(string); ok {
-			if val == "" {
-				return val, errors.New(msg)
-			}
+		} else if val == "" {
+			return val, errors.New(msg)
 		}
 		return val, nil
 	}
