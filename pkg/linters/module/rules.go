@@ -9,12 +9,33 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/Masterminds/semver/v3"
+
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 const (
 	ModuleConfigFilename = "module.yaml"
 )
+
+type DeckhouseModule struct {
+	Name         string              `yaml:"name"`
+	Weight       uint32              `yaml:"weight,omitempty"`
+	Tags         []string            `yaml:"tags"`
+	Stage        string              `yaml:"stage"`
+	Description  string              `yaml:"description"`
+	Requirements *ModuleRequirements `yaml:"requirements,omitempty"`
+}
+type ModuleRequirements struct {
+	ModulePlatformRequirements `yaml:",inline"`
+	ParentModules              map[string]string `yaml:"modules,omitempty"`
+}
+
+type ModulePlatformRequirements struct {
+	Deckhouse    string `yaml:"deckhouse,omitempty"`
+	Kubernetes   string `yaml:"kubernetes,omitempty"`
+	Bootstrapped string `yaml:"bootstrapped,omitempty"`
+}
 
 func checkModuleYaml(moduleName, modulePath string) (lintRuleErrorsList errors.LintRuleErrorsList) {
 	if slices.Contains(Cfg.SkipCheckModuleYaml, moduleName) {
@@ -52,13 +73,7 @@ func checkModuleYaml(moduleName, modulePath string) (lintRuleErrorsList errors.L
 		return lintRuleErrorsList
 	}
 
-	var yml struct {
-		Name        string   `yaml:"name"`
-		Weight      uint32   `yaml:"weight,omitempty"`
-		Tags        []string `yaml:"tags"`
-		Stage       string   `yaml:"stage"`
-		Description string   `yaml:"description"`
-	}
+	var yml DeckhouseModule
 
 	err = yaml.Unmarshal(yamlFile, &yml)
 	if err != nil {
@@ -114,5 +129,53 @@ func checkModuleYaml(moduleName, modulePath string) (lintRuleErrorsList errors.L
 		))
 	}
 
+	if yml.Requirements != nil {
+		lintRuleErrorsList.Merge(yml.Requirements.validateRequirements(moduleName))
+	}
+
 	return lintRuleErrorsList
+}
+
+func (m ModuleRequirements) validateRequirements(moduleName string) errors.LintRuleErrorsList {
+	result := errors.LintRuleErrorsList{}
+	if m.Deckhouse != "" {
+		if _, err := semver.NewVersion(m.Deckhouse); err != nil {
+			result.Add(errors.NewLintRuleError(
+				ID,
+				"requirements",
+				moduleName,
+				nil,
+				"Invalid Deckhouse version requirement: %s",
+				err.Error(),
+			))
+		}
+	}
+
+	if m.Kubernetes != "" {
+		if _, err := semver.NewVersion(m.Kubernetes); err != nil {
+			result.Add(errors.NewLintRuleError(
+				ID,
+				"requirements",
+				moduleName,
+				nil,
+				"Invalid Kubernetes version requirement: %s",
+				err.Error(),
+			))
+		}
+	}
+
+	for parentModuleName, parentModuleVersion := range m.ParentModules {
+		if _, err := semver.NewVersion(parentModuleVersion); err != nil {
+			result.Add(errors.NewLintRuleError(
+				ID,
+				"requirements",
+				moduleName,
+				nil,
+				"Invalid parent module %q version requirement: %s",
+				parentModuleName, err.Error(),
+			))
+		}
+	}
+
+	return result
 }
