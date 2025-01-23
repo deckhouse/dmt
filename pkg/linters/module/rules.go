@@ -100,17 +100,6 @@ func checkModuleYaml(moduleName, modulePath string) (lintRuleErrorsList errors.L
 		))
 	}
 
-	if yml.Weight != 0 && (yml.Weight < 900 || yml.Weight > 999) {
-		lintRuleErrorsList.Add(errors.NewLintRuleError(
-			ID,
-			moduleName,
-			moduleName,
-			nil,
-			"Field %q must be in range [900, 999]",
-			"weight",
-		))
-	}
-
 	stages := []string{
 		"Sandbox",
 		"Incubating",
@@ -139,7 +128,7 @@ func checkModuleYaml(moduleName, modulePath string) (lintRuleErrorsList errors.L
 func (m ModuleRequirements) validateRequirements(moduleName string) errors.LintRuleErrorsList {
 	result := errors.LintRuleErrorsList{}
 	if m.Deckhouse != "" {
-		if _, err := semver.NewVersion(m.Deckhouse); err != nil {
+		if _, err := semver.NewConstraint(m.Deckhouse); err != nil {
 			result.Add(errors.NewLintRuleError(
 				ID,
 				"requirements",
@@ -152,7 +141,7 @@ func (m ModuleRequirements) validateRequirements(moduleName string) errors.LintR
 	}
 
 	if m.Kubernetes != "" {
-		if _, err := semver.NewVersion(m.Kubernetes); err != nil {
+		if _, err := semver.NewConstraint(m.Kubernetes); err != nil {
 			result.Add(errors.NewLintRuleError(
 				ID,
 				"requirements",
@@ -165,13 +154,13 @@ func (m ModuleRequirements) validateRequirements(moduleName string) errors.LintR
 	}
 
 	for parentModuleName, parentModuleVersion := range m.ParentModules {
-		if _, err := semver.NewVersion(parentModuleVersion); err != nil {
+		if _, err := semver.NewConstraint(parentModuleVersion); err != nil {
 			result.Add(errors.NewLintRuleError(
 				ID,
 				"requirements",
 				moduleName,
 				nil,
-				"Invalid parent module %q version requirement: %s",
+				"Invalid module %q version requirement: %s",
 				parentModuleName, err.Error(),
 			))
 		}
