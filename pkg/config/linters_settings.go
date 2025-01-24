@@ -12,6 +12,7 @@ type LintersSettings struct {
 	Resources    ResourcesSettings    `mapstructure:"resources"`
 	Monitoring   MonitoringSettings   `mapstructure:"monitoring"`
 	Ingress      IngressSettings      `mapstructure:"ingress"`
+	Module       ModuleSettings       `mapstructure:"module"`
 }
 
 type OpenAPISettings struct {
@@ -69,4 +70,8 @@ type ImageSettings struct {
 
 type IngressSettings struct {
 	SkipIngressChecks []string `mapstructure:"skip-ingress-checks"`
+}
+
+type ModuleSettings struct {
+	SkipCheckModuleYaml []string `mapstructure:"skip-check-module-yaml"`
 }

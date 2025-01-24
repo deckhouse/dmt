@@ -98,11 +98,6 @@ func NewModule(path string) (*Module, error) {
 		path:      path,
 	}
 
-	err = checkHelmChart(name, path)
-	if err != nil {
-		return nil, err
-	}
-
 	ch, err := loader.Load(path)
 	if err != nil {
 		return nil, err
@@ -177,44 +172,4 @@ func getNamespace(path string) (name string) {
 	}
 
 	return strings.TrimRight(string(content), " \t\n")
-}
-
-// isHelmChart check, could it be considered as helm chart or not
-func checkHelmChart(name, path string) error {
-	chartPath := filepath.Join(path, "Chart.yaml")
-
-	_, err := os.Stat(chartPath)
-	if err == nil {
-		// Chart.yaml exists, consider this module as helm chart
-		return nil
-	}
-
-	if os.IsNotExist(err) {
-		// Chart.yaml does not exist
-		if dirExists(filepath.Join(path, "templates")) || dirExists(filepath.Join(path, "openapi")) {
-			return createChartYaml(name, chartPath)
-		}
-	}
-
-	return err
-}
-
-func createChartYaml(name, chartPath string) error {
-	// we already have versions like 0.1.0 or 0.1.1
-	// to keep helm updatable, we have to increment this version
-	// new minor version of addon-operator seems reasonable to increase minor version of a helm chart
-	data := fmt.Sprintf(`name: %s
-version: 0.2.0`, name)
-
-	//nolint:mnd  // false positive
-	return os.WriteFile(chartPath, []byte(data), 0o600)
-}
-
-func dirExists(path string) bool {
-	info, err := os.Stat(path)
-	if err != nil {
-		return false
-	}
-
-	return info.IsDir()
 }
