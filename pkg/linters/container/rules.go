@@ -14,7 +14,8 @@ import (
 
 const defaultRegistry = "registry.example.com/deckhouse"
 
-func applyContainerRules(m *module.Module, object storage.StoreObject) (result errors.LintRuleErrorsList) {
+func applyContainerRules(m *module.Module, object storage.StoreObject) errors.LintRuleErrorsList {
+	result := errors.LintRuleErrorsList{}
 	containers, err := object.GetAllContainers()
 	if err != nil || len(containers) == 0 {
 		return result
