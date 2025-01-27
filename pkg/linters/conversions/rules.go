@@ -16,10 +16,10 @@ import (
 )
 
 const (
-	ConversionsFolder = "openapi/conversions"
+	conversionsFolder = "openapi/conversions"
 )
 
-var regexVersionFile = regexp.MustCompile("v([1-9]|[1-9][0-9]|[1-9][0-9][0-9]).yaml|v([1-9]|[1-9][0-9]|[1-9][0-9][0-9]).yml")
+var regexVersionFile = regexp.MustCompile(`^v[1-9][0-9]{0,2}\.ya?ml$`)
 
 type conversion struct {
 	Version     *int         `yaml:"version,omitempty"`
@@ -38,11 +38,11 @@ func checkModuleYaml(moduleName, modulePath string) errors.LintRuleErrorsList {
 		return result
 	}
 
-	folder := filepath.Join(modulePath, ConversionsFolder)
+	folder := filepath.Join(modulePath, conversionsFolder)
 
 	stat, err := os.Stat(folder)
 	if err != nil && !os.IsNotExist(err) {
-		panic(err)
+		return result
 	}
 
 	if os.IsNotExist(err) || !stat.IsDir() {
@@ -52,7 +52,7 @@ func checkModuleYaml(moduleName, modulePath string) errors.LintRuleErrorsList {
 			moduleName,
 			nil,
 			"Cannot stat conversions folder %q: %s",
-			ConversionsFolder, err.Error(),
+			conversionsFolder, err.Error(),
 		))
 
 		return result
@@ -137,13 +137,13 @@ func checkModuleYaml(moduleName, modulePath string) errors.LintRuleErrorsList {
 func parseConversion(path string) (*conversion, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		return nil, fmt.Errorf("cannot open file to read conversion %q: %w", ConversionsFolder, err)
+		return nil, fmt.Errorf("cannot open file to read conversion %q: %w", conversionsFolder, err)
 	}
 
 	c := new(conversion)
 	err = yaml.NewDecoder(file).Decode(c)
 	if err != nil {
-		return nil, fmt.Errorf("cannot decode yaml %q: %w", ConversionsFolder, err)
+		return nil, fmt.Errorf("cannot decode yaml %q: %w", conversionsFolder, err)
 	}
 
 	return c, nil
