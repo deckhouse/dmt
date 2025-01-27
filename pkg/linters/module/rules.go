@@ -37,7 +37,8 @@ type ModulePlatformRequirements struct {
 	Bootstrapped string `yaml:"bootstrapped,omitempty"`
 }
 
-func checkModuleYaml(moduleName, modulePath string) (lintRuleErrorsList errors.LintRuleErrorsList) {
+func checkModuleYaml(moduleName, modulePath string) errors.LintRuleErrorsList {
+	lintRuleErrorsList := errors.LintRuleErrorsList{}
 	if slices.Contains(Cfg.SkipCheckModuleYaml, moduleName) {
 		return lintRuleErrorsList
 	}

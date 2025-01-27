@@ -28,7 +28,8 @@ const (
 
 var Cfg *config.ImageSettings
 
-func chartModuleRule(name, path string) (lintRuleErrorsList errors.LintRuleErrorsList) {
+func chartModuleRule(name, path string) errors.LintRuleErrorsList {
+	lintRuleErrorsList := errors.LintRuleErrorsList{}
 	lintError := errors.NewLintRuleError(
 		ID,
 		name,
