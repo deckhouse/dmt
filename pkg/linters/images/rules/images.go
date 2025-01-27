@@ -75,14 +75,19 @@ func checkImageNamesInDockerFiles(name, path string) errors.LintRuleErrorsList {
 		return errList
 	}
 
-	err := filepath.Walk(imagesPath, func(fullPath string, _ os.FileInfo, err error) error {
+	err := filepath.Walk(imagesPath, func(fullPath string, f os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 
-		if filepath.Base(fullPath) == "Dockerfile" {
+		if f.IsDir() {
+			return nil
+		}
+
+		if f.Name() == "Dockerfile" {
 			filePaths = append(filePaths, fullPath)
 		}
+
 		return nil
 	})
 	if err != nil {
