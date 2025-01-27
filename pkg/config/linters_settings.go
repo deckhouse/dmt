@@ -13,6 +13,7 @@ type LintersSettings struct {
 	Monitoring   MonitoringSettings   `mapstructure:"monitoring"`
 	Ingress      IngressSettings      `mapstructure:"ingress"`
 	Module       ModuleSettings       `mapstructure:"module"`
+	Conversions  ConversionsSettings  `mapstructure:"conversions"`
 }
 
 type OpenAPISettings struct {
@@ -74,4 +75,11 @@ type IngressSettings struct {
 
 type ModuleSettings struct {
 	SkipCheckModuleYaml []string `mapstructure:"skip-check-module-yaml"`
+}
+
+type ConversionsSettings struct {
+	// skip all conversion checks for this modules
+	SkipCheckModule []string `mapstructure:"skip-check"`
+	// first conversion version to make conversion flow
+	FirstVersion int `mapstructure:"first-version"`
 }

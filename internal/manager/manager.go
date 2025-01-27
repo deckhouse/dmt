@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/deckhouse/dmt/pkg/linters/conversions"
 	"github.com/deckhouse/dmt/pkg/linters/ingress"
 	k8s_resources "github.com/deckhouse/dmt/pkg/linters/k8s-resources"
 	moduleLinter "github.com/deckhouse/dmt/pkg/linters/module"
@@ -63,6 +64,7 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 		monitoring.New(&cfg.LintersSettings.Monitoring),
 		ingress.New(&cfg.LintersSettings.Ingress),
 		moduleLinter.New(&cfg.LintersSettings.Module),
+		conversions.New(&cfg.LintersSettings.Conversions),
 	}
 
 	m.lintersMap = make(map[string]Linter)
