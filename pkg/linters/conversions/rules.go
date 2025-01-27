@@ -19,7 +19,7 @@ const (
 	conversionsFolder = "openapi/conversions"
 )
 
-var regexVersionFile = regexp.MustCompile(`^v[1-9][0-9]{0,2}\.ya?ml$`)
+var regexVersionFile = regexp.MustCompile(`^v([1-9]\d{0,2})\.ya?ml$`)
 
 type conversion struct {
 	Version     *int         `yaml:"version,omitempty"`
@@ -60,7 +60,7 @@ func checkModuleYaml(moduleName, modulePath string) errors.LintRuleErrorsList {
 
 	versions := make([]int, 0)
 
-	_ = filepath.Walk(folder, func(path string, _ fs.FileInfo, _ error) error {
+	err = filepath.Walk(folder, func(path string, _ fs.FileInfo, _ error) error {
 		if !regexVersionFile.MatchString(filepath.Base(path)) {
 			return nil
 		}
@@ -91,6 +91,18 @@ func checkModuleYaml(moduleName, modulePath string) errors.LintRuleErrorsList {
 
 		return nil
 	})
+	if err != nil {
+		result.Add(errors.NewLintRuleError(
+			ID,
+			moduleName,
+			moduleName,
+			nil,
+			"Walk error in folder: %q",
+			folder,
+		))
+
+		return result
+	}
 
 	if len(versions) == 0 {
 		result.Add(errors.NewLintRuleError(
