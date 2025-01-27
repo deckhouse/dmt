@@ -170,7 +170,7 @@ func lintOneDockerfile(name, path, imagesPath string) errors.LintRuleErrorsList 
 			continue
 		}
 
-		ers, message := isDockerfileInstructionUnacceptable(fromInstruction, lastInstruction)
+		ers, message := isDockerfileInstructionUnacceptable(fromInstruction, i == len(dockerfileFromInstructions)-1)
 		if ers {
 			errList.Add(errors.NewLintRuleError(
 				ID,
