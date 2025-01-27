@@ -26,9 +26,10 @@ func New(cfg *config.ModuleSettings) *Module {
 	}
 }
 
-func (*Module) Run(m *module.Module) (result errors.LintRuleErrorsList, err error) {
+func (*Module) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
+	result := errors.LintRuleErrorsList{}
 	if m == nil {
-		return result, err
+		return result, nil
 	}
 
 	result.Merge(checkModuleYaml(m.GetName(), m.GetPath()))

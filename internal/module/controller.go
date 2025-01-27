@@ -71,7 +71,7 @@ func RunRender(m *Module, values chartutil.Values, objectStore *storage.Unstruct
 }
 
 func SplitAt(substring string) func(data []byte, atEOF bool) (advance int, token []byte, err error) {
-	return func(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	return func(data []byte, atEOF bool) (int, []byte, error) {
 		// Return nothing if at end of file and no data passed
 		if atEOF && len(data) == 0 {
 			return 0, nil, nil
@@ -87,7 +87,7 @@ func SplitAt(substring string) func(data []byte, atEOF bool) (advance int, token
 			return len(data), data, nil
 		}
 
-		return
+		return 0, nil, nil
 	}
 }
 

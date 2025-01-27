@@ -141,7 +141,7 @@ func NewModule(path string) (*Module, error) {
 	return module, nil
 }
 
-func getModuleName(path string) (name string, err error) {
+func getModuleName(path string) (string, error) {
 	stat, err := os.Stat(filepath.Join(path, ChartConfigFilename))
 	if err != nil {
 		stat, err = os.Stat(filepath.Join(path, ModuleConfigFilename))
@@ -165,7 +165,7 @@ func getModuleName(path string) (name string, err error) {
 	return ch.Name, nil
 }
 
-func getNamespace(path string) (name string) {
+func getNamespace(path string) string {
 	content, err := os.ReadFile(filepath.Join(path, ".namespace"))
 	if err != nil {
 		return ""
