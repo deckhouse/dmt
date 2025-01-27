@@ -1,6 +1,7 @@
 package conversions
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -37,7 +38,7 @@ func checkModuleYaml(moduleName, modulePath string) errors.LintRuleErrorsList {
 		return result
 	}
 
-	folder := filepath.Join(filepath.Join(modulePath, ConversionsFolder))
+	folder := filepath.Join(modulePath, ConversionsFolder)
 
 	stat, err := os.Stat(folder)
 	if err != nil && !os.IsNotExist(err) {
@@ -59,119 +60,34 @@ func checkModuleYaml(moduleName, modulePath string) errors.LintRuleErrorsList {
 
 	versions := make([]int, 0)
 
-	_ = filepath.Walk(folder, func(path string, info fs.FileInfo, _ error) error {
+	_ = filepath.Walk(folder, func(path string, _ fs.FileInfo, _ error) error {
 		if !regexVersionFile.MatchString(filepath.Base(path)) {
 			return nil
 		}
 
-		file, err := os.Open(path)
+		c, err := parseConversion(path)
 		if err != nil {
 			result.Add(errors.NewLintRuleError(
 				ID,
 				moduleName,
 				moduleName,
 				nil,
-				"Cannot open file to read conversion %q: %s",
-				ConversionsFolder, err.Error(),
+				"%s",
+				strings.ToTitle(err.Error()),
 			))
 
 			return nil
 		}
 
-		c := new(conversion)
-		err = yaml.NewDecoder(file).Decode(c)
-		if err != nil {
-			result.Add(errors.NewLintRuleError(
-				ID,
-				moduleName,
-				moduleName,
-				nil,
-				"Cannot decode yaml %q: %s",
-				ConversionsFolder, err.Error(),
-			))
-
-			return nil
-		}
-
-		if c.Description != nil {
-			if c.Description.Russian == "" {
-				result.Add(errors.NewLintRuleError(
-					ID,
-					moduleName,
-					moduleName,
-					nil,
-					"No description for conversion: russian",
-				))
-			}
-
-			if c.Description.English == "" {
-				result.Add(errors.NewLintRuleError(
-					ID,
-					moduleName,
-					moduleName,
-					nil,
-					"No description for conversion: russian",
-				))
-			}
-		}
+		result.Merge(conversionCheck(c, moduleName, path))
 
 		if c.Version == nil {
-			result.Add(errors.NewLintRuleError(
-				ID,
-				moduleName,
-				moduleName,
-				nil,
-				"Version is empty, filename: %q",
-				filepath.Base(path),
-			))
-
 			return nil
 		}
 
 		versions = append(versions, *c.Version)
 
-		separated := strings.SplitN(filepath.Base(path), ".", 2)
-		if len(separated) <= 1 {
-			result.Add(errors.NewLintRuleError(
-				ID,
-				moduleName,
-				moduleName,
-				nil,
-				"Bad filename %q",
-				filepath.Base(path),
-			))
-
-			return nil
-		}
-
-		rawVersion := strings.TrimPrefix(separated[0], "v")
-
-		fileVersion, err := strconv.Atoi(rawVersion)
-		if err != nil {
-			result.Add(errors.NewLintRuleError(
-				ID,
-				moduleName,
-				moduleName,
-				nil,
-				"Cannot convert version from file name %q: %s",
-				filepath.Base(path), err.Error(),
-			))
-
-			return nil
-		}
-
-		if *c.Version != fileVersion {
-			result.Add(errors.NewLintRuleError(
-				ID,
-				moduleName,
-				moduleName,
-				nil,
-				"File name %q doesn't correspond with contained version %d",
-				filepath.Base(path), *c.Version,
-			))
-
-			return nil
-		}
+		result.Merge(compareWithFileName(c, moduleName, path))
 
 		return nil
 	})
@@ -213,6 +129,113 @@ func checkModuleYaml(moduleName, modulePath string) errors.LintRuleErrorsList {
 				versions[i], versions[i-1],
 			))
 		}
+	}
+
+	return result
+}
+
+func parseConversion(path string) (*conversion, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open file to read conversion %q: %w", ConversionsFolder, err)
+	}
+
+	c := new(conversion)
+	err = yaml.NewDecoder(file).Decode(c)
+	if err != nil {
+		return nil, fmt.Errorf("cannot decode yaml %q: %w", ConversionsFolder, err)
+	}
+
+	return c, nil
+}
+
+func conversionCheck(c *conversion, moduleName, path string) errors.LintRuleErrorsList {
+	result := errors.LintRuleErrorsList{}
+
+	if c.Description != nil {
+		if c.Description.Russian == "" {
+			result.Add(errors.NewLintRuleError(
+				ID,
+				moduleName,
+				moduleName,
+				nil,
+				"No description for conversion: russian, filename: %q",
+				filepath.Base(path),
+			))
+		}
+
+		if c.Description.English == "" {
+			result.Add(errors.NewLintRuleError(
+				ID,
+				moduleName,
+				moduleName,
+				nil,
+				"No description for conversion: russian, filename: %q",
+				filepath.Base(path),
+			))
+		}
+	}
+
+	if c.Version == nil {
+		result.Add(errors.NewLintRuleError(
+			ID,
+			moduleName,
+			moduleName,
+			nil,
+			"Version is empty, filename: %q",
+			filepath.Base(path),
+		))
+
+		return result
+	}
+
+	return result
+}
+
+func compareWithFileName(c *conversion, moduleName, path string) errors.LintRuleErrorsList {
+	result := errors.LintRuleErrorsList{}
+
+	separated := strings.SplitN(filepath.Base(path), ".", 2)
+	if len(separated) <= 1 {
+		result.Add(errors.NewLintRuleError(
+			ID,
+			moduleName,
+			moduleName,
+			nil,
+			"Bad filename %q",
+			filepath.Base(path),
+		))
+
+		return result
+	}
+
+	rawVersion := strings.TrimPrefix(separated[0], "v")
+
+	fileVersion, err := strconv.Atoi(rawVersion)
+	if err != nil {
+		result.Add(errors.NewLintRuleError(
+			ID,
+			moduleName,
+			moduleName,
+			nil,
+			"Cannot convert version from file name %q: %s",
+			filepath.Base(path), err.Error(),
+		))
+
+		return result
+	}
+
+	if *c.Version != fileVersion {
+		result.Add(errors.NewLintRuleError(
+			ID,
+			moduleName,
+			moduleName,
+			nil,
+			"File name %q doesn't correspond with contained version %d",
+			filepath.Base(path), *c.Version,
+		))
+
+		return result
 	}
 
 	return result
