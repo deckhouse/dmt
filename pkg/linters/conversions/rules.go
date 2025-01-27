@@ -191,7 +191,7 @@ func checkModuleYaml(moduleName, modulePath string) errors.LintRuleErrorsList {
 
 	slices.Sort(versions)
 
-	if versions[0] != Cfg.FirstVersion {
+	if Cfg.FirstVersion != 0 && versions[0] != Cfg.FirstVersion {
 		result.Add(errors.NewLintRuleError(
 			ID,
 			moduleName,
