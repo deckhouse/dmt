@@ -18,7 +18,7 @@ type Renderer struct {
 func (r Renderer) RenderChartFromDir(dir, values string) (files map[string]string, err error) {
 	c, err := loader.Load(dir)
 	if err != nil {
-		panic(fmt.Errorf("chart load from '%s': %w", dir, err))
+		return nil, fmt.Errorf("chart load from '%s': %w", dir, err)
 	}
 	return r.RenderChart(c, values)
 }

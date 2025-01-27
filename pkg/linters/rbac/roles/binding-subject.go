@@ -48,14 +48,14 @@ func ObjectBindingSubjectServiceAccountCheck(
 		clusterRoleBinding := new(v1.ClusterRoleBinding)
 		err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), clusterRoleBinding)
 		if err != nil {
-			panic(err)
+			return newConvertError(object, err)
 		}
 		subjects = clusterRoleBinding.Subjects
 	case "RoleBinding":
 		roleBinding := new(v1.RoleBinding)
 		err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), roleBinding)
 		if err != nil {
-			panic(err)
+			return newConvertError(object, err)
 		}
 		subjects = roleBinding.Subjects
 
@@ -97,4 +97,14 @@ func ObjectBindingSubjectServiceAccountCheck(
 	}
 
 	return nil
+}
+
+func newConvertError(object storage.StoreObject, err error) *errors.LintRuleError {
+	return errors.NewLintRuleError(
+		ID,
+		object.Identity(),
+		object.Unstructured.GetName(),
+		nil,
+		"Cannot convert object to %s: %v", object.Unstructured.GetKind(), err,
+	)
 }

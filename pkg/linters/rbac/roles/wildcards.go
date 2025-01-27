@@ -61,7 +61,7 @@ func checkRoles(m *module.Module, object storage.StoreObject) *errors.LintRuleEr
 	role := new(k8SRbac.Role)
 	err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), role)
 	if err != nil {
-		panic(err)
+		return newConvertError(object, err)
 	}
 
 	for _, rule := range role.Rules {

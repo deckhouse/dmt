@@ -91,24 +91,12 @@ func isImageNameUnacceptable(imageName string) (b bool, s string) {
 func CheckImageNamesInDockerAndWerfFiles(
 	name, path string,
 ) (lintRuleErrorsList errors.LintRuleErrorsList) {
-	var filePaths []string
 	imagesPath := filepath.Join(path, ImagesDir)
-
 	if !IsExistsOnFilesystem(imagesPath) {
 		return lintRuleErrorsList
 	}
 
-	err := filepath.Walk(imagesPath, func(fullPath string, _ os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		switch filepath.Base(fullPath) {
-		case "werf.inc.yaml", "Dockerfile":
-			filePaths = append(filePaths, fullPath)
-		}
-		return nil
-	})
+	filePaths, err := getDockerAndWerfFilePaths(imagesPath)
 	if err != nil {
 		lintRuleErrorsList.Add(errors.NewLintRuleError(
 			ID,
@@ -120,6 +108,7 @@ func CheckImageNamesInDockerAndWerfFiles(
 		))
 		return lintRuleErrorsList
 	}
+
 	for _, filePath := range filePaths {
 		if skipModuleImageNameIfNeeded(filePath) {
 			continue
@@ -130,6 +119,21 @@ func CheckImageNamesInDockerAndWerfFiles(
 	}
 
 	return lintRuleErrorsList
+}
+
+func getDockerAndWerfFilePaths(imagesPath string) ([]string, error) {
+	var filePaths []string
+	err := filepath.Walk(imagesPath, func(fullPath string, _ os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		switch filepath.Base(fullPath) {
+		case "werf.inc.yaml", "Dockerfile":
+			filePaths = append(filePaths, fullPath)
+		}
+		return nil
+	})
+	return filePaths, err
 }
 
 func lintOneDockerfileOrWerfYAML(name, filePath, imagesPath string) []*errors.LintRuleError {
@@ -162,9 +166,7 @@ func lintOneDockerfileOrWerfYAML(name, filePath, imagesPath string) []*errors.Li
 		}
 	}
 
-	isWerfYAML := filepath.Base(filePath) == "werf.inc.yaml"
-
-	if isWerfYAML {
+	if filepath.Base(filePath) == "werf.inc.yaml" {
 		return lintWerfFile(file, name, filePath, relativeFilePath)
 	}
 
@@ -187,76 +189,70 @@ func lintWerfFile(file *os.File, name, filePath, relativeFilePath string) []*err
 	}
 	werfDocs := splitManifests(string(data))
 
-	lintErrors := make([]*errors.LintRuleError, 0)
-
+	var lintErrors []*errors.LintRuleError
 	for _, doc := range werfDocs {
 		doc = strings.ReplaceAll(doc, "{{", "")
 		doc = strings.ReplaceAll(doc, "}}", "")
 		var w werfFile
-		err = yaml.Unmarshal([]byte(doc), &w)
-		if err != nil {
-			// skip invalid yaml documents
+		if err := yaml.Unmarshal([]byte(doc), &w); err != nil {
 			continue
 		}
 
-		w.From = strings.TrimSpace(w.From)
-		if w.From == "" {
-			continue
-		}
-
-		if w.Artifact != "" {
-			lintErrors = append(lintErrors,
-				errors.NewLintRuleError(
-					ID,
-					filePath,
-					name,
-					w.From,
-					"Use `from:` or `fromImage:` and `final: false` directives instead of `artifact:` in the werf file",
-				),
-			)
-			continue
-		}
-
-		if w.Final != nil && !*w.Final {
-			// skip image, if it's not final
-			continue
-		}
-
-		if skipDistrolessImageCheckIfNeeded(relativeFilePath) {
-			log.Printf("WARNING!!! SKIP DISTROLESS CHECK!!!\nmodule = %s, image = %s\nvalue - %s\n\n", name, relativeFilePath, w.From)
-			return nil
-		}
-
-		result, message := isWerfInstructionUnacceptable(w.From)
-		if result {
-			lintErrors = append(lintErrors,
-				errors.NewLintRuleError(
-					ID,
-					filePath,
-					name,
-					w.From,
-					"%s",
-					message,
-				),
-			)
-			continue
+		if err := validateWerfFile(w, name, filePath, relativeFilePath); err != nil {
+			lintErrors = append(lintErrors, err)
 		}
 	}
 
 	return lintErrors
 }
 
+func validateWerfFile(w werfFile, name, filePath, relativeFilePath string) *errors.LintRuleError {
+	w.From = strings.TrimSpace(w.From)
+	if w.From == "" {
+		return nil
+	}
+
+	if w.Artifact != "" {
+		return errors.NewLintRuleError(
+			ID,
+			filePath,
+			name,
+			w.From,
+			"Use `from:` or `fromImage:` and `final: false` directives instead of `artifact:` in the werf file",
+		)
+	}
+
+	if w.Final != nil && !*w.Final {
+		return nil
+	}
+
+	if skipDistrolessImageCheckIfNeeded(relativeFilePath) {
+		log.Printf("WARNING!!! SKIP DISTROLESS CHECK!!!\nmodule = %s, image = %s\nvalue - %s\n\n", name, relativeFilePath, w.From)
+		return nil
+	}
+
+	if result, message := isWerfInstructionUnacceptable(w.From); result {
+		return errors.NewLintRuleError(
+			ID,
+			filePath,
+			name,
+			w.From,
+			"%s",
+			message,
+		)
+	}
+
+	return nil
+}
+
 func lintDockerfile(file *os.File, name, _, relativeFilePath string) *errors.LintRuleError {
-	var (
-		dockerfileFromInstructions []string
-	)
+	var dockerfileFromInstructions []string
 	scanner := bufio.NewScanner(file)
 	linePos := 0
 	for scanner.Scan() {
 		line := scanner.Text()
 		linePos++
-		result, ciVariable := isImageNameUnacceptable(line)
-		if result {
+		if result, ciVariable := isImageNameUnacceptable(line); result {
 			return errors.NewLintRuleError(
 				ID,
 				fmt.Sprintf("module = %s, image = %s, line = %d", name, relativeFilePath, linePos),
@@ -267,20 +263,17 @@ func lintDockerfile(file *os.File, name, _, relativeFilePath string) *errors.Lin
 		}
 
 		if strings.HasPrefix(line, "FROM ") {
-			fromTrimmed := strings.TrimPrefix(line, "FROM ")
-			dockerfileFromInstructions = append(dockerfileFromInstructions, fromTrimmed)
+			dockerfileFromInstructions = append(dockerfileFromInstructions, strings.TrimPrefix(line, "FROM "))
 		}
 	}
 
 	for i, fromInstruction := range dockerfileFromInstructions {
-		lastInstruction := i == len(dockerfileFromInstructions)-1
 		if skipDistrolessImageCheckIfNeeded(relativeFilePath) {
 			log.Printf("WARNING!!! SKIP DISTROLESS CHECK!!!\nmodule = %s, image = %s\nvalue - %s\n\n", name, relativeFilePath, fromInstruction)
 			continue
 		}
 
-		result, message := isDockerfileInstructionUnacceptable(fromInstruction, lastInstruction)
-		if result {
+		if result, message := isDockerfileInstructionUnacceptable(fromInstruction, i == len(dockerfileFromInstructions)-1); result {
 			return errors.NewLintRuleError(
 				ID,
 				name,

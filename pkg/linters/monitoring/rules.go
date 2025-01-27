@@ -49,13 +49,8 @@ func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string) *error
 		return nil
 	}
 
-	folderEx, lerr := dirExists(moduleName, modulePath, "monitoring")
-	if lerr != nil {
+	if exists, lerr := dirExists(moduleName, modulePath, "monitoring"); lerr != nil || !exists {
 		return lerr
-	}
-
-	if !folderEx {
-		return nil
 	}
 
 	rulesEx, lerr := dirExists(moduleName, modulePath, "monitoring", "prometheus-rules")
@@ -69,8 +64,7 @@ func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string) *error
 	}
 
 	searchingFilePath := filepath.Join(modulePath, "templates", "monitoring.yaml")
-	info, _ := os.Stat(searchingFilePath)
-	if info == nil {
+	if info, _ := os.Stat(searchingFilePath); info == nil {
 		return errors.NewLintRuleError(
 			ID,
 			moduleName,
@@ -92,39 +86,42 @@ func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string) *error
 		)
 	}
 
-	desiredContentBuilder := strings.Builder{}
-	if dashboardsEx {
-		desiredContentBuilder.WriteString("{{- include \"helm_lib_grafana_dashboard_definitions\" . }}\n")
-	}
-
-	if rulesEx {
-		desiredContentBuilder.WriteString(
-			"{{- include \"helm_lib_prometheus_rules\" (list . %q) }}\n",
-		)
-	}
-
-	var res bool
-	for _, namespace := range []string{moduleNamespace, "d8-system", "d8-monitoring"} {
-		var desiredContent string
-		if rulesEx {
-			desiredContent = fmt.Sprintf(desiredContentBuilder.String(), namespace)
-		} else {
-			desiredContent = desiredContentBuilder.String()
-		}
-		res = res || desiredContent == string(content)
-	}
-
-	if !res {
+	desiredContent := buildDesiredContent(dashboardsEx, rulesEx)
+	if !isContentMatching(string(content), desiredContent, moduleNamespace, rulesEx) {
 		return errors.NewLintRuleError(
 			ID,
 			searchingFilePath,
 			modulePath,
 			nil,
 			"The content of the 'templates/monitoring.yaml' should be equal to:\n%s\nGot:\n%s",
-			fmt.Sprintf(desiredContentBuilder.String(), "YOUR NAMESPACE TO DEPLOY RULES: d8-monitoring, d8-system or module namespaces"),
+			fmt.Sprintf(desiredContent, "YOUR NAMESPACE TO DEPLOY RULES: d8-monitoring, d8-system or module namespaces"),
 			string(content),
 		)
 	}
 
 	return nil
+}
+
+func buildDesiredContent(dashboardsEx, rulesEx bool) string {
+	var builder strings.Builder
+	if dashboardsEx {
+		builder.WriteString("{{- include \"helm_lib_grafana_dashboard_definitions\" . }}\n")
+	}
+	if rulesEx {
+		builder.WriteString("{{- include \"helm_lib_prometheus_rules\" (list . %q) }}\n")
+	}
+	return builder.String()
+}
+
+func isContentMatching(content, desiredContent, moduleNamespace string, rulesEx bool) bool {
+	for _, namespace := range []string{moduleNamespace, "d8-system", "d8-monitoring"} {
+		checkContent := desiredContent
+		if rulesEx {
+			checkContent = fmt.Sprintf(desiredContent, namespace)
+		}
+		if content == checkContent {
+			return true
+		}
+	}
+	return false
 }
