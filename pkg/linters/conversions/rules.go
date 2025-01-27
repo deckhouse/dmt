@@ -208,8 +208,8 @@ func conversionCheck(c *conversion, moduleName, path string) errors.LintRuleErro
 func compareWithFileName(c *conversion, moduleName, path string) errors.LintRuleErrorsList {
 	result := errors.LintRuleErrorsList{}
 
-	separated := strings.SplitN(filepath.Base(path), ".", 2)
-	if len(separated) <= 1 {
+	versions := regexVersionFile.FindStringSubmatch(filepath.Base(path))
+	if len(versions) <= 1 {
 		result.Add(errors.NewLintRuleError(
 			ID,
 			moduleName,
@@ -222,9 +222,7 @@ func compareWithFileName(c *conversion, moduleName, path string) errors.LintRule
 		return result
 	}
 
-	rawVersion := strings.TrimPrefix(separated[0], "v")
-
-	fileVersion, err := strconv.Atoi(rawVersion)
+	fileVersion, err := strconv.Atoi(versions[1])
 	if err != nil {
 		result.Add(errors.NewLintRuleError(
 			ID,
