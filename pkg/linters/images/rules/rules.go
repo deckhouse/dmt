@@ -80,5 +80,7 @@ func ApplyImagesRules(m *module.Module) *errors.LintRuleErrorsList {
 	result.Merge(checkImageNames(m.GetName(), m.GetPath()))
 	result.Merge(chartModuleRule(m.GetName(), m.GetPath()))
 
+	result.Merge(lintWerfFile(m.GetName(), m.GetPath()))
+
 	return result
 }
