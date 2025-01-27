@@ -60,7 +60,20 @@ func checkModuleYaml(moduleName, modulePath string) errors.LintRuleErrorsList {
 
 	versions := make([]int, 0)
 
-	err = filepath.Walk(folder, func(path string, _ fs.FileInfo, _ error) error {
+	_ = filepath.Walk(folder, func(path string, _ fs.FileInfo, err error) error {
+		if err != nil {
+			result.Add(errors.NewLintRuleError(
+				ID,
+				moduleName,
+				moduleName,
+				nil,
+				"Walk error with file: %q",
+				path,
+			))
+
+			return nil
+		}
+
 		if !regexVersionFile.MatchString(filepath.Base(path)) {
 			return nil
 		}
@@ -91,18 +104,6 @@ func checkModuleYaml(moduleName, modulePath string) errors.LintRuleErrorsList {
 
 		return nil
 	})
-	if err != nil {
-		result.Add(errors.NewLintRuleError(
-			ID,
-			moduleName,
-			moduleName,
-			nil,
-			"Walk error in folder: %q",
-			folder,
-		))
-
-		return result
-	}
 
 	if len(versions) == 0 {
 		result.Add(errors.NewLintRuleError(
