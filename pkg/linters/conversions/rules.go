@@ -34,7 +34,8 @@ type description struct {
 func checkModuleYaml(moduleName, modulePath string) errors.LintRuleErrorsList {
 	result := errors.LintRuleErrorsList{}
 
-	if slices.Contains(Cfg.SkipCheckModule, moduleName) {
+	_, ok := cfg.SkipCheckModule[moduleName]
+	if ok {
 		return result
 	}
 
@@ -129,14 +130,14 @@ func checkModuleYaml(moduleName, modulePath string) errors.LintRuleErrorsList {
 
 	slices.Sort(versions)
 
-	if Cfg.FirstVersion != 0 && versions[0] != Cfg.FirstVersion {
+	if cfg.FirstVersion != 0 && versions[0] != cfg.FirstVersion {
 		result.Add(errors.NewLintRuleError(
 			ID,
 			moduleName,
 			moduleName,
 			nil,
 			"You need to start with version number: %d",
-			Cfg.FirstVersion,
+			cfg.FirstVersion,
 		))
 	}
 

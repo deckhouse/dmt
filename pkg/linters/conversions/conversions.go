@@ -12,17 +12,24 @@ type Conversions struct {
 	cfg        *config.ConversionsSettings
 }
 
+type ConversionsSettings struct {
+	// skip all conversion checks for this modules
+	SkipCheckModule map[string]struct{}
+	// first conversion version to make conversion flow
+	FirstVersion int
+}
+
 const ID = "conversions"
 
-var Cfg *config.ConversionsSettings
+var cfg *ConversionsSettings
 
-func New(cfg *config.ConversionsSettings) *Conversions {
-	Cfg = cfg
+func New(inputCfg *config.ConversionsSettings) *Conversions {
+	cfg = remapConversionsConfig(inputCfg)
 
 	return &Conversions{
 		name: ID,
 		desc: "Lint conversions rules",
-		cfg:  cfg,
+		cfg:  inputCfg,
 	}
 }
 
@@ -44,4 +51,16 @@ func (o *Conversions) Name() string {
 
 func (o *Conversions) Desc() string {
 	return o.desc
+}
+
+func remapConversionsConfig(input *config.ConversionsSettings) *ConversionsSettings {
+	cfg := &ConversionsSettings{
+		FirstVersion: input.FirstVersion,
+	}
+
+	for _, module := range input.SkipCheckModule {
+		cfg.SkipCheckModule[module] = struct{}{}
+	}
+
+	return cfg
 }
