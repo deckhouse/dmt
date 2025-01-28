@@ -26,25 +26,21 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
-func dirExists(moduleName, modulePath string, path ...string) (bool, *errors.LintRuleError) {
+func dirExists(moduleName, modulePath string, path ...string) (bool, *errors.LintRuleErrorsList) {
+	result := errors.NewLinterRuleList(ID, moduleName)
 	searchPath := filepath.Join(append([]string{modulePath}, path...)...)
 	info, err := os.Stat(searchPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return false, nil
 		}
-		return false, errors.NewLintRuleError(
-			ID,
-			moduleName,
-			modulePath,
-			path,
-			"%v", err.Error(),
-		)
+		return false, result.WithObjectID(modulePath).AddF("%v", err.Error())
 	}
 	return info.IsDir(), nil
 }
 
-func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string) *errors.LintRuleError {
+func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList(ID, moduleName)
 	if slices.Contains(Cfg.SkipModuleChecks, moduleName) {
 		return nil
 	}
@@ -65,21 +61,13 @@ func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string) *error
 
 	searchingFilePath := filepath.Join(modulePath, "templates", "monitoring.yaml")
 	if info, _ := os.Stat(searchingFilePath); info == nil {
-		return errors.NewLintRuleError(
-			ID,
-			moduleName,
-			modulePath,
-			searchingFilePath,
-			"Module with the 'monitoring' folder should have the 'templates/monitoring.yaml' file",
-		)
+		return result.WithObjectID(modulePath).
+			AddWithValue(searchingFilePath, "Module with the 'monitoring' folder should have the 'templates/monitoring.yaml' file")
 	}
 
 	content, err := os.ReadFile(searchingFilePath)
 	if err != nil {
-		return errors.NewLintRuleError(
-			ID,
-			moduleName,
-			modulePath,
+		return result.WithObjectID(modulePath).AddWithValue(
 			searchingFilePath,
 			"%v",
 			err.Error(),
@@ -88,11 +76,7 @@ func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string) *error
 
 	desiredContent := buildDesiredContent(dashboardsEx, rulesEx)
 	if !isContentMatching(string(content), desiredContent, moduleNamespace, rulesEx) {
-		return errors.NewLintRuleError(
-			ID,
-			searchingFilePath,
-			modulePath,
-			nil,
+		return result.WithObjectID(modulePath).AddF(
 			"The content of the 'templates/monitoring.yaml' should be equal to:\n%s\nGot:\n%s",
 			fmt.Sprintf(desiredContent, "YOUR NAMESPACE TO DEPLOY RULES: d8-monitoring, d8-system or module namespaces"),
 			string(content),

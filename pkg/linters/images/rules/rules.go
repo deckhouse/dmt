@@ -28,28 +28,23 @@ const (
 
 var Cfg *config.ImageSettings
 
-func chartModuleRule(name, path string) errors.LintRuleErrorsList {
-	lintRuleErrorsList := errors.LintRuleErrorsList{}
-	lintError := errors.NewLintRuleError(
-		ID,
-		name,
-		name,
-		nil,
-		"Module does not contain valid %q or %q file",
-		ChartConfigFilename, ModuleConfigFilename,
-	)
-
+func chartModuleRule(name, path string) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList(ID, name).WithObjectID(name)
 	stat, err := os.Stat(filepath.Join(path, ChartConfigFilename))
 	if err != nil {
 		stat, err = os.Stat(filepath.Join(path, ModuleConfigFilename))
 		if err != nil {
-			lintRuleErrorsList.Add(lintError)
+			result.AddF(
+				"Module does not contain valid %q or %q file",
+				ChartConfigFilename, ModuleConfigFilename)
 		}
 	}
 
 	yamlFile, err := os.ReadFile(filepath.Join(path, stat.Name()))
 	if err != nil {
-		lintRuleErrorsList.Add(lintError)
+		result.AddF(
+			"Module does not contain valid %q or %q file",
+			ChartConfigFilename, ModuleConfigFilename)
 	}
 
 	var chart struct {
@@ -57,25 +52,22 @@ func chartModuleRule(name, path string) errors.LintRuleErrorsList {
 	}
 	err = yaml.Unmarshal(yamlFile, &chart)
 	if err != nil {
-		lintRuleErrorsList.Add(lintError)
+		result.AddF(
+			"Module does not contain valid %q or %q file",
+			ChartConfigFilename, ModuleConfigFilename)
 	}
 
 	if chart.Name == "" {
-		lintRuleErrorsList.Add(lintError)
+		result.AddF(
+			"Module does not contain valid %q or %q file",
+			ChartConfigFilename, ModuleConfigFilename)
 	}
 
 	if !IsExistsOnFilesystem(path, openapiDir) {
-		lintRuleErrorsList.Add(errors.NewLintRuleError(
-			ID,
-			name,
-			name,
-			nil,
-			"Module does not contain %s folder",
-			openapiDir,
-		))
+		result.AddF("Module does not contain %q folder", openapiDir)
 	}
 
-	return lintRuleErrorsList
+	return result
 }
 
 func IsExistsOnFilesystem(parts ...string) bool {
@@ -83,8 +75,8 @@ func IsExistsOnFilesystem(parts ...string) bool {
 	return err == nil
 }
 
-func ApplyImagesRules(m *module.Module) errors.LintRuleErrorsList {
-	result := errors.LintRuleErrorsList{}
+func ApplyImagesRules(m *module.Module) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList(ID, m.GetName())
 	result.Merge(CheckImageNamesInDockerAndWerfFiles(m.GetName(), m.GetPath()))
 	result.Merge(chartModuleRule(m.GetName(), m.GetPath()))
 

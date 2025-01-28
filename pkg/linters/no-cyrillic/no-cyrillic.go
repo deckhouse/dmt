@@ -53,22 +53,20 @@ func New(cfg *config.NoCyrillicSettings) *NoCyrillic {
 	}
 }
 
-func (o *NoCyrillic) Run(m *module.Module) errors.LintRuleErrorsList {
-	result := errors.LintRuleErrorsList{}
+func (o *NoCyrillic) Run(m *module.Module) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList("no-cyrillic", m.GetName())
+
 	if m.GetPath() == "" {
 		return result
 	}
 
 	files, err := o.getFiles(m.GetPath())
 	if err != nil {
-		result.Add(errors.NewLintRuleError(
-			"no-cyrillic",
-			"",
-			m.GetName(),
+		result.AddWithValue(
 			[]string{err.Error()},
 			"error in `%s` module",
-			m.GetName()),
-		)
+			m.GetName())
+
 		return result
 	}
 
@@ -92,28 +90,20 @@ func (o *NoCyrillic) Run(m *module.Module) errors.LintRuleErrorsList {
 
 		lines, err := getFileContent(fileName)
 		if err != nil {
-			result.Add(errors.NewLintRuleError(
-				"no-cyrillic",
-				"",
-				m.GetName(),
+			result.AddWithValue(
 				[]string{err.Error()},
 				"error in `%s` module",
-				m.GetName()),
-			)
+				m.GetName())
 			return result
 		}
 
 		cyrMsg, hasCyr := checkCyrillicLettersInArray(lines)
 		fName, _ := strings.CutPrefix(fileName, m.GetPath())
 		if hasCyr {
-			result.Add(errors.NewLintRuleError(
-				"no-cyrillic",
-				fName,
-				m.GetName(),
+			result.WithObjectID(fName).AddWithValue(
 				addPrefix(strings.Split(cyrMsg, "\n"), "\t"),
 				"errors in `%s` module",
-				m.GetName(),
-			))
+				m.GetName())
 		}
 	}
 

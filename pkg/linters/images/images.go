@@ -23,8 +23,8 @@ func New(cfg *config.ImageSettings) *Images {
 	}
 }
 
-func (*Images) Run(m *module.Module) errors.LintRuleErrorsList {
-	var result errors.LintRuleErrorsList
+func (*Images) Run(m *module.Module) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList("images", m.GetName())
 	if m == nil {
 		return result
 	}

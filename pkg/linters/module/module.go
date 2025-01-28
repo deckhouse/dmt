@@ -26,8 +26,8 @@ func New(cfg *config.ModuleSettings) *Module {
 	}
 }
 
-func (*Module) Run(m *module.Module) errors.LintRuleErrorsList {
-	result := errors.LintRuleErrorsList{}
+func (*Module) Run(m *module.Module) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList(ID, m.GetName())
 	if m == nil {
 		return result
 	}

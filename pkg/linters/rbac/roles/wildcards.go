@@ -30,7 +30,7 @@ import (
 
 // ObjectRolesWildcard is a linter for checking the presence
 // of a wildcard in a Role and ClusterRole
-func ObjectRolesWildcard(m *module.Module, object storage.StoreObject) *errors.LintRuleError {
+func ObjectRolesWildcard(m *module.Module, object storage.StoreObject) *errors.LintRuleErrorsList {
 	// check only `rbac-for-us.yaml` files
 	if !strings.HasSuffix(object.ShortPath(), "rbac-for-us.yaml") {
 		return nil
@@ -46,7 +46,8 @@ func ObjectRolesWildcard(m *module.Module, object storage.StoreObject) *errors.L
 	}
 }
 
-func checkRoles(m *module.Module, object storage.StoreObject) *errors.LintRuleError {
+func checkRoles(m *module.Module, object storage.StoreObject) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList(ID, m.GetName())
 	// check rbac-proxy for skip
 	for path, rules := range Cfg.SkipCheckWildcards {
 		if strings.EqualFold(object.Path, path) {
@@ -61,7 +62,8 @@ func checkRoles(m *module.Module, object storage.StoreObject) *errors.LintRuleEr
 	role := new(k8SRbac.Role)
 	err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), role)
 	if err != nil {
-		return newConvertError(object, err)
+		return result.WithObjectID(object.Identity()).AddF(
+			"Cannot convert object to %s: %v", object.Unstructured.GetKind(), err)
 	}
 
 	for _, rule := range role.Rules {
@@ -76,11 +78,7 @@ func checkRoles(m *module.Module, object storage.StoreObject) *errors.LintRuleEr
 			objs = append(objs, "verbs")
 		}
 		if len(objs) > 0 {
-			return errors.NewLintRuleError(
-				ID,
-				object.Identity(),
-				m.GetName(),
-				nil,
+			return result.WithObjectID(object.Identity()).AddF(
 				"%s contains a wildcards. Replace them with an explicit list of resources",
 				strings.Join(objs, ", "),
 			)

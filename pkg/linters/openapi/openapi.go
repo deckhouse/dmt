@@ -6,10 +6,6 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
-const (
-	ID = "openapi"
-)
-
 // OpenAPI linter
 type OpenAPI struct {
 	name, desc string
@@ -24,13 +20,14 @@ func New(cfg *config.OpenAPISettings) *OpenAPI {
 	}
 }
 
-func (o *OpenAPI) Run(m *module.Module) errors.LintRuleErrorsList {
+func (o *OpenAPI) Run(m *module.Module) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList("openapi", m.GetName())
 	if m.GetPath() == "" {
-		return errors.LintRuleErrorsList{}
+		return result
 	}
 	apiFiles, err := GetOpenAPIYAMLFiles(m.GetPath())
 	if err != nil {
-		return errors.LintRuleErrorsList{}
+		return result
 	}
 
 	filesC := make(chan fileValidation, len(apiFiles))
@@ -45,17 +42,10 @@ func (o *OpenAPI) Run(m *module.Module) errors.LintRuleErrorsList {
 	}
 	close(filesC)
 
-	var result errors.LintRuleErrorsList
 	for res := range resultC {
 		if res.validationError != nil {
-			result.Add(errors.NewLintRuleError(
-				ID,
-				res.filePath,
-				m.GetName(),
-				res.validationError,
-				"errors in `%s` module",
-				m.GetName(),
-			))
+			result.WithObjectID(res.filePath).
+				AddWithValue(res.validationError.Error(), "errors in `%s` module", m.GetName())
 		}
 	}
 

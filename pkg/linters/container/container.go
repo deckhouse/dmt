@@ -28,8 +28,8 @@ func New(cfg *config.ContainerSettings) *Container {
 	}
 }
 
-func (*Container) Run(m *module.Module) errors.LintRuleErrorsList {
-	result := errors.LintRuleErrorsList{}
+func (*Container) Run(m *module.Module) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList(ID, m.GetName())
 	if m == nil {
 		return result
 	}

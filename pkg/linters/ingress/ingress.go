@@ -26,14 +26,14 @@ func New(cfg *config.IngressSettings) *Ingress {
 	}
 }
 
-func (*Ingress) Run(m *module.Module) errors.LintRuleErrorsList {
-	result := errors.LintRuleErrorsList{}
+func (*Ingress) Run(m *module.Module) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList(ID, m.GetName())
 	if m == nil {
-		return result
+		return nil
 	}
 
 	for _, object := range m.GetStorage() {
-		result.Add(ingressCopyCustomCertificateRule(m, object))
+		result.Merge(ingressCopyCustomCertificateRule(m, object))
 	}
 
 	return result

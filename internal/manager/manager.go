@@ -39,7 +39,7 @@ type Manager struct {
 	Linters LinterList
 	Modules []*module.Module
 
-	errors errors.LintRuleErrorsList
+	errors *errors.LintRuleErrorsList
 }
 
 func NewManager(dirs []string, cfg *config.Config) *Manager {
@@ -78,22 +78,23 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 		paths = append(paths, result...)
 	}
 
+	// TODO: add moduleName to errors
+	errorsList := errors.NewLinterRuleList("manager", "mdl")
+
 	for i := range paths {
 		moduleName := filepath.Base(paths[i])
 		logger.DebugF("Found `%s` module", moduleName)
 		mdl, err := module.NewModule(paths[i])
 		if err != nil {
-			m.errors.Add(&errors.LintRuleError{
-				Text:     "cannot create module",
-				ID:       "manager",
-				Value:    err,
-				ObjectID: paths[i],
-				Module:   moduleName,
-			})
+			errorsList.
+				WithObjectID(paths[i]).
+				AddWithValue(err.Error(), "cannot create module `%s`", moduleName)
 			continue
 		}
 		m.Modules = append(m.Modules, mdl)
 	}
+
+	m.errors = errorsList
 
 	logger.InfoF("Found %d modules", len(m.Modules))
 
@@ -103,7 +104,7 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 func (m *Manager) Run() errors.LintRuleErrorsList {
 	result := errors.LintRuleErrorsList{}
 
-	var ch = make(chan errors.LintRuleErrorsList)
+	var ch = make(chan *errors.LintRuleErrorsList)
 	go func() {
 		var g = pool.New().WithMaxGoroutines(flags.LintersLimit)
 		for i := range m.Modules {

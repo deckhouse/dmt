@@ -14,7 +14,8 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
-func ingressCopyCustomCertificateRule(m *module.Module, object storage.StoreObject) *errors.LintRuleError {
+func ingressCopyCustomCertificateRule(m *module.Module, object storage.StoreObject) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList(ID, m.GetName())
 	const (
 		copyCustomCertificateImport = `"github.com/deckhouse/deckhouse/go_lib/hooks/copy_custom_certificate"`
 	)
@@ -37,11 +38,7 @@ func ingressCopyCustomCertificateRule(m *module.Module, object storage.StoreObje
 	}
 
 	if _, ok := imports[copyCustomCertificateImport]; !ok {
-		return errors.NewLintRuleError(
-			ID,
-			m.GetName(),
-			m.GetName(),
-			nil,
+		return result.WithObjectID(m.GetName()).Addln(
 			"Ingress does not contain copy_custom_certificate hook",
 		)
 	}
