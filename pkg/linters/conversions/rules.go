@@ -42,6 +42,15 @@ func checkModuleYaml(moduleName, modulePath string) errors.LintRuleErrorsList {
 
 	stat, err := os.Stat(folder)
 	if err != nil && !os.IsNotExist(err) {
+		result.Add(errors.NewLintRuleError(
+			ID,
+			moduleName,
+			moduleName,
+			nil,
+			"Cannot stat conversions folder %q: %s",
+			conversionsFolder, err.Error(),
+		))
+
 		return result
 	}
 
@@ -51,7 +60,7 @@ func checkModuleYaml(moduleName, modulePath string) errors.LintRuleErrorsList {
 			moduleName,
 			moduleName,
 			nil,
-			"Cannot stat conversions folder %q: %s",
+			"Conversions folder is not exist, at path %q: %s",
 			conversionsFolder, err.Error(),
 		))
 
@@ -165,29 +174,7 @@ func parseConversion(path string) (*conversion, error) {
 func conversionCheck(c *conversion, moduleName, path string) errors.LintRuleErrorsList {
 	result := errors.LintRuleErrorsList{}
 
-	if c.Description != nil {
-		if c.Description.Russian == "" {
-			result.Add(errors.NewLintRuleError(
-				ID,
-				moduleName,
-				moduleName,
-				nil,
-				"No description for conversion: russian, filename: %q",
-				filepath.Base(path),
-			))
-		}
-
-		if c.Description.English == "" {
-			result.Add(errors.NewLintRuleError(
-				ID,
-				moduleName,
-				moduleName,
-				nil,
-				"No description for conversion: russian, filename: %q",
-				filepath.Base(path),
-			))
-		}
-	}
+	result.Merge(descriptionCheck(c, moduleName, path))
 
 	if c.Version == nil {
 		result.Add(errors.NewLintRuleError(
@@ -200,6 +187,47 @@ func conversionCheck(c *conversion, moduleName, path string) errors.LintRuleErro
 		))
 
 		return result
+	}
+
+	return result
+}
+
+func descriptionCheck(c *conversion, moduleName, path string) errors.LintRuleErrorsList {
+	result := errors.LintRuleErrorsList{}
+
+	if c.Description == nil {
+		result.Add(errors.NewLintRuleError(
+			ID,
+			moduleName,
+			moduleName,
+			nil,
+			"Description is empty, filename: %q",
+			filepath.Base(path),
+		))
+
+		return result
+	}
+
+	if c.Description.Russian == "" {
+		result.Add(errors.NewLintRuleError(
+			ID,
+			moduleName,
+			moduleName,
+			nil,
+			"No description for conversion: russian, filename: %q",
+			filepath.Base(path),
+		))
+	}
+
+	if c.Description.English == "" {
+		result.Add(errors.NewLintRuleError(
+			ID,
+			moduleName,
+			moduleName,
+			nil,
+			"No description for conversion: russian, filename: %q",
+			filepath.Base(path),
+		))
 	}
 
 	return result
