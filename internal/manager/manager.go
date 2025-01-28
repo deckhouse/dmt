@@ -97,11 +97,11 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 		mdl, err := module.NewModule(paths[i])
 		if err != nil {
 			m.errors.Add(&errors.LintRuleError{
-				Text:     "cannot create module",
-				ID:       "manager",
-				Value:    err,
-				ObjectID: paths[i],
-				Module:   moduleName,
+				Text:        "cannot create module",
+				ID:          "manager",
+				ObjectValue: err,
+				ObjectID:    paths[i],
+				Module:      moduleName,
 			})
 			continue
 		}

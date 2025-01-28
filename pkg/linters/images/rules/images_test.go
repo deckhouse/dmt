@@ -15,7 +15,7 @@ func TestWerfFileLint(t *testing.T) {
 		lerr := lintOneDockerfileOrWerfYAML("testmodule", "testdata/werf.inc.yaml", "testdata")
 		assert.Len(t, lerr, 3)
 		for _, l := range lerr {
-			switch l.Value {
+			switch l.ObjectValue {
 			case "$.Images.BASE_ALT_P11":
 				assert.Contains(t, l.Text, "Use `from:` or `fromImage:` and `final: false` directives instead of `artifact:`")
 			case "$.Images.FOOBAR", "$.Images.FOOBAZ":

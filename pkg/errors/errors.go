@@ -12,11 +12,11 @@ import (
 )
 
 type LintRuleError struct {
-	Text     string
-	ID       string
-	ObjectID string
-	Value    any
-	Module   string
+	ID          string
+	Module      string
+	ObjectID    string
+	ObjectValue any
+	Text        string
 }
 
 func (l *LintRuleError) EqualsTo(candidate *LintRuleError) bool {
@@ -25,16 +25,129 @@ func (l *LintRuleError) EqualsTo(candidate *LintRuleError) bool {
 
 func NewLintRuleError(id, objectID, module string, value any, template string, a ...any) *LintRuleError {
 	return &LintRuleError{
-		ObjectID: objectID,
-		Value:    value,
-		Text:     fmt.Sprintf(template, a...),
-		ID:       strings.ToLower(id),
-		Module:   module,
+		ObjectID:    objectID,
+		ObjectValue: value,
+		Text:        fmt.Sprintf(template, a...),
+		ID:          strings.ToLower(id),
+		Module:      module,
 	}
 }
 
 type LintRuleErrorsList struct {
 	data []*LintRuleError
+
+	linterID string
+	moduleID string
+	objectID string
+}
+
+var (
+	ErrLinterIDIsEmpty = errors.New("linter ID is empty")
+	ErrModuleIDIsEmpty = errors.New("module ID is empty")
+	ErrObjectIDIsEmpty = errors.New("object ID is empty")
+)
+
+func (l *LintRuleErrorsList) Validate() error {
+	var errs error
+
+	if l.linterID == "" {
+		errs = errors.Join(errs, ErrLinterIDIsEmpty)
+	}
+
+	if l.moduleID == "" {
+		errs = errors.Join(errs, ErrModuleIDIsEmpty)
+	}
+
+	if l.objectID == "" {
+		errs = errors.Join(errs, ErrObjectIDIsEmpty)
+	}
+
+	return errs
+}
+
+// if you change linter ID - all settings must be reset
+func (l *LintRuleErrorsList) WithLinterID(id string) *LintRuleErrorsList {
+	return &LintRuleErrorsList{
+		data:     l.data,
+		linterID: id,
+	}
+}
+
+// if you change module ID - all settings except linter ID must be reset
+func (l *LintRuleErrorsList) WithModuleID(module string) *LintRuleErrorsList {
+	return &LintRuleErrorsList{
+		data:     l.data,
+		linterID: l.linterID,
+		moduleID: module,
+	}
+}
+
+// if you change module ID - all settings except linter and module ID must be reset
+func (l *LintRuleErrorsList) WithObjectID(objectID string) *LintRuleErrorsList {
+	return &LintRuleErrorsList{
+		data:     l.data,
+		linterID: l.linterID,
+		moduleID: l.moduleID,
+		objectID: objectID,
+	}
+}
+
+func (l *LintRuleErrorsList) AddWithValue(value any, template string, a ...any) {
+	if err := l.Validate(); err != nil {
+		panic(err)
+	}
+
+	e := &LintRuleError{
+		ID:          strings.ToLower(l.linterID),
+		Module:      l.moduleID,
+		ObjectID:    l.objectID,
+		ObjectValue: value,
+		Text:        fmt.Sprintf(template, a...),
+	}
+
+	if slices.ContainsFunc(l.data, e.EqualsTo) {
+		return
+	}
+
+	l.data = append(l.data, e)
+}
+
+func (l *LintRuleErrorsList) AddF(template string, a ...any) {
+	if err := l.Validate(); err != nil {
+		panic(err)
+	}
+
+	e := &LintRuleError{
+		ID:       strings.ToLower(l.linterID),
+		Module:   l.moduleID,
+		ObjectID: l.objectID,
+		Text:     fmt.Sprintf(template, a...),
+	}
+
+	if slices.ContainsFunc(l.data, e.EqualsTo) {
+		return
+	}
+
+	l.data = append(l.data, e)
+}
+
+func (l *LintRuleErrorsList) Addln(str string) {
+	if err := l.Validate(); err != nil {
+		panic(err)
+	}
+
+	e := &LintRuleError{
+		ID:       strings.ToLower(l.linterID),
+		Module:   l.moduleID,
+		ObjectID: l.objectID,
+		Text:     str,
+	}
+
+	if slices.ContainsFunc(l.data, e.EqualsTo) {
+		return
+	}
+
+	l.data = append(l.data, e)
 }
 
 // Add adds new error to the list if it doesn't exist yet.
@@ -92,8 +205,8 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 			err.Module,
 		))
 
-		if err.Value != nil {
-			value := fmt.Sprintf("%v", err.Value)
+		if err.ObjectValue != nil {
+			value := fmt.Sprintf("%v", err.ObjectValue)
 			builder.WriteString(fmt.Sprintf("\tValue\t- %s\n", value))
 		}
 		builder.WriteString("\n")
