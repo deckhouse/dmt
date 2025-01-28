@@ -33,12 +33,24 @@ func NewLintRuleError(id, objectID, module string, value any, template string, a
 	}
 }
 
+func NewLinterRuleList() *LintRuleErrorsList {
+	return &LintRuleErrorsList{
+		storage: new(errStorage),
+	}
+}
+
 type LintRuleErrorsList struct {
 	data []*LintRuleError
+
+	storage *errStorage
 
 	linterID string
 	moduleID string
 	objectID string
+}
+
+type errStorage struct {
+	data []*LintRuleError
 }
 
 var (
@@ -65,10 +77,14 @@ func (l *LintRuleErrorsList) Validate() error {
 	return errs
 }
 
+func (l *LintRuleErrorsList) DumpFromStorage() {
+	l.data = l.storage.data
+}
+
 // if you change linter ID - all settings must be reset
 func (l *LintRuleErrorsList) WithLinterID(id string) *LintRuleErrorsList {
 	return &LintRuleErrorsList{
-		data:     l.data,
+		storage:  l.storage,
 		linterID: id,
 	}
 }
@@ -76,7 +92,7 @@ func (l *LintRuleErrorsList) WithLinterID(id string) *LintRuleErrorsList {
 // if you change module ID - all settings except linter ID must be reset
 func (l *LintRuleErrorsList) WithModuleID(module string) *LintRuleErrorsList {
 	return &LintRuleErrorsList{
-		data:     l.data,
+		storage:  l.storage,
 		linterID: l.linterID,
 		moduleID: module,
 	}
@@ -85,14 +101,30 @@ func (l *LintRuleErrorsList) WithModuleID(module string) *LintRuleErrorsList {
 // if you change module ID - all settings except linter and module ID must be reset
 func (l *LintRuleErrorsList) WithObjectID(objectID string) *LintRuleErrorsList {
 	return &LintRuleErrorsList{
-		data:     l.data,
+		storage:  l.storage,
 		linterID: l.linterID,
 		moduleID: l.moduleID,
 		objectID: objectID,
 	}
 }
 
-func (l *LintRuleErrorsList) AddWithValue(value any, template string, a ...any) {
+func (l *LintRuleErrorsList) AddWithValue(value any, template string, a ...any) *LintRuleErrorsList {
+	return l.add(value, fmt.Sprintf(template, a...))
+}
+
+func (l *LintRuleErrorsList) AddF(template string, a ...any) *LintRuleErrorsList {
+	return l.add(nil, fmt.Sprintf(template, a...))
+}
+
+func (l *LintRuleErrorsList) Addln(str string) *LintRuleErrorsList {
+	return l.add(nil, str)
+}
+
+func (l *LintRuleErrorsList) AddErr(err error) *LintRuleErrorsList {
+	return l.add(nil, err.Error())
+}
+
+func (l *LintRuleErrorsList) add(value any, str string) *LintRuleErrorsList {
 	if err := l.Validate(); err != nil {
 		panic(err)
 	}
@@ -102,52 +134,16 @@ func (l *LintRuleErrorsList) AddWithValue(value any, template string, a ...any) 
 		Module:      l.moduleID,
 		ObjectID:    l.objectID,
 		ObjectValue: value,
-		Text:        fmt.Sprintf(template, a...),
+		Text:        str,
 	}
 
 	if slices.ContainsFunc(l.data, e.EqualsTo) {
-		return
+		return l
 	}
 
-	l.data = append(l.data, e)
-}
+	l.storage.data = append(l.storage.data, e)
 
-func (l *LintRuleErrorsList) AddF(template string, a ...any) {
-	if err := l.Validate(); err != nil {
-		panic(err)
-	}
-
-	e := &LintRuleError{
-		ID:       strings.ToLower(l.linterID),
-		Module:   l.moduleID,
-		ObjectID: l.objectID,
-		Text:     fmt.Sprintf(template, a...),
-	}
-
-	if slices.ContainsFunc(l.data, e.EqualsTo) {
-		return
-	}
-
-	l.data = append(l.data, e)
-}
-
-func (l *LintRuleErrorsList) Addln(str string) {
-	if err := l.Validate(); err != nil {
-		panic(err)
-	}
-
-	e := &LintRuleError{
-		ID:       strings.ToLower(l.linterID),
-		Module:   l.moduleID,
-		ObjectID: l.objectID,
-		Text:     str,
-	}
-
-	if slices.ContainsFunc(l.data, e.EqualsTo) {
-		return
-	}
-
-	l.data = append(l.data, e)
+	return l
 }
 
 // Add adds new error to the list if it doesn't exist yet.
