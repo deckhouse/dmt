@@ -54,13 +54,13 @@ func (o *Conversions) Desc() string {
 }
 
 func remapConversionsConfig(input *config.ConversionsSettings) *ConversionsSettings {
-	cfg := &ConversionsSettings{
+	newCfg := &ConversionsSettings{
 		FirstVersion: input.FirstVersion,
 	}
 
 	for _, module := range input.SkipCheckModule {
-		cfg.SkipCheckModule[module] = struct{}{}
+		newCfg.SkipCheckModule[module] = struct{}{}
 	}
 
-	return cfg
+	return newCfg
 }
