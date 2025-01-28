@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/deckhouse/dmt/pkg/linters/ingress"
 	k8s_resources "github.com/deckhouse/dmt/pkg/linters/k8s-resources"
@@ -40,8 +39,6 @@ type Manager struct {
 	Linters LinterList
 	Modules []*module.Module
 
-	lintersMap map[string]Linter
-
 	errors errors.LintRuleErrorsList
 }
 
@@ -63,16 +60,6 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 		monitoring.New(&cfg.LintersSettings.Monitoring),
 		ingress.New(&cfg.LintersSettings.Ingress),
 		moduleLinter.New(&cfg.LintersSettings.Module),
-	}
-
-	m.lintersMap = make(map[string]Linter)
-	for _, linter := range m.Linters {
-		m.lintersMap[strings.ToLower(linter.Name())] = linter
-	}
-
-	m.Linters = make(LinterList, 0)
-	for _, linter := range m.lintersMap {
-		m.Linters = append(m.Linters, linter)
 	}
 
 	var paths []string
