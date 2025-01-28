@@ -88,6 +88,8 @@ func checkModuleYaml(moduleName, modulePath string) errors.LintRuleErrorsList {
 			return nil
 		}
 
+		// TODO: return error that name is matched and is dir
+
 		c, err := parseConversion(path)
 		if err != nil {
 			result.Add(errors.NewLintRuleError(
