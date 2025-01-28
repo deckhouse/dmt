@@ -27,16 +27,24 @@ func New(cfg *config.LicenseSettings) *Copyright {
 	}
 }
 
-func (o *Copyright) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
+func (o *Copyright) Run(m *module.Module) errors.LintRuleErrorsList {
+	var result errors.LintRuleErrorsList
+
 	if m.GetPath() == "" {
-		return errors.LintRuleErrorsList{}, nil
+		return result
 	}
 	files, err := getFiles(m.GetPath())
 	if err != nil {
-		return errors.LintRuleErrorsList{}, err
+		result.Add(errors.NewLintRuleError(
+			"copyright",
+			m.GetPath(),
+			m.GetName(),
+			err,
+			"error getting files in `%s` module",
+			m.GetName()),
+		)
+		return result
 	}
-
-	var result errors.LintRuleErrorsList
 
 	result.Merge(OssModuleRule(m.GetName(), m.GetPath()))
 
@@ -61,7 +69,7 @@ func (o *Copyright) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 		}
 	}
 
-	return result, nil
+	return result
 }
 
 func getFiles(rootPath string) ([]string, error) {

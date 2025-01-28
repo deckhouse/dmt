@@ -38,10 +38,10 @@ func New(cfg *config.K8SResourcesSettings) *Object {
 	}
 }
 
-func (*Object) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
+func (*Object) Run(m *module.Module) errors.LintRuleErrorsList {
 	result := errors.LintRuleErrorsList{}
 	if m == nil {
-		return result, nil
+		return result
 	}
 
 	name := m.GetName()
@@ -58,7 +58,7 @@ func (*Object) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 		result.Merge(CrdsModuleRule(m.GetName(), filepath.Join(m.GetPath(), CrdsDir)))
 	}
 
-	return result, nil
+	return result
 }
 
 func (o *Object) Name() string {

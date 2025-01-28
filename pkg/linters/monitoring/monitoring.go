@@ -26,10 +26,10 @@ func New(cfg *config.MonitoringSettings) *Monitoring {
 	}
 }
 
-func (*Monitoring) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
+func (*Monitoring) Run(m *module.Module) errors.LintRuleErrorsList {
 	result := errors.LintRuleErrorsList{}
 	if m == nil {
-		return result, nil
+		return result
 	}
 
 	result.Add(MonitoringModuleRule(m.GetName(), m.GetPath(), m.GetNamespace()))
@@ -39,7 +39,7 @@ func (*Monitoring) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 		result.Add(PromtoolRuleCheck(m, object))
 	}
 
-	return result, nil
+	return result
 }
 
 func (o *Monitoring) Name() string {

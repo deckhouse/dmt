@@ -30,7 +30,7 @@ func New(cfg *config.ProbesSettings) *Probes {
 	}
 }
 
-func (*Probes) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
+func (*Probes) Run(m *module.Module) errors.LintRuleErrorsList {
 	var result errors.LintRuleErrorsList
 	var err error
 	var ch = make(chan errors.LintRuleErrorsList)
@@ -55,7 +55,17 @@ func (*Probes) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 		result.Merge(er)
 	}
 
-	return result, err
+	if err != nil {
+		result.Add(errors.NewLintRuleError(
+			"probes",
+			"module = "+m.GetName(),
+			m.GetName(),
+			err.Error(),
+			"Error in probes linter",
+		))
+	}
+
+	return result
 }
 
 func (o *Probes) Name() string {

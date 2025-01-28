@@ -26,17 +26,17 @@ func New(cfg *config.IngressSettings) *Ingress {
 	}
 }
 
-func (*Ingress) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
+func (*Ingress) Run(m *module.Module) errors.LintRuleErrorsList {
 	result := errors.LintRuleErrorsList{}
 	if m == nil {
-		return result, nil
+		return result
 	}
 
 	for _, object := range m.GetStorage() {
 		result.Add(ingressCopyCustomCertificateRule(m, object))
 	}
 
-	return result, nil
+	return result
 }
 
 func (o *Ingress) Name() string {

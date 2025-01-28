@@ -23,10 +23,10 @@ func New(cfg *config.RbacSettings) *Rbac {
 	}
 }
 
-func (*Rbac) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
+func (*Rbac) Run(m *module.Module) errors.LintRuleErrorsList {
 	result := errors.LintRuleErrorsList{}
 	if m == nil {
-		return result, nil
+		return result
 	}
 
 	for _, object := range m.GetStorage() {
@@ -36,7 +36,7 @@ func (*Rbac) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 		result.Add(roles.ObjectRolesWildcard(m, object))
 	}
 
-	return result, nil
+	return result
 }
 
 func (o *Rbac) Name() string {

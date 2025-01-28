@@ -111,11 +111,7 @@ func (m *Manager) Run() errors.LintRuleErrorsList {
 			for j := range m.Linters {
 				g.Go(func() {
 					logger.DebugF("Running linter `%s` on module `%s`", m.Linters[j].Name(), m.Modules[i].GetName())
-					errs, err := m.Linters[j].Run(m.Modules[i])
-					if err != nil {
-						logger.ErrorF("Error running linter `%s`: %s\n", m.Linters[j].Name(), err)
-						return
-					}
+					errs := m.Linters[j].Run(m.Modules[i])
 					if errs.ConvertToError() != nil {
 						ch <- errs
 					}

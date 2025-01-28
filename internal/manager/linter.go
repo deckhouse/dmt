@@ -6,9 +6,8 @@ import (
 )
 
 type Linter interface {
-	Run(m *module.Module) (errors.LintRuleErrorsList, error)
+	Run(m *module.Module) errors.LintRuleErrorsList
 	Name() string
-	Desc() string
 }
 
 type LinterList []Linter

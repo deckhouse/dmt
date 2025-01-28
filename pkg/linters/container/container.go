@@ -28,17 +28,17 @@ func New(cfg *config.ContainerSettings) *Container {
 	}
 }
 
-func (*Container) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
+func (*Container) Run(m *module.Module) errors.LintRuleErrorsList {
 	result := errors.LintRuleErrorsList{}
 	if m == nil {
-		return result, nil
+		return result
 	}
 
 	for _, object := range m.GetStorage() {
 		result.Merge(applyContainerRules(m, object))
 	}
 
-	return result, nil
+	return result
 }
 
 func (o *Container) Name() string {
