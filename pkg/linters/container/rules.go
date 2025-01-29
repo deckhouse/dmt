@@ -80,7 +80,7 @@ func checkForDuplicates[T any](md string, object storage.StoreObject, items []T,
 		key := keyFunc(item)
 		if _, ok := seen[key]; ok {
 			return errors.NewLinterRuleList(ID, md).WithObjectID(object.Identity()).
-				Addln(errMsg)
+				Add(errMsg)
 		}
 		seen[key] = struct{}{}
 	}
@@ -121,19 +121,19 @@ func containerImageDigestCheck(md string, object storage.StoreObject, containers
 		match := re.FindStringSubmatch(c.Image)
 		if len(match) == 0 {
 			return errors.NewLinterRuleList(ID, md).
-				WithObjectID(object.Identity() + "; container = " + c.Name).Addln("Cannot parse repository from image")
+				WithObjectID(object.Identity() + "; container = " + c.Name).Add("Cannot parse repository from image")
 		}
 		repo, err := name.NewRepository(match[re.SubexpIndex("repository")])
 		if err != nil {
 			return errors.NewLinterRuleList(ID, md).
 				WithObjectID(object.Identity()+"; container = "+c.Name).
-				AddF("Cannot parse repository from image: %s", c.Image)
+				Add("Cannot parse repository from image: %s", c.Image)
 		}
 
 		if repo.Name() != defaultRegistry {
 			return errors.NewLinterRuleList(ID, md).
 				WithObjectID(object.Identity()+"; container = "+c.Name).
-				AddF("All images must be deployed from the same default registry: %s current: %s",
+				Add("All images must be deployed from the same default registry: %s current: %s",
 					defaultRegistry,
 					repo.RepositoryStr())
 		}
@@ -166,7 +166,7 @@ func containerStorageEphemeral(md string, object storage.StoreObject, containers
 		if c.Resources.Requests.StorageEphemeral() == nil || c.Resources.Requests.StorageEphemeral().Value() == 0 {
 			return errors.NewLinterRuleList(ID, md).
 				WithObjectID(object.Identity() + "; container = " + c.Name).
-				Addln("Ephemeral storage for container is not defined in Resources.Requests")
+				Add("Ephemeral storage for container is not defined in Resources.Requests")
 		}
 	}
 	return nil
@@ -181,7 +181,7 @@ func containerSecurityContext(md string, object storage.StoreObject, containers 
 		if c.SecurityContext == nil {
 			return errors.NewLinterRuleList(ID, md).
 				WithObjectID(object.Identity() + "; container = " + c.Name).
-				Addln("Container SecurityContext is not defined")
+				Add("Container SecurityContext is not defined")
 		}
 	}
 	return nil

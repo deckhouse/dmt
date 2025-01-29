@@ -37,18 +37,18 @@ func ObjectUserAuthzClusterRolePath(m *module.Module, object storage.StoreObject
 	shortPath := object.ShortPath()
 	if shortPath == UserAuthzClusterRolePath {
 		if objectKind != "ClusterRole" {
-			return result.WithObjectID(object.Identity()).Addln(`Only ClusterRoles can be specified in "templates/user-authz-cluster-roles.yaml"`)
+			return result.WithObjectID(object.Identity()).Add(`Only ClusterRoles can be specified in "templates/user-authz-cluster-roles.yaml"`)
 		}
 
 		objectName := object.Unstructured.GetName()
 		accessLevel, ok := object.Unstructured.GetAnnotations()["user-authz.deckhouse.io/access-level"]
 		if !ok {
-			return result.WithObjectID(object.Identity()).Addln(`User-authz access ClusterRoles should have annotation "user-authz.deckhouse.io/access-level"`)
+			return result.WithObjectID(object.Identity()).Add(`User-authz access ClusterRoles should have annotation "user-authz.deckhouse.io/access-level"`)
 		}
 
 		expectedName := fmt.Sprintf("d8:user-authz:%s:%s", m.GetName(), strcase.ToKebab(accessLevel))
 		if objectName != expectedName {
-			return result.WithObjectID(object.Identity()).AddF("Name of user-authz ClusterRoles should be %q", expectedName)
+			return result.WithObjectID(object.Identity()).Add("Name of user-authz ClusterRoles should be %q", expectedName)
 		}
 	}
 	return nil

@@ -48,7 +48,7 @@ func checkModuleYaml(moduleName, modulePath string) *errors.LintRuleErrorsList {
 		return nil
 	}
 	if err != nil {
-		return result.AddF(
+		return result.Add(
 			"Cannot stat file %q: %s",
 			ModuleConfigFilename, err.Error(),
 		)
@@ -56,7 +56,7 @@ func checkModuleYaml(moduleName, modulePath string) *errors.LintRuleErrorsList {
 
 	yamlFile, err := os.ReadFile(filepath.Join(modulePath, ModuleConfigFilename))
 	if err != nil {
-		return result.AddF(
+		return result.Add(
 			"Cannot read file %q: %s",
 			ModuleConfigFilename, err.Error(),
 		)
@@ -66,14 +66,14 @@ func checkModuleYaml(moduleName, modulePath string) *errors.LintRuleErrorsList {
 
 	err = yaml.Unmarshal(yamlFile, &yml)
 	if err != nil {
-		return result.AddF(
+		return result.Add(
 			"Cannot parse file %q: %s",
 			ModuleConfigFilename, err.Error(),
 		)
 	}
 
 	if yml.Name == "" {
-		result.AddF("Field %q is required", "name")
+		result.Add("Field %q is required", "name")
 	}
 
 	stages := []string{
@@ -84,7 +84,7 @@ func checkModuleYaml(moduleName, modulePath string) *errors.LintRuleErrorsList {
 	}
 
 	if yml.Stage != "" && !slices.Contains(stages, yml.Stage) {
-		result.AddF(
+		result.Add(
 			"Field %q is not one of the following values: %q",
 			"stage", strings.Join(stages, ", "),
 		)
@@ -101,7 +101,7 @@ func (m ModuleRequirements) validateRequirements(moduleName string) *errors.Lint
 	result := errors.NewLinterRuleList(ID, moduleName).WithObjectID(moduleName)
 	if m.Deckhouse != "" {
 		if _, err := semver.NewConstraint(m.Deckhouse); err != nil {
-			result.AddF(
+			result.Add(
 				"Invalid Deckhouse version requirement: %s",
 				err.Error(),
 			)
@@ -110,7 +110,7 @@ func (m ModuleRequirements) validateRequirements(moduleName string) *errors.Lint
 
 	if m.Kubernetes != "" {
 		if _, err := semver.NewConstraint(m.Kubernetes); err != nil {
-			result.AddF(
+			result.Add(
 				"Invalid Kubernetes version requirement: %s",
 				err.Error(),
 			)
@@ -119,7 +119,7 @@ func (m ModuleRequirements) validateRequirements(moduleName string) *errors.Lint
 
 	for parentModuleName, parentModuleVersion := range m.ParentModules {
 		if _, err := semver.NewConstraint(parentModuleVersion); err != nil {
-			result.AddF(
+			result.Add(
 				"Invalid module %q version requirement: %s",
 				parentModuleName, err.Error(),
 			)

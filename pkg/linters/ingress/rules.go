@@ -38,7 +38,7 @@ func ingressCopyCustomCertificateRule(m *module.Module, object storage.StoreObje
 	}
 
 	if _, ok := imports[copyCustomCertificateImport]; !ok {
-		return result.WithObjectID(m.GetName()).Addln(
+		return result.WithObjectID(m.GetName()).Add(
 			"Ingress does not contain copy_custom_certificate hook",
 		)
 	}

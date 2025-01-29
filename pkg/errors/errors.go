@@ -11,7 +11,7 @@ import (
 	"github.com/kyokomi/emoji"
 )
 
-type LintRuleError struct {
+type lintRuleError struct {
 	ID          string
 	Module      string
 	ObjectID    string
@@ -19,19 +19,14 @@ type LintRuleError struct {
 	Text        string
 }
 
-func (l *LintRuleError) EqualsTo(candidate LintRuleError) bool { //nolint:gocritic // it's a simple method
-	return l.ID == candidate.ID && l.Text == candidate.Text && l.ObjectID == candidate.ObjectID
+func (l *lintRuleError) EqualsTo(candidate lintRuleError) bool { //nolint:gocritic // it's a simple method
+	return l.ID == candidate.ID &&
+		l.Text == candidate.Text &&
+		l.ObjectID == candidate.ObjectID &&
+		l.Module == candidate.Module
 }
 
-type errStorage []LintRuleError
-
-func NewLinterRuleList(linter, module string) *LintRuleErrorsList {
-	return &LintRuleErrorsList{
-		storage:  errStorage{},
-		linterID: linter,
-		moduleID: module,
-	}
-}
+type errStorage []lintRuleError
 
 type LintRuleErrorsList struct {
 	storage errStorage
@@ -41,31 +36,18 @@ type LintRuleErrorsList struct {
 	objectID string
 }
 
-var (
-	ErrLinterIDIsEmpty = errors.New("linter ID is empty")
-	ErrModuleIDIsEmpty = errors.New("module ID is empty")
-	ErrObjectIDIsEmpty = errors.New("object ID is empty")
-)
-
-func (l *LintRuleErrorsList) Validate() error {
-	var errs error
-
-	if l.linterID == "" {
-		errs = errors.Join(errs, ErrLinterIDIsEmpty)
+func NewLinterRuleList(linterID string, module ...string) *LintRuleErrorsList {
+	l := &LintRuleErrorsList{
+		storage:  errStorage{},
+		linterID: linterID,
+	}
+	if len(module) > 0 {
+		l.moduleID = module[0]
 	}
 
-	if l.moduleID == "" {
-		errs = errors.Join(errs, ErrModuleIDIsEmpty)
-	}
-
-	if l.objectID == "" {
-		errs = errors.Join(errs, ErrObjectIDIsEmpty)
-	}
-
-	return errs
+	return l
 }
 
-// if you change module ID - all settings except linter and module ID must be reset
 func (l *LintRuleErrorsList) WithObjectID(objectID string) *LintRuleErrorsList {
 	return &LintRuleErrorsList{
 		storage:  l.storage,
@@ -75,28 +57,29 @@ func (l *LintRuleErrorsList) WithObjectID(objectID string) *LintRuleErrorsList {
 	}
 }
 
+func (l *LintRuleErrorsList) WithModule(moduleID string) *LintRuleErrorsList {
+	return &LintRuleErrorsList{
+		storage:  l.storage,
+		linterID: l.linterID,
+		moduleID: moduleID,
+		objectID: l.objectID,
+	}
+}
+
 func (l *LintRuleErrorsList) AddWithValue(value any, template string, a ...any) *LintRuleErrorsList {
 	return l.add(value, fmt.Sprintf(template, a...))
 }
 
-func (l *LintRuleErrorsList) AddF(template string, a ...any) *LintRuleErrorsList {
+func (l *LintRuleErrorsList) Add(template string, a ...any) *LintRuleErrorsList {
+	if len(a) == 0 {
+		return l.add(nil, template)
+	}
+
 	return l.add(nil, fmt.Sprintf(template, a...))
 }
 
-func (l *LintRuleErrorsList) Addln(str string) *LintRuleErrorsList {
-	return l.add(nil, str)
-}
-
-func (l *LintRuleErrorsList) AddErr(err error) *LintRuleErrorsList {
-	return l.add(nil, err.Error())
-}
-
 func (l *LintRuleErrorsList) add(value any, str string) *LintRuleErrorsList {
-	if err := l.Validate(); err != nil {
-		panic(err)
-	}
-
-	e := LintRuleError{
+	e := lintRuleError{
 		ID:          strings.ToLower(l.linterID),
 		Module:      l.moduleID,
 		ObjectID:    l.objectID,
@@ -113,16 +96,6 @@ func (l *LintRuleErrorsList) add(value any, str string) *LintRuleErrorsList {
 	return l
 }
 
-// Add adds new error to the list if it doesn't exist yet.
-// It first checks if error is empty (i.e. all its fields are empty strings)
-// and then checks if error with the same ID, ObjectId and Text already exists in the list.
-func (l *LintRuleErrorsList) Add(e LintRuleError) { //nolint:gocritic // it's a simple method
-	if slices.ContainsFunc(l.storage, e.EqualsTo) {
-		return
-	}
-	l.storage = append(l.storage, e)
-}
-
 // Merge merges another LintRuleErrorsList into current one, removing all duplicate errors.
 func (l *LintRuleErrorsList) Merge(e *LintRuleErrorsList) {
 	if e == nil {
@@ -130,7 +103,11 @@ func (l *LintRuleErrorsList) Merge(e *LintRuleErrorsList) {
 	}
 
 	for _, el := range e.storage {
-		l.Add(el)
+		if slices.ContainsFunc(l.storage, el.EqualsTo) {
+			continue
+		}
+
+		l.storage = append(l.storage, el)
 	}
 }
 
@@ -141,7 +118,7 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 	if len(l.storage) == 0 {
 		return nil
 	}
-	slices.SortFunc(l.storage, func(a, b LintRuleError) int {
+	slices.SortFunc(l.storage, func(a, b lintRuleError) int {
 		return cmp.Or(
 			cmp.Compare(a.Module, b.Module),
 			cmp.Compare(a.ObjectID, b.ObjectID),

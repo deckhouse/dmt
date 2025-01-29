@@ -36,7 +36,7 @@ func OssModuleRule(name, moduleRoot string) *errors.LintRuleErrorsList {
 
 	if errs := verifyOssFile(name, moduleRoot); len(errs) > 0 {
 		for _, err := range errs {
-			result.WithObjectID(moduleRoot).AddF("%v", ossFileErrorMessage(err))
+			result.WithObjectID(moduleRoot).Add("%v", ossFileErrorMessage(err))
 		}
 	}
 

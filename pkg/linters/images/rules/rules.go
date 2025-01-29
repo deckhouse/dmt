@@ -34,7 +34,7 @@ func chartModuleRule(name, path string) *errors.LintRuleErrorsList {
 	if err != nil {
 		stat, err = os.Stat(filepath.Join(path, ModuleConfigFilename))
 		if err != nil {
-			result.AddF(
+			result.Add(
 				"Module does not contain valid %q or %q file",
 				ChartConfigFilename, ModuleConfigFilename)
 		}
@@ -42,7 +42,7 @@ func chartModuleRule(name, path string) *errors.LintRuleErrorsList {
 
 	yamlFile, err := os.ReadFile(filepath.Join(path, stat.Name()))
 	if err != nil {
-		result.AddF(
+		result.Add(
 			"Module does not contain valid %q or %q file",
 			ChartConfigFilename, ModuleConfigFilename)
 	}
@@ -52,19 +52,19 @@ func chartModuleRule(name, path string) *errors.LintRuleErrorsList {
 	}
 	err = yaml.Unmarshal(yamlFile, &chart)
 	if err != nil {
-		result.AddF(
+		result.Add(
 			"Module does not contain valid %q or %q file",
 			ChartConfigFilename, ModuleConfigFilename)
 	}
 
 	if chart.Name == "" {
-		result.AddF(
+		result.Add(
 			"Module does not contain valid %q or %q file",
 			ChartConfigFilename, ModuleConfigFilename)
 	}
 
 	if !IsExistsOnFilesystem(path, openapiDir) {
-		result.AddF("Module does not contain %q folder", openapiDir)
+		result.Add("Module does not contain %q folder", openapiDir)
 	}
 
 	return result

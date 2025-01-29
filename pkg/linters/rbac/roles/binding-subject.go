@@ -49,7 +49,7 @@ func ObjectBindingSubjectServiceAccountCheck(
 		clusterRoleBinding := new(v1.ClusterRoleBinding)
 		err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), clusterRoleBinding)
 		if err != nil {
-			return result.WithObjectID(object.Identity()).AddF(
+			return result.WithObjectID(object.Identity()).Add(
 				"Cannot convert object to %s: %v", object.Unstructured.GetKind(), err)
 		}
 		subjects = clusterRoleBinding.Subjects
@@ -57,7 +57,7 @@ func ObjectBindingSubjectServiceAccountCheck(
 		roleBinding := new(v1.RoleBinding)
 		err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), roleBinding)
 		if err != nil {
-			return result.WithObjectID(object.Identity()).AddF(
+			return result.WithObjectID(object.Identity()).Add(
 				"Cannot convert object to %s: %v", object.Unstructured.GetKind(), err)
 		}
 		subjects = roleBinding.Subjects
@@ -89,7 +89,7 @@ func ObjectBindingSubjectServiceAccountCheck(
 		if subject.Namespace == m.GetNamespace() && !objectStore.Exists(storage.ResourceIndex{
 			Name: subject.Name, Kind: subject.Kind, Namespace: subject.Namespace,
 		}) {
-			return result.WithObjectID(object.Identity()).AddF(
+			return result.WithObjectID(object.Identity()).Add(
 				"%s bind to the wrong ServiceAccount (doesn't exist in the store)", objectKind,
 			)
 		}

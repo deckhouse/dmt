@@ -99,7 +99,7 @@ func CheckImageNamesInDockerAndWerfFiles(name, path string) *errors.LintRuleErro
 
 	filePaths, err := getDockerAndWerfFilePaths(imagesPath)
 	if err != nil {
-		return result.WithObjectID(imagesPath).AddF(
+		return result.WithObjectID(imagesPath).Add(
 			"Cannot read directory structure: %s",
 			err.Error(),
 		)
@@ -144,7 +144,7 @@ func lintOneDockerfileOrWerfYAML(name, filePath, imagesPath string) *errors.Lint
 
 	relativeFilePath, err := filepath.Rel(imagesPath, filePath)
 	if err != nil {
-		return result.WithObjectID(filePath).AddF(
+		return result.WithObjectID(filePath).Add(
 			"Error calculating relative file path: %s",
 			err.Error(),
 		)
@@ -229,7 +229,7 @@ func lintDockerfile(file *os.File, name, _, relativeFilePath string) *errors.Lin
 		linePos++
 		if res, ciVariable := isImageNameUnacceptable(line); res {
 			return result.WithObjectID(line).
-				AddF(
+				Add(
 					"Please use %s as an image name", ciVariable,
 				)
 		}
@@ -246,7 +246,7 @@ func lintDockerfile(file *os.File, name, _, relativeFilePath string) *errors.Lin
 		}
 
 		if res, message := isDockerfileInstructionUnacceptable(fromInstruction, i == len(dockerfileFromInstructions)-1); res {
-			return result.WithObjectID(fmt.Sprintf("module = %s, path = %s", name, relativeFilePath)).Addln(message)
+			return result.WithObjectID(fmt.Sprintf("module = %s, path = %s", name, relativeFilePath)).Add(message)
 		}
 	}
 

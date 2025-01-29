@@ -34,7 +34,7 @@ func dirExists(moduleName, modulePath string, path ...string) (bool, *errors.Lin
 		if os.IsNotExist(err) {
 			return false, nil
 		}
-		return false, result.WithObjectID(modulePath).AddF("%v", err.Error())
+		return false, result.WithObjectID(modulePath).Add("%v", err.Error())
 	}
 	return info.IsDir(), nil
 }
@@ -76,7 +76,7 @@ func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string) *error
 
 	desiredContent := buildDesiredContent(dashboardsEx, rulesEx)
 	if !isContentMatching(string(content), desiredContent, moduleNamespace, rulesEx) {
-		return result.WithObjectID(modulePath).AddF(
+		return result.WithObjectID(modulePath).Add(
 			"The content of the 'templates/monitoring.yaml' should be equal to:\n%s\nGot:\n%s",
 			fmt.Sprintf(desiredContent, "YOUR NAMESPACE TO DEPLOY RULES: d8-monitoring, d8-system or module namespaces"),
 			string(content),

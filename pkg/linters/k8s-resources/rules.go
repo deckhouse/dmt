@@ -85,11 +85,11 @@ func namespaceLabels(name string, object storage.StoreObject) *errors.LintRuleEr
 func newAPIVersionError(name, wanted, version, objectID string) *errors.LintRuleErrorsList {
 	result := errors.NewLinterRuleList(ID, name)
 	if version != wanted {
-		result.WithObjectID(objectID).AddF(
+		result.WithObjectID(objectID).Add(
 			"Object defined using deprecated api version, wanted %q", wanted,
 		)
 	}
-	return nil
+	return result
 }
 
 func objectAPIVersion(name string, object storage.StoreObject) *errors.LintRuleErrorsList {
@@ -123,7 +123,7 @@ func objectRevisionHistoryLimit(name string, object storage.StoreObject) *errors
 
 		err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), deployment)
 		if err != nil {
-			return result.WithObjectID(object.Unstructured.GetName()).AddF(
+			return result.WithObjectID(object.Unstructured.GetName()).Add(
 				"Cannot convert object to %s: %v", object.Unstructured.GetKind(), err,
 			)
 		}
@@ -138,7 +138,7 @@ func objectRevisionHistoryLimit(name string, object storage.StoreObject) *errors
 		actualLimit := deployment.Spec.RevisionHistoryLimit
 
 		if actualLimit == nil {
-			result.WithObjectID(object.Identity()).AddF(
+			result.WithObjectID(object.Identity()).Add(
 				"Deployment spec.revisionHistoryLimit must be less or equal to %d", maxHistoryLimit,
 			)
 		} else if *actualLimit > maxHistoryLimit {
@@ -160,10 +160,9 @@ func objectPriorityClass(name string, object storage.StoreObject) *errors.LintRu
 
 	priorityClass, err := getPriorityClass(object)
 	if err != nil {
-		return result.WithObjectID(object.Unstructured.GetName()).AddF(
+		return result.WithObjectID(object.Unstructured.GetName()).Add(
 			"Cannot convert object to %s: %v", object.Unstructured.GetKind(), err,
 		)
-
 	}
 
 	return validatePriorityClass(priorityClass, name, object, result)
@@ -178,7 +177,7 @@ func isPriorityClassSupportedKind(kind string) bool {
 	}
 }
 
-func validatePriorityClass(priorityClass, name string, object storage.StoreObject, result *errors.LintRuleErrorsList) *errors.LintRuleErrorsList {
+func validatePriorityClass(priorityClass, _ string, object storage.StoreObject, result *errors.LintRuleErrorsList) *errors.LintRuleErrorsList {
 	switch priorityClass {
 	case "":
 		result.WithObjectID(object.Identity()).AddWithValue(
@@ -228,11 +227,11 @@ func objectSecurityContext(name string, object storage.StoreObject) *errors.Lint
 
 	securityContext, err := object.GetPodSecurityContext()
 	if err != nil {
-		return result.WithObjectID(object.Identity()).AddF("GetPodSecurityContext failed: %v", err)
+		return result.WithObjectID(object.Identity()).Add("GetPodSecurityContext failed: %v", err)
 	}
 
 	if securityContext == nil {
-		return result.WithObjectID(object.Identity()).Addln("Object's SecurityContext is not defined")
+		return result.WithObjectID(object.Identity()).Add("Object's SecurityContext is not defined")
 	}
 
 	checkSecurityContextParameters(securityContext, result, object, name)
@@ -251,14 +250,14 @@ func isSupportedKind(kind string) bool {
 
 func checkSecurityContextParameters(securityContext *v1.PodSecurityContext, result *errors.LintRuleErrorsList, object storage.StoreObject, name string) {
 	if securityContext.RunAsNonRoot == nil {
-		result.WithObjectID(object.Identity()).Addln("Object's SecurityContext missing parameter RunAsNonRoot")
+		result.WithObjectID(object.Identity()).Add("Object's SecurityContext missing parameter RunAsNonRoot")
 	}
 
 	if securityContext.RunAsUser == nil {
-		result.WithObjectID(object.Identity()).Addln("Object's SecurityContext missing parameter RunAsUser")
+		result.WithObjectID(object.Identity()).Add("Object's SecurityContext missing parameter RunAsUser")
 	}
 	if securityContext.RunAsGroup == nil {
-		result.WithObjectID(object.Identity()).Addln("Object's SecurityContext missing parameter RunAsGroup")
+		result.WithObjectID(object.Identity()).Add("Object's SecurityContext missing parameter RunAsGroup")
 	}
 
 	if securityContext.RunAsNonRoot != nil && securityContext.RunAsUser != nil && securityContext.RunAsGroup != nil {
@@ -266,13 +265,13 @@ func checkSecurityContextParameters(securityContext *v1.PodSecurityContext, resu
 	}
 }
 
-func checkRunAsNonRoot(securityContext *v1.PodSecurityContext, result *errors.LintRuleErrorsList, object storage.StoreObject, name string) {
+func checkRunAsNonRoot(securityContext *v1.PodSecurityContext, result *errors.LintRuleErrorsList, object storage.StoreObject, _ string) {
 	switch *securityContext.RunAsNonRoot {
 	case true:
 		if (*securityContext.RunAsUser != 65534 || *securityContext.RunAsGroup != 65534) &&
 			(*securityContext.RunAsUser != 64535 || *securityContext.RunAsGroup != 64535) {
 			result.WithObjectID(object.Identity()).
-				AddF(
+				Add(
 					fmt.Sprintf("%d:%d", *securityContext.RunAsUser, *securityContext.RunAsGroup),
 					"Object's SecurityContext has `RunAsNonRoot: true`, but RunAsUser:RunAsGroup differs from 65534:65534 (nobody) or 64535:64535 (deckhouse)")
 		}
@@ -296,7 +295,7 @@ func objectReadOnlyRootFilesystem(name string, object storage.StoreObject) *erro
 
 	containers, err := object.GetAllContainers()
 	if err != nil {
-		return result.WithObjectID(object.Identity()).AddF("GetAllContainers failed: %v", err)
+		return result.WithObjectID(object.Identity()).Add("GetAllContainers failed: %v", err)
 	}
 
 	for i := range containers {
@@ -305,16 +304,16 @@ func objectReadOnlyRootFilesystem(name string, object storage.StoreObject) *erro
 			continue
 		}
 		if c.SecurityContext == nil {
-			result.WithObjectID(object.Identity()).Addln("Container's SecurityContext is missing")
+			result.WithObjectID(object.Identity()).Add("Container's SecurityContext is missing")
 			continue
 		}
 		if c.SecurityContext.ReadOnlyRootFilesystem == nil {
 			result.WithObjectID(object.Identity() + " ; container = " + containers[i].Name).
-				Addln("Container's SecurityContext missing parameter ReadOnlyRootFilesystem")
+				Add("Container's SecurityContext missing parameter ReadOnlyRootFilesystem")
 			continue
 		}
 		if !*c.SecurityContext.ReadOnlyRootFilesystem {
-			result.WithObjectID(object.Identity() + " ; container = " + containers[i].Name).Addln(
+			result.WithObjectID(object.Identity() + " ; container = " + containers[i].Name).Add(
 				"Container's SecurityContext has `ReadOnlyRootFilesystem: false`, but it must be `true`",
 			)
 		}
@@ -335,7 +334,7 @@ func objectServiceTargetPort(name string, object storage.StoreObject) *errors.Li
 	service := new(v1.Service)
 	err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), service)
 	if err != nil {
-		return result.WithObjectID(object.Unstructured.GetName()).AddF(
+		return result.WithObjectID(object.Unstructured.GetName()).Add(
 			"Cannot convert object to %s: %v", object.Unstructured.GetKind(), err,
 		)
 	}
@@ -343,7 +342,7 @@ func objectServiceTargetPort(name string, object storage.StoreObject) *errors.Li
 	for _, port := range service.Spec.Ports {
 		if port.TargetPort.Type == intstr.Int {
 			if port.TargetPort.IntVal == 0 {
-				result.WithObjectID(object.Identity()).Addln(
+				result.WithObjectID(object.Identity()).Add(
 					"Service port must use an explicit named (non-numeric) target port",
 				)
 
@@ -369,12 +368,12 @@ func objectHostNetworkPorts(name string, object storage.StoreObject) *errors.Lin
 
 	hostNetworkUsed, err := object.IsHostNetwork()
 	if err != nil {
-		return result.WithObjectID(object.Identity()).AddF("IsHostNetwork failed: %v", err)
+		return result.WithObjectID(object.Identity()).Add("IsHostNetwork failed: %v", err)
 	}
 
 	containers, err := object.GetAllContainers()
 	if err != nil {
-		return result.WithObjectID(object.Identity()).AddF("GetAllContainers failed: %v", err)
+		return result.WithObjectID(object.Identity()).Add("GetAllContainers failed: %v", err)
 	}
 
 	for i := range containers {
@@ -401,7 +400,7 @@ func objectDNSPolicy(name string, object storage.StoreObject) *errors.LintRuleEr
 	result := errors.NewLinterRuleList(ID, name)
 	dnsPolicy, hostNetwork, err := getDNSPolicyAndHostNetwork(object)
 	if err != nil {
-		return result.WithObjectID(object.Unstructured.GetName()).AddF(
+		return result.WithObjectID(object.Unstructured.GetName()).Add(
 			"Cannot convert object to %s: %v", object.Unstructured.GetKind(), err,
 		)
 	}
@@ -409,7 +408,7 @@ func objectDNSPolicy(name string, object storage.StoreObject) *errors.LintRuleEr
 	return validateDNSPolicy(dnsPolicy, hostNetwork, name, object, result)
 }
 
-func validateDNSPolicy(dnsPolicy string, hostNetwork bool, name string, object storage.StoreObject, result *errors.LintRuleErrorsList) *errors.LintRuleErrorsList {
+func validateDNSPolicy(dnsPolicy string, hostNetwork bool, _ string, object storage.StoreObject, result *errors.LintRuleErrorsList) *errors.LintRuleErrorsList {
 	if !hostNetwork {
 		return result
 	}

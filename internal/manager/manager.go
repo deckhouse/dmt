@@ -79,7 +79,7 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 	}
 
 	// TODO: add moduleName to errors
-	errorsList := errors.NewLinterRuleList("manager", "mdl")
+	errorsList := errors.NewLinterRuleList("manager")
 
 	for i := range paths {
 		moduleName := filepath.Base(paths[i])
