@@ -78,7 +78,6 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 		paths = append(paths, result...)
 	}
 
-	// TODO: add moduleName to errors
 	errorsList := errors.NewLinterRuleList("manager")
 
 	for i := range paths {
