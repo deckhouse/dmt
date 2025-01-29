@@ -100,6 +100,9 @@ func (l *LintRuleErrorsList) Merge(e *LintRuleErrorsList) {
 		if slices.ContainsFunc(l.storage, el.EqualsTo) {
 			continue
 		}
+		if el.Text == "" {
+			continue
+		}
 
 		l.storage = append(l.storage, el)
 	}

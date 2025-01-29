@@ -48,11 +48,11 @@ func containersImagePullPolicy(md string, object storage.StoreObject, containers
 func checkImagePullPolicyAlways(md string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleErrorsList {
 	c := containers[0]
 	if c.ImagePullPolicy != v1.PullAlways {
-		return errors.NewLinterRuleList(ID, md).WithObjectID(
-			object.Identity()+"; container = "+c.Name).AddValue(
-			c.ImagePullPolicy,
-			`Container imagePullPolicy should be unspecified or "Always"`,
-		)
+		return errors.NewLinterRuleList(ID, md).WithObjectID(object.Identity()+"; container = "+c.Name).
+			AddValue(
+				c.ImagePullPolicy,
+				`Container imagePullPolicy should be unspecified or "Always"`,
+			)
 	}
 	return nil
 }

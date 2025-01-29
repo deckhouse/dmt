@@ -56,11 +56,11 @@ func (*Probes) Run(m *module.Module) *errors.LintRuleErrorsList {
 	}
 
 	if err != nil {
-		result.WithObjectID(
-			"module = "+m.GetName()).AddValue(
-			err.Error(),
-			"Error in probes linter",
-		)
+		result.WithObjectID("module = "+m.GetName()).
+			AddValue(
+				err.Error(),
+				"Error in probes linter",
+			)
 	}
 
 	return result
