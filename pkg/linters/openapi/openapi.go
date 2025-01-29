@@ -27,6 +27,7 @@ func (o *OpenAPI) Run(m *module.Module) *errors.LintRuleErrorsList {
 	}
 	apiFiles, err := GetOpenAPIYAMLFiles(m.GetPath())
 	if err != nil {
+		result.AddValue(err.Error(), "failed to get openapi files in `%s` module", m.GetName())
 		return result
 	}
 
