@@ -7,7 +7,6 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/deckhouse/dmt/internal/werf"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
@@ -18,28 +17,14 @@ type werfFile struct {
 	Final    *bool  `json:"final" yaml:"final"`
 }
 
-func lintWerfFile(moduleName, path string) errors.LintRuleErrorsList {
+func lintWerfFile(moduleName, data string) errors.LintRuleErrorsList {
 	result := errors.LintRuleErrorsList{}
-	data, err := werf.GetWerfConfig(path)
-	if err != nil {
-		result.Add(
-			errors.NewLintRuleError(
-				ID,
-				path,
-				moduleName,
-				path,
-				"Error reading werf file: %s",
-				err.Error(),
-			))
-
-		return result
-	}
 
 	werfDocs := splitManifests(data)
 
 	for _, doc := range werfDocs {
 		var w werfFile
-		err = yaml.Unmarshal([]byte(doc), &w)
+		err := yaml.Unmarshal([]byte(doc), &w)
 		if err != nil {
 			// skip invalid yaml documents
 			continue
