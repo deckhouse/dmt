@@ -271,7 +271,7 @@ func checkRunAsNonRoot(securityContext *v1.PodSecurityContext, result *errors.Li
 		if (*securityContext.RunAsUser != 65534 || *securityContext.RunAsGroup != 65534) &&
 			(*securityContext.RunAsUser != 64535 || *securityContext.RunAsGroup != 64535) {
 			result.WithObjectID(object.Identity()).
-				Add(
+				AddValue(
 					fmt.Sprintf("%d:%d", *securityContext.RunAsUser, *securityContext.RunAsGroup),
 					"Object's SecurityContext has `RunAsNonRoot: true`, but RunAsUser:RunAsGroup differs from 65534:65534 (nobody) or 64535:64535 (deckhouse)")
 		}
