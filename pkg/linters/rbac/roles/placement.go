@@ -134,7 +134,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 			return nil
 		} else if objectName == expectedServiceAccountName {
 			if !isDeckhouseSystemNamespace(namespace) {
-				return result.WithObjectID(object.Identity()).AddWithValue(
+				return result.WithObjectID(object.Identity()).AddValue(
 					namespace,
 					"ServiceAccount should be deployed to \"d8-system\" or \"d8-monitoring\"",
 				)

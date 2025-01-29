@@ -60,7 +60,7 @@ func (l *LintRuleErrorsList) WithModuleID(moduleID string) *LintRuleErrorsList {
 	return l
 }
 
-func (l *LintRuleErrorsList) AddWithValue(value any, template string, a ...any) *LintRuleErrorsList {
+func (l *LintRuleErrorsList) AddValue(value any, template string, a ...any) *LintRuleErrorsList {
 	return l.add(value, fmt.Sprintf(template, a...))
 }
 

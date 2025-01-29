@@ -44,13 +44,13 @@ func objectRecommendedLabels(name string, object storage.StoreObject) *errors.Li
 	result := errors.NewLinterRuleList(ID, name)
 	labels := object.Unstructured.GetLabels()
 	if _, ok := labels["module"]; !ok {
-		result.WithObjectID(object.Identity()).AddWithValue(
+		result.WithObjectID(object.Identity()).AddValue(
 			labels,
 			`Object does not have the label "module"`,
 		)
 	}
 	if _, ok := labels["heritage"]; !ok {
-		result.WithObjectID(object.Identity()).AddWithValue(
+		result.WithObjectID(object.Identity()).AddValue(
 			labels,
 			`Object does not have the label "heritage"`,
 		)
@@ -75,7 +75,7 @@ func namespaceLabels(name string, object storage.StoreObject) *errors.LintRuleEr
 		return result
 	}
 
-	result.WithObjectID(object.Identity()).AddWithValue(
+	result.WithObjectID(object.Identity()).AddValue(
 		labels,
 		`Namespace object does not have the label "prometheus.deckhouse.io/rules-watcher-enabled"`)
 
@@ -142,7 +142,7 @@ func objectRevisionHistoryLimit(name string, object storage.StoreObject) *errors
 				"Deployment spec.revisionHistoryLimit must be less or equal to %d", maxHistoryLimit,
 			)
 		} else if *actualLimit > maxHistoryLimit {
-			result.WithObjectID(object.Identity()).AddWithValue(
+			result.WithObjectID(object.Identity()).AddValue(
 				*actualLimit,
 				"Deployment spec.revisionHistoryLimit must be less or equal to %d", maxHistoryLimit,
 			)
@@ -180,13 +180,13 @@ func isPriorityClassSupportedKind(kind string) bool {
 func validatePriorityClass(priorityClass, _ string, object storage.StoreObject, result *errors.LintRuleErrorsList) *errors.LintRuleErrorsList {
 	switch priorityClass {
 	case "":
-		result.WithObjectID(object.Identity()).AddWithValue(
+		result.WithObjectID(object.Identity()).AddValue(
 			priorityClass,
 			"Priority class must not be empty",
 		)
 	case "system-node-critical", "system-cluster-critical", "cluster-medium", "cluster-low", "cluster-critical":
 	default:
-		result.WithObjectID(object.Identity()).AddWithValue(
+		result.WithObjectID(object.Identity()).AddValue(
 			priorityClass,
 			"Priority class is not allowed",
 		)
@@ -277,7 +277,7 @@ func checkRunAsNonRoot(securityContext *v1.PodSecurityContext, result *errors.Li
 		}
 	case false:
 		if *securityContext.RunAsUser != 0 || *securityContext.RunAsGroup != 0 {
-			result.WithObjectID(object.Identity()).AddWithValue(
+			result.WithObjectID(object.Identity()).AddValue(
 				fmt.Sprintf("%d:%d", *securityContext.RunAsUser, *securityContext.RunAsGroup),
 				"Object's SecurityContext has `RunAsNonRoot: false`, but RunAsUser:RunAsGroup differs from 0:0",
 			)
@@ -348,7 +348,7 @@ func objectServiceTargetPort(name string, object storage.StoreObject) *errors.Li
 
 				continue
 			}
-			result.WithObjectID(object.Identity()).AddWithValue(
+			result.WithObjectID(object.Identity()).AddValue(
 				port.TargetPort.IntVal,
 				"Service port must use a named (non-numeric) target port",
 			)
@@ -379,13 +379,13 @@ func objectHostNetworkPorts(name string, object storage.StoreObject) *errors.Lin
 	for i := range containers {
 		for _, p := range containers[i].Ports {
 			if hostNetworkUsed && (p.ContainerPort < 4200 || p.ContainerPort >= 4300) {
-				result.WithObjectID(object.Identity()+" ; container = "+containers[i].Name).AddWithValue(
+				result.WithObjectID(object.Identity()+" ; container = "+containers[i].Name).AddValue(
 					p.ContainerPort,
 					"Pod running in hostNetwork and it's container port doesn't fit the range [4200,4299]",
 				)
 			}
 			if p.HostPort != 0 && (p.HostPort < 4200 || p.HostPort >= 4300) {
-				result.WithObjectID(object.Identity()+" ; container = "+containers[i].Name).AddWithValue(
+				result.WithObjectID(object.Identity()+" ; container = "+containers[i].Name).AddValue(
 					p.HostPort,
 					"Container uses hostPort that doesn't fit the range [4200,4299]",
 				)
@@ -414,7 +414,7 @@ func validateDNSPolicy(dnsPolicy string, hostNetwork bool, _ string, object stor
 	}
 
 	if dnsPolicy != "ClusterFirstWithHostNet" {
-		result.WithObjectID(object.Identity()).AddWithValue(
+		result.WithObjectID(object.Identity()).AddValue(
 			dnsPolicy,
 			"dnsPolicy must be `ClusterFirstWithHostNet` when hostNetwork is `true`",
 		)

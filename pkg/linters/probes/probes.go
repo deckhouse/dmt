@@ -57,7 +57,7 @@ func (*Probes) Run(m *module.Module) *errors.LintRuleErrorsList {
 
 	if err != nil {
 		result.WithObjectID(
-			"module = "+m.GetName()).AddWithValue(
+			"module = "+m.GetName()).AddValue(
 			err.Error(),
 			"Error in probes linter",
 		)
@@ -101,7 +101,7 @@ func containerProbes(
 
 		if len(errStrings) > 0 {
 			result.WithObjectID("module = "+moduleName+" ; "+object.Identity()+" ; container = "+container.Name).
-				AddWithValue(
+				AddValue(
 					strings.Join(errStrings, " and "),
 					"Container does not use correct probes",
 				)

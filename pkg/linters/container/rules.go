@@ -49,7 +49,7 @@ func checkImagePullPolicyAlways(md string, object storage.StoreObject, container
 	c := containers[0]
 	if c.ImagePullPolicy != v1.PullAlways {
 		return errors.NewLinterRuleList(ID, md).WithObjectID(
-			object.Identity()+"; container = "+c.Name).AddWithValue(
+			object.Identity()+"; container = "+c.Name).AddValue(
 			c.ImagePullPolicy,
 			`Container imagePullPolicy should be unspecified or "Always"`,
 		)
@@ -80,7 +80,7 @@ func checkForDuplicates[T any](md string, object storage.StoreObject, items []T,
 		key := keyFunc(item)
 		if _, ok := seen[key]; ok {
 			return errors.NewLinterRuleList(ID, md).WithObjectID(object.Identity()).
-				Add(errMsg)
+				Add("%s", errMsg)
 		}
 		seen[key] = struct{}{}
 	}
@@ -152,7 +152,7 @@ func containerImagePullPolicyIfNotPresent(md string, object storage.StoreObject,
 		}
 		return errors.NewLinterRuleList(ID, md).
 			WithObjectID(object.Identity()+"; container = "+c.Name).
-			AddWithValue(c.ImagePullPolicy, `Container imagePullPolicy should be unspecified or "IfNotPresent"`)
+			AddValue(c.ImagePullPolicy, `Container imagePullPolicy should be unspecified or "IfNotPresent"`)
 	}
 	return nil
 }
@@ -198,7 +198,7 @@ func containerPorts(md string, object storage.StoreObject, containers []v1.Conta
 			if p.ContainerPort <= t {
 				return errors.NewLinterRuleList(ID, md).
 					WithObjectID(object.Identity()+"; container = "+c.Name).
-					AddWithValue(p.ContainerPort, "Container uses port <= 1024")
+					AddValue(p.ContainerPort, "Container uses port <= 1024")
 			}
 		}
 	}

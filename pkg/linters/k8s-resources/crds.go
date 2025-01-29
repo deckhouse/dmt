@@ -38,7 +38,7 @@ func CrdsModuleRule(name, path string) *errors.LintRuleErrorsList {
 		for _, d := range docs {
 			var crd v1beta1.CustomResourceDefinition
 			if err := yaml.Unmarshal([]byte(d), &crd); err != nil {
-				result.WithObjectID("module = "+name).AddWithValue(
+				result.WithObjectID("module = "+name).AddValue(
 					err.Error(),
 					"Can't parse manifests in %s folder", rules.CrdsDir,
 				)
@@ -51,7 +51,7 @@ func CrdsModuleRule(name, path string) *errors.LintRuleErrorsList {
 
 			if crd.APIVersion != "apiextensions.k8s.io/v1" {
 				result.WithObjectID(d).
-					AddWithValue(fmt.Sprintf("kind = %s ; name = %s ; module = %s ; file = %s", crd.Kind, crd.Name, name, path),
+					AddValue(fmt.Sprintf("kind = %s ; name = %s ; module = %s ; file = %s", crd.Kind, crd.Name, name, path),
 						crd.APIVersion, `CRD specified using deprecated api version, wanted "apiextensions.k8s.io/v1"`)
 			}
 		}

@@ -45,7 +45,7 @@ func (o *OpenAPI) Run(m *module.Module) *errors.LintRuleErrorsList {
 	for res := range resultC {
 		if res.validationError != nil {
 			result.WithObjectID(res.filePath).
-				AddWithValue(res.validationError.Error(), "errors in `%s` module", m.GetName())
+				AddValue(res.validationError.Error(), "errors in `%s` module", m.GetName())
 		}
 	}
 

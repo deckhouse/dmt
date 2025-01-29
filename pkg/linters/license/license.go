@@ -35,7 +35,7 @@ func (o *Copyright) Run(m *module.Module) *errors.LintRuleErrorsList {
 	}
 	files, err := getFiles(m.GetPath())
 	if err != nil {
-		return result.AddWithValue(err.Error(), "error getting files in `%s` module", m.GetName())
+		return result.AddValue(err.Error(), "error getting files in `%s` module", m.GetName())
 	}
 
 	result.Merge(OssModuleRule(m.GetName(), m.GetPath()))
@@ -50,7 +50,7 @@ func (o *Copyright) Run(m *module.Module) *errors.LintRuleErrorsList {
 		ok, err := checkFileCopyright(fileName)
 		if !ok {
 			path, _ := strings.CutPrefix(fileName, m.GetPath())
-			result.WithObjectID(path).AddWithValue(
+			result.WithObjectID(path).AddValue(
 				err,
 				"errors in `%s` module",
 				m.GetName(),

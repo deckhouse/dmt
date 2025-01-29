@@ -134,7 +134,7 @@ func lintOneDockerfileOrWerfYAML(name, filePath, imagesPath string) *errors.Lint
 	result := errors.NewLinterRuleList(ID, name)
 	file, err := os.Open(filePath)
 	if err != nil {
-		return result.WithObjectID(filePath).AddWithValue(
+		return result.WithObjectID(filePath).AddValue(
 			filePath,
 			"Error opening file:%s",
 			err,
@@ -161,7 +161,7 @@ func lintWerfFile(file *os.File, name, filePath, relativeFilePath string) *error
 	result := errors.NewLinterRuleList(ID, name)
 	data, err := io.ReadAll(file)
 	if err != nil {
-		return result.WithObjectID(filePath).AddWithValue(
+		return result.WithObjectID(filePath).AddValue(
 			filePath,
 			"Error reading werf file:%s",
 			err,
@@ -193,7 +193,7 @@ func validateWerfFile(w werfFile, name, filePath, relativeFilePath string) *erro
 	}
 
 	if w.Artifact != "" {
-		return result.WithObjectID(filePath).AddWithValue(
+		return result.WithObjectID(filePath).AddValue(
 			w.From,
 			"Use `from:` or `fromImage:` and `final: false` directives instead of `artifact:` in the werf file",
 		)
@@ -209,7 +209,7 @@ func validateWerfFile(w werfFile, name, filePath, relativeFilePath string) *erro
 	}
 
 	if res, message := isWerfInstructionUnacceptable(w.From); res {
-		return result.WithObjectID(filePath).AddWithValue(
+		return result.WithObjectID(filePath).AddValue(
 			w.From,
 			"%s",
 			message,
@@ -246,7 +246,7 @@ func lintDockerfile(file *os.File, name, _, relativeFilePath string) *errors.Lin
 		}
 
 		if res, message := isDockerfileInstructionUnacceptable(fromInstruction, i == len(dockerfileFromInstructions)-1); res {
-			return result.WithObjectID(fmt.Sprintf("module = %s, path = %s", name, relativeFilePath)).Add(message)
+			return result.WithObjectID(fmt.Sprintf("module = %s, path = %s", name, relativeFilePath)).Add("%s", message)
 		}
 	}
 

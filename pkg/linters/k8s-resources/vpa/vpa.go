@@ -309,7 +309,7 @@ func ensureTolerations(
 	workloadLabelValue := vpaTolerationGroups[index]
 	if isTolerationFound && workloadLabelValue != "every-node" && workloadLabelValue != "master" {
 		result.WithObjectID(
-			object.Identity()).AddWithValue(
+			object.Identity()).AddValue(
 			workloadLabelValue,
 			`Labels "workload-resource-policy.deckhouse.io" in corresponding VPA resource not found`,
 		)
@@ -317,7 +317,7 @@ func ensureTolerations(
 
 	if !isTolerationFound && workloadLabelValue != "" {
 		result.WithObjectID(
-			object.Identity()).AddWithValue(
+			object.Identity()).AddValue(
 			workloadLabelValue,
 			`Labels "workload-resource-policy.deckhouse.io" in corresponding VPA resource found, but tolerations is not right`,
 		)

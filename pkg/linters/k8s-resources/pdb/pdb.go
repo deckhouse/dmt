@@ -135,7 +135,7 @@ func ensurePDBIsPresent(md *module.Module, selectors []nsLabelSelector, podContr
 	result := errors.NewLinterRuleList(ID, md.GetName())
 	podLabels, err := parsePodControllerLabels(podController)
 	if err != nil {
-		result.WithObjectID(podController.Identity()).AddWithValue(
+		result.WithObjectID(podController.Identity()).AddValue(
 			err,
 			"Cannot parse pod controller")
 	}
@@ -149,7 +149,7 @@ func ensurePDBIsPresent(md *module.Module, selectors []nsLabelSelector, podContr
 		}
 	}
 
-	return result.WithObjectID(podController.Identity()).AddWithValue(
+	return result.WithObjectID(podController.Identity()).AddValue(
 		podLabelsSet,
 		"No PodDisruptionBudget matches pod labels of controller")
 }
@@ -160,7 +160,7 @@ func ensurePDBIsNotPresent(md *module.Module, selectors []nsLabelSelector, podCo
 	result := errors.NewLinterRuleList(ID, md.GetName())
 	podLabels, err := parsePodControllerLabels(podController)
 	if err != nil {
-		return result.WithObjectID(podController.Identity()).AddWithValue(
+		return result.WithObjectID(podController.Identity()).AddValue(
 			err,
 			"Cannot parse pod controller")
 	}
@@ -170,7 +170,7 @@ func ensurePDBIsNotPresent(md *module.Module, selectors []nsLabelSelector, podCo
 
 	for _, sel := range selectors {
 		if sel.Matches(podNamespace, podLabelsSet) {
-			return result.WithObjectID(podController.Identity()).AddWithValue(
+			return result.WithObjectID(podController.Identity()).AddValue(
 				podLabelsSet,
 				"PodDisruptionBudget matches pod labels of controller")
 		}
@@ -187,7 +187,7 @@ func parsePDBSelector(md *module.Module, pdbObj storage.StoreObject) (labels.Sel
 	pdb := &policyv1.PodDisruptionBudget{}
 	err := converter.FromUnstructured(content, pdb)
 	if err != nil {
-		result.WithObjectID(pdbObj.Identity()).AddWithValue(
+		result.WithObjectID(pdbObj.Identity()).AddValue(
 			err,
 			"Cannot parse PodDisruptionBudget")
 		return nil, result
@@ -195,14 +195,14 @@ func parsePDBSelector(md *module.Module, pdbObj storage.StoreObject) (labels.Sel
 
 	sel, err := v1.LabelSelectorAsSelector(pdb.Spec.Selector)
 	if err != nil {
-		result.WithObjectID(pdbObj.Identity()).AddWithValue(
+		result.WithObjectID(pdbObj.Identity()).AddValue(
 			err,
 			"Cannot parse label selector")
 		return nil, result
 	}
 
 	if pdb.Annotations["helm.sh/hook"] != "" || pdb.Annotations["helm.sh/hook-delete-policy"] != "" {
-		result.WithObjectID(pdbObj.Identity()).AddWithValue(
+		result.WithObjectID(pdbObj.Identity()).AddValue(
 			err,
 			"PDB must have no helm hook annotations")
 		return nil, result
