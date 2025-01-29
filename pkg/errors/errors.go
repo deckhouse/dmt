@@ -49,21 +49,15 @@ func NewLinterRuleList(linterID string, module ...string) *LintRuleErrorsList {
 }
 
 func (l *LintRuleErrorsList) WithObjectID(objectID string) *LintRuleErrorsList {
-	return &LintRuleErrorsList{
-		storage:  l.storage,
-		linterID: l.linterID,
-		moduleID: l.moduleID,
-		objectID: objectID,
-	}
+	l.objectID = objectID
+
+	return l
 }
 
 func (l *LintRuleErrorsList) WithModuleID(moduleID string) *LintRuleErrorsList {
-	return &LintRuleErrorsList{
-		storage:  l.storage,
-		linterID: l.linterID,
-		moduleID: moduleID,
-		objectID: l.objectID,
-	}
+	l.moduleID = moduleID
+
+	return l
 }
 
 func (l *LintRuleErrorsList) AddValue(value any, template string, a ...any) *LintRuleErrorsList {
