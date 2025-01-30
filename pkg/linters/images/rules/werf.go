@@ -43,7 +43,7 @@ func lintWerfFile(moduleName, data string) errors.LintRuleErrorsList {
 					ID,
 					"werf.yaml:manifest-"+strconv.Itoa(i),
 					moduleName,
-					w.From,
+					"artifact: "+w.Artifact,
 					"Use `from:` or `fromImage:` and `final: false` directives instead of `artifact:` in the werf file",
 				),
 			)
