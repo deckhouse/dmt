@@ -398,8 +398,7 @@ func checkImageNames(moduleName, path string) errors.LintRuleErrorsList {
 					path,
 					moduleName,
 					nil,
-					"Image name format should be like `image: {{ .ModuleName }}/{{ .ImageName }}[-something]` in file: %s\n\t\t  broken lines:\n\t\t  %s",
-					path,
+					"Image name format should be like `image: {{ .ModuleName }}/{{ .ImageName }}[-something]`\n\t\t  broken lines:\n\t\t  %s",
 					strings.Join(lines, "\n\t\t  "),
 				))
 			}
@@ -433,13 +432,13 @@ func checkImageNamesFromFile(path string) ([]string, error) {
 
 	r := regexp.MustCompile(`^image:\s*\{\{\s*\$?\.ModuleName\s*\}\}/\{\{\s*\$?\.ImageName\s*\}\}`)
 	scanner := bufio.NewScanner(file)
-        lineNumber := 0
+	lineNumber := 0
 	for scanner.Scan() {
-	        lineNumber++
+		lineNumber++
 		line := scanner.Text()
 		if strings.HasPrefix(line, "image:") {
 			if !r.MatchString(line) {
-				lines = append(lines, fmt.Sprintf("%s (Line: %d)", line, lineNumber))
+				lines = append(lines, line)
 			}
 		}
 	}
