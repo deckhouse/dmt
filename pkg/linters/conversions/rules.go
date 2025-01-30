@@ -228,7 +228,7 @@ func descriptionCheck(c *conversion, moduleName, path string) errors.LintRuleErr
 			moduleName,
 			moduleName,
 			nil,
-			"No description for conversion: russian, filename: %q",
+			"No description for conversion: english, filename: %q",
 			filepath.Base(path),
 		))
 	}
