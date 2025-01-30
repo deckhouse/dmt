@@ -3,6 +3,7 @@ package rules
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -22,6 +23,7 @@ func lintWerfFile(moduleName, data string) errors.LintRuleErrorsList {
 
 	werfDocs := splitManifests(data)
 
+	i := 1
 	for _, doc := range werfDocs {
 		var w werfFile
 		err := yaml.Unmarshal([]byte(doc), &w)
@@ -39,7 +41,7 @@ func lintWerfFile(moduleName, data string) errors.LintRuleErrorsList {
 			result.Add(
 				errors.NewLintRuleError(
 					ID,
-					"werf files",
+					"werf.yaml:manifest-"+strconv.Itoa(i),
 					moduleName,
 					w.From,
 					"Use `from:` or `fromImage:` and `final: false` directives instead of `artifact:` in the werf file",
@@ -58,13 +60,14 @@ func lintWerfFile(moduleName, data string) errors.LintRuleErrorsList {
 			result.Add(
 				errors.NewLintRuleError(
 					ID,
-					"werf files",
+					"werf.yaml:manifest-"+strconv.Itoa(i),
 					moduleName,
 					w.From,
 					"`from:` parameter should be one of our BASE_DISTROLESS images",
 				),
 			)
 		}
+		i++
 	}
 
 	return result
