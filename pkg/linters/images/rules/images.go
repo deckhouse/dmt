@@ -433,11 +433,13 @@ func checkImageNamesFromFile(path string) ([]string, error) {
 
 	r := regexp.MustCompile(`^image:\s*\{\{\s*\$?\.ModuleName\s*\}\}/\{\{\s*\$?\.ImageName\s*\}\}`)
 	scanner := bufio.NewScanner(file)
+        lineNumber := 0
 	for scanner.Scan() {
+	        lineNumber++
 		line := scanner.Text()
 		if strings.HasPrefix(line, "image:") {
 			if !r.MatchString(line) {
-				lines = append(lines, line)
+				lines = append(lines, fmt.Sprintf("%s (Line: %d)", line, lineNumber))
 			}
 		}
 	}
