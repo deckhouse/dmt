@@ -86,7 +86,7 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 		mdl, err := module.NewModule(paths[i])
 		if err != nil {
 			errorsList.
-				WithModuleID(moduleName).
+				WithModule(moduleName).
 				WithObjectID(paths[i]).
 				AddValue(err.Error(), "cannot create module `%s`", moduleName)
 			continue

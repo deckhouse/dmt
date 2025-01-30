@@ -54,7 +54,7 @@ func (l *LintRuleErrorsList) WithObjectID(objectID string) *LintRuleErrorsList {
 	return l
 }
 
-func (l *LintRuleErrorsList) WithModuleID(moduleID string) *LintRuleErrorsList {
+func (l *LintRuleErrorsList) WithModule(moduleID string) *LintRuleErrorsList {
 	l.moduleID = moduleID
 
 	return l
