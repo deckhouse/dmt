@@ -10,8 +10,6 @@ import (
 type Conversions struct {
 	name, desc string
 	cfg        *ConversionsSettings
-
-	result *errors.LintRuleErrorsList
 }
 
 type ConversionsSettings struct {
@@ -30,15 +28,15 @@ func New(inputCfg *config.ConversionsSettings) *Conversions {
 }
 
 func (o *Conversions) Run(m *module.Module) *errors.LintRuleErrorsList {
-	o.result = errors.NewLinterRuleList(o.Name(), m.GetName())
+	result := errors.NewLinterRuleList(o.Name(), m.GetName())
 
 	if m == nil {
 		return nil
 	}
 
-	o.result.Merge(o.checkModuleYaml(m.GetName(), m.GetPath()))
+	o.checkModuleYaml(m.GetName(), m.GetPath(), result)
 
-	return o.result
+	return result
 }
 
 func (o *Conversions) Name() string {

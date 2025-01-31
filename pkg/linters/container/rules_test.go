@@ -7,11 +7,13 @@ import (
 )
 
 func Test_shouldSkipModuleContainer(t *testing.T) {
-	Cfg = new(config.ContainerSettings)
-	Cfg.SkipContainers = []string{
-		"okmeter:okagent",
-		"d8-control-plane-manager:*image-holder",
+	cfg := &config.ContainerSettings{
+		SkipContainers: []string{
+			"okmeter:okagent",
+			"d8-control-plane-manager:*image-holder",
+		},
 	}
+
 	type args struct {
 		md        string
 		container string
@@ -45,7 +47,7 @@ func Test_shouldSkipModuleContainer(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := shouldSkipModuleContainer(tt.args.md, tt.args.container); got != tt.want {
+			if got := shouldSkipModuleContainer(tt.args.md, tt.args.container, cfg); got != tt.want {
 				t.Errorf("shouldSkipModuleContainer() = %v, want %v", got, tt.want)
 			}
 		})
