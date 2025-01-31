@@ -28,6 +28,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
@@ -357,4 +358,93 @@ type werfFile struct {
 	Image    string `json:"image" yaml:"image"`
 	From     string `json:"from" yaml:"from"`
 	Final    *bool  `json:"final" yaml:"final"`
+}
+
+func checkImageNames(moduleName, path string) errors.LintRuleErrorsList {
+	result := errors.LintRuleErrorsList{}
+
+	imagesPath := filepath.Join(path, ImagesDir)
+
+	if !IsExistsOnFilesystem(imagesPath) {
+		return result
+	}
+
+	err := filepath.Walk(imagesPath, func(fullPath string, _ os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if fsutils.IsDir(fullPath) {
+			return nil
+		}
+
+		if filepath.Base(fullPath) == "werf.inc.yaml" {
+			lines, err := checkImageNamesFromFile(fullPath)
+			path, _ := filepath.Rel(imagesPath, fullPath)
+			if err != nil {
+				result.Add(errors.NewLintRuleError(
+					ID,
+					path,
+					moduleName,
+					nil,
+					"Cannot read file: %s",
+					err.Error(),
+				))
+				return nil
+			}
+			if len(lines) > 0 {
+				result.Add(errors.NewLintRuleError(
+					ID,
+					path,
+					moduleName,
+					nil,
+					"Image name format should be like `image: {{ .ModuleName }}/{{ .ImageName }}[-something]`\n\t\t  broken lines:\n\t\t  %s",
+					strings.Join(lines, "\n\t\t  "),
+				))
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		result.Add(errors.NewLintRuleError(
+			ID,
+			imagesPath,
+			moduleName,
+			nil,
+			"Cannot read directory structure: %s",
+			err.Error(),
+		))
+
+		return result
+	}
+
+	return result
+}
+
+func checkImageNamesFromFile(path string) ([]string, error) {
+	var lines []string
+	file, err := os.Open(path)
+	if err != nil {
+		return lines, err
+	}
+	defer file.Close()
+
+	r := regexp.MustCompile(`^image:\s*\{\{\s*\$?\.ModuleName\s*\}\}/\{\{\s*\$?\.ImageName\s*\}\}`)
+	scanner := bufio.NewScanner(file)
+	lineNumber := 0
+	for scanner.Scan() {
+		lineNumber++
+		line := scanner.Text()
+		if strings.HasPrefix(line, "image:") {
+			if !r.MatchString(line) {
+				lines = append(lines, line)
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return lines, err
+	}
+
+	return lines, nil
 }
