@@ -11,8 +11,6 @@ import (
 type Images struct {
 	name, desc string
 	cfg        *config.ImageSettings
-
-	result *errors.LintRuleErrorsList
 }
 
 func New(cfg *config.ImageSettings) *Images {
@@ -24,14 +22,14 @@ func New(cfg *config.ImageSettings) *Images {
 }
 
 func (o *Images) Run(m *module.Module) *errors.LintRuleErrorsList {
-	o.result = errors.NewLinterRuleList(o.Name(), m.GetName())
+	result := errors.NewLinterRuleList(o.Name(), m.GetName())
 	if m == nil {
 		return nil
 	}
 
-	o.result.Merge(rules.New(o.cfg, o.result).ApplyImagesRules(m))
+	rules.New(o.cfg).ApplyImagesRules(m, result)
 
-	return o.result
+	return result
 }
 
 func (o *Images) Name() string {
