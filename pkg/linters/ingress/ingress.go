@@ -10,8 +10,6 @@ import (
 type Ingress struct {
 	name, desc string
 	cfg        *config.IngressSettings
-
-	result *errors.LintRuleErrorsList
 }
 
 func New(cfg *config.IngressSettings) *Ingress {
@@ -23,16 +21,16 @@ func New(cfg *config.IngressSettings) *Ingress {
 }
 
 func (o *Ingress) Run(m *module.Module) *errors.LintRuleErrorsList {
-	o.result = errors.NewLinterRuleList(o.Name(), m.GetName())
+	result := errors.NewLinterRuleList(o.Name(), m.GetName())
 	if m == nil {
 		return nil
 	}
 
 	for _, object := range m.GetStorage() {
-		o.result.Merge(o.ingressCopyCustomCertificateRule(m, object))
+		o.ingressCopyCustomCertificateRule(m, object, result)
 	}
 
-	return o.result
+	return result
 }
 
 func (o *Ingress) Name() string {

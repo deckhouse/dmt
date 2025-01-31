@@ -14,13 +14,13 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
-func (o *Ingress) ingressCopyCustomCertificateRule(m *module.Module, object storage.StoreObject) *errors.LintRuleErrorsList {
+func (o *Ingress) ingressCopyCustomCertificateRule(m *module.Module, object storage.StoreObject, result *errors.LintRuleErrorsList) {
 	const (
 		copyCustomCertificateImport = `"github.com/deckhouse/deckhouse/go_lib/hooks/copy_custom_certificate"`
 	)
 
 	if object.Unstructured.GetKind() != "Ingress" {
-		return nil
+		return // skip
 	}
 
 	var imports = make(map[string]struct{})
@@ -33,14 +33,12 @@ func (o *Ingress) ingressCopyCustomCertificateRule(m *module.Module, object stor
 	}
 
 	if _, ok := imports[copyCustomCertificateImport]; !ok {
-		return o.result.WithObjectID(m.GetName()).
+		result.WithObjectID(m.GetName()).
 			WithWarning(slices.Contains(o.cfg.SkipIngressChecks, m.GetName())).
 			Add(
 				"Ingress does not contain copy_custom_certificate hook",
 			)
 	}
-
-	return nil
 }
 
 func collectGoHooks(moduleDir string) []string {
