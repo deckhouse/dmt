@@ -17,6 +17,7 @@ import (
 
 const (
 	conversionsFolder = "openapi/conversions"
+	configValuesFile  = "openapi/config-values.yaml"
 )
 
 var regexVersionFile = regexp.MustCompile(`^v([1-9]\d{0,2})\.ya?ml$`)
@@ -31,11 +32,43 @@ type description struct {
 	Russian string `yaml:"ru,omitempty"`
 }
 
+type configValues struct {
+	ConfigVersion int `yaml:"x-config-version"`
+}
+
+//nolint:gocyclo // hate this linter
 func checkModuleYaml(moduleName, modulePath string) *errors.LintRuleErrorsList {
 	result := errors.NewLinterRuleList(ID, moduleName)
 
 	_, ok := cfg.SkipCheckModule[moduleName]
 	if ok {
+		return result
+	}
+
+	configFilePath := filepath.Join(modulePath, configValuesFile)
+	_, err := os.Stat(configFilePath)
+	if err != nil && os.IsNotExist(err) {
+		return result
+	}
+
+	f, err := os.Open(configFilePath)
+	if err != nil {
+		return result.WithModule(moduleName).Add(
+			"Cannot open config-values.yaml file at path %q: %s",
+			configFilePath, err.Error(),
+		)
+	}
+
+	var cv configValues
+	err = yaml.NewDecoder(f).Decode(&cv)
+	if err != nil {
+		return result.WithModule(moduleName).Add(
+			"Cannot decode config-values.yaml file: %s",
+			err.Error(),
+		)
+	}
+
+	if cv.ConfigVersion == 0 {
 		return result
 	}
 
