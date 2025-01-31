@@ -20,7 +20,11 @@ const (
 	ImagesDir  = "images"
 )
 
-func (r *Rules) chartModuleRule(path string, result *errors.LintRuleErrorsList) {
+type Rules struct {
+	cfg *config.ImageSettings
+}
+
+func (*Rules) chartModuleRule(path string, result *errors.LintRuleErrorsList) {
 	stat, err := os.Stat(filepath.Join(path, ChartConfigFilename))
 	if err != nil {
 		stat, err = os.Stat(filepath.Join(path, ModuleConfigFilename))
@@ -62,10 +66,6 @@ func (r *Rules) chartModuleRule(path string, result *errors.LintRuleErrorsList) 
 func IsExistsOnFilesystem(parts ...string) bool {
 	_, err := os.Stat(filepath.Join(parts...))
 	return err == nil
-}
-
-type Rules struct {
-	cfg *config.ImageSettings
 }
 
 func New(cfg *config.ImageSettings) *Rules {

@@ -18,7 +18,7 @@ type werfFile struct {
 	Final    *bool  `json:"final" yaml:"final"`
 }
 
-func (r *Rules) lintWerfFile(data string, result *errors.LintRuleErrorsList) {
+func (*Rules) lintWerfFile(data string, result *errors.LintRuleErrorsList) {
 	werfDocs := splitManifests(data)
 
 	i := 1
