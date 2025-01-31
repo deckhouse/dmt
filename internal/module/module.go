@@ -9,12 +9,10 @@ import (
 	"regexp"
 	"strings"
 
-	"gopkg.in/yaml.v3"
-	"helm.sh/helm/v3/pkg/chart"
-	"helm.sh/helm/v3/pkg/chart/loader"
-
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/internal/werf"
+	"gopkg.in/yaml.v3"
+	"helm.sh/helm/v3/pkg/chart"
 )
 
 const (
@@ -107,10 +105,11 @@ func NewModule(path string) (*Module, error) {
 		path:      path,
 	}
 
-	ch, err := loader.Load(path)
+	ch, err := LoadModuleAsChart(name, path)
 	if err != nil {
 		return nil, err
 	}
+
 	reHelmModule := regexp.MustCompile(`{{ include "helm_lib_module_(?:image|common_image).* }}`)
 	reImageDigest := regexp.MustCompile(`\$\.Values\.global\.modulesImages\.digests\.\S*`)
 	for i := range ch.Templates {
@@ -175,7 +174,6 @@ func getModuleName(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
 	return ch.Name, nil
 }
 
