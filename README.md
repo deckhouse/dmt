@@ -81,6 +81,10 @@ linters-settings:
     skip-module-checks:
       - "340-extended-monitoring"
       - "030-cloud-provider-yandex"
+  conversions:
+    skip-check:
+    - flow-schema
+    first-version: 2
 warnings-only:
   - openapi
   - no-cyrillic
