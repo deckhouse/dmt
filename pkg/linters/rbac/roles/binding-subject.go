@@ -32,7 +32,8 @@ func ObjectBindingSubjectServiceAccountCheck(
 	m *module.Module,
 	object storage.StoreObject,
 	objectStore *storage.UnstructuredObjectStore,
-) *errors.LintRuleError {
+) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList(ID, m.GetName())
 	if slices.Contains(Cfg.SkipModuleCheckBinding, m.GetName()) {
 		return nil
 	}
@@ -48,14 +49,16 @@ func ObjectBindingSubjectServiceAccountCheck(
 		clusterRoleBinding := new(v1.ClusterRoleBinding)
 		err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), clusterRoleBinding)
 		if err != nil {
-			return newConvertError(object, err)
+			return result.WithObjectID(object.Identity()).Add(
+				"Cannot convert object to %s: %v", object.Unstructured.GetKind(), err)
 		}
 		subjects = clusterRoleBinding.Subjects
 	case "RoleBinding":
 		roleBinding := new(v1.RoleBinding)
 		err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), roleBinding)
 		if err != nil {
-			return newConvertError(object, err)
+			return result.WithObjectID(object.Identity()).Add(
+				"Cannot convert object to %s: %v", object.Unstructured.GetKind(), err)
 		}
 		subjects = roleBinding.Subjects
 
@@ -86,25 +89,11 @@ func ObjectBindingSubjectServiceAccountCheck(
 		if subject.Namespace == m.GetNamespace() && !objectStore.Exists(storage.ResourceIndex{
 			Name: subject.Name, Kind: subject.Kind, Namespace: subject.Namespace,
 		}) {
-			return errors.NewLintRuleError(
-				ID,
-				object.Identity(),
-				m.GetName(),
-				nil,
+			return result.WithObjectID(object.Identity()).Add(
 				"%s bind to the wrong ServiceAccount (doesn't exist in the store)", objectKind,
 			)
 		}
 	}
 
 	return nil
-}
-
-func newConvertError(object storage.StoreObject, err error) *errors.LintRuleError {
-	return errors.NewLintRuleError(
-		ID,
-		object.Identity(),
-		object.Unstructured.GetName(),
-		nil,
-		"Cannot convert object to %s: %v", object.Unstructured.GetKind(), err,
-	)
 }

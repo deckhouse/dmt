@@ -31,25 +31,16 @@ import (
 
 const ossFilename = "oss.yaml"
 
-func OssModuleRule(name, moduleRoot string) errors.LintRuleErrorsList {
-	lintErrors := errors.LintRuleErrorsList{}
+func OssModuleRule(name, moduleRoot string) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList("oss", name)
 
 	if errs := verifyOssFile(name, moduleRoot); len(errs) > 0 {
 		for _, err := range errs {
-			ruleErr := errors.NewLintRuleError(
-				"oss",
-				moduleRoot,
-				name,
-				nil,
-				"%v",
-				ossFileErrorMessage(err),
-			)
-
-			lintErrors.Add(ruleErr)
+			result.WithObjectID(moduleRoot).Add("%v", ossFileErrorMessage(err))
 		}
 	}
 
-	return lintErrors
+	return result
 }
 
 func ossFileErrorMessage(err error) string {

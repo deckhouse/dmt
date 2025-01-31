@@ -23,20 +23,20 @@ func New(cfg *config.RbacSettings) *Rbac {
 	}
 }
 
-func (*Rbac) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
-	result := errors.LintRuleErrorsList{}
+func (o *Rbac) Run(m *module.Module) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList(o.Name(), m.GetName())
 	if m == nil {
-		return result, nil
+		return result
 	}
 
 	for _, object := range m.GetStorage() {
-		result.Add(roles.ObjectUserAuthzClusterRolePath(m, object))
-		result.Add(roles.ObjectRBACPlacement(m, object))
-		result.Add(roles.ObjectBindingSubjectServiceAccountCheck(m, object, m.GetObjectStore()))
-		result.Add(roles.ObjectRolesWildcard(m, object))
+		result.Merge(roles.ObjectUserAuthzClusterRolePath(m, object))
+		result.Merge(roles.ObjectRBACPlacement(m, object))
+		result.Merge(roles.ObjectBindingSubjectServiceAccountCheck(m, object, m.GetObjectStore()))
+		result.Merge(roles.ObjectRolesWildcard(m, object))
 	}
 
-	return result, nil
+	return result
 }
 
 func (o *Rbac) Name() string {

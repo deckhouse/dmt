@@ -30,10 +30,10 @@ func New(cfg *config.ProbesSettings) *Probes {
 	}
 }
 
-func (*Probes) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
-	var result errors.LintRuleErrorsList
+func (*Probes) Run(m *module.Module) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList("probes", m.GetName())
 	var err error
-	var ch = make(chan errors.LintRuleErrorsList)
+	var ch = make(chan *errors.LintRuleErrorsList)
 	go func() {
 		var g = pool.New().WithErrors()
 		g.Go(func() error {
@@ -55,7 +55,15 @@ func (*Probes) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 		result.Merge(er)
 	}
 
-	return result, err
+	if err != nil {
+		result.WithObjectID("module = "+m.GetName()).
+			AddValue(
+				err.Error(),
+				"Error in probes linter",
+			)
+	}
+
+	return result
 }
 
 func (o *Probes) Name() string {
@@ -70,8 +78,8 @@ func containerProbes(
 	moduleName string,
 	object storage.StoreObject,
 	containers []v1.Container,
-) errors.LintRuleErrorsList {
-	var errorList errors.LintRuleErrorsList
+) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList("probes", moduleName)
 	for i := range containers {
 		container := containers[i]
 		if skipCheckProbeHandler(object.Unstructured.GetNamespace(), container.Name) {
@@ -92,17 +100,15 @@ func containerProbes(
 		}
 
 		if len(errStrings) > 0 {
-			errorList.Add(errors.NewLintRuleError(
-				"probes",
-				"module = "+moduleName+" ; "+object.Identity()+" ; container = "+container.Name,
-				moduleName,
-				strings.Join(errStrings, " and "),
-				"Container does not use correct probes",
-			))
+			result.WithObjectID("module = "+moduleName+" ; "+object.Identity()+" ; container = "+container.Name).
+				AddValue(
+					strings.Join(errStrings, " and "),
+					"Container does not use correct probes",
+				)
 		}
 	}
 
-	return errorList
+	return result
 }
 
 func probeHandlerIsNotValid(probe v1.ProbeHandler) bool {

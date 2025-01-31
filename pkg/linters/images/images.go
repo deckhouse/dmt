@@ -23,15 +23,15 @@ func New(cfg *config.ImageSettings) *Images {
 	}
 }
 
-func (*Images) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
-	var result errors.LintRuleErrorsList
+func (*Images) Run(m *module.Module) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList("images", m.GetName())
 	if m == nil {
-		return result, nil
+		return result
 	}
 
 	result.Merge(rules.ApplyImagesRules(m))
 
-	return result, nil
+	return result
 }
 
 func (o *Images) Name() string {

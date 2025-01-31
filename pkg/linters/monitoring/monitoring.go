@@ -26,20 +26,20 @@ func New(cfg *config.MonitoringSettings) *Monitoring {
 	}
 }
 
-func (*Monitoring) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
-	result := errors.LintRuleErrorsList{}
+func (*Monitoring) Run(m *module.Module) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList(ID, m.GetName())
 	if m == nil {
-		return result, nil
+		return result
 	}
 
-	result.Add(MonitoringModuleRule(m.GetName(), m.GetPath(), m.GetNamespace()))
+	result.Merge(MonitoringModuleRule(m.GetName(), m.GetPath(), m.GetNamespace()))
 
 	// TODO: compile code instead of external binary - promtool
 	for _, object := range m.GetStorage() {
-		result.Add(PromtoolRuleCheck(m, object))
+		result.Merge(PromtoolRuleCheck(m, object))
 	}
 
-	return result, nil
+	return result
 }
 
 func (o *Monitoring) Name() string {

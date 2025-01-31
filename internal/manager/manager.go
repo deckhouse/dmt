@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/deckhouse/dmt/pkg/linters/conversions"
 	"github.com/deckhouse/dmt/pkg/linters/ingress"
@@ -41,9 +40,7 @@ type Manager struct {
 	Linters LinterList
 	Modules []*module.Module
 
-	lintersMap map[string]Linter
-
-	errors errors.LintRuleErrorsList
+	errors *errors.LintRuleErrorsList
 }
 
 func NewManager(dirs []string, cfg *config.Config) *Manager {
@@ -67,16 +64,6 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 		conversions.New(&cfg.LintersSettings.Conversions),
 	}
 
-	m.lintersMap = make(map[string]Linter)
-	for _, linter := range m.Linters {
-		m.lintersMap[strings.ToLower(linter.Name())] = linter
-	}
-
-	m.Linters = make(LinterList, 0)
-	for _, linter := range m.lintersMap {
-		m.Linters = append(m.Linters, linter)
-	}
-
 	var paths []string
 
 	for i := range dirs {
@@ -93,22 +80,23 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 		paths = append(paths, result...)
 	}
 
+	errorsList := errors.NewLinterRuleList("manager")
+
 	for i := range paths {
 		moduleName := filepath.Base(paths[i])
 		logger.DebugF("Found `%s` module", moduleName)
 		mdl, err := module.NewModule(paths[i])
 		if err != nil {
-			m.errors.Add(&errors.LintRuleError{
-				Text:     "cannot create module",
-				ID:       "manager",
-				Value:    err,
-				ObjectID: paths[i],
-				Module:   moduleName,
-			})
+			errorsList.
+				WithModule(moduleName).
+				WithObjectID(paths[i]).
+				AddValue(err.Error(), "cannot create module `%s`", moduleName)
 			continue
 		}
 		m.Modules = append(m.Modules, mdl)
 	}
+
+	m.errors = errorsList
 
 	logger.InfoF("Found %d modules", len(m.Modules))
 
@@ -118,7 +106,7 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 func (m *Manager) Run() errors.LintRuleErrorsList {
 	result := errors.LintRuleErrorsList{}
 
-	var ch = make(chan errors.LintRuleErrorsList)
+	var ch = make(chan *errors.LintRuleErrorsList)
 	go func() {
 		var g = pool.New().WithMaxGoroutines(flags.LintersLimit)
 		for i := range m.Modules {
@@ -126,11 +114,7 @@ func (m *Manager) Run() errors.LintRuleErrorsList {
 			for j := range m.Linters {
 				g.Go(func() {
 					logger.DebugF("Running linter `%s` on module `%s`", m.Linters[j].Name(), m.Modules[i].GetName())
-					errs, err := m.Linters[j].Run(m.Modules[i])
-					if err != nil {
-						logger.ErrorF("Error running linter `%s`: %s\n", m.Linters[j].Name(), err)
-						return
-					}
+					errs := m.Linters[j].Run(m.Modules[i])
 					if errs.ConvertToError() != nil {
 						ch <- errs
 					}

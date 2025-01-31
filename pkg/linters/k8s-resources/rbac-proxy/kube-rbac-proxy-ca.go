@@ -27,8 +27,8 @@ import (
 
 var SkipKubeRbacProxyChecks []string
 
-func NamespaceMustContainKubeRBACProxyCA(md string, objectStore *storage.UnstructuredObjectStore) errors.LintRuleErrorsList {
-	result := errors.LintRuleErrorsList{}
+func NamespaceMustContainKubeRBACProxyCA(md string, objectStore *storage.UnstructuredObjectStore) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList("kube-rbac-proxy-ca", md)
 	proxyInNamespaces := set.New()
 
 	for index := range objectStore.Storage {
@@ -43,14 +43,11 @@ func NamespaceMustContainKubeRBACProxyCA(md string, objectStore *storage.Unstruc
 				continue
 			}
 			if !proxyInNamespaces.Has(index.Name) {
-				result.Add(errors.NewLintRuleError(
-					"kube-rbac-proxy-ca",
-					fmt.Sprintf("namespace = %s", index.Name),
-					md,
+				result.WithObjectID(fmt.Sprintf("namespace = %s", index.Name)).AddValue(
 					proxyInNamespaces.Slice(),
 					"All system namespaces should contain kube-rbac-proxy CA certificate."+
 						"\n\tConsider using corresponding helm_lib helper 'helm_lib_kube_rbac_proxy_ca_certificate'.",
-				))
+				)
 			}
 		}
 	}

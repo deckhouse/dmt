@@ -91,18 +91,8 @@ func checkRuleFile(path string) error {
 	return err
 }
 
-func createPromtoolError(m *module.Module, errMsg string) *errors.LintRuleError {
-	return errors.NewLintRuleError(
-		ID,
-		m.GetName(),
-		m.GetPath(),
-		nil,
-		"Promtool check failed for Helm chart:\n%s",
-		errMsg,
-	)
-}
-
-func PromtoolRuleCheck(m *module.Module, object storage.StoreObject) *errors.LintRuleError {
+func PromtoolRuleCheck(m *module.Module, object storage.StoreObject) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList(ID, m.GetName())
 	// check promtoolPath exist, if not do not run linter
 	if _, err := os.Stat(promtoolPath); err != nil {
 		return nil
@@ -115,34 +105,21 @@ func PromtoolRuleCheck(m *module.Module, object storage.StoreObject) *errors.Lin
 	res, ok := rulesCache.Get(object.Hash)
 	if ok {
 		if !res.success {
-			return createPromtoolError(m, res.errMsg)
+			return result.WithObjectID(m.GetPath()).Add("Promtool check failed for Helm chart:\n%s", res.errMsg)
 		}
 		return nil
 	}
 
 	marshal, err := marshalChartYaml(object)
 	if err != nil {
-		return errors.NewLintRuleError(
-			ID,
-			m.GetName(),
-			m.GetPath(),
-			nil,
-			"Error marshaling Helm chart to yaml",
-		)
+		return result.WithObjectID(m.GetPath()).Add("Error marshaling Helm chart to yaml")
 	}
 
 	path, err := writeTempRuleFileFromObject(m, marshal)
 	defer os.Remove(path)
 
 	if err != nil {
-		return errors.NewLintRuleError(
-			ID,
-			m.GetName(),
-			m.GetPath(),
-			nil,
-			"Error creating temporary rule file from Helm chart:\n%s",
-			err.Error(),
-		)
+		return result.WithObjectID(m.GetPath()).Add("Error creating temporary rule file from Helm chart:\n%s", err.Error())
 	}
 
 	err = checkRuleFile(path)
@@ -152,7 +129,7 @@ func PromtoolRuleCheck(m *module.Module, object storage.StoreObject) *errors.Lin
 			success: false,
 			errMsg:  errorMessage,
 		})
-		return createPromtoolError(m, errorMessage)
+		return result.WithObjectID(m.GetPath()).Add("Promtool check failed for Helm chart:\n%s", errorMessage)
 	}
 
 	rulesCache.Put(object.Hash, checkResult{success: true})

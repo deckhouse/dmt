@@ -6,10 +6,6 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
-const (
-	ID = "openapi"
-)
-
 // OpenAPI linter
 type OpenAPI struct {
 	name, desc string
@@ -24,13 +20,15 @@ func New(cfg *config.OpenAPISettings) *OpenAPI {
 	}
 }
 
-func (o *OpenAPI) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
+func (o *OpenAPI) Run(m *module.Module) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList("openapi", m.GetName())
 	if m.GetPath() == "" {
-		return errors.LintRuleErrorsList{}, nil
+		return result
 	}
 	apiFiles, err := GetOpenAPIYAMLFiles(m.GetPath())
 	if err != nil {
-		return errors.LintRuleErrorsList{}, err
+		result.AddValue(err.Error(), "failed to get openapi files in `%s` module", m.GetName())
+		return result
 	}
 
 	filesC := make(chan fileValidation, len(apiFiles))
@@ -45,21 +43,14 @@ func (o *OpenAPI) Run(m *module.Module) (errors.LintRuleErrorsList, error) {
 	}
 	close(filesC)
 
-	var result errors.LintRuleErrorsList
 	for res := range resultC {
 		if res.validationError != nil {
-			result.Add(errors.NewLintRuleError(
-				ID,
-				res.filePath,
-				m.GetName(),
-				res.validationError,
-				"errors in `%s` module",
-				m.GetName(),
-			))
+			result.WithObjectID(res.filePath).
+				AddValue(res.validationError.Error(), "errors in `%s` module", m.GetName())
 		}
 	}
 
-	return result, nil
+	return result
 }
 
 func (o *OpenAPI) Name() string {
