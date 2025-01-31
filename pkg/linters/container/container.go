@@ -6,16 +6,13 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
-const (
-	ID = "container"
-)
-
 var Cfg *config.ContainerSettings
 
 // Container linter
 type Container struct {
 	name, desc string
 	cfg        *config.ContainerSettings
+	result     *errors.LintRuleErrorsList
 }
 
 func New(cfg *config.ContainerSettings) *Container {
@@ -28,17 +25,17 @@ func New(cfg *config.ContainerSettings) *Container {
 	}
 }
 
-func (*Container) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, m.GetName())
+func (o *Container) Run(m *module.Module) *errors.LintRuleErrorsList {
+	o.result = errors.NewLinterRuleList(o.Name(), m.GetName())
 	if m == nil {
-		return result
+		return nil
 	}
 
 	for _, object := range m.GetStorage() {
-		result.Merge(applyContainerRules(m, object))
+		o.result.Merge(o.applyContainerRules(object))
 	}
 
-	return result
+	return o.result
 }
 
 func (o *Container) Name() string {
