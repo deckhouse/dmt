@@ -1,0 +1,37 @@
+---
+image: release-channel-version-prebuild
+from: { { .Images.BASE_ALPINE } }
+dependencies:
+  - image: dev
+    before: setup
+    imports:
+      - type: ImageDigest
+        targetEnv: deckhouseImageDigest
+import:
+  - image: common/yq4-artifact
+    add: /usr/local/bin/yq
+    to: /usr/local/bin/yq
+    before: install
+shell:
+  install:
+    - |
+      export version="{{ env "CI_COMMIT_REF_NAME" }}"
+git:
+  - add: /
+    to: /deckhouse
+    includePaths:
+      - release.yaml
+
+---
+image: release-channel-version
+from: { { .Images.BASE_SCRATCH } }
+import:
+  - image: release-channel-version-prebuild
+    add: /
+    to: /
+    after: install
+    includePaths:
+      - version.json
+      - changelog.yaml
+---
+

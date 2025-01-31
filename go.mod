@@ -4,6 +4,7 @@ go 1.23.1
 
 require (
 	dario.cat/mergo v1.0.1
+	github.com/bmatcuk/doublestar v1.3.4
 	github.com/fatih/color v1.14.1
 	github.com/flant/addon-operator v1.5.0
 	github.com/ghodss/yaml v1.0.0
@@ -18,7 +19,6 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.9.0
-	gopkg.in/yaml.v2 v2.4.0
 	helm.sh/helm/v3 v3.15.4
 	k8s.io/api v0.30.3
 	k8s.io/apiextensions-apiserver v0.30.3
@@ -30,6 +30,7 @@ require (
 require (
 	github.com/BurntSushi/toml v1.3.2 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
+	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/sprig/v3 v3.2.3 // indirect
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 // indirect
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137 // indirect
@@ -108,6 +109,7 @@ require (
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/robfig/cron.v2 v2.0.0-20150107220207-be2e0b0deed5 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/client-go v0.30.3 // indirect
 	k8s.io/klog/v2 v2.120.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 // indirect
@@ -117,6 +119,7 @@ require (
 
 require (
 	github.com/Masterminds/semver/v3 v3.2.1
+	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/hcl v1.0.0 // indirect

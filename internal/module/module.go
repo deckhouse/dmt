@@ -14,6 +14,7 @@ import (
 	"helm.sh/helm/v3/pkg/chart/loader"
 
 	"github.com/deckhouse/dmt/internal/storage"
+	"github.com/deckhouse/dmt/internal/werf"
 )
 
 const (
@@ -27,6 +28,7 @@ type Module struct {
 	path        string
 	chart       *chart.Chart
 	objectStore *storage.UnstructuredObjectStore
+	werfFile    string
 }
 
 type ModuleList []*Module
@@ -86,6 +88,13 @@ func (m *Module) GetStorage() map[storage.ResourceIndex]storage.StoreObject {
 	return m.objectStore.Storage
 }
 
+func (m *Module) GetWerfFile() string {
+	if m == nil {
+		return ""
+	}
+	return m.werfFile
+}
+
 func NewModule(path string) (*Module, error) {
 	name, err := getModuleName(path)
 	if err != nil {
@@ -137,6 +146,11 @@ func NewModule(path string) (*Module, error) {
 		return nil, err
 	}
 	module.objectStore = objectStore
+
+	werfFile, err := werf.GetWerfConfig(path)
+	if err == nil && werfFile != "" {
+		module.werfFile = werfFile
+	}
 
 	return module, nil
 }
