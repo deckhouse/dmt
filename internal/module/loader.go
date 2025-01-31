@@ -3,13 +3,13 @@ package module
 import (
 	"bytes"
 	"fmt"
-	"github.com/pkg/errors"
-	"helm.sh/helm/v3/pkg/chart"
-	"helm.sh/helm/v3/pkg/chart/loader"
-	"helm.sh/helm/v3/pkg/ignore"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"helm.sh/helm/v3/pkg/chart"
+	"helm.sh/helm/v3/pkg/chart/loader"
+	"helm.sh/helm/v3/pkg/ignore"
 )
 
 // kind of fork from helmv3: pkg/chart/loader/directory.go
@@ -31,8 +31,8 @@ func LoadModuleAsChart(moduleName, dir string) (*chart.Chart, error) {
 
 	rules := ignore.Empty()
 	ifile := filepath.Join(topdir, ignore.HelmIgnore)
-	if _, err := os.Stat(ifile); err == nil {
-		r, err := ignore.ParseFile(ifile)
+	if _, err = os.Stat(ifile); err == nil {
+		r, err := ignore.ParseFile(ifile) //nolint:govet // copypaste from helmv3
 		if err != nil {
 			return c, err
 		}
@@ -86,7 +86,7 @@ func LoadModuleAsChart(moduleName, dir string) (*chart.Chart, error) {
 
 		data, err := os.ReadFile(name)
 		if err != nil {
-			return errors.Wrapf(err, "error reading %s", n)
+			return fmt.Errorf("error reading %s: %w", n, err)
 		}
 
 		data = bytes.TrimPrefix(data, utf8bom)
@@ -95,6 +95,7 @@ func LoadModuleAsChart(moduleName, dir string) (*chart.Chart, error) {
 		return nil
 	}
 
+	//nolint:gocritic // copypaste from helmv3
 	if err = Walk(topdir, walk); err != nil {
 		return c, err
 	}

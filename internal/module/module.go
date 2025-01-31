@@ -9,10 +9,11 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/deckhouse/dmt/internal/storage"
-	"github.com/deckhouse/dmt/internal/werf"
 	"gopkg.in/yaml.v3"
 	"helm.sh/helm/v3/pkg/chart"
+
+	"github.com/deckhouse/dmt/internal/storage"
+	"github.com/deckhouse/dmt/internal/werf"
 )
 
 const (

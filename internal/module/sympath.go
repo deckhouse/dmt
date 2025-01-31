@@ -3,12 +3,13 @@ package module
 // fork from helmv3: internal/sympath/walk.go
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"sort"
 
-	"github.com/pkg/errors"
+	"errors"
 )
 
 // Walk walks the file tree rooted at root, calling walkFn for each file or directory
@@ -23,7 +24,7 @@ func Walk(root string, walkFn filepath.WalkFunc) error {
 	} else {
 		err = symwalk(root, info, walkFn)
 	}
-	if err == filepath.SkipDir {
+	if errors.Is(err, filepath.SkipDir) {
 		return nil
 	}
 	return err
@@ -46,18 +47,20 @@ func readDirNames(dirname string) ([]string, error) {
 }
 
 // symwalk recursively descends path, calling walkFn.
+//
+//nolint:gocyclo // copypaste from helmv3
 func symwalk(path string, info os.FileInfo, walkFn filepath.WalkFunc) error {
 	// Recursively walk symlinked directories.
 	if IsSymlink(info) {
 		resolved, err := filepath.EvalSymlinks(path)
 		if err != nil {
-			return errors.Wrapf(err, "error evaluating symlink %s", path)
+			return fmt.Errorf("failed to evaluate symlink %s: %w", path, err)
 		}
 		log.Printf("found symbolic link in path: %s resolves to %s. Contents of linked file included and used", path, resolved)
 		if info, err = os.Lstat(resolved); err != nil {
 			return err
 		}
-		if err := symwalk(path, info, walkFn); err != nil && err != filepath.SkipDir {
+		if err := symwalk(path, info, walkFn); err != nil && !errors.Is(err, filepath.SkipDir) {
 			return err
 		}
 		return nil
@@ -80,7 +83,7 @@ func symwalk(path string, info os.FileInfo, walkFn filepath.WalkFunc) error {
 		filename := filepath.Join(path, name)
 		fileInfo, err := os.Lstat(filename)
 		if err != nil {
-			if err := walkFn(filename, fileInfo, err); err != nil && !errors.Is(err, filepath.SkipDir) {
+			if err = walkFn(filename, fileInfo, err); err != nil && !errors.Is(err, filepath.SkipDir) {
 				return err
 			}
 		} else {
