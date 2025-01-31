@@ -11,11 +11,11 @@ import (
 type Images struct {
 	name, desc string
 	cfg        *config.ImageSettings
+
+	result *errors.LintRuleErrorsList
 }
 
 func New(cfg *config.ImageSettings) *Images {
-	rules.Cfg = cfg
-
 	return &Images{
 		name: "images",
 		desc: "Lint docker images",
@@ -23,15 +23,15 @@ func New(cfg *config.ImageSettings) *Images {
 	}
 }
 
-func (*Images) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList("images", m.GetName())
+func (o *Images) Run(m *module.Module) *errors.LintRuleErrorsList {
+	o.result = errors.NewLinterRuleList(o.Name(), m.GetName())
 	if m == nil {
-		return result
+		return nil
 	}
 
-	result.Merge(rules.ApplyImagesRules(m))
+	o.result.Merge(rules.New(o.cfg, o.result).ApplyImagesRules(m))
 
-	return result
+	return o.result
 }
 
 func (o *Images) Name() string {

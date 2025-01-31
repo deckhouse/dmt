@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -33,8 +32,8 @@ var distrolessImagesPrefix = map[string][]string{
 	},
 }
 
-func skipModuleImageNameIfNeeded(filePath string) bool {
-	for _, img := range Cfg.SkipModuleImageName {
+func (r *Rules) skipModuleImageNameIfNeeded(filePath string) bool {
+	for _, img := range r.cfg.SkipModuleImageName {
 		if strings.HasSuffix(filePath, img) {
 			return true
 		}
@@ -42,8 +41,8 @@ func skipModuleImageNameIfNeeded(filePath string) bool {
 	return false
 }
 
-func skipDistrolessImageCheckIfNeeded(image string) bool {
-	for _, img := range Cfg.SkipDistrolessImageCheck {
+func (r *Rules) skipDistrolessImageCheckIfNeeded(image string) bool {
+	for _, img := range r.cfg.SkipDistrolessImageCheck {
 		if strings.HasSuffix(image, img) {
 			return true
 		}
@@ -66,13 +65,12 @@ func isImageNameUnacceptable(imageName string) (bool, string) { //nolint:gocriti
 	return false, ""
 }
 
-func checkImageNamesInDockerFiles(name, path string) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, name)
+func (r *Rules) checkImageNamesInDockerFiles(name, path string) *errors.LintRuleErrorsList {
 	var filePaths []string
 	imagesPath := filepath.Join(path, ImagesDir)
 
 	if !IsExistsOnFilesystem(imagesPath) {
-		return result
+		return nil
 	}
 
 	err := filepath.Walk(imagesPath, func(fullPath string, f os.FileInfo, err error) error {
@@ -91,30 +89,27 @@ func checkImageNamesInDockerFiles(name, path string) *errors.LintRuleErrorsList 
 		return nil
 	})
 	if err != nil {
-		return result.WithObjectID(imagesPath).Add(
+		return r.result.WithObjectID(imagesPath).Add(
 			"Cannot read directory structure: %s",
 			err.Error(),
 		)
 	}
 	for _, path := range filePaths {
-		if skipModuleImageNameIfNeeded(path) {
-			continue
-		}
-
-		result.Merge(lintOneDockerfile(name, path, imagesPath))
+		r.result.Merge(r.lintOneDockerfile(name, path, imagesPath))
 	}
 
-	return result
+	return r.result
 }
 
-func lintOneDockerfile(name, path, imagesPath string) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, name)
+func (r *Rules) lintOneDockerfile(name, path, imagesPath string) *errors.LintRuleErrorsList {
 	relativeFilePath, err := filepath.Rel(imagesPath, path)
 	if err != nil {
-		return result.WithObjectID(path).Add(
-			"Error calculating relative file path: %s",
-			err.Error(),
-		)
+		return r.result.WithObjectID(path).
+			WithWarning(r.skipModuleImageNameIfNeeded(path)).
+			Add(
+				"Error calculating relative file path: %s",
+				err.Error(),
+			)
 	}
 
 	var (
@@ -123,10 +118,12 @@ func lintOneDockerfile(name, path, imagesPath string) *errors.LintRuleErrorsList
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return result.WithObjectID(path).Add(
-			"Error reading file: %s",
-			err.Error(),
-		)
+		return r.result.WithObjectID(path).
+			WithWarning(r.skipModuleImageNameIfNeeded(path)).
+			Add(
+				"Error reading file: %s",
+				err.Error(),
+			)
 	}
 
 	scanner := bufio.NewScanner(bytes.NewReader(data))
@@ -136,7 +133,8 @@ func lintOneDockerfile(name, path, imagesPath string) *errors.LintRuleErrorsList
 		linePos++
 		ers, ciVariable := isImageNameUnacceptable(line)
 		if ers {
-			result.
+			r.result.
+				WithWarning(r.skipModuleImageNameIfNeeded(path)).
 				WithObjectID(fmt.Sprintf("module = %s, image = %s, line = %d", name, relativeFilePath, linePos)).
 				Add(
 					"Please use %s as an image name", ciVariable,
@@ -149,22 +147,20 @@ func lintOneDockerfile(name, path, imagesPath string) *errors.LintRuleErrorsList
 	}
 
 	for i, fromInstruction := range dockerfileFromInstructions {
-		if skipDistrolessImageCheckIfNeeded(relativeFilePath) {
-			log.Printf("WARNING!!! SKIP DISTROLESS CHECK!!!\nmodule = %s, image = %s\nvalue - %s\n\n", name, relativeFilePath, fromInstruction)
-			continue
-		}
-
 		ers, message := isDockerfileInstructionUnacceptable(fromInstruction, i == len(dockerfileFromInstructions)-1)
 		if ers {
-			result.WithObjectID(fmt.Sprintf("module = %s, path = %s", name, relativeFilePath)).AddValue(
-				fromInstruction,
-				"%s",
-				message,
-			)
+			r.result.
+				WithWarning(r.skipDistrolessImageCheckIfNeeded(relativeFilePath)).
+				WithObjectID(fmt.Sprintf("module = %s, path = %s", name, relativeFilePath)).
+				AddValue(
+					fromInstruction,
+					"%s",
+					message,
+				)
 		}
 	}
 
-	return result
+	return r.result
 }
 
 func isDockerfileInstructionUnacceptable(from string, final bool) (bool, string) { //nolint:gocritic // false positive
