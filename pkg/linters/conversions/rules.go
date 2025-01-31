@@ -31,26 +31,24 @@ type description struct {
 	Russian string `yaml:"ru,omitempty"`
 }
 
-func checkModuleYaml(moduleName, modulePath string) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, moduleName)
-
-	_, ok := cfg.SkipCheckModule[moduleName]
+func (o *Conversions) checkModuleYaml(moduleName, modulePath string) *errors.LintRuleErrorsList {
+	_, ok := o.cfg.SkipCheckModule[moduleName]
 	if ok {
-		return result
+		o.result.WithWarning(true)
 	}
 
 	folder := filepath.Join(modulePath, conversionsFolder)
 
 	stat, err := os.Stat(folder)
 	if err != nil && !os.IsNotExist(err) {
-		return result.WithObjectID(moduleName).Add(
+		return o.result.WithObjectID(moduleName).Add(
 			"Cannot stat conversions folder %q: %s",
 			conversionsFolder, err.Error(),
 		)
 	}
 
 	if os.IsNotExist(err) || !stat.IsDir() {
-		return result.WithObjectID(moduleName).Add(
+		return o.result.WithObjectID(moduleName).Add(
 			"Conversions folder is not exist, at path %q: %s",
 			conversionsFolder, err.Error(),
 		)
@@ -60,7 +58,7 @@ func checkModuleYaml(moduleName, modulePath string) *errors.LintRuleErrorsList {
 
 	_ = filepath.Walk(folder, func(path string, _ fs.FileInfo, err error) error {
 		if err != nil {
-			result.WithObjectID(moduleName).Add(
+			o.result.WithObjectID(moduleName).Add(
 				"Walk error with file: %q",
 				path,
 			)
@@ -74,9 +72,9 @@ func checkModuleYaml(moduleName, modulePath string) *errors.LintRuleErrorsList {
 
 		// TODO: return error that name is matched and is dir
 
-		c, err := parseConversion(path)
+		c, err := o.parseConversion(path)
 		if err != nil {
-			result.WithObjectID(moduleName).Add(
+			o.result.WithObjectID(moduleName).Add(
 				"%s",
 				strings.ToTitle(err.Error()),
 			)
@@ -84,7 +82,7 @@ func checkModuleYaml(moduleName, modulePath string) *errors.LintRuleErrorsList {
 			return nil
 		}
 
-		result.Merge(conversionCheck(c, moduleName, path))
+		o.result.Merge(o.conversionCheck(c, moduleName, path))
 
 		if c.Version == nil {
 			return nil
@@ -92,13 +90,13 @@ func checkModuleYaml(moduleName, modulePath string) *errors.LintRuleErrorsList {
 
 		versions = append(versions, *c.Version)
 
-		result.Merge(compareWithFileName(c, moduleName, path))
+		o.result.Merge(o.compareWithFileName(c, moduleName, path))
 
 		return nil
 	})
 
 	if len(versions) == 0 {
-		return result.WithObjectID(moduleName).Add(
+		return o.result.WithObjectID(moduleName).Add(
 			"No versions in folder: %q",
 			folder,
 		)
@@ -106,26 +104,26 @@ func checkModuleYaml(moduleName, modulePath string) *errors.LintRuleErrorsList {
 
 	slices.Sort(versions)
 
-	if cfg.FirstVersion != 0 && versions[0] != cfg.FirstVersion {
-		result.WithObjectID(moduleName).Add(
+	if o.cfg.FirstVersion != 0 && versions[0] != o.cfg.FirstVersion {
+		o.result.WithObjectID(moduleName).Add(
 			"You need to start with version number: %d",
-			cfg.FirstVersion,
+			o.cfg.FirstVersion,
 		)
 	}
 
 	for i := 1; i < len(versions); i++ {
 		if versions[i]-versions[i-1] > 1 {
-			result.WithObjectID(moduleName).Add(
+			o.result.WithObjectID(moduleName).Add(
 				"No sequential versions between %d and %d",
 				versions[i], versions[i-1],
 			)
 		}
 	}
 
-	return result
+	return o.result
 }
 
-func parseConversion(path string) (*conversion, error) {
+func (o *Conversions) parseConversion(path string) (*conversion, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open file to read conversion %q: %w", conversionsFolder, err)
@@ -140,54 +138,48 @@ func parseConversion(path string) (*conversion, error) {
 	return c, nil
 }
 
-func conversionCheck(c *conversion, moduleName, path string) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, moduleName)
-
-	result.Merge(descriptionCheck(c, moduleName, path))
+func (o *Conversions) conversionCheck(c *conversion, moduleName, path string) *errors.LintRuleErrorsList {
+	o.result.Merge(o.descriptionCheck(c, moduleName, path))
 
 	if c.Version == nil {
-		return result.WithObjectID(moduleName).Add(
+		return o.result.WithObjectID(moduleName).Add(
 			"Version is empty, filename: %q",
 			filepath.Base(path),
 		)
 	}
 
-	return result
+	return o.result
 }
 
-func descriptionCheck(c *conversion, moduleName, path string) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, moduleName)
-
+func (o *Conversions) descriptionCheck(c *conversion, moduleName, path string) *errors.LintRuleErrorsList {
 	if c.Description == nil {
-		return result.WithObjectID(moduleName).Add(
+		return o.result.WithObjectID(moduleName).Add(
 			"Description is empty, filename: %q",
 			filepath.Base(path),
 		)
 	}
 
 	if c.Description.Russian == "" {
-		result.WithObjectID(moduleName).Add(
+		o.result.WithObjectID(moduleName).Add(
 			"No description for conversion: russian, filename: %q",
 			filepath.Base(path),
 		)
 	}
 
 	if c.Description.English == "" {
-		result.WithObjectID(moduleName).Add(
+		o.result.WithObjectID(moduleName).Add(
 			"No description for conversion: english, filename: %q",
 			filepath.Base(path),
 		)
 	}
 
-	return result
+	return o.result
 }
 
-func compareWithFileName(c *conversion, moduleName, path string) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, moduleName)
-
+func (o *Conversions) compareWithFileName(c *conversion, moduleName, path string) *errors.LintRuleErrorsList {
 	versions := regexVersionFile.FindStringSubmatch(filepath.Base(path))
 	if len(versions) <= 1 {
-		return result.WithObjectID(moduleName).Add(
+		return o.result.WithObjectID(moduleName).Add(
 			"Bad filename %q",
 			filepath.Base(path),
 		)
@@ -195,18 +187,18 @@ func compareWithFileName(c *conversion, moduleName, path string) *errors.LintRul
 
 	fileVersion, err := strconv.Atoi(versions[1])
 	if err != nil {
-		return result.WithObjectID(moduleName).Add(
+		return o.result.WithObjectID(moduleName).Add(
 			"Cannot convert version from file name %q: %s",
 			filepath.Base(path), err.Error(),
 		)
 	}
 
 	if *c.Version != fileVersion {
-		return result.WithObjectID(moduleName).Add(
+		return o.result.WithObjectID(moduleName).Add(
 			"File name %q doesn't correspond with contained version %d",
 			filepath.Base(path), *c.Version,
 		)
 	}
 
-	return result
+	return o.result
 }

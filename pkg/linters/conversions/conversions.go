@@ -9,7 +9,9 @@ import (
 // Conversions linter
 type Conversions struct {
 	name, desc string
-	cfg        *config.ConversionsSettings
+	cfg        *ConversionsSettings
+
+	result *errors.LintRuleErrorsList
 }
 
 type ConversionsSettings struct {
@@ -19,30 +21,24 @@ type ConversionsSettings struct {
 	FirstVersion int
 }
 
-const ID = "conversions"
-
-var cfg *ConversionsSettings
-
 func New(inputCfg *config.ConversionsSettings) *Conversions {
-	cfg = remapConversionsConfig(inputCfg)
-
 	return &Conversions{
-		name: ID,
+		name: "conversions",
 		desc: "Lint conversions rules",
-		cfg:  inputCfg,
+		cfg:  remapConversionsConfig(inputCfg),
 	}
 }
 
-func (*Conversions) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, m.GetName())
+func (o *Conversions) Run(m *module.Module) *errors.LintRuleErrorsList {
+	o.result = errors.NewLinterRuleList(o.Name(), m.GetName())
 
 	if m == nil {
-		return result
+		return nil
 	}
 
-	result.Merge(checkModuleYaml(m.GetName(), m.GetPath()))
+	o.result.Merge(o.checkModuleYaml(m.GetName(), m.GetPath()))
 
-	return result
+	return o.result
 }
 
 func (o *Conversions) Name() string {
@@ -55,7 +51,8 @@ func (o *Conversions) Desc() string {
 
 func remapConversionsConfig(input *config.ConversionsSettings) *ConversionsSettings {
 	newCfg := &ConversionsSettings{
-		FirstVersion: input.FirstVersion,
+		FirstVersion:    input.FirstVersion,
+		SkipCheckModule: make(map[string]struct{}),
 	}
 
 	for _, module := range input.SkipCheckModule {
