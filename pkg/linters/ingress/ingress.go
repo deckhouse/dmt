@@ -10,15 +10,11 @@ import (
 type Ingress struct {
 	name, desc string
 	cfg        *config.IngressSettings
+
+	result *errors.LintRuleErrorsList
 }
 
-const ID = "ingress"
-
-var Cfg *config.IngressSettings
-
 func New(cfg *config.IngressSettings) *Ingress {
-	Cfg = cfg
-
 	return &Ingress{
 		name: "ingress",
 		desc: "Lint ingresses rules",
@@ -26,17 +22,17 @@ func New(cfg *config.IngressSettings) *Ingress {
 	}
 }
 
-func (*Ingress) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, m.GetName())
+func (o *Ingress) Run(m *module.Module) *errors.LintRuleErrorsList {
+	o.result = errors.NewLinterRuleList(o.Name(), m.GetName())
 	if m == nil {
 		return nil
 	}
 
 	for _, object := range m.GetStorage() {
-		result.Merge(ingressCopyCustomCertificateRule(m, object))
+		o.result.Merge(o.ingressCopyCustomCertificateRule(m, object))
 	}
 
-	return result
+	return o.result
 }
 
 func (o *Ingress) Name() string {
