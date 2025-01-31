@@ -18,8 +18,8 @@ type werfFile struct {
 	Final    *bool  `json:"final" yaml:"final"`
 }
 
-func lintWerfFile(moduleName, data string) errors.LintRuleErrorsList {
-	result := errors.LintRuleErrorsList{}
+func lintWerfFile(moduleName, data string) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList(ID, moduleName)
 
 	werfDocs := splitManifests(data)
 
@@ -38,14 +38,9 @@ func lintWerfFile(moduleName, data string) errors.LintRuleErrorsList {
 		}
 
 		if w.Artifact != "" {
-			result.Add(
-				errors.NewLintRuleError(
-					ID,
-					"werf.yaml:manifest-"+strconv.Itoa(i),
-					moduleName,
-					"artifact: "+w.Artifact,
-					"Use `from:` or `fromImage:` and `final: false` directives instead of `artifact:` in the werf file",
-				),
+			result.WithObjectID("werf.yaml:manifest-"+strconv.Itoa(i)).AddValue(
+				"artifact: "+w.Artifact,
+				"Use `from:` or `fromImage:` and `final: false` directives instead of `artifact:` in the werf file",
 			)
 		}
 
@@ -57,14 +52,9 @@ func lintWerfFile(moduleName, data string) errors.LintRuleErrorsList {
 		// TODO: add skips for some images
 
 		if !isWerfImagesCorrect(w.From) {
-			result.Add(
-				errors.NewLintRuleError(
-					ID,
-					"werf.yaml:manifest-"+strconv.Itoa(i),
-					moduleName,
-					w.From,
-					"`from:` parameter should be one of our BASE_DISTROLESS images",
-				),
+			result.WithObjectID("werf.yaml:manifest-"+strconv.Itoa(i)).AddValue(
+				"from: "+w.From,
+				"`from:` parameter should be one of our BASE_DISTROLESS images",
 			)
 		}
 		i++

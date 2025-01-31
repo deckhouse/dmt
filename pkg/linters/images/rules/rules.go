@@ -76,8 +76,7 @@ func IsExistsOnFilesystem(parts ...string) bool {
 
 func ApplyImagesRules(m *module.Module) *errors.LintRuleErrorsList {
 	result := errors.NewLinterRuleList(ID, m.GetName())
-	result.Merge(CheckImageNamesInDockerAndWerfFiles(m.GetName(), m.GetPath()))
-	result.Merge(checkImageNames(m.GetName(), m.GetPath()))
+	result.Merge(checkImageNamesInDockerFiles(m.GetName(), m.GetPath()))
 	result.Merge(chartModuleRule(m.GetName(), m.GetPath()))
 
 	result.Merge(lintWerfFile(m.GetName(), m.GetWerfFile()))
