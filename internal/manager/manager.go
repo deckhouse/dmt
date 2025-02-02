@@ -104,8 +104,8 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 	return m
 }
 
-func (m *Manager) Run() errors.LintRuleErrorsList {
-	result := errors.LintRuleErrorsList{}
+func (m *Manager) Run() *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList("manager")
 
 	var ch = make(chan *errors.LintRuleErrorsList)
 	go func() {
