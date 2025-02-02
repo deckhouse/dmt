@@ -50,6 +50,9 @@ func NewLinterRuleList(linterID string, module ...string) *LintRuleErrorsList {
 }
 
 func (l *LintRuleErrorsList) WithObjectID(objectID string) *LintRuleErrorsList {
+	if l.storage == nil {
+		l.storage = &errStorage{}
+	}
 	return &LintRuleErrorsList{
 		storage:  l.storage,
 		linterID: l.linterID,
@@ -60,6 +63,9 @@ func (l *LintRuleErrorsList) WithObjectID(objectID string) *LintRuleErrorsList {
 }
 
 func (l *LintRuleErrorsList) WithModule(moduleID string) *LintRuleErrorsList {
+	if l.storage == nil {
+		l.storage = &errStorage{}
+	}
 	return &LintRuleErrorsList{
 		storage:  l.storage,
 		linterID: l.linterID,
@@ -70,6 +76,9 @@ func (l *LintRuleErrorsList) WithModule(moduleID string) *LintRuleErrorsList {
 }
 
 func (l *LintRuleErrorsList) WithValue(value any) *LintRuleErrorsList {
+	if l.storage == nil {
+		l.storage = &errStorage{}
+	}
 	return &LintRuleErrorsList{
 		storage:  l.storage,
 		linterID: l.linterID,
@@ -80,6 +89,10 @@ func (l *LintRuleErrorsList) WithValue(value any) *LintRuleErrorsList {
 }
 
 func (l *LintRuleErrorsList) Add(template string, a ...any) *LintRuleErrorsList {
+	if l.storage == nil {
+		l.storage = &errStorage{}
+	}
+
 	if len(a) != 0 {
 		template = fmt.Sprintf(template, a...)
 	}
@@ -103,6 +116,10 @@ func (l *LintRuleErrorsList) Add(template string, a ...any) *LintRuleErrorsList 
 
 // Merge merges another LintRuleErrorsList into current one, removing all duplicate errors.
 func (l *LintRuleErrorsList) Merge(e *LintRuleErrorsList) {
+	if l.storage == nil {
+		l.storage = &errStorage{}
+	}
+
 	if e == nil {
 		return
 	}
@@ -123,6 +140,10 @@ func (l *LintRuleErrorsList) Merge(e *LintRuleErrorsList) {
 // It returns an error that contains all errors from the list with a nice formatting.
 // If the list is empty, it returns nil.
 func (l *LintRuleErrorsList) ConvertToError() error {
+	if l.storage == nil {
+		l.storage = &errStorage{}
+	}
+
 	if len(*l.storage) == 0 {
 		return nil
 	}
@@ -167,6 +188,10 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 var WarningsOnly []string
 
 func (l *LintRuleErrorsList) Critical() bool {
+	if l.storage == nil {
+		l.storage = &errStorage{}
+	}
+
 	for _, err := range *l.storage {
 		if !slices.Contains(WarningsOnly, err.ID) {
 			return true
