@@ -20,17 +20,17 @@ func Test_Errors(t *testing.T) {
 	require.NotEqual(t, t1, t2)
 	require.NotEqual(t, t1.objectID, t2.objectID)
 	t1.Add("test1")
-	require.Equal(t, 1, len(*t1.storage))
+	require.Len(t, *t1.storage, 1)
 	t2.Add("test2")
-	require.Equal(t, 2, len(*t1.storage))
-	require.Equal(t, 2, len(*t2.storage))
+	require.Len(t, *t1.storage, 2)
+	require.Len(t, *t2.storage, 2)
 	require.Equal(t,
 		errStorage{
 			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test1"},
 			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "objectID", Text: "test2"}},
 		*t1.storage)
 	t1.Add("test3")
-	require.Equal(t, 3, len(*t1.storage))
+	require.Len(t, *t1.storage, 3)
 	require.Equal(t,
 		errStorage{
 			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test1"},
@@ -46,10 +46,10 @@ func Test_Errors(t *testing.T) {
 			lintRuleError{ID: "linterid", Module: "moduleID2", ObjectID: "objectID3", Text: "test3"},
 		},
 		*t3.storage)
-	require.Equal(t, 1, len(*t3.storage))
+	require.Len(t, *t3.storage, 1)
 
 	t1.Merge(t3)
-	require.Equal(t, 4, len(*t1.storage))
+	require.Len(t, *t1.storage, 4)
 	require.Equal(t,
 		errStorage{
 			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test1"},
