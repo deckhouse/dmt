@@ -82,9 +82,6 @@ func containerProbes(
 	result := errors.NewLinterRuleList("probes", moduleName)
 	for i := range containers {
 		container := containers[i]
-		if skipCheckProbeHandler(object.Unstructured.GetNamespace(), container.Name) {
-			continue
-		}
 
 		var errStrings []string
 		// check livenessProbe exist and correct
@@ -101,6 +98,7 @@ func containerProbes(
 
 		if len(errStrings) > 0 {
 			result.WithObjectID("module = "+moduleName+" ; "+object.Identity()+" ; container = "+container.Name).
+				WithWarning(skipCheckProbeHandler(object.Unstructured.GetNamespace(), container.Name)).
 				AddValue(
 					strings.Join(errStrings, " and "),
 					"Container does not use correct probes",
