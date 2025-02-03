@@ -43,18 +43,17 @@ func (o *Copyright) Run(m *module.Module) *errors.LintRuleErrorsList {
 	for _, fileName := range files {
 		name, _ := strings.CutPrefix(fileName, m.GetPath())
 		name = m.GetName() + ":" + name
-		if slices.Contains(o.cfg.CopyrightExcludes, name) {
-			continue
-		}
 
 		ok, err := checkFileCopyright(fileName)
 		if !ok {
 			path, _ := strings.CutPrefix(fileName, m.GetPath())
-			result.WithObjectID(path).AddValue(
-				err,
-				"errors in `%s` module",
-				m.GetName(),
-			)
+			result.WithObjectID(path).
+				WithWarning(slices.Contains(o.cfg.CopyrightExcludes, name)).
+				AddValue(
+					err,
+					"errors in `%s` module",
+					m.GetName(),
+				)
 		}
 	}
 

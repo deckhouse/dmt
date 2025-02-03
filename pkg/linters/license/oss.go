@@ -36,7 +36,9 @@ func OssModuleRule(name, moduleRoot string) *errors.LintRuleErrorsList {
 
 	if errs := verifyOssFile(name, moduleRoot); len(errs) > 0 {
 		for _, err := range errs {
-			result.WithObjectID(moduleRoot).Add("%v", ossFileErrorMessage(err))
+			result.WithObjectID(moduleRoot).
+				WithWarning(shouldIgnoreOssInfo(name)).
+				Add("%v", ossFileErrorMessage(err))
 		}
 	}
 
@@ -51,10 +53,6 @@ func ossFileErrorMessage(err error) string {
 }
 
 func verifyOssFile(name, moduleRoot string) []error {
-	if shouldIgnoreOssInfo(name) {
-		return nil
-	}
-
 	projects, err := readOssFile(moduleRoot)
 	if err != nil {
 		return []error{err}
