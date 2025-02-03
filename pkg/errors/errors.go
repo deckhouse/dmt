@@ -17,6 +17,7 @@ type lintRuleError struct {
 	ObjectID    string
 	ObjectValue any
 	Text        string
+	Warning     bool
 }
 
 func (l *lintRuleError) EqualsTo(candidate lintRuleError) bool { //nolint:gocritic // it's a simple method
@@ -34,6 +35,7 @@ type LintRuleErrorsList struct {
 	linterID string
 	moduleID string
 	objectID string
+	warning  bool
 }
 
 func NewLinterRuleList(linterID string, module ...string) *LintRuleErrorsList {
@@ -60,6 +62,16 @@ func (l *LintRuleErrorsList) WithModule(moduleID string) *LintRuleErrorsList {
 	return l
 }
 
+func (l *LintRuleErrorsList) WithWarning(value bool) *LintRuleErrorsList {
+	return &LintRuleErrorsList{
+		storage:  l.storage,
+		linterID: l.linterID,
+		moduleID: l.moduleID,
+		objectID: l.objectID,
+		warning:  value,
+	}
+}
+
 func (l *LintRuleErrorsList) AddValue(value any, template string, a ...any) *LintRuleErrorsList {
 	return l.add(value, fmt.Sprintf(template, a...))
 }
@@ -79,6 +91,7 @@ func (l *LintRuleErrorsList) add(value any, str string) *LintRuleErrorsList {
 		ObjectID:    l.objectID,
 		ObjectValue: value,
 		Text:        str,
+		Warning:     l.warning,
 	}
 
 	if slices.ContainsFunc(l.storage, e.EqualsTo) {
@@ -130,6 +143,9 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 	builder := strings.Builder{}
 	for _, err := range l.storage {
 		msgColor := color.FgRed
+		if err.Warning {
+			msgColor = color.FgYellow
+		}
 		if _, ok := warningOnlyLinters[err.ID]; ok {
 			msgColor = color.FgHiYellow
 		}
@@ -157,7 +173,7 @@ var WarningsOnly []string
 
 func (l *LintRuleErrorsList) Critical() bool {
 	for _, err := range l.storage {
-		if !slices.Contains(WarningsOnly, err.ID) {
+		if !err.Warning || !slices.Contains(WarningsOnly, err.ID) {
 			return true
 		}
 	}
