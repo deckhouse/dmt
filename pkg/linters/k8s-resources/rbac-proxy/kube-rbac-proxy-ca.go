@@ -39,15 +39,14 @@ func NamespaceMustContainKubeRBACProxyCA(md string, objectStore *storage.Unstruc
 
 	for index := range objectStore.Storage {
 		if index.Kind == "Namespace" {
-			if slices.Contains(SkipKubeRbacProxyChecks, index.Namespace) {
-				continue
-			}
 			if !proxyInNamespaces.Has(index.Name) {
-				result.WithObjectID(fmt.Sprintf("namespace = %s", index.Name)).AddValue(
-					proxyInNamespaces.Slice(),
-					"All system namespaces should contain kube-rbac-proxy CA certificate."+
-						"\n\tConsider using corresponding helm_lib helper 'helm_lib_kube_rbac_proxy_ca_certificate'.",
-				)
+				result.WithObjectID(fmt.Sprintf("namespace = %s", index.Name)).
+					WithWarning(slices.Contains(SkipKubeRbacProxyChecks, index.Namespace)).
+					AddValue(
+						proxyInNamespaces.Slice(),
+						"All system namespaces should contain kube-rbac-proxy CA certificate."+
+							"\n\tConsider using corresponding helm_lib helper 'helm_lib_kube_rbac_proxy_ca_certificate'.",
+					)
 			}
 		}
 	}

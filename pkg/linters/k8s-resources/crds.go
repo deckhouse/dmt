@@ -45,12 +45,9 @@ func CrdsModuleRule(name, path string) *errors.LintRuleErrorsList {
 				continue
 			}
 
-			if shouldSkipCrd(crd.Name) {
-				continue
-			}
-
 			if crd.APIVersion != "apiextensions.k8s.io/v1" {
 				result.WithObjectID(d).
+					WithWarning(shouldSkipCrd(crd.Name)).
 					AddValue(fmt.Sprintf("kind = %s ; name = %s ; module = %s ; file = %s", crd.Kind, crd.Name, name, path),
 						crd.APIVersion, `CRD specified using deprecated api version, wanted "apiextensions.k8s.io/v1"`)
 			}

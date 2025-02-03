@@ -51,9 +51,6 @@ func (s *nsLabelSelector) Matches(namespace string, labelSet labels.Set) bool {
 // by a PodDisruptionBudget
 func ControllerMustHavePDB(md *module.Module) *errors.LintRuleErrorsList {
 	result := errors.NewLinterRuleList(ID, md.GetName())
-	if slices.Contains(SkipPDBChecks, md.GetNamespace()+":"+md.GetName()) {
-		return result
-	}
 
 	pdbSelectors, lerr := collectPDBSelectors(md)
 	result.Merge(lerr)
@@ -82,9 +79,6 @@ func isPodControllerDaemonSet(kind string) bool {
 // by a PodDisruptionBudget
 func DaemonSetMustNotHavePDB(md *module.Module) *errors.LintRuleErrorsList {
 	result := errors.NewLinterRuleList(ID, md.GetName())
-	if slices.Contains(SkipPDBChecks, md.GetNamespace()+":"+md.GetName()) {
-		return result
-	}
 
 	pdbSelectors, lerr := collectPDBSelectors(md)
 	result.Merge(lerr)
@@ -160,9 +154,11 @@ func ensurePDBIsNotPresent(md *module.Module, selectors []nsLabelSelector, podCo
 	result := errors.NewLinterRuleList(ID, md.GetName())
 	podLabels, err := parsePodControllerLabels(podController)
 	if err != nil {
-		return result.WithObjectID(podController.Identity()).AddValue(
-			err,
-			"Cannot parse pod controller")
+		return result.WithObjectID(podController.Identity()).
+			WithWarning(slices.Contains(SkipPDBChecks, md.GetNamespace()+":"+md.GetName())).
+			AddValue(
+				err,
+				"Cannot parse pod controller")
 	}
 
 	podNamespace := podController.Unstructured.GetNamespace()
@@ -170,9 +166,11 @@ func ensurePDBIsNotPresent(md *module.Module, selectors []nsLabelSelector, podCo
 
 	for _, sel := range selectors {
 		if sel.Matches(podNamespace, podLabelsSet) {
-			return result.WithObjectID(podController.Identity()).AddValue(
-				podLabelsSet,
-				"PodDisruptionBudget matches pod labels of controller")
+			return result.WithObjectID(podController.Identity()).
+				WithWarning(slices.Contains(SkipPDBChecks, md.GetNamespace()+":"+md.GetName())).
+				AddValue(
+					podLabelsSet,
+					"PodDisruptionBudget matches pod labels of controller")
 		}
 	}
 
@@ -187,24 +185,30 @@ func parsePDBSelector(md *module.Module, pdbObj storage.StoreObject) (labels.Sel
 	pdb := &policyv1.PodDisruptionBudget{}
 	err := converter.FromUnstructured(content, pdb)
 	if err != nil {
-		result.WithObjectID(pdbObj.Identity()).AddValue(
-			err,
-			"Cannot parse PodDisruptionBudget")
+		result.WithObjectID(pdbObj.Identity()).
+			WithWarning(slices.Contains(SkipPDBChecks, md.GetNamespace()+":"+md.GetName())).
+			AddValue(
+				err,
+				"Cannot parse PodDisruptionBudget")
 		return nil, result
 	}
 
 	sel, err := v1.LabelSelectorAsSelector(pdb.Spec.Selector)
 	if err != nil {
-		result.WithObjectID(pdbObj.Identity()).AddValue(
-			err,
-			"Cannot parse label selector")
+		result.WithObjectID(pdbObj.Identity()).
+			WithWarning(slices.Contains(SkipPDBChecks, md.GetNamespace()+":"+md.GetName())).
+			AddValue(
+				err,
+				"Cannot parse label selector")
 		return nil, result
 	}
 
 	if pdb.Annotations["helm.sh/hook"] != "" || pdb.Annotations["helm.sh/hook-delete-policy"] != "" {
-		result.WithObjectID(pdbObj.Identity()).AddValue(
-			err,
-			"PDB must have no helm hook annotations")
+		result.WithObjectID(pdbObj.Identity()).
+			WithWarning(slices.Contains(SkipPDBChecks, md.GetNamespace()+":"+md.GetName())).
+			AddValue(
+				err,
+				"PDB must have no helm hook annotations")
 		return nil, result
 	}
 

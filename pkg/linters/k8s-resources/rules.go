@@ -16,9 +16,9 @@ import (
 
 func applyContainerRules(name string, object storage.StoreObject) *errors.LintRuleErrorsList {
 	result := errors.NewLinterRuleList(ID, name)
-	if slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName()) {
-		return result
-	}
+	// if slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName()) {
+	//		return result
+	//	}
 
 	rules := []func(string, storage.StoreObject) *errors.LintRuleErrorsList{
 		objectRecommendedLabels,
@@ -44,16 +44,20 @@ func objectRecommendedLabels(name string, object storage.StoreObject) *errors.Li
 	result := errors.NewLinterRuleList(ID, name)
 	labels := object.Unstructured.GetLabels()
 	if _, ok := labels["module"]; !ok {
-		result.WithObjectID(object.Identity()).AddValue(
-			labels,
-			`Object does not have the label "module"`,
-		)
+		result.WithObjectID(object.Identity()).
+			WithWarning(slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName())).
+			AddValue(
+				labels,
+				`Object does not have the label "module"`,
+			)
 	}
 	if _, ok := labels["heritage"]; !ok {
-		result.WithObjectID(object.Identity()).AddValue(
-			labels,
-			`Object does not have the label "heritage"`,
-		)
+		result.WithObjectID(object.Identity()).
+			WithWarning(slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName())).
+			AddValue(
+				labels,
+				`Object does not have the label "heritage"`,
+			)
 	}
 
 	return result
@@ -75,9 +79,11 @@ func namespaceLabels(name string, object storage.StoreObject) *errors.LintRuleEr
 		return result
 	}
 
-	result.WithObjectID(object.Identity()).AddValue(
-		labels,
-		`Namespace object does not have the label "prometheus.deckhouse.io/rules-watcher-enabled"`)
+	result.WithObjectID(object.Identity()).
+		WithWarning(slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName())).
+		AddValue(
+			labels,
+			`Namespace object does not have the label "prometheus.deckhouse.io/rules-watcher-enabled"`)
 
 	return result
 }
@@ -85,9 +91,11 @@ func namespaceLabels(name string, object storage.StoreObject) *errors.LintRuleEr
 func newAPIVersionError(name, wanted, version, objectID string) *errors.LintRuleErrorsList {
 	result := errors.NewLinterRuleList(ID, name)
 	if version != wanted {
-		result.WithObjectID(objectID).Add(
-			"Object defined using deprecated api version, wanted %q", wanted,
-		)
+		result.WithObjectID(objectID).
+			WithWarning(slices.Contains(Cfg.SkipContainerChecks, objectID)).
+			Add(
+				"Object defined using deprecated api version, wanted %q", wanted,
+			)
 	}
 	return result
 }
@@ -123,9 +131,11 @@ func objectRevisionHistoryLimit(name string, object storage.StoreObject) *errors
 
 		err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), deployment)
 		if err != nil {
-			return result.WithObjectID(object.Unstructured.GetName()).Add(
-				"Cannot convert object to %s: %v", object.Unstructured.GetKind(), err,
-			)
+			return result.WithObjectID(object.Unstructured.GetName()).
+				WithWarning(slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName())).
+				Add(
+					"Cannot convert object to %s: %v", object.Unstructured.GetKind(), err,
+				)
 		}
 
 		// https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#revision-history-limit
@@ -138,14 +148,18 @@ func objectRevisionHistoryLimit(name string, object storage.StoreObject) *errors
 		actualLimit := deployment.Spec.RevisionHistoryLimit
 
 		if actualLimit == nil {
-			result.WithObjectID(object.Identity()).Add(
-				"Deployment spec.revisionHistoryLimit must be less or equal to %d", maxHistoryLimit,
-			)
+			result.WithObjectID(object.Identity()).
+				WithWarning(slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName())).
+				Add(
+					"Deployment spec.revisionHistoryLimit must be less or equal to %d", maxHistoryLimit,
+				)
 		} else if *actualLimit > maxHistoryLimit {
-			result.WithObjectID(object.Identity()).AddValue(
-				*actualLimit,
-				"Deployment spec.revisionHistoryLimit must be less or equal to %d", maxHistoryLimit,
-			)
+			result.WithObjectID(object.Identity()).
+				WithWarning(slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName())).
+				AddValue(
+					*actualLimit,
+					"Deployment spec.revisionHistoryLimit must be less or equal to %d", maxHistoryLimit,
+				)
 		}
 	}
 
@@ -160,9 +174,11 @@ func objectPriorityClass(name string, object storage.StoreObject) *errors.LintRu
 
 	priorityClass, err := getPriorityClass(object)
 	if err != nil {
-		return result.WithObjectID(object.Unstructured.GetName()).Add(
-			"Cannot convert object to %s: %v", object.Unstructured.GetKind(), err,
-		)
+		return result.WithObjectID(object.Unstructured.GetName()).
+			WithWarning(slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName())).
+			Add(
+				"Cannot convert object to %s: %v", object.Unstructured.GetKind(), err,
+			)
 	}
 
 	return validatePriorityClass(priorityClass, name, object, result)
@@ -180,16 +196,20 @@ func isPriorityClassSupportedKind(kind string) bool {
 func validatePriorityClass(priorityClass, _ string, object storage.StoreObject, result *errors.LintRuleErrorsList) *errors.LintRuleErrorsList {
 	switch priorityClass {
 	case "":
-		result.WithObjectID(object.Identity()).AddValue(
-			priorityClass,
-			"Priority class must not be empty",
-		)
+		result.WithObjectID(object.Identity()).
+			WithWarning(slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName())).
+			AddValue(
+				priorityClass,
+				"Priority class must not be empty",
+			)
 	case "system-node-critical", "system-cluster-critical", "cluster-medium", "cluster-low", "cluster-critical":
 	default:
-		result.WithObjectID(object.Identity()).AddValue(
-			priorityClass,
-			"Priority class is not allowed",
-		)
+		result.WithObjectID(object.Identity()).
+			WithWarning(slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName())).
+			AddValue(
+				priorityClass,
+				"Priority class is not allowed",
+			)
 	}
 	return result
 }
@@ -227,11 +247,15 @@ func objectSecurityContext(name string, object storage.StoreObject) *errors.Lint
 
 	securityContext, err := object.GetPodSecurityContext()
 	if err != nil {
-		return result.WithObjectID(object.Identity()).Add("GetPodSecurityContext failed: %v", err)
+		return result.WithObjectID(object.Identity()).
+			WithWarning(slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName())).
+			Add("GetPodSecurityContext failed: %v", err)
 	}
 
 	if securityContext == nil {
-		return result.WithObjectID(object.Identity()).Add("Object's SecurityContext is not defined")
+		return result.WithObjectID(object.Identity()).
+			WithWarning(slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName())).
+			Add("Object's SecurityContext is not defined")
 	}
 
 	checkSecurityContextParameters(securityContext, result, object, name)
@@ -250,14 +274,20 @@ func isSupportedKind(kind string) bool {
 
 func checkSecurityContextParameters(securityContext *v1.PodSecurityContext, result *errors.LintRuleErrorsList, object storage.StoreObject, name string) {
 	if securityContext.RunAsNonRoot == nil {
-		result.WithObjectID(object.Identity()).Add("Object's SecurityContext missing parameter RunAsNonRoot")
+		result.WithObjectID(object.Identity()).
+			WithWarning(slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName())).
+			Add("Object's SecurityContext missing parameter RunAsNonRoot")
 	}
 
 	if securityContext.RunAsUser == nil {
-		result.WithObjectID(object.Identity()).Add("Object's SecurityContext missing parameter RunAsUser")
+		result.WithObjectID(object.Identity()).
+			WithWarning(slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName())).
+			Add("Object's SecurityContext missing parameter RunAsUser")
 	}
 	if securityContext.RunAsGroup == nil {
-		result.WithObjectID(object.Identity()).Add("Object's SecurityContext missing parameter RunAsGroup")
+		result.WithObjectID(object.Identity()).
+			WithWarning(slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName())).
+			Add("Object's SecurityContext missing parameter RunAsGroup")
 	}
 
 	if securityContext.RunAsNonRoot != nil && securityContext.RunAsUser != nil && securityContext.RunAsGroup != nil {
@@ -271,16 +301,19 @@ func checkRunAsNonRoot(securityContext *v1.PodSecurityContext, result *errors.Li
 		if (*securityContext.RunAsUser != 65534 || *securityContext.RunAsGroup != 65534) &&
 			(*securityContext.RunAsUser != 64535 || *securityContext.RunAsGroup != 64535) {
 			result.WithObjectID(object.Identity()).
+				WithWarning(slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName())).
 				AddValue(
 					fmt.Sprintf("%d:%d", *securityContext.RunAsUser, *securityContext.RunAsGroup),
 					"Object's SecurityContext has `RunAsNonRoot: true`, but RunAsUser:RunAsGroup differs from 65534:65534 (nobody) or 64535:64535 (deckhouse)")
 		}
 	case false:
 		if *securityContext.RunAsUser != 0 || *securityContext.RunAsGroup != 0 {
-			result.WithObjectID(object.Identity()).AddValue(
-				fmt.Sprintf("%d:%d", *securityContext.RunAsUser, *securityContext.RunAsGroup),
-				"Object's SecurityContext has `RunAsNonRoot: false`, but RunAsUser:RunAsGroup differs from 0:0",
-			)
+			result.WithObjectID(object.Identity()).
+				WithWarning(slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName())).
+				AddValue(
+					fmt.Sprintf("%d:%d", *securityContext.RunAsUser, *securityContext.RunAsGroup),
+					"Object's SecurityContext has `RunAsNonRoot: false`, but RunAsUser:RunAsGroup differs from 0:0",
+				)
 		}
 	}
 }
@@ -295,7 +328,9 @@ func objectReadOnlyRootFilesystem(name string, object storage.StoreObject) *erro
 
 	containers, err := object.GetAllContainers()
 	if err != nil {
-		return result.WithObjectID(object.Identity()).Add("GetAllContainers failed: %v", err)
+		return result.WithObjectID(object.Identity()).
+			WithWarning(slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName())).
+			Add("GetAllContainers failed: %v", err)
 	}
 
 	for i := range containers {
@@ -304,18 +339,21 @@ func objectReadOnlyRootFilesystem(name string, object storage.StoreObject) *erro
 			continue
 		}
 		if c.SecurityContext == nil {
-			result.WithObjectID(object.Identity()).Add("Container's SecurityContext is missing")
+			result.WithObjectID(object.Identity()).
+				WithWarning(slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName())).
+				Add("Container's SecurityContext is missing")
 			continue
 		}
 		if c.SecurityContext.ReadOnlyRootFilesystem == nil {
 			result.WithObjectID(object.Identity() + " ; container = " + containers[i].Name).
+				WithWarning(slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName())).
 				Add("Container's SecurityContext missing parameter ReadOnlyRootFilesystem")
 			continue
 		}
 		if !*c.SecurityContext.ReadOnlyRootFilesystem {
-			result.WithObjectID(object.Identity() + " ; container = " + containers[i].Name).Add(
-				"Container's SecurityContext has `ReadOnlyRootFilesystem: false`, but it must be `true`",
-			)
+			result.WithObjectID(object.Identity() + " ; container = " + containers[i].Name).
+				WithWarning(slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName())).
+				Add("Container's SecurityContext has `ReadOnlyRootFilesystem: false`, but it must be `true`")
 		}
 	}
 
@@ -334,24 +372,30 @@ func objectServiceTargetPort(name string, object storage.StoreObject) *errors.Li
 	service := new(v1.Service)
 	err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), service)
 	if err != nil {
-		return result.WithObjectID(object.Unstructured.GetName()).Add(
-			"Cannot convert object to %s: %v", object.Unstructured.GetKind(), err,
-		)
+		return result.WithObjectID(object.Unstructured.GetName()).
+			WithWarning(slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName())).
+			Add(
+				"Cannot convert object to %s: %v", object.Unstructured.GetKind(), err,
+			)
 	}
 
 	for _, port := range service.Spec.Ports {
 		if port.TargetPort.Type == intstr.Int {
 			if port.TargetPort.IntVal == 0 {
-				result.WithObjectID(object.Identity()).Add(
-					"Service port must use an explicit named (non-numeric) target port",
-				)
+				result.WithObjectID(object.Identity()).
+					WithWarning(slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName())).
+					Add(
+						"Service port must use an explicit named (non-numeric) target port",
+					)
 
 				continue
 			}
-			result.WithObjectID(object.Identity()).AddValue(
-				port.TargetPort.IntVal,
-				"Service port must use a named (non-numeric) target port",
-			)
+			result.WithObjectID(object.Identity()).
+				WithWarning(slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName())).
+				AddValue(
+					port.TargetPort.IntVal,
+					"Service port must use a named (non-numeric) target port",
+				)
 		}
 	}
 
@@ -368,27 +412,35 @@ func objectHostNetworkPorts(name string, object storage.StoreObject) *errors.Lin
 
 	hostNetworkUsed, err := object.IsHostNetwork()
 	if err != nil {
-		return result.WithObjectID(object.Identity()).Add("IsHostNetwork failed: %v", err)
+		return result.WithObjectID(object.Identity()).
+			WithWarning(slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName())).
+			Add("IsHostNetwork failed: %v", err)
 	}
 
 	containers, err := object.GetAllContainers()
 	if err != nil {
-		return result.WithObjectID(object.Identity()).Add("GetAllContainers failed: %v", err)
+		return result.WithObjectID(object.Identity()).
+			WithWarning(slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName())).
+			Add("GetAllContainers failed: %v", err)
 	}
 
 	for i := range containers {
 		for _, p := range containers[i].Ports {
 			if hostNetworkUsed && (p.ContainerPort < 4200 || p.ContainerPort >= 4300) {
-				result.WithObjectID(object.Identity()+" ; container = "+containers[i].Name).AddValue(
-					p.ContainerPort,
-					"Pod running in hostNetwork and it's container port doesn't fit the range [4200,4299]",
-				)
+				result.WithObjectID(object.Identity()+" ; container = "+containers[i].Name).
+					WithWarning(slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName())).
+					AddValue(
+						p.ContainerPort,
+						"Pod running in hostNetwork and it's container port doesn't fit the range [4200,4299]",
+					)
 			}
 			if p.HostPort != 0 && (p.HostPort < 4200 || p.HostPort >= 4300) {
-				result.WithObjectID(object.Identity()+" ; container = "+containers[i].Name).AddValue(
-					p.HostPort,
-					"Container uses hostPort that doesn't fit the range [4200,4299]",
-				)
+				result.WithObjectID(object.Identity()+" ; container = "+containers[i].Name).
+					WithWarning(slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName())).
+					AddValue(
+						p.HostPort,
+						"Container uses hostPort that doesn't fit the range [4200,4299]",
+					)
 			}
 		}
 	}
@@ -400,9 +452,11 @@ func objectDNSPolicy(name string, object storage.StoreObject) *errors.LintRuleEr
 	result := errors.NewLinterRuleList(ID, name)
 	dnsPolicy, hostNetwork, err := getDNSPolicyAndHostNetwork(object)
 	if err != nil {
-		return result.WithObjectID(object.Unstructured.GetName()).Add(
-			"Cannot convert object to %s: %v", object.Unstructured.GetKind(), err,
-		)
+		return result.WithObjectID(object.Unstructured.GetName()).
+			WithWarning(slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName())).
+			Add(
+				"Cannot convert object to %s: %v", object.Unstructured.GetKind(), err,
+			)
 	}
 
 	return validateDNSPolicy(dnsPolicy, hostNetwork, name, object, result)
@@ -414,10 +468,12 @@ func validateDNSPolicy(dnsPolicy string, hostNetwork bool, _ string, object stor
 	}
 
 	if dnsPolicy != "ClusterFirstWithHostNet" {
-		result.WithObjectID(object.Identity()).AddValue(
-			dnsPolicy,
-			"dnsPolicy must be `ClusterFirstWithHostNet` when hostNetwork is `true`",
-		)
+		result.WithObjectID(object.Identity()).
+			WithWarning(slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName())).
+			AddValue(
+				dnsPolicy,
+				"dnsPolicy must be `ClusterFirstWithHostNet` when hostNetwork is `true`",
+			)
 	}
 
 	return result
