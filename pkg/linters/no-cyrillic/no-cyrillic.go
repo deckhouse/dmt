@@ -71,39 +71,47 @@ func (o *NoCyrillic) Run(m *module.Module) *errors.LintRuleErrorsList {
 	}
 
 	for _, fileName := range files {
-		name, _ := strings.CutPrefix(fileName, m.GetPath())
-		name = m.GetName() + ":" + name
-		if slices.Contains(o.cfg.NoCyrillicFileExcludes, name) {
-			continue
-		}
-		if o.skipDocRe.MatchString(fileName) {
-			continue
-		}
+		skip := func(fileName string) bool {
+			name, _ := strings.CutPrefix(fileName, m.GetPath())
+			name = m.GetName() + ":" + name
+			if slices.Contains(o.cfg.NoCyrillicFileExcludes, name) {
+				return true
+			}
+			if o.skipDocRe.MatchString(fileName) {
+				return true
+			}
 
-		if o.skipI18NRe.MatchString(fileName) {
-			continue
-		}
+			if o.skipI18NRe.MatchString(fileName) {
+				return true
+			}
 
-		if o.skipSelfRe.MatchString(fileName) {
-			continue
+			if o.skipSelfRe.MatchString(fileName) {
+				return true
+			}
+
+			return false
 		}
 
 		lines, err := getFileContent(fileName)
 		if err != nil {
-			result.AddValue(
-				[]string{err.Error()},
-				"error in `%s` module",
-				m.GetName())
+			result.
+				WithWarning(skip(fileName)).
+				AddValue(
+					[]string{err.Error()},
+					"error in `%s` module",
+					m.GetName())
 			return result
 		}
 
 		cyrMsg, hasCyr := checkCyrillicLettersInArray(lines)
 		fName, _ := strings.CutPrefix(fileName, m.GetPath())
 		if hasCyr {
-			result.WithObjectID(fName).AddValue(
-				addPrefix(strings.Split(cyrMsg, "\n"), "\t"),
-				"errors in `%s` module",
-				m.GetName())
+			result.WithObjectID(fName).
+				WithWarning(skip(fileName)).
+				AddValue(
+					addPrefix(strings.Split(cyrMsg, "\n"), "\t"),
+					"errors in `%s` module",
+					m.GetName())
 		}
 	}
 
