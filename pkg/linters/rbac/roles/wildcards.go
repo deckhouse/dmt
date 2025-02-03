@@ -49,12 +49,16 @@ func ObjectRolesWildcard(m *module.Module, object storage.StoreObject) *errors.L
 func checkRoles(m *module.Module, object storage.StoreObject) *errors.LintRuleErrorsList {
 	result := errors.NewLinterRuleList(ID, m.GetName())
 	// check rbac-proxy for skip
-	for path, rules := range Cfg.SkipCheckWildcards {
-		if strings.EqualFold(object.Path, path) {
-			if slices.Contains(rules, object.Unstructured.GetName()) {
-				return nil
+	skip := func() bool {
+		for path, rules := range Cfg.SkipCheckWildcards {
+			if strings.EqualFold(object.Path, path) {
+				if slices.Contains(rules, object.Unstructured.GetName()) {
+					return true
+				}
 			}
 		}
+
+		return false
 	}
 
 	converter := runtime.DefaultUnstructuredConverter
@@ -62,8 +66,10 @@ func checkRoles(m *module.Module, object storage.StoreObject) *errors.LintRuleEr
 	role := new(k8SRbac.Role)
 	err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), role)
 	if err != nil {
-		return result.WithObjectID(object.Identity()).Add(
-			"Cannot convert object to %s: %v", object.Unstructured.GetKind(), err)
+		return result.WithObjectID(object.Identity()).
+			WithWarning(skip()).
+			Add(
+				"Cannot convert object to %s: %v", object.Unstructured.GetKind(), err)
 	}
 
 	for _, rule := range role.Rules {
@@ -78,10 +84,12 @@ func checkRoles(m *module.Module, object storage.StoreObject) *errors.LintRuleEr
 			objs = append(objs, "verbs")
 		}
 		if len(objs) > 0 {
-			return result.WithObjectID(object.Identity()).Add(
-				"%s contains a wildcards. Replace them with an explicit list of resources",
-				strings.Join(objs, ", "),
-			)
+			return result.WithObjectID(object.Identity()).
+				WithWarning(skip()).
+				Add(
+					"%s contains a wildcards. Replace them with an explicit list of resources",
+					strings.Join(objs, ", "),
+				)
 		}
 	}
 
