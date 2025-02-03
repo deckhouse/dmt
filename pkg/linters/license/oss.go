@@ -34,7 +34,7 @@ const ossFilename = "oss.yaml"
 func OssModuleRule(name, moduleRoot string) *errors.LintRuleErrorsList {
 	result := errors.NewLinterRuleList("oss", name)
 
-	if errs := verifyOssFile(name, moduleRoot); len(errs) > 0 {
+	if errs := verifyOssFile(moduleRoot); len(errs) > 0 {
 		for _, err := range errs {
 			result.WithObjectID(moduleRoot).
 				WithWarning(shouldIgnoreOssInfo(name)).
@@ -52,7 +52,7 @@ func ossFileErrorMessage(err error) string {
 	return fmt.Sprintf("Invalid %s: %s", ossFilename, err.Error())
 }
 
-func verifyOssFile(name, moduleRoot string) []error {
+func verifyOssFile(moduleRoot string) []error {
 	projects, err := readOssFile(moduleRoot)
 	if err != nil {
 		return []error{err}
