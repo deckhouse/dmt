@@ -16,9 +16,6 @@ import (
 
 func applyContainerRules(name string, object storage.StoreObject) *errors.LintRuleErrorsList {
 	result := errors.NewLinterRuleList(ID, name)
-	// if slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName()) {
-	//		return result
-	//	}
 
 	rules := []func(string, storage.StoreObject) *errors.LintRuleErrorsList{
 		objectRecommendedLabels,
