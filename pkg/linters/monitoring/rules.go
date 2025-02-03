@@ -34,16 +34,15 @@ func dirExists(moduleName, modulePath string, path ...string) (bool, *errors.Lin
 		if os.IsNotExist(err) {
 			return false, nil
 		}
-		return false, result.WithObjectID(modulePath).Add("%v", err.Error())
+		return false, result.
+			WithWarning(slices.Contains(Cfg.SkipModuleChecks, moduleName)).
+			WithObjectID(modulePath).Add("%v", err.Error())
 	}
 	return info.IsDir(), nil
 }
 
 func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string) *errors.LintRuleErrorsList {
 	result := errors.NewLinterRuleList(ID, moduleName)
-	if slices.Contains(Cfg.SkipModuleChecks, moduleName) {
-		return nil
-	}
 
 	if exists, lerr := dirExists(moduleName, modulePath, "monitoring"); lerr != nil || !exists {
 		return lerr
@@ -62,25 +61,30 @@ func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string) *error
 	searchingFilePath := filepath.Join(modulePath, "templates", "monitoring.yaml")
 	if info, _ := os.Stat(searchingFilePath); info == nil {
 		return result.WithObjectID(modulePath).
+			WithWarning(slices.Contains(Cfg.SkipModuleChecks, moduleName)).
 			AddValue(searchingFilePath, "Module with the 'monitoring' folder should have the 'templates/monitoring.yaml' file")
 	}
 
 	content, err := os.ReadFile(searchingFilePath)
 	if err != nil {
-		return result.WithObjectID(modulePath).AddValue(
-			searchingFilePath,
-			"%v",
-			err.Error(),
-		)
+		return result.WithObjectID(modulePath).
+			WithWarning(slices.Contains(Cfg.SkipModuleChecks, moduleName)).
+			AddValue(
+				searchingFilePath,
+				"%v",
+				err.Error(),
+			)
 	}
 
 	desiredContent := buildDesiredContent(dashboardsEx, rulesEx)
 	if !isContentMatching(string(content), desiredContent, moduleNamespace, rulesEx) {
-		return result.WithObjectID(modulePath).Add(
-			"The content of the 'templates/monitoring.yaml' should be equal to:\n%s\nGot:\n%s",
-			fmt.Sprintf(desiredContent, "YOUR NAMESPACE TO DEPLOY RULES: d8-monitoring, d8-system or module namespaces"),
-			string(content),
-		)
+		return result.WithObjectID(modulePath).
+			WithWarning(slices.Contains(Cfg.SkipModuleChecks, moduleName)).
+			Add(
+				"The content of the 'templates/monitoring.yaml' should be equal to:\n%s\nGot:\n%s",
+				fmt.Sprintf(desiredContent, "YOUR NAMESPACE TO DEPLOY RULES: d8-monitoring, d8-system or module namespaces"),
+				string(content),
+			)
 	}
 
 	return nil
