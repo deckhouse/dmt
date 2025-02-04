@@ -1,5 +1,7 @@
 package config
 
+import clone "github.com/huandu/go-clone/generic"
+
 type LintersSettings struct {
 	OpenAPI      OpenAPISettings      `mapstructure:"openapi"`
 	NoCyrillic   NoCyrillicSettings   `mapstructure:"nocyrillic"`
@@ -82,4 +84,8 @@ type ConversionsSettings struct {
 	SkipCheckModule []string `mapstructure:"skip-check"`
 	// first conversion version to make conversion flow
 	FirstVersion int `mapstructure:"first-version"`
+}
+
+func (l *LintersSettings) DeepCopy() *LintersSettings {
+	return clone.Clone(l)
 }

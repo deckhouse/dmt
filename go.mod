@@ -10,6 +10,7 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-openapi/spec v0.21.0
 	github.com/google/go-containerregistry v0.20.2
+	github.com/huandu/go-clone/generic v1.7.2
 	github.com/iancoleman/strcase v0.3.0
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/mitchellh/go-homedir v1.1.0
@@ -68,6 +69,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gregjones/httpcache v0.0.0-20180305231024-9cad4c3443a7 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
+	github.com/huandu/go-clone v1.7.2 // indirect
 	github.com/huandu/xstrings v1.4.0 // indirect
 	github.com/imdario/mergo v0.3.15 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
