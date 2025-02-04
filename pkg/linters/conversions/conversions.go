@@ -55,7 +55,8 @@ func (o *Conversions) Desc() string {
 
 func remapConversionsConfig(input *config.ConversionsSettings) *ConversionsSettings {
 	newCfg := &ConversionsSettings{
-		FirstVersion: input.FirstVersion,
+		FirstVersion:    input.FirstVersion,
+		SkipCheckModule: make(map[string]struct{}),
 	}
 
 	for _, module := range input.SkipCheckModule {
