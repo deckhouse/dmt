@@ -2,6 +2,7 @@ package container
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/name"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/storage"
+	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
@@ -62,10 +64,10 @@ func containerNameDuplicates(md string, object storage.StoreObject, containers [
 func containerEnvVariablesDuplicates(md string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleErrorsList {
 	for i := range containers {
 		c := &containers[i]
-		if shouldSkipModuleContainer(object.Unstructured.GetName(), c.Name) {
-			continue
-		}
 		if err := checkForDuplicates(md, object, c.Env, func(e v1.EnvVar) string { return e.Name }, "Container has two env variables with same name"); err != nil {
+			if shouldSkipModuleContainer(md, c.Name) {
+				continue
+			}
 			return err
 		}
 	}
@@ -101,6 +103,13 @@ func shouldSkipModuleContainer(md, container string) bool {
 		}
 
 		if md == moduleName && checkContainer {
+			config.GlobalExcludes.Container.SkipContainers = slices.DeleteFunc(
+				config.GlobalExcludes.Container.SkipContainers,
+				func(cmp string) bool {
+					return cmp == line
+				},
+			)
+
 			return true
 		}
 	}
@@ -111,24 +120,30 @@ func shouldSkipModuleContainer(md, container string) bool {
 func containerImageDigestCheck(md string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleErrorsList {
 	for i := range containers {
 		c := &containers[i]
-		if shouldSkipModuleContainer(object.Unstructured.GetName(), c.Name) {
-			continue
-		}
 
 		re := regexp.MustCompile(`(?P<repository>.+)([@:])imageHash[-a-z0-9A-Z]+$`)
 		match := re.FindStringSubmatch(c.Image)
 		if len(match) == 0 {
+			if shouldSkipModuleContainer(md, c.Name) {
+				continue
+			}
 			return errors.NewLinterRuleList(ID, md).
 				WithObjectID(object.Identity() + "; container = " + c.Name).Add("Cannot parse repository from image")
 		}
 		repo, err := name.NewRepository(match[re.SubexpIndex("repository")])
 		if err != nil {
+			if shouldSkipModuleContainer(md, c.Name) {
+				continue
+			}
 			return errors.NewLinterRuleList(ID, md).
 				WithObjectID(object.Identity()+"; container = "+c.Name).
 				Add("Cannot parse repository from image: %s", c.Image)
 		}
 
 		if repo.Name() != defaultRegistry {
+			if shouldSkipModuleContainer(md, c.Name) {
+				continue
+			}
 			return errors.NewLinterRuleList(ID, md).
 				WithObjectID(object.Identity()+"; container = "+c.Name).
 				Add("All images must be deployed from the same default registry: %s current: %s",
@@ -142,10 +157,10 @@ func containerImageDigestCheck(md string, object storage.StoreObject, containers
 func containerImagePullPolicyIfNotPresent(md string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleErrorsList {
 	for i := range containers {
 		c := &containers[i]
-		if shouldSkipModuleContainer(object.Unstructured.GetName(), c.Name) {
+		if c.ImagePullPolicy == "" || c.ImagePullPolicy == "IfNotPresent" {
 			continue
 		}
-		if c.ImagePullPolicy == "" || c.ImagePullPolicy == "IfNotPresent" {
+		if shouldSkipModuleContainer(md, c.Name) {
 			continue
 		}
 		return errors.NewLinterRuleList(ID, md).
@@ -159,10 +174,10 @@ func containerImagePullPolicyIfNotPresent(md string, object storage.StoreObject,
 func containerStorageEphemeral(md string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleErrorsList {
 	for i := range containers {
 		c := &containers[i]
-		if shouldSkipModuleContainer(object.Unstructured.GetName(), c.Name) {
-			continue
-		}
 		if c.Resources.Requests.StorageEphemeral() == nil || c.Resources.Requests.StorageEphemeral().Value() == 0 {
+			if shouldSkipModuleContainer(md, c.Name) {
+				continue
+			}
 			return errors.NewLinterRuleList(ID, md).
 				WithObjectID(object.Identity() + "; container = " + c.Name).
 				Add("Ephemeral storage for container is not defined in Resources.Requests")
@@ -174,10 +189,10 @@ func containerStorageEphemeral(md string, object storage.StoreObject, containers
 func containerSecurityContext(md string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleErrorsList {
 	for i := range containers {
 		c := &containers[i]
-		if shouldSkipModuleContainer(object.Unstructured.GetName(), c.Name) {
-			continue
-		}
 		if c.SecurityContext == nil {
+			if shouldSkipModuleContainer(md, c.Name) {
+				continue
+			}
 			return errors.NewLinterRuleList(ID, md).
 				WithObjectID(object.Identity() + "; container = " + c.Name).
 				Add("Container SecurityContext is not defined")
@@ -189,12 +204,12 @@ func containerSecurityContext(md string, object storage.StoreObject, containers 
 func containerPorts(md string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleErrorsList {
 	for i := range containers {
 		c := &containers[i]
-		if shouldSkipModuleContainer(object.Unstructured.GetName(), c.Name) {
-			continue
-		}
 		for _, p := range c.Ports {
 			const t = 1024
 			if p.ContainerPort <= t {
+				if shouldSkipModuleContainer(md, c.Name) {
+					continue
+				}
 				return errors.NewLinterRuleList(ID, md).
 					WithObjectID(object.Identity() + "; container = " + c.Name).
 					WithValue(p.ContainerPort).

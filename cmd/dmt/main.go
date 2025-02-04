@@ -85,6 +85,13 @@ func runLint(dirs []string) {
 		fmt.Printf("%s\n", convertedError)
 	}
 
+	if len(config.GlobalExcludes.Container.SkipContainers) > 0 {
+		fmt.Println("== Unused excludes in containers lint")
+		for _, line := range config.GlobalExcludes.Container.SkipContainers {
+			fmt.Printf("  * %s\n", line)
+		}
+	}
+
 	if result.Critical() {
 		os.Exit(1)
 	}
