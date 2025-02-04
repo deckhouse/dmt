@@ -27,7 +27,7 @@ func (o *OpenAPI) Run(m *module.Module) *errors.LintRuleErrorsList {
 	}
 	apiFiles, err := GetOpenAPIYAMLFiles(m.GetPath())
 	if err != nil {
-		result.AddValue(err.Error(), "failed to get openapi files in `%s` module", m.GetName())
+		result.WithValue(err.Error()).Add("failed to get openapi files in `%s` module", m.GetName())
 		return result
 	}
 
@@ -46,7 +46,7 @@ func (o *OpenAPI) Run(m *module.Module) *errors.LintRuleErrorsList {
 	for res := range resultC {
 		if res.validationError != nil {
 			result.WithObjectID(res.filePath).
-				AddValue(res.validationError.Error(), "errors in `%s` module", m.GetName())
+				WithValue(res.validationError.Error()).Add("errors in `%s` module", m.GetName())
 		}
 	}
 

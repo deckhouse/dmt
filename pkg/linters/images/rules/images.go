@@ -156,11 +156,9 @@ func lintOneDockerfile(name, path, imagesPath string) *errors.LintRuleErrorsList
 
 		ers, message := isDockerfileInstructionUnacceptable(fromInstruction, i == len(dockerfileFromInstructions)-1)
 		if ers {
-			result.WithObjectID(fmt.Sprintf("module = %s, path = %s", name, relativeFilePath)).AddValue(
-				fromInstruction,
-				"%s",
-				message,
-			)
+			result.WithObjectID(fmt.Sprintf("module = %s, path = %s", name, relativeFilePath)).
+				WithValue(fromInstruction).
+				Add("%s", message)
 		}
 	}
 

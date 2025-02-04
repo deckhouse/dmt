@@ -62,10 +62,8 @@ func (o *NoCyrillic) Run(m *module.Module) *errors.LintRuleErrorsList {
 
 	files, err := o.getFiles(m.GetPath())
 	if err != nil {
-		result.AddValue(
-			[]string{err.Error()},
-			"error in `%s` module",
-			m.GetName())
+		result.WithValue([]string{err.Error()}).
+			Add("error in `%s` module", m.GetName())
 
 		return result
 	}
@@ -90,20 +88,16 @@ func (o *NoCyrillic) Run(m *module.Module) *errors.LintRuleErrorsList {
 
 		lines, err := getFileContent(fileName)
 		if err != nil {
-			result.AddValue(
-				[]string{err.Error()},
-				"error in `%s` module",
-				m.GetName())
+			result.WithValue([]string{err.Error()}).
+				Add("error in `%s` module", m.GetName())
 			return result
 		}
 
 		cyrMsg, hasCyr := checkCyrillicLettersInArray(lines)
 		fName, _ := strings.CutPrefix(fileName, m.GetPath())
 		if hasCyr {
-			result.WithObjectID(fName).AddValue(
-				addPrefix(strings.Split(cyrMsg, "\n"), "\t"),
-				"errors in `%s` module",
-				m.GetName())
+			result.WithObjectID(fName).WithValue(addPrefix(strings.Split(cyrMsg, "\n"), "\t")).
+				Add("errors in `%s` module", m.GetName())
 		}
 	}
 

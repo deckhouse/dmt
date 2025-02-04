@@ -62,16 +62,13 @@ func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string) *error
 	searchingFilePath := filepath.Join(modulePath, "templates", "monitoring.yaml")
 	if info, _ := os.Stat(searchingFilePath); info == nil {
 		return result.WithObjectID(modulePath).
-			AddValue(searchingFilePath, "Module with the 'monitoring' folder should have the 'templates/monitoring.yaml' file")
+			WithValue(searchingFilePath).
+			Add("Module with the 'monitoring' folder should have the 'templates/monitoring.yaml' file")
 	}
 
 	content, err := os.ReadFile(searchingFilePath)
 	if err != nil {
-		return result.WithObjectID(modulePath).AddValue(
-			searchingFilePath,
-			"%v",
-			err.Error(),
-		)
+		return result.WithObjectID(modulePath).WithValue(searchingFilePath).Add("%v", err.Error())
 	}
 
 	desiredContent := buildDesiredContent(dashboardsEx, rulesEx)

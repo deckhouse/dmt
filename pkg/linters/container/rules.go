@@ -48,11 +48,9 @@ func containersImagePullPolicy(md string, object storage.StoreObject, containers
 func checkImagePullPolicyAlways(md string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleErrorsList {
 	c := containers[0]
 	if c.ImagePullPolicy != v1.PullAlways {
-		return errors.NewLinterRuleList(ID, md).WithObjectID(object.Identity()+"; container = "+c.Name).
-			AddValue(
-				c.ImagePullPolicy,
-				`Container imagePullPolicy should be unspecified or "Always"`,
-			)
+		return errors.NewLinterRuleList(ID, md).WithObjectID(object.Identity() + "; container = " + c.Name).
+			WithValue(c.ImagePullPolicy).
+			Add(`Container imagePullPolicy should be unspecified or "Always"`)
 	}
 	return nil
 }
@@ -151,8 +149,9 @@ func containerImagePullPolicyIfNotPresent(md string, object storage.StoreObject,
 			continue
 		}
 		return errors.NewLinterRuleList(ID, md).
-			WithObjectID(object.Identity()+"; container = "+c.Name).
-			AddValue(c.ImagePullPolicy, `Container imagePullPolicy should be unspecified or "IfNotPresent"`)
+			WithObjectID(object.Identity() + "; container = " + c.Name).
+			WithValue(c.ImagePullPolicy).
+			Add(`Container imagePullPolicy should be unspecified or "IfNotPresent"`)
 	}
 	return nil
 }
@@ -197,8 +196,9 @@ func containerPorts(md string, object storage.StoreObject, containers []v1.Conta
 			const t = 1024
 			if p.ContainerPort <= t {
 				return errors.NewLinterRuleList(ID, md).
-					WithObjectID(object.Identity()+"; container = "+c.Name).
-					AddValue(p.ContainerPort, "Container uses port <= 1024")
+					WithObjectID(object.Identity() + "; container = " + c.Name).
+					WithValue(p.ContainerPort).
+					Add("Container uses port <= 1024")
 			}
 		}
 	}
