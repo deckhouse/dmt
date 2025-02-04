@@ -92,6 +92,13 @@ func runLint(dirs []string) {
 		}
 	}
 
+	if len(config.GlobalExcludes.Conversions.SkipCheckModule) > 0 {
+		fmt.Println("== Unused excludes in conversions lint")
+		for _, line := range config.GlobalExcludes.Conversions.SkipCheckModule {
+			fmt.Printf("  * %s\n", line)
+		}
+	}
+
 	if result.Critical() {
 		os.Exit(1)
 	}
