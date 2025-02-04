@@ -5,6 +5,10 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
+var (
+	GlobalExcludes *LintersSettings
+)
+
 // Config encapsulates the config data specified in the YAML config file.
 type Config struct {
 	cfgDir string // The directory containing the config file.

@@ -76,8 +76,7 @@ func runLint(dirs []string) {
 	cfg, err := config.NewDefault(dirs)
 	logger.CheckErr(err)
 
-	excludedLintersSettings := cfg.LintersSettings.DeepCopy()
-	_ = excludedLintersSettings
+	config.GlobalExcludes = cfg.LintersSettings.DeepCopy()
 
 	mng := manager.NewManager(dirs, cfg)
 	result := mng.Run()
