@@ -32,7 +32,7 @@ func New(cfg *config.NoCyrillicSettings) *NoCyrillic {
 	}
 
 	if cfg.SkipDocRe == "" {
-		cfg.SkipDocRe = `doc-ru-.+\.y[a]?ml$|_RU\.md$|_ru\.html$|docs/site/_.+|docs/documentation/_.+|tools/spelling/.+`
+		cfg.SkipDocRe = `doc-ru-.+\.y[a]?ml$|_RU\.md$|_ru\.html$|docs/site/_.+|docs/documentation/_.+|tools/spelling/.+|openapi/conversions/.+`
 	}
 
 	if cfg.SkipSelfRe == "" {
