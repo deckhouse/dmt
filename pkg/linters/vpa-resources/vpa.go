@@ -15,12 +15,12 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
-var SkipVPAChecks []string
+var skipVPAChecks []string
 
 // controllerMustHaveVPA fills linting error regarding VPA
 func controllerMustHaveVPA(md *module.Module) *errors.LintRuleErrorsList {
 	result := errors.NewLinterRuleList(ID, md.GetName())
-	if slices.Contains(SkipVPAChecks, md.GetNamespace()+":"+md.GetName()) {
+	if slices.Contains(skipVPAChecks, md.GetNamespace()+":"+md.GetName()) {
 		return result
 	}
 

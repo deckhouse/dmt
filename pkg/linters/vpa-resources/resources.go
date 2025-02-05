@@ -17,7 +17,7 @@ type Object struct {
 }
 
 func New(cfg *config.VPAResourcesSettings) *Object {
-	SkipVPAChecks = cfg.SkipVPAChecks
+	skipVPAChecks = cfg.SkipVPAChecks
 
 	return &Object{
 		name: "vpa-resources",
