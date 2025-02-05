@@ -4,6 +4,7 @@ type LintersSettings struct {
 	OpenAPI      OpenAPISettings      `mapstructure:"openapi"`
 	NoCyrillic   NoCyrillicSettings   `mapstructure:"nocyrillic"`
 	License      LicenseSettings      `mapstructure:"license"`
+	OSS          OSSSettings          `mapstructure:"oss"`
 	Probes       ProbesSettings       `mapstructure:"probes"`
 	Container    ContainerSettings    `mapstructure:"container"`
 	K8SResources K8SResourcesSettings `mapstructure:"k8s_resources"`
@@ -33,7 +34,10 @@ type NoCyrillicSettings struct {
 
 type LicenseSettings struct {
 	CopyrightExcludes []string `mapstructure:"copyright-excludes"`
-	SkipOssChecks     []string `mapstructure:"skip-oss-checks"`
+}
+
+type OSSSettings struct {
+	SkipOssChecks []string `mapstructure:"skip-oss-checks"`
 }
 
 type ProbesSettings struct {

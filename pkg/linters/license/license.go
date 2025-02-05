@@ -38,8 +38,6 @@ func (o *Copyright) Run(m *module.Module) *errors.LintRuleErrorsList {
 		return result.WithValue(err.Error()).Add("error getting files in `%s` module", m.GetName())
 	}
 
-	result.Merge(OssModuleRule(m.GetName(), m.GetPath()))
-
 	for _, fileName := range files {
 		name, _ := strings.CutPrefix(fileName, m.GetPath())
 		name = m.GetName() + ":" + name
