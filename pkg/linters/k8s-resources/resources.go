@@ -7,7 +7,6 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/linters/k8s-resources/pdb"
 	rbacproxy "github.com/deckhouse/dmt/pkg/linters/k8s-resources/rbac-proxy"
 )
 
@@ -26,7 +25,6 @@ var Cfg *config.K8SResourcesSettings
 
 func New(cfg *config.K8SResourcesSettings) *Object {
 	Cfg = cfg
-	pdb.SkipPDBChecks = cfg.SkipPDBChecks
 	rbacproxy.SkipKubeRbacProxyChecks = cfg.SkipKubeRbacProxyChecks
 
 	return &Object{
@@ -44,8 +42,6 @@ func (o *Object) Run(m *module.Module) *errors.LintRuleErrorsList {
 
 	name := m.GetName()
 	result.Merge(rbacproxy.NamespaceMustContainKubeRBACProxyCA(name, m.GetObjectStore()))
-	result.Merge(pdb.ControllerMustHavePDB(m))
-	result.Merge(pdb.DaemonSetMustNotHavePDB(m))
 
 	if isExistsOnFilesystem(m.GetPath(), CrdsDir) {
 		result.Merge(CrdsModuleRule(m.GetName(), filepath.Join(m.GetPath(), CrdsDir)))
