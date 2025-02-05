@@ -1,4 +1,4 @@
-package k8sresources
+package crd
 
 import (
 	"fmt"
@@ -22,7 +22,7 @@ func shouldSkipCrd(name string) bool {
 	return !strings.Contains(name, "deckhouse.io")
 }
 
-func CrdsModuleRule(name, path string) *errors.LintRuleErrorsList {
+func crdsModuleRule(name, path string) *errors.LintRuleErrorsList {
 	result := errors.NewLinterRuleList(rules.ID, name)
 	_ = filepath.Walk(path, func(path string, _ os.FileInfo, _ error) error {
 		if filepath.Ext(path) != ".yaml" {

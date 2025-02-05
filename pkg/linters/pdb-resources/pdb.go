@@ -1,19 +1,3 @@
-/*
-Copyright 2021 Flant JSC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package pdb
 
 import (
@@ -29,7 +13,6 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/linters/k8s-resources/vpa"
 )
 
 type nsLabelSelector struct {
@@ -37,21 +20,17 @@ type nsLabelSelector struct {
 	selector  labels.Selector
 }
 
-const (
-	ID = "pdb"
-)
-
-var SkipPDBChecks []string
+var skipPDBChecks []string
 
 func (s *nsLabelSelector) Matches(namespace string, labelSet labels.Set) bool {
 	return s.namespace == namespace && s.selector.Matches(labelSet)
 }
 
-// ControllerMustHavePDB adds linting errors if there are pods from controllers which are not covered (except DaemonSets)
+// controllerMustHavePDB adds linting errors if there are pods from controllers which are not covered (except DaemonSets)
 // by a PodDisruptionBudget
-func ControllerMustHavePDB(md *module.Module) *errors.LintRuleErrorsList {
+func controllerMustHavePDB(md *module.Module) *errors.LintRuleErrorsList {
 	result := errors.NewLinterRuleList(ID, md.GetName())
-	if slices.Contains(SkipPDBChecks, md.GetNamespace()+":"+md.GetName()) {
+	if slices.Contains(skipPDBChecks, md.GetNamespace()+":"+md.GetName()) {
 		return result
 	}
 
@@ -59,7 +38,7 @@ func ControllerMustHavePDB(md *module.Module) *errors.LintRuleErrorsList {
 	result.Merge(lerr)
 
 	for _, object := range md.GetObjectStore().Storage {
-		if !vpa.IsPodController(object.Unstructured.GetKind()) {
+		if !isPodController(object.Unstructured.GetKind()) {
 			continue
 		}
 
@@ -78,11 +57,11 @@ func isPodControllerDaemonSet(kind string) bool {
 	return kind == "DaemonSet"
 }
 
-// DaemonSetMustNotHavePDB adds linting errors if there are pods from DaemonSets which are covered
+// daemonSetMustNotHavePDB adds linting errors if there are pods from DaemonSets which are covered
 // by a PodDisruptionBudget
-func DaemonSetMustNotHavePDB(md *module.Module) *errors.LintRuleErrorsList {
+func daemonSetMustNotHavePDB(md *module.Module) *errors.LintRuleErrorsList {
 	result := errors.NewLinterRuleList(ID, md.GetName())
-	if slices.Contains(SkipPDBChecks, md.GetNamespace()+":"+md.GetName()) {
+	if slices.Contains(skipPDBChecks, md.GetNamespace()+":"+md.GetName()) {
 		return result
 	}
 
@@ -90,7 +69,7 @@ func DaemonSetMustNotHavePDB(md *module.Module) *errors.LintRuleErrorsList {
 	result.Merge(lerr)
 
 	for _, object := range md.GetObjectStore().Storage {
-		if !vpa.IsPodController(object.Unstructured.GetKind()) {
+		if !isPodController(object.Unstructured.GetKind()) {
 			continue
 		}
 
@@ -239,4 +218,8 @@ func parsePodControllerLabels(object storage.StoreObject) (map[string]string, er
 	default:
 		return nil, fmt.Errorf("object of kind %s is not a pod controller", kind)
 	}
+}
+
+func isPodController(kind string) bool {
+	return kind == "Deployment" || kind == "DaemonSet" || kind == "StatefulSet"
 }
