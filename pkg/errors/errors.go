@@ -167,14 +167,16 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 		}
 
 		builder.WriteString(fmt.Sprintf(
-			"%s%s\n\tMessage\t- %s\n\tObject\t- %s\n\tModule\t- %s\n",
+			"%s%s\n\tMessage\t- %s\n\tModule\t- %s\n",
 			emoji.Sprintf(":monkey:"),
 			color.New(color.FgHiBlue).SprintfFunc()("[#%s]", err.ID),
 			color.New(msgColor).SprintfFunc()(err.Text),
-			err.ObjectID,
 			err.Module,
 		))
 
+		if err.ObjectID != "" {
+			builder.WriteString(fmt.Sprintf("\tObject\t- %s\n", err.ObjectID))
+		}
 		if err.ObjectValue != nil {
 			value := fmt.Sprintf("%v", err.ObjectValue)
 			builder.WriteString(fmt.Sprintf("\tValue\t- %s\n", value))
