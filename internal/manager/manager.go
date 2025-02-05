@@ -10,6 +10,7 @@ import (
 	k8s_resources "github.com/deckhouse/dmt/pkg/linters/k8s-resources"
 	moduleLinter "github.com/deckhouse/dmt/pkg/linters/module"
 	"github.com/deckhouse/dmt/pkg/linters/monitoring"
+	"github.com/deckhouse/dmt/pkg/linters/oss"
 
 	"github.com/mitchellh/go-homedir"
 	"github.com/sourcegraph/conc/pool"
@@ -54,6 +55,7 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 		openapi.New(&cfg.LintersSettings.OpenAPI),
 		no_cyrillic.New(&cfg.LintersSettings.NoCyrillic),
 		license.New(&cfg.LintersSettings.License),
+		oss.New(&cfg.LintersSettings.OSS),
 		probes.New(&cfg.LintersSettings.Probes),
 		container.New(&cfg.LintersSettings.Container),
 		k8s_resources.New(&cfg.LintersSettings.K8SResources),
