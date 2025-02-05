@@ -17,6 +17,8 @@ type lintRuleError struct {
 	ObjectID    string
 	ObjectValue any
 	Text        string
+	FilePath    string
+	LineNumber  int
 }
 
 func (l *lintRuleError) EqualsTo(candidate lintRuleError) bool { //nolint:gocritic // it's a simple method
@@ -31,10 +33,12 @@ type errStorage []lintRuleError
 type LintRuleErrorsList struct {
 	storage *errStorage
 
-	linterID string
-	moduleID string
-	objectID string
-	value    any
+	linterID   string
+	moduleID   string
+	objectID   string
+	value      any
+	filePath   string
+	lineNubmer int
 }
 
 func NewLinterRuleList(linterID string, module ...string) *LintRuleErrorsList {
@@ -54,11 +58,13 @@ func (l *LintRuleErrorsList) WithObjectID(objectID string) *LintRuleErrorsList {
 		l.storage = &errStorage{}
 	}
 	return &LintRuleErrorsList{
-		storage:  l.storage,
-		linterID: l.linterID,
-		moduleID: l.moduleID,
-		objectID: objectID,
-		value:    l.value,
+		storage:    l.storage,
+		linterID:   l.linterID,
+		moduleID:   l.moduleID,
+		objectID:   objectID,
+		value:      l.value,
+		filePath:   l.filePath,
+		lineNubmer: l.lineNubmer,
 	}
 }
 
@@ -67,11 +73,13 @@ func (l *LintRuleErrorsList) WithModule(moduleID string) *LintRuleErrorsList {
 		l.storage = &errStorage{}
 	}
 	return &LintRuleErrorsList{
-		storage:  l.storage,
-		linterID: l.linterID,
-		moduleID: moduleID,
-		objectID: l.objectID,
-		value:    l.value,
+		storage:    l.storage,
+		linterID:   l.linterID,
+		moduleID:   moduleID,
+		objectID:   l.objectID,
+		value:      l.value,
+		filePath:   l.filePath,
+		lineNubmer: l.lineNubmer,
 	}
 }
 
@@ -80,11 +88,43 @@ func (l *LintRuleErrorsList) WithValue(value any) *LintRuleErrorsList {
 		l.storage = &errStorage{}
 	}
 	return &LintRuleErrorsList{
-		storage:  l.storage,
-		linterID: l.linterID,
-		moduleID: l.moduleID,
-		objectID: l.objectID,
-		value:    value,
+		storage:    l.storage,
+		linterID:   l.linterID,
+		moduleID:   l.moduleID,
+		objectID:   l.objectID,
+		value:      value,
+		filePath:   l.filePath,
+		lineNubmer: l.lineNubmer,
+	}
+}
+
+func (l *LintRuleErrorsList) WithFilePath(filePath string) *LintRuleErrorsList {
+	if l.storage == nil {
+		l.storage = &errStorage{}
+	}
+	return &LintRuleErrorsList{
+		storage:    l.storage,
+		linterID:   l.linterID,
+		moduleID:   l.moduleID,
+		objectID:   l.objectID,
+		value:      l.value,
+		filePath:   filePath,
+		lineNubmer: l.lineNubmer,
+	}
+}
+
+func (l *LintRuleErrorsList) WithLineNumber(lineNumber int) *LintRuleErrorsList {
+	if l.storage == nil {
+		l.storage = &errStorage{}
+	}
+	return &LintRuleErrorsList{
+		storage:    l.storage,
+		linterID:   l.linterID,
+		moduleID:   l.moduleID,
+		objectID:   l.objectID,
+		value:      l.value,
+		filePath:   l.filePath,
+		lineNubmer: lineNumber,
 	}
 }
 
@@ -102,6 +142,8 @@ func (l *LintRuleErrorsList) Add(template string, a ...any) *LintRuleErrorsList 
 		Module:      l.moduleID,
 		ObjectID:    l.objectID,
 		ObjectValue: l.value,
+		FilePath:    l.filePath,
+		LineNumber:  l.lineNubmer,
 		Text:        template,
 	}
 
@@ -147,6 +189,7 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 	if len(*l.storage) == 0 {
 		return nil
 	}
+
 	slices.SortFunc(*l.storage, func(a, b lintRuleError) int {
 		return cmp.Or(
 			cmp.Compare(a.Module, b.Module),
@@ -165,23 +208,28 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 		if _, ok := warningOnlyLinters[err.ID]; ok {
 			msgColor = color.FgHiYellow
 		}
-
 		builder.WriteString(fmt.Sprintf(
-			"%s%s\n\tMessage\t- %s\n\tObject\t- %s\n\tModule\t- %s\n",
+			"%s%s\n\t%-12s %s\n\t%-12s %s\n",
 			emoji.Sprintf(":monkey:"),
 			color.New(color.FgHiBlue).SprintfFunc()("[#%s]", err.ID),
-			color.New(msgColor).SprintfFunc()(err.Text),
-			err.ObjectID,
-			err.Module,
+			"Message:", color.New(msgColor).SprintfFunc()(err.Text),
+			"Module:", err.Module,
 		))
-
+		if err.ObjectID != "" && err.ObjectID != err.Module {
+			builder.WriteString(fmt.Sprintf("\t%-12s %s\n", "Object:", err.ObjectID))
+		}
 		if err.ObjectValue != nil {
 			value := fmt.Sprintf("%v", err.ObjectValue)
-			builder.WriteString(fmt.Sprintf("\tValue\t- %s\n", value))
+			builder.WriteString(fmt.Sprintf("\t%-12s %s\n", "Value:", value))
+		}
+		if err.FilePath != "" {
+			builder.WriteString(fmt.Sprintf("\t%-12s %s\n", "FilePath:", strings.TrimSpace(err.FilePath)))
+		}
+		if err.LineNumber != 0 {
+			builder.WriteString(fmt.Sprintf("\t%-12s %d\n", "LineNumber:", err.LineNumber))
 		}
 		builder.WriteString("\n")
 	}
-
 	return errors.New(builder.String())
 }
 
