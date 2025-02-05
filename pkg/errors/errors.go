@@ -18,7 +18,7 @@ type lintRuleError struct {
 	ObjectValue any
 	Text        string
 	FilePath    string
-	LineNubmer  int
+	LineNumber  int
 }
 
 func (l *lintRuleError) EqualsTo(candidate lintRuleError) bool { //nolint:gocritic // it's a simple method
@@ -143,7 +143,7 @@ func (l *LintRuleErrorsList) Add(template string, a ...any) *LintRuleErrorsList 
 		ObjectID:    l.objectID,
 		ObjectValue: l.value,
 		FilePath:    l.filePath,
-		LineNubmer:  l.lineNubmer,
+		LineNumber:  l.lineNubmer,
 		Text:        template,
 	}
 
@@ -189,6 +189,7 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 	if len(*l.storage) == 0 {
 		return nil
 	}
+
 	slices.SortFunc(*l.storage, func(a, b lintRuleError) int {
 		return cmp.Or(
 			cmp.Compare(a.Module, b.Module),
@@ -207,31 +208,28 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 		if _, ok := warningOnlyLinters[err.ID]; ok {
 			msgColor = color.FgHiYellow
 		}
-
 		builder.WriteString(fmt.Sprintf(
-			"%s%s\n\tMessage\t- %s\n\tModule\t- %s\n",
+			"%s%s\n\t%-12s %s\n\t%-12s %s\n",
 			emoji.Sprintf(":monkey:"),
 			color.New(color.FgHiBlue).SprintfFunc()("[#%s]", err.ID),
-			color.New(msgColor).SprintfFunc()(err.Text),
-			err.Module,
+			"Message:", color.New(msgColor).SprintfFunc()(err.Text),
+			"Module:", err.Module,
 		))
-
 		if err.ObjectID != "" && err.ObjectID != err.Module {
-			builder.WriteString(fmt.Sprintf("\tObject\t- %s\n", err.ObjectID))
+			builder.WriteString(fmt.Sprintf("\t%-12s %s\n", "Object:", err.ObjectID))
 		}
 		if err.ObjectValue != nil {
 			value := fmt.Sprintf("%v", err.ObjectValue)
-			builder.WriteString(fmt.Sprintf("\tValue\t- %s\n", value))
+			builder.WriteString(fmt.Sprintf("\t%-12s %s\n", "Value:", value))
 		}
 		if err.FilePath != "" {
-			builder.WriteString(fmt.Sprintf("\tPath\t- %s\n", err.FilePath))
+			builder.WriteString(fmt.Sprintf("\t%-12s %s\n", "FilePath:", strings.TrimSpace(err.FilePath)))
 		}
-		if err.LineNubmer != 0 {
-			builder.WriteString(fmt.Sprintf("\tLine\t- %d\n", err.LineNubmer))
+		if err.LineNumber != 0 {
+			builder.WriteString(fmt.Sprintf("\t%-12s %d\n", "LineNumber:", err.LineNumber))
 		}
 		builder.WriteString("\n")
 	}
-
 	return errors.New(builder.String())
 }
 
