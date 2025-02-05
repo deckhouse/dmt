@@ -25,7 +25,7 @@ func applyContainerRules(m *module.Module, object storage.StoreObject) *errors.L
 		return result
 	}
 
-	rules := []func(string, storage.StoreObject, []v1.Container) *errors.LintRuleErrorsList{
+	containerRules := []func(string, storage.StoreObject, []v1.Container) *errors.LintRuleErrorsList{
 		containerNameDuplicates,
 		containerEnvVariablesDuplicates,
 		containerImageDigestCheck,
@@ -35,11 +35,11 @@ func applyContainerRules(m *module.Module, object storage.StoreObject) *errors.L
 		containerPorts,
 	}
 
-	for _, rule := range rules {
+	for _, rule := range containerRules {
 		result.Merge(rule(m.GetName(), object, containers))
 	}
 
-	rulesObj := []func(string, storage.StoreObject) *errors.LintRuleErrorsList{
+	objectRules := []func(string, storage.StoreObject) *errors.LintRuleErrorsList{
 		objectRecommendedLabels,
 		namespaceLabels,
 		objectAPIVersion,
@@ -52,7 +52,7 @@ func applyContainerRules(m *module.Module, object storage.StoreObject) *errors.L
 		objectServiceTargetPort,
 	}
 
-	for _, rule := range rulesObj {
+	for _, rule := range objectRules {
 		result.Merge(rule(m.GetName(), object))
 	}
 
