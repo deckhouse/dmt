@@ -35,10 +35,11 @@ Generate some automatic rules for you module
 |----------------------------------------------------------|------------------------------------------------------------------------------|
 | [container](pkg/linters/container/README.md)             | Check containers - Duplicated names, env variables, ports, security context. |
 | [conversions](pkg/linters/conversions/README.md)         | Check openapi conversions.                                                   |
+| [crd-resources](pkg/linters/crd-resources/README.md)     | Check crd resources                                                          |
 | [images](pkg/linters/conversions/README.md)              | Check images build instructions.                                             |
 | [ingress](pkg/linters/ingress/README.md)                 | Check ingress TLS hook settings.                                             |
-| [pdb](pkg/linters/pdb/README.md)                         | Check PDB settings.                                                          |
-| [vpa](pkg/linters/vpa/README.md)                         | Check VPA settings.                                                          |
+| [pdb-resources](pkg/linters/pdb-resources/README.md)     | Check PDB settings.                                                          |
+| [vpa-resources](pkg/linters/vpa-resources/README.md)     | Check VPA settings.                                                          |
 | [kube-rbac-proxy](pkg/linters/kube-rbac-proxy/README.md) | TODO.                                                                        |
 | [license](pkg/linters/license/README.md)                 | Check license header in files.                                               |
 | [oss](pkg/linters/oss/README.md)                         | Check oss.yaml file exists.                                                  |
