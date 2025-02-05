@@ -8,6 +8,7 @@ type LintersSettings struct {
 	Probes       ProbesSettings       `mapstructure:"probes"`
 	Container    ContainerSettings    `mapstructure:"container"`
 	K8SResources K8SResourcesSettings `mapstructure:"k8s_resources"`
+	VPAResources VPAResourcesSettings `mapstructure:"vpa_resources"`
 	Images       ImageSettings        `mapstructure:"images"`
 	Rbac         RbacSettings         `mapstructure:"rbac"`
 	Resources    ResourcesSettings    `mapstructure:"resources"`
@@ -46,8 +47,11 @@ type ContainerSettings struct {
 
 type K8SResourcesSettings struct {
 	SkipKubeRbacProxyChecks []string `mapstructure:"skip-kube-rbac-proxy-checks"`
-	SkipVPAChecks           []string `mapstructure:"skip-vpa-checks"`
 	SkipPDBChecks           []string `mapstructure:"skip-pdb-checks"`
+}
+
+type VPAResourcesSettings struct {
+	SkipVPAChecks []string `mapstructure:"skip-vpa-checks"`
 }
 
 type ResourcesSettings struct{}

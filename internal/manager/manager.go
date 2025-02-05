@@ -10,6 +10,7 @@ import (
 	k8s_resources "github.com/deckhouse/dmt/pkg/linters/k8s-resources"
 	moduleLinter "github.com/deckhouse/dmt/pkg/linters/module"
 	"github.com/deckhouse/dmt/pkg/linters/monitoring"
+	vpa_resources "github.com/deckhouse/dmt/pkg/linters/vpa-resources"
 	"github.com/deckhouse/dmt/pkg/linters/oss"
 
 	"github.com/mitchellh/go-homedir"
@@ -59,6 +60,7 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 		probes.New(&cfg.LintersSettings.Probes),
 		container.New(&cfg.LintersSettings.Container),
 		k8s_resources.New(&cfg.LintersSettings.K8SResources),
+		vpa_resources.New(&cfg.LintersSettings.VPAResources),
 		images.New(&cfg.LintersSettings.Images),
 		rbac.New(&cfg.LintersSettings.Rbac),
 		monitoring.New(&cfg.LintersSettings.Monitoring),

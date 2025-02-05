@@ -9,7 +9,6 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/k8s-resources/pdb"
 	rbacproxy "github.com/deckhouse/dmt/pkg/linters/k8s-resources/rbac-proxy"
-	"github.com/deckhouse/dmt/pkg/linters/k8s-resources/vpa"
 )
 
 const (
@@ -28,7 +27,6 @@ var Cfg *config.K8SResourcesSettings
 func New(cfg *config.K8SResourcesSettings) *Object {
 	Cfg = cfg
 	pdb.SkipPDBChecks = cfg.SkipPDBChecks
-	vpa.SkipVPAChecks = cfg.SkipVPAChecks
 	rbacproxy.SkipKubeRbacProxyChecks = cfg.SkipKubeRbacProxyChecks
 
 	return &Object{
@@ -46,7 +44,6 @@ func (o *Object) Run(m *module.Module) *errors.LintRuleErrorsList {
 
 	name := m.GetName()
 	result.Merge(rbacproxy.NamespaceMustContainKubeRBACProxyCA(name, m.GetObjectStore()))
-	result.Merge(vpa.ControllerMustHaveVPA(m))
 	result.Merge(pdb.ControllerMustHavePDB(m))
 	result.Merge(pdb.DaemonSetMustNotHavePDB(m))
 
