@@ -11,9 +11,9 @@ import (
 	rbacproxy "github.com/deckhouse/dmt/pkg/linters/kube-rbac-proxy"
 	moduleLinter "github.com/deckhouse/dmt/pkg/linters/module"
 	"github.com/deckhouse/dmt/pkg/linters/monitoring"
+	"github.com/deckhouse/dmt/pkg/linters/oss"
 	"github.com/deckhouse/dmt/pkg/linters/pdb-resources"
 	"github.com/deckhouse/dmt/pkg/linters/vpa-resources"
-	"github.com/deckhouse/dmt/pkg/linters/oss"
 
 	"github.com/mitchellh/go-homedir"
 	"github.com/sourcegraph/conc/pool"
