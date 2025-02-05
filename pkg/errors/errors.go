@@ -174,7 +174,7 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 			err.Module,
 		))
 
-		if err.ObjectID != "" {
+		if err.ObjectID != "" && err.ObjectID != err.Module {
 			builder.WriteString(fmt.Sprintf("\tObject\t- %s\n", err.ObjectID))
 		}
 		if err.ObjectValue != nil {
