@@ -20,8 +20,29 @@ const defaultRegistry = "registry.example.com/deckhouse"
 
 func applyContainerRules(m *module.Module, object storage.StoreObject) *errors.LintRuleErrorsList {
 	result := errors.NewLinterRuleList(ID, m.GetName())
+
+	objectRules := []func(string, storage.StoreObject) *errors.LintRuleErrorsList{
+		objectRecommendedLabels,
+		namespaceLabels,
+		objectAPIVersion,
+		objectPriorityClass,
+		objectDNSPolicy,
+		objectSecurityContext,
+		objectRevisionHistoryLimit,
+		objectServiceTargetPort,
+	}
+
+	for _, rule := range objectRules {
+		result.Merge(rule(m.GetName(), object))
+	}
+
 	containers, err := object.GetAllContainers()
-	if err != nil || len(containers) == 0 {
+	if err != nil {
+		result.WithValue(err).Add("Cannot get containers from object: %s", object.Identity())
+		return result
+	}
+
+	if len(containers) == 0 {
 		return result
 	}
 
@@ -33,27 +54,12 @@ func applyContainerRules(m *module.Module, object storage.StoreObject) *errors.L
 		containerStorageEphemeral,
 		containerSecurityContext,
 		containerPorts,
+		objectReadOnlyRootFilesystem,
+		objectHostNetworkPorts,
 	}
 
 	for _, rule := range containerRules {
 		result.Merge(rule(m.GetName(), object, containers))
-	}
-
-	objectRules := []func(string, storage.StoreObject) *errors.LintRuleErrorsList{
-		objectRecommendedLabels,
-		namespaceLabels,
-		objectAPIVersion,
-		objectPriorityClass,
-		objectDNSPolicy,
-		objectSecurityContext,
-		objectReadOnlyRootFilesystem,
-		objectRevisionHistoryLimit,
-		objectHostNetworkPorts,
-		objectServiceTargetPort,
-	}
-
-	for _, rule := range objectRules {
-		result.Merge(rule(m.GetName(), object))
 	}
 
 	return result
@@ -224,6 +230,69 @@ func containerPorts(md string, object storage.StoreObject, containers []v1.Conta
 		}
 	}
 	return nil
+}
+
+func objectReadOnlyRootFilesystem(md string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList(ID, md)
+	switch object.Unstructured.GetKind() {
+	case "Deployment", "DaemonSet", "StatefulSet", "Pod", "Job", "CronJob":
+	default:
+		return result
+	}
+
+	for i := range containers {
+		c := &containers[i]
+		if c.VolumeMounts == nil {
+			continue
+		}
+		if c.SecurityContext == nil {
+			result.WithObjectID(object.Identity()).Add("Container's SecurityContext is missing")
+			continue
+		}
+		if c.SecurityContext.ReadOnlyRootFilesystem == nil {
+			result.WithObjectID(object.Identity() + " ; container = " + containers[i].Name).
+				Add("Container's SecurityContext missing parameter ReadOnlyRootFilesystem")
+			continue
+		}
+		if !*c.SecurityContext.ReadOnlyRootFilesystem {
+			result.WithObjectID(object.Identity() + " ; container = " + containers[i].Name).Add(
+				"Container's SecurityContext has `ReadOnlyRootFilesystem: false`, but it must be `true`",
+			)
+		}
+	}
+
+	return result
+}
+
+func objectHostNetworkPorts(md string, object storage.StoreObject, containers []v1.Container) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList(ID, md)
+	switch object.Unstructured.GetKind() {
+	case "Deployment", "DaemonSet", "StatefulSet", "Pod", "Job", "CronJob":
+	default:
+		return result
+	}
+
+	hostNetworkUsed, err := object.IsHostNetwork()
+	if err != nil {
+		return result.WithObjectID(object.Identity()).Add("IsHostNetwork failed: %v", err)
+	}
+
+	for i := range containers {
+		for _, p := range containers[i].Ports {
+			if hostNetworkUsed && (p.ContainerPort < 4200 || p.ContainerPort >= 4300) {
+				result.WithObjectID(object.Identity() + " ; container = " + containers[i].Name).
+					WithValue(p.ContainerPort).
+					Add("Pod running in hostNetwork and it's container port doesn't fit the range [4200,4299]")
+			}
+			if p.HostPort != 0 && (p.HostPort < 4200 || p.HostPort >= 4300) {
+				result.WithObjectID(object.Identity() + " ; container = " + containers[i].Name).
+					WithValue(p.HostPort).
+					Add("Container uses hostPort that doesn't fit the range [4200,4299]")
+			}
+		}
+	}
+
+	return result
 }
 
 func objectRecommendedLabels(name string, object storage.StoreObject) *errors.LintRuleErrorsList {
@@ -458,43 +527,6 @@ func checkRunAsNonRoot(securityContext *v1.PodSecurityContext, result *errors.Li
 	}
 }
 
-func objectReadOnlyRootFilesystem(name string, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, name)
-	switch object.Unstructured.GetKind() {
-	case "Deployment", "DaemonSet", "StatefulSet", "Pod", "Job", "CronJob":
-	default:
-		return result
-	}
-
-	containers, err := object.GetAllContainers()
-	if err != nil {
-		return result.WithObjectID(object.Identity()).Add("GetAllContainers failed: %v", err)
-	}
-
-	for i := range containers {
-		c := &containers[i]
-		if c.VolumeMounts == nil {
-			continue
-		}
-		if c.SecurityContext == nil {
-			result.WithObjectID(object.Identity()).Add("Container's SecurityContext is missing")
-			continue
-		}
-		if c.SecurityContext.ReadOnlyRootFilesystem == nil {
-			result.WithObjectID(object.Identity() + " ; container = " + containers[i].Name).
-				Add("Container's SecurityContext missing parameter ReadOnlyRootFilesystem")
-			continue
-		}
-		if !*c.SecurityContext.ReadOnlyRootFilesystem {
-			result.WithObjectID(object.Identity() + " ; container = " + containers[i].Name).Add(
-				"Container's SecurityContext has `ReadOnlyRootFilesystem: false`, but it must be `true`",
-			)
-		}
-	}
-
-	return result
-}
-
 func objectServiceTargetPort(name string, object storage.StoreObject) *errors.LintRuleErrorsList {
 	result := errors.NewLinterRuleList(ID, name)
 	switch object.Unstructured.GetKind() {
@@ -523,42 +555,6 @@ func objectServiceTargetPort(name string, object storage.StoreObject) *errors.Li
 			}
 			result.WithObjectID(object.Identity()).WithValue(port.TargetPort.IntVal).
 				Add("Service port must use a named (non-numeric) target port")
-		}
-	}
-
-	return result
-}
-
-func objectHostNetworkPorts(name string, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, name)
-	switch object.Unstructured.GetKind() {
-	case "Deployment", "DaemonSet", "StatefulSet", "Pod", "Job", "CronJob":
-	default:
-		return result
-	}
-
-	hostNetworkUsed, err := object.IsHostNetwork()
-	if err != nil {
-		return result.WithObjectID(object.Identity()).Add("IsHostNetwork failed: %v", err)
-	}
-
-	containers, err := object.GetAllContainers()
-	if err != nil {
-		return result.WithObjectID(object.Identity()).Add("GetAllContainers failed: %v", err)
-	}
-
-	for i := range containers {
-		for _, p := range containers[i].Ports {
-			if hostNetworkUsed && (p.ContainerPort < 4200 || p.ContainerPort >= 4300) {
-				result.WithObjectID(object.Identity() + " ; container = " + containers[i].Name).
-					WithValue(p.ContainerPort).
-					Add("Pod running in hostNetwork and it's container port doesn't fit the range [4200,4299]")
-			}
-			if p.HostPort != 0 && (p.HostPort < 4200 || p.HostPort >= 4300) {
-				result.WithObjectID(object.Identity() + " ; container = " + containers[i].Name).
-					WithValue(p.HostPort).
-					Add("Container uses hostPort that doesn't fit the range [4200,4299]")
-			}
 		}
 	}
 
