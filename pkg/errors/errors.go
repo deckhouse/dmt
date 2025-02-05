@@ -224,10 +224,10 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 			builder.WriteString(fmt.Sprintf("\tValue\t- %s\n", value))
 		}
 		if err.FilePath != "" {
-			builder.WriteString(fmt.Sprintf("\tFile\t- %s\n", err.FilePath))
+			builder.WriteString(fmt.Sprintf("\tFilePath\t- %s\n", err.FilePath))
 		}
 		if err.LineNubmer != 0 {
-			builder.WriteString(fmt.Sprintf("\tLine\t- %d\n", err.LineNubmer))
+			builder.WriteString(fmt.Sprintf("\tLineNumber\t- %d\n", err.LineNubmer))
 		}
 		builder.WriteString("\n")
 	}

@@ -53,19 +53,23 @@ func checkModuleYaml(moduleName, modulePath string) *errors.LintRuleErrorsList {
 
 	f, err := os.Open(configFilePath)
 	if err != nil {
-		return result.WithModule(moduleName).Add(
-			"Cannot open config-values.yaml file at path %q: %s",
-			configFilePath, err.Error(),
-		)
+		return result.WithModule(moduleName).
+			WithFilePath(configFilePath).
+			Add(
+				"Cannot open config-values.yaml file: %s",
+				err.Error(),
+			)
 	}
 
 	var cv configValues
 	err = yaml.NewDecoder(f).Decode(&cv)
 	if err != nil {
-		return result.WithModule(moduleName).Add(
-			"Cannot decode config-values.yaml file: %s",
-			err.Error(),
-		)
+		return result.WithModule(moduleName).
+			WithFilePath(configFilePath).
+			Add(
+				"Cannot decode config-values.yaml file: %s",
+				err.Error(),
+			)
 	}
 
 	if cv.ConfigVersion == 0 {
@@ -76,17 +80,21 @@ func checkModuleYaml(moduleName, modulePath string) *errors.LintRuleErrorsList {
 
 	stat, err := os.Stat(folder)
 	if err != nil && !os.IsNotExist(err) {
-		return result.Add(
-			"Cannot stat conversions folder %q: %s",
-			conversionsFolder, err.Error(),
-		)
+		return result.
+			WithFilePath(conversionsFolder).
+			Add(
+				"Cannot stat conversions folder: %s",
+				err.Error(),
+			)
 	}
 
 	if os.IsNotExist(err) || !stat.IsDir() {
-		return result.Add(
-			"Conversions folder is not exist, at path %q: %s",
-			conversionsFolder, err.Error(),
-		)
+		return result.
+			WithFilePath(conversionsFolder).
+			Add(
+				"Conversions folder is not exist: %s",
+				err.Error(),
+			)
 	}
 
 	versions := make([]int, 0)
@@ -109,10 +117,12 @@ func checkModuleYaml(moduleName, modulePath string) *errors.LintRuleErrorsList {
 
 		c, err := parseConversion(path)
 		if err != nil {
-			result.Add(
-				"%s",
-				strings.ToTitle(err.Error()),
-			)
+			result.
+				WithFilePath(path).
+				Add(
+					"%s",
+					strings.ToTitle(err.Error()),
+				)
 
 			return nil
 		}
@@ -179,10 +189,12 @@ func conversionCheck(c *conversion, moduleName, path string) *errors.LintRuleErr
 	result.Merge(descriptionCheck(c, moduleName, path))
 
 	if c.Version == nil {
-		return result.Add(
-			"Version is empty, filename: %q",
-			filepath.Base(path),
-		)
+		return result.
+			WithFilePath(path).
+			Add(
+				"Version is empty, filename: %q",
+				filepath.Base(path),
+			)
 	}
 
 	return result
@@ -192,24 +204,30 @@ func descriptionCheck(c *conversion, moduleName, path string) *errors.LintRuleEr
 	result := errors.NewLinterRuleList(ID, moduleName)
 
 	if c.Description == nil {
-		return result.Add(
-			"Description is empty, filename: %q",
-			filepath.Base(path),
-		)
+		return result.
+			WithFilePath(path).
+			Add(
+				"Description is empty, filename: %q",
+				filepath.Base(path),
+			)
 	}
 
 	if c.Description.Russian == "" {
-		result.Add(
-			"No description for conversion: russian, filename: %q",
-			filepath.Base(path),
-		)
+		result.
+			WithFilePath(path).
+			Add(
+				"No description for conversion: russian, filename: %q",
+				filepath.Base(path),
+			)
 	}
 
 	if c.Description.English == "" {
-		result.Add(
-			"No description for conversion: english, filename: %q",
-			filepath.Base(path),
-		)
+		result.
+			WithFilePath(path).
+			Add(
+				"No description for conversion: english, filename: %q",
+				filepath.Base(path),
+			)
 	}
 
 	return result
@@ -220,25 +238,31 @@ func compareWithFileName(c *conversion, moduleName, path string) *errors.LintRul
 
 	versions := regexVersionFile.FindStringSubmatch(filepath.Base(path))
 	if len(versions) <= 1 {
-		return result.Add(
-			"Bad filename %q",
-			filepath.Base(path),
-		)
+		return result.
+			WithFilePath(path).
+			Add(
+				"Bad filename %q",
+				filepath.Base(path),
+			)
 	}
 
 	fileVersion, err := strconv.Atoi(versions[1])
 	if err != nil {
-		return result.Add(
-			"Cannot convert version from file name %q: %s",
-			filepath.Base(path), err.Error(),
-		)
+		return result.
+			WithFilePath(path).
+			Add(
+				"Cannot convert version from file name %q: %s",
+				filepath.Base(path), err.Error(),
+			)
 	}
 
 	if *c.Version != fileVersion {
-		return result.Add(
-			"File name %q doesn't correspond with contained version %d",
-			filepath.Base(path), *c.Version,
-		)
+		return result.
+			WithFilePath(path).
+			Add(
+				"File name %q doesn't correspond with contained version %d",
+				filepath.Base(path), *c.Version,
+			)
 	}
 
 	return result
