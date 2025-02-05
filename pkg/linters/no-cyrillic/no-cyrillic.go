@@ -14,42 +14,29 @@ import (
 
 // NoCyrillic linter
 type NoCyrillic struct {
-	name, desc string
-	cfg        *config.NoCyrillicSettings
-
-	skipDocRe  *regexp.Regexp
-	skipI18NRe *regexp.Regexp
-	skipSelfRe *regexp.Regexp
+	name, desc     string
+	cfg            *config.NoCyrillicSettings
+	fileExtensions []string
+	skipDocRe      *regexp.Regexp
+	skipI18NRe     *regexp.Regexp
+	skipSelfRe     *regexp.Regexp
 }
 
 func New(cfg *config.NoCyrillicSettings) *NoCyrillic {
 	// default settings for no-cyrillic
-	if len(cfg.FileExtensions) == 0 {
-		cfg.FileExtensions = []string{
-			"yaml", "yml", "json",
-			"go",
-		}
-	}
-
-	if cfg.SkipDocRe == "" {
-		cfg.SkipDocRe = `doc-ru-.+\.y[a]?ml$|_RU\.md$|_ru\.html$|docs/site/_.+|docs/documentation/_.+|tools/spelling/.+|openapi/conversions/.+`
-	}
-
-	if cfg.SkipSelfRe == "" {
-		cfg.SkipSelfRe = `no_cyrillic(_test)?.go$`
-	}
-
-	if cfg.SkipI18NRe == "" {
-		cfg.SkipI18NRe = `/i18n/`
-	}
+	fileExtensions := []string{"yaml", "yml", "json", "go"}
+	skipDocRe := `doc-ru-.+\.y[a]?ml$|_RU\.md$|_ru\.html$|docs/site/_.+|docs/documentation/_.+|tools/spelling/.+|openapi/conversions/.+`
+	skipSelfRe := `no_cyrillic(_test)?.go$`
+	skipI18NRe := `/i18n/`
 
 	return &NoCyrillic{
-		name:       "no-cyrillic",
-		desc:       "NoCyrillic will check all files in the modules for contains cyrillic symbols",
-		cfg:        cfg,
-		skipDocRe:  regexp.MustCompile(cfg.SkipDocRe),
-		skipI18NRe: regexp.MustCompile(cfg.SkipI18NRe),
-		skipSelfRe: regexp.MustCompile(cfg.SkipSelfRe),
+		name:           "no-cyrillic",
+		desc:           "NoCyrillic will check all files in the modules for contains cyrillic symbols",
+		cfg:            cfg,
+		fileExtensions: fileExtensions,
+		skipDocRe:      regexp.MustCompile(skipDocRe),
+		skipI18NRe:     regexp.MustCompile(skipSelfRe),
+		skipSelfRe:     regexp.MustCompile(skipI18NRe),
 	}
 }
 
@@ -112,7 +99,7 @@ func (o *NoCyrillic) getFiles(rootPath string) ([]string, error) {
 	}
 
 	for _, file := range files {
-		if slices.ContainsFunc(o.cfg.FileExtensions, func(s string) bool {
+		if slices.ContainsFunc(o.fileExtensions, func(s string) bool {
 			return strings.HasSuffix(file, s)
 		}) {
 			result = append(result, file)

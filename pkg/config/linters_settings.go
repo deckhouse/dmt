@@ -25,10 +25,6 @@ type OpenAPISettings struct {
 
 type NoCyrillicSettings struct {
 	NoCyrillicFileExcludes []string `mapstructure:"no-cyrillic-file-excludes"`
-	FileExtensions         []string `mapstructure:"file-extensions"`
-	SkipDocRe              string   `mapstructure:"skip-doc-re"`
-	SkipI18NRe             string   `mapstructure:"skip-i18n-re"`
-	SkipSelfRe             string   `mapstructure:"skip-self-re"`
 }
 
 type LicenseSettings struct {
