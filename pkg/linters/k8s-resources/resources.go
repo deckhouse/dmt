@@ -50,10 +50,6 @@ func (o *Object) Run(m *module.Module) *errors.LintRuleErrorsList {
 	result.Merge(pdb.ControllerMustHavePDB(m))
 	result.Merge(pdb.DaemonSetMustNotHavePDB(m))
 
-	for _, object := range m.GetStorage() {
-		result.Merge(applyContainerRules(m.GetName(), object))
-	}
-
 	if isExistsOnFilesystem(m.GetPath(), CrdsDir) {
 		result.Merge(CrdsModuleRule(m.GetName(), filepath.Join(m.GetPath(), CrdsDir)))
 	}
