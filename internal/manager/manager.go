@@ -6,8 +6,9 @@ import (
 	"path/filepath"
 
 	"github.com/deckhouse/dmt/pkg/linters/conversions"
+	"github.com/deckhouse/dmt/pkg/linters/crd-resources"
 	"github.com/deckhouse/dmt/pkg/linters/ingress"
-	k8s_resources "github.com/deckhouse/dmt/pkg/linters/k8s-resources"
+	rbacproxy "github.com/deckhouse/dmt/pkg/linters/kube-rbac-proxy"
 	moduleLinter "github.com/deckhouse/dmt/pkg/linters/module"
 	"github.com/deckhouse/dmt/pkg/linters/monitoring"
 	"github.com/deckhouse/dmt/pkg/linters/pdb-resources"
@@ -60,9 +61,10 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 		oss.New(&cfg.LintersSettings.OSS),
 		probes.New(&cfg.LintersSettings.Probes),
 		container.New(&cfg.LintersSettings.Container),
-		k8s_resources.New(&cfg.LintersSettings.K8SResources),
+		rbacproxy.New(&cfg.LintersSettings.K8SResources),
 		vpa.New(&cfg.LintersSettings.VPAResources),
 		pdb.New(&cfg.LintersSettings.PDBResources),
+		crd.New(&cfg.LintersSettings.CRDResources),
 		images.New(&cfg.LintersSettings.Images),
 		rbac.New(&cfg.LintersSettings.Rbac),
 		monitoring.New(&cfg.LintersSettings.Monitoring),

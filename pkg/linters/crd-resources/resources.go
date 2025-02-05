@@ -1,4 +1,4 @@
-package k8sresources
+package crd
 
 import (
 	"os"
@@ -7,29 +7,23 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
-	rbacproxy "github.com/deckhouse/dmt/pkg/linters/k8s-resources/rbac-proxy"
 )
 
 const (
-	ID      = "k8s-resources"
+	ID      = "crd-resources"
 	CrdsDir = "crds"
 )
 
 // Object linter
 type Object struct {
 	name, desc string
-	cfg        *config.K8SResourcesSettings
+	cfg        *config.CRDResourcesSettings
 }
 
-var Cfg *config.K8SResourcesSettings
-
-func New(cfg *config.K8SResourcesSettings) *Object {
-	Cfg = cfg
-	rbacproxy.SkipKubeRbacProxyChecks = cfg.SkipKubeRbacProxyChecks
-
+func New(cfg *config.CRDResourcesSettings) *Object {
 	return &Object{
-		name: "k8s-resources",
-		desc: "Lint k8s-resources",
+		name: "crd-resources",
+		desc: "Lint crd-resources",
 		cfg:  cfg,
 	}
 }
@@ -40,11 +34,8 @@ func (o *Object) Run(m *module.Module) *errors.LintRuleErrorsList {
 		return result
 	}
 
-	name := m.GetName()
-	result.Merge(rbacproxy.NamespaceMustContainKubeRBACProxyCA(name, m.GetObjectStore()))
-
 	if isExistsOnFilesystem(m.GetPath(), CrdsDir) {
-		result.Merge(CrdsModuleRule(m.GetName(), filepath.Join(m.GetPath(), CrdsDir)))
+		result.Merge(crdsModuleRule(m.GetName(), filepath.Join(m.GetPath(), CrdsDir)))
 	}
 
 	return result

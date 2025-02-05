@@ -10,6 +10,7 @@ type LintersSettings struct {
 	K8SResources K8SResourcesSettings `mapstructure:"k8s_resources"`
 	VPAResources VPAResourcesSettings `mapstructure:"vpa_resources"`
 	PDBResources PDBResourcesSettings `mapstructure:"pdb_resources"`
+	CRDResources CRDResourcesSettings `mapstructure:"crd_resources"`
 	Images       ImageSettings        `mapstructure:"images"`
 	Rbac         RbacSettings         `mapstructure:"rbac"`
 	Resources    ResourcesSettings    `mapstructure:"resources"`
@@ -57,6 +58,8 @@ type VPAResourcesSettings struct {
 type PDBResourcesSettings struct {
 	SkipPDBChecks []string `mapstructure:"skip-pdb-checks"`
 }
+
+type CRDResourcesSettings struct{}
 
 type ResourcesSettings struct{}
 
