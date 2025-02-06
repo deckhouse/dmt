@@ -1,12 +1,11 @@
 package openapienum
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 	"unicode"
-
-	"github.com/hashicorp/go-multierror"
 
 	"github.com/deckhouse/dmt/pkg/config"
 )
@@ -72,12 +71,11 @@ func (en EnumValidator) Run(moduleName, absoluteKey string, value any) error {
 	return err
 }
 
-func validateEnumValues(enumKey string, values []string) *multierror.Error {
-	var res *multierror.Error
+func validateEnumValues(enumKey string, values []string) error {
+	var res error
 	for _, value := range values {
-		err := validateEnumValue(value)
-		if err != nil {
-			res = multierror.Append(res, fmt.Errorf("enum '%s' is invalid: %w", enumKey, err))
+		if err := validateEnumValue(value); err != nil {
+			res = errors.Join(res, fmt.Errorf("enum '%s' is invalid: %w", enumKey, err))
 		}
 	}
 
