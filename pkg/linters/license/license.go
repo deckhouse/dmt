@@ -14,18 +14,20 @@ import (
 type Copyright struct {
 	name, desc string
 	cfg        *config.LicenseSettings
+	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *config.ModuleConfig) *Copyright {
+func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Copyright {
 	return &Copyright{
-		name: "license",
-		desc: "Copyright will check all files in the modules for contains copyright",
-		cfg:  &cfg.LintersSettings.License,
+		name:      "license",
+		desc:      "Copyright will check all files in the modules for contains copyright",
+		cfg:       &cfg.LintersSettings.License,
+		ErrorList: errorList,
 	}
 }
 
 func (o *Copyright) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(o.Name(), m.GetName())
+	result := errors.NewLinterRuleList(o.Name(), m.GetName()).WithMaxLevel(o.cfg.Impact)
 
 	if m.GetPath() == "" {
 		return result
@@ -49,6 +51,10 @@ func (o *Copyright) Run(m *module.Module) *errors.LintRuleErrorsList {
 				Add("errors in `%s` module", m.GetName())
 		}
 	}
+
+	result.CorrespondToMaxLevel()
+
+	o.ErrorList.Merge(result)
 
 	return result
 }

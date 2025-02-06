@@ -17,18 +17,20 @@ import (
 type Probes struct {
 	name, desc string
 	cfg        *config.ProbesSettings
+	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *config.ModuleConfig) *Probes {
+func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Probes {
 	return &Probes{
-		name: "probes",
-		desc: "Probes will check all containers for correct liveness and readiness probes",
-		cfg:  &cfg.LintersSettings.Probes,
+		name:      "probes",
+		desc:      "Probes will check all containers for correct liveness and readiness probes",
+		cfg:       &cfg.LintersSettings.Probes,
+		ErrorList: errorList,
 	}
 }
 
 func (p *Probes) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList("probes", m.GetName())
+	result := errors.NewLinterRuleList("probes", m.GetName()).WithMaxLevel(p.cfg.Impact)
 	var err error
 	var ch = make(chan *errors.LintRuleErrorsList)
 	go func() {
@@ -56,6 +58,10 @@ func (p *Probes) Run(m *module.Module) *errors.LintRuleErrorsList {
 		result.WithObjectID("module = " + m.GetName()).
 			WithValue(err.Error()).Add("Error in probes linter")
 	}
+
+	result.CorrespondToMaxLevel()
+
+	p.ErrorList.Merge(result)
 
 	return result
 }

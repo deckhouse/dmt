@@ -10,29 +10,35 @@ import (
 type Module struct {
 	name, desc string
 	cfg        *config.ModuleSettings
+	ErrorList  *errors.LintRuleErrorsList
 }
 
 const ID = "module"
 
 var Cfg *config.ModuleSettings
 
-func New(cfg *config.ModuleConfig) *Module {
+func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Module {
 	Cfg = &cfg.LintersSettings.Module
 
 	return &Module{
-		name: "module",
-		desc: "Lint module rules",
-		cfg:  &cfg.LintersSettings.Module,
+		name:      "module",
+		desc:      "Lint module rules",
+		cfg:       &cfg.LintersSettings.Module,
+		ErrorList: errorList,
 	}
 }
 
-func (*Module) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, m.GetName())
+func (o *Module) Run(m *module.Module) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList(ID, m.GetName()).WithMaxLevel(o.cfg.Impact)
 	if m == nil {
 		return result
 	}
 
 	result.Merge(checkModuleYaml(m.GetName(), m.GetPath()))
+
+	result.CorrespondToMaxLevel()
+
+	o.ErrorList.Merge(result)
 
 	return result
 }

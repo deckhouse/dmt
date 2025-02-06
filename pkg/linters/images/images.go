@@ -11,25 +11,31 @@ import (
 type Images struct {
 	name, desc string
 	cfg        *config.ImageSettings
+	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *config.ModuleConfig) *Images {
+func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Images {
 	rules.Cfg = &cfg.LintersSettings.Images
 
 	return &Images{
-		name: "images",
-		desc: "Lint docker images",
-		cfg:  &cfg.LintersSettings.Images,
+		name:      "images",
+		desc:      "Lint docker images",
+		cfg:       &cfg.LintersSettings.Images,
+		ErrorList: errorList,
 	}
 }
 
-func (*Images) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList("images", m.GetName())
+func (o *Images) Run(m *module.Module) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList("images", m.GetName()).WithMaxLevel(o.cfg.Impact)
 	if m == nil {
 		return result
 	}
 
 	result.Merge(rules.ApplyImagesRules(m))
+
+	result.CorrespondToMaxLevel()
+
+	o.ErrorList.Merge(result)
 
 	return result
 }

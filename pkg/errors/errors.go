@@ -43,12 +43,14 @@ type LintRuleErrorsList struct {
 	filePath   string
 	lineNumber int
 
-	maxLevel pkg.Level
+	maxLevel *pkg.Level
 }
 
 func NewLintRuleErrorsList() *LintRuleErrorsList {
+	lvl := pkg.Critical
 	return &LintRuleErrorsList{
-		storage: &errStorage{},
+		storage:  &errStorage{},
+		maxLevel: &lvl,
 	}
 }
 
@@ -77,7 +79,20 @@ func (l *LintRuleErrorsList) WithMaxLevel(level pkg.Level) *LintRuleErrorsList {
 		value:      l.value,
 		filePath:   l.filePath,
 		lineNumber: l.lineNumber,
-		maxLevel:   level,
+		maxLevel:   &level,
+	}
+}
+
+func (l *LintRuleErrorsList) CorrespondToMaxLevel() {
+	if l.storage == nil {
+		return
+	}
+
+	for idx, err := range *l.storage {
+		if l.maxLevel != nil && *l.maxLevel < err.Level {
+			st := *l.storage
+			st[idx].Level = *l.maxLevel
+		}
 	}
 }
 
@@ -203,8 +218,8 @@ func (l *LintRuleErrorsList) add(str string, level pkg.Level) *LintRuleErrorsLis
 		l.storage = &errStorage{}
 	}
 
-	if l.maxLevel < level {
-		level = l.maxLevel
+	if l.maxLevel != nil && *l.maxLevel < level {
+		level = *l.maxLevel
 	}
 
 	e := lintRuleError{

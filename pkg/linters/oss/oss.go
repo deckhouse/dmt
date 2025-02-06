@@ -10,24 +10,30 @@ import (
 type OSS struct {
 	name, desc string
 	cfg        *config.OSSSettings
+	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *config.ModuleConfig) *OSS {
+func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *OSS {
 	return &OSS{
-		name: "oss",
-		desc: "Copyright will check oss license file",
-		cfg:  &cfg.LintersSettings.OSS,
+		name:      "oss",
+		desc:      "Copyright will check oss license file",
+		cfg:       &cfg.LintersSettings.OSS,
+		ErrorList: errorList,
 	}
 }
 
 func (o *OSS) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(o.Name(), m.GetName())
+	result := errors.NewLinterRuleList(o.Name(), m.GetName()).WithMaxLevel(o.cfg.Impact)
 
 	if m.GetPath() == "" {
 		return result
 	}
 
 	result.Merge(o.ossModuleRule(m.GetName(), m.GetPath()))
+
+	result.CorrespondToMaxLevel()
+
+	o.ErrorList.Merge(result)
 
 	return result
 }

@@ -18,18 +18,20 @@ const (
 type Object struct {
 	name, desc string
 	cfg        *config.CRDResourcesSettings
+	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *config.ModuleConfig) *Object {
+func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Object {
 	return &Object{
-		name: "crd-resources",
-		desc: "Lint crd-resources",
-		cfg:  &cfg.LintersSettings.CRDResources,
+		name:      "crd-resources",
+		desc:      "Lint crd-resources",
+		cfg:       &cfg.LintersSettings.CRDResources,
+		ErrorList: errorList,
 	}
 }
 
 func (o *Object) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(o.Name(), m.GetName())
+	result := errors.NewLinterRuleList(o.Name(), m.GetName()).WithMaxLevel(o.cfg.Impact)
 	if m == nil {
 		return result
 	}
@@ -37,6 +39,10 @@ func (o *Object) Run(m *module.Module) *errors.LintRuleErrorsList {
 	if isExistsOnFilesystem(m.GetPath(), CrdsDir) {
 		result.Merge(crdsModuleRule(m.GetName(), filepath.Join(m.GetPath(), CrdsDir)))
 	}
+
+	result.CorrespondToMaxLevel()
+
+	o.ErrorList.Merge(result)
 
 	return result
 }

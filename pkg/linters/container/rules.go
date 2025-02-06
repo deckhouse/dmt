@@ -18,7 +18,7 @@ import (
 
 const defaultRegistry = "registry.example.com/deckhouse"
 
-func applyContainerRules(m *module.Module, object storage.StoreObject) *errors.LintRuleErrorsList {
+func (*Container) applyContainerRules(m *module.Module, object storage.StoreObject) *errors.LintRuleErrorsList {
 	result := errors.NewLinterRuleList(ID, m.GetName())
 
 	objectRules := []func(string, storage.StoreObject) *errors.LintRuleErrorsList{
@@ -295,8 +295,8 @@ func objectHostNetworkPorts(md string, object storage.StoreObject, containers []
 	return result
 }
 
-func objectRecommendedLabels(moduleName string, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, moduleName)
+func objectRecommendedLabels(name string, object storage.StoreObject) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList(ID, name)
 	labels := object.Unstructured.GetLabels()
 	if _, ok := labels["module"]; !ok {
 		result.WithObjectID(object.Identity()).WithValue(labels).
@@ -310,8 +310,8 @@ func objectRecommendedLabels(moduleName string, object storage.StoreObject) *err
 	return result
 }
 
-func namespaceLabels(moduleName string, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, moduleName)
+func namespaceLabels(name string, object storage.StoreObject) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList(ID, name)
 	if object.Unstructured.GetKind() != "Namespace" {
 		return result
 	}
@@ -332,8 +332,8 @@ func namespaceLabels(moduleName string, object storage.StoreObject) *errors.Lint
 	return result
 }
 
-func newAPIVersionError(moduleName, wanted, version, objectID string) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, moduleName)
+func newAPIVersionError(name, wanted, version, objectID string) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList(ID, name)
 	if version != wanted {
 		result.WithObjectID(objectID).Add(
 			"Object defined using deprecated api version, wanted %q", wanted,
@@ -342,31 +342,31 @@ func newAPIVersionError(moduleName, wanted, version, objectID string) *errors.Li
 	return result
 }
 
-func objectAPIVersion(moduleName string, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, moduleName)
+func objectAPIVersion(name string, object storage.StoreObject) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList(ID, name)
 	kind := object.Unstructured.GetKind()
 	version := object.Unstructured.GetAPIVersion()
 
 	switch kind {
 	case "Role", "RoleBinding", "ClusterRole", "ClusterRoleBinding":
-		result.Merge(newAPIVersionError(moduleName, "rbac.authorization.k8s.io/v1", version, object.Identity()))
+		result.Merge(newAPIVersionError(name, "rbac.authorization.k8s.io/v1", version, object.Identity()))
 	case "Deployment", "DaemonSet", "StatefulSet":
-		result.Merge(newAPIVersionError(moduleName, "apps/v1", version, object.Identity()))
+		result.Merge(newAPIVersionError(name, "apps/v1", version, object.Identity()))
 	case "Ingress":
-		result.Merge(newAPIVersionError(moduleName, "networking.k8s.io/v1", version, object.Identity()))
+		result.Merge(newAPIVersionError(name, "networking.k8s.io/v1", version, object.Identity()))
 	case "PriorityClass":
-		result.Merge(newAPIVersionError(moduleName, "scheduling.k8s.io/v1", version, object.Identity()))
+		result.Merge(newAPIVersionError(name, "scheduling.k8s.io/v1", version, object.Identity()))
 	case "PodSecurityPolicy":
-		result.Merge(newAPIVersionError(moduleName, "policy/v1beta1", version, object.Identity()))
+		result.Merge(newAPIVersionError(name, "policy/v1beta1", version, object.Identity()))
 	case "NetworkPolicy":
-		result.Merge(newAPIVersionError(moduleName, "networking.k8s.io/v1", version, object.Identity()))
+		result.Merge(newAPIVersionError(name, "networking.k8s.io/v1", version, object.Identity()))
 	}
 
 	return result
 }
 
-func objectRevisionHistoryLimit(moduleName string, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, moduleName)
+func objectRevisionHistoryLimit(name string, object storage.StoreObject) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList(ID, name)
 	if object.Unstructured.GetKind() == "Deployment" {
 		converter := runtime.DefaultUnstructuredConverter
 		deployment := new(appsv1.Deployment)
@@ -400,8 +400,8 @@ func objectRevisionHistoryLimit(moduleName string, object storage.StoreObject) *
 	return result
 }
 
-func objectPriorityClass(moduleName string, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, moduleName)
+func objectPriorityClass(name string, object storage.StoreObject) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList(ID, name)
 	if !isPriorityClassSupportedKind(object.Unstructured.GetKind()) {
 		return result
 	}
@@ -413,7 +413,7 @@ func objectPriorityClass(moduleName string, object storage.StoreObject) *errors.
 		)
 	}
 
-	return validatePriorityClass(priorityClass, moduleName, object, result)
+	return validatePriorityClass(priorityClass, name, object, result)
 }
 
 func isPriorityClassSupportedKind(kind string) bool {
@@ -463,8 +463,8 @@ func getPriorityClass(object storage.StoreObject) (string, error) {
 	return priorityClass, err
 }
 
-func objectSecurityContext(moduleName string, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, moduleName)
+func objectSecurityContext(name string, object storage.StoreObject) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList(ID, name)
 	if !isSupportedKind(object.Unstructured.GetKind()) {
 		return result
 	}
@@ -478,7 +478,7 @@ func objectSecurityContext(moduleName string, object storage.StoreObject) *error
 		return result.WithObjectID(object.Identity()).Add("Object's SecurityContext is not defined")
 	}
 
-	checkSecurityContextParameters(securityContext, result, object, moduleName)
+	checkSecurityContextParameters(securityContext, result, object, name)
 
 	return result
 }
@@ -492,7 +492,7 @@ func isSupportedKind(kind string) bool {
 	}
 }
 
-func checkSecurityContextParameters(securityContext *v1.PodSecurityContext, result *errors.LintRuleErrorsList, object storage.StoreObject, moduleName string) {
+func checkSecurityContextParameters(securityContext *v1.PodSecurityContext, result *errors.LintRuleErrorsList, object storage.StoreObject, name string) {
 	if securityContext.RunAsNonRoot == nil {
 		result.WithObjectID(object.Identity()).Add("Object's SecurityContext missing parameter RunAsNonRoot")
 	}
@@ -505,7 +505,7 @@ func checkSecurityContextParameters(securityContext *v1.PodSecurityContext, resu
 	}
 
 	if securityContext.RunAsNonRoot != nil && securityContext.RunAsUser != nil && securityContext.RunAsGroup != nil {
-		checkRunAsNonRoot(securityContext, result, object, moduleName)
+		checkRunAsNonRoot(securityContext, result, object, name)
 	}
 }
 
@@ -527,8 +527,8 @@ func checkRunAsNonRoot(securityContext *v1.PodSecurityContext, result *errors.Li
 	}
 }
 
-func objectServiceTargetPort(moduleName string, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, moduleName)
+func objectServiceTargetPort(name string, object storage.StoreObject) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList(ID, name)
 	switch object.Unstructured.GetKind() {
 	case "Service":
 	default:
@@ -561,8 +561,8 @@ func objectServiceTargetPort(moduleName string, object storage.StoreObject) *err
 	return result
 }
 
-func objectDNSPolicy(moduleName string, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, moduleName)
+func objectDNSPolicy(name string, object storage.StoreObject) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList(ID, name)
 	dnsPolicy, hostNetwork, err := getDNSPolicyAndHostNetwork(object)
 	if err != nil {
 		return result.WithObjectID(object.Unstructured.GetName()).Add(
@@ -570,7 +570,7 @@ func objectDNSPolicy(moduleName string, object storage.StoreObject) *errors.Lint
 		)
 	}
 
-	return validateDNSPolicy(dnsPolicy, hostNetwork, moduleName, object, result)
+	return validateDNSPolicy(dnsPolicy, hostNetwork, name, object, result)
 }
 
 func validateDNSPolicy(dnsPolicy string, hostNetwork bool, _ string, object storage.StoreObject, result *errors.LintRuleErrorsList) *errors.LintRuleErrorsList {
