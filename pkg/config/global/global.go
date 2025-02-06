@@ -21,14 +21,24 @@ type Global struct {
 }
 
 type Linters struct {
-	Probes Probes `mapstructure:"probes"`
-	Images Images `mapstructure:"images"`
+	Openapi     LinterConfig `mapstructure:"openapi"`
+	NoCyrillic  LinterConfig `mapstructure:"nocyrillic"`
+	License     LinterConfig `mapstructure:"license"`
+	OSS         LinterConfig `mapstructure:"oss"`
+	Probes      LinterConfig `mapstructure:"probes"`
+	Container   LinterConfig `mapstructure:"container"`
+	RBACProxy   LinterConfig `mapstructure:"rbacproxy"`
+	VPA         LinterConfig `mapstructure:"vpa"`
+	PDB         LinterConfig `mapstructure:"pdb"`
+	CRD         LinterConfig `mapstructure:"crd"`
+	Images      LinterConfig `mapstructure:"images"`
+	RBAC        LinterConfig `mapstructure:"rbac"`
+	Monitoring  LinterConfig `mapstructure:"monitoring"`
+	Ingress     LinterConfig `mapstructure:"ingress"`
+	Module      LinterConfig `mapstructure:"module"`
+	Conversions LinterConfig `mapstructure:"conversions"`
 }
 
-type Probes struct {
-	Impact Level `mapstructure:"impact" default:"critical"`
-}
-
-type Images struct {
+type LinterConfig struct {
 	Impact Level `mapstructure:"impact" default:"critical"`
 }
