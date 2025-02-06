@@ -7,18 +7,19 @@ type Global struct {
 }
 
 type Linters struct {
-	Openapi      LinterConfig `mapstructure:"openapi"`
+	OpenAPI      LinterConfig `mapstructure:"openapi"`
 	NoCyrillic   LinterConfig `mapstructure:"nocyrillic"`
 	License      LinterConfig `mapstructure:"license"`
 	OSS          LinterConfig `mapstructure:"oss"`
 	Probes       LinterConfig `mapstructure:"probes"`
 	Container    LinterConfig `mapstructure:"container"`
-	K8SResources LinterConfig `mapstructure:"rbacproxy"`
-	VPA          LinterConfig `mapstructure:"vpa"`
-	PDB          LinterConfig `mapstructure:"pdb"`
-	CRD          LinterConfig `mapstructure:"crd"`
+	K8SResources LinterConfig `mapstructure:"k8s_resources"`
+	VPAResources LinterConfig `mapstructure:"vpa_resources"`
+	PDBResources LinterConfig `mapstructure:"pdb_resources"`
+	CRDResources LinterConfig `mapstructure:"crd_resources"`
 	Images       LinterConfig `mapstructure:"images"`
-	RBAC         LinterConfig `mapstructure:"rbac"`
+	Rbac         LinterConfig `mapstructure:"rbac"`
+	Resources    LinterConfig `mapstructure:"resources"`
 	Monitoring   LinterConfig `mapstructure:"monitoring"`
 	Ingress      LinterConfig `mapstructure:"ingress"`
 	Module       LinterConfig `mapstructure:"module"`
