@@ -1,8 +1,6 @@
 package openapienum
 
 import (
-	"path/filepath"
-
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/openapi"
@@ -42,8 +40,7 @@ func (o *Enum) Run(m *module.Module) *errors.LintRuleErrorsList {
 		}
 
 		if err := openapi.Parse(parser, data); err != nil {
-			f, _ := filepath.Rel(m.GetPath(), file)
-			result.WithValue(err).Add("openAPI file is not valid: %s", f)
+			result.WithValue(err).Add("openAPI file is not valid: %s", fsutils.Rel(m.GetPath(), file))
 		}
 	}
 

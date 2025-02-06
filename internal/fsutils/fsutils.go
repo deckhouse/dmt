@@ -99,3 +99,8 @@ func EvalSymlinks(path string) (string, error) {
 
 	return er.path, er.err
 }
+
+func Rel(basepath, targpath string) string {
+	rel, _ := filepath.Rel(basepath, targpath)
+	return rel
+}
