@@ -26,16 +26,16 @@ func Test_Errors(t *testing.T) {
 	require.Len(t, *t2.storage, 2)
 	require.Equal(t,
 		errStorage{
-			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test1"},
-			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "objectID", Text: "test2"}},
+			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test1", Level: 1},
+			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "objectID", Text: "test2", Level: 1}},
 		*t1.storage)
 	t1.Add("test3")
 	require.Len(t, *t1.storage, 3)
 	require.Equal(t,
 		errStorage{
-			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test1"},
-			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "objectID", Text: "test2"},
-			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test3"},
+			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test1", Level: 1},
+			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "objectID", Text: "test2", Level: 1},
+			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test3", Level: 1},
 		},
 		*t1.storage)
 	t3 := NewLinterRuleList("linterID", "moduleID2")
@@ -43,7 +43,7 @@ func Test_Errors(t *testing.T) {
 	t3.WithObjectID("objectID3").Add("test3")
 	require.Equal(t,
 		errStorage{
-			lintRuleError{ID: "linterid", Module: "moduleID2", ObjectID: "objectID3", Text: "test3"},
+			lintRuleError{ID: "linterid", Module: "moduleID2", ObjectID: "objectID3", Text: "test3", Level: 1},
 		},
 		*t3.storage)
 	require.Len(t, *t3.storage, 1)
@@ -52,10 +52,10 @@ func Test_Errors(t *testing.T) {
 	require.Len(t, *t1.storage, 4)
 	require.Equal(t,
 		errStorage{
-			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test1"},
-			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "objectID", Text: "test2"},
-			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test3"},
-			lintRuleError{ID: "linterid", Module: "moduleID2", ObjectID: "objectID3", Text: "test3"},
+			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test1", Level: 1},
+			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "objectID", Text: "test2", Level: 1},
+			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test3", Level: 1},
+			lintRuleError{ID: "linterid", Module: "moduleID2", ObjectID: "objectID3", Text: "test3", Level: 1},
 		},
 		*t1.storage)
 }
