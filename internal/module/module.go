@@ -14,6 +14,7 @@ import (
 
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/internal/werf"
+	"github.com/deckhouse/dmt/pkg/config"
 )
 
 const (
@@ -28,6 +29,8 @@ type Module struct {
 	chart       *chart.Chart
 	objectStore *storage.UnstructuredObjectStore
 	werfFile    string
+
+	linterConfig *config.ModuleConfig
 }
 
 type ModuleList []*Module
@@ -94,6 +97,13 @@ func (m *Module) GetWerfFile() string {
 	return m.werfFile
 }
 
+func (m *Module) GetModuleConfig() *config.ModuleConfig {
+	if m == nil {
+		return nil
+	}
+	return m.linterConfig
+}
+
 func NewModule(path string) (*Module, error) {
 	name, err := getModuleName(path)
 	if err != nil {
@@ -151,6 +161,13 @@ func NewModule(path string) (*Module, error) {
 	if err == nil && werfFile != "" {
 		module.werfFile = werfFile
 	}
+
+	cfg := &config.ModuleConfig{}
+	if err := config.NewLoader(cfg, path).Load(); err != nil {
+		panic(err)
+	}
+
+	module.linterConfig = cfg
 
 	return module, nil
 }

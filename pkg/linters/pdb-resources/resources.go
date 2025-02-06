@@ -4,6 +4,7 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters"
 )
 
 const (
@@ -16,13 +17,13 @@ type Object struct {
 	cfg        *config.PDBResourcesSettings
 }
 
-func New(cfg *config.PDBResourcesSettings) *Object {
-	skipPDBChecks = cfg.SkipPDBChecks
+func New(cfg *config.ModuleConfig) linters.Linter {
+	skipPDBChecks = cfg.LintersSettings.PDBResources.SkipPDBChecks
 
 	return &Object{
 		name: "pdb-resources",
 		desc: "Lint pdb-resources",
-		cfg:  cfg,
+		cfg:  &cfg.LintersSettings.PDBResources,
 	}
 }
 

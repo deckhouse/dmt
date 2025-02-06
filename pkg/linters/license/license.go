@@ -8,6 +8,7 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters"
 )
 
 // Copyright linter
@@ -16,14 +17,11 @@ type Copyright struct {
 	cfg        *config.LicenseSettings
 }
 
-var Cfg *config.LicenseSettings
-
-func New(cfg *config.LicenseSettings) *Copyright {
-	Cfg = cfg
+func New(cfg *config.ModuleConfig) linters.Linter {
 	return &Copyright{
 		name: "license",
 		desc: "Copyright will check all files in the modules for contains copyright",
-		cfg:  cfg,
+		cfg:  &cfg.LintersSettings.License,
 	}
 }
 

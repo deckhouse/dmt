@@ -37,10 +37,10 @@ type configValues struct {
 }
 
 //nolint:gocyclo // hate this linter
-func checkModuleYaml(moduleName, modulePath string) *errors.LintRuleErrorsList {
+func (c *Conversions) checkModuleYaml(moduleName, modulePath string) *errors.LintRuleErrorsList {
 	result := errors.NewLinterRuleList(ID, moduleName)
 
-	_, ok := cfg.SkipCheckModule[moduleName]
+	_, ok := c.cfg.SkipCheckModule[moduleName]
 	if ok {
 		return result
 	}
@@ -149,10 +149,10 @@ func checkModuleYaml(moduleName, modulePath string) *errors.LintRuleErrorsList {
 
 	slices.Sort(versions)
 
-	if cfg.FirstVersion != 0 && versions[0] != cfg.FirstVersion {
+	if c.cfg.FirstVersion != 0 && versions[0] != c.cfg.FirstVersion {
 		result.Add(
 			"You need to start with version number: %d",
-			cfg.FirstVersion,
+			c.cfg.FirstVersion,
 		)
 	}
 

@@ -4,6 +4,7 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters"
 )
 
 // Monitoring linter
@@ -16,13 +17,13 @@ const ID = "monitoring"
 
 var Cfg *config.MonitoringSettings
 
-func New(cfg *config.MonitoringSettings) *Monitoring {
-	Cfg = cfg
+func New(cfg *config.ModuleConfig) linters.Linter {
+	Cfg = &cfg.LintersSettings.Monitoring
 
 	return &Monitoring{
 		name: "monitoring",
 		desc: "Lint monitoring rules",
-		cfg:  cfg,
+		cfg:  &cfg.LintersSettings.Monitoring,
 	}
 }
 

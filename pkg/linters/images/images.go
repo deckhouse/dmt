@@ -4,6 +4,7 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters"
 	"github.com/deckhouse/dmt/pkg/linters/images/rules"
 )
 
@@ -13,13 +14,13 @@ type Images struct {
 	cfg        *config.ImageSettings
 }
 
-func New(cfg *config.ImageSettings) *Images {
-	rules.Cfg = cfg
+func New(cfg *config.ModuleConfig) linters.Linter {
+	rules.Cfg = &cfg.LintersSettings.Images
 
 	return &Images{
 		name: "images",
 		desc: "Lint docker images",
-		cfg:  cfg,
+		cfg:  &cfg.LintersSettings.Images,
 	}
 }
 

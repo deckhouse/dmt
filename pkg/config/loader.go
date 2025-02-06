@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -11,6 +12,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/viper"
 
+	"github.com/creasty/defaults"
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/logger"
 )
@@ -22,13 +24,13 @@ type LoaderOptions struct {
 type Loader struct {
 	viper *viper.Viper
 
-	cfg  *Config
+	cfg  any
 	args []string
 }
 
-func NewLoader(cfg *Config, dirs []string) *Loader {
+func NewLoader(cfg any, dirs ...string) *Loader {
 	return &Loader{
-		viper: viper.New(),
+		viper: viper.NewWithOptions(viper.WithLogger(slog.Default())),
 		cfg:   cfg,
 		args:  dirs,
 	}
@@ -83,7 +85,7 @@ func (l *Loader) getConfigSearchPaths() []string {
 	}
 
 	// find all dirs from it up to the root
-	searchPaths := []string{"./"}
+	searchPaths := []string{}
 
 	for {
 		searchPaths = append(searchPaths, currentDir)
@@ -127,6 +129,10 @@ func (l *Loader) parseConfig() error {
 		return err
 	}
 
+	if err = defaults.Set(l.cfg); err != nil {
+		return fmt.Errorf("set defaults: %w", err)
+	}
+
 	// Load configuration from all sources (flags, file).
 	if err = l.viper.Unmarshal(l.cfg, customDecoderHook()); err != nil {
 		return fmt.Errorf("can't unmarshal config by viper (flags, file): %w", err)
@@ -147,13 +153,6 @@ func (l *Loader) setConfigDir() error {
 	}
 
 	logger.InfoF("Used config file %s", usedConfigFile)
-
-	usedConfigDir, err := filepath.Abs(filepath.Dir(usedConfigFile))
-	if err != nil {
-		return errors.New("can't get config directory")
-	}
-
-	l.cfg.cfgDir = usedConfigDir
 
 	return nil
 }

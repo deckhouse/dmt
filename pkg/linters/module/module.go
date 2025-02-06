@@ -4,6 +4,7 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters"
 )
 
 // Module linter
@@ -16,13 +17,13 @@ const ID = "module"
 
 var Cfg *config.ModuleSettings
 
-func New(cfg *config.ModuleSettings) *Module {
-	Cfg = cfg
+func New(cfg *config.ModuleConfig) linters.Linter {
+	Cfg = &cfg.LintersSettings.Module
 
 	return &Module{
 		name: "module",
 		desc: "Lint module rules",
-		cfg:  cfg,
+		cfg:  &cfg.LintersSettings.Module,
 	}
 }
 

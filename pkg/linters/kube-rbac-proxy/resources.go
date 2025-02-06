@@ -4,6 +4,7 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters"
 )
 
 const (
@@ -16,13 +17,13 @@ type Object struct {
 	cfg        *config.K8SResourcesSettings
 }
 
-func New(cfg *config.K8SResourcesSettings) *Object {
-	skipKubeRbacProxyChecks = cfg.SkipKubeRbacProxyChecks
+func New(cfg *config.ModuleConfig) linters.Linter {
+	skipKubeRbacProxyChecks = cfg.LintersSettings.K8SResources.SkipKubeRbacProxyChecks
 
 	return &Object{
 		name: "kube-rbac-proxy-resources",
 		desc: "Lint kube-rbac-proxy-resources",
-		cfg:  cfg,
+		cfg:  &cfg.LintersSettings.K8SResources,
 	}
 }
 

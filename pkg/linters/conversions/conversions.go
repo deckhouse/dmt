@@ -4,12 +4,13 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters"
 )
 
 // Conversions linter
 type Conversions struct {
 	name, desc string
-	cfg        *config.ConversionsSettings
+	cfg        *ConversionsSettings
 }
 
 type ConversionsSettings struct {
@@ -21,36 +22,33 @@ type ConversionsSettings struct {
 
 const ID = "conversions"
 
-var cfg *ConversionsSettings
-
-func New(inputCfg *config.ConversionsSettings) *Conversions {
-	cfg = remapConversionsConfig(inputCfg)
-
+func New(cfg *config.ModuleConfig) linters.Linter {
 	return &Conversions{
 		name: ID,
 		desc: "Lint conversions rules",
-		cfg:  inputCfg,
+		cfg:  remapConversionsConfig(&cfg.LintersSettings.Conversions),
 	}
 }
 
-func (*Conversions) Run(m *module.Module) *errors.LintRuleErrorsList {
+func (c *Conversions) Run(m *module.Module) *errors.LintRuleErrorsList {
+
 	result := errors.NewLinterRuleList(ID, m.GetName())
 
 	if m == nil {
 		return result
 	}
 
-	result.Merge(checkModuleYaml(m.GetName(), m.GetPath()))
+	result.Merge(c.checkModuleYaml(m.GetName(), m.GetPath()))
 
 	return result
 }
 
-func (o *Conversions) Name() string {
-	return o.name
+func (c *Conversions) Name() string {
+	return c.name
 }
 
-func (o *Conversions) Desc() string {
-	return o.desc
+func (c *Conversions) Desc() string {
+	return c.desc
 }
 
 func remapConversionsConfig(input *config.ConversionsSettings) *ConversionsSettings {

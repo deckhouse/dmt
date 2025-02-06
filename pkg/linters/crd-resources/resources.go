@@ -7,6 +7,7 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters"
 )
 
 const (
@@ -20,11 +21,11 @@ type Object struct {
 	cfg        *config.CRDResourcesSettings
 }
 
-func New(cfg *config.CRDResourcesSettings) *Object {
+func New(cfg *config.ModuleConfig) linters.Linter {
 	return &Object{
 		name: "crd-resources",
 		desc: "Lint crd-resources",
-		cfg:  cfg,
+		cfg:  &cfg.LintersSettings.CRDResources,
 	}
 }
 
