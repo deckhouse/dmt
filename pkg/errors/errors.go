@@ -204,7 +204,7 @@ func (l *LintRuleErrorsList) Errorf(template string, a ...any) *LintRuleErrorsLi
 	return l.add(fmt.Sprintf(template, a...), pkg.Error)
 }
 
-// Deprecated: use Critical or Criticalf instead
+// Deprecated: use Errir or Errorf instead
 func (l *LintRuleErrorsList) Add(templateOrString string, a ...any) *LintRuleErrorsList {
 	if len(a) != 0 {
 		templateOrString = fmt.Sprintf(templateOrString, a...)
