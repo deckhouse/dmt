@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/creasty/defaults"
+
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/logger"
 )

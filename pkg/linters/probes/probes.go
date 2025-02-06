@@ -61,12 +61,12 @@ func (p *Probes) Run(m *module.Module) *errors.LintRuleErrorsList {
 	return result
 }
 
-func (o *Probes) Name() string {
-	return o.name
+func (p *Probes) Name() string {
+	return p.name
 }
 
-func (o *Probes) Desc() string {
-	return o.desc
+func (p *Probes) Desc() string {
+	return p.desc
 }
 
 func (p *Probes) containerProbes(

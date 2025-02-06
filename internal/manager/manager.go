@@ -5,6 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/mitchellh/go-homedir"
+	"github.com/sourcegraph/conc/pool"
+
 	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/module"
@@ -27,8 +30,6 @@ import (
 	"github.com/deckhouse/dmt/pkg/linters/probes"
 	"github.com/deckhouse/dmt/pkg/linters/rbac"
 	"github.com/deckhouse/dmt/pkg/linters/vpa-resources"
-	"github.com/mitchellh/go-homedir"
-	"github.com/sourcegraph/conc/pool"
 )
 
 const (

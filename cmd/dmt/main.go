@@ -73,8 +73,6 @@ func main() {
 func runLint(dirs []string) {
 	logger.InfoF("Dirs: %v", dirs)
 
-	// cfg, err := config.NewDefault(dirs)
-
 	cfg := &config.RootConfig{}
 	err := config.NewLoader(cfg, dirs...).Load()
 	logger.CheckErr(err)

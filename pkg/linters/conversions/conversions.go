@@ -31,7 +31,6 @@ func New(cfg *config.ModuleConfig) linters.Linter {
 }
 
 func (c *Conversions) Run(m *module.Module) *errors.LintRuleErrorsList {
-
 	result := errors.NewLinterRuleList(ID, m.GetName())
 
 	if m == nil {
