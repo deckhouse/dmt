@@ -188,7 +188,7 @@ func (l *LintRuleErrorsList) WithLineNumber(lineNumber int) *LintRuleErrorsList 
 	}
 }
 
-func (l *LintRuleErrorsList) Warn(str string, a ...any) *LintRuleErrorsList {
+func (l *LintRuleErrorsList) Warn(str string) *LintRuleErrorsList {
 	return l.add(str, pkg.Warn)
 }
 
@@ -196,7 +196,7 @@ func (l *LintRuleErrorsList) Warnf(template string, a ...any) *LintRuleErrorsLis
 	return l.add(fmt.Sprintf(template, a...), pkg.Warn)
 }
 
-func (l *LintRuleErrorsList) Critical(str string, a ...any) *LintRuleErrorsList {
+func (l *LintRuleErrorsList) Critical(str string) *LintRuleErrorsList {
 	return l.add(str, pkg.Critical)
 }
 

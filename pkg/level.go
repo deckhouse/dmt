@@ -18,13 +18,6 @@ func ParseStringToLevel(str string) Level {
 	return lvl
 }
 
-func getLevelStringMappings() map[Level]string {
-	return map[Level]string{
-		Warn:     "warn",
-		Critical: "critical",
-	}
-}
-
 func getStringLevelMappings() map[string]Level {
 	return map[string]Level{
 		"warn":     Warn,

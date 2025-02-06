@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 const (
@@ -36,6 +38,8 @@ type configValues struct {
 
 //nolint:gocyclo // hate this linter
 func (c *Conversions) checkModuleYaml(moduleName, modulePath string) {
+	errorList := c.ErrorList.WithModule(moduleName)
+
 	_, ok := c.cfg.SkipCheckModule[moduleName]
 	if ok {
 		return
@@ -49,7 +53,7 @@ func (c *Conversions) checkModuleYaml(moduleName, modulePath string) {
 
 	f, err := os.Open(configFilePath)
 	if err != nil {
-		c.ErrorList.WithFilePath(configFilePath).
+		errorList.WithFilePath(configFilePath).
 			Criticalf("Cannot open config-values.yaml file: %s", err)
 
 		return
@@ -58,7 +62,7 @@ func (c *Conversions) checkModuleYaml(moduleName, modulePath string) {
 	var cv configValues
 	err = yaml.NewDecoder(f).Decode(&cv)
 	if err != nil {
-		c.ErrorList.WithFilePath(configFilePath).
+		errorList.WithFilePath(configFilePath).
 			Criticalf("Cannot decode config-values.yaml file: %s", err)
 
 		return
@@ -72,14 +76,14 @@ func (c *Conversions) checkModuleYaml(moduleName, modulePath string) {
 
 	stat, err := os.Stat(folder)
 	if err != nil && !os.IsNotExist(err) {
-		c.ErrorList.WithFilePath(conversionsFolder).
+		errorList.WithFilePath(conversionsFolder).
 			Criticalf("Cannot stat conversions folder: %s", err)
 
 		return
 	}
 
 	if os.IsNotExist(err) || !stat.IsDir() {
-		c.ErrorList.WithFilePath(conversionsFolder).
+		errorList.WithFilePath(conversionsFolder).
 			Criticalf("Conversions folder is not exist: %s", err)
 
 		return
@@ -89,7 +93,7 @@ func (c *Conversions) checkModuleYaml(moduleName, modulePath string) {
 
 	_ = filepath.Walk(folder, func(path string, _ fs.FileInfo, err error) error {
 		if err != nil {
-			c.ErrorList.Criticalf("Walk error with file: %q", path)
+			errorList.Criticalf("Walk error with file: %q", path)
 
 			return nil
 		}
@@ -102,13 +106,13 @@ func (c *Conversions) checkModuleYaml(moduleName, modulePath string) {
 
 		conv, err := parseConversion(path)
 		if err != nil {
-			c.ErrorList.WithFilePath(conversionsFolder).
+			errorList.WithFilePath(conversionsFolder).
 				Critical(strings.ToTitle(err.Error()))
 
 			return nil
 		}
 
-		c.conversionCheck(conv, moduleName, path)
+		conversionCheck(conv, path, errorList)
 
 		if conv.Version == nil {
 			return nil
@@ -116,13 +120,13 @@ func (c *Conversions) checkModuleYaml(moduleName, modulePath string) {
 
 		versions = append(versions, *conv.Version)
 
-		c.compareWithFileName(conv, moduleName, path)
+		compareWithFileName(conv, path, errorList)
 
 		return nil
 	})
 
 	if len(versions) == 0 {
-		c.ErrorList.Criticalf("No versions in folder: %q", folder)
+		errorList.Criticalf("No versions in folder: %q", folder)
 
 		return
 	}
@@ -130,12 +134,12 @@ func (c *Conversions) checkModuleYaml(moduleName, modulePath string) {
 	slices.Sort(versions)
 
 	if c.cfg.FirstVersion != 0 && versions[0] != c.cfg.FirstVersion {
-		c.ErrorList.Criticalf("You need to start with version number: %d", c.cfg.FirstVersion)
+		errorList.Criticalf("You need to start with version number: %d", c.cfg.FirstVersion)
 	}
 
 	for i := 1; i < len(versions); i++ {
 		if versions[i]-versions[i-1] > 1 {
-			c.ErrorList.Criticalf("No sequential versions between %d and %d", versions[i], versions[i-1])
+			errorList.Criticalf("No sequential versions between %d and %d", versions[i], versions[i-1])
 		}
 	}
 }
@@ -155,38 +159,38 @@ func parseConversion(path string) (*conversion, error) {
 	return c, nil
 }
 
-func (c *Conversions) conversionCheck(conv *conversion, moduleName, path string) {
-	c.descriptionCheck(conv, moduleName, path)
+func conversionCheck(conv *conversion, path string, errorList *errors.LintRuleErrorsList) {
+	descriptionCheck(conv, path, errorList)
 
 	if conv.Version == nil {
-		c.ErrorList.WithFilePath(path).
+		errorList.WithFilePath(path).
 			Criticalf("Version is empty, filename: %q", filepath.Base(path))
 	}
 }
 
-func (c *Conversions) descriptionCheck(conv *conversion, moduleName, path string) {
+func descriptionCheck(conv *conversion, path string, errorList *errors.LintRuleErrorsList) {
 	if conv.Description == nil {
-		c.ErrorList.WithFilePath(path).
+		errorList.WithFilePath(path).
 			Criticalf("Description is empty, filename: %q", filepath.Base(path))
 
 		return
 	}
 
 	if conv.Description.Russian == "" {
-		c.ErrorList.WithFilePath(path).
+		errorList.WithFilePath(path).
 			Criticalf("No description for conversion: russian, filename: %q", filepath.Base(path))
 	}
 
 	if conv.Description.English == "" {
-		c.ErrorList.WithFilePath(path).
+		errorList.WithFilePath(path).
 			Criticalf("No description for conversion: english, filename: %q", filepath.Base(path))
 	}
 }
 
-func (c *Conversions) compareWithFileName(conv *conversion, moduleName, path string) {
+func compareWithFileName(conv *conversion, path string, errorList *errors.LintRuleErrorsList) {
 	versions := regexVersionFile.FindStringSubmatch(filepath.Base(path))
 	if len(versions) <= 1 {
-		c.ErrorList.WithFilePath(path).
+		errorList.WithFilePath(path).
 			Criticalf("Bad filename %q", filepath.Base(path))
 
 		return
@@ -194,14 +198,14 @@ func (c *Conversions) compareWithFileName(conv *conversion, moduleName, path str
 
 	fileVersion, err := strconv.Atoi(versions[1])
 	if err != nil {
-		c.ErrorList.WithFilePath(path).
-			Criticalf("Cannot convert version from file name %q: %s", filepath.Base(path))
+		errorList.WithFilePath(path).
+			Criticalf("Cannot convert version from file name %q: %s", filepath.Base(path), err)
 
 		return
 	}
 
 	if *conv.Version != fileVersion {
-		c.ErrorList.WithFilePath(path).
+		errorList.WithFilePath(path).
 			Criticalf("File name %q doesn't correspond with contained version %d", filepath.Base(path), *conv.Version)
 	}
 }

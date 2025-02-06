@@ -45,10 +45,10 @@ func (i *Ingress) Run(m *module.Module) *errors.LintRuleErrorsList {
 	return result
 }
 
-func (o *Ingress) Name() string {
-	return o.name
+func (i *Ingress) Name() string {
+	return i.name
 }
 
-func (o *Ingress) Desc() string {
-	return o.desc
+func (i *Ingress) Desc() string {
+	return i.desc
 }
