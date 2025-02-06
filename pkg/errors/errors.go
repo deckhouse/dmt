@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/fatih/color"
 	"github.com/kyokomi/emoji"
 )
@@ -19,6 +20,7 @@ type lintRuleError struct {
 	Text        string
 	FilePath    string
 	LineNumber  int
+	Level       pkg.Level
 }
 
 func (l *lintRuleError) EqualsTo(candidate lintRuleError) bool { //nolint:gocritic // it's a simple method
@@ -26,6 +28,10 @@ func (l *lintRuleError) EqualsTo(candidate lintRuleError) bool { //nolint:gocrit
 		l.Text == candidate.Text &&
 		l.ObjectID == candidate.ObjectID &&
 		l.Module == candidate.Module
+}
+
+func (l *lintRuleError) Enable(level pkg.Level) bool {
+	return level >= l.Level
 }
 
 type errStorage []lintRuleError
@@ -128,13 +134,34 @@ func (l *LintRuleErrorsList) WithLineNumber(lineNumber int) *LintRuleErrorsList 
 	}
 }
 
-func (l *LintRuleErrorsList) Add(template string, a ...any) *LintRuleErrorsList {
-	if l.storage == nil {
-		l.storage = &errStorage{}
+func (l *LintRuleErrorsList) Warn(str string, a ...any) *LintRuleErrorsList {
+	return l.add(str, pkg.Warn)
+}
+
+func (l *LintRuleErrorsList) Warnf(template string, a ...any) *LintRuleErrorsList {
+	return l.add(fmt.Sprintf(template, a...), pkg.Warn)
+}
+
+func (l *LintRuleErrorsList) Critical(str string, a ...any) *LintRuleErrorsList {
+	return l.add(str, pkg.Critical)
+}
+
+func (l *LintRuleErrorsList) Criticalf(template string, a ...any) *LintRuleErrorsList {
+	return l.add(fmt.Sprintf(template, a...), pkg.Warn)
+}
+
+// Deprecated: use Critical or Criticalf instead
+func (l *LintRuleErrorsList) Add(templateOrString string, a ...any) *LintRuleErrorsList {
+	if len(a) != 0 {
+		templateOrString = fmt.Sprintf(templateOrString, a...)
 	}
 
-	if len(a) != 0 {
-		template = fmt.Sprintf(template, a...)
+	return l.add(templateOrString, pkg.Critical)
+}
+
+func (l *LintRuleErrorsList) add(str string, level pkg.Level) *LintRuleErrorsList {
+	if l.storage == nil {
+		l.storage = &errStorage{}
 	}
 
 	e := lintRuleError{
@@ -144,7 +171,8 @@ func (l *LintRuleErrorsList) Add(template string, a ...any) *LintRuleErrorsList 
 		ObjectValue: l.value,
 		FilePath:    l.filePath,
 		LineNumber:  l.lineNubmer,
-		Text:        template,
+		Text:        str,
+		Level:       level,
 	}
 
 	if slices.ContainsFunc(*l.storage, e.EqualsTo) {
@@ -235,7 +263,7 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 
 var WarningsOnly []string
 
-func (l *LintRuleErrorsList) Critical() bool {
+func (l *LintRuleErrorsList) ContainsCritical() bool {
 	if l.storage == nil {
 		l.storage = &errStorage{}
 	}

@@ -84,7 +84,7 @@ func runLint(dirs []string) {
 		fmt.Printf("%s\n", convertedError)
 	}
 
-	if result.Critical() {
+	if result.ContainsCritical() {
 		os.Exit(1)
 	}
 }
