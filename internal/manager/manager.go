@@ -13,7 +13,6 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/linters"
 	"github.com/deckhouse/dmt/pkg/linters/container"
 	"github.com/deckhouse/dmt/pkg/linters/conversions"
 	"github.com/deckhouse/dmt/pkg/linters/crd-resources"
@@ -40,9 +39,16 @@ const (
 	OpenAPIDir          = "openapi"
 )
 
+type Linter interface {
+	Run(m *module.Module) *errors.LintRuleErrorsList
+	Name() string
+}
+
+type LinterList []func() Linter
+
 type Manager struct {
 	cfg     *config.RootConfig
-	Linters linters.LinterList
+	Linters LinterList
 	Modules []*module.Module
 
 	errors *errors.LintRuleErrorsList
@@ -128,8 +134,8 @@ func (m *Manager) Run() *errors.LintRuleErrorsList {
 	return result
 }
 
-func getLintersForModule(cfg *config.ModuleConfig) []linters.Linter {
-	return []linters.Linter{
+func getLintersForModule(cfg *config.ModuleConfig) []Linter {
+	return []Linter{
 		openapi.New(cfg),
 		no_cyrillic.New(cfg),
 		license.New(cfg),
