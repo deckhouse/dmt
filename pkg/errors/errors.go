@@ -47,7 +47,7 @@ type LintRuleErrorsList struct {
 }
 
 func NewLintRuleErrorsList() *LintRuleErrorsList {
-	lvl := pkg.Critical
+	lvl := pkg.Error
 	return &LintRuleErrorsList{
 		storage:  &errStorage{},
 		maxLevel: &lvl,
@@ -196,12 +196,12 @@ func (l *LintRuleErrorsList) Warnf(template string, a ...any) *LintRuleErrorsLis
 	return l.add(fmt.Sprintf(template, a...), pkg.Warn)
 }
 
-func (l *LintRuleErrorsList) Critical(str string) *LintRuleErrorsList {
-	return l.add(str, pkg.Critical)
+func (l *LintRuleErrorsList) Error(str string) *LintRuleErrorsList {
+	return l.add(str, pkg.Error)
 }
 
-func (l *LintRuleErrorsList) Criticalf(template string, a ...any) *LintRuleErrorsList {
-	return l.add(fmt.Sprintf(template, a...), pkg.Critical)
+func (l *LintRuleErrorsList) Errorf(template string, a ...any) *LintRuleErrorsList {
+	return l.add(fmt.Sprintf(template, a...), pkg.Error)
 }
 
 // Deprecated: use Critical or Criticalf instead
@@ -210,7 +210,7 @@ func (l *LintRuleErrorsList) Add(templateOrString string, a ...any) *LintRuleErr
 		templateOrString = fmt.Sprintf(templateOrString, a...)
 	}
 
-	return l.add(templateOrString, pkg.Critical)
+	return l.add(templateOrString, pkg.Error)
 }
 
 func (l *LintRuleErrorsList) add(str string, level pkg.Level) *LintRuleErrorsList {
@@ -322,7 +322,7 @@ func (l *LintRuleErrorsList) ContainsCritical() bool {
 	}
 
 	for _, err := range *l.storage {
-		if err.Level == pkg.Critical {
+		if err.Level == pkg.Error {
 			return true
 		}
 	}

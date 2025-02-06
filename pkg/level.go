@@ -1,18 +1,17 @@
 package pkg
 
-// var _ fmt.Stringer = (*Level)(nil)
-
 type Level int
 
 const (
 	Warn Level = iota
+	Error
 	Critical
 )
 
 func ParseStringToLevel(str string) Level {
 	lvl, ok := getStringLevelMappings()[str]
 	if !ok {
-		return Critical
+		return Error
 	}
 
 	return lvl
@@ -21,6 +20,7 @@ func ParseStringToLevel(str string) Level {
 func getStringLevelMappings() map[string]Level {
 	return map[string]Level{
 		"warn":     Warn,
+		"error":    Error,
 		"critical": Critical,
 	}
 }

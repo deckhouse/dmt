@@ -86,7 +86,7 @@ func NewManager(dirs []string, rootConfig *config.RootConfig) *Manager {
 				WithModule(moduleName).
 				WithObjectID(paths[i]).
 				WithValue(err.Error()).
-				Criticalf("cannot create module `%s`", moduleName)
+				Errorf("cannot create module `%s`", moduleName)
 			continue
 		}
 
