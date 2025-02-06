@@ -35,7 +35,8 @@ func (o *Enum) Run(m *module.Module) *errors.LintRuleErrorsList {
 
 	parser := NewEnumValidator(o.cfg)
 	for _, file := range files {
-		if filepath.Ext(file) != ".yaml" || filepath.Ext(file) != ".yml" {
+		ext := filepath.Ext(file)
+		if ext != ".yaml" && ext != ".yml" {
 			continue
 		}
 		data, err := openapi.GetFileYAMLContent(file)
