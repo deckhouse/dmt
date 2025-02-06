@@ -38,14 +38,14 @@ func (EnumValidator) GetKey() string {
 	return "enum"
 }
 
-func (en EnumValidator) Run(absoluteKey string, value any) error {
-	// en.excludes = make(map[string]struct{})
-	// for _, exc := range en.cfg.EnumFileExcludes[moduleName+":"+fileName] {
-	// 	en.excludes[exc+".enum"] = struct{}{}
-	// }
-	// if _, ok := en.excludes[absoluteKey]; ok {
-	// 	return nil
-	// }
+func (en EnumValidator) Run(moduleName, absoluteKey string, value any) error {
+	en.excludes = make(map[string]struct{})
+	for _, exc := range en.cfg.EnumFileExcludes[moduleName] {
+		en.excludes[exc+".enum"] = struct{}{}
+	}
+	if _, ok := en.excludes[absoluteKey]; ok {
+		return nil
+	}
 
 	// check for slice path with wildcard
 	index := arrayPathRegex.FindString(absoluteKey)

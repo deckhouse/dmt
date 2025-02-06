@@ -85,7 +85,8 @@ func Parse(parser parser, data map[any]any) error {
 }
 
 type fileParser struct {
-	parser parser
+	parser     parser
+	moduleName string
 }
 
 func (fp *fileParser) parseMap(upperKey string, m map[any]any) error {
@@ -94,7 +95,7 @@ func (fp *fileParser) parseMap(upperKey string, m map[any]any) error {
 		absKey := fmt.Sprintf("%s.%s", upperKey, k)
 		if key, ok := k.(string); ok {
 			if key == fp.parser.GetKey() {
-				err = errors.Join(err, fp.parser.Run(absKey, v))
+				err = errors.Join(err, fp.parser.Run(fp.moduleName, absKey, v))
 			}
 		}
 		err = errors.Join(err, fp.parseValue(absKey, v))
@@ -140,6 +141,6 @@ func (fp *fileParser) parseValue(upperKey string, v any) error {
 }
 
 type parser interface {
-	Run(string, any) error
+	Run(string, string, any) error
 	GetKey() string
 }
