@@ -16,12 +16,12 @@ var (
 )
 
 type EnumValidator struct {
-	cfg      *config.OpenAPISettings
-	key      string
+	cfg *config.OpenAPIEnumSettings
+
 	excludes map[string]struct{}
 }
 
-func NewEnumValidator(cfg *config.OpenAPISettings) EnumValidator {
+func NewEnumValidator(cfg *config.OpenAPIEnumSettings) EnumValidator {
 	keyExcludes := make(map[string]struct{})
 
 	for _, exc := range cfg.EnumFileExcludes["*"] {
@@ -30,19 +30,22 @@ func NewEnumValidator(cfg *config.OpenAPISettings) EnumValidator {
 
 	return EnumValidator{
 		cfg:      cfg,
-		key:      "enum",
 		excludes: keyExcludes,
 	}
 }
 
-func (en EnumValidator) Run(moduleName, fileName, absoluteKey string, value any) error {
-	en.excludes = make(map[string]struct{})
-	for _, exc := range en.cfg.EnumFileExcludes[moduleName+":"+fileName] {
-		en.excludes[exc+".enum"] = struct{}{}
-	}
-	if _, ok := en.excludes[absoluteKey]; ok {
-		return nil
-	}
+func (EnumValidator) GetKey() string {
+	return "enum"
+}
+
+func (en EnumValidator) Run(absoluteKey string, value any) error {
+	// en.excludes = make(map[string]struct{})
+	// for _, exc := range en.cfg.EnumFileExcludes[moduleName+":"+fileName] {
+	// 	en.excludes[exc+".enum"] = struct{}{}
+	// }
+	// if _, ok := en.excludes[absoluteKey]; ok {
+	// 	return nil
+	// }
 
 	// check for slice path with wildcard
 	index := arrayPathRegex.FindString(absoluteKey)

@@ -8,20 +8,28 @@ import (
 
 // Enum linter
 type Enum struct {
-	name, desc string
-	cfg        *config.ProbesSettings
+	name, desc  string
+	cfg         *config.OpenAPIEnumSettings
+	keyExcludes map[string]struct{}
 }
 
-func New(cfg *config.ProbesSettings) *Enum {
+func New(cfg *config.OpenAPIEnumSettings) *Enum {
+	keyExcludes := make(map[string]struct{})
+
+	for _, exc := range cfg.EnumFileExcludes["*"] {
+		keyExcludes[exc+".enum"] = struct{}{}
+	}
+
 	return &Enum{
-		name: "openapi-enum",
-		desc: "Probes will check openapi enum values is correct",
-		cfg:  cfg,
+		name:        "openapi-enum",
+		desc:        "Probes will check openapi enum values is correct",
+		cfg:         cfg,
+		keyExcludes: keyExcludes,
 	}
 }
 
 func (*Enum) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList("probes", m.GetName())
+	result := errors.NewLinterRuleList("openapi-enum", m.GetName())
 
 	return result
 }

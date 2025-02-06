@@ -7,6 +7,7 @@ import (
 
 type LintersSettings struct {
 	OpenAPI      OpenAPISettings      `mapstructure:"openapi"`
+	OpenAPIEnum  OpenAPIEnumSettings  `mapstructure:"openapi_enum"`
 	NoCyrillic   NoCyrillicSettings   `mapstructure:"nocyrillic"`
 	License      LicenseSettings      `mapstructure:"license"`
 	OSS          OSSSettings          `mapstructure:"oss"`
@@ -46,12 +47,14 @@ func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
 }
 
 type OpenAPISettings struct {
-	// EnumFileExcludes contains map with key string contained module name and file path separated by :
-	EnumFileExcludes       map[string][]string `mapstructure:"enum-file-excludes"`
-	HAAbsoluteKeysExcludes map[string]string   `mapstructure:"ha-absolute-keys-excludes"`
-	KeyBannedNames         []string            `mapstructure:"key-banned-names"`
+	HAAbsoluteKeysExcludes map[string]string `mapstructure:"ha-absolute-keys-excludes"`
+	KeyBannedNames         []string          `mapstructure:"key-banned-names"`
 
 	Impact pkg.Level `mapstructure:"impact"`
+}
+
+type OpenAPIEnumSettings struct {
+	EnumFileExcludes map[string][]string `mapstructure:"enum-file-excludes"`
 }
 
 type NoCyrillicSettings struct {

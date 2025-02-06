@@ -190,7 +190,6 @@ func runFileParser(moduleName, fileName string, data map[any]any, cfg *config.Op
 		moduleName: moduleName,
 		fileName:   fileName,
 		keyValidators: map[string]validator{
-			"enum":             validators.NewEnumValidator(cfg),
 			"highAvailability": validators.NewHAValidator(cfg),
 			"https":            validators.NewHAValidator(cfg),
 		},
