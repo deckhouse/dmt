@@ -14,22 +14,7 @@ import (
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters"
-	"github.com/deckhouse/dmt/pkg/linters/container"
 	"github.com/deckhouse/dmt/pkg/linters/conversions"
-	"github.com/deckhouse/dmt/pkg/linters/crd-resources"
-	"github.com/deckhouse/dmt/pkg/linters/images"
-	"github.com/deckhouse/dmt/pkg/linters/ingress"
-	rbacproxy "github.com/deckhouse/dmt/pkg/linters/kube-rbac-proxy"
-	"github.com/deckhouse/dmt/pkg/linters/license"
-	moduleLinter "github.com/deckhouse/dmt/pkg/linters/module"
-	"github.com/deckhouse/dmt/pkg/linters/monitoring"
-	no_cyrillic "github.com/deckhouse/dmt/pkg/linters/no-cyrillic"
-	"github.com/deckhouse/dmt/pkg/linters/openapi"
-	"github.com/deckhouse/dmt/pkg/linters/oss"
-	"github.com/deckhouse/dmt/pkg/linters/pdb-resources"
-	"github.com/deckhouse/dmt/pkg/linters/probes"
-	"github.com/deckhouse/dmt/pkg/linters/rbac"
-	"github.com/deckhouse/dmt/pkg/linters/vpa-resources"
 )
 
 const (
@@ -51,25 +36,27 @@ type Manager struct {
 func NewManager(dirs []string, rootConfig *config.RootConfig) *Manager {
 	m := &Manager{
 		cfg: rootConfig,
+
+		errors: errors.NewLintRuleErrorsList(),
 	}
 
 	// fill all linters
-	m.Linters = []func(cfg *config.ModuleConfig) linters.Linter{
-		openapi.New,
-		no_cyrillic.New,
-		license.New,
-		oss.New,
-		probes.New,
-		container.New,
-		rbacproxy.New,
-		vpa.New,
-		pdb.New,
-		crd.New,
-		images.New,
-		rbac.New,
-		monitoring.New,
-		ingress.New,
-		moduleLinter.New,
+	m.Linters = []func(cfg *config.ModuleConfig, errList *errors.LintRuleErrorsList) linters.Linter{
+		// openapi.New,
+		// no_cyrillic.New,
+		// license.New,
+		// oss.New,
+		// probes.New,
+		// container.New,
+		// rbacproxy.New,
+		// vpa.New,
+		// pdb.New,
+		// crd.New,
+		// images.New,
+		// rbac.New,
+		// monitoring.New,
+		// ingress.New,
+		// moduleLinter.New,
 		conversions.New,
 	}
 
@@ -89,63 +76,53 @@ func NewManager(dirs []string, rootConfig *config.RootConfig) *Manager {
 		paths = append(paths, result...)
 	}
 
-	errorsList := errors.NewLinterRuleList("manager")
-
 	for i := range paths {
 		moduleName := filepath.Base(paths[i])
 		logger.DebugF("Found `%s` module", moduleName)
 		mdl, err := module.NewModule(paths[i])
 		if err != nil {
-			errorsList.
+			m.errors.
 				WithModule(moduleName).
 				WithObjectID(paths[i]).
 				WithValue(err.Error()).
-				Add("cannot create module `%s`", moduleName)
+				Criticalf("cannot create module `%s`", moduleName)
 			continue
 		}
 		m.Modules = append(m.Modules, mdl)
 	}
-
-	m.errors = errorsList
 
 	logger.InfoF("Found %d modules", len(m.Modules))
 
 	return m
 }
 
-func (m *Manager) Run() *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList("manager")
+func (m *Manager) Run() {
+	var g = pool.New().WithMaxGoroutines(flags.LintersLimit)
+	for _, module := range m.Modules {
+		logger.InfoF("Run linters for `%s` module", module.GetName())
 
-	var ch = make(chan *errors.LintRuleErrorsList)
-	go func() {
-		var g = pool.New().WithMaxGoroutines(flags.LintersLimit)
-		for _, module := range m.Modules {
-			logger.InfoF("Run linters for `%s` module", module.GetName())
+		for j := range m.Linters {
+			linter := m.Linters[j](module.GetModuleConfig(), m.errors)
 
-			for j := range m.Linters {
-				linter := m.Linters[j](module.GetModuleConfig())
+			g.Go(func() {
+				logger.DebugF("Running linter `%s` on module `%s`", linter.Name(), module.GetName())
 
-				g.Go(func() {
-					logger.DebugF("Running linter `%s` on module `%s`", linter.Name(), module.GetName())
-
-					errs := linter.Run(module)
-					if errs.ConvertToError() != nil {
-						ch <- errs
-					}
-				})
-			}
+				linter.Run(module)
+			})
 		}
-		g.Wait()
-		close(ch)
-	}()
-
-	for er := range ch {
-		result.Merge(er)
 	}
+	g.Wait()
+}
 
-	result.Merge(m.errors)
+func (m *Manager) PrintResult() {
+	convertedError := m.errors.ConvertToError()
+	if convertedError != nil {
+		fmt.Printf("%s\n", convertedError)
+	}
+}
 
-	return result
+func (m *Manager) HasCriticalErrors() bool {
+	return m.errors.ContainsCritical()
 }
 
 func isExistsOnFilesystem(parts ...string) bool {

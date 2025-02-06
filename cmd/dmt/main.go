@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -78,13 +77,10 @@ func runLint(dirs []string) {
 	logger.CheckErr(err)
 
 	mng := manager.NewManager(dirs, cfg)
-	result := mng.Run()
-	convertedError := result.ConvertToError()
-	if convertedError != nil {
-		fmt.Printf("%s\n", convertedError)
-	}
+	mng.Run()
+	mng.PrintResult()
 
-	if result.ContainsCritical() {
+	if mng.HasCriticalErrors() {
 		os.Exit(1)
 	}
 }

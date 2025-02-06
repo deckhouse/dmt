@@ -11,4 +11,4 @@ type Linter interface {
 	Name() string
 }
 
-type LinterList []func(cfg *config.ModuleConfig) Linter
+type LinterList []func(cfg *config.ModuleConfig, errList *errors.LintRuleErrorsList) Linter

@@ -11,6 +11,8 @@ import (
 type Conversions struct {
 	name, desc string
 	cfg        *ConversionsSettings
+
+	ErrorList *errors.LintRuleErrorsList
 }
 
 type ConversionsSettings struct {
@@ -22,24 +24,23 @@ type ConversionsSettings struct {
 
 const ID = "conversions"
 
-func New(cfg *config.ModuleConfig) linters.Linter {
+func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) linters.Linter {
 	return &Conversions{
-		name: ID,
-		desc: "Lint conversions rules",
-		cfg:  remapConversionsConfig(&cfg.LintersSettings.Conversions),
+		name:      ID,
+		desc:      "Lint conversions rules",
+		cfg:       remapConversionsConfig(&cfg.LintersSettings.Conversions),
+		ErrorList: errorList.WithLinterID(ID),
 	}
 }
 
 func (c *Conversions) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, m.GetName())
-
 	if m == nil {
-		return result
+		return nil
 	}
 
-	result.Merge(c.checkModuleYaml(m.GetName(), m.GetPath()))
+	c.checkModuleYaml(m.GetName(), m.GetPath())
 
-	return result
+	return nil
 }
 
 func (c *Conversions) Name() string {

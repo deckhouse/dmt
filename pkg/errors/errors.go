@@ -44,7 +44,15 @@ type LintRuleErrorsList struct {
 	objectID   string
 	value      any
 	filePath   string
-	lineNubmer int
+	lineNumber int
+
+	maxLevel pkg.Level
+}
+
+func NewLintRuleErrorsList() *LintRuleErrorsList {
+	return &LintRuleErrorsList{
+		storage: &errStorage{},
+	}
 }
 
 func NewLinterRuleList(linterID string, module ...string) *LintRuleErrorsList {
@@ -59,6 +67,35 @@ func NewLinterRuleList(linterID string, module ...string) *LintRuleErrorsList {
 	return l
 }
 
+func (l *LintRuleErrorsList) WithMaxLevel(level pkg.Level) *LintRuleErrorsList {
+	if l.storage == nil {
+		l.storage = &errStorage{}
+	}
+
+	return &LintRuleErrorsList{
+		storage:    l.storage,
+		linterID:   l.linterID,
+		moduleID:   l.moduleID,
+		objectID:   l.objectID,
+		value:      l.value,
+		filePath:   l.filePath,
+		lineNumber: l.lineNumber,
+		maxLevel:   level,
+	}
+}
+
+func (l *LintRuleErrorsList) WithLinterID(linterID string) *LintRuleErrorsList {
+	if l.storage == nil {
+		l.storage = &errStorage{}
+	}
+
+	return &LintRuleErrorsList{
+		storage:  l.storage,
+		linterID: linterID,
+		maxLevel: l.maxLevel,
+	}
+}
+
 func (l *LintRuleErrorsList) WithObjectID(objectID string) *LintRuleErrorsList {
 	if l.storage == nil {
 		l.storage = &errStorage{}
@@ -70,7 +107,8 @@ func (l *LintRuleErrorsList) WithObjectID(objectID string) *LintRuleErrorsList {
 		objectID:   objectID,
 		value:      l.value,
 		filePath:   l.filePath,
-		lineNubmer: l.lineNubmer,
+		lineNumber: l.lineNumber,
+		maxLevel:   l.maxLevel,
 	}
 }
 
@@ -85,7 +123,8 @@ func (l *LintRuleErrorsList) WithModule(moduleID string) *LintRuleErrorsList {
 		objectID:   l.objectID,
 		value:      l.value,
 		filePath:   l.filePath,
-		lineNubmer: l.lineNubmer,
+		lineNumber: l.lineNumber,
+		maxLevel:   l.maxLevel,
 	}
 }
 
@@ -100,7 +139,8 @@ func (l *LintRuleErrorsList) WithValue(value any) *LintRuleErrorsList {
 		objectID:   l.objectID,
 		value:      value,
 		filePath:   l.filePath,
-		lineNubmer: l.lineNubmer,
+		lineNumber: l.lineNumber,
+		maxLevel:   l.maxLevel,
 	}
 }
 
@@ -115,7 +155,8 @@ func (l *LintRuleErrorsList) WithFilePath(filePath string) *LintRuleErrorsList {
 		objectID:   l.objectID,
 		value:      l.value,
 		filePath:   filePath,
-		lineNubmer: l.lineNubmer,
+		lineNumber: l.lineNumber,
+		maxLevel:   l.maxLevel,
 	}
 }
 
@@ -130,7 +171,8 @@ func (l *LintRuleErrorsList) WithLineNumber(lineNumber int) *LintRuleErrorsList 
 		objectID:   l.objectID,
 		value:      l.value,
 		filePath:   l.filePath,
-		lineNubmer: lineNumber,
+		lineNumber: lineNumber,
+		maxLevel:   l.maxLevel,
 	}
 }
 
@@ -170,7 +212,7 @@ func (l *LintRuleErrorsList) add(str string, level pkg.Level) *LintRuleErrorsLis
 		ObjectID:    l.objectID,
 		ObjectValue: l.value,
 		FilePath:    l.filePath,
-		LineNumber:  l.lineNubmer,
+		LineNumber:  l.lineNumber,
 		Text:        str,
 		Level:       level,
 	}
