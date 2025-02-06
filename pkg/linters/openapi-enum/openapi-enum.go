@@ -27,7 +27,7 @@ func New(cfg *config.OpenAPIEnumSettings) *Enum {
 func (o *Enum) Run(m *module.Module) *errors.LintRuleErrorsList {
 	result := errors.NewLinterRuleList("openapi-enum", m.GetName())
 
-	files, err := fsutils.GetFiles(m.GetPath(), true)
+	files, err := fsutils.GetFiles(m.GetPath(), true, `.*(?:openapi|crds)/.*\.ya?ml$`)
 	if err != nil {
 		result.WithValue(err).Add("failed to get files in `%s` module", m.GetName())
 		return result
@@ -35,10 +35,6 @@ func (o *Enum) Run(m *module.Module) *errors.LintRuleErrorsList {
 
 	parser := NewEnumValidator(o.cfg)
 	for _, file := range files {
-		ext := filepath.Ext(file)
-		if ext != ".yaml" && ext != ".yml" {
-			continue
-		}
 		data, err := openapi.GetFileYAMLContent(file)
 		if err != nil {
 			result.WithValue(err).Add("failed to get content of `%s`", file)
@@ -46,7 +42,8 @@ func (o *Enum) Run(m *module.Module) *errors.LintRuleErrorsList {
 		}
 
 		if err := openapi.Parse(parser, data); err != nil {
-			result.WithValue(err).Add("failed to parse `%s`", file)
+			f, _ := filepath.Rel(m.GetPath(), file)
+			result.WithValue(err).Add("openAPI file is not valid: %s", f)
 		}
 	}
 
