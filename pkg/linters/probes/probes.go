@@ -11,7 +11,6 @@ import (
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/linters"
 )
 
 // Probes linter
@@ -20,7 +19,7 @@ type Probes struct {
 	cfg        *config.ProbesSettings
 }
 
-func New(cfg *config.ModuleConfig) linters.Linter {
+func New(cfg *config.ModuleConfig) *Probes {
 	return &Probes{
 		name: "probes",
 		desc: "Probes will check all containers for correct liveness and readiness probes",

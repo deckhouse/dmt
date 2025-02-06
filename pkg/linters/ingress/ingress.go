@@ -4,7 +4,6 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/linters"
 )
 
 // Ingress linter
@@ -17,7 +16,7 @@ const ID = "ingress"
 
 var Cfg *config.IngressSettings
 
-func New(cfg *config.ModuleConfig) linters.Linter {
+func New(cfg *config.ModuleConfig) *Ingress {
 	Cfg = &cfg.LintersSettings.Ingress
 
 	return &Ingress{

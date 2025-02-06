@@ -2,7 +2,6 @@ package linters
 
 import (
 	"github.com/deckhouse/dmt/internal/module"
-	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
@@ -11,4 +10,4 @@ type Linter interface {
 	Name() string
 }
 
-type LinterList []func(cfg *config.ModuleConfig) Linter
+type LinterList []func() Linter

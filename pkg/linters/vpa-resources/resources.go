@@ -4,7 +4,6 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/linters"
 )
 
 const (
@@ -17,7 +16,7 @@ type Object struct {
 	cfg        *config.VPAResourcesSettings
 }
 
-func New(cfg *config.ModuleConfig) linters.Linter {
+func New(cfg *config.ModuleConfig) *Object {
 	skipVPAChecks = cfg.LintersSettings.VPAResources.SkipVPAChecks
 
 	return &Object{

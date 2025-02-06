@@ -53,26 +53,6 @@ func NewManager(dirs []string, rootConfig *config.RootConfig) *Manager {
 		cfg: rootConfig,
 	}
 
-	// fill all linters
-	m.Linters = []func(cfg *config.ModuleConfig) linters.Linter{
-		openapi.New,
-		no_cyrillic.New,
-		license.New,
-		oss.New,
-		probes.New,
-		container.New,
-		rbacproxy.New,
-		vpa.New,
-		pdb.New,
-		crd.New,
-		images.New,
-		rbac.New,
-		monitoring.New,
-		ingress.New,
-		moduleLinter.New,
-		conversions.New,
-	}
-
 	var paths []string
 
 	for i := range dirs {
@@ -122,8 +102,8 @@ func (m *Manager) Run() *errors.LintRuleErrorsList {
 		for _, module := range m.Modules {
 			logger.InfoF("Run linters for `%s` module", module.GetName())
 
-			for j := range m.Linters {
-				linter := m.Linters[j](module.GetModuleConfig())
+			for j := range getLintersForModule(module.GetModuleConfig()) {
+				linter := m.Linters[j]()
 
 				g.Go(func() {
 					logger.DebugF("Running linter `%s` on module `%s`", linter.Name(), module.GetName())
@@ -146,6 +126,27 @@ func (m *Manager) Run() *errors.LintRuleErrorsList {
 	result.Merge(m.errors)
 
 	return result
+}
+
+func getLintersForModule(cfg *config.ModuleConfig) []linters.Linter {
+	return []linters.Linter{
+		openapi.New(cfg),
+		no_cyrillic.New(cfg),
+		license.New(cfg),
+		oss.New(cfg),
+		probes.New(cfg),
+		container.New(cfg),
+		rbacproxy.New(cfg),
+		vpa.New(cfg),
+		pdb.New(cfg),
+		crd.New(cfg),
+		images.New(cfg),
+		rbac.New(cfg),
+		monitoring.New(cfg),
+		ingress.New(cfg),
+		moduleLinter.New(cfg),
+		conversions.New(cfg),
+	}
 }
 
 func isExistsOnFilesystem(parts ...string) bool {

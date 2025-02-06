@@ -4,7 +4,6 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/linters"
 )
 
 // Conversions linter
@@ -22,7 +21,7 @@ type ConversionsSettings struct {
 
 const ID = "conversions"
 
-func New(cfg *config.ModuleConfig) linters.Linter {
+func New(cfg *config.ModuleConfig) *Conversions {
 	return &Conversions{
 		name: ID,
 		desc: "Lint conversions rules",
