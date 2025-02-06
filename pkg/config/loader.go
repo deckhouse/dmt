@@ -3,7 +3,6 @@ package config
 import (
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -31,7 +30,7 @@ type Loader struct {
 
 func NewLoader(cfg any, dirs ...string) *Loader {
 	return &Loader{
-		viper: viper.NewWithOptions(viper.WithLogger(slog.Default())),
+		viper: viper.NewWithOptions(),
 		cfg:   cfg,
 		args:  dirs,
 	}
