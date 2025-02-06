@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"strings"
 
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 func GetFileYAMLContent(path string) (map[any]any, error) {
