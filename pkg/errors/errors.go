@@ -7,9 +7,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/deckhouse/dmt/pkg"
 	"github.com/fatih/color"
 	"github.com/kyokomi/emoji"
+
+	"github.com/deckhouse/dmt/pkg"
 )
 
 type lintRuleError struct {
@@ -28,10 +29,6 @@ func (l *lintRuleError) EqualsTo(candidate lintRuleError) bool { //nolint:gocrit
 		l.Text == candidate.Text &&
 		l.ObjectID == candidate.ObjectID &&
 		l.Module == candidate.Module
-}
-
-func (l *lintRuleError) Enable(level pkg.Level) bool {
-	return level >= l.Level
 }
 
 type errStorage []lintRuleError
@@ -189,7 +186,7 @@ func (l *LintRuleErrorsList) Critical(str string, a ...any) *LintRuleErrorsList 
 }
 
 func (l *LintRuleErrorsList) Criticalf(template string, a ...any) *LintRuleErrorsList {
-	return l.add(fmt.Sprintf(template, a...), pkg.Warn)
+	return l.add(fmt.Sprintf(template, a...), pkg.Critical)
 }
 
 // Deprecated: use Critical or Criticalf instead
@@ -204,6 +201,10 @@ func (l *LintRuleErrorsList) Add(templateOrString string, a ...any) *LintRuleErr
 func (l *LintRuleErrorsList) add(str string, level pkg.Level) *LintRuleErrorsList {
 	if l.storage == nil {
 		l.storage = &errStorage{}
+	}
+
+	if l.maxLevel < level {
+		level = l.maxLevel
 	}
 
 	e := lintRuleError{
@@ -267,17 +268,14 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 		)
 	})
 
-	warningOnlyLinters := map[string]struct{}{}
-	for _, wo := range WarningsOnly {
-		warningOnlyLinters[wo] = struct{}{}
-	}
-
 	builder := strings.Builder{}
 	for _, err := range *l.storage {
 		msgColor := color.FgRed
-		if _, ok := warningOnlyLinters[err.ID]; ok {
+
+		if err.Level == pkg.Warn {
 			msgColor = color.FgHiYellow
 		}
+
 		builder.WriteString(fmt.Sprintf(
 			"%s%s\n\t%-12s %s\n\t%-12s %s\n",
 			emoji.Sprintf(":monkey:"),
@@ -303,15 +301,13 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 	return errors.New(builder.String())
 }
 
-var WarningsOnly []string
-
 func (l *LintRuleErrorsList) ContainsCritical() bool {
 	if l.storage == nil {
 		l.storage = &errStorage{}
 	}
 
 	for _, err := range *l.storage {
-		if !slices.Contains(WarningsOnly, err.ID) {
+		if err.Level == pkg.Critical {
 			return true
 		}
 	}

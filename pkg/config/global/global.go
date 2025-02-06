@@ -3,7 +3,7 @@ package global
 import "github.com/deckhouse/dmt/pkg"
 
 type Global struct {
-	Linters Linters `mapstructure:"linters"`
+	Linters Linters `mapstructure:"linters-settings"`
 }
 
 type Linters struct {
@@ -27,5 +27,5 @@ type Linters struct {
 }
 
 type LinterConfig struct {
-	Impact pkg.Level `mapstructure:"impact" default:"critical"`
+	Impact *pkg.Level `mapstructure:"impact"`
 }

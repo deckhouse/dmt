@@ -10,7 +10,6 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/linters"
 )
 
 // NoCyrillic linter
@@ -23,7 +22,7 @@ type NoCyrillic struct {
 	skipSelfRe     *regexp.Regexp
 }
 
-func New(cfg *config.ModuleConfig) linters.Linter {
+func New(cfg *config.ModuleConfig) *NoCyrillic {
 	// default settings for no-cyrillic
 	fileExtensions := []string{"yaml", "yml", "json", "go"}
 	skipDocRe := `doc-ru-.+\.y[a]?ml$|_RU\.md$|_ru\.html$|docs/site/_.+|docs/documentation/_.+|tools/spelling/.+|openapi/conversions/.+`

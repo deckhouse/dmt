@@ -4,7 +4,6 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/linters"
 )
 
 const (
@@ -19,7 +18,7 @@ type Container struct {
 	cfg        *config.ContainerSettings
 }
 
-func New(cfg *config.ModuleConfig) linters.Linter {
+func New(cfg *config.ModuleConfig) *Container {
 	Cfg = &cfg.LintersSettings.Container
 
 	return &Container{

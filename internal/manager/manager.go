@@ -13,8 +13,22 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/linters"
+	"github.com/deckhouse/dmt/pkg/linters/container"
 	"github.com/deckhouse/dmt/pkg/linters/conversions"
+	"github.com/deckhouse/dmt/pkg/linters/crd-resources"
+	"github.com/deckhouse/dmt/pkg/linters/images"
+	"github.com/deckhouse/dmt/pkg/linters/ingress"
+	rbacproxy "github.com/deckhouse/dmt/pkg/linters/kube-rbac-proxy"
+	"github.com/deckhouse/dmt/pkg/linters/license"
+	moduleLinter "github.com/deckhouse/dmt/pkg/linters/module"
+	"github.com/deckhouse/dmt/pkg/linters/monitoring"
+	no_cyrillic "github.com/deckhouse/dmt/pkg/linters/no-cyrillic"
+	"github.com/deckhouse/dmt/pkg/linters/openapi"
+	"github.com/deckhouse/dmt/pkg/linters/oss"
+	"github.com/deckhouse/dmt/pkg/linters/pdb-resources"
+	"github.com/deckhouse/dmt/pkg/linters/probes"
+	"github.com/deckhouse/dmt/pkg/linters/rbac"
+	"github.com/deckhouse/dmt/pkg/linters/vpa-resources"
 )
 
 const (
@@ -25,9 +39,16 @@ const (
 	OpenAPIDir          = "openapi"
 )
 
+type Linter interface {
+	Run(m *module.Module) *errors.LintRuleErrorsList
+	Name() string
+}
+
+type LinterList []Linter
+
 type Manager struct {
 	cfg     *config.RootConfig
-	Linters linters.LinterList
+	Linters LinterList
 	Modules []*module.Module
 
 	errors *errors.LintRuleErrorsList
@@ -38,26 +59,6 @@ func NewManager(dirs []string, rootConfig *config.RootConfig) *Manager {
 		cfg: rootConfig,
 
 		errors: errors.NewLintRuleErrorsList(),
-	}
-
-	// fill all linters
-	m.Linters = []func(cfg *config.ModuleConfig, errList *errors.LintRuleErrorsList) linters.Linter{
-		// openapi.New,
-		// no_cyrillic.New,
-		// license.New,
-		// oss.New,
-		// probes.New,
-		// container.New,
-		// rbacproxy.New,
-		// vpa.New,
-		// pdb.New,
-		// crd.New,
-		// images.New,
-		// rbac.New,
-		// monitoring.New,
-		// ingress.New,
-		// moduleLinter.New,
-		conversions.New,
 	}
 
 	var paths []string
@@ -88,6 +89,9 @@ func NewManager(dirs []string, rootConfig *config.RootConfig) *Manager {
 				Criticalf("cannot create module `%s`", moduleName)
 			continue
 		}
+
+		mdl.MergeRootConfig(rootConfig)
+
 		m.Modules = append(m.Modules, mdl)
 	}
 
@@ -101,9 +105,7 @@ func (m *Manager) Run() {
 	for _, module := range m.Modules {
 		logger.InfoF("Run linters for `%s` module", module.GetName())
 
-		for j := range m.Linters {
-			linter := m.Linters[j](module.GetModuleConfig(), m.errors)
-
+		for _, linter := range getLintersForModule(module.GetModuleConfig(), m.errors) {
 			g.Go(func() {
 				logger.DebugF("Running linter `%s` on module `%s`", linter.Name(), module.GetName())
 
@@ -112,6 +114,27 @@ func (m *Manager) Run() {
 		}
 	}
 	g.Wait()
+}
+
+func getLintersForModule(cfg *config.ModuleConfig, errList *errors.LintRuleErrorsList) []Linter {
+	return []Linter{
+		openapi.New(cfg),
+		no_cyrillic.New(cfg),
+		license.New(cfg),
+		oss.New(cfg),
+		probes.New(cfg),
+		container.New(cfg),
+		rbacproxy.New(cfg),
+		vpa.New(cfg),
+		pdb.New(cfg),
+		crd.New(cfg),
+		images.New(cfg),
+		rbac.New(cfg),
+		monitoring.New(cfg),
+		ingress.New(cfg),
+		moduleLinter.New(cfg),
+		conversions.New(cfg, errList),
+	}
 }
 
 func (m *Manager) PrintResult() {

@@ -4,7 +4,6 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/linters"
 )
 
 // OpenAPI linter
@@ -13,7 +12,7 @@ type OpenAPI struct {
 	cfg        *config.OpenAPISettings
 }
 
-func New(cfg *config.ModuleConfig) linters.Linter {
+func New(cfg *config.ModuleConfig) *OpenAPI {
 	return &OpenAPI{
 		name: "openapi",
 		desc: "OpenAPI will check all openapi files in the module",

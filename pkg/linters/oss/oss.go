@@ -4,7 +4,6 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/linters"
 )
 
 // Copyright linter
@@ -13,7 +12,7 @@ type OSS struct {
 	cfg        *config.OSSSettings
 }
 
-func New(cfg *config.ModuleConfig) linters.Linter {
+func New(cfg *config.ModuleConfig) *OSS {
 	return &OSS{
 		name: "oss",
 		desc: "Copyright will check oss license file",

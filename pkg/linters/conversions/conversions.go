@@ -4,7 +4,6 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/linters"
 )
 
 // Conversions linter
@@ -24,12 +23,12 @@ type ConversionsSettings struct {
 
 const ID = "conversions"
 
-func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) linters.Linter {
+func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Conversions {
 	return &Conversions{
 		name:      ID,
 		desc:      "Lint conversions rules",
 		cfg:       remapConversionsConfig(&cfg.LintersSettings.Conversions),
-		ErrorList: errorList.WithLinterID(ID),
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Conversions.Impact),
 	}
 }
 

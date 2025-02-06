@@ -1,25 +1,33 @@
 package pkg
 
-import "fmt"
+// var _ fmt.Stringer = (*Level)(nil)
 
-var _ fmt.Stringer = (*Level)(nil)
-
-type Level string
+type Level int
 
 const (
-	Warn     Level = "warn"
-	Critical Level = "critical"
+	Warn Level = iota
+	Critical
 )
 
-func (l Level) String() string {
-	return string(l)
+func ParseStringToLevel(str string) Level {
+	lvl, ok := getStringLevelMappings()[str]
+	if !ok {
+		return Critical
+	}
+
+	return lvl
 }
 
-func (l Level) IsValid() bool {
-	switch l {
-	case Warn, Critical:
-		return true
-	default:
-		return false
+func getLevelStringMappings() map[Level]string {
+	return map[Level]string{
+		Warn:     "warn",
+		Critical: "critical",
+	}
+}
+
+func getStringLevelMappings() map[string]Level {
+	return map[string]Level{
+		"warn":     Warn,
+		"critical": Critical,
 	}
 }

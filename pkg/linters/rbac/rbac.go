@@ -4,7 +4,6 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/linters"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/roles"
 )
 
@@ -14,7 +13,7 @@ type Rbac struct {
 	Cfg        *config.RbacSettings
 }
 
-func New(cfg *config.ModuleConfig) linters.Linter {
+func New(cfg *config.ModuleConfig) *Rbac {
 	roles.Cfg = &cfg.LintersSettings.Rbac
 
 	return &Rbac{
