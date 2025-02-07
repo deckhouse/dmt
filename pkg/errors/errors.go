@@ -8,10 +8,11 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/deckhouse/dmt/pkg"
 	"github.com/fatih/color"
 	"github.com/kyokomi/emoji"
 	"github.com/mitchellh/go-wordwrap"
+
+	"github.com/deckhouse/dmt/pkg"
 )
 
 type lintRuleError struct {
@@ -289,9 +290,11 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 		)
 	})
 
-	// builder := strings.Builder{}
 	w := new(tabwriter.Writer)
-	w.Init(os.Stdout, 5, 0, 0, ' ', 0)
+
+	const minWidth = 5
+
+	w.Init(os.Stdout, minWidth, 0, 0, ' ', 0)
 
 	for _, err := range l.storage.GetErrors() {
 		msgColor := color.FgRed
@@ -304,42 +307,29 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 		fmt.Fprintf(w, "\t%s\t\t%s\n", "Message:", color.New(msgColor).SprintfFunc()(prepareString(err.Text)))
 		fmt.Fprintf(w, "\t%s\t\t%s\n", "Module:", err.Module)
 
-		// builder.WriteString(fmt.Sprintf(
-		// 	"%s%s\n\t%-12s %s\n\t%-12s %s\n",
-		// 	emoji.Sprintf(":monkey:"),
-		// 	color.New(color.FgHiBlue).SprintfFunc()("[#%s]", err.ID),
-		// 	"Message:", color.New(msgColor).SprintfFunc()(prepareString(err.Text)),
-		// 	"Module:", err.Module,
-		// ))
-
 		if err.ObjectID != "" && err.ObjectID != err.Module {
-			// builder.WriteString(fmt.Sprintf("\t%-12s %s\n", "Object:", err.ObjectID))
 			fmt.Fprintf(w, "\t%s\t\t%s\n", "Object:", err.ObjectID)
 		}
 
 		if err.ObjectValue != nil {
 			value := fmt.Sprintf("%v", err.ObjectValue)
-			// builder.WriteString(fmt.Sprintf("\t%-12s %s\n", "Value:", value))
 
 			fmt.Fprintf(w, "\t%s\t\t%s\n", "Value:", prepareString(value))
 		}
 
 		if err.FilePath != "" {
-			// builder.WriteString(fmt.Sprintf("\t%-12s %s\n", "FilePath:", strings.TrimSpace(err.FilePath)))
 			fmt.Fprintf(w, "\t%s\t\t%s\n", "FilePath:", strings.TrimSpace(err.FilePath))
 		}
 
 		if err.LineNumber != 0 {
-			// builder.WriteString(fmt.Sprintf("\t%-12s %d\n", "LineNumber:", err.LineNumber))
 			fmt.Fprintf(w, "\t%s\t\t%d\n", "LineNumber:", err.LineNumber)
 		}
 
-		// builder.WriteString("\n")
 		fmt.Fprintln(w)
 		w.Flush()
 	}
 
-	return nil //errors.New(builder.String())
+	return nil
 }
 
 func (l *LintRuleErrorsList) ContainsErrors() bool {
