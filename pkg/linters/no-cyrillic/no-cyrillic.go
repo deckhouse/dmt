@@ -35,13 +35,13 @@ var (
 
 func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *NoCyrillic {
 	return &NoCyrillic{
-		name:           ID,
-		desc:           "NoCyrillic will check all files in the modules for contains cyrillic symbols",
-		skipDocRe:      regexp.MustCompile(skipDocRe),
-		skipI18NRe:     regexp.MustCompile(skipSelfRe),
-		skipSelfRe:     regexp.MustCompile(skipI18NRe),
-		cfg:            &cfg.LintersSettings.NoCyrillic,
-		ErrorList:      errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.NoCyrillic.Impact),
+		name:       ID,
+		desc:       "NoCyrillic will check all files in the modules for contains cyrillic symbols",
+		skipDocRe:  regexp.MustCompile(skipDocRe),
+		skipI18NRe: regexp.MustCompile(skipSelfRe),
+		skipSelfRe: regexp.MustCompile(skipI18NRe),
+		cfg:        &cfg.LintersSettings.NoCyrillic,
+		ErrorList:  errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.NoCyrillic.Impact),
 	}
 }
 
@@ -92,13 +92,9 @@ func (l *NoCyrillic) Run(m *module.Module) *errors.LintRuleErrorsList {
 }
 
 func filterFiles(path string) bool {
-	if slices.ContainsFunc(fileExtensions, func(s string) bool {
+	return slices.ContainsFunc(fileExtensions, func(s string) bool {
 		return strings.HasSuffix(path, s)
-	}) {
-		return true
-	}
-
-	return false
+	})
 }
 
 func getFileContent(filename string) ([]string, error) {
