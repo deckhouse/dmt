@@ -18,14 +18,14 @@ import (
 var skipVPAChecks []string
 
 // controllerMustHaveVPA fills linting error regarding VPA
-func controllerMustHaveVPA(md *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, md.GetName())
+func (l *VPAResources) controllerMustHaveVPA(md *module.Module) {
+	errorList := l.ErrorList.WithModule(md.GetName())
+
 	if slices.Contains(skipVPAChecks, md.GetNamespace()+":"+md.GetName()) {
-		return result
+		return
 	}
 
-	vpaTargets, vpaTolerationGroups, vpaContainerNamesMap, vpaUpdateModes, errs := parseTargetsAndTolerationGroups(md)
-	result.Merge(errs)
+	vpaTargets, vpaTolerationGroups, vpaContainerNamesMap, vpaUpdateModes := parseTargetsAndTolerationGroups(md, errorList)
 
 	for index, object := range md.GetObjectStore().Storage {
 		// Skip non-pod controllers
@@ -33,8 +33,7 @@ func controllerMustHaveVPA(md *module.Module) *errors.LintRuleErrorsList {
 			continue
 		}
 
-		ok, errs := ensureVPAIsPresent(md, vpaTargets, index, object)
-		result.Merge(errs)
+		ok := ensureVPAIsPresent(vpaTargets, index, errorList.WithObjectID(object.Identity()))
 		if !ok {
 			continue
 		}
@@ -44,16 +43,13 @@ func controllerMustHaveVPA(md *module.Module) *errors.LintRuleErrorsList {
 			continue
 		}
 
-		ok, errs = ensureVPAContainersMatchControllerContainers(md, object, index, vpaContainerNamesMap)
-		result.Merge(errs)
+		ok = ensureVPAContainersMatchControllerContainers(object, index, vpaContainerNamesMap, errorList)
 		if !ok {
 			continue
 		}
 
-		result.Merge(ensureTolerations(md, vpaTolerationGroups, index, object))
+		ensureTolerations(vpaTolerationGroups, index, object, errorList)
 	}
-
-	return result
 }
 
 func IsPodController(kind string) bool {
@@ -63,18 +59,16 @@ func IsPodController(kind string) bool {
 // parseTargetsAndTolerationGroups resolves target resource indexes
 //
 //nolint:gocritic // false positive
-func parseTargetsAndTolerationGroups(md *module.Module) (
+func parseTargetsAndTolerationGroups(md *module.Module, errorList *errors.LintRuleErrorsList) (
 	map[storage.ResourceIndex]struct{}, map[storage.ResourceIndex]string,
 	map[storage.ResourceIndex]set.Set,
 	map[storage.ResourceIndex]UpdateMode,
-	*errors.LintRuleErrorsList,
 ) {
 	vpaTargets := make(map[storage.ResourceIndex]struct{})
 	vpaTolerationGroups := make(map[storage.ResourceIndex]string)
 	vpaContainerNamesMap := make(map[storage.ResourceIndex]set.Set)
 	vpaUpdateModes := make(map[storage.ResourceIndex]UpdateMode)
 
-	result := errors.NewLinterRuleList(ID, md.GetName())
 	for _, object := range md.GetObjectStore().Storage {
 		kind := object.Unstructured.GetKind()
 
@@ -82,25 +76,23 @@ func parseTargetsAndTolerationGroups(md *module.Module) (
 			continue
 		}
 
-		result.Merge(fillVPAMaps(md, vpaTargets, vpaTolerationGroups, vpaContainerNamesMap, vpaUpdateModes, object))
+		fillVPAMaps(vpaTargets, vpaTolerationGroups, vpaContainerNamesMap, vpaUpdateModes, object, errorList)
 	}
 
-	return vpaTargets, vpaTolerationGroups, vpaContainerNamesMap, vpaUpdateModes, result
+	return vpaTargets, vpaTolerationGroups, vpaContainerNamesMap, vpaUpdateModes
 }
 
 func fillVPAMaps(
-	md *module.Module,
 	vpaTargets map[storage.ResourceIndex]struct{},
 	vpaTolerationGroups map[storage.ResourceIndex]string,
 	vpaContainerNamesMap map[storage.ResourceIndex]set.Set,
 	vpaUpdateModes map[storage.ResourceIndex]UpdateMode,
 	vpa storage.StoreObject,
-) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, md.GetName())
-	target, ok, errs := parseVPATargetIndex(md.GetName(), vpa)
-	result.Merge(errs)
+	errorList *errors.LintRuleErrorsList,
+) {
+	target, ok := parseVPATargetIndex(vpa, errorList.WithObjectID(vpa.Identity()))
 	if !ok {
-		return result
+		return
 	}
 
 	vpaTargets[target] = struct{}{}
@@ -110,128 +102,115 @@ func fillVPAMaps(
 		vpaTolerationGroups[target] = label
 	}
 
-	updateMode, vnm, ok, errs := parseVPAResourcePolicyContainers(md, vpa)
-	result.Merge(errs)
+	updateMode, vnm, ok := parseVPAResourcePolicyContainers(vpa, errorList.WithObjectID(vpa.Identity()))
 	if !ok {
-		return result
+		return
 	}
+
 	vpaContainerNamesMap[target] = vnm
 	vpaUpdateModes[target] = updateMode
-
-	return result
 }
 
 // parseVPAResourcePolicyContainers parses VPA containers names in ResourcePolicy and check if minAllowed and maxAllowed for container is set
-func parseVPAResourcePolicyContainers(md *module.Module, vpaObject storage.StoreObject) (UpdateMode, set.Set, bool, *errors.LintRuleErrorsList) {
-	result := errors.NewLinterRuleList(ID, md.GetName())
+func parseVPAResourcePolicyContainers(vpaObject storage.StoreObject, errorList *errors.LintRuleErrorsList) (UpdateMode, set.Set, bool) {
 	containers := set.New()
 
 	v := &VerticalPodAutoscaler{}
 	err := sdk.FromUnstructured(&vpaObject.Unstructured, v)
 
 	if err != nil {
-		result.WithObjectID(vpaObject.Identity()).Add("Cannot unmarshal VPA object: %v", err)
-		return "", containers, false, result
+		errorList.Errorf("Cannot unmarshal VPA object: %v", err)
+
+		return "", containers, false
 	}
 
 	updateMode := *v.Spec.UpdatePolicy.UpdateMode
 	if updateMode == UpdateModeOff {
-		return updateMode, containers, true, result
+		return updateMode, containers, true
 	}
 
 	if v.Spec.ResourcePolicy == nil || len(v.Spec.ResourcePolicy.ContainerPolicies) == 0 {
-		result.WithObjectID(vpaObject.Identity()).
-			Add("No VPA specs resourcePolicy.containerPolicies is found for object")
-		return updateMode, containers, false, result
+		errorList.Error("No VPA specs resourcePolicy.containerPolicies is found for object")
+
+		return updateMode, containers, false
 	}
 
 	for _, cp := range v.Spec.ResourcePolicy.ContainerPolicies {
 		if cp.MinAllowed.Cpu().IsZero() {
-			result.WithObjectID(vpaObject.Identity()).
-				Add("No VPA specs minAllowed.cpu is found for container %s", cp.ContainerName)
+			errorList.Errorf("No VPA specs minAllowed.cpu is found for container %s", cp.ContainerName)
 		}
 
 		if cp.MinAllowed.Memory().IsZero() {
-			result.WithObjectID(vpaObject.Identity()).
-				Add("No VPA specs minAllowed.memory is found for container %s", cp.ContainerName)
+			errorList.Errorf("No VPA specs minAllowed.memory is found for container %s", cp.ContainerName)
 		}
 
 		if cp.MaxAllowed.Cpu().IsZero() {
-			result.WithObjectID(vpaObject.Identity()).
-				Add("No VPA specs maxAllowed.cpu is found for container %s", cp.ContainerName)
+			errorList.Errorf("No VPA specs maxAllowed.cpu is found for container %s", cp.ContainerName)
 		}
 
 		if cp.MaxAllowed.Memory().IsZero() {
-			result.WithObjectID(vpaObject.Identity()).
-				Add("No VPA specs maxAllowed.memory is found for container %s", cp.ContainerName)
+			errorList.Errorf("No VPA specs maxAllowed.memory is found for container %s", cp.ContainerName)
 		}
 
 		if cp.MinAllowed.Cpu().Cmp(*cp.MaxAllowed.Cpu()) > 0 {
-			result.WithObjectID(vpaObject.Identity()).
-				Add("MinAllowed.cpu for container %s should be less than maxAllowed.cpu", cp.ContainerName)
+			errorList.Errorf("MinAllowed.cpu for container %s should be less than maxAllowed.cpu", cp.ContainerName)
 		}
 
 		if cp.MinAllowed.Memory().Cmp(*cp.MaxAllowed.Memory()) > 0 {
-			result.WithObjectID(vpaObject.Identity()).
-				Add("MinAllowed.memory for container %s should be less than maxAllowed.memory", cp.ContainerName)
+			errorList.Errorf("MinAllowed.memory for container %s should be less than maxAllowed.memory", cp.ContainerName)
 		}
 
 		containers.Add(cp.ContainerName)
 	}
 
-	return updateMode, containers, true, result
+	return updateMode, containers, true
 }
 
 // parseVPATargetIndex parses VPA target resource index, writes to the passed struct pointer
-func parseVPATargetIndex(name string, vpaObject storage.StoreObject) (storage.ResourceIndex, bool, *errors.LintRuleErrorsList) {
-	result := errors.NewLinterRuleList(ID, name)
+func parseVPATargetIndex(vpaObject storage.StoreObject, errorList *errors.LintRuleErrorsList) (storage.ResourceIndex, bool) {
 	target := storage.ResourceIndex{}
 	specs, ok := vpaObject.Unstructured.Object["spec"].(map[string]any)
 	if !ok {
-		result.WithObjectID(
-			vpaObject.Identity()).Add("No VPA specs is found for object")
-		return target, false, result
+		errorList.Error("No VPA specs is found for object")
+
+		return target, false
 	}
 
 	targetRef, ok := specs["targetRef"].(map[string]any)
 	if !ok {
-		result.WithObjectID(
-			vpaObject.Identity()).Add("No VPA specs targetRef is found for object")
-		return target, false, result
+		errorList.Error("No VPA specs targetRef is found for object")
+
+		return target, false
 	}
 
 	target.Namespace = vpaObject.Unstructured.GetNamespace()
 	target.Name = targetRef["name"].(string)
 	target.Kind = targetRef["kind"].(string)
 
-	return target, true, result
+	return target, true
 }
 
 // ensureVPAContainersMatchControllerContainers verifies VPA container names in resourcePolicy match corresponding controller container names
 func ensureVPAContainersMatchControllerContainers(
-	md *module.Module,
 	object storage.StoreObject,
 	index storage.ResourceIndex,
 	vpaContainerNamesMap map[storage.ResourceIndex]set.Set,
-) (bool, *errors.LintRuleErrorsList) {
-	result := errors.NewLinterRuleList(ID, md.GetName())
+	errorList *errors.LintRuleErrorsList,
+) bool {
 	vpaContainerNames, ok := vpaContainerNamesMap[index]
 	if !ok {
-		result.WithObjectID(object.Identity()).Add(
-			"Getting vpa containers name list for the object failed: %v",
-			index,
-		)
-		return false, result
+		errorList.WithObjectID(object.Identity()).
+			Errorf("Getting vpa containers name list for the object failed: %v", index)
+
+		return false
 	}
 
 	containers, err := object.GetContainers()
 	if err != nil {
-		result.WithObjectID(
-			object.Identity()).Add(
-			"Getting containers list for the object failed: %v",
-			err,
-		)
-		return false, result
+		errorList.WithObjectID(object.Identity()).
+			Errorf("Getting containers list for the object failed: %s", err)
+
+		return false
 	}
 
 	containerNames := set.New()
@@ -241,41 +220,34 @@ func ensureVPAContainersMatchControllerContainers(
 
 	for k := range containerNames {
 		if !vpaContainerNames.Has(k) {
-			result.WithObjectID(
-				fmt.Sprintf("%s ; container = %s", object.Identity(), k)).Add(
-				"The container should have corresponding VPA resourcePolicy entry",
-			)
+			errorList.WithObjectID(fmt.Sprintf("%s ; container = %s", object.Identity(), k)).
+				Error("The container should have corresponding VPA resourcePolicy entry")
 		}
 	}
 
 	for k := range vpaContainerNames {
 		if !containerNames.Has(k) {
-			result.WithObjectID(
-				object.Identity()).Add(
-				"VPA has resourcePolicy for container %s, but the controller does not have corresponding container resource entry", k,
-			)
+			errorList.WithObjectID(object.Identity()).
+				Errorf("VPA has resourcePolicy for container %s, but the controller does not have corresponding container resource entry", k)
 		}
 	}
 
-	return true, result
+	return true
 }
 
 // returns true if linting passed, otherwise returns false
 func ensureTolerations(
-	md *module.Module,
 	vpaTolerationGroups map[storage.ResourceIndex]string,
 	index storage.ResourceIndex,
 	object storage.StoreObject,
-) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, md.GetName())
+	errorList *errors.LintRuleErrorsList,
+) {
 	tolerations, err := getTolerationsList(object)
 
+	errorListObj := errorList.WithObjectID(object.Identity())
+
 	if err != nil {
-		result.WithObjectID(
-			object.Identity()).Add(
-			"Get tolerations list for object failed: %v",
-			err,
-		)
+		errorListObj.Errorf("Get tolerations list for object failed: %v", err)
 	}
 
 	isTolerationFound := false
@@ -287,64 +259,66 @@ func ensureTolerations(
 	}
 
 	workloadLabelValue := vpaTolerationGroups[index]
+
+	errorListObjValue := errorListObj.WithValue(workloadLabelValue)
+
 	if isTolerationFound && workloadLabelValue != "every-node" && workloadLabelValue != "master" {
-		result.WithObjectID(
-			object.Identity()).WithValue(workloadLabelValue).
-			Add(`Labels "workload-resource-policy.deckhouse.io" in corresponding VPA resource not found`)
+		errorListObjValue.Error(`Labels "workload-resource-policy.deckhouse.io" in corresponding VPA resource not found`)
 	}
 
 	if !isTolerationFound && workloadLabelValue != "" {
-		result.WithObjectID(
-			object.Identity()).WithValue(workloadLabelValue).
-			Add(`Labels "workload-resource-policy.deckhouse.io" in corresponding VPA resource found, but tolerations is not right`)
+		errorListObjValue.Error(`Labels "workload-resource-policy.deckhouse.io" in corresponding VPA resource found, but tolerations is not right`)
 	}
-
-	return result
 }
 
 // returns true if linting passed, otherwise returns false
 func ensureVPAIsPresent(
-	md *module.Module,
 	vpaTargets map[storage.ResourceIndex]struct{},
 	index storage.ResourceIndex,
-	object storage.StoreObject,
-) (bool, *errors.LintRuleErrorsList) {
-	result := errors.NewLinterRuleList(ID, md.GetName())
+	errorList *errors.LintRuleErrorsList,
+) bool {
 	_, ok := vpaTargets[index]
 	if !ok {
-		result.WithObjectID(object.Identity()).Add("No VPA is found for object")
+		errorList.Error("No VPA is found for object")
 	}
 
-	return ok, result
+	return ok
 }
 
 func getTolerationsList(object storage.StoreObject) ([]v1.Toleration, error) {
 	var tolerations []v1.Toleration
+
 	converter := runtime.DefaultUnstructuredConverter
 
 	switch object.Unstructured.GetKind() {
 	case "Deployment":
 		deployment := new(appsv1.Deployment)
+
 		err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), deployment)
 		if err != nil {
 			return nil, err
 		}
+
 		tolerations = deployment.Spec.Template.Spec.Tolerations
 
 	case "DaemonSet":
 		daemonset := new(appsv1.DaemonSet)
+
 		err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), daemonset)
 		if err != nil {
 			return nil, err
 		}
+
 		tolerations = daemonset.Spec.Template.Spec.Tolerations
 
 	case "StatefulSet":
 		statefulset := new(appsv1.StatefulSet)
+
 		err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), statefulset)
 		if err != nil {
 			return nil, err
 		}
+
 		tolerations = statefulset.Spec.Template.Spec.Tolerations
 	}
 
