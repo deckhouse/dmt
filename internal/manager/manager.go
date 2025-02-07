@@ -145,7 +145,7 @@ func (m *Manager) PrintResult() {
 }
 
 func (m *Manager) HasCriticalErrors() bool {
-	return m.errors.ContainsCritical()
+	return m.errors.ContainsErrors()
 }
 
 func isExistsOnFilesystem(parts ...string) bool {

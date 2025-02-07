@@ -31,7 +31,17 @@ func (l *lintRuleError) EqualsTo(candidate lintRuleError) bool { //nolint:gocrit
 		l.Module == candidate.Module
 }
 
-type errStorage []lintRuleError
+type errStorage struct {
+	errList []lintRuleError
+}
+
+func (s *errStorage) GetErrors() []lintRuleError {
+	return s.errList
+}
+
+func (s *errStorage) Add(err lintRuleError) {
+	s.errList = append(s.errList, err)
+}
 
 type LintRuleErrorsList struct {
 	storage *errStorage
@@ -88,10 +98,9 @@ func (l *LintRuleErrorsList) CorrespondToMaxLevel() {
 		return
 	}
 
-	for idx, err := range *l.storage {
+	for idx, err := range l.storage.GetErrors() {
 		if l.maxLevel != nil && *l.maxLevel < err.Level {
-			st := *l.storage
-			st[idx].Level = *l.maxLevel
+			l.storage.errList[idx].Level = *l.maxLevel
 		}
 	}
 }
@@ -233,11 +242,7 @@ func (l *LintRuleErrorsList) add(str string, level pkg.Level) *LintRuleErrorsLis
 		Level:       level,
 	}
 
-	if slices.ContainsFunc(*l.storage, e.EqualsTo) {
-		return l
-	}
-
-	*l.storage = append(*l.storage, e)
+	l.storage.Add(e)
 
 	return l
 }
@@ -252,15 +257,15 @@ func (l *LintRuleErrorsList) Merge(e *LintRuleErrorsList) {
 		return
 	}
 
-	for _, el := range *e.storage {
-		if slices.ContainsFunc(*l.storage, el.EqualsTo) {
+	for _, el := range e.storage.GetErrors() {
+		if slices.ContainsFunc(l.storage.errList, el.EqualsTo) {
 			continue
 		}
 		if el.Text == "" {
 			continue
 		}
 
-		*l.storage = append(*l.storage, el)
+		l.storage.errList = append(l.storage.errList, el)
 	}
 }
 
@@ -272,11 +277,11 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 		l.storage = &errStorage{}
 	}
 
-	if len(*l.storage) == 0 {
+	if len(l.storage.GetErrors()) == 0 {
 		return nil
 	}
 
-	slices.SortFunc(*l.storage, func(a, b lintRuleError) int {
+	slices.SortFunc(l.storage.GetErrors(), func(a, b lintRuleError) int {
 		return cmp.Or(
 			cmp.Compare(a.Module, b.Module),
 			cmp.Compare(a.ObjectID, b.ObjectID),
@@ -284,7 +289,7 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 	})
 
 	builder := strings.Builder{}
-	for _, err := range *l.storage {
+	for _, err := range l.storage.GetErrors() {
 		msgColor := color.FgRed
 
 		if err.Level == pkg.Warn {
@@ -316,12 +321,12 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 	return errors.New(builder.String())
 }
 
-func (l *LintRuleErrorsList) ContainsCritical() bool {
+func (l *LintRuleErrorsList) ContainsErrors() bool {
 	if l.storage == nil {
 		l.storage = &errStorage{}
 	}
 
-	for _, err := range *l.storage {
+	for _, err := range l.storage.GetErrors() {
 		if err.Level == pkg.Error {
 			return true
 		}

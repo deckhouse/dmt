@@ -20,42 +20,50 @@ func Test_Errors(t *testing.T) {
 	require.NotEqual(t, t1, t2)
 	require.NotEqual(t, t1.objectID, t2.objectID)
 	t1.Add("test1")
-	require.Len(t, *t1.storage, 1)
+	require.Len(t, t1.storage.GetErrors(), 1)
 	t2.Add("test2")
-	require.Len(t, *t1.storage, 2)
-	require.Len(t, *t2.storage, 2)
+	require.Len(t, t1.storage.GetErrors(), 2)
+	require.Len(t, t2.storage.GetErrors(), 2)
 	require.Equal(t,
 		errStorage{
-			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test1", Level: 1},
-			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "objectID", Text: "test2", Level: 1}},
-		*t1.storage)
-	t1.Add("test3")
-	require.Len(t, *t1.storage, 3)
-	require.Equal(t,
-		errStorage{
-			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test1", Level: 1},
-			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "objectID", Text: "test2", Level: 1},
-			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test3", Level: 1},
+			errList: []lintRuleError{
+				{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test1", Level: 2},
+				{ID: "linterid", Module: "moduleID", ObjectID: "objectID", Text: "test2", Level: 2}},
 		},
 		*t1.storage)
+	t1.Add("test3")
+	require.Len(t, t1.storage.GetErrors(), 3)
+	require.Equal(t,
+		&errStorage{
+			errList: []lintRuleError{
+				{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test1", Level: 2},
+				{ID: "linterid", Module: "moduleID", ObjectID: "objectID", Text: "test2", Level: 2},
+				{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test3", Level: 2},
+			},
+		},
+		t1.storage)
 	t3 := NewLinterRuleList("linterID", "moduleID2")
 	require.NotNil(t, t3)
 	t3.WithObjectID("objectID3").Add("test3")
 	require.Equal(t,
-		errStorage{
-			lintRuleError{ID: "linterid", Module: "moduleID2", ObjectID: "objectID3", Text: "test3", Level: 1},
+		&errStorage{
+			errList: []lintRuleError{
+				{ID: "linterid", Module: "moduleID2", ObjectID: "objectID3", Text: "test3", Level: 2},
+			},
 		},
-		*t3.storage)
-	require.Len(t, *t3.storage, 1)
+		t3.storage)
+	require.Len(t, t3.storage.GetErrors(), 1)
 
 	t1.Merge(t3)
-	require.Len(t, *t1.storage, 4)
+	require.Len(t, t1.storage.GetErrors(), 4)
 	require.Equal(t,
 		errStorage{
-			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test1", Level: 1},
-			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "objectID", Text: "test2", Level: 1},
-			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test3", Level: 1},
-			lintRuleError{ID: "linterid", Module: "moduleID2", ObjectID: "objectID3", Text: "test3", Level: 1},
+			errList: []lintRuleError{
+				{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test1", Level: 2},
+				{ID: "linterid", Module: "moduleID", ObjectID: "objectID", Text: "test2", Level: 2},
+				{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test3", Level: 2},
+				{ID: "linterid", Module: "moduleID2", ObjectID: "objectID3", Text: "test3", Level: 2},
+			},
 		},
 		*t1.storage)
 }
