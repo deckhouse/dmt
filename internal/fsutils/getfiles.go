@@ -3,10 +3,11 @@ package fsutils
 import (
 	"os"
 	"path/filepath"
-	"regexp"
 )
 
-func GetFiles(rootPath string, skipSymlink bool, filters ...string) ([]string, error) {
+type fFn func(string) bool
+
+func GetFiles(rootPath string, skipSymlink bool, filters ...fFn) ([]string, error) {
 	var result []string
 	err := filepath.Walk(rootPath, func(path string, info os.FileInfo, _ error) error {
 		if skipSymlink && info.Mode()&os.ModeSymlink != 0 {
@@ -21,7 +22,7 @@ func GetFiles(rootPath string, skipSymlink bool, filters ...string) ([]string, e
 			return nil
 		}
 
-		if filterPass(path, filters...) {
+		if filterPass(Rel(rootPath, path), filters...) {
 			result = append(result, path)
 		}
 
@@ -31,18 +32,13 @@ func GetFiles(rootPath string, skipSymlink bool, filters ...string) ([]string, e
 	return result, err
 }
 
-func filterPass(path string, filters ...string) bool {
+func filterPass(path string, filters ...fFn) bool {
 	if len(filters) == 0 {
 		return true
 	}
 
 	for _, filter := range filters {
-		r, err := regexp.Compile(filter)
-		if err != nil {
-			continue
-		}
-
-		if r.MatchString(path) {
+		if filter(path) {
 			return true
 		}
 	}

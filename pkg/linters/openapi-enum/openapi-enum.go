@@ -1,6 +1,10 @@
 package openapienum
 
 import (
+	"path/filepath"
+	"regexp"
+	"strings"
+
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/openapi"
@@ -25,7 +29,7 @@ func New(cfg *config.OpenAPIEnumSettings) *Enum {
 func (o *Enum) Run(m *module.Module) *errors.LintRuleErrorsList {
 	result := errors.NewLinterRuleList("openapi-enum", m.GetName())
 
-	files, err := fsutils.GetFiles(m.GetPath(), true, `.*(?:openapi|crds)/.*\.ya?ml$`)
+	files, err := fsutils.GetFiles(m.GetPath(), true, filterFiles)
 	if err != nil {
 		result.WithValue(err).Add("failed to get files in `%s` module", m.GetName())
 		return result
@@ -53,4 +57,18 @@ func (o *Enum) Name() string {
 
 func (o *Enum) Desc() string {
 	return o.desc
+}
+
+var r = regexp.MustCompile(`.*(?:openapi|crds)/.*\.ya?ml$`)
+
+func filterFiles(path string) bool {
+	filename := filepath.Base(path)
+	if strings.HasSuffix(filename, "-tests.yaml") {
+		return false
+	}
+	if strings.HasPrefix(filename, "doc-ru-") {
+		return false
+	}
+
+	return r.MatchString(path)
 }
