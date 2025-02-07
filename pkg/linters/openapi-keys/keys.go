@@ -3,14 +3,9 @@ package openapikeys
 import (
 	"fmt"
 	"reflect"
-	"regexp"
 	"strings"
 
 	"github.com/deckhouse/dmt/pkg/config"
-)
-
-var (
-	arrayPathRegex = regexp.MustCompile(`[\d+]`)
 )
 
 type KeyValidator struct {
@@ -23,7 +18,7 @@ func NewKeyValidator(cfg *config.OpenAPIKeysSettings) KeyValidator {
 	}
 }
 
-func (kn KeyValidator) Run(moduleName, absoluteKey string, value any) error {
+func (kn KeyValidator) Run(_, absoluteKey string, value any) error {
 	parts := strings.Split(absoluteKey, ".")
 	if parts[len(parts)-1] != "enum" {
 		return nil
