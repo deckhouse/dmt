@@ -1,7 +1,6 @@
 package crd
 
 import (
-	"os"
 	"path/filepath"
 
 	"github.com/deckhouse/dmt/internal/module"
@@ -14,48 +13,36 @@ const (
 	CrdsDir = "crds"
 )
 
-// Object linter
-type Object struct {
+// CRDResources linter
+type CRDResources struct {
 	name, desc string
 	cfg        *config.CRDResourcesSettings
 	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Object {
-	return &Object{
-		name:      "crd-resources",
+func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *CRDResources {
+	return &CRDResources{
+		name:      ID,
 		desc:      "Lint crd-resources",
 		cfg:       &cfg.LintersSettings.CRDResources,
-		ErrorList: errorList,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.CRDResources.Impact),
 	}
 }
 
-func (o *Object) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(o.Name(), m.GetName()).WithMaxLevel(o.cfg.Impact)
+func (l *CRDResources) Run(m *module.Module) *errors.LintRuleErrorsList {
 	if m == nil {
-		return result
+		return nil
 	}
 
-	if isExistsOnFilesystem(m.GetPath(), CrdsDir) {
-		result.Merge(crdsModuleRule(m.GetName(), filepath.Join(m.GetPath(), CrdsDir)))
-	}
+	l.crdsModuleRule(m.GetName(), filepath.Join(m.GetPath(), CrdsDir))
 
-	result.CorrespondToMaxLevel()
-
-	o.ErrorList.Merge(result)
-
-	return result
+	return nil
 }
 
-func (o *Object) Name() string {
-	return o.name
+func (l *CRDResources) Name() string {
+	return l.name
 }
 
-func (o *Object) Desc() string {
-	return o.desc
-}
-
-func isExistsOnFilesystem(parts ...string) bool {
-	_, err := os.Stat(filepath.Join(parts...))
-	return err == nil
+func (l *CRDResources) Desc() string {
+	return l.desc
 }
