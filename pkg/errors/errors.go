@@ -346,6 +346,7 @@ func (l *LintRuleErrorsList) ContainsErrors() bool {
 	return false
 }
 
+// prepareString handle ussual string and prepare it for tablewriter
 func prepareString(input string) string {
 	// magic wrap const
 	const wrapLen = 100
