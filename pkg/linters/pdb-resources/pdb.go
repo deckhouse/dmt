@@ -47,10 +47,7 @@ func (l *PDB) controllerMustHavePDB(md *module.Module) {
 		}
 
 		ensurePDBIsPresent(pdbSelectors, object, errorList)
-
 	}
-
-	return
 }
 
 func isPodControllerDaemonSet(kind string) bool {

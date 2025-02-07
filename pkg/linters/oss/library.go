@@ -31,8 +31,8 @@ func ossFileErrorMessage(err error) string {
 	return fmt.Sprintf("Invalid %s: %s", ossFilename, err.Error())
 }
 
-func (o *OSS) verifyOssFile(moduleName, moduleRoot string) []error {
-	if o.shouldIgnoreOssInfo(moduleName) {
+func (l *OSS) verifyOssFile(moduleName, moduleRoot string) []error {
+	if l.shouldIgnoreOssInfo(moduleName) {
 		return nil
 	}
 
@@ -124,8 +124,8 @@ func parseProjectList(b []byte) ([]ossProject, error) {
 }
 
 // TODO When lintignore files will be implemented in helm, detect "oss.yaml" line in it
-func (o *OSS) shouldIgnoreOssInfo(moduleName string) bool {
-	return slices.Contains(o.cfg.SkipOssChecks, moduleName)
+func (l *OSS) shouldIgnoreOssInfo(moduleName string) bool {
+	return slices.Contains(l.cfg.SkipOssChecks, moduleName)
 }
 
 type ossProject struct {
