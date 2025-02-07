@@ -50,6 +50,8 @@ func IsDeckhouseCRD(data map[any]any) bool {
 	return false
 }
 
+type parser func(string, string, any) error
+
 func Parse(parser parser, path string) error {
 	data, err := getFileYAMLContent(path)
 	if err != nil {
@@ -97,10 +99,8 @@ func (fp *fileParser) parseMap(upperKey string, m map[any]any) error {
 	var err error
 	for k, v := range m {
 		absKey := fmt.Sprintf("%s.%s", upperKey, k)
-		if key, ok := k.(string); ok {
-			if key == fp.parser.GetKey() {
-				err = errors.Join(err, fp.parser.Run(fp.moduleName, absKey, v))
-			}
+		if _, ok := k.(string); ok {
+			err = errors.Join(err, fp.parser(fp.moduleName, absKey, v))
 		}
 		err = errors.Join(err, fp.parseValue(absKey, v))
 	}
@@ -142,9 +142,4 @@ func (fp *fileParser) parseValue(upperKey string, v any) error {
 	}
 
 	return err
-}
-
-type parser interface {
-	Run(string, string, any) error
-	GetKey() string
 }

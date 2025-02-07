@@ -33,7 +33,7 @@ func (e *Enum) Run(m *module.Module) *errors.LintRuleErrorsList {
 	files := fsutils.GetFiles(m.GetPath(), true, filterFiles)
 	parser := NewEnumValidator(e.cfg)
 	for _, file := range files {
-		if err := openapi.Parse(parser, file); err != nil {
+		if err := openapi.Parse(parser.Run, file); err != nil {
 			errorLists.WithValue(err).Errorf("openAPI file is not valid: %s", fsutils.Rel(m.GetPath(), file))
 		}
 	}

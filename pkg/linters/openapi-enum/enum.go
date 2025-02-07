@@ -38,6 +38,11 @@ func (EnumValidator) GetKey() string {
 }
 
 func (en EnumValidator) Run(moduleName, absoluteKey string, value any) error {
+	parts := strings.Split(absoluteKey, ".")
+	if parts[len(parts)-1] != "enum" {
+		return nil
+	}
+
 	en.excludes = make(map[string]struct{})
 	for _, exc := range en.cfg.EnumFileExcludes[moduleName] {
 		en.excludes[exc+".enum"] = struct{}{}
