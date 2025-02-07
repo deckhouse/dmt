@@ -32,22 +32,22 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Conver
 	}
 }
 
-func (c *Conversions) Run(m *module.Module) *errors.LintRuleErrorsList {
+func (l *Conversions) Run(m *module.Module) *errors.LintRuleErrorsList {
 	if m == nil {
 		return nil
 	}
 
-	c.checkModuleYaml(m.GetName(), m.GetPath())
+	l.checkModuleYaml(m.GetName(), m.GetPath())
 
 	return nil
 }
 
-func (c *Conversions) Name() string {
-	return c.name
+func (l *Conversions) Name() string {
+	return l.name
 }
 
-func (c *Conversions) Desc() string {
-	return c.desc
+func (l *Conversions) Desc() string {
+	return l.desc
 }
 
 func remapConversionsConfig(input *config.ConversionsSettings) *ConversionsSettings {

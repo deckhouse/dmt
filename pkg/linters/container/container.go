@@ -30,27 +30,27 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Contai
 	}
 }
 
-func (o *Container) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList("images", m.GetName()).WithMaxLevel(o.cfg.Impact)
+func (l *Container) Run(m *module.Module) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList("images", m.GetName()).WithMaxLevel(l.cfg.Impact)
 	if m == nil {
 		return result
 	}
 
 	for _, object := range m.GetStorage() {
-		result.Merge(o.applyContainerRules(m, object))
+		result.Merge(l.applyContainerRules(m, object))
 	}
 
 	result.CorrespondToMaxLevel()
 
-	o.ErrorList.Merge(result)
+	l.ErrorList.Merge(result)
 
-	return o.ErrorList
+	return l.ErrorList
 }
 
-func (o *Container) Name() string {
-	return o.name
+func (l *Container) Name() string {
+	return l.name
 }
 
-func (o *Container) Desc() string {
-	return o.desc
+func (l *Container) Desc() string {
+	return l.desc
 }
