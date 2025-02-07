@@ -15,40 +15,31 @@ type Ingress struct {
 
 const ID = "ingress"
 
-var Cfg *config.IngressSettings
-
 func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Ingress {
-	Cfg = &cfg.LintersSettings.Ingress
-
 	return &Ingress{
-		name:      "ingress",
+		name:      ID,
 		desc:      "Lint ingresses rules",
 		cfg:       &cfg.LintersSettings.Ingress,
-		ErrorList: errorList,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Ingress.Impact),
 	}
 }
 
-func (i *Ingress) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, m.GetName()).WithMaxLevel(i.cfg.Impact)
+func (l *Ingress) Run(m *module.Module) *errors.LintRuleErrorsList {
 	if m == nil {
 		return nil
 	}
 
 	for _, object := range m.GetStorage() {
-		result.Merge(ingressCopyCustomCertificateRule(m, object))
+		l.ingressCopyCustomCertificateRule(m, object)
 	}
 
-	result.CorrespondToMaxLevel()
-
-	i.ErrorList.Merge(result)
-
-	return result
+	return nil
 }
 
-func (i *Ingress) Name() string {
-	return i.name
+func (l *Ingress) Name() string {
+	return l.name
 }
 
-func (i *Ingress) Desc() string {
-	return i.desc
+func (l *Ingress) Desc() string {
+	return l.desc
 }
