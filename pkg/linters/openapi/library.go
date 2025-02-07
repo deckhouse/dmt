@@ -186,11 +186,7 @@ func runFileParser(moduleName, fileName string, data map[any]any, cfg *config.Op
 	parser := fileParser{
 		moduleName: moduleName,
 		fileName:   fileName,
-		keyValidators: map[string]validator{
-			"highAvailability": validators.NewHAValidator(cfg),
-			"https":            validators.NewHAValidator(cfg),
-		},
-		resultC: resultC,
+		resultC:    resultC,
 	}
 	if isDeckhouseCRD(data) {
 		parser.parseForWrongKeys(data, cfg)

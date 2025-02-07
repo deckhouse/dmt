@@ -3,6 +3,7 @@ package openapiha
 import (
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/deckhouse/dmt/pkg/config"
 )
@@ -20,6 +21,12 @@ func NewHAValidator(cfg *config.OpenAPIHASettings) HAValidator {
 func (HAValidator) Run(_, absoluteKey string, value any) error {
 	// Ignore key inside a deep structure, like properties.internal.spec.xxx
 	if absoluteKey != "properties.highAvailability" {
+		return nil
+	}
+
+	parts := strings.Split(absoluteKey, ".")
+	key := parts[len(parts)-1]
+	if key != "highAvailability" && key != "https" {
 		return nil
 	}
 
