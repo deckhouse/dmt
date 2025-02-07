@@ -13,8 +13,6 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/viper"
 
-	"github.com/creasty/defaults"
-
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/pkg"
@@ -130,10 +128,6 @@ func (l *Loader) parseConfig() error {
 	err := l.setConfigDir()
 	if err != nil {
 		return err
-	}
-
-	if err = defaults.Set(l.cfg); err != nil {
-		return fmt.Errorf("set defaults: %w", err)
 	}
 
 	// Load configuration from all sources (flags, file).

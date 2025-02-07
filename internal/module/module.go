@@ -12,8 +12,6 @@ import (
 	"gopkg.in/yaml.v3"
 	"helm.sh/helm/v3/pkg/chart"
 
-	"github.com/creasty/defaults"
-
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/internal/werf"
 	"github.com/deckhouse/dmt/pkg/config"
@@ -169,10 +167,6 @@ func NewModule(path string) (*Module, error) {
 	}
 
 	cfg := &config.ModuleConfig{}
-	if err := defaults.Set(cfg); err != nil {
-		panic(err)
-	}
-
 	if err := config.NewLoader(cfg, path).Load(); err != nil {
 		panic(err)
 	}
