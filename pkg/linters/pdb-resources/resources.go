@@ -10,17 +10,17 @@ const (
 	ID = "pdb-resources"
 )
 
-// Object linter
-type Object struct {
+// PDB linter
+type PDB struct {
 	name, desc string
 	cfg        *config.PDBResourcesSettings
 	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Object {
+func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *PDB {
 	skipPDBChecks = cfg.LintersSettings.PDBResources.SkipPDBChecks
 
-	return &Object{
+	return &PDB{
 		name:      "pdb-resources",
 		desc:      "Lint pdb-resources",
 		cfg:       &cfg.LintersSettings.PDBResources,
@@ -28,26 +28,21 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Object
 	}
 }
 
-func (o *Object) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(o.Name(), m.GetName()).WithMaxLevel(o.cfg.Impact)
+func (l *PDB) Run(m *module.Module) *errors.LintRuleErrorsList {
 	if m == nil {
-		return result
+		return nil
 	}
 
-	result.Merge(controllerMustHavePDB(m))
-	result.Merge(daemonSetMustNotHavePDB(m))
+	l.controllerMustHavePDB(m)
+	l.daemonSetMustNotHavePDB(m)
 
-	result.CorrespondToMaxLevel()
-
-	o.ErrorList.Merge(result)
-
-	return result
+	return nil
 }
 
-func (o *Object) Name() string {
-	return o.name
+func (l *PDB) Name() string {
+	return l.name
 }
 
-func (o *Object) Desc() string {
-	return o.desc
+func (l *PDB) Desc() string {
+	return l.desc
 }

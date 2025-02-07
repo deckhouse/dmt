@@ -9,33 +9,30 @@ import (
 	"strings"
 
 	"sigs.k8s.io/yaml"
-
-	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 const ossFilename = "oss.yaml"
 
-func (o *OSS) ossModuleRule(name, moduleRoot string) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList("oss", name)
+func (l *OSS) ossModuleRule(moduleName, moduleRoot string) {
+	errorList := l.ErrorList.WithModule(moduleName)
 
-	if errs := o.verifyOssFile(name, moduleRoot); len(errs) > 0 {
+	if errs := l.verifyOssFile(moduleName, moduleRoot); len(errs) > 0 {
 		for _, err := range errs {
-			result.WithObjectID(moduleRoot).Add("%v", ossFileErrorMessage(err))
+			errorList.WithObjectID(moduleRoot).Error(ossFileErrorMessage(err))
 		}
 	}
-
-	return result
 }
 
 func ossFileErrorMessage(err error) string {
 	if os.IsNotExist(err) {
 		return "Module should have " + ossFilename
 	}
+
 	return fmt.Sprintf("Invalid %s: %s", ossFilename, err.Error())
 }
 
-func (o *OSS) verifyOssFile(name, moduleRoot string) []error {
-	if o.shouldIgnoreOssInfo(name) {
+func (l *OSS) verifyOssFile(moduleName, moduleRoot string) []error {
+	if l.shouldIgnoreOssInfo(moduleName) {
 		return nil
 	}
 
@@ -43,6 +40,7 @@ func (o *OSS) verifyOssFile(name, moduleRoot string) []error {
 	if err != nil {
 		return []error{err}
 	}
+
 	if len(projects) == 0 {
 		return []error{fmt.Errorf("no projects described")}
 	}
@@ -126,8 +124,8 @@ func parseProjectList(b []byte) ([]ossProject, error) {
 }
 
 // TODO When lintignore files will be implemented in helm, detect "oss.yaml" line in it
-func (o *OSS) shouldIgnoreOssInfo(moduleName string) bool {
-	return slices.Contains(o.cfg.SkipOssChecks, moduleName)
+func (l *OSS) shouldIgnoreOssInfo(moduleName string) bool {
+	return slices.Contains(l.cfg.SkipOssChecks, moduleName)
 }
 
 type ossProject struct {

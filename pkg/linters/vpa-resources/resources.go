@@ -28,25 +28,20 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *VPARes
 	}
 }
 
-func (o *VPAResources) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(o.Name(), m.GetName()).WithMaxLevel(o.cfg.Impact)
+func (l *VPAResources) Run(m *module.Module) *errors.LintRuleErrorsList {
 	if m == nil {
-		return result
+		return nil
 	}
 
-	result.Merge(controllerMustHaveVPA(m))
+	l.controllerMustHaveVPA(m)
 
-	result.CorrespondToMaxLevel()
-
-	o.ErrorList.Merge(result)
-
-	return result
+	return nil
 }
 
-func (o *VPAResources) Name() string {
-	return o.name
+func (l *VPAResources) Name() string {
+	return l.name
 }
 
-func (o *VPAResources) Desc() string {
-	return o.desc
+func (l *VPAResources) Desc() string {
+	return l.desc
 }

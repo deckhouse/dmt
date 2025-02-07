@@ -26,26 +26,20 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *OSS {
 	}
 }
 
-func (o *OSS) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(o.Name(), m.GetName()).WithMaxLevel(o.cfg.Impact)
-
+func (l *OSS) Run(m *module.Module) *errors.LintRuleErrorsList {
 	if m.GetPath() == "" {
-		return result
+		return nil
 	}
 
-	result.Merge(o.ossModuleRule(m.GetName(), m.GetPath()))
+	l.ossModuleRule(m.GetName(), m.GetPath())
 
-	result.CorrespondToMaxLevel()
-
-	o.ErrorList.Merge(result)
-
-	return result
+	return nil
 }
 
-func (o *OSS) Name() string {
-	return o.name
+func (l *OSS) Name() string {
+	return l.name
 }
 
-func (o *OSS) Desc() string {
-	return o.desc
+func (l *OSS) Desc() string {
+	return l.desc
 }
