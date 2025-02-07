@@ -12,6 +12,10 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
+const (
+	ID = "no-cyrillic"
+)
+
 // NoCyrillic linter
 type NoCyrillic struct {
 	name, desc     string
@@ -38,7 +42,7 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *NoCyri
 		skipI18NRe:     regexp.MustCompile(skipSelfRe),
 		skipSelfRe:     regexp.MustCompile(skipI18NRe),
 		cfg:            &cfg.LintersSettings.NoCyrillic,
-		ErrorList:      errorList,
+		ErrorList:      errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.NoCyrillic.Impact),
 	}
 }
 

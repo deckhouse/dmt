@@ -21,10 +21,10 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Monito
 	Cfg = &cfg.LintersSettings.Monitoring
 
 	return &Monitoring{
-		name:      "monitoring",
+		name:      ID,
 		desc:      "Lint monitoring rules",
 		cfg:       &cfg.LintersSettings.Monitoring,
-		ErrorList: errorList,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Monitoring.Impact),
 	}
 }
 

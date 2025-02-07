@@ -23,7 +23,7 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Contai
 	Cfg = &cfg.LintersSettings.Container
 
 	return &Container{
-		name:      "container",
+		name:      ID,
 		desc:      "Lint container objects",
 		cfg:       &cfg.LintersSettings.Container,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Container.Impact),

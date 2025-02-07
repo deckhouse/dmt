@@ -21,10 +21,10 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Module
 	Cfg = &cfg.LintersSettings.Module
 
 	return &Module{
-		name:      "module",
+		name:      ID,
 		desc:      "Lint module rules",
 		cfg:       &cfg.LintersSettings.Module,
-		ErrorList: errorList,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Module.Impact),
 	}
 }
 

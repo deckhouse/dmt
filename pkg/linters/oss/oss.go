@@ -6,6 +6,10 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
+const (
+	ID = "oss"
+)
+
 // Copyright linter
 type OSS struct {
 	name, desc string
@@ -15,10 +19,10 @@ type OSS struct {
 
 func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *OSS {
 	return &OSS{
-		name:      "oss",
+		name:      ID,
 		desc:      "Copyright will check oss license file",
 		cfg:       &cfg.LintersSettings.OSS,
-		ErrorList: errorList,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.OSS.Impact),
 	}
 }
 

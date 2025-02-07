@@ -6,6 +6,10 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
+const (
+	ID = "openapi"
+)
+
 // OpenAPI linter
 type OpenAPI struct {
 	name, desc string
@@ -15,10 +19,10 @@ type OpenAPI struct {
 
 func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *OpenAPI {
 	return &OpenAPI{
-		name:      "openapi",
+		name:      ID,
 		desc:      "OpenAPI will check all openapi files in the module",
 		cfg:       &cfg.LintersSettings.OpenAPI,
-		ErrorList: errorList,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.OpenAPI.Impact),
 	}
 }
 

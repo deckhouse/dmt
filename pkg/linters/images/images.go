@@ -7,6 +7,10 @@ import (
 	"github.com/deckhouse/dmt/pkg/linters/images/rules"
 )
 
+const (
+	ID = "images"
+)
+
 // Images linter
 type Images struct {
 	name, desc string
@@ -18,10 +22,10 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Images
 	rules.Cfg = &cfg.LintersSettings.Images
 
 	return &Images{
-		name:      "images",
+		name:      ID,
 		desc:      "Lint docker images",
 		cfg:       &cfg.LintersSettings.Images,
-		ErrorList: errorList,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Images.Impact),
 	}
 }
 
