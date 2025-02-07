@@ -7,6 +7,10 @@ import (
 	"github.com/deckhouse/dmt/pkg/linters/rbac/roles"
 )
 
+const (
+	ID = "rbac"
+)
+
 // Rbac linter
 type Rbac struct {
 	name, desc string
@@ -18,10 +22,10 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Rbac {
 	roles.Cfg = &cfg.LintersSettings.Rbac
 
 	return &Rbac{
-		name:      "rbac",
+		name:      ID,
 		desc:      "Lint rbac objects",
 		cfg:       &cfg.LintersSettings.Rbac,
-		ErrorList: errorList,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Rbac.Impact),
 	}
 }
 

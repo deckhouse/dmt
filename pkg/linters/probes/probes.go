@@ -13,6 +13,10 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
+const (
+	ID = "probes"
+)
+
 // Probes linter
 type Probes struct {
 	name, desc string
@@ -22,10 +26,10 @@ type Probes struct {
 
 func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Probes {
 	return &Probes{
-		name:      "probes",
+		name:      ID,
 		desc:      "Probes will check all containers for correct liveness and readiness probes",
 		cfg:       &cfg.LintersSettings.Probes,
-		ErrorList: errorList,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Probes.Impact),
 	}
 }
 
