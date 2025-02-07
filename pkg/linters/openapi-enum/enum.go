@@ -33,10 +33,6 @@ func NewEnumValidator(cfg *config.OpenAPIEnumSettings) EnumValidator {
 	}
 }
 
-func (EnumValidator) GetKey() string {
-	return "enum"
-}
-
 func (en EnumValidator) Run(moduleName, absoluteKey string, value any) error {
 	parts := strings.Split(absoluteKey, ".")
 	if parts[len(parts)-1] != "enum" {
