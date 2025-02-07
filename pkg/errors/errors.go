@@ -39,8 +39,8 @@ func (s *errStorage) GetErrors() []lintRuleError {
 	return s.errList
 }
 
-func (s *errStorage) Add(err lintRuleError) {
-	s.errList = append(s.errList, err)
+func (s *errStorage) Add(err *lintRuleError) {
+	s.errList = append(s.errList, *err)
 }
 
 type LintRuleErrorsList struct {
@@ -242,7 +242,7 @@ func (l *LintRuleErrorsList) add(str string, level pkg.Level) *LintRuleErrorsLis
 		Level:       level,
 	}
 
-	l.storage.Add(e)
+	l.storage.Add(&e)
 
 	return l
 }

@@ -37,10 +37,10 @@ type configValues struct {
 }
 
 //nolint:gocyclo // hate this linter
-func (c *Conversions) checkModuleYaml(moduleName, modulePath string) {
-	errorList := c.ErrorList.WithModule(moduleName)
+func (l *Conversions) checkModuleYaml(moduleName, modulePath string) {
+	errorList := l.ErrorList.WithModule(moduleName)
 
-	_, ok := c.cfg.SkipCheckModule[moduleName]
+	_, ok := l.cfg.SkipCheckModule[moduleName]
 	if ok {
 		return
 	}
@@ -133,8 +133,8 @@ func (c *Conversions) checkModuleYaml(moduleName, modulePath string) {
 
 	slices.Sort(versions)
 
-	if c.cfg.FirstVersion != 0 && versions[0] != c.cfg.FirstVersion {
-		errorList.Errorf("You need to start with version number: %d", c.cfg.FirstVersion)
+	if l.cfg.FirstVersion != 0 && versions[0] != l.cfg.FirstVersion {
+		errorList.Errorf("You need to start with version number: %d", l.cfg.FirstVersion)
 	}
 
 	for i := 1; i < len(versions); i++ {
