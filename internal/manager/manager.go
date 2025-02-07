@@ -44,11 +44,8 @@ type Linter interface {
 	Name() string
 }
 
-type LinterList []Linter
-
 type Manager struct {
 	cfg     *config.RootConfig
-	Linters LinterList
 	Modules []*module.Module
 
 	errors *errors.LintRuleErrorsList
