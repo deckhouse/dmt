@@ -90,7 +90,7 @@ func fillVPAMaps(
 	vpa storage.StoreObject,
 	errorList *errors.LintRuleErrorsList,
 ) {
-	target, ok := parseVPATargetIndex(vpa, errorList.WithObjectID(vpa.Identity()))
+	target, ok := parseVPATargetIndex(vpa, errorList)
 	if !ok {
 		return
 	}
@@ -102,7 +102,7 @@ func fillVPAMaps(
 		vpaTolerationGroups[target] = label
 	}
 
-	updateMode, vnm, ok := parseVPAResourcePolicyContainers(vpa, errorList.WithObjectID(vpa.Identity()))
+	updateMode, vnm, ok := parseVPAResourcePolicyContainers(vpa, errorList)
 	if !ok {
 		return
 	}
@@ -113,13 +113,15 @@ func fillVPAMaps(
 
 // parseVPAResourcePolicyContainers parses VPA containers names in ResourcePolicy and check if minAllowed and maxAllowed for container is set
 func parseVPAResourcePolicyContainers(vpaObject storage.StoreObject, errorList *errors.LintRuleErrorsList) (UpdateMode, set.Set, bool) {
+	errorListObj := errorList.WithObjectID(vpaObject.Identity())
+
 	containers := set.New()
 
 	v := &VerticalPodAutoscaler{}
 	err := sdk.FromUnstructured(&vpaObject.Unstructured, v)
 
 	if err != nil {
-		errorList.Errorf("Cannot unmarshal VPA object: %v", err)
+		errorListObj.Errorf("Cannot unmarshal VPA object: %v", err)
 
 		return "", containers, false
 	}
@@ -130,34 +132,34 @@ func parseVPAResourcePolicyContainers(vpaObject storage.StoreObject, errorList *
 	}
 
 	if v.Spec.ResourcePolicy == nil || len(v.Spec.ResourcePolicy.ContainerPolicies) == 0 {
-		errorList.Error("No VPA specs resourcePolicy.containerPolicies is found for object")
+		errorListObj.Error("No VPA specs resourcePolicy.containerPolicies is found for object")
 
 		return updateMode, containers, false
 	}
 
 	for _, cp := range v.Spec.ResourcePolicy.ContainerPolicies {
 		if cp.MinAllowed.Cpu().IsZero() {
-			errorList.Errorf("No VPA specs minAllowed.cpu is found for container %s", cp.ContainerName)
+			errorListObj.Errorf("No VPA specs minAllowed.cpu is found for container %s", cp.ContainerName)
 		}
 
 		if cp.MinAllowed.Memory().IsZero() {
-			errorList.Errorf("No VPA specs minAllowed.memory is found for container %s", cp.ContainerName)
+			errorListObj.Errorf("No VPA specs minAllowed.memory is found for container %s", cp.ContainerName)
 		}
 
 		if cp.MaxAllowed.Cpu().IsZero() {
-			errorList.Errorf("No VPA specs maxAllowed.cpu is found for container %s", cp.ContainerName)
+			errorListObj.Errorf("No VPA specs maxAllowed.cpu is found for container %s", cp.ContainerName)
 		}
 
 		if cp.MaxAllowed.Memory().IsZero() {
-			errorList.Errorf("No VPA specs maxAllowed.memory is found for container %s", cp.ContainerName)
+			errorListObj.Errorf("No VPA specs maxAllowed.memory is found for container %s", cp.ContainerName)
 		}
 
 		if cp.MinAllowed.Cpu().Cmp(*cp.MaxAllowed.Cpu()) > 0 {
-			errorList.Errorf("MinAllowed.cpu for container %s should be less than maxAllowed.cpu", cp.ContainerName)
+			errorListObj.Errorf("MinAllowed.cpu for container %s should be less than maxAllowed.cpu", cp.ContainerName)
 		}
 
 		if cp.MinAllowed.Memory().Cmp(*cp.MaxAllowed.Memory()) > 0 {
-			errorList.Errorf("MinAllowed.memory for container %s should be less than maxAllowed.memory", cp.ContainerName)
+			errorListObj.Errorf("MinAllowed.memory for container %s should be less than maxAllowed.memory", cp.ContainerName)
 		}
 
 		containers.Add(cp.ContainerName)
@@ -168,17 +170,19 @@ func parseVPAResourcePolicyContainers(vpaObject storage.StoreObject, errorList *
 
 // parseVPATargetIndex parses VPA target resource index, writes to the passed struct pointer
 func parseVPATargetIndex(vpaObject storage.StoreObject, errorList *errors.LintRuleErrorsList) (storage.ResourceIndex, bool) {
+	errorListObj := errorList.WithObjectID(vpaObject.Identity())
+
 	target := storage.ResourceIndex{}
 	specs, ok := vpaObject.Unstructured.Object["spec"].(map[string]any)
 	if !ok {
-		errorList.Error("No VPA specs is found for object")
+		errorListObj.Error("No VPA specs is found for object")
 
 		return target, false
 	}
 
 	targetRef, ok := specs["targetRef"].(map[string]any)
 	if !ok {
-		errorList.Error("No VPA specs targetRef is found for object")
+		errorListObj.Error("No VPA specs targetRef is found for object")
 
 		return target, false
 	}
