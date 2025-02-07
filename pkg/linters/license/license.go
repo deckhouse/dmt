@@ -10,6 +10,10 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
+const (
+	ID = "license"
+)
+
 // Copyright linter
 type Copyright struct {
 	name, desc string
@@ -19,44 +23,43 @@ type Copyright struct {
 
 func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Copyright {
 	return &Copyright{
-		name:      "license",
+		name:      ID,
 		desc:      "Copyright will check all files in the modules for contains copyright",
 		cfg:       &cfg.LintersSettings.License,
-		ErrorList: errorList,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.License.Impact),
 	}
 }
 
-func (o *Copyright) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(o.Name(), m.GetName()).WithMaxLevel(o.cfg.Impact)
-
+func (l *Copyright) Run(m *module.Module) *errors.LintRuleErrorsList {
 	if m.GetPath() == "" {
-		return result
+		return nil
 	}
+
+	errorList := l.ErrorList.WithModule(m.GetName())
+
 	files, err := getFiles(m.GetPath())
 	if err != nil {
-		return result.WithValue(err.Error()).Add("error getting files in `%s` module", m.GetName())
+		errorList.Error("error getting files")
+
+		return nil
 	}
 
 	for _, fileName := range files {
 		name, _ := strings.CutPrefix(fileName, m.GetPath())
 		name = m.GetName() + ":" + name
-		if slices.Contains(o.cfg.CopyrightExcludes, name) {
+		if slices.Contains(l.cfg.CopyrightExcludes, name) {
 			continue
 		}
 
 		ok, err := checkFileCopyright(fileName)
 		if !ok {
 			path, _ := strings.CutPrefix(fileName, m.GetPath())
-			result.WithObjectID(path).WithValue(err).
-				Add("errors in `%s` module", m.GetName())
+
+			errorList.WithFilePath(path).Error(err.Error())
 		}
 	}
 
-	result.CorrespondToMaxLevel()
-
-	o.ErrorList.Merge(result)
-
-	return result
+	return nil
 }
 
 func getFiles(rootPath string) ([]string, error) {
@@ -75,10 +78,10 @@ func getFiles(rootPath string) ([]string, error) {
 	return result, nil
 }
 
-func (o *Copyright) Name() string {
-	return o.name
+func (l *Copyright) Name() string {
+	return l.name
 }
 
-func (o *Copyright) Desc() string {
-	return o.desc
+func (l *Copyright) Desc() string {
+	return l.desc
 }
