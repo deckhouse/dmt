@@ -35,7 +35,7 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *NoCyri
 	skipI18NRe := `/i18n/`
 
 	return &NoCyrillic{
-		name:           "no-cyrillic",
+		name:           ID,
 		desc:           "NoCyrillic will check all files in the modules for contains cyrillic symbols",
 		fileExtensions: fileExtensions,
 		skipDocRe:      regexp.MustCompile(skipDocRe),
@@ -46,70 +46,68 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *NoCyri
 	}
 }
 
-func (o *NoCyrillic) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList("no-cyrillic", m.GetName()).WithMaxLevel(o.cfg.Impact)
+func (l *NoCyrillic) Run(m *module.Module) *errors.LintRuleErrorsList {
+	errorList := l.ErrorList.WithModule(m.GetName())
 
 	if m.GetPath() == "" {
-		return result
+		return nil
 	}
 
-	files, err := o.getFiles(m.GetPath())
+	files, err := l.getFiles(m.GetPath())
 	if err != nil {
-		result.WithValue([]string{err.Error()}).
-			Add("error in `%s` module", m.GetName())
+		errorList.Error(err.Error())
 
-		return result
+		return nil
 	}
 
 	for _, fileName := range files {
 		name, _ := strings.CutPrefix(fileName, m.GetPath())
 		name = m.GetName() + ":" + name
-		if slices.Contains(o.cfg.NoCyrillicFileExcludes, name) {
-			continue
-		}
-		if o.skipDocRe.MatchString(fileName) {
+
+		if slices.Contains(l.cfg.NoCyrillicFileExcludes, name) {
 			continue
 		}
 
-		if o.skipI18NRe.MatchString(fileName) {
+		if l.skipDocRe.MatchString(fileName) {
 			continue
 		}
 
-		if o.skipSelfRe.MatchString(fileName) {
+		if l.skipI18NRe.MatchString(fileName) {
+			continue
+		}
+
+		if l.skipSelfRe.MatchString(fileName) {
 			continue
 		}
 
 		lines, err := getFileContent(fileName)
 		if err != nil {
-			result.WithValue([]string{err.Error()}).
-				Add("error in `%s` module", m.GetName())
-			return result
+			errorList.Error(err.Error())
+
+			return nil
 		}
 
 		cyrMsg, hasCyr := checkCyrillicLettersInArray(lines)
 		fName, _ := strings.CutPrefix(fileName, m.GetPath())
 		if hasCyr {
-			result.WithObjectID(fName).WithValue(addPrefix(strings.Split(cyrMsg, "\n"), "\t")).
-				Add("errors in `%s` module", m.GetName())
+			errorList.WithObjectID(fName).WithValue(addPrefix(strings.Split(cyrMsg, "\n"), "\t")).
+				Error("has cyrillic letters")
 		}
 	}
 
-	result.CorrespondToMaxLevel()
-
-	o.ErrorList.Merge(result)
-
-	return result
+	return nil
 }
 
-func (o *NoCyrillic) getFiles(rootPath string) ([]string, error) {
+func (l *NoCyrillic) getFiles(rootPath string) ([]string, error) {
 	var result []string
+
 	files, err := fsutils.GetFiles(rootPath, false)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, file := range files {
-		if slices.ContainsFunc(o.fileExtensions, func(s string) bool {
+		if slices.ContainsFunc(l.fileExtensions, func(s string) bool {
 			return strings.HasSuffix(file, s)
 		}) {
 			result = append(result, file)
@@ -124,15 +122,16 @@ func getFileContent(filename string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	sliceData := strings.Split(string(fileBytes), "\n")
 
 	return sliceData, nil
 }
 
-func (o *NoCyrillic) Name() string {
-	return o.name
+func (l *NoCyrillic) Name() string {
+	return l.name
 }
 
-func (o *NoCyrillic) Desc() string {
-	return o.desc
+func (l *NoCyrillic) Desc() string {
+	return l.desc
 }
