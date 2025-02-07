@@ -31,12 +31,7 @@ func (o *OpenAPI) Run(m *module.Module) *errors.LintRuleErrorsList {
 	if m.GetPath() == "" {
 		return result
 	}
-
-	apiFiles, err := GetOpenAPIYAMLFiles(m.GetPath())
-	if err != nil {
-		result.WithValue(err.Error()).Add("failed to get openapi files in `%s` module", m.GetName())
-		return result
-	}
+	apiFiles := GetOpenAPIYAMLFiles(m.GetPath())
 
 	filesC := make(chan fileValidation, len(apiFiles))
 	resultC := RunOpenAPIValidator(filesC, o.cfg)

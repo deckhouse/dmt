@@ -30,12 +30,9 @@ type fileValidation struct {
 }
 
 // GetOpenAPIYAMLFiles returns all .yaml files which are placed into openapi/ | crds/ directory
-func GetOpenAPIYAMLFiles(rootPath string) ([]string, error) {
+func GetOpenAPIYAMLFiles(rootPath string) []string {
 	var result []string
-	files, err := fsutils.GetFiles(rootPath, false)
-	if err != nil {
-		return nil, err
-	}
+	files := fsutils.GetFiles(rootPath, false)
 	for _, file := range files {
 		if !strings.HasSuffix(file, ".yaml") {
 			continue
@@ -66,7 +63,7 @@ func GetOpenAPIYAMLFiles(rootPath string) ([]string, error) {
 		result = append(result, p)
 	}
 
-	return result, err
+	return result
 }
 
 // RunOpenAPIValidator runs validator, get channel with file paths and returns channel with results

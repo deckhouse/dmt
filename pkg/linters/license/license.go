@@ -37,13 +37,7 @@ func (l *Copyright) Run(m *module.Module) *errors.LintRuleErrorsList {
 
 	errorList := l.ErrorList.WithModule(m.GetName())
 
-	files, err := getFiles(m.GetPath())
-	if err != nil {
-		errorList.Error("error getting files")
-
-		return nil
-	}
-
+	files := fsutils.GetFiles(m.GetPath(), false, filterFiles)
 	for _, fileName := range files {
 		name, _ := strings.CutPrefix(fileName, m.GetPath())
 		name = m.GetName() + ":" + name
@@ -62,20 +56,11 @@ func (l *Copyright) Run(m *module.Module) *errors.LintRuleErrorsList {
 	return nil
 }
 
-func getFiles(rootPath string) ([]string, error) {
-	files, err := fsutils.GetFiles(rootPath, true)
-	if err != nil {
-		return nil, err
+func filterFiles(path string) bool {
+	if fileToCheckRe.MatchString(path) && !fileToSkipRe.MatchString(path) {
+		return true
 	}
-
-	var result []string
-	for _, path := range files {
-		if fileToCheckRe.MatchString(path) && !fileToSkipRe.MatchString(path) {
-			result = append(result, path)
-		}
-	}
-
-	return result, nil
+	return false
 }
 
 func (l *Copyright) Name() string {

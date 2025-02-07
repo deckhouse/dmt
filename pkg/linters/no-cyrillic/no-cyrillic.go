@@ -18,26 +18,27 @@ const (
 
 // NoCyrillic linter
 type NoCyrillic struct {
-	name, desc     string
-	cfg            *config.NoCyrillicSettings
-	fileExtensions []string
-	skipDocRe      *regexp.Regexp
-	skipI18NRe     *regexp.Regexp
-	skipSelfRe     *regexp.Regexp
-	ErrorList      *errors.LintRuleErrorsList
+	name, desc string
+	cfg        *config.NoCyrillicSettings
+	skipDocRe  *regexp.Regexp
+	skipI18NRe *regexp.Regexp
+	skipSelfRe *regexp.Regexp
+	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *NoCyrillic {
+var (
+	fileExtensions = []string{"yaml", "yml", "json", "go"}
+	skipDocRe      = `doc-ru-.+\.y[a]?ml$|_RU\.md$|_ru\.html$|docs/site/_.+|docs/documentation/_.+|tools/spelling/.+|openapi/conversions/.+`
+	skipSelfRe     = `no_cyrillic(_test)?.go$`
+	skipI18NRe     = `/i18n/`
+)
+
+func New(cfg *config.NoCyrillicSettings) *NoCyrillic {
 	// default settings for no-cyrillic
-	fileExtensions := []string{"yaml", "yml", "json", "go"}
-	skipDocRe := `doc-ru-.+\.y[a]?ml$|_RU\.md$|_ru\.html$|docs/site/_.+|docs/documentation/_.+|tools/spelling/.+|openapi/conversions/.+`
-	skipSelfRe := `no_cyrillic(_test)?.go$`
-	skipI18NRe := `/i18n/`
 
 	return &NoCyrillic{
 		name:           ID,
 		desc:           "NoCyrillic will check all files in the modules for contains cyrillic symbols",
-		fileExtensions: fileExtensions,
 		skipDocRe:      regexp.MustCompile(skipDocRe),
 		skipI18NRe:     regexp.MustCompile(skipSelfRe),
 		skipSelfRe:     regexp.MustCompile(skipI18NRe),
@@ -53,13 +54,7 @@ func (l *NoCyrillic) Run(m *module.Module) *errors.LintRuleErrorsList {
 		return nil
 	}
 
-	files, err := l.getFiles(m.GetPath())
-	if err != nil {
-		errorList.Error(err.Error())
-
-		return nil
-	}
-
+	files := fsutils.GetFiles(m.GetPath(), false, filterFiles)
 	for _, fileName := range files {
 		name, _ := strings.CutPrefix(fileName, m.GetPath())
 		name = m.GetName() + ":" + name
@@ -98,23 +93,14 @@ func (l *NoCyrillic) Run(m *module.Module) *errors.LintRuleErrorsList {
 	return nil
 }
 
-func (l *NoCyrillic) getFiles(rootPath string) ([]string, error) {
-	var result []string
-
-	files, err := fsutils.GetFiles(rootPath, false)
-	if err != nil {
-		return nil, err
+func filterFiles(path string) bool {
+	if slices.ContainsFunc(fileExtensions, func(s string) bool {
+		return strings.HasSuffix(path, s)
+	}) {
+		return true
 	}
 
-	for _, file := range files {
-		if slices.ContainsFunc(l.fileExtensions, func(s string) bool {
-			return strings.HasSuffix(file, s)
-		}) {
-			result = append(result, file)
-		}
-	}
-
-	return result, nil
+	return false
 }
 
 func getFileContent(filename string) ([]string, error) {
