@@ -10,37 +10,36 @@ const (
 	ID = "kube-rbac-proxy-resources"
 )
 
-// Object linter
-type Object struct {
+// KubeRbacProxy linter
+type KubeRbacProxy struct {
 	name, desc string
 	cfg        *config.K8SResourcesSettings
+	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *config.K8SResourcesSettings) *Object {
-	skipKubeRbacProxyChecks = cfg.SkipKubeRbacProxyChecks
-
-	return &Object{
-		name: "kube-rbac-proxy-resources",
-		desc: "Lint kube-rbac-proxy-resources",
-		cfg:  cfg,
+func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *KubeRbacProxy {
+	return &KubeRbacProxy{
+		name:      ID,
+		desc:      "Lint kube-rbac-proxy-resources",
+		cfg:       &cfg.LintersSettings.K8SResources,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.K8SResources.Impact),
 	}
 }
 
-func (o *Object) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(o.Name(), m.GetName())
+func (l *KubeRbacProxy) Run(m *module.Module) *errors.LintRuleErrorsList {
 	if m == nil {
-		return result
+		return nil
 	}
 
-	result.Merge(namespaceMustContainKubeRBACProxyCA(m.GetName(), m.GetObjectStore()))
+	l.namespaceMustContainKubeRBACProxyCA(m.GetName(), m.GetObjectStore())
 
-	return result
+	return nil
 }
 
-func (o *Object) Name() string {
-	return o.name
+func (l *KubeRbacProxy) Name() string {
+	return l.name
 }
 
-func (o *Object) Desc() string {
-	return o.desc
+func (l *KubeRbacProxy) Desc() string {
+	return l.desc
 }

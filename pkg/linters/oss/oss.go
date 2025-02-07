@@ -6,32 +6,38 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
+const (
+	ID = "oss"
+)
+
 // Copyright linter
 type OSS struct {
 	name, desc string
 	cfg        *config.OSSSettings
+	ErrorList  *errors.LintRuleErrorsList
 }
 
-var Cfg *config.OSSSettings
-
-func New(cfg *config.OSSSettings) *OSS {
-	Cfg = cfg
-
+func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *OSS {
 	return &OSS{
-		name: "oss",
-		desc: "Copyright will check oss license file",
-		cfg:  cfg,
+		name:      ID,
+		desc:      "Copyright will check oss license file",
+		cfg:       &cfg.LintersSettings.OSS,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.OSS.Impact),
 	}
 }
 
 func (o *OSS) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(o.Name(), m.GetName())
+	result := errors.NewLinterRuleList(o.Name(), m.GetName()).WithMaxLevel(o.cfg.Impact)
 
 	if m.GetPath() == "" {
 		return result
 	}
 
-	result.Merge(ossModuleRule(m.GetName(), m.GetPath()))
+	result.Merge(o.ossModuleRule(m.GetName(), m.GetPath()))
+
+	result.CorrespondToMaxLevel()
+
+	o.ErrorList.Merge(result)
 
 	return result
 }

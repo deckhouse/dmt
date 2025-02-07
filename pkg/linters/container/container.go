@@ -16,35 +16,41 @@ var Cfg *config.ContainerSettings
 type Container struct {
 	name, desc string
 	cfg        *config.ContainerSettings
+	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *config.ContainerSettings) *Container {
-	Cfg = cfg
+func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Container {
+	Cfg = &cfg.LintersSettings.Container
 
 	return &Container{
-		name: "container",
-		desc: "Lint container objects",
-		cfg:  cfg,
+		name:      ID,
+		desc:      "Lint container objects",
+		cfg:       &cfg.LintersSettings.Container,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Container.Impact),
 	}
 }
 
-func (*Container) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, m.GetName())
+func (l *Container) Run(m *module.Module) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList("images", m.GetName()).WithMaxLevel(l.cfg.Impact)
 	if m == nil {
 		return result
 	}
 
 	for _, object := range m.GetStorage() {
-		result.Merge(applyContainerRules(m, object))
+		result.Merge(l.applyContainerRules(m, object))
 	}
 
-	return result
+	result.CorrespondToMaxLevel()
+
+	l.ErrorList.Merge(result)
+
+	return l.ErrorList
 }
 
-func (o *Container) Name() string {
-	return o.name
+func (l *Container) Name() string {
+	return l.name
 }
 
-func (o *Container) Desc() string {
-	return o.desc
+func (l *Container) Desc() string {
+	return l.desc
 }

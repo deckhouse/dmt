@@ -10,24 +10,26 @@ import (
 type Monitoring struct {
 	name, desc string
 	cfg        *config.MonitoringSettings
+	ErrorList  *errors.LintRuleErrorsList
 }
 
 const ID = "monitoring"
 
 var Cfg *config.MonitoringSettings
 
-func New(cfg *config.MonitoringSettings) *Monitoring {
-	Cfg = cfg
+func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Monitoring {
+	Cfg = &cfg.LintersSettings.Monitoring
 
 	return &Monitoring{
-		name: "monitoring",
-		desc: "Lint monitoring rules",
-		cfg:  cfg,
+		name:      ID,
+		desc:      "Lint monitoring rules",
+		cfg:       &cfg.LintersSettings.Monitoring,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Monitoring.Impact),
 	}
 }
 
-func (*Monitoring) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, m.GetName())
+func (o *Monitoring) Run(m *module.Module) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList(ID, m.GetName()).WithMaxLevel(o.cfg.Impact)
 	if m == nil {
 		return result
 	}
@@ -38,6 +40,10 @@ func (*Monitoring) Run(m *module.Module) *errors.LintRuleErrorsList {
 	for _, object := range m.GetStorage() {
 		result.Merge(PromtoolRuleCheck(m, object))
 	}
+
+	result.CorrespondToMaxLevel()
+
+	o.ErrorList.Merge(result)
 
 	return result
 }

@@ -9,7 +9,9 @@ import (
 // Conversions linter
 type Conversions struct {
 	name, desc string
-	cfg        *config.ConversionsSettings
+	cfg        *ConversionsSettings
+
+	ErrorList *errors.LintRuleErrorsList
 }
 
 type ConversionsSettings struct {
@@ -21,36 +23,31 @@ type ConversionsSettings struct {
 
 const ID = "conversions"
 
-var cfg *ConversionsSettings
-
-func New(inputCfg *config.ConversionsSettings) *Conversions {
-	cfg = remapConversionsConfig(inputCfg)
-
+func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Conversions {
 	return &Conversions{
-		name: ID,
-		desc: "Lint conversions rules",
-		cfg:  inputCfg,
+		name:      ID,
+		desc:      "Lint conversions rules",
+		cfg:       remapConversionsConfig(&cfg.LintersSettings.Conversions),
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Conversions.Impact),
 	}
 }
 
-func (*Conversions) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, m.GetName())
-
+func (l *Conversions) Run(m *module.Module) *errors.LintRuleErrorsList {
 	if m == nil {
-		return result
+		return nil
 	}
 
-	result.Merge(checkModuleYaml(m.GetName(), m.GetPath()))
+	l.checkModuleYaml(m.GetName(), m.GetPath())
 
-	return result
+	return nil
 }
 
-func (o *Conversions) Name() string {
-	return o.name
+func (l *Conversions) Name() string {
+	return l.name
 }
 
-func (o *Conversions) Desc() string {
-	return o.desc
+func (l *Conversions) Desc() string {
+	return l.desc
 }
 
 func remapConversionsConfig(input *config.ConversionsSettings) *ConversionsSettings {

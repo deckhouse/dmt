@@ -6,25 +6,32 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
+const (
+	ID = "openapi"
+)
+
 // OpenAPI linter
 type OpenAPI struct {
 	name, desc string
 	cfg        *config.OpenAPISettings
+	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *config.OpenAPISettings) *OpenAPI {
+func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *OpenAPI {
 	return &OpenAPI{
-		name: "openapi",
-		desc: "OpenAPI will check all openapi files in the module",
-		cfg:  cfg,
+		name:      ID,
+		desc:      "OpenAPI will check all openapi files in the module",
+		cfg:       &cfg.LintersSettings.OpenAPI,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.OpenAPI.Impact),
 	}
 }
 
 func (o *OpenAPI) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList("openapi", m.GetName())
+	result := errors.NewLinterRuleList("openapi", m.GetName()).WithMaxLevel(o.cfg.Impact)
 	if m.GetPath() == "" {
 		return result
 	}
+
 	apiFiles, err := GetOpenAPIYAMLFiles(m.GetPath())
 	if err != nil {
 		result.WithValue(err.Error()).Add("failed to get openapi files in `%s` module", m.GetName())
@@ -49,6 +56,10 @@ func (o *OpenAPI) Run(m *module.Module) *errors.LintRuleErrorsList {
 				WithValue(res.validationError.Error()).Add("errors in `%s` module", m.GetName())
 		}
 	}
+
+	result.CorrespondToMaxLevel()
+
+	o.ErrorList.Merge(result)
 
 	return result
 }

@@ -5,16 +5,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/deckhouse/dmt/pkg/linters/conversions"
-	"github.com/deckhouse/dmt/pkg/linters/crd-resources"
-	"github.com/deckhouse/dmt/pkg/linters/ingress"
-	rbacproxy "github.com/deckhouse/dmt/pkg/linters/kube-rbac-proxy"
-	moduleLinter "github.com/deckhouse/dmt/pkg/linters/module"
-	"github.com/deckhouse/dmt/pkg/linters/monitoring"
-	"github.com/deckhouse/dmt/pkg/linters/oss"
-	"github.com/deckhouse/dmt/pkg/linters/pdb-resources"
-	"github.com/deckhouse/dmt/pkg/linters/vpa-resources"
-
 	"github.com/mitchellh/go-homedir"
 	"github.com/sourcegraph/conc/pool"
 
@@ -24,12 +14,21 @@ import (
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/container"
+	"github.com/deckhouse/dmt/pkg/linters/conversions"
+	"github.com/deckhouse/dmt/pkg/linters/crd-resources"
 	"github.com/deckhouse/dmt/pkg/linters/images"
+	"github.com/deckhouse/dmt/pkg/linters/ingress"
+	rbacproxy "github.com/deckhouse/dmt/pkg/linters/kube-rbac-proxy"
 	"github.com/deckhouse/dmt/pkg/linters/license"
+	moduleLinter "github.com/deckhouse/dmt/pkg/linters/module"
+	"github.com/deckhouse/dmt/pkg/linters/monitoring"
 	no_cyrillic "github.com/deckhouse/dmt/pkg/linters/no-cyrillic"
 	"github.com/deckhouse/dmt/pkg/linters/openapi"
+	"github.com/deckhouse/dmt/pkg/linters/oss"
+	"github.com/deckhouse/dmt/pkg/linters/pdb-resources"
 	"github.com/deckhouse/dmt/pkg/linters/probes"
 	"github.com/deckhouse/dmt/pkg/linters/rbac"
+	"github.com/deckhouse/dmt/pkg/linters/vpa-resources"
 )
 
 const (
@@ -40,37 +39,23 @@ const (
 	OpenAPIDir          = "openapi"
 )
 
+type Linter interface {
+	Run(m *module.Module) *errors.LintRuleErrorsList
+	Name() string
+}
+
 type Manager struct {
-	cfg     *config.Config
-	Linters LinterList
+	cfg     *config.RootConfig
 	Modules []*module.Module
 
 	errors *errors.LintRuleErrorsList
 }
 
-func NewManager(dirs []string, cfg *config.Config) *Manager {
+func NewManager(dirs []string, rootConfig *config.RootConfig) *Manager {
 	m := &Manager{
-		cfg: cfg,
-	}
+		cfg: rootConfig,
 
-	// fill all linters
-	m.Linters = []Linter{
-		openapi.New(&cfg.LintersSettings.OpenAPI),
-		no_cyrillic.New(&cfg.LintersSettings.NoCyrillic),
-		license.New(&cfg.LintersSettings.License),
-		oss.New(&cfg.LintersSettings.OSS),
-		probes.New(&cfg.LintersSettings.Probes),
-		container.New(&cfg.LintersSettings.Container),
-		rbacproxy.New(&cfg.LintersSettings.K8SResources),
-		vpa.New(&cfg.LintersSettings.VPAResources),
-		pdb.New(&cfg.LintersSettings.PDBResources),
-		crd.New(&cfg.LintersSettings.CRDResources),
-		images.New(&cfg.LintersSettings.Images),
-		rbac.New(&cfg.LintersSettings.Rbac),
-		monitoring.New(&cfg.LintersSettings.Monitoring),
-		ingress.New(&cfg.LintersSettings.Ingress),
-		moduleLinter.New(&cfg.LintersSettings.Module),
-		conversions.New(&cfg.LintersSettings.Conversions),
+		errors: errors.NewLintRuleErrorsList(),
 	}
 
 	var paths []string
@@ -89,59 +74,75 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 		paths = append(paths, result...)
 	}
 
-	errorsList := errors.NewLinterRuleList("manager")
-
 	for i := range paths {
 		moduleName := filepath.Base(paths[i])
 		logger.DebugF("Found `%s` module", moduleName)
 		mdl, err := module.NewModule(paths[i])
 		if err != nil {
-			errorsList.
+			m.errors.
 				WithModule(moduleName).
 				WithObjectID(paths[i]).
 				WithValue(err.Error()).
-				Add("cannot create module `%s`", moduleName)
+				Errorf("cannot create module `%s`", moduleName)
 			continue
 		}
+
+		mdl.MergeRootConfig(rootConfig)
+
 		m.Modules = append(m.Modules, mdl)
 	}
-
-	m.errors = errorsList
 
 	logger.InfoF("Found %d modules", len(m.Modules))
 
 	return m
 }
 
-func (m *Manager) Run() *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList("manager")
+func (m *Manager) Run() {
+	var g = pool.New().WithMaxGoroutines(flags.LintersLimit)
+	for _, module := range m.Modules {
+		logger.InfoF("Run linters for `%s` module", module.GetName())
 
-	var ch = make(chan *errors.LintRuleErrorsList)
-	go func() {
-		var g = pool.New().WithMaxGoroutines(flags.LintersLimit)
-		for i := range m.Modules {
-			logger.InfoF("Run linters for `%s` module", m.Modules[i].GetName())
-			for j := range m.Linters {
-				g.Go(func() {
-					logger.DebugF("Running linter `%s` on module `%s`", m.Linters[j].Name(), m.Modules[i].GetName())
-					errs := m.Linters[j].Run(m.Modules[i])
-					if errs.ConvertToError() != nil {
-						ch <- errs
-					}
-				})
-			}
+		for _, linter := range getLintersForModule(module.GetModuleConfig(), m.errors) {
+			g.Go(func() {
+				logger.DebugF("Running linter `%s` on module `%s`", linter.Name(), module.GetName())
+
+				linter.Run(module)
+			})
 		}
-		g.Wait()
-		close(ch)
-	}()
-
-	for er := range ch {
-		result.Merge(er)
 	}
+	g.Wait()
+}
 
-	result.Merge(m.errors)
+func getLintersForModule(cfg *config.ModuleConfig, errList *errors.LintRuleErrorsList) []Linter {
+	return []Linter{
+		openapi.New(cfg, errList),
+		no_cyrillic.New(cfg, errList),
+		license.New(cfg, errList),
+		oss.New(cfg, errList),
+		probes.New(cfg, errList),
+		container.New(cfg, errList),
+		rbacproxy.New(cfg, errList),
+		vpa.New(cfg, errList),
+		pdb.New(cfg, errList),
+		crd.New(cfg, errList),
+		images.New(cfg, errList),
+		rbac.New(cfg, errList),
+		monitoring.New(cfg, errList),
+		ingress.New(cfg, errList),
+		moduleLinter.New(cfg, errList),
+		conversions.New(cfg, errList),
+	}
+}
 
-	return result
+func (m *Manager) PrintResult() {
+	convertedError := m.errors.ConvertToError()
+	if convertedError != nil {
+		fmt.Printf("%s\n", convertedError)
+	}
+}
+
+func (m *Manager) HasCriticalErrors() bool {
+	return m.errors.ContainsErrors()
 }
 
 func isExistsOnFilesystem(parts ...string) bool {

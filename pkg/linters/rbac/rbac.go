@@ -7,24 +7,30 @@ import (
 	"github.com/deckhouse/dmt/pkg/linters/rbac/roles"
 )
 
+const (
+	ID = "rbac"
+)
+
 // Rbac linter
 type Rbac struct {
 	name, desc string
-	Cfg        *config.RbacSettings
+	cfg        *config.RbacSettings
+	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *config.RbacSettings) *Rbac {
-	roles.Cfg = cfg
+func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Rbac {
+	roles.Cfg = &cfg.LintersSettings.Rbac
 
 	return &Rbac{
-		name: "rbac",
-		desc: "Lint rbac objects",
-		Cfg:  cfg,
+		name:      ID,
+		desc:      "Lint rbac objects",
+		cfg:       &cfg.LintersSettings.Rbac,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Rbac.Impact),
 	}
 }
 
 func (o *Rbac) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(o.Name(), m.GetName())
+	result := errors.NewLinterRuleList(o.Name(), m.GetName()).WithMaxLevel(o.cfg.Impact)
 	if m == nil {
 		return result
 	}
@@ -35,6 +41,10 @@ func (o *Rbac) Run(m *module.Module) *errors.LintRuleErrorsList {
 		result.Merge(roles.ObjectBindingSubjectServiceAccountCheck(m, object, m.GetObjectStore()))
 		result.Merge(roles.ObjectRolesWildcard(m, object))
 	}
+
+	result.CorrespondToMaxLevel()
+
+	o.ErrorList.Merge(result)
 
 	return result
 }

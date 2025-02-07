@@ -13,25 +13,28 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
+const (
+	ID = "probes"
+)
+
 // Probes linter
 type Probes struct {
 	name, desc string
 	cfg        *config.ProbesSettings
+	ErrorList  *errors.LintRuleErrorsList
 }
 
-var Cfg *config.ProbesSettings
-
-func New(cfg *config.ProbesSettings) *Probes {
-	Cfg = cfg
+func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Probes {
 	return &Probes{
-		name: "probes",
-		desc: "Probes will check all containers for correct liveness and readiness probes",
-		cfg:  cfg,
+		name:      ID,
+		desc:      "Probes will check all containers for correct liveness and readiness probes",
+		cfg:       &cfg.LintersSettings.Probes,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Probes.Impact),
 	}
 }
 
-func (*Probes) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList("probes", m.GetName())
+func (p *Probes) Run(m *module.Module) *errors.LintRuleErrorsList {
+	result := errors.NewLinterRuleList("probes", m.GetName()).WithMaxLevel(p.cfg.Impact)
 	var err error
 	var ch = make(chan *errors.LintRuleErrorsList)
 	go func() {
@@ -42,7 +45,7 @@ func (*Probes) Run(m *module.Module) *errors.LintRuleErrorsList {
 				if er != nil || containers == nil {
 					continue
 				}
-				ch <- containerProbes(m.GetName(), object, containers)
+				ch <- p.containerProbes(m.GetName(), object, containers)
 			}
 
 			return nil
@@ -60,18 +63,22 @@ func (*Probes) Run(m *module.Module) *errors.LintRuleErrorsList {
 			WithValue(err.Error()).Add("Error in probes linter")
 	}
 
+	result.CorrespondToMaxLevel()
+
+	p.ErrorList.Merge(result)
+
 	return result
 }
 
-func (o *Probes) Name() string {
-	return o.name
+func (p *Probes) Name() string {
+	return p.name
 }
 
-func (o *Probes) Desc() string {
-	return o.desc
+func (p *Probes) Desc() string {
+	return p.desc
 }
 
-func containerProbes(
+func (p *Probes) containerProbes(
 	moduleName string,
 	object storage.StoreObject,
 	containers []v1.Container,
@@ -79,7 +86,7 @@ func containerProbes(
 	result := errors.NewLinterRuleList("probes", moduleName)
 	for i := range containers {
 		container := containers[i]
-		if skipCheckProbeHandler(object.Unstructured.GetNamespace(), container.Name) {
+		if p.skipCheckProbeHandler(object.Unstructured.GetNamespace(), container.Name) {
 			continue
 		}
 
@@ -127,8 +134,8 @@ func probeHandlerIsNotValid(probe v1.ProbeHandler) bool {
 	return false
 }
 
-func skipCheckProbeHandler(namespace, container string) bool {
-	containers, ok := Cfg.ProbesExcludes[namespace]
+func (p *Probes) skipCheckProbeHandler(namespace, container string) bool {
+	containers, ok := p.cfg.ProbesExcludes[namespace]
 	if ok {
 		return slices.Contains(containers, container)
 	}

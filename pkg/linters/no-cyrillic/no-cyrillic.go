@@ -12,6 +12,10 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
+const (
+	ID = "no-cyrillic"
+)
+
 // NoCyrillic linter
 type NoCyrillic struct {
 	name, desc     string
@@ -20,9 +24,10 @@ type NoCyrillic struct {
 	skipDocRe      *regexp.Regexp
 	skipI18NRe     *regexp.Regexp
 	skipSelfRe     *regexp.Regexp
+	ErrorList      *errors.LintRuleErrorsList
 }
 
-func New(cfg *config.NoCyrillicSettings) *NoCyrillic {
+func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *NoCyrillic {
 	// default settings for no-cyrillic
 	fileExtensions := []string{"yaml", "yml", "json", "go"}
 	skipDocRe := `doc-ru-.+\.y[a]?ml$|_RU\.md$|_ru\.html$|docs/site/_.+|docs/documentation/_.+|tools/spelling/.+|openapi/conversions/.+`
@@ -32,16 +37,17 @@ func New(cfg *config.NoCyrillicSettings) *NoCyrillic {
 	return &NoCyrillic{
 		name:           "no-cyrillic",
 		desc:           "NoCyrillic will check all files in the modules for contains cyrillic symbols",
-		cfg:            cfg,
 		fileExtensions: fileExtensions,
 		skipDocRe:      regexp.MustCompile(skipDocRe),
 		skipI18NRe:     regexp.MustCompile(skipSelfRe),
 		skipSelfRe:     regexp.MustCompile(skipI18NRe),
+		cfg:            &cfg.LintersSettings.NoCyrillic,
+		ErrorList:      errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.NoCyrillic.Impact),
 	}
 }
 
 func (o *NoCyrillic) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList("no-cyrillic", m.GetName())
+	result := errors.NewLinterRuleList("no-cyrillic", m.GetName()).WithMaxLevel(o.cfg.Impact)
 
 	if m.GetPath() == "" {
 		return result
@@ -87,6 +93,10 @@ func (o *NoCyrillic) Run(m *module.Module) *errors.LintRuleErrorsList {
 				Add("errors in `%s` module", m.GetName())
 		}
 	}
+
+	result.CorrespondToMaxLevel()
+
+	o.ErrorList.Merge(result)
 
 	return result
 }

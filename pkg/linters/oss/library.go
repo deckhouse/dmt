@@ -15,10 +15,10 @@ import (
 
 const ossFilename = "oss.yaml"
 
-func ossModuleRule(name, moduleRoot string) *errors.LintRuleErrorsList {
+func (o *OSS) ossModuleRule(name, moduleRoot string) *errors.LintRuleErrorsList {
 	result := errors.NewLinterRuleList("oss", name)
 
-	if errs := verifyOssFile(name, moduleRoot); len(errs) > 0 {
+	if errs := o.verifyOssFile(name, moduleRoot); len(errs) > 0 {
 		for _, err := range errs {
 			result.WithObjectID(moduleRoot).Add("%v", ossFileErrorMessage(err))
 		}
@@ -34,8 +34,8 @@ func ossFileErrorMessage(err error) string {
 	return fmt.Sprintf("Invalid %s: %s", ossFilename, err.Error())
 }
 
-func verifyOssFile(name, moduleRoot string) []error {
-	if shouldIgnoreOssInfo(name) {
+func (o *OSS) verifyOssFile(name, moduleRoot string) []error {
+	if o.shouldIgnoreOssInfo(name) {
 		return nil
 	}
 
@@ -126,8 +126,8 @@ func parseProjectList(b []byte) ([]ossProject, error) {
 }
 
 // TODO When lintignore files will be implemented in helm, detect "oss.yaml" line in it
-func shouldIgnoreOssInfo(moduleName string) bool {
-	return slices.Contains(Cfg.SkipOssChecks, moduleName)
+func (o *OSS) shouldIgnoreOssInfo(moduleName string) bool {
+	return slices.Contains(o.cfg.SkipOssChecks, moduleName)
 }
 
 type ossProject struct {

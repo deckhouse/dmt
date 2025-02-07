@@ -9,6 +9,8 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/kyokomi/emoji"
+
+	"github.com/deckhouse/dmt/pkg"
 )
 
 type lintRuleError struct {
@@ -19,6 +21,7 @@ type lintRuleError struct {
 	Text        string
 	FilePath    string
 	LineNumber  int
+	Level       pkg.Level
 }
 
 func (l *lintRuleError) EqualsTo(candidate lintRuleError) bool { //nolint:gocritic // it's a simple method
@@ -28,7 +31,17 @@ func (l *lintRuleError) EqualsTo(candidate lintRuleError) bool { //nolint:gocrit
 		l.Module == candidate.Module
 }
 
-type errStorage []lintRuleError
+type errStorage struct {
+	errList []lintRuleError
+}
+
+func (s *errStorage) GetErrors() []lintRuleError {
+	return s.errList
+}
+
+func (s *errStorage) Add(err *lintRuleError) {
+	s.errList = append(s.errList, *err)
+}
 
 type LintRuleErrorsList struct {
 	storage *errStorage
@@ -38,7 +51,17 @@ type LintRuleErrorsList struct {
 	objectID   string
 	value      any
 	filePath   string
-	lineNubmer int
+	lineNumber int
+
+	maxLevel *pkg.Level
+}
+
+func NewLintRuleErrorsList() *LintRuleErrorsList {
+	lvl := pkg.Error
+	return &LintRuleErrorsList{
+		storage:  &errStorage{},
+		maxLevel: &lvl,
+	}
 }
 
 func NewLinterRuleList(linterID string, module ...string) *LintRuleErrorsList {
@@ -53,6 +76,47 @@ func NewLinterRuleList(linterID string, module ...string) *LintRuleErrorsList {
 	return l
 }
 
+func (l *LintRuleErrorsList) WithMaxLevel(level pkg.Level) *LintRuleErrorsList {
+	if l.storage == nil {
+		l.storage = &errStorage{}
+	}
+
+	return &LintRuleErrorsList{
+		storage:    l.storage,
+		linterID:   l.linterID,
+		moduleID:   l.moduleID,
+		objectID:   l.objectID,
+		value:      l.value,
+		filePath:   l.filePath,
+		lineNumber: l.lineNumber,
+		maxLevel:   &level,
+	}
+}
+
+func (l *LintRuleErrorsList) CorrespondToMaxLevel() {
+	if l.storage == nil {
+		return
+	}
+
+	for idx, err := range l.storage.GetErrors() {
+		if l.maxLevel != nil && *l.maxLevel < err.Level {
+			l.storage.errList[idx].Level = *l.maxLevel
+		}
+	}
+}
+
+func (l *LintRuleErrorsList) WithLinterID(linterID string) *LintRuleErrorsList {
+	if l.storage == nil {
+		l.storage = &errStorage{}
+	}
+
+	return &LintRuleErrorsList{
+		storage:  l.storage,
+		linterID: linterID,
+		maxLevel: l.maxLevel,
+	}
+}
+
 func (l *LintRuleErrorsList) WithObjectID(objectID string) *LintRuleErrorsList {
 	if l.storage == nil {
 		l.storage = &errStorage{}
@@ -64,7 +128,8 @@ func (l *LintRuleErrorsList) WithObjectID(objectID string) *LintRuleErrorsList {
 		objectID:   objectID,
 		value:      l.value,
 		filePath:   l.filePath,
-		lineNubmer: l.lineNubmer,
+		lineNumber: l.lineNumber,
+		maxLevel:   l.maxLevel,
 	}
 }
 
@@ -79,7 +144,8 @@ func (l *LintRuleErrorsList) WithModule(moduleID string) *LintRuleErrorsList {
 		objectID:   l.objectID,
 		value:      l.value,
 		filePath:   l.filePath,
-		lineNubmer: l.lineNubmer,
+		lineNumber: l.lineNumber,
+		maxLevel:   l.maxLevel,
 	}
 }
 
@@ -94,7 +160,8 @@ func (l *LintRuleErrorsList) WithValue(value any) *LintRuleErrorsList {
 		objectID:   l.objectID,
 		value:      value,
 		filePath:   l.filePath,
-		lineNubmer: l.lineNubmer,
+		lineNumber: l.lineNumber,
+		maxLevel:   l.maxLevel,
 	}
 }
 
@@ -109,7 +176,8 @@ func (l *LintRuleErrorsList) WithFilePath(filePath string) *LintRuleErrorsList {
 		objectID:   l.objectID,
 		value:      l.value,
 		filePath:   filePath,
-		lineNubmer: l.lineNubmer,
+		lineNumber: l.lineNumber,
+		maxLevel:   l.maxLevel,
 	}
 }
 
@@ -124,17 +192,43 @@ func (l *LintRuleErrorsList) WithLineNumber(lineNumber int) *LintRuleErrorsList 
 		objectID:   l.objectID,
 		value:      l.value,
 		filePath:   l.filePath,
-		lineNubmer: lineNumber,
+		lineNumber: lineNumber,
+		maxLevel:   l.maxLevel,
 	}
 }
 
-func (l *LintRuleErrorsList) Add(template string, a ...any) *LintRuleErrorsList {
+func (l *LintRuleErrorsList) Warn(str string) *LintRuleErrorsList {
+	return l.add(str, pkg.Warn)
+}
+
+func (l *LintRuleErrorsList) Warnf(template string, a ...any) *LintRuleErrorsList {
+	return l.add(fmt.Sprintf(template, a...), pkg.Warn)
+}
+
+func (l *LintRuleErrorsList) Error(str string) *LintRuleErrorsList {
+	return l.add(str, pkg.Error)
+}
+
+func (l *LintRuleErrorsList) Errorf(template string, a ...any) *LintRuleErrorsList {
+	return l.add(fmt.Sprintf(template, a...), pkg.Error)
+}
+
+// Deprecated: use Errir or Errorf instead
+func (l *LintRuleErrorsList) Add(templateOrString string, a ...any) *LintRuleErrorsList {
+	if len(a) != 0 {
+		templateOrString = fmt.Sprintf(templateOrString, a...)
+	}
+
+	return l.add(templateOrString, pkg.Error)
+}
+
+func (l *LintRuleErrorsList) add(str string, level pkg.Level) *LintRuleErrorsList {
 	if l.storage == nil {
 		l.storage = &errStorage{}
 	}
 
-	if len(a) != 0 {
-		template = fmt.Sprintf(template, a...)
+	if l.maxLevel != nil && *l.maxLevel < level {
+		level = *l.maxLevel
 	}
 
 	e := lintRuleError{
@@ -143,15 +237,12 @@ func (l *LintRuleErrorsList) Add(template string, a ...any) *LintRuleErrorsList 
 		ObjectID:    l.objectID,
 		ObjectValue: l.value,
 		FilePath:    l.filePath,
-		LineNumber:  l.lineNubmer,
-		Text:        template,
+		LineNumber:  l.lineNumber,
+		Text:        str,
+		Level:       level,
 	}
 
-	if slices.ContainsFunc(*l.storage, e.EqualsTo) {
-		return l
-	}
-
-	*l.storage = append(*l.storage, e)
+	l.storage.Add(&e)
 
 	return l
 }
@@ -166,15 +257,15 @@ func (l *LintRuleErrorsList) Merge(e *LintRuleErrorsList) {
 		return
 	}
 
-	for _, el := range *e.storage {
-		if slices.ContainsFunc(*l.storage, el.EqualsTo) {
+	for _, el := range e.storage.GetErrors() {
+		if slices.ContainsFunc(l.storage.errList, el.EqualsTo) {
 			continue
 		}
 		if el.Text == "" {
 			continue
 		}
 
-		*l.storage = append(*l.storage, el)
+		l.storage.errList = append(l.storage.errList, el)
 	}
 }
 
@@ -186,28 +277,25 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 		l.storage = &errStorage{}
 	}
 
-	if len(*l.storage) == 0 {
+	if len(l.storage.GetErrors()) == 0 {
 		return nil
 	}
 
-	slices.SortFunc(*l.storage, func(a, b lintRuleError) int {
+	slices.SortFunc(l.storage.GetErrors(), func(a, b lintRuleError) int {
 		return cmp.Or(
 			cmp.Compare(a.Module, b.Module),
 			cmp.Compare(a.ObjectID, b.ObjectID),
 		)
 	})
 
-	warningOnlyLinters := map[string]struct{}{}
-	for _, wo := range WarningsOnly {
-		warningOnlyLinters[wo] = struct{}{}
-	}
-
 	builder := strings.Builder{}
-	for _, err := range *l.storage {
+	for _, err := range l.storage.GetErrors() {
 		msgColor := color.FgRed
-		if _, ok := warningOnlyLinters[err.ID]; ok {
+
+		if err.Level == pkg.Warn {
 			msgColor = color.FgHiYellow
 		}
+
 		builder.WriteString(fmt.Sprintf(
 			"%s%s\n\t%-12s %s\n\t%-12s %s\n",
 			emoji.Sprintf(":monkey:"),
@@ -233,15 +321,13 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 	return errors.New(builder.String())
 }
 
-var WarningsOnly []string
-
-func (l *LintRuleErrorsList) Critical() bool {
+func (l *LintRuleErrorsList) ContainsErrors() bool {
 	if l.storage == nil {
 		l.storage = &errStorage{}
 	}
 
-	for _, err := range *l.storage {
-		if !slices.Contains(WarningsOnly, err.ID) {
+	for _, err := range l.storage.GetErrors() {
+		if err.Level == pkg.Error {
 			return true
 		}
 	}
