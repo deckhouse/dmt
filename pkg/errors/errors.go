@@ -352,8 +352,10 @@ func prepareString(input string) string {
 
 	w := &strings.Builder{}
 
-	// split first time
+	// split wraps for tablewrite
 	split := strings.Split(wordwrap.WrapString(input, wrapLen), "\n")
+
+	// first string must be pure for correct handling
 	fmt.Fprint(w, strings.TrimSpace(split[0]))
 
 	for i := 1; i < len(split); i++ {
