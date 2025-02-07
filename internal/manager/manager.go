@@ -25,6 +25,7 @@ import (
 	no_cyrillic "github.com/deckhouse/dmt/pkg/linters/no-cyrillic"
 	openapienum "github.com/deckhouse/dmt/pkg/linters/openapi-enum"
 	openapiha "github.com/deckhouse/dmt/pkg/linters/openapi-ha"
+	openapikeys "github.com/deckhouse/dmt/pkg/linters/openapi-keys"
 	"github.com/deckhouse/dmt/pkg/linters/oss"
 	"github.com/deckhouse/dmt/pkg/linters/pdb-resources"
 	"github.com/deckhouse/dmt/pkg/linters/probes"
@@ -119,7 +120,7 @@ func getLintersForModule(cfg *config.ModuleConfig, errList *errors.LintRuleError
 	return []Linter{
 		openapienum.New(cfg, errList),
 		openapiha.New(cfg, errList),
-		openapiha.New(cfg, errList),
+		openapikeys.New(cfg, errList),
 		no_cyrillic.New(cfg, errList),
 		license.New(cfg, errList),
 		oss.New(cfg, errList),
