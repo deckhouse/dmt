@@ -12,7 +12,7 @@ type HAValidator struct {
 	absoluteKeysExcludes map[string]string
 }
 
-func NewHAValidator(cfg *config.OpenAPISettings) HAValidator {
+func NewHAValidator(_ *config.OpenAPISettings) HAValidator {
 	return HAValidator{}
 }
 
