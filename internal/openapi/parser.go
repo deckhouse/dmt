@@ -10,22 +10,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func GetFileYAMLContent(path string) (map[any]any, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	m := make(map[any]any)
-
-	err = yaml.Unmarshal(data, &m)
-	if err != nil {
-		return nil, err
-	}
-
-	return m, nil
-}
-
 func IsCRD(data map[any]any) bool {
 	kind, ok := data["kind"].(string)
 	if !ok {
@@ -66,7 +50,12 @@ func IsDeckhouseCRD(data map[any]any) bool {
 	return false
 }
 
-func Parse(parser parser, data map[any]any) error {
+func Parse(parser parser, path string) error {
+	data, err := getFileYAMLContent(path)
+	if err != nil {
+		return fmt.Errorf("failed to get content of `%s`: %w", path, err)
+	}
+
 	// exclude external CRDs
 	if IsCRD(data) && !IsDeckhouseCRD(data) {
 		return nil
@@ -76,12 +65,27 @@ func Parse(parser parser, data map[any]any) error {
 		parser: parser,
 	}
 
-	var err error
 	for k, v := range data {
 		err = errors.Join(err, fp.parseValue(k.(string), v))
 	}
 
 	return err
+}
+
+func getFileYAMLContent(path string) (map[any]any, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	m := make(map[any]any)
+
+	err = yaml.Unmarshal(data, &m)
+	if err != nil {
+		return nil, err
+	}
+
+	return m, nil
 }
 
 type fileParser struct {

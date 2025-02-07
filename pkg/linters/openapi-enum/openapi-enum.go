@@ -21,7 +21,7 @@ type Enum struct {
 func New(cfg *config.OpenAPIEnumSettings) *Enum {
 	return &Enum{
 		name: "openapi-enum",
-		desc: "Probes will check openapi enum values is correct",
+		desc: "Linter will check openapi enum values is correct",
 		cfg:  cfg,
 	}
 }
@@ -29,21 +29,10 @@ func New(cfg *config.OpenAPIEnumSettings) *Enum {
 func (o *Enum) Run(m *module.Module) *errors.LintRuleErrorsList {
 	result := errors.NewLinterRuleList("openapi-enum", m.GetName())
 
-	files, err := fsutils.GetFiles(m.GetPath(), true, filterFiles)
-	if err != nil {
-		result.WithValue(err).Add("failed to get files in `%s` module", m.GetName())
-		return result
-	}
-
+	files := fsutils.GetFiles(m.GetPath(), true, filterFiles)
 	parser := NewEnumValidator(o.cfg)
 	for _, file := range files {
-		data, err := openapi.GetFileYAMLContent(file)
-		if err != nil {
-			result.WithValue(err).Add("failed to get content of `%s`", file)
-			continue
-		}
-
-		if err := openapi.Parse(parser, data); err != nil {
+		if err := openapi.Parse(parser, file); err != nil {
 			result.WithValue(err).Add("openAPI file is not valid: %s", fsutils.Rel(m.GetPath(), file))
 		}
 	}

@@ -88,7 +88,7 @@ func validateEnumValue(value string) error {
 	}
 
 	vv := []rune(value)
-	if !unicode.IsUpper(vv[0]) {
+	if unicode.IsLetter(vv[0]) && !unicode.IsUpper(vv[0]) {
 		return fmt.Errorf("value '%s' must start with Capital letter", value)
 	}
 

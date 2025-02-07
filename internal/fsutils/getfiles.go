@@ -7,9 +7,9 @@ import (
 
 type fFn func(string) bool
 
-func GetFiles(rootPath string, skipSymlink bool, filters ...fFn) ([]string, error) {
+func GetFiles(rootPath string, skipSymlink bool, filters ...fFn) []string {
 	var result []string
-	err := filepath.Walk(rootPath, func(path string, info os.FileInfo, _ error) error {
+	_ = filepath.Walk(rootPath, func(path string, info os.FileInfo, _ error) error {
 		if skipSymlink && info.Mode()&os.ModeSymlink != 0 {
 			return filepath.SkipDir
 		}
@@ -29,7 +29,7 @@ func GetFiles(rootPath string, skipSymlink bool, filters ...fFn) ([]string, erro
 		return nil
 	})
 
-	return result, err
+	return result
 }
 
 func filterPass(path string, filters ...fFn) bool {
