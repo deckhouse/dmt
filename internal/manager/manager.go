@@ -117,8 +117,8 @@ func (m *Manager) Run() {
 
 func getLintersForModule(cfg *config.ModuleConfig, errList *errors.LintRuleErrorsList) []Linter {
 	return []Linter{
-		// openapi.New(cfg, errList),
 		openapienum.New(cfg, errList),
+		openapiha.New(cfg, errList),
 		openapiha.New(cfg, errList),
 		no_cyrillic.New(cfg, errList),
 		license.New(cfg, errList),

@@ -1,21 +1,50 @@
-package validators
+package openapikeys
 
 import (
 	"fmt"
 	"reflect"
+	"regexp"
+	"strings"
 
-	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/pkg/config"
 )
 
-type KeyNameValidator struct {
+var (
+	arrayPathRegex = regexp.MustCompile(`[\d+]`)
+)
+
+type KeyValidator struct {
 	bannedNames []string
 }
 
-func NewKeyNameValidator(cfg *config.OpenAPISettings) KeyNameValidator {
-	return KeyNameValidator{
+func NewKeyValidator(cfg *config.OpenAPIKeysSettings) KeyValidator {
+	return KeyValidator{
 		bannedNames: cfg.KeyBannedNames,
 	}
+}
+
+func (kn KeyValidator) Run(moduleName, absoluteKey string, value any) error {
+	parts := strings.Split(absoluteKey, ".")
+	if parts[len(parts)-1] != "enum" {
+		return nil
+	}
+
+	m := make(map[any]any)
+	rv := reflect.ValueOf(value)
+	if rv.Kind() != reflect.Map {
+		return fmt.Errorf("possible Bug? Have to be a map. Type: %s, Value: %s", reflect.TypeOf(value), value)
+	}
+	for _, key := range rv.MapKeys() {
+		v := rv.MapIndex(key)
+		m[key.Interface()] = v.Interface()
+	}
+
+	err := checkMapForBannedKey(m, kn.bannedNames)
+	if err != nil {
+		return fmt.Errorf("validation error: wrong property: %w", err)
+	}
+
+	return nil
 }
 
 func checkMapForBannedKey(m map[any]any, banned []string) error {
@@ -48,25 +77,6 @@ func checkMapForBannedKey(m map[any]any, banned []string) error {
 				}
 			}
 		}
-	}
-	return nil
-}
-
-func (kn KeyNameValidator) Run(file, _ string, value any) error {
-	m := make(map[any]any)
-	rv := reflect.ValueOf(value)
-	if rv.Kind() != reflect.Map {
-		logger.ErrorF("Possible Bug? Have to be a map. Type: %s, Value: %s, File: %s", reflect.TypeOf(value), value, file)
-		return fmt.Errorf("not map")
-	}
-	for _, key := range rv.MapKeys() {
-		v := rv.MapIndex(key)
-		m[key.Interface()] = v.Interface()
-	}
-
-	err := checkMapForBannedKey(m, kn.bannedNames)
-	if err != nil {
-		return fmt.Errorf("%s file validation error: wrong property: %w", file, err)
 	}
 	return nil
 }
