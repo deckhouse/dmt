@@ -33,9 +33,7 @@ var (
 	skipI18NRe     = `/i18n/`
 )
 
-func New(cfg *config.NoCyrillicSettings) *NoCyrillic {
-	// default settings for no-cyrillic
-
+func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *NoCyrillic {
 	return &NoCyrillic{
 		name:           ID,
 		desc:           "NoCyrillic will check all files in the modules for contains cyrillic symbols",
