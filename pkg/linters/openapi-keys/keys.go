@@ -24,19 +24,18 @@ func (kn KeyValidator) Run(_, absoluteKey string, value any) error {
 		return nil
 	}
 
-	m := make(map[any]any)
 	rv := reflect.ValueOf(value)
-	if rv.Kind() != reflect.Map {
-		return fmt.Errorf("possible Bug? Have to be a map. Type: %s, Value: %s", reflect.TypeOf(value), value)
-	}
-	for _, key := range rv.MapKeys() {
-		v := rv.MapIndex(key)
-		m[key.Interface()] = v.Interface()
-	}
+	if rv.Kind() == reflect.Map {
+		m := make(map[any]any)
+		for _, key := range rv.MapKeys() {
+			v := rv.MapIndex(key)
+			m[key.Interface()] = v.Interface()
+		}
 
-	err := checkMapForBannedKey(m, kn.bannedNames)
-	if err != nil {
-		return fmt.Errorf("validation error: wrong property: %w", err)
+		err := checkMapForBannedKey(m, kn.bannedNames)
+		if err != nil {
+			return fmt.Errorf("validation error: wrong property: %w", err)
+		}
 	}
 
 	return nil
