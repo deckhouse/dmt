@@ -49,7 +49,7 @@ func (e *Enum) Desc() string {
 	return e.desc
 }
 
-var r = regexp.MustCompile(`.*(?:openapi|crds)/.*\.ya?ml$`)
+var r = regexp.MustCompile(`.*crds/.*\.ya?ml$`)
 
 func filterFiles(path string) bool {
 	filename := filepath.Base(path)
