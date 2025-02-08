@@ -34,7 +34,7 @@ func (e *HA) Run(m *module.Module) *errors.LintRuleErrorsList {
 	parser := NewHAValidator(e.cfg)
 	for _, file := range files {
 		if err := openapi.Parse(parser.Run, file); err != nil {
-			errorLists.WithValue(err).Errorf("openAPI file is not valid: %s", fsutils.Rel(m.GetPath(), file))
+			errorLists.WithFilePath(fsutils.Rel(m.GetPath(), file)).Errorf("openAPI file is not valid: %s", err)
 		}
 	}
 
