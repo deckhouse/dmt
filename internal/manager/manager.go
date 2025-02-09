@@ -13,9 +13,24 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters/container"
+	"github.com/deckhouse/dmt/pkg/linters/conversions"
+	"github.com/deckhouse/dmt/pkg/linters/crd-resources"
+	"github.com/deckhouse/dmt/pkg/linters/images"
+	"github.com/deckhouse/dmt/pkg/linters/ingress"
+	rbacproxy "github.com/deckhouse/dmt/pkg/linters/kube-rbac-proxy"
+	"github.com/deckhouse/dmt/pkg/linters/license"
+	moduleLinter "github.com/deckhouse/dmt/pkg/linters/module"
+	"github.com/deckhouse/dmt/pkg/linters/monitoring"
+	no_cyrillic "github.com/deckhouse/dmt/pkg/linters/no-cyrillic"
 	openapienum "github.com/deckhouse/dmt/pkg/linters/openapi-enum"
 	openapiha "github.com/deckhouse/dmt/pkg/linters/openapi-ha"
 	openapikeys "github.com/deckhouse/dmt/pkg/linters/openapi-keys"
+	"github.com/deckhouse/dmt/pkg/linters/oss"
+	"github.com/deckhouse/dmt/pkg/linters/pdb-resources"
+	"github.com/deckhouse/dmt/pkg/linters/probes"
+	"github.com/deckhouse/dmt/pkg/linters/rbac"
+	"github.com/deckhouse/dmt/pkg/linters/vpa-resources"
 )
 
 const (
@@ -106,21 +121,21 @@ func getLintersForModule(cfg *config.ModuleConfig, errList *errors.LintRuleError
 		openapienum.New(cfg, errList),
 		openapiha.New(cfg, errList),
 		openapikeys.New(cfg, errList),
-		// no_cyrillic.New(cfg, errList),
-		// license.New(cfg, errList),
-		// oss.New(cfg, errList),
-		// probes.New(cfg, errList),
-		// container.New(cfg, errList),
-		// rbacproxy.New(cfg, errList),
-		// vpa.New(cfg, errList),
-		// pdb.New(cfg, errList),
-		// crd.New(cfg, errList),
-		// images.New(cfg, errList),
-		// rbac.New(cfg, errList),
-		// monitoring.New(cfg, errList),
-		// ingress.New(cfg, errList),
-		// moduleLinter.New(cfg, errList),
-		// conversions.New(cfg, errList),
+		no_cyrillic.New(cfg, errList),
+		license.New(cfg, errList),
+		oss.New(cfg, errList),
+		probes.New(cfg, errList),
+		container.New(cfg, errList),
+		rbacproxy.New(cfg, errList),
+		vpa.New(cfg, errList),
+		pdb.New(cfg, errList),
+		crd.New(cfg, errList),
+		images.New(cfg, errList),
+		rbac.New(cfg, errList),
+		monitoring.New(cfg, errList),
+		ingress.New(cfg, errList),
+		moduleLinter.New(cfg, errList),
+		conversions.New(cfg, errList),
 	}
 }
 
