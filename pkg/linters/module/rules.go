@@ -87,11 +87,11 @@ func (l *Module) checkModuleYaml(moduleName, modulePath string) {
 	}
 
 	if yml.Requirements != nil {
-		yml.Requirements.validateRequirements(moduleName, errorList)
+		yml.Requirements.validateRequirements(errorList)
 	}
 }
 
-func (m ModuleRequirements) validateRequirements(moduleName string, errorList *errors.LintRuleErrorsList) {
+func (m ModuleRequirements) validateRequirements(errorList *errors.LintRuleErrorsList) {
 	if m.Deckhouse != "" {
 		if _, err := semver.NewConstraint(m.Deckhouse); err != nil {
 			errorList.Errorf("Invalid Deckhouse version requirement: %s", err)
