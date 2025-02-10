@@ -62,7 +62,7 @@ func checkRoles(m *module.Module, object storage.StoreObject) *errors.LintRuleEr
 	role := new(k8SRbac.Role)
 	err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), role)
 	if err != nil {
-		return result.WithObjectID(object.Identity()).Add(
+		return result.WithObjectID(object.Identity()).Errorf(
 			"Cannot convert object to %s: %v", object.Unstructured.GetKind(), err)
 	}
 
@@ -78,7 +78,7 @@ func checkRoles(m *module.Module, object storage.StoreObject) *errors.LintRuleEr
 			objs = append(objs, "verbs")
 		}
 		if len(objs) > 0 {
-			return result.WithObjectID(object.Identity()).Add(
+			return result.WithObjectID(object.Identity()).Errorf(
 				"%s contains a wildcards. Replace them with an explicit list of resources",
 				strings.Join(objs, ", "),
 			)

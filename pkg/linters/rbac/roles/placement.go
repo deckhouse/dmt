@@ -25,6 +25,8 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg/errors"
+
+	"k8s.io/kubernetes/pkg/apis/core"
 )
 
 const (
@@ -35,19 +37,15 @@ const (
 	RBACv2Path                  = "templates/rbac"
 )
 
+// TODO: remove entries after 'd8-system' after fixing RBAC objects names
+var deckhouseNamespaces = []string{"d8-monitoring", "d8-system", "d8-admission-policy-engine", "d8-operator-trivy", "d8-log-shipper", "d8-local-path-provisioner"}
+
 func isSystemNamespace(actual string) bool {
-	return actual == "default" || actual == "kube-system"
+	return actual == core.NamespaceDefault || actual == core.NamespaceSystem
 }
 
 func isDeckhouseSystemNamespace(actual string) bool {
-	return actual == "d8-monitoring" ||
-		actual == "d8-system" ||
-		// Temporary code required to ignore existing objects with incorrect naming
-		// TODO: remove next lines after RBAC objects naming fixes
-		actual == "d8-admission-policy-engine" ||
-		actual == "d8-operator-trivy" ||
-		actual == "d8-log-shipper" ||
-		actual == "d8-local-path-provisioner"
+	return slices.Contains(deckhouseNamespaces, actual)
 }
 
 func ObjectRBACPlacement(m *module.Module, object storage.StoreObject) *errors.LintRuleErrorsList {
@@ -70,7 +68,7 @@ func ObjectRBACPlacement(m *module.Module, object storage.StoreObject) *errors.L
 	default:
 		shortPath := object.ShortPath()
 		if strings.HasSuffix(shortPath, "rbac-for-us.yaml") || strings.HasSuffix(shortPath, "rbac-to-us.yaml") {
-			return result.WithObjectID(object.Identity()).Add(
+			return result.WithObjectID(object.Identity()).Errorf(
 				"kind %s not allowed in %q", objectKind, shortPath,
 			)
 		}
@@ -88,7 +86,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 	if shortPath == RootRBACForUsPath {
 		if isSystemNamespace(namespace) {
 			if objectName != "d8-"+m.GetName() {
-				return result.WithObjectID(object.Identity()).Add(
+				return result.WithObjectID(object.Identity()).Errorf(
 					"Name of ServiceAccount in %q in namespace %q should be equal to d8- + Chart Name (d8-%s)",
 					RootRBACForUsPath, namespace, m.GetName(),
 				)
@@ -96,13 +94,13 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 			return nil
 		}
 		if objectName != m.GetName() {
-			return result.WithObjectID(object.Identity()).Add(
+			return result.WithObjectID(object.Identity()).Errorf(
 				"Name of ServiceAccount in %q should be equal to Chart Name (%s)",
 				RootRBACForUsPath, m.GetName(),
 			)
 		}
 		if !isDeckhouseSystemNamespace(namespace) && m.GetNamespace() != namespace {
-			return result.WithObjectID(object.Identity()).Add(
+			return result.WithObjectID(object.Identity()).Errorf(
 				"ServiceAccount should be deployed to \"d8-system\", \"d8-monitoring\" or %q", m.GetNamespace(),
 			)
 		}
@@ -118,7 +116,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 
 		if isSystemNamespace(namespace) {
 			if objectName != "d8-"+expectedServiceAccountName {
-				return result.WithObjectID(object.Identity()).Add(
+				return result.WithObjectID(object.Identity()).Errorf(
 					"Name of ServiceAccount in %q in namespace %q should be equal to d8-%s",
 					shortPath, namespace, expectedServiceAccountName,
 				)
@@ -127,7 +125,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 		}
 		if objectName == serviceAccountName {
 			if m.GetNamespace() != namespace {
-				return result.WithObjectID(object.Identity()).Add(
+				return result.WithObjectID(object.Identity()).Errorf(
 					"ServiceAccount should be deployed to %q", m.GetNamespace(),
 				)
 			}
@@ -135,7 +133,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 		} else if objectName == expectedServiceAccountName {
 			if !isDeckhouseSystemNamespace(namespace) {
 				return result.WithObjectID(object.Identity()).WithValue(namespace).
-					Add("ServiceAccount should be deployed to \"d8-system\" or \"d8-monitoring\"")
+					Error("ServiceAccount should be deployed to \"d8-system\" or \"d8-monitoring\"")
 			}
 			return nil
 		}
@@ -148,12 +146,12 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 			return nil
 		}
 
-		return result.WithObjectID(object.Identity()).Add(
+		return result.WithObjectID(object.Identity()).Errorf(
 			"Name of ServiceAccount should be equal to %q or %q",
 			serviceAccountName, expectedServiceAccountName,
 		)
 	}
-	return result.WithObjectID(object.Identity()).Add(
+	return result.WithObjectID(object.Identity()).Errorf(
 		"ServiceAccount should be in %q or \"*/rbac-for-us.yaml\"", RootRBACForUsPath,
 	)
 }
@@ -167,7 +165,7 @@ func objectRBACPlacementClusterRole(kind string, m *module.Module, object storag
 	switch {
 	case shortPath == RootRBACForUsPath:
 		if !strings.HasPrefix(objectName, name) {
-			return result.WithObjectID(object.Identity()).Add(
+			return result.WithObjectID(object.Identity()).Errorf(
 				"Name of %s in %q should start with %q",
 				kind, RootRBACForUsPath, name,
 			)
@@ -179,13 +177,13 @@ func objectRBACPlacementClusterRole(kind string, m *module.Module, object storag
 		)
 		n := name + ":" + strings.Join(parts, ":")
 		if !strings.HasPrefix(objectName, name) {
-			return result.WithObjectID(object.Identity()).Add(
+			return result.WithObjectID(object.Identity()).Errorf(
 				"Name of %s should start with %q",
 				kind, n,
 			)
 		}
 	default:
-		return result.WithObjectID(object.Identity()).Add(
+		return result.WithObjectID(object.Identity()).Errorf(
 			"%s should be in %q or \"*/rbac-for-us.yaml\"",
 			kind, RootRBACForUsPath,
 		)
@@ -211,7 +209,7 @@ func objectRBACPlacementRole(kind string, m *module.Module, object storage.Store
 		return handleNestedRBACToUs(m, object, shortPath, objectName, kind)
 	default:
 		msgTemplate := `%s should be in "templates/rbac-for-us.yaml", "templates/rbac-to-us.yaml", ".*/rbac-to-us.yaml" or ".*/rbac-for-us.yaml"`
-		return result.WithObjectID(object.Identity()).Add(msgTemplate, kind)
+		return result.WithObjectID(object.Identity()).Errorf(msgTemplate, kind)
 	}
 }
 
@@ -224,21 +222,21 @@ func handleRootRBACForUs(m *module.Module, object storage.StoreObject, objectNam
 	switch {
 	case objectName == m.GetName() && namespace != m.GetNamespace():
 		if !isDeckhouseSystemNamespace(namespace) {
-			return result.WithObjectID(object.Identity()).Add(
+			return result.WithObjectID(object.Identity()).Errorf(
 				"%s in %q should be deployed in namespace \"d8-monitoring\", \"d8-system\" or %q",
 				kind, RootRBACForUsPath, m.GetNamespace(),
 			)
 		}
 	case strings.HasPrefix(objectName, prefix):
 		if !isSystemNamespace(namespace) {
-			return result.WithObjectID(object.Identity()).Add(
+			return result.WithObjectID(object.Identity()).Errorf(
 				"%s in %q should be deployed in namespace \"default\" or \"kube-system\"",
 				kind, RootRBACForUsPath,
 			)
 		}
 	case !strings.HasPrefix(objectName, prefix):
 		if !isDeckhouseSystemNamespace(namespace) {
-			return result.WithObjectID(object.Identity()).Add(
+			return result.WithObjectID(object.Identity()).Errorf(
 				"%s in %q should be deployed in namespace %q",
 				kind, RootRBACForUsPath, m.GetNamespace(),
 			)
@@ -253,7 +251,7 @@ func handleRootRBACToUs(m *module.Module, object storage.StoreObject, objectName
 	result := errors.NewLinterRuleList(ID, m.GetName())
 	prefix := "access-to-" + m.GetName()
 	if !strings.HasPrefix(objectName, prefix) {
-		return result.WithObjectID(object.Identity()).Add(
+		return result.WithObjectID(object.Identity()).Errorf(
 			"%s in %q should start with %q",
 			kind, RootRBACToUsPath, prefix,
 		)
@@ -261,7 +259,7 @@ func handleRootRBACToUs(m *module.Module, object storage.StoreObject, objectName
 
 	namespace := object.Unstructured.GetNamespace()
 	if !isDeckhouseSystemNamespace(namespace) && namespace != m.GetNamespace() {
-		return result.WithObjectID(object.Identity()).Add(
+		return result.WithObjectID(object.Identity()).Errorf(
 			"%s in %q should be deployed in namespace \"d8-system\", \"d8-monitoring\" or %q",
 			kind, RootRBACToUsPath, m.GetNamespace(),
 		)
@@ -287,27 +285,27 @@ func handleNestedRBACForUs(m *module.Module, object storage.StoreObject, shortPa
 	switch {
 	case strings.HasPrefix(objectName, localPrefix):
 		if namespace != m.GetNamespace() {
-			return result.WithObjectID(object.Identity()).Add(
+			return result.WithObjectID(object.Identity()).Errorf(
 				"%s with prefix %q should be deployed in namespace %q",
 				kind, localPrefix, m.GetNamespace(),
 			)
 		}
 	case strings.HasPrefix(objectName, globalPrefix):
 		if !isDeckhouseSystemNamespace(namespace) {
-			return result.WithObjectID(object.Identity()).Add(
+			return result.WithObjectID(object.Identity()).Errorf(
 				"%s with prefix %q should be deployed in namespace \"d8-system\" or \"d8-monitoring\"",
 				kind, globalPrefix,
 			)
 		}
 	case strings.HasPrefix(objectName, systemPrefix):
 		if !isSystemNamespace(namespace) {
-			return result.WithObjectID(object.Identity()).Add(
+			return result.WithObjectID(object.Identity()).Errorf(
 				"%s with prefix %q should be deployed in namespace \"default\" or \"kube-system\"",
 				kind, systemPrefix,
 			)
 		}
 	default:
-		return result.WithObjectID(object.Identity()).Add(
+		return result.WithObjectID(object.Identity()).Errorf(
 			"%s in %q should start with %q or %q",
 			kind, shortPath, localPrefix, globalPrefix,
 		)
@@ -331,20 +329,20 @@ func handleNestedRBACToUs(m *module.Module, object storage.StoreObject, shortPat
 	switch {
 	case strings.HasPrefix(objectName, localPrefix):
 		if namespace != m.GetNamespace() {
-			return result.WithObjectID(object.Identity()).Add(
+			return result.WithObjectID(object.Identity()).Errorf(
 				"%s with prefix %q should be deployed in namespace %q",
 				kind, globalPrefix, m.GetNamespace(),
 			)
 		}
 	case strings.HasPrefix(objectName, globalPrefix):
 		if !isDeckhouseSystemNamespace(namespace) {
-			return result.WithObjectID(object.Identity()).Add(
+			return result.WithObjectID(object.Identity()).Errorf(
 				"%s with prefix %q should be deployed in namespace \"d8-system\" or \"d8-monitoring\"",
 				kind, globalPrefix,
 			)
 		}
 	default:
-		return result.WithObjectID(object.Identity()).Add(
+		return result.WithObjectID(object.Identity()).Errorf(
 			"%s should start with %q or %q", kind, localPrefix, globalPrefix,
 		)
 	}
