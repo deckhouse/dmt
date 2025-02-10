@@ -66,7 +66,7 @@ func isImageNameUnacceptable(imageName string) (bool, string) { //nolint:gocriti
 	return false, ""
 }
 
-func checkImageNamesInDockerFiles(name, path string, result *errors.LintRuleErrorsList) {
+func checkImageNamesInDockerFiles(name, path string, errorList *errors.LintRuleErrorsList) {
 	var filePaths []string
 	imagesPath := filepath.Join(path, ImagesDir)
 
