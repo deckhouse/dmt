@@ -111,7 +111,7 @@ type ResourcesSettings struct {
 }
 
 type MonitoringSettings struct {
-	SkipModuleChecks []string `mapstructure:"skip-module-checks"`
+	MonitoringRules *bool `mapstructure:"monitoring-rules"`
 
 	Impact pkg.Level `mapstructure:"impact"`
 }
