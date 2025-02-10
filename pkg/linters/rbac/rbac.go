@@ -4,11 +4,14 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/linters/rbac/roles"
 )
 
 const (
 	ID = "rbac"
+)
+
+var (
+	Cfg *config.RbacSettings
 )
 
 // Rbac linter
@@ -19,7 +22,7 @@ type Rbac struct {
 }
 
 func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Rbac {
-	roles.Cfg = &cfg.LintersSettings.Rbac
+	Cfg = &cfg.LintersSettings.Rbac
 
 	return &Rbac{
 		name:      ID,
@@ -30,23 +33,16 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Rbac {
 }
 
 func (o *Rbac) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(o.Name(), m.GetName()).WithMaxLevel(o.cfg.Impact)
 	if m == nil {
-		return result
+		return nil
 	}
 
-	for _, object := range m.GetStorage() {
-		result.Merge(roles.ObjectUserAuthzClusterRolePath(m, object))
-		result.Merge(roles.ObjectRBACPlacement(m, object))
-		result.Merge(roles.ObjectBindingSubjectServiceAccountCheck(m, object, m.GetObjectStore()))
-		result.Merge(roles.ObjectRolesWildcard(m, object))
-	}
+	o.objectUserAuthzClusterRolePath(m)
+	o.objectRBACPlacement(m)
+	o.objectBindingSubjectServiceAccountCheck(m)
+	o.objectRolesWildcard(m)
 
-	result.CorrespondToMaxLevel()
-
-	o.ErrorList.Merge(result)
-
-	return result
+	return nil
 }
 
 func (o *Rbac) Name() string {
