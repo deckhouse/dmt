@@ -83,7 +83,7 @@ func (l *NoCyrillic) Run(m *module.Module) *errors.LintRuleErrorsList {
 		cyrMsg, hasCyr := checkCyrillicLettersInArray(lines)
 		fName, _ := strings.CutPrefix(fileName, m.GetPath())
 		if hasCyr {
-			errorList.WithObjectID(fName).WithValue(addPrefix(strings.Split(cyrMsg, "\n"), "\t")).
+			errorList.WithObjectID(fName).WithValue(cyrMsg).
 				Error("has cyrillic letters")
 		}
 	}
