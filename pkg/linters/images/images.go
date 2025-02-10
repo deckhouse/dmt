@@ -30,18 +30,16 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Images
 }
 
 func (o *Images) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList("images", m.GetName()).WithMaxLevel(o.cfg.Impact)
+	errorList := o.ErrorList.WithModule(m.GetName())
 	if m == nil {
-		return result
+		return nil
 	}
 
-	result.Merge(rules.ApplyImagesRules(m))
+	errorList.CorrespondToMaxLevel()
 
-	result.CorrespondToMaxLevel()
+	rules.ApplyImagesRules(m, errorList)
 
-	o.ErrorList.Merge(result)
-
-	return result
+	return errorList
 }
 
 func (o *Images) Name() string {

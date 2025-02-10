@@ -27,13 +27,12 @@ const (
 
 var Cfg *config.ImageSettings
 
-func chartModuleRule(name, path string) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, name).WithObjectID(name)
+func chartModuleRule(path string, result *errors.LintRuleErrorsList) {
 	stat, err := os.Stat(filepath.Join(path, ChartConfigFilename))
 	if err != nil {
 		stat, err = os.Stat(filepath.Join(path, ModuleConfigFilename))
 		if err != nil {
-			result.Add(
+			result.Errorf(
 				"Module does not contain valid %q or %q file",
 				ChartConfigFilename, ModuleConfigFilename)
 		}
@@ -41,7 +40,7 @@ func chartModuleRule(name, path string) *errors.LintRuleErrorsList {
 
 	yamlFile, err := os.ReadFile(filepath.Join(path, stat.Name()))
 	if err != nil {
-		result.Add(
+		result.Errorf(
 			"Module does not contain valid %q or %q file",
 			ChartConfigFilename, ModuleConfigFilename)
 	}
@@ -51,22 +50,20 @@ func chartModuleRule(name, path string) *errors.LintRuleErrorsList {
 	}
 	err = yaml.Unmarshal(yamlFile, &chart)
 	if err != nil {
-		result.Add(
+		result.Errorf(
 			"Module does not contain valid %q or %q file",
 			ChartConfigFilename, ModuleConfigFilename)
 	}
 
 	if chart.Name == "" {
-		result.Add(
+		result.Errorf(
 			"Module does not contain valid %q or %q file",
 			ChartConfigFilename, ModuleConfigFilename)
 	}
 
 	if !IsExistsOnFilesystem(path, openapiDir) {
-		result.Add("Module does not contain %q folder", openapiDir)
+		result.Errorf("Module does not contain %q folder", openapiDir)
 	}
-
-	return result
 }
 
 func IsExistsOnFilesystem(parts ...string) bool {
@@ -74,12 +71,11 @@ func IsExistsOnFilesystem(parts ...string) bool {
 	return err == nil
 }
 
-func ApplyImagesRules(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, m.GetName())
-	result.Merge(checkImageNamesInDockerFiles(m.GetName(), m.GetPath()))
-	result.Merge(chartModuleRule(m.GetName(), m.GetPath()))
+func ApplyImagesRules(m *module.Module, result *errors.LintRuleErrorsList) *errors.LintRuleErrorsList {
+	checkImageNamesInDockerFiles(m.GetName(), m.GetPath(), result)
+	chartModuleRule(m.GetPath(), result)
 
-	result.Merge(lintWerfFile(m.GetName(), m.GetWerfFile()))
+	lintWerfFile(m.GetWerfFile(), result)
 
 	return result
 }
