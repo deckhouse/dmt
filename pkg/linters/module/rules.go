@@ -37,43 +37,42 @@ type ModulePlatformRequirements struct {
 	Bootstrapped string `yaml:"bootstrapped,omitempty"`
 }
 
-func checkModuleYaml(moduleName, modulePath string) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, moduleName).WithObjectID(moduleName)
-	if slices.Contains(Cfg.SkipCheckModuleYaml, moduleName) {
-		return nil
+func (l *Module) checkModuleYaml(moduleName, modulePath string) {
+	if slices.Contains(l.cfg.SkipCheckModuleYaml, moduleName) {
+		return
 	}
+
+	errorList := l.ErrorList.WithModule(moduleName)
 
 	_, err := os.Stat(filepath.Join(modulePath, ModuleConfigFilename))
 	if errs.Is(err, os.ErrNotExist) {
-		return nil
+		return
 	}
+
 	if err != nil {
-		return result.Add(
-			"Cannot stat file %q: %s",
-			ModuleConfigFilename, err.Error(),
-		)
+		errorList.Errorf("Cannot stat file %q: %s", ModuleConfigFilename, err)
+
+		return
 	}
 
 	yamlFile, err := os.ReadFile(filepath.Join(modulePath, ModuleConfigFilename))
 	if err != nil {
-		return result.Add(
-			"Cannot read file %q: %s",
-			ModuleConfigFilename, err.Error(),
-		)
+		errorList.Errorf("Cannot read file %q: %s", ModuleConfigFilename, err)
+
+		return
 	}
 
 	var yml DeckhouseModule
 
 	err = yaml.Unmarshal(yamlFile, &yml)
 	if err != nil {
-		return result.Add(
-			"Cannot parse file %q: %s",
-			ModuleConfigFilename, err.Error(),
-		)
+		errorList.Errorf("Cannot parse file %q: %s", ModuleConfigFilename, err)
+
+		return
 	}
 
 	if yml.Name == "" {
-		result.Add("Field %q is required", "name")
+		errorList.Error("Field 'name' is required")
 	}
 
 	stages := []string{
@@ -84,47 +83,30 @@ func checkModuleYaml(moduleName, modulePath string) *errors.LintRuleErrorsList {
 	}
 
 	if yml.Stage != "" && !slices.Contains(stages, yml.Stage) {
-		result.Add(
-			"Field %q is not one of the following values: %q",
-			"stage", strings.Join(stages, ", "),
-		)
+		errorList.Errorf("Field 'stage' is not one of the following values: %q", strings.Join(stages, ", "))
 	}
 
 	if yml.Requirements != nil {
-		result.Merge(yml.Requirements.validateRequirements(moduleName))
+		yml.Requirements.validateRequirements(moduleName, errorList)
 	}
-
-	return result
 }
 
-func (m ModuleRequirements) validateRequirements(moduleName string) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, moduleName).WithObjectID(moduleName)
+func (m ModuleRequirements) validateRequirements(moduleName string, errorList *errors.LintRuleErrorsList) {
 	if m.Deckhouse != "" {
 		if _, err := semver.NewConstraint(m.Deckhouse); err != nil {
-			result.Add(
-				"Invalid Deckhouse version requirement: %s",
-				err.Error(),
-			)
+			errorList.Errorf("Invalid Deckhouse version requirement: %s", err)
 		}
 	}
 
 	if m.Kubernetes != "" {
 		if _, err := semver.NewConstraint(m.Kubernetes); err != nil {
-			result.Add(
-				"Invalid Kubernetes version requirement: %s",
-				err.Error(),
-			)
+			errorList.Errorf("Invalid Kubernetes version requirement: %s", err)
 		}
 	}
 
 	for parentModuleName, parentModuleVersion := range m.ParentModules {
 		if _, err := semver.NewConstraint(parentModuleVersion); err != nil {
-			result.Add(
-				"Invalid module %q version requirement: %s",
-				parentModuleName, err.Error(),
-			)
+			errorList.Errorf("Invalid module %q version requirement: %s", parentModuleName, err)
 		}
 	}
-
-	return result
 }
