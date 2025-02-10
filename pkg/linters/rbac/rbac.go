@@ -10,10 +10,6 @@ const (
 	ID = "rbac"
 )
 
-var (
-	Cfg *config.RbacSettings
-)
-
 // Rbac linter
 type Rbac struct {
 	name, desc string
@@ -22,8 +18,6 @@ type Rbac struct {
 }
 
 func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Rbac {
-	Cfg = &cfg.LintersSettings.Rbac
-
 	return &Rbac{
 		name:      ID,
 		desc:      "Lint rbac objects",
@@ -32,23 +26,23 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Rbac {
 	}
 }
 
-func (o *Rbac) Run(m *module.Module) *errors.LintRuleErrorsList {
+func (l *Rbac) Run(m *module.Module) *errors.LintRuleErrorsList {
 	if m == nil {
 		return nil
 	}
 
-	o.objectUserAuthzClusterRolePath(m)
-	o.objectRBACPlacement(m)
-	o.objectBindingSubjectServiceAccountCheck(m)
-	o.objectRolesWildcard(m)
+	l.objectUserAuthzClusterRolePath(m)
+	l.objectRBACPlacement(m)
+	l.objectBindingSubjectServiceAccountCheck(m)
+	l.objectRolesWildcard(m)
 
 	return nil
 }
 
-func (o *Rbac) Name() string {
-	return o.name
+func (l *Rbac) Name() string {
+	return l.name
 }
 
-func (o *Rbac) Desc() string {
-	return o.desc
+func (l *Rbac) Desc() string {
+	return l.desc
 }

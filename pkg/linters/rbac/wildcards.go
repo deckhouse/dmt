@@ -30,27 +30,27 @@ import (
 
 // objectRolesWildcard is a linter for checking the presence
 // of a wildcard in a Role and ClusterRole
-func (o *Rbac) objectRolesWildcard(m *module.Module) {
+func (l *Rbac) objectRolesWildcard(m *module.Module) {
 	for _, object := range m.GetObjectStore().Storage {
 		// check only `rbac-for-us.yaml` files
 		if !strings.HasSuffix(object.ShortPath(), "rbac-for-us.yaml") {
 			continue
 		}
 
-		errorList := o.ErrorList.WithModule(m.GetName()).WithObjectID(object.Identity())
+		errorList := l.ErrorList.WithModule(m.GetName()).WithObjectID(object.Identity())
 
 		// check Role and ClusterRole for wildcards
 		objectKind := object.Unstructured.GetKind()
 		switch objectKind {
 		case "Role", "ClusterRole":
-			checkRoles(object, errorList)
+			l.checkRoles(object, errorList)
 		}
 	}
 }
 
-func checkRoles(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+func (l *Rbac) checkRoles(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	// check rbac-proxy for skip
-	for path, rules := range Cfg.SkipCheckWildcards {
+	for path, rules := range l.cfg.SkipCheckWildcards {
 		if strings.EqualFold(object.Path, path) {
 			if slices.Contains(rules, object.Unstructured.GetName()) {
 				return

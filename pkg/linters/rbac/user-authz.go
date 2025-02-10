@@ -28,9 +28,9 @@ import (
 objectUserAuthzClusterRolePath validates that files for user-authz contains only cluster roles.
 Also, it validates that role names equals to d8:user-authz:<ChartName>:<AccessLevel>
 */
-func (o *Rbac) objectUserAuthzClusterRolePath(m *module.Module) {
+func (l *Rbac) objectUserAuthzClusterRolePath(m *module.Module) {
 	for _, object := range m.GetObjectStore().Storage {
-		errorList := o.ErrorList.WithModule(m.GetName()).WithObjectID(object.Identity())
+		errorList := l.ErrorList.WithModule(m.GetName()).WithObjectID(object.Identity())
 		objectKind := object.Unstructured.GetKind()
 		shortPath := object.ShortPath()
 

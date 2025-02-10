@@ -27,8 +27,8 @@ import (
 )
 
 //nolint:gocyclo // because
-func (o *Rbac) objectBindingSubjectServiceAccountCheck(m *module.Module) {
-	if slices.Contains(Cfg.SkipModuleCheckBinding, m.GetName()) {
+func (l *Rbac) objectBindingSubjectServiceAccountCheck(m *module.Module) {
+	if slices.Contains(l.cfg.SkipModuleCheckBinding, m.GetName()) {
 		return
 	}
 
@@ -37,7 +37,7 @@ func (o *Rbac) objectBindingSubjectServiceAccountCheck(m *module.Module) {
 
 	for _, object := range objectStore.Storage {
 		var subjects []v1.Subject
-		errorList := o.ErrorList.WithModule(m.GetName()).WithObjectID(object.Identity())
+		errorList := l.ErrorList.WithModule(m.GetName()).WithObjectID(object.Identity())
 
 		// deckhouse module should contain only global cluster roles
 		objectKind := object.Unstructured.GetKind()

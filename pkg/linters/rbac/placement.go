@@ -48,13 +48,14 @@ func isDeckhouseSystemNamespace(actual string) bool {
 	return slices.Contains(deckhouseNamespaces, actual)
 }
 
-func (o *Rbac) objectRBACPlacement(m *module.Module) {
-	if slices.Contains(Cfg.SkipObjectCheckBinding, m.GetName()) {
+func (l *Rbac) objectRBACPlacement(m *module.Module) {
+	if slices.Contains(l.cfg.SkipObjectCheckBinding, m.GetName()) {
 		return
 	}
 
 	for _, object := range m.GetObjectStore().Storage {
-		errorList := o.ErrorList.WithModule(m.GetName()).WithObjectID(object.Identity())
+		errorList := l.ErrorList.WithModule(m.GetName()).WithObjectID(object.Identity())
+
 		shortPath := object.ShortPath()
 		if shortPath == UserAuthzClusterRolePath || strings.HasPrefix(shortPath, RBACv2Path) {
 			continue
@@ -70,7 +71,8 @@ func (o *Rbac) objectRBACPlacement(m *module.Module) {
 			objectRBACPlacementRole(m, object, errorList)
 		default:
 			if strings.HasSuffix(shortPath, "rbac-for-us.yaml") || strings.HasSuffix(shortPath, "rbac-to-us.yaml") {
-				errorList.WithObjectID(object.Identity()).Errorf("kind %s not allowed in %q", objectKind, shortPath)
+				errorList.WithFilePath(shortPath).
+					Errorf("kind %s not allowed", objectKind)
 			}
 		}
 	}
