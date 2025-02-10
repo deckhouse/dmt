@@ -25,7 +25,6 @@ import (
 
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/storage"
-	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 type checkResult struct {
@@ -91,35 +90,38 @@ func checkRuleFile(path string) error {
 	return err
 }
 
-func PromtoolRuleCheck(m *module.Module, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, m.GetName())
+func (l *Monitoring) promtoolRuleCheck(m *module.Module, object storage.StoreObject) {
+	errorList := l.ErrorList.WithModule(m.GetName()).WithFilePath(m.GetPath())
+
 	// check promtoolPath exist, if not do not run linter
 	if _, err := os.Stat(promtoolPath); err != nil {
-		return nil
+		return
 	}
 
 	if object.Unstructured.GetKind() != "PrometheusRule" {
-		return nil
+		return
 	}
 
 	res, ok := rulesCache.Get(object.Hash)
 	if ok {
 		if !res.success {
-			return result.WithObjectID(m.GetPath()).Add("Promtool check failed for Helm chart:\n%s", res.errMsg)
+			errorList.Errorf("Promtool check failed for Helm chart: %s", res.errMsg)
 		}
-		return nil
+		return
 	}
 
 	marshal, err := marshalChartYaml(object)
 	if err != nil {
-		return result.WithObjectID(m.GetPath()).Add("Error marshaling Helm chart to yaml")
+		errorList.Error("Error marshaling Helm chart to yaml")
+		return
 	}
 
 	path, err := writeTempRuleFileFromObject(m, marshal)
 	defer os.Remove(path)
 
 	if err != nil {
-		return result.WithObjectID(m.GetPath()).Add("Error creating temporary rule file from Helm chart:\n%s", err.Error())
+		errorList.Errorf("Error creating temporary rule file from Helm chart: %s", err.Error())
+		return
 	}
 
 	err = checkRuleFile(path)
@@ -129,9 +131,9 @@ func PromtoolRuleCheck(m *module.Module, object storage.StoreObject) *errors.Lin
 			success: false,
 			errMsg:  errorMessage,
 		})
-		return result.WithObjectID(m.GetPath()).Add("Promtool check failed for Helm chart:\n%s", errorMessage)
+		errorList.Errorf("Promtool check failed for Helm chart: %s", errorMessage)
+		return
 	}
 
 	rulesCache.Put(object.Hash, checkResult{success: true})
-	return nil
 }

@@ -20,78 +20,97 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
-func dirExists(moduleName, modulePath string, path ...string) (bool, *errors.LintRuleErrorsList) {
-	result := errors.NewLinterRuleList(ID, moduleName)
+func dirExists(modulePath string, path ...string) error {
 	searchPath := filepath.Join(append([]string{modulePath}, path...)...)
-	info, err := os.Stat(searchPath)
+	_, err := os.Stat(searchPath)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return false, nil
-		}
-		return false, result.WithObjectID(modulePath).Add("%v", err.Error())
+		return err
 	}
-	return info.IsDir(), nil
-}
-
-func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, moduleName)
-	if slices.Contains(Cfg.SkipModuleChecks, moduleName) {
-		return nil
-	}
-
-	if exists, lerr := dirExists(moduleName, modulePath, "monitoring"); lerr != nil || !exists {
-		return lerr
-	}
-
-	rulesEx, lerr := dirExists(moduleName, modulePath, "monitoring", "prometheus-rules")
-	if lerr != nil {
-		return lerr
-	}
-
-	dashboardsEx, lerr := dirExists(moduleName, modulePath, "monitoring", "grafana-dashboards")
-	if lerr != nil {
-		return lerr
-	}
-
-	searchingFilePath := filepath.Join(modulePath, "templates", "monitoring.yaml")
-	if info, _ := os.Stat(searchingFilePath); info == nil {
-		return result.WithObjectID(modulePath).
-			WithValue(searchingFilePath).
-			Add("Module with the 'monitoring' folder should have the 'templates/monitoring.yaml' file")
-	}
-
-	content, err := os.ReadFile(searchingFilePath)
-	if err != nil {
-		return result.WithObjectID(modulePath).WithValue(searchingFilePath).Add("%v", err.Error())
-	}
-
-	desiredContent := buildDesiredContent(dashboardsEx, rulesEx)
-	if !isContentMatching(string(content), desiredContent, moduleNamespace, rulesEx) {
-		return result.WithObjectID(modulePath).Add(
-			"The content of the 'templates/monitoring.yaml' should be equal to:\n%s\nGot:\n%s",
-			fmt.Sprintf(desiredContent, "YOUR NAMESPACE TO DEPLOY RULES: d8-monitoring, d8-system or module namespaces"),
-			string(content),
-		)
-	}
-
 	return nil
 }
 
-func buildDesiredContent(dashboardsEx, rulesEx bool) string {
-	var builder strings.Builder
-	if dashboardsEx {
-		builder.WriteString("{{- include \"helm_lib_grafana_dashboard_definitions\" . }}\n")
+func (l *Monitoring) checkMonitoringRules(moduleName, modulePath, moduleNamespace string) {
+	errorList := l.ErrorList.WithModule(moduleName)
+
+	if l.cfg.MonitoringRules != nil && !*l.cfg.MonitoringRules {
+		return
 	}
-	if rulesEx {
-		builder.WriteString("{{- include \"helm_lib_prometheus_rules\" (list . %q) }}\n")
+
+	if err := dirExists(modulePath, "monitoring"); err != nil {
+		if os.IsNotExist(err) {
+			return
+		}
+
+		errorList.Errorf("reading the 'monitoring' folder failed: %s", err)
+		return
 	}
-	return builder.String()
+
+	monitoringFilePath := filepath.Join(modulePath, "templates", "monitoring.yaml")
+	if info, _ := os.Stat(monitoringFilePath); info == nil {
+		errorList.WithFilePath(monitoringFilePath).Error("Module with the 'monitoring' folder should have the 'templates/monitoring.yaml' file")
+		return
+	}
+
+	content, err := os.ReadFile(monitoringFilePath)
+	if err != nil {
+		errorList.WithFilePath(monitoringFilePath).Errorf("Cannot read 'templates/monitoring.yaml' file: %s", err)
+		return
+	}
+
+	validatePrometheusRules(modulePath, moduleNamespace, monitoringFilePath, string(content), errorList)
+
+	validationGrafanaDashboards(modulePath, moduleNamespace, monitoringFilePath, string(content), errorList)
+}
+
+func validatePrometheusRules(modulePath, moduleNamespace, monitoringFilePath, content string, errList *errors.LintRuleErrorsList) {
+	searchPath := filepath.Join(modulePath, "monitoring", "prometheus-rules")
+	_, err := os.Stat(searchPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return
+		}
+		errList.Errorf("reading the 'monitoring/prometheus-rules' folder failed: %s", err)
+		return
+	}
+
+	desiredContent := "{{- include \"helm_lib_prometheus_rules\" (list . %q) }}"
+
+	if !isContentMatching(content, desiredContent, moduleNamespace, true) {
+		errList.WithFilePath(monitoringFilePath).Errorf(
+			"The content of the 'templates/monitoring.yaml' should be equal to:\n%s\nGot:\n%s",
+			fmt.Sprintf(desiredContent, "YOUR NAMESPACE TO DEPLOY RULES: d8-monitoring, d8-system or module namespaces"),
+			content,
+		)
+		return
+	}
+}
+
+func validationGrafanaDashboards(modulePath, moduleNamespace, monitoringFilePath, content string, errList *errors.LintRuleErrorsList) {
+	searchPath := filepath.Join(modulePath, "monitoring", "grafana-dashboards")
+	_, err := os.Stat(searchPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return
+		}
+		errList.Errorf("reading the 'monitoring/grafana-dashboards' folder failed: %s", err)
+		return
+	}
+
+	desiredContent := "{{- include \"helm_lib_grafana_dashboard_definitions\" . }}"
+
+	if !isContentMatching(content, desiredContent, moduleNamespace, false) {
+		errList.WithFilePath(monitoringFilePath).Errorf(
+			"The content of the 'templates/monitoring.yaml' should be equal to:\n%s\nGot:\n%s",
+			desiredContent,
+			content,
+		)
+		return
+	}
 }
 
 func isContentMatching(content, desiredContent, moduleNamespace string, rulesEx bool) bool {
@@ -100,7 +119,7 @@ func isContentMatching(content, desiredContent, moduleNamespace string, rulesEx 
 		if rulesEx {
 			checkContent = fmt.Sprintf(desiredContent, namespace)
 		}
-		if content == checkContent {
+		if strings.Contains(content, checkContent) {
 			return true
 		}
 	}

@@ -12,6 +12,5 @@ Lint monitoring rules:
 ```yaml
 linters-settings:
   monitoring:
-    monitoring-rules:
-      disable: true
+    monitoring-rules: false
 ```

@@ -15,11 +15,7 @@ type Monitoring struct {
 
 const ID = "monitoring"
 
-var Cfg *config.MonitoringSettings
-
 func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Monitoring {
-	Cfg = &cfg.LintersSettings.Monitoring
-
 	return &Monitoring{
 		name:      ID,
 		desc:      "Lint monitoring rules",
@@ -28,30 +24,25 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Monito
 	}
 }
 
-func (o *Monitoring) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, m.GetName()).WithMaxLevel(o.cfg.Impact)
+func (l *Monitoring) Run(m *module.Module) *errors.LintRuleErrorsList {
 	if m == nil {
-		return result
+		return nil
 	}
 
-	result.Merge(MonitoringModuleRule(m.GetName(), m.GetPath(), m.GetNamespace()))
+	l.checkMonitoringRules(m.GetName(), m.GetPath(), m.GetNamespace())
 
 	// TODO: compile code instead of external binary - promtool
 	for _, object := range m.GetStorage() {
-		result.Merge(PromtoolRuleCheck(m, object))
+		l.promtoolRuleCheck(m, object)
 	}
 
-	result.CorrespondToMaxLevel()
-
-	o.ErrorList.Merge(result)
-
-	return result
+	return nil
 }
 
-func (o *Monitoring) Name() string {
-	return o.name
+func (l *Monitoring) Name() string {
+	return l.name
 }
 
-func (o *Monitoring) Desc() string {
-	return o.desc
+func (l *Monitoring) Desc() string {
+	return l.desc
 }
