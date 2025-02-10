@@ -90,7 +90,7 @@ func checkImageNamesInDockerFiles(name, path string, errorList *errors.LintRuleE
 			continue
 		}
 
-		lintOneDockerfile(name, path, imagesPath, result)
+		lintOneDockerfile(name, path, imagesPath, errorList)
 	}
 }
 
@@ -98,7 +98,7 @@ func lintOneDockerfile(name, path, imagesPath string, result *errors.LintRuleErr
 	relativeFilePath, err := filepath.Rel(imagesPath, path)
 	if err != nil {
 		result.WithFilePath(path).
-        Errorf("Error calculating relative file path: %s",err)
+			Errorf("Error calculating relative file path: %s", err)
 		return
 	}
 
