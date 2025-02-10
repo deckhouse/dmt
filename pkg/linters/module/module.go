@@ -15,11 +15,7 @@ type Module struct {
 
 const ID = "module"
 
-var Cfg *config.ModuleSettings
-
 func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Module {
-	Cfg = &cfg.LintersSettings.Module
-
 	return &Module{
 		name:      ID,
 		desc:      "Lint module rules",
@@ -28,25 +24,20 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Module
 	}
 }
 
-func (o *Module) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, m.GetName()).WithMaxLevel(o.cfg.Impact)
+func (l *Module) Run(m *module.Module) *errors.LintRuleErrorsList {
 	if m == nil {
-		return result
+		return nil
 	}
 
-	result.Merge(checkModuleYaml(m.GetName(), m.GetPath()))
+	l.checkModuleYaml(m.GetName(), m.GetPath())
 
-	result.CorrespondToMaxLevel()
-
-	o.ErrorList.Merge(result)
-
-	return result
+	return nil
 }
 
-func (o *Module) Name() string {
-	return o.name
+func (l *Module) Name() string {
+	return l.name
 }
 
-func (o *Module) Desc() string {
-	return o.desc
+func (l *Module) Desc() string {
+	return l.desc
 }
