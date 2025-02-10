@@ -43,12 +43,12 @@ func (o *Rbac) objectRolesWildcard(m *module.Module) {
 		objectKind := object.Unstructured.GetKind()
 		switch objectKind {
 		case "Role", "ClusterRole":
-			checkRoles(m, object, errorList)
+			checkRoles(object, errorList)
 		}
 	}
 }
 
-func checkRoles(m *module.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+func checkRoles(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	// check rbac-proxy for skip
 	for path, rules := range Cfg.SkipCheckWildcards {
 		if strings.EqualFold(object.Path, path) {
