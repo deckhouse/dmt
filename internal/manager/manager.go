@@ -56,7 +56,7 @@ var funcs = []linterFn{
 	conversions.Run,
 }
 
-func NewManager(dirs []string) *Manager {
+func newManager(dirs []string) *Manager {
 	m := &Manager{}
 
 	var paths []string
@@ -97,7 +97,8 @@ func NewManager(dirs []string) *Manager {
 	return m
 }
 
-func (m *Manager) Run() {
+func Run(dirs []string) {
+	m := newManager(dirs)
 	var g = pool.New().WithMaxGoroutines(flags.LintersLimit)
 	for _, module := range m.Modules {
 		logger.InfoF("Run linters for `%s` module", module.GetName())

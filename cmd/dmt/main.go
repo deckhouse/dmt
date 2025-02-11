@@ -78,9 +78,8 @@ func runLint(dirs []string) {
 	err := config.NewDefault(dirs)
 	logger.CheckErr(err)
 
-	go func() {
-		manager.NewManager(dirs).Run()
-	}()
+	go manager.Run(dirs)
+
 	errs := errors.GetErrors()
 	convertedError := errs.ConvertToError()
 	if convertedError != nil {
