@@ -95,8 +95,8 @@ func containerNameDuplicates(object storage.StoreObject, containers []corev1.Con
 }
 
 func containerEnvVariablesDuplicates(moduleName string, object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-	for idx, _ := range containers {
-		c := &containers[idx]
+	for i := range containers {
+		c := &containers[i]
 
 		if shouldSkipModuleContainer(moduleName, c.Name) {
 			continue
@@ -147,8 +147,8 @@ func shouldSkipModuleContainer(moduleName, container string) bool {
 }
 
 func containerImageDigestCheck(moduleName string, object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-	for idx, _ := range containers {
-		c := &containers[idx]
+	for i := range containers {
+		c := &containers[i]
 
 		if shouldSkipModuleContainer(moduleName, c.Name) {
 			continue
@@ -180,8 +180,8 @@ func containerImageDigestCheck(moduleName string, object storage.StoreObject, co
 }
 
 func containerImagePullPolicyIfNotPresent(moduleName string, object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-	for idx, _ := range containers {
-		c := &containers[idx]
+	for i := range containers {
+		c := &containers[i]
 
 		if shouldSkipModuleContainer(moduleName, c.Name) {
 			continue
@@ -195,8 +195,8 @@ func containerImagePullPolicyIfNotPresent(moduleName string, object storage.Stor
 }
 
 func containerStorageEphemeral(moduleName string, object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-	for idx, _ := range containers {
-		c := &containers[idx]
+	for i := range containers {
+		c := &containers[i]
 
 		if shouldSkipModuleContainer(moduleName, c.Name) {
 			continue
@@ -210,8 +210,8 @@ func containerStorageEphemeral(moduleName string, object storage.StoreObject, co
 }
 
 func containerSecurityContext(moduleName string, object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-	for idx, _ := range containers {
-		c := &containers[idx]
+	for i := range containers {
+		c := &containers[i]
 
 		if shouldSkipModuleContainer(moduleName, c.Name) {
 			continue
@@ -228,8 +228,8 @@ func containerSecurityContext(moduleName string, object storage.StoreObject, con
 
 func containerPorts(moduleName string, object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 	const t = 1024
-	for idx, _ := range containers {
-		c := &containers[idx]
+	for i := range containers {
+		c := &containers[i]
 
 		if shouldSkipModuleContainer(moduleName, c.Name) {
 			continue
@@ -253,8 +253,8 @@ func objectReadOnlyRootFilesystem(object storage.StoreObject, containers []corev
 		return
 	}
 
-	for idx, _ := range containers {
-		c := &containers[idx]
+	for i := range containers {
+		c := &containers[i]
 
 		if c.VolumeMounts == nil {
 			continue
@@ -296,8 +296,8 @@ func objectHostNetworkPorts(object storage.StoreObject, containers []corev1.Cont
 		return
 	}
 
-	for idx, _ := range containers {
-		c := &containers[idx]
+	for i := range containers {
+		c := &containers[i]
 
 		for _, port := range c.Ports {
 			if hostNetworkUsed && (port.ContainerPort < 4200 || port.ContainerPort >= 4300) {
