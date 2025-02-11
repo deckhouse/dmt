@@ -39,8 +39,8 @@ func dirExists(modulePath string, lintError *errors.Error, path ...string) bool 
 	return info.IsDir()
 }
 
-func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string, lintError *errors.Error) {
-	if slices.Contains(Cfg.SkipModuleChecks, moduleName) {
+func (o *Monitoring) monitoringModuleRule(moduleName, modulePath, moduleNamespace string, lintError *errors.Error) {
+	if slices.Contains(o.cfg.SkipModuleChecks, moduleName) {
 		return
 	}
 

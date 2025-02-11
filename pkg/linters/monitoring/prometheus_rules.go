@@ -91,7 +91,7 @@ func checkRuleFile(path string) error {
 	return err
 }
 
-func PromtoolRuleCheck(m *module.Module, object storage.StoreObject, lintError *errors.Error) {
+func (*Monitoring) promtoolRuleCheck(m *module.Module, object storage.StoreObject, lintError *errors.Error) {
 	// check promtoolPath exist, if not do not run linter
 	if _, err := os.Stat(promtoolPath); err != nil {
 		return

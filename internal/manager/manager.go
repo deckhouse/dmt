@@ -104,7 +104,6 @@ func (m *Manager) Run() {
 			logger.InfoF("Run linters for `%s` module", module.GetName())
 			for _, fn := range funcs {
 				g.Go(func() {
-					// logger.DebugF("Running linter `%s` on module `%s`", m.Linters[j].Name(), m.Modules[i].GetName())
 					fn(module)
 				})
 			}

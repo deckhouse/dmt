@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"slices"
 
+	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -28,6 +29,8 @@ func Run(m *module.Module) {
 		name: "k8s-resources",
 		cfg:  &config.Cfg.LintersSettings.K8SResources,
 	}
+
+	logger.DebugF("Running linter `%s` on module `%s`", o.name, m.GetName())
 
 	pdb.SkipPDBChecks = o.cfg.SkipPDBChecks
 	vpa.SkipVPAChecks = o.cfg.SkipVPAChecks

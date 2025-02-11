@@ -1,6 +1,7 @@
 package rbac
 
 import (
+	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -20,6 +21,8 @@ func Run(m *module.Module) {
 	o := &Rbac{
 		name: "rbac",
 	}
+	logger.DebugF("Running linter `%s` on module `%s`", o.name, m.GetName())
+
 	lintError := errors.NewError(o.name, m.GetName())
 	roles.Cfg = &config.Cfg.LintersSettings.Rbac
 
