@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -137,8 +136,9 @@ func (l *Images) lintOneDockerfile(moduleName, path, imagesPath string, errList 
 
 	for i, fromInstruction := range dockerfileFromInstructions {
 		if l.skipDistrolessImageCheckIfNeeded(relativeFilePath) {
-			// TODO: add Warn level message
-			log.Printf("WARNING!!! SKIP DISTROLESS CHECK!!!\nmodule = %s, image = %s\nvalue - %s\n\n", moduleName, relativeFilePath, fromInstruction)
+			errList.WithObjectID(fmt.Sprintf("module = %s ; image = %s ; value - %s", moduleName, relativeFilePath, fromInstruction)).
+				Warn("WARNING!!! SKIP DISTROLESS CHECK!!!")
+
 			continue
 		}
 
