@@ -2,13 +2,15 @@ package errors
 
 import (
 	"cmp"
-	"errors"
 	"fmt"
+	"os"
 	"slices"
 	"strings"
+	"text/tabwriter"
 
 	"github.com/fatih/color"
 	"github.com/kyokomi/emoji"
+	"github.com/mitchellh/go-wordwrap"
 
 	"github.com/deckhouse/dmt/pkg"
 )
@@ -288,7 +290,12 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 		)
 	})
 
-	builder := strings.Builder{}
+	w := new(tabwriter.Writer)
+
+	const minWidth = 5
+
+	w.Init(os.Stdout, minWidth, 0, 0, ' ', 0)
+
 	for _, err := range l.storage.GetErrors() {
 		msgColor := color.FgRed
 
@@ -296,29 +303,33 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 			msgColor = color.FgHiYellow
 		}
 
-		builder.WriteString(fmt.Sprintf(
-			"%s%s\n\t%-12s %s\n\t%-12s %s\n",
-			emoji.Sprintf(":monkey:"),
-			color.New(color.FgHiBlue).SprintfFunc()("[#%s]", err.ID),
-			"Message:", color.New(msgColor).SprintfFunc()(err.Text),
-			"Module:", err.Module,
-		))
+		fmt.Fprintf(w, "%s%s\n", emoji.Sprintf(":monkey:"), color.New(color.FgHiBlue).SprintfFunc()("[#%s]", err.ID))
+		fmt.Fprintf(w, "\t%s\t\t%s\n", "Message:", color.New(msgColor).SprintfFunc()(prepareString(err.Text)))
+		fmt.Fprintf(w, "\t%s\t\t%s\n", "Module:", err.Module)
+
 		if err.ObjectID != "" && err.ObjectID != err.Module {
-			builder.WriteString(fmt.Sprintf("\t%-12s %s\n", "Object:", err.ObjectID))
+			fmt.Fprintf(w, "\t%s\t\t%s\n", "Object:", err.ObjectID)
 		}
+
 		if err.ObjectValue != nil {
 			value := fmt.Sprintf("%v", err.ObjectValue)
-			builder.WriteString(fmt.Sprintf("\t%-12s %s\n", "Value:", value))
+
+			fmt.Fprintf(w, "\t%s\t\t%s\n", "Value:", prepareString(value))
 		}
+
 		if err.FilePath != "" {
-			builder.WriteString(fmt.Sprintf("\t%-12s %s\n", "FilePath:", strings.TrimSpace(err.FilePath)))
+			fmt.Fprintf(w, "\t%s\t\t%s\n", "FilePath:", strings.TrimSpace(err.FilePath))
 		}
+
 		if err.LineNumber != 0 {
-			builder.WriteString(fmt.Sprintf("\t%-12s %d\n", "LineNumber:", err.LineNumber))
+			fmt.Fprintf(w, "\t%s\t\t%d\n", "LineNumber:", err.LineNumber)
 		}
-		builder.WriteString("\n")
+
+		fmt.Fprintln(w)
+		w.Flush()
 	}
-	return errors.New(builder.String())
+
+	return nil
 }
 
 func (l *LintRuleErrorsList) ContainsErrors() bool {
@@ -333,4 +344,24 @@ func (l *LintRuleErrorsList) ContainsErrors() bool {
 	}
 
 	return false
+}
+
+// prepareString handle ussual string and prepare it for tablewriter
+func prepareString(input string) string {
+	// magic wrap const
+	const wrapLen = 100
+
+	w := &strings.Builder{}
+
+	// split wraps for tablewrite
+	split := strings.Split(wordwrap.WrapString(input, wrapLen), "\n")
+
+	// first string must be pure for correct handling
+	fmt.Fprint(w, strings.TrimSpace(split[0]))
+
+	for i := 1; i < len(split); i++ {
+		fmt.Fprintf(w, "\n\t\t\t%s", strings.TrimSpace(split[i]))
+	}
+
+	return w.String()
 }

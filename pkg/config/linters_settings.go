@@ -6,7 +6,9 @@ import (
 )
 
 type LintersSettings struct {
-	OpenAPI      OpenAPISettings      `mapstructure:"openapi"`
+	OpenAPIKeys  OpenAPIKeysSettings  `mapstructure:"openapi"`
+	OpenAPIEnum  OpenAPIEnumSettings  `mapstructure:"openapi_enum"`
+	OpenAPIHA    OpenAPIHASettings    `mapstructure:"openapi_ha"`
 	NoCyrillic   NoCyrillicSettings   `mapstructure:"nocyrillic"`
 	License      LicenseSettings      `mapstructure:"license"`
 	OSS          OSSSettings          `mapstructure:"oss"`
@@ -26,7 +28,9 @@ type LintersSettings struct {
 }
 
 func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
-	assignIfNotEmpty(&cfg.OpenAPI.Impact, lcfg.OpenAPI.Impact)
+	assignIfNotEmpty(&cfg.OpenAPIKeys.Impact, lcfg.OpenAPI.Impact)
+	assignIfNotEmpty(&cfg.OpenAPIEnum.Impact, lcfg.OpenAPI.Impact)
+	assignIfNotEmpty(&cfg.OpenAPIHA.Impact, lcfg.OpenAPI.Impact)
 	assignIfNotEmpty(&cfg.NoCyrillic.Impact, lcfg.NoCyrillic.Impact)
 	assignIfNotEmpty(&cfg.License.Impact, lcfg.License.Impact)
 	assignIfNotEmpty(&cfg.OSS.Impact, lcfg.OSS.Impact)
@@ -45,13 +49,19 @@ func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
 	assignIfNotEmpty(&cfg.Conversions.Impact, lcfg.Conversions.Impact)
 }
 
-type OpenAPISettings struct {
-	// EnumFileExcludes contains map with key string contained module name and file path separated by :
-	EnumFileExcludes       map[string][]string `mapstructure:"enum-file-excludes"`
-	HAAbsoluteKeysExcludes map[string]string   `mapstructure:"ha-absolute-keys-excludes"`
-	KeyBannedNames         []string            `mapstructure:"key-banned-names"`
+type OpenAPIKeysSettings struct {
+	KeyBannedNames []string  `mapstructure:"key-banned-names"`
+	Impact         pkg.Level `mapstructure:"impact"`
+}
 
-	Impact pkg.Level `mapstructure:"impact"`
+type OpenAPIEnumSettings struct {
+	EnumFileExcludes map[string][]string `mapstructure:"enum-file-excludes"`
+	Impact           pkg.Level           `mapstructure:"impact"`
+}
+
+type OpenAPIHASettings struct {
+	HAAbsoluteKeysExcludes map[string]string `mapstructure:"ha-absolute-keys-excludes"`
+	Impact                 pkg.Level         `mapstructure:"impact"`
 }
 
 type NoCyrillicSettings struct {

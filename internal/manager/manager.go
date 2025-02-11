@@ -23,7 +23,9 @@ import (
 	moduleLinter "github.com/deckhouse/dmt/pkg/linters/module"
 	"github.com/deckhouse/dmt/pkg/linters/monitoring"
 	no_cyrillic "github.com/deckhouse/dmt/pkg/linters/no-cyrillic"
-	"github.com/deckhouse/dmt/pkg/linters/openapi"
+	openapienum "github.com/deckhouse/dmt/pkg/linters/openapi-enum"
+	openapiha "github.com/deckhouse/dmt/pkg/linters/openapi-ha"
+	openapikeys "github.com/deckhouse/dmt/pkg/linters/openapi-keys"
 	"github.com/deckhouse/dmt/pkg/linters/oss"
 	"github.com/deckhouse/dmt/pkg/linters/pdb-resources"
 	"github.com/deckhouse/dmt/pkg/linters/probes"
@@ -40,7 +42,7 @@ const (
 )
 
 type Linter interface {
-	Run(m *module.Module) *errors.LintRuleErrorsList
+	Run(m *module.Module)
 	Name() string
 }
 
@@ -80,6 +82,7 @@ func NewManager(dirs []string, rootConfig *config.RootConfig) *Manager {
 		mdl, err := module.NewModule(paths[i])
 		if err != nil {
 			m.errors.
+				WithLinterID("manager").
 				WithModule(moduleName).
 				WithObjectID(paths[i]).
 				WithValue(err.Error()).
@@ -115,7 +118,9 @@ func (m *Manager) Run() {
 
 func getLintersForModule(cfg *config.ModuleConfig, errList *errors.LintRuleErrorsList) []Linter {
 	return []Linter{
-		openapi.New(cfg, errList),
+		openapienum.New(cfg, errList),
+		openapiha.New(cfg, errList),
+		openapikeys.New(cfg, errList),
 		no_cyrillic.New(cfg, errList),
 		license.New(cfg, errList),
 		oss.New(cfg, errList),

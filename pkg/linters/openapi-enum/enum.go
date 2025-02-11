@@ -1,12 +1,11 @@
-package validators
+package openapienum
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 	"unicode"
-
-	"github.com/hashicorp/go-multierror"
 
 	"github.com/deckhouse/dmt/pkg/config"
 )
@@ -16,12 +15,12 @@ var (
 )
 
 type EnumValidator struct {
-	cfg      *config.OpenAPISettings
-	key      string
+	cfg *config.OpenAPIEnumSettings
+
 	excludes map[string]struct{}
 }
 
-func NewEnumValidator(cfg *config.OpenAPISettings) EnumValidator {
+func NewEnumValidator(cfg *config.OpenAPIEnumSettings) EnumValidator {
 	keyExcludes := make(map[string]struct{})
 
 	for _, exc := range cfg.EnumFileExcludes["*"] {
@@ -30,14 +29,18 @@ func NewEnumValidator(cfg *config.OpenAPISettings) EnumValidator {
 
 	return EnumValidator{
 		cfg:      cfg,
-		key:      "enum",
 		excludes: keyExcludes,
 	}
 }
 
-func (en EnumValidator) Run(moduleName, fileName, absoluteKey string, value any) error {
+func (en EnumValidator) Run(moduleName, absoluteKey string, value any) error {
+	parts := strings.Split(absoluteKey, ".")
+	if parts[len(parts)-1] != "enum" {
+		return nil
+	}
+
 	en.excludes = make(map[string]struct{})
-	for _, exc := range en.cfg.EnumFileExcludes[moduleName+":"+fileName] {
+	for _, exc := range en.cfg.EnumFileExcludes[moduleName] {
 		en.excludes[exc+".enum"] = struct{}{}
 	}
 	if _, ok := en.excludes[absoluteKey]; ok {
@@ -69,12 +72,11 @@ func (en EnumValidator) Run(moduleName, fileName, absoluteKey string, value any)
 	return err
 }
 
-func validateEnumValues(enumKey string, values []string) *multierror.Error {
-	var res *multierror.Error
+func validateEnumValues(enumKey string, values []string) error {
+	var res error
 	for _, value := range values {
-		err := validateEnumValue(value)
-		if err != nil {
-			res = multierror.Append(res, fmt.Errorf("enum '%s' is invalid: %w", enumKey, err))
+		if err := validateEnumValue(value); err != nil {
+			res = errors.Join(res, fmt.Errorf("enum '%s' is invalid: %w", enumKey, err))
 		}
 	}
 
@@ -87,7 +89,7 @@ func validateEnumValue(value string) error {
 	}
 
 	vv := []rune(value)
-	if (vv[0] < 'A' || vv[0] > 'Z') && (vv[0] < '0' || vv[0] > '9') {
+	if unicode.IsLetter(vv[0]) && !unicode.IsUpper(vv[0]) {
 		return fmt.Errorf("value '%s' must start with Capital letter", value)
 	}
 

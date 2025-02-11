@@ -56,7 +56,7 @@ func (l *Loader) setConfigFile() error {
 
 	configSearchPaths := l.getConfigSearchPaths()
 
-	logger.InfoF("Config search paths: %s", configSearchPaths)
+	logger.DebugF("Config search paths: %s", configSearchPaths)
 
 	for _, p := range configSearchPaths {
 		l.viper.AddConfigPath(p)
@@ -149,7 +149,7 @@ func (l *Loader) setConfigDir() error {
 		logger.InfoF("Reading config file stdin")
 	}
 
-	logger.InfoF("Used config file %s", usedConfigFile)
+	logger.DebugF("Used config file %s", usedConfigFile)
 
 	return nil
 }

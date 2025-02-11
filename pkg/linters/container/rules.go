@@ -473,6 +473,8 @@ func objectSecurityContext(object storage.StoreObject, errorList *errors.LintRul
 	if securityContext == nil {
 		errorList.WithObjectID(object.Identity()).
 			Errorf("Object's SecurityContext is not defined")
+
+		return
 	}
 
 	checkSecurityContextParameters(securityContext, object, errorList)

@@ -30,17 +30,15 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Contai
 	}
 }
 
-func (l *Container) Run(m *module.Module) *errors.LintRuleErrorsList {
+func (l *Container) Run(m *module.Module) {
 	if m == nil {
-		return nil
+		return
 	}
 
 	errorList := l.ErrorList.WithModule(m.GetName())
 	for _, object := range m.GetStorage() {
 		applyContainerRules(m.GetName(), object, errorList)
 	}
-
-	return nil
 }
 
 func (l *Container) Name() string {

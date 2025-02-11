@@ -26,14 +26,12 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *OSS {
 	}
 }
 
-func (l *OSS) Run(m *module.Module) *errors.LintRuleErrorsList {
+func (l *OSS) Run(m *module.Module) {
 	if m.GetPath() == "" {
-		return nil
+		return
 	}
 
 	l.ossModuleRule(m.GetName(), m.GetPath())
-
-	return nil
 }
 
 func (l *OSS) Name() string {

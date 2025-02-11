@@ -5,9 +5,11 @@ import (
 	"path/filepath"
 )
 
-func GetFiles(rootPath string, skipSymlink bool) ([]string, error) {
+type fFn func(string) bool
+
+func GetFiles(rootPath string, skipSymlink bool, filters ...fFn) []string {
 	var result []string
-	err := filepath.Walk(rootPath, func(path string, info os.FileInfo, _ error) error {
+	_ = filepath.Walk(rootPath, func(path string, info os.FileInfo, _ error) error {
 		if skipSymlink && info.Mode()&os.ModeSymlink != 0 {
 			return filepath.SkipDir
 		}
@@ -20,10 +22,26 @@ func GetFiles(rootPath string, skipSymlink bool) ([]string, error) {
 			return nil
 		}
 
-		result = append(result, path)
+		if filterPass(Rel(rootPath, path), filters...) {
+			result = append(result, path)
+		}
 
 		return nil
 	})
 
-	return result, err
+	return result
+}
+
+func filterPass(path string, filters ...fFn) bool {
+	if len(filters) == 0 {
+		return true
+	}
+
+	for _, filter := range filters {
+		if filter(path) {
+			return true
+		}
+	}
+
+	return false
 }

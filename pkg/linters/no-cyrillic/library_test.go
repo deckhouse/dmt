@@ -9,9 +9,8 @@ import (
 func Test_found_msg(t *testing.T) {
 	// Simple check with one Cyrillic letter.
 	in := "fooБfoo"
-	expected := `
-  fooБfoo
-  ---^`
+	expected := `fooБfoo
+---^`
 
 	actual, has := checkCyrillicLetters(in)
 
@@ -28,9 +27,8 @@ func Test_found_msg(t *testing.T) {
 
 	// Multiple words with Cyrillic letters.
 	in = "asdqwe Там на qw q cheсk tеst qwd неведомых qqw"
-	expected = `
-  asdqwe Там на qw q cheсk tеst qwd неведомых qqw
-  -------^^^-^^---------^---^-------^^^^^^^^^`
+	expected = `asdqwe Там на qw q cheсk tеst qwd неведомых qqw
+-------^^^-^^---------^---^-------^^^^^^^^^`
 
 	actual, has = checkCyrillicLetters(in)
 	require.True(t, has, "Should detect cyrillic letters in string")
@@ -40,12 +38,10 @@ func Test_found_msg(t *testing.T) {
 	in = "Lorem ipsum dolor sit amet,\n consectetur adipiscing elit,\n" +
 		"раскрою перед вами всю \nкартину и разъясню," +
 		"Ut enim ad minim veniam,"
-	expected = `
-  раскрою перед вами всю 
-  ^^^^^^^-^^^^^-^^^^-^^^
-
-  картину и разъясню,Ut enim ad minim veniam,
-  ^^^^^^^-^-^^^^^^^^`
+	expected = `раскрою перед вами всю
+^^^^^^^-^^^^^-^^^^-^^^
+картину и разъясню,Ut enim ad minim veniam,
+^^^^^^^-^-^^^^^^^^`
 
 	actual, has = checkCyrillicLetters(in)
 	require.True(t, has, "Should detect cyrillic letters in string")

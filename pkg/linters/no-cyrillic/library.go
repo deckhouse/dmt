@@ -22,17 +22,15 @@ func checkCyrillicLettersInString(line string) (string, bool) {
 		return "", false
 	}
 
-	// Replace all tabs with spaces to prevent shifted cursor.
-	line = strings.ReplaceAll(line, "\t", "    ")
+	// Replace trim all spaces, because we do not need formatting here
+	line = strings.TrimSpace(line)
 
 	// Make string with pointers to Cyrillic letters so user can detect hidden letters.
 	cursor := cyrFillerRe.ReplaceAllString(line, "-")
 	cursor = cyrPointerRe.ReplaceAllString(cursor, "^")
 	cursor = strings.TrimRight(cursor, "-")
 
-	const formatPrefix = "  "
-
-	return "\n" + formatPrefix + line + "\n" + formatPrefix + cursor, true
+	return line + "\n" + cursor, true
 }
 
 // checkCyrillicLettersInArray returns a fancy message for each string in array that contains Cyrillic letters.
@@ -49,14 +47,4 @@ func checkCyrillicLettersInArray(lines []string) (string, bool) {
 	}
 
 	return strings.Join(res, "\n"), hasCyr
-}
-
-func addPrefix(lines []string, prefix string) string {
-	var builder strings.Builder
-	for _, line := range lines {
-		builder.WriteString(prefix)
-		builder.WriteString(line)
-		builder.WriteString("\n")
-	}
-	return builder.String()
 }

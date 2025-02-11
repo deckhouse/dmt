@@ -24,9 +24,9 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Monito
 	}
 }
 
-func (l *Monitoring) Run(m *module.Module) *errors.LintRuleErrorsList {
+func (l *Monitoring) Run(m *module.Module) {
 	if m == nil {
-		return nil
+		return
 	}
 
 	l.checkMonitoringRules(m.GetName(), m.GetPath(), m.GetNamespace())
@@ -35,8 +35,6 @@ func (l *Monitoring) Run(m *module.Module) *errors.LintRuleErrorsList {
 	for _, object := range m.GetStorage() {
 		l.promtoolRuleCheck(m, object)
 	}
-
-	return nil
 }
 
 func (l *Monitoring) Name() string {

@@ -33,64 +33,57 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Probes
 	}
 }
 
-func (p *Probes) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList("probes", m.GetName()).WithMaxLevel(p.cfg.Impact)
+func (l *Probes) Run(m *module.Module) {
+	errorList := l.ErrorList.WithModule(m.GetName())
+
 	var err error
-	var ch = make(chan *errors.LintRuleErrorsList)
+
 	go func() {
 		var g = pool.New().WithErrors()
+
 		g.Go(func() error {
 			for _, object := range m.GetStorage() {
 				containers, er := object.GetContainers()
 				if er != nil || containers == nil {
 					continue
 				}
-				ch <- p.containerProbes(m.GetName(), object, containers)
+
+				l.containerProbes(object, containers, errorList)
 			}
 
 			return nil
 		})
+
 		err = g.Wait()
-		close(ch)
 	}()
 
-	for er := range ch {
-		result.Merge(er)
-	}
-
 	if err != nil {
-		result.WithObjectID("module = " + m.GetName()).
-			WithValue(err.Error()).Add("Error in probes linter")
+		l.ErrorList.Errorf("Error in probes linter: %s", err)
 	}
-
-	result.CorrespondToMaxLevel()
-
-	p.ErrorList.Merge(result)
-
-	return result
 }
 
-func (p *Probes) Name() string {
-	return p.name
+func (l *Probes) Name() string {
+	return l.name
 }
 
-func (p *Probes) Desc() string {
-	return p.desc
+func (l *Probes) Desc() string {
+	return l.desc
 }
 
-func (p *Probes) containerProbes(
-	moduleName string,
+func (l *Probes) containerProbes(
 	object storage.StoreObject,
 	containers []v1.Container,
+	errorList *errors.LintRuleErrorsList,
 ) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList("probes", moduleName)
 	for i := range containers {
 		container := containers[i]
-		if p.skipCheckProbeHandler(object.Unstructured.GetNamespace(), container.Name) {
+
+		if l.skipCheckProbeHandler(object.Unstructured.GetNamespace(), container.Name) {
 			continue
 		}
 
 		var errStrings []string
+
 		// check livenessProbe exist and correct
 		livenessProbe := container.LivenessProbe
 		if livenessProbe == nil || probeHandlerIsNotValid(livenessProbe.ProbeHandler) {
@@ -104,13 +97,12 @@ func (p *Probes) containerProbes(
 		}
 
 		if len(errStrings) > 0 {
-			result.WithObjectID("module = " + moduleName + " ; " + object.Identity() + " ; container = " + container.Name).
-				WithValue(strings.Join(errStrings, " and ")).
-				Add("Container does not use correct probes")
+			errorList.WithObjectID(object.Identity()+" ; container = "+container.Name).
+				Errorf("Container does not use correct probes: %s", strings.Join(errStrings, " and "))
 		}
 	}
 
-	return result
+	return errorList
 }
 
 func probeHandlerIsNotValid(probe v1.ProbeHandler) bool {
@@ -134,8 +126,8 @@ func probeHandlerIsNotValid(probe v1.ProbeHandler) bool {
 	return false
 }
 
-func (p *Probes) skipCheckProbeHandler(namespace, container string) bool {
-	containers, ok := p.cfg.ProbesExcludes[namespace]
+func (l *Probes) skipCheckProbeHandler(namespace, container string) bool {
+	containers, ok := l.cfg.ProbesExcludes[namespace]
 	if ok {
 		return slices.Contains(containers, container)
 	}

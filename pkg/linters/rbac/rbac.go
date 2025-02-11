@@ -26,17 +26,15 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Rbac {
 	}
 }
 
-func (l *Rbac) Run(m *module.Module) *errors.LintRuleErrorsList {
+func (l *Rbac) Run(m *module.Module) {
 	if m == nil {
-		return nil
+		return
 	}
 
 	l.objectUserAuthzClusterRolePath(m)
 	l.objectRBACPlacement(m)
 	l.objectBindingSubjectServiceAccountCheck(m)
 	l.objectRolesWildcard(m)
-
-	return nil
 }
 
 func (l *Rbac) Name() string {

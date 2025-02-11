@@ -9,8 +9,6 @@ import (
 
 	"github.com/ghodss/yaml"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
-
-	"github.com/deckhouse/dmt/pkg/linters/images/rules"
 )
 
 var (
@@ -43,7 +41,7 @@ func (l *CRDResources) crdsModuleRule(moduleName, path string) {
 			var crd v1beta1.CustomResourceDefinition
 
 			if err := yaml.Unmarshal([]byte(d), &crd); err != nil {
-				errorList.Errorf("Can't parse manifests in %s folder: %s", rules.CrdsDir, err)
+				errorList.Errorf("Can't parse manifests in %s folder: %s", CrdsDir, err)
 
 				continue
 			}

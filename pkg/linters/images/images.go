@@ -4,7 +4,6 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/linters/images/rules"
 )
 
 const (
@@ -19,8 +18,6 @@ type Images struct {
 }
 
 func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Images {
-	rules.Cfg = &cfg.LintersSettings.Images
-
 	return &Images{
 		name:      ID,
 		desc:      "Lint docker images",
@@ -29,25 +26,20 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Images
 	}
 }
 
-func (o *Images) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList("images", m.GetName()).WithMaxLevel(o.cfg.Impact)
+func (l *Images) Run(m *module.Module) {
 	if m == nil {
-		return result
+		return
 	}
 
-	result.Merge(rules.ApplyImagesRules(m))
+	errorList := l.ErrorList.WithModule(m.GetName())
 
-	result.CorrespondToMaxLevel()
-
-	o.ErrorList.Merge(result)
-
-	return result
+	l.ApplyImagesRules(m, errorList)
 }
 
-func (o *Images) Name() string {
-	return o.name
+func (l *Images) Name() string {
+	return l.name
 }
 
-func (o *Images) Desc() string {
-	return o.desc
+func (l *Images) Desc() string {
+	return l.desc
 }
