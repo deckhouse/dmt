@@ -71,7 +71,7 @@ func applyContainerRules(moduleName string, object storage.StoreObject, errorLis
 
 func containersImagePullPolicy(moduleName string, object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 	if object.Unstructured.GetNamespace() == "d8-system" && object.Unstructured.GetKind() == "Deployment" && object.Unstructured.GetName() == "deckhouse" {
-		checkImagePullPolicyAlways(object, containers[0], errorList)
+		checkImagePullPolicyAlways(object, containers, errorList)
 
 		return
 	}
@@ -79,9 +79,10 @@ func containersImagePullPolicy(moduleName string, object storage.StoreObject, co
 	containerImagePullPolicyIfNotPresent(moduleName, object, containers, errorList)
 }
 
-func checkImagePullPolicyAlways(object storage.StoreObject, container corev1.Container, errorList *errors.LintRuleErrorsList) {
-	if container.ImagePullPolicy != corev1.PullAlways {
-		errorList.WithObjectID(object.Identity() + "; container = " + container.Name).WithValue(container.ImagePullPolicy).
+func checkImagePullPolicyAlways(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
+	c := containers[0]
+	if c.ImagePullPolicy != corev1.PullAlways {
+		errorList.WithObjectID(object.Identity() + "; container = " + c.Name).WithValue(c.ImagePullPolicy).
 			Error(`Container imagePullPolicy should be unspecified or "Always"`)
 	}
 }
@@ -94,12 +95,14 @@ func containerNameDuplicates(object storage.StoreObject, containers []corev1.Con
 }
 
 func containerEnvVariablesDuplicates(moduleName string, object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-	for _, container := range containers {
-		if shouldSkipModuleContainer(moduleName, container.Name) {
+	for idx, _ := range containers {
+		c := &containers[idx]
+
+		if shouldSkipModuleContainer(moduleName, c.Name) {
 			continue
 		}
-		if hasDuplicates(container.Env, func(e corev1.EnvVar) string { return e.Name }) {
-			errorList.WithObjectID(object.Identity() + "; container = " + container.Name).
+		if hasDuplicates(c.Env, func(e corev1.EnvVar) string { return e.Name }) {
+			errorList.WithObjectID(object.Identity() + "; container = " + c.Name).
 				Error("Container has two env variables with same name")
 
 			return
@@ -144,29 +147,31 @@ func shouldSkipModuleContainer(moduleName, container string) bool {
 }
 
 func containerImageDigestCheck(moduleName string, object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-	for _, container := range containers {
-		if shouldSkipModuleContainer(moduleName, container.Name) {
+	for idx, _ := range containers {
+		c := &containers[idx]
+
+		if shouldSkipModuleContainer(moduleName, c.Name) {
 			continue
 		}
 
 		re := regexp.MustCompile(`(?P<repository>.+)([@:])imageHash[-a-z0-9A-Z]+$`)
-		match := re.FindStringSubmatch(container.Image)
+		match := re.FindStringSubmatch(c.Image)
 		if len(match) == 0 {
-			errorList.WithObjectID(object.Identity() + "; container = " + container.Name).
+			errorList.WithObjectID(object.Identity() + "; container = " + c.Name).
 				Error("Cannot parse repository from image")
 
 			return
 		}
 		repo, err := name.NewRepository(match[re.SubexpIndex("repository")])
 		if err != nil {
-			errorList.WithObjectID(object.Identity()+"; container = "+container.Name).
-				Errorf("Cannot parse repository from image: %s", container.Image)
+			errorList.WithObjectID(object.Identity()+"; container = "+c.Name).
+				Errorf("Cannot parse repository from image: %s", c.Image)
 
 			return
 		}
 
 		if repo.Name() != defaultRegistry {
-			errorList.WithObjectID(object.Identity()+"; container = "+container.Name).
+			errorList.WithObjectID(object.Identity()+"; container = "+c.Name).
 				Errorf("All images must be deployed from the same default registry: %s current: %s", defaultRegistry, repo.RepositoryStr())
 
 			return
@@ -175,37 +180,43 @@ func containerImageDigestCheck(moduleName string, object storage.StoreObject, co
 }
 
 func containerImagePullPolicyIfNotPresent(moduleName string, object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-	for _, container := range containers {
-		if shouldSkipModuleContainer(moduleName, container.Name) {
+	for idx, _ := range containers {
+		c := &containers[idx]
+
+		if shouldSkipModuleContainer(moduleName, c.Name) {
 			continue
 		}
-		if container.ImagePullPolicy == "" || container.ImagePullPolicy == "IfNotPresent" {
+		if c.ImagePullPolicy == "" || c.ImagePullPolicy == "IfNotPresent" {
 			continue
 		}
-		errorList.WithObjectID(object.Identity() + "; container = " + container.Name).WithValue(container.ImagePullPolicy).
+		errorList.WithObjectID(object.Identity() + "; container = " + c.Name).WithValue(c.ImagePullPolicy).
 			Error(`Container imagePullPolicy should be unspecified or "IfNotPresent"`)
 	}
 }
 
 func containerStorageEphemeral(moduleName string, object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-	for _, container := range containers {
-		if shouldSkipModuleContainer(moduleName, container.Name) {
+	for idx, _ := range containers {
+		c := &containers[idx]
+
+		if shouldSkipModuleContainer(moduleName, c.Name) {
 			continue
 		}
-		if container.Resources.Requests.StorageEphemeral() == nil || container.Resources.Requests.StorageEphemeral().Value() == 0 {
-			errorList.WithObjectID(object.Identity() + "; container = " + container.Name).
+		if container.Resources.Requests.StorageEphemeral() == nil || c.Resources.Requests.StorageEphemeral().Value() == 0 {
+			errorList.WithObjectID(object.Identity() + "; container = " + c.Name).
 				Error("Ephemeral storage for container is not defined in Resources.Requests")
 		}
 	}
 }
 
 func containerSecurityContext(moduleName string, object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-	for _, container := range containers {
-		if shouldSkipModuleContainer(moduleName, container.Name) {
+	for idx, _ := range containers {
+		c := &containers[idx]
+
+		if shouldSkipModuleContainer(moduleName, c.Name) {
 			continue
 		}
-		if container.SecurityContext == nil {
-			errorList.WithObjectID(object.Identity() + "; container = " + container.Name).
+		if c.SecurityContext == nil {
+			errorList.WithObjectID(object.Identity() + "; container = " + c.Name).
 				Error("Container SecurityContext is not defined")
 
 			return
@@ -215,13 +226,15 @@ func containerSecurityContext(moduleName string, object storage.StoreObject, con
 
 func containerPorts(moduleName string, object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 	const t = 1024
-	for _, container := range containers {
-		if shouldSkipModuleContainer(moduleName, container.Name) {
+	for idx, _ := range containers {
+		c := &containers[idx]
+
+		if shouldSkipModuleContainer(moduleName, c.Name) {
 			continue
 		}
-		for _, port := range container.Ports {
+		for _, port := range c.Ports {
 			if port.ContainerPort <= t {
-				errorList.WithObjectID(object.Identity() + "; container = " + container.Name).WithValue(port.ContainerPort).
+				errorList.WithObjectID(object.Identity() + "; container = " + c.Name).WithValue(port.ContainerPort).
 					Error("Container uses port <= 1024")
 
 				return
@@ -237,24 +250,26 @@ func objectReadOnlyRootFilesystem(object storage.StoreObject, containers []corev
 		return
 	}
 
-	for _, container := range containers {
-		if container.VolumeMounts == nil {
+	for idx, _ := range containers {
+		c := &containers[idx]
+
+		if c.VolumeMounts == nil {
 			continue
 		}
-		if container.SecurityContext == nil {
+		if c.SecurityContext == nil {
 			errorList.WithObjectID(object.Identity()).
 				Error("Container's SecurityContext is missing")
 
 			continue
 		}
-		if container.SecurityContext.ReadOnlyRootFilesystem == nil {
-			errorList.WithObjectID(object.Identity() + " ; container = " + container.Name).
+		if c.SecurityContext.ReadOnlyRootFilesystem == nil {
+			errorList.WithObjectID(object.Identity() + " ; container = " + c.Name).
 				Error("Container's SecurityContext missing parameter ReadOnlyRootFilesystem")
 
 			continue
 		}
-		if !*container.SecurityContext.ReadOnlyRootFilesystem {
-			errorList.WithObjectID(object.Identity() + " ; container = " + container.Name).
+		if !*c.SecurityContext.ReadOnlyRootFilesystem {
+			errorList.WithObjectID(object.Identity() + " ; container = " + c.Name).
 				Error("Container's SecurityContext has `ReadOnlyRootFilesystem: false`, but it must be `true`")
 		}
 	}
@@ -275,14 +290,16 @@ func objectHostNetworkPorts(object storage.StoreObject, containers []corev1.Cont
 		return
 	}
 
-	for _, container := range containers {
-		for _, port := range container.Ports {
+	for idx, _ := range containers {
+		c := &containers[idx]
+
+		for _, port := range c.Ports {
 			if hostNetworkUsed && (port.ContainerPort < 4200 || port.ContainerPort >= 4300) {
-				errorList.WithObjectID(object.Identity() + " ; container = " + container.Name).WithValue(port.ContainerPort).
+				errorList.WithObjectID(object.Identity() + " ; container = " + c.Name).WithValue(port.ContainerPort).
 					Error("Pod running in hostNetwork and it's container port doesn't fit the range [4200,4299]")
 			}
 			if port.HostPort != 0 && (port.HostPort < 4200 || port.HostPort >= 4300) {
-				errorList.WithObjectID(object.Identity() + " ; container = " + container.Name).WithValue(port.HostPort).
+				errorList.WithObjectID(object.Identity() + " ; container = " + c.Name).WithValue(port.HostPort).
 					Error("Container uses hostPort that doesn't fit the range [4200,4299]")
 			}
 		}
