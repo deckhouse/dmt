@@ -98,18 +98,16 @@ func NewManager(dirs []string) *Manager {
 }
 
 func (m *Manager) Run() {
-	go func() {
-		var g = pool.New().WithMaxGoroutines(flags.LintersLimit)
-		for _, module := range m.Modules {
-			logger.InfoF("Run linters for `%s` module", module.GetName())
-			for _, fn := range funcs {
-				g.Go(func() {
-					fn(module)
-				})
-			}
+	var g = pool.New().WithMaxGoroutines(flags.LintersLimit)
+	for _, module := range m.Modules {
+		logger.InfoF("Run linters for `%s` module", module.GetName())
+		for _, fn := range funcs {
+			g.Go(func() {
+				fn(module)
+			})
 		}
-		g.Wait()
-	}()
+	}
+	g.Wait()
 	errors.Close()
 }
 

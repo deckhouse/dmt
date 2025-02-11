@@ -74,17 +74,20 @@ func main() {
 func runLint(dirs []string) {
 	logger.InfoF("Dirs: %v", dirs)
 
+	errors.Init()
 	err := config.NewDefault(dirs)
 	logger.CheckErr(err)
 
-	mng := manager.NewManager(dirs)
-	mng.Run()
-	convertedError := errors.GetErrors().ConvertToError()
+	go func() {
+		manager.NewManager(dirs).Run()
+	}()
+	errs := errors.GetErrors()
+	convertedError := errs.ConvertToError()
 	if convertedError != nil {
 		fmt.Printf("%s\n", convertedError)
 	}
 
-	if errors.GetErrors().Critical() {
+	if errs.Critical() {
 		os.Exit(1)
 	}
 }

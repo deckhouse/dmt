@@ -156,6 +156,10 @@ func (l *ErrorList) ConvertToError() error {
 var WarningsOnly []string
 
 func (l *ErrorList) Critical() bool {
+	if l == nil {
+		return false
+	}
+
 	for _, err := range *l {
 		if !slices.Contains(WarningsOnly, err.ID) {
 			return true
