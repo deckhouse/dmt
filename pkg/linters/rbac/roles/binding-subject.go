@@ -1,19 +1,3 @@
-/*
-Copyright 2021 Flant JSC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package roles
 
 import (
@@ -32,10 +16,10 @@ func ObjectBindingSubjectServiceAccountCheck(
 	m *module.Module,
 	object storage.StoreObject,
 	objectStore *storage.UnstructuredObjectStore,
-) *errors.LintRuleErrorsList {
-	result := errors.NewError(ID, m.GetName())
+	lintError *errors.Error,
+) {
 	if slices.Contains(Cfg.SkipModuleCheckBinding, m.GetName()) {
-		return nil
+		return
 	}
 
 	converter := runtime.DefaultUnstructuredConverter
@@ -49,21 +33,23 @@ func ObjectBindingSubjectServiceAccountCheck(
 		clusterRoleBinding := new(v1.ClusterRoleBinding)
 		err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), clusterRoleBinding)
 		if err != nil {
-			return result.WithObjectID(object.Identity()).Add(
+			lintError.WithObjectID(object.Identity()).Add(
 				"Cannot convert object to %s: %v", object.Unstructured.GetKind(), err)
+			return
 		}
 		subjects = clusterRoleBinding.Subjects
 	case "RoleBinding":
 		roleBinding := new(v1.RoleBinding)
 		err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), roleBinding)
 		if err != nil {
-			return result.WithObjectID(object.Identity()).Add(
+			lintError.WithObjectID(object.Identity()).Add(
 				"Cannot convert object to %s: %v", object.Unstructured.GetKind(), err)
+			return
 		}
 		subjects = roleBinding.Subjects
 
 	default:
-		return nil
+		return
 	}
 
 	for _, subject := range subjects {
@@ -89,11 +75,10 @@ func ObjectBindingSubjectServiceAccountCheck(
 		if subject.Namespace == m.GetNamespace() && !objectStore.Exists(storage.ResourceIndex{
 			Name: subject.Name, Kind: subject.Kind, Namespace: subject.Namespace,
 		}) {
-			return result.WithObjectID(object.Identity()).Add(
+			lintError.WithObjectID(object.Identity()).Add(
 				"%s bind to the wrong ServiceAccount (doesn't exist in the store)", objectKind,
 			)
+			return
 		}
 	}
-
-	return nil
 }

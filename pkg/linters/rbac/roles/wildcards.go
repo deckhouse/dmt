@@ -1,19 +1,3 @@
-/*
-Copyright 2024 Flant JSC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package roles
 
 import (
@@ -23,36 +7,33 @@ import (
 	k8SRbac "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 // ObjectRolesWildcard is a linter for checking the presence
 // of a wildcard in a Role and ClusterRole
-func ObjectRolesWildcard(m *module.Module, object storage.StoreObject) *errors.LintRuleErrorsList {
+func ObjectRolesWildcard(object storage.StoreObject, lintError *errors.Error) {
 	// check only `rbac-for-us.yaml` files
 	if !strings.HasSuffix(object.ShortPath(), "rbac-for-us.yaml") {
-		return nil
+		return
 	}
 
 	// check Role and ClusterRole for wildcards
 	objectKind := object.Unstructured.GetKind()
 	switch objectKind {
 	case "Role", "ClusterRole":
-		return checkRoles(m, object)
+		checkRoles(object, lintError)
 	default:
-		return nil
 	}
 }
 
-func checkRoles(m *module.Module, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewError(ID, m.GetName())
+func checkRoles(object storage.StoreObject, lintError *errors.Error) {
 	// check rbac-proxy for skip
 	for path, rules := range Cfg.SkipCheckWildcards {
 		if strings.EqualFold(object.Path, path) {
 			if slices.Contains(rules, object.Unstructured.GetName()) {
-				return nil
+				return
 			}
 		}
 	}
@@ -62,8 +43,9 @@ func checkRoles(m *module.Module, object storage.StoreObject) *errors.LintRuleEr
 	role := new(k8SRbac.Role)
 	err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), role)
 	if err != nil {
-		return result.WithObjectID(object.Identity()).Add(
+		lintError.WithObjectID(object.Identity()).Add(
 			"Cannot convert object to %s: %v", object.Unstructured.GetKind(), err)
+		return
 	}
 
 	for _, rule := range role.Rules {
@@ -78,12 +60,11 @@ func checkRoles(m *module.Module, object storage.StoreObject) *errors.LintRuleEr
 			objs = append(objs, "verbs")
 		}
 		if len(objs) > 0 {
-			return result.WithObjectID(object.Identity()).Add(
+			lintError.WithObjectID(object.Identity()).Add(
 				"%s contains a wildcards. Replace them with an explicit list of resources",
 				strings.Join(objs, ", "),
 			)
+			return
 		}
 	}
-
-	return nil
 }

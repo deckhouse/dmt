@@ -50,37 +50,32 @@ func isDeckhouseSystemNamespace(actual string) bool {
 		actual == "d8-local-path-provisioner"
 }
 
-func ObjectRBACPlacement(m *module.Module, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewError(ID, m.GetName())
+func ObjectRBACPlacement(m *module.Module, object storage.StoreObject, lintError *errors.Error) {
 	if slices.Contains(Cfg.SkipObjectCheckBinding, m.GetName()) {
-		return nil
+		return
 	}
 	if object.ShortPath() == UserAuthzClusterRolePath || strings.HasPrefix(object.ShortPath(), RBACv2Path) {
-		return nil
+		return
 	}
 
 	objectKind := object.Unstructured.GetKind()
 	switch objectKind {
 	case "ServiceAccount":
-		return objectRBACPlacementServiceAccount(m, object)
+		objectRBACPlacementServiceAccount(m, object, lintError)
 	case "ClusterRole", "ClusterRoleBinding":
-		return objectRBACPlacementClusterRole(objectKind, m, object)
+		objectRBACPlacementClusterRole(objectKind, m, object, lintError)
 	case "Role", "RoleBinding":
-		return objectRBACPlacementRole(objectKind, m, object)
+		objectRBACPlacementRole(objectKind, m, object, lintError)
 	default:
 		shortPath := object.ShortPath()
 		if strings.HasSuffix(shortPath, "rbac-for-us.yaml") || strings.HasSuffix(shortPath, "rbac-to-us.yaml") {
-			return result.WithObjectID(object.Identity()).Add(
-				"kind %s not allowed in %q", objectKind, shortPath,
-			)
+			lintError.WithObjectID(object.Identity()).Add("kind %s not allowed in %q", objectKind, shortPath)
 		}
-		return nil
 	}
 }
 
 //nolint:gocyclo // because
-func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewError(ID, m.GetName())
+func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObject, lintError *errors.Error) {
 	objectName := object.Unstructured.GetName()
 	shortPath := object.ShortPath()
 	namespace := object.Unstructured.GetNamespace()
@@ -88,25 +83,26 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 	if shortPath == RootRBACForUsPath {
 		if isSystemNamespace(namespace) {
 			if objectName != "d8-"+m.GetName() {
-				return result.WithObjectID(object.Identity()).Add(
+				lintError.WithObjectID(object.Identity()).Add(
 					"Name of ServiceAccount in %q in namespace %q should be equal to d8- + Chart Name (d8-%s)",
 					RootRBACForUsPath, namespace, m.GetName(),
 				)
 			}
-			return nil
+			return
 		}
 		if objectName != m.GetName() {
-			return result.WithObjectID(object.Identity()).Add(
+			lintError.WithObjectID(object.Identity()).Add(
 				"Name of ServiceAccount in %q should be equal to Chart Name (%s)",
 				RootRBACForUsPath, m.GetName(),
 			)
+			return
 		}
 		if !isDeckhouseSystemNamespace(namespace) && m.GetNamespace() != namespace {
-			return result.WithObjectID(object.Identity()).Add(
+			lintError.WithObjectID(object.Identity()).Add(
 				"ServiceAccount should be deployed to \"d8-system\", \"d8-monitoring\" or %q", m.GetNamespace(),
 			)
 		}
-		return nil
+		return
 	} else if strings.HasSuffix(shortPath, "rbac-for-us.yaml") {
 		parts := strings.Split(
 			strings.TrimPrefix(strings.TrimSuffix(shortPath, "/rbac-for-us.yaml"), "templates/"),
@@ -118,26 +114,26 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 
 		if isSystemNamespace(namespace) {
 			if objectName != "d8-"+expectedServiceAccountName {
-				return result.WithObjectID(object.Identity()).Add(
+				lintError.WithObjectID(object.Identity()).Add(
 					"Name of ServiceAccount in %q in namespace %q should be equal to d8-%s",
 					shortPath, namespace, expectedServiceAccountName,
 				)
 			}
-			return nil
+			return
 		}
 		if objectName == serviceAccountName {
 			if m.GetNamespace() != namespace {
-				return result.WithObjectID(object.Identity()).Add(
+				lintError.WithObjectID(object.Identity()).Add(
 					"ServiceAccount should be deployed to %q", m.GetNamespace(),
 				)
 			}
-			return nil
+			return
 		} else if objectName == expectedServiceAccountName {
 			if !isDeckhouseSystemNamespace(namespace) {
-				return result.WithObjectID(object.Identity()).WithValue(namespace).
+				lintError.WithObjectID(object.Identity()).WithValue(namespace).
 					Add("ServiceAccount should be deployed to \"d8-system\" or \"d8-monitoring\"")
 			}
-			return nil
+			return
 		}
 
 		if strings.HasPrefix(objectName, "istiod") && namespace == "d8-istio" {
@@ -145,21 +141,21 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 			// naming conventions we can't change (i.e. istiod-v1x19).
 			// In our convention it has to be named as "iop" according to template folder, but within the folder we render
 			// not a single istiod instance, but several for different versions and can't use the shared ServiceAccount for them.
-			return nil
+			return
 		}
 
-		return result.WithObjectID(object.Identity()).Add(
+		lintError.WithObjectID(object.Identity()).Add(
 			"Name of ServiceAccount should be equal to %q or %q",
 			serviceAccountName, expectedServiceAccountName,
 		)
+		return
 	}
-	return result.WithObjectID(object.Identity()).Add(
+	lintError.WithObjectID(object.Identity()).Add(
 		"ServiceAccount should be in %q or \"*/rbac-for-us.yaml\"", RootRBACForUsPath,
 	)
 }
 
-func objectRBACPlacementClusterRole(kind string, m *module.Module, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewError(ID, m.GetName())
+func objectRBACPlacementClusterRole(kind string, m *module.Module, object storage.StoreObject, lintError *errors.Error) {
 	objectName := object.Unstructured.GetName()
 	shortPath := object.ShortPath()
 
@@ -167,10 +163,11 @@ func objectRBACPlacementClusterRole(kind string, m *module.Module, object storag
 	switch {
 	case shortPath == RootRBACForUsPath:
 		if !strings.HasPrefix(objectName, name) {
-			return result.WithObjectID(object.Identity()).Add(
+			lintError.WithObjectID(object.Identity()).Add(
 				"Name of %s in %q should start with %q",
 				kind, RootRBACForUsPath, name,
 			)
+			return
 		}
 	case strings.HasSuffix(shortPath, "rbac-for-us.yaml"):
 		parts := strings.Split(
@@ -179,102 +176,99 @@ func objectRBACPlacementClusterRole(kind string, m *module.Module, object storag
 		)
 		n := name + ":" + strings.Join(parts, ":")
 		if !strings.HasPrefix(objectName, name) {
-			return result.WithObjectID(object.Identity()).Add(
+			lintError.WithObjectID(object.Identity()).Add(
 				"Name of %s should start with %q",
 				kind, n,
 			)
+			return
 		}
 	default:
-		return result.WithObjectID(object.Identity()).Add(
+		lintError.WithObjectID(object.Identity()).Add(
 			"%s should be in %q or \"*/rbac-for-us.yaml\"",
 			kind, RootRBACForUsPath,
 		)
+		return
 	}
-
-	return nil
 }
 
-func objectRBACPlacementRole(kind string, m *module.Module, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewError(ID, m.GetName())
+func objectRBACPlacementRole(kind string, m *module.Module, object storage.StoreObject, lintError *errors.Error) {
 	objectName := object.Unstructured.GetName()
 	shortPath := object.ShortPath()
 	namespace := object.Unstructured.GetNamespace()
 
 	switch {
 	case shortPath == RootRBACForUsPath:
-		return handleRootRBACForUs(m, object, objectName, kind)
+		handleRootRBACForUs(m, object, objectName, kind, lintError)
 	case shortPath == RootRBACToUsPath:
-		return handleRootRBACToUs(m, object, objectName, kind)
+		handleRootRBACToUs(m, object, objectName, kind, lintError)
 	case strings.HasSuffix(shortPath, "rbac-for-us.yaml"):
-		return handleNestedRBACForUs(m, object, shortPath, objectName, namespace, kind)
+		handleNestedRBACForUs(m, object, shortPath, objectName, namespace, kind, lintError)
 	case strings.HasSuffix(shortPath, "rbac-to-us.yaml"):
-		return handleNestedRBACToUs(m, object, shortPath, objectName, kind)
+		handleNestedRBACToUs(m, object, shortPath, objectName, kind, lintError)
 	default:
 		msgTemplate := `%s should be in "templates/rbac-for-us.yaml", "templates/rbac-to-us.yaml", ".*/rbac-to-us.yaml" or ".*/rbac-for-us.yaml"`
-		return result.WithObjectID(object.Identity()).Add(msgTemplate, kind)
+		lintError.WithObjectID(object.Identity()).Add(msgTemplate, kind)
 	}
 }
 
 // handleRootRBACForUs applies to templates/rbac-for-us.yaml file's objects
-func handleRootRBACForUs(m *module.Module, object storage.StoreObject, objectName, kind string) *errors.LintRuleErrorsList {
-	result := errors.NewError(ID, m.GetName())
+func handleRootRBACForUs(m *module.Module, object storage.StoreObject, objectName, kind string, lintError *errors.Error) {
 	prefix := "d8:" + m.GetName()
 	namespace := object.Unstructured.GetNamespace()
 
 	switch {
 	case objectName == m.GetName() && namespace != m.GetNamespace():
 		if !isDeckhouseSystemNamespace(namespace) {
-			return result.WithObjectID(object.Identity()).Add(
+			lintError.WithObjectID(object.Identity()).Add(
 				"%s in %q should be deployed in namespace \"d8-monitoring\", \"d8-system\" or %q",
 				kind, RootRBACForUsPath, m.GetNamespace(),
 			)
+			return
 		}
 	case strings.HasPrefix(objectName, prefix):
 		if !isSystemNamespace(namespace) {
-			return result.WithObjectID(object.Identity()).Add(
+			lintError.WithObjectID(object.Identity()).Add(
 				"%s in %q should be deployed in namespace \"default\" or \"kube-system\"",
 				kind, RootRBACForUsPath,
 			)
+			return
 		}
 	case !strings.HasPrefix(objectName, prefix):
 		if !isDeckhouseSystemNamespace(namespace) {
-			return result.WithObjectID(object.Identity()).Add(
+			lintError.WithObjectID(object.Identity()).Add(
 				"%s in %q should be deployed in namespace %q",
 				kind, RootRBACForUsPath, m.GetNamespace(),
 			)
+			return
 		}
 	}
-
-	return nil
 }
 
 // handleRootRBACToUs applies to templates/rbac-to-us.yaml file's objects
-func handleRootRBACToUs(m *module.Module, object storage.StoreObject, objectName, kind string) *errors.LintRuleErrorsList {
-	result := errors.NewError(ID, m.GetName())
+func handleRootRBACToUs(m *module.Module, object storage.StoreObject, objectName, kind string, lintError *errors.Error) {
 	prefix := "access-to-" + m.GetName()
 	if !strings.HasPrefix(objectName, prefix) {
-		return result.WithObjectID(object.Identity()).Add(
+		lintError.WithObjectID(object.Identity()).Add(
 			"%s in %q should start with %q",
 			kind, RootRBACToUsPath, prefix,
 		)
+		return
 	}
 
 	namespace := object.Unstructured.GetNamespace()
 	if !isDeckhouseSystemNamespace(namespace) && namespace != m.GetNamespace() {
-		return result.WithObjectID(object.Identity()).Add(
+		lintError.WithObjectID(object.Identity()).Add(
 			"%s in %q should be deployed in namespace \"d8-system\", \"d8-monitoring\" or %q",
 			kind, RootRBACToUsPath, m.GetNamespace(),
 		)
+		return
 	}
-
-	return nil
 }
 
 // handleNestedRBACForUs applies to templates/**/rbac-for-us.yaml file's objects
-func handleNestedRBACForUs(m *module.Module, object storage.StoreObject, shortPath, objectName, namespace, kind string) *errors.LintRuleErrorsList {
-	result := errors.NewError(ID, m.GetName())
+func handleNestedRBACForUs(m *module.Module, object storage.StoreObject, shortPath, objectName, namespace, kind string, lintError *errors.Error) {
 	if m == nil {
-		return nil
+		return
 	}
 	parts := strings.Split(
 		strings.TrimPrefix(strings.TrimSuffix(shortPath, "/rbac-for-us.yaml"), "templates/"),
@@ -287,38 +281,39 @@ func handleNestedRBACForUs(m *module.Module, object storage.StoreObject, shortPa
 	switch {
 	case strings.HasPrefix(objectName, localPrefix):
 		if namespace != m.GetNamespace() {
-			return result.WithObjectID(object.Identity()).Add(
+			lintError.WithObjectID(object.Identity()).Add(
 				"%s with prefix %q should be deployed in namespace %q",
 				kind, localPrefix, m.GetNamespace(),
 			)
+			return
 		}
 	case strings.HasPrefix(objectName, globalPrefix):
 		if !isDeckhouseSystemNamespace(namespace) {
-			return result.WithObjectID(object.Identity()).Add(
+			lintError.WithObjectID(object.Identity()).Add(
 				"%s with prefix %q should be deployed in namespace \"d8-system\" or \"d8-monitoring\"",
 				kind, globalPrefix,
 			)
+			return
 		}
 	case strings.HasPrefix(objectName, systemPrefix):
 		if !isSystemNamespace(namespace) {
-			return result.WithObjectID(object.Identity()).Add(
+			lintError.WithObjectID(object.Identity()).Add(
 				"%s with prefix %q should be deployed in namespace \"default\" or \"kube-system\"",
 				kind, systemPrefix,
 			)
+			return
 		}
 	default:
-		return result.WithObjectID(object.Identity()).Add(
+		lintError.WithObjectID(object.Identity()).Add(
 			"%s in %q should start with %q or %q",
 			kind, shortPath, localPrefix, globalPrefix,
 		)
+		return
 	}
-
-	return nil
 }
 
 // handleNestedRBACToUs applies to templates/**/rbac-to-us.yaml file's objects
-func handleNestedRBACToUs(m *module.Module, object storage.StoreObject, shortPath, objectName, kind string) *errors.LintRuleErrorsList {
-	result := errors.NewError(ID, m.GetName())
+func handleNestedRBACToUs(m *module.Module, object storage.StoreObject, shortPath, objectName, kind string, lintError *errors.Error) {
 	parts := strings.Split(
 		strings.TrimPrefix(strings.TrimSuffix(shortPath, "/rbac-to-us.yaml"), "templates/"),
 		string(os.PathSeparator),
@@ -331,23 +326,24 @@ func handleNestedRBACToUs(m *module.Module, object storage.StoreObject, shortPat
 	switch {
 	case strings.HasPrefix(objectName, localPrefix):
 		if namespace != m.GetNamespace() {
-			return result.WithObjectID(object.Identity()).Add(
+			lintError.WithObjectID(object.Identity()).Add(
 				"%s with prefix %q should be deployed in namespace %q",
 				kind, globalPrefix, m.GetNamespace(),
 			)
+			return
 		}
 	case strings.HasPrefix(objectName, globalPrefix):
 		if !isDeckhouseSystemNamespace(namespace) {
-			return result.WithObjectID(object.Identity()).Add(
+			lintError.WithObjectID(object.Identity()).Add(
 				"%s with prefix %q should be deployed in namespace \"d8-system\" or \"d8-monitoring\"",
 				kind, globalPrefix,
 			)
+			return
 		}
 	default:
-		return result.WithObjectID(object.Identity()).Add(
+		lintError.WithObjectID(object.Identity()).Add(
 			"%s should start with %q or %q", kind, localPrefix, globalPrefix,
 		)
+		return
 	}
-
-	return nil
 }

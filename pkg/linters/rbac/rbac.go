@@ -9,40 +9,24 @@ import (
 
 // Rbac linter
 type Rbac struct {
-	name, desc string
-	Cfg        *config.RbacSettings
+	name string
 }
 
-func New(cfg *config.RbacSettings) *Rbac {
-	roles.Cfg = cfg
-
-	return &Rbac{
-		name: "rbac",
-		desc: "Lint rbac objects",
-		Cfg:  cfg,
-	}
-}
-
-func (o *Rbac) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewError(o.Name(), m.GetName())
+func Run(m *module.Module) {
 	if m == nil {
-		return result
+		return
 	}
+
+	o := &Rbac{
+		name: "rbac",
+	}
+	lintError := errors.NewError(o.name, m.GetName())
+	roles.Cfg = &config.Cfg.LintersSettings.Rbac
 
 	for _, object := range m.GetStorage() {
-		result.Merge(roles.ObjectUserAuthzClusterRolePath(m, object))
-		result.Merge(roles.ObjectRBACPlacement(m, object))
-		result.Merge(roles.ObjectBindingSubjectServiceAccountCheck(m, object, m.GetObjectStore()))
-		result.Merge(roles.ObjectRolesWildcard(m, object))
+		roles.ObjectUserAuthzClusterRolePath(m, object, lintError)
+		roles.ObjectRBACPlacement(m, object, lintError)
+		roles.ObjectBindingSubjectServiceAccountCheck(m, object, m.GetObjectStore(), lintError)
+		roles.ObjectRolesWildcard(object, lintError)
 	}
-
-	return result
-}
-
-func (o *Rbac) Name() string {
-	return o.name
-}
-
-func (o *Rbac) Desc() string {
-	return o.desc
 }
