@@ -8,44 +8,28 @@ import (
 
 // Monitoring linter
 type Monitoring struct {
-	name, desc string
-	cfg        *config.MonitoringSettings
+	name string
+	cfg  *config.MonitoringSettings
 }
-
-const ID = "monitoring"
 
 var Cfg *config.MonitoringSettings
 
-func New(cfg *config.MonitoringSettings) *Monitoring {
-	Cfg = cfg
-
-	return &Monitoring{
-		name: "monitoring",
-		desc: "Lint monitoring rules",
-		cfg:  cfg,
-	}
-}
-
-func (*Monitoring) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewError(ID, m.GetName())
+func Run(m *module.Module) {
 	if m == nil {
-		return result
+		return
 	}
 
-	result.Merge(MonitoringModuleRule(m.GetName(), m.GetPath(), m.GetNamespace()))
+	o := &Monitoring{
+		name: "monitoring",
+		cfg:  &config.Cfg.LintersSettings.Monitoring,
+	}
+	Cfg = o.cfg
+	lintError := errors.NewError(o.name, m.GetName())
+
+	MonitoringModuleRule(m.GetName(), m.GetPath(), m.GetNamespace(), lintError)
 
 	// TODO: compile code instead of external binary - promtool
 	for _, object := range m.GetStorage() {
-		result.Merge(PromtoolRuleCheck(m, object))
+		PromtoolRuleCheck(m, object, lintError)
 	}
-
-	return result
-}
-
-func (o *Monitoring) Name() string {
-	return o.name
-}
-
-func (o *Monitoring) Desc() string {
-	return o.desc
 }

@@ -26,61 +26,52 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
-func dirExists(moduleName, modulePath string, path ...string) (bool, *errors.LintRuleErrorsList) {
-	result := errors.NewError(ID, moduleName)
+func dirExists(modulePath string, lintError *errors.Error, path ...string) bool {
 	searchPath := filepath.Join(append([]string{modulePath}, path...)...)
 	info, err := os.Stat(searchPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return false, nil
+			return false
 		}
-		return false, result.WithObjectID(modulePath).Add("%v", err.Error())
+		lintError.WithObjectID(modulePath).Add("%v", err.Error())
+		return false
 	}
-	return info.IsDir(), nil
+	return info.IsDir()
 }
 
-func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string) *errors.LintRuleErrorsList {
-	result := errors.NewError(ID, moduleName)
+func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string, lintError *errors.Error) {
 	if slices.Contains(Cfg.SkipModuleChecks, moduleName) {
-		return nil
+		return
 	}
 
-	if exists, lerr := dirExists(moduleName, modulePath, "monitoring"); lerr != nil || !exists {
-		return lerr
+	if !dirExists(modulePath, lintError, "monitoring") {
+		return
 	}
 
-	rulesEx, lerr := dirExists(moduleName, modulePath, "monitoring", "prometheus-rules")
-	if lerr != nil {
-		return lerr
-	}
-
-	dashboardsEx, lerr := dirExists(moduleName, modulePath, "monitoring", "grafana-dashboards")
-	if lerr != nil {
-		return lerr
-	}
-
+	rulesEx := dirExists(modulePath, lintError, "monitoring", "prometheus-rules")
+	dashboardsEx := dirExists(modulePath, lintError, "monitoring", "grafana-dashboards")
 	searchingFilePath := filepath.Join(modulePath, "templates", "monitoring.yaml")
 	if info, _ := os.Stat(searchingFilePath); info == nil {
-		return result.WithObjectID(modulePath).
+		lintError.WithObjectID(modulePath).
 			WithValue(searchingFilePath).
 			Add("Module with the 'monitoring' folder should have the 'templates/monitoring.yaml' file")
+		return
 	}
 
 	content, err := os.ReadFile(searchingFilePath)
 	if err != nil {
-		return result.WithObjectID(modulePath).WithValue(searchingFilePath).Add("%v", err.Error())
+		lintError.WithObjectID(modulePath).WithValue(searchingFilePath).Add("%v", err.Error())
+		return
 	}
 
 	desiredContent := buildDesiredContent(dashboardsEx, rulesEx)
 	if !isContentMatching(string(content), desiredContent, moduleNamespace, rulesEx) {
-		return result.WithObjectID(modulePath).Add(
+		lintError.WithObjectID(modulePath).Add(
 			"The content of the 'templates/monitoring.yaml' should be equal to:\n%s\nGot:\n%s",
 			fmt.Sprintf(desiredContent, "YOUR NAMESPACE TO DEPLOY RULES: d8-monitoring, d8-system or module namespaces"),
 			string(content),
 		)
 	}
-
-	return nil
 }
 
 func buildDesiredContent(dashboardsEx, rulesEx bool) string {

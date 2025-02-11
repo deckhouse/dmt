@@ -50,7 +50,7 @@ var funcs = []linterFn{
 	k8s_resources.Run,
 	images.Run,
 	rbac.Run,
-	monitoring.New(&cfg.LintersSettings.Monitoring),
+	monitoring.Run,
 	ingress.New(&cfg.LintersSettings.Ingress),
 	moduleLinter.New(&cfg.LintersSettings.Module),
 	conversions.New(&cfg.LintersSettings.Conversions),

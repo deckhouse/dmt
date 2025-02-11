@@ -91,35 +91,37 @@ func checkRuleFile(path string) error {
 	return err
 }
 
-func PromtoolRuleCheck(m *module.Module, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewError(ID, m.GetName())
+func PromtoolRuleCheck(m *module.Module, object storage.StoreObject, lintError *errors.Error) {
 	// check promtoolPath exist, if not do not run linter
 	if _, err := os.Stat(promtoolPath); err != nil {
-		return nil
+		return
 	}
 
 	if object.Unstructured.GetKind() != "PrometheusRule" {
-		return nil
+		return
 	}
 
 	res, ok := rulesCache.Get(object.Hash)
 	if ok {
 		if !res.success {
-			return result.WithObjectID(m.GetPath()).Add("Promtool check failed for Helm chart:\n%s", res.errMsg)
+			lintError.WithObjectID(m.GetPath()).Add("Promtool check failed for Helm chart:\n%s", res.errMsg)
+			return
 		}
-		return nil
+		return
 	}
 
 	marshal, err := marshalChartYaml(object)
 	if err != nil {
-		return result.WithObjectID(m.GetPath()).Add("Error marshaling Helm chart to yaml")
+		lintError.WithObjectID(m.GetPath()).Add("Error marshaling Helm chart to yaml")
+		return
 	}
 
 	path, err := writeTempRuleFileFromObject(m, marshal)
 	defer os.Remove(path)
 
 	if err != nil {
-		return result.WithObjectID(m.GetPath()).Add("Error creating temporary rule file from Helm chart:\n%s", err.Error())
+		lintError.WithObjectID(m.GetPath()).Add("Error creating temporary rule file from Helm chart:\n%s", err.Error())
+		return
 	}
 
 	err = checkRuleFile(path)
@@ -129,9 +131,9 @@ func PromtoolRuleCheck(m *module.Module, object storage.StoreObject) *errors.Lin
 			success: false,
 			errMsg:  errorMessage,
 		})
-		return result.WithObjectID(m.GetPath()).Add("Promtool check failed for Helm chart:\n%s", errorMessage)
+		lintError.WithObjectID(m.GetPath()).Add("Promtool check failed for Helm chart:\n%s", errorMessage)
+		return
 	}
 
 	rulesCache.Put(object.Hash, checkResult{success: true})
-	return nil
 }
