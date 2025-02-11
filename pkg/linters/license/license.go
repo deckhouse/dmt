@@ -30,9 +30,9 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Copyri
 	}
 }
 
-func (l *Copyright) Run(m *module.Module) *errors.LintRuleErrorsList {
+func (l *Copyright) Run(m *module.Module) {
 	if m.GetPath() == "" {
-		return nil
+		return
 	}
 
 	errorList := l.ErrorList.WithModule(m.GetName())
@@ -52,8 +52,6 @@ func (l *Copyright) Run(m *module.Module) *errors.LintRuleErrorsList {
 			errorList.WithFilePath(path).Error(err.Error())
 		}
 	}
-
-	return nil
 }
 
 func filterFiles(path string) bool {

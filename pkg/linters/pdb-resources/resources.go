@@ -28,15 +28,13 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *PDB {
 	}
 }
 
-func (l *PDB) Run(m *module.Module) *errors.LintRuleErrorsList {
+func (l *PDB) Run(m *module.Module) {
 	if m == nil {
-		return nil
+		return
 	}
 
 	l.controllerMustHavePDB(m)
 	l.daemonSetMustNotHavePDB(m)
-
-	return nil
 }
 
 func (l *PDB) Name() string {

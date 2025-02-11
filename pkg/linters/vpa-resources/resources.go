@@ -28,14 +28,12 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *VPARes
 	}
 }
 
-func (l *VPAResources) Run(m *module.Module) *errors.LintRuleErrorsList {
+func (l *VPAResources) Run(m *module.Module) {
 	if m == nil {
-		return nil
+		return
 	}
 
 	l.controllerMustHaveVPA(m)
-
-	return nil
 }
 
 func (l *VPAResources) Name() string {

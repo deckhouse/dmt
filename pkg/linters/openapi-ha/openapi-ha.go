@@ -28,17 +28,18 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *HA {
 	}
 }
 
-func (e *HA) Run(m *module.Module) *errors.LintRuleErrorsList {
+func (e *HA) Run(m *module.Module) {
 	errorLists := e.ErrorList.WithModule(m.GetName())
+
 	files := fsutils.GetFiles(m.GetPath(), true, filterFiles)
+
 	parser := NewHAValidator(e.cfg)
+
 	for _, file := range files {
 		if err := openapi.Parse(parser.Run, file); err != nil {
 			errorLists.WithFilePath(fsutils.Rel(m.GetPath(), file)).Errorf("openAPI file is not valid: %s", err)
 		}
 	}
-
-	return errorLists
 }
 
 func (e *HA) Name() string {

@@ -26,14 +26,12 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *KubeRb
 	}
 }
 
-func (l *KubeRbacProxy) Run(m *module.Module) *errors.LintRuleErrorsList {
+func (l *KubeRbacProxy) Run(m *module.Module) {
 	if m == nil {
-		return nil
+		return
 	}
 
 	l.namespaceMustContainKubeRBACProxyCA(m.GetName(), m.GetObjectStore())
-
-	return nil
 }
 
 func (l *KubeRbacProxy) Name() string {

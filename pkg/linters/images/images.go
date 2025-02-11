@@ -26,16 +26,14 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Images
 	}
 }
 
-func (l *Images) Run(m *module.Module) *errors.LintRuleErrorsList {
+func (l *Images) Run(m *module.Module) {
 	if m == nil {
-		return nil
+		return
 	}
 
 	errorList := l.ErrorList.WithModule(m.GetName())
 
 	l.ApplyImagesRules(m, errorList)
-
-	return nil
 }
 
 func (l *Images) Name() string {

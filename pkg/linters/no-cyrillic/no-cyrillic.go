@@ -45,11 +45,11 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *NoCyri
 	}
 }
 
-func (l *NoCyrillic) Run(m *module.Module) *errors.LintRuleErrorsList {
+func (l *NoCyrillic) Run(m *module.Module) {
 	errorList := l.ErrorList.WithModule(m.GetName())
 
 	if m.GetPath() == "" {
-		return nil
+		return
 	}
 
 	files := fsutils.GetFiles(m.GetPath(), false, filterFiles)
@@ -77,7 +77,7 @@ func (l *NoCyrillic) Run(m *module.Module) *errors.LintRuleErrorsList {
 		if err != nil {
 			errorList.Error(err.Error())
 
-			return nil
+			return
 		}
 
 		cyrMsg, hasCyr := checkCyrillicLettersInArray(lines)
@@ -87,8 +87,6 @@ func (l *NoCyrillic) Run(m *module.Module) *errors.LintRuleErrorsList {
 				Error("has cyrillic letters")
 		}
 	}
-
-	return nil
 }
 
 func filterFiles(path string) bool {

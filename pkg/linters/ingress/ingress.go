@@ -24,16 +24,14 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Ingres
 	}
 }
 
-func (l *Ingress) Run(m *module.Module) *errors.LintRuleErrorsList {
+func (l *Ingress) Run(m *module.Module) {
 	if m == nil {
-		return nil
+		return
 	}
 
 	for _, object := range m.GetStorage() {
 		l.ingressCopyCustomCertificateRule(m, object)
 	}
-
-	return nil
 }
 
 func (l *Ingress) Name() string {

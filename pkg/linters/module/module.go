@@ -24,14 +24,12 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Module
 	}
 }
 
-func (l *Module) Run(m *module.Module) *errors.LintRuleErrorsList {
+func (l *Module) Run(m *module.Module) {
 	if m == nil {
-		return nil
+		return
 	}
 
 	l.checkModuleYaml(m.GetName(), m.GetPath())
-
-	return nil
 }
 
 func (l *Module) Name() string {

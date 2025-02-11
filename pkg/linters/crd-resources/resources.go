@@ -29,14 +29,12 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *CRDRes
 	}
 }
 
-func (l *CRDResources) Run(m *module.Module) *errors.LintRuleErrorsList {
+func (l *CRDResources) Run(m *module.Module) {
 	if m == nil {
-		return nil
+		return
 	}
 
 	l.crdsModuleRule(m.GetName(), filepath.Join(m.GetPath(), CrdsDir))
-
-	return nil
 }
 
 func (l *CRDResources) Name() string {

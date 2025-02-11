@@ -42,7 +42,7 @@ const (
 )
 
 type Linter interface {
-	Run(m *module.Module) *errors.LintRuleErrorsList
+	Run(m *module.Module)
 	Name() string
 }
 
