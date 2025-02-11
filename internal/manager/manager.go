@@ -97,7 +97,7 @@ func newManager(dirs []string) *Manager {
 	return m
 }
 
-func Run(dirs []string) {
+func Run(dirs []string) *errors.ErrorList {
 	m := newManager(dirs)
 	var g = pool.New().WithMaxGoroutines(flags.LintersLimit)
 	for _, module := range m.Modules {
@@ -109,7 +109,8 @@ func Run(dirs []string) {
 		}
 	}
 	g.Wait()
-	errors.Close()
+
+	return errors.GetErrors()
 }
 
 func isExistsOnFilesystem(parts ...string) bool {

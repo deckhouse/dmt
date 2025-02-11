@@ -21,13 +21,7 @@ type Error struct {
 
 type ErrorList []Error
 
-var ch chan Error
-
-var result *ErrorList
-
-func Init() {
-	ch = make(chan Error)
-}
+var result = &ErrorList{}
 
 func NewError(linterID string, module ...string) *Error {
 	l := &Error{
@@ -40,19 +34,7 @@ func NewError(linterID string, module ...string) *Error {
 	return l
 }
 
-func Close() {
-	close(ch)
-}
-
 func GetErrors() *ErrorList {
-	if result != nil {
-		return result
-	}
-
-	result = &ErrorList{}
-	for e := range ch {
-		*result = append(*result, e)
-	}
 	return result
 }
 
@@ -105,7 +87,7 @@ func (l *Error) Add(template string, a ...any) {
 		Text:        template,
 	}
 
-	ch <- e
+	*result = append(*result, e)
 }
 
 // ConvertToError converts LintRuleErrorsList to a single error.

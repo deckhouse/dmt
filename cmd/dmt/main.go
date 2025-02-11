@@ -12,7 +12,6 @@ import (
 	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/manager"
 	"github.com/deckhouse/dmt/pkg/config"
-	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 var version = "HEAD"
@@ -73,14 +72,9 @@ func main() {
 
 func runLint(dirs []string) {
 	logger.InfoF("Dirs: %v", dirs)
+	logger.CheckErr(config.NewDefault(dirs))
 
-	errors.Init()
-	err := config.NewDefault(dirs)
-	logger.CheckErr(err)
-
-	go manager.Run(dirs)
-
-	errs := errors.GetErrors()
+	errs := manager.Run(dirs)
 	convertedError := errs.ConvertToError()
 	if convertedError != nil {
 		fmt.Printf("%s\n", convertedError)
