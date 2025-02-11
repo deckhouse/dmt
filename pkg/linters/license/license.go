@@ -40,6 +40,9 @@ func (l *Copyright) Run(m *module.Module) {
 	files := fsutils.GetFiles(m.GetPath(), false, filterFiles)
 	for _, fileName := range files {
 		name, _ := strings.CutPrefix(fileName, m.GetPath())
+		if name == "/charts/helm_lib" {
+			continue
+		}
 		name = m.GetName() + ":" + name
 		if slices.Contains(l.cfg.CopyrightExcludes, name) {
 			continue
