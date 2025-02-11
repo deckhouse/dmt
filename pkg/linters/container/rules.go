@@ -201,7 +201,8 @@ func containerStorageEphemeral(moduleName string, object storage.StoreObject, co
 		if shouldSkipModuleContainer(moduleName, c.Name) {
 			continue
 		}
-		if container.Resources.Requests.StorageEphemeral() == nil || c.Resources.Requests.StorageEphemeral().Value() == 0 {
+
+		if c.Resources.Requests.StorageEphemeral() == nil || c.Resources.Requests.StorageEphemeral().Value() == 0 {
 			errorList.WithObjectID(object.Identity() + "; container = " + c.Name).
 				Error("Ephemeral storage for container is not defined in Resources.Requests")
 		}
@@ -215,6 +216,7 @@ func containerSecurityContext(moduleName string, object storage.StoreObject, con
 		if shouldSkipModuleContainer(moduleName, c.Name) {
 			continue
 		}
+
 		if c.SecurityContext == nil {
 			errorList.WithObjectID(object.Identity() + "; container = " + c.Name).
 				Error("Container SecurityContext is not defined")
@@ -232,6 +234,7 @@ func containerPorts(moduleName string, object storage.StoreObject, containers []
 		if shouldSkipModuleContainer(moduleName, c.Name) {
 			continue
 		}
+
 		for _, port := range c.Ports {
 			if port.ContainerPort <= t {
 				errorList.WithObjectID(object.Identity() + "; container = " + c.Name).WithValue(port.ContainerPort).
@@ -256,18 +259,21 @@ func objectReadOnlyRootFilesystem(object storage.StoreObject, containers []corev
 		if c.VolumeMounts == nil {
 			continue
 		}
+
 		if c.SecurityContext == nil {
 			errorList.WithObjectID(object.Identity()).
 				Error("Container's SecurityContext is missing")
 
 			continue
 		}
+
 		if c.SecurityContext.ReadOnlyRootFilesystem == nil {
 			errorList.WithObjectID(object.Identity() + " ; container = " + c.Name).
 				Error("Container's SecurityContext missing parameter ReadOnlyRootFilesystem")
 
 			continue
 		}
+
 		if !*c.SecurityContext.ReadOnlyRootFilesystem {
 			errorList.WithObjectID(object.Identity() + " ; container = " + c.Name).
 				Error("Container's SecurityContext has `ReadOnlyRootFilesystem: false`, but it must be `true`")
@@ -491,6 +497,7 @@ func checkSecurityContextParameters(securityContext *corev1.PodSecurityContext, 
 		errorList.WithObjectID(object.Identity()).
 			Error("Object's SecurityContext missing parameter RunAsUser")
 	}
+
 	if securityContext.RunAsGroup == nil {
 		errorList.WithObjectID(object.Identity()).
 			Error("Object's SecurityContext missing parameter RunAsGroup")
