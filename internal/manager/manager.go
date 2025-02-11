@@ -47,7 +47,7 @@ var funcs = []linterFn{
 	license.Run,
 	probes.Run,
 	container.Run,
-	k8s_resources.New(&cfg.LintersSettings.K8SResources),
+	k8s_resources.Run,
 	images.New(&cfg.LintersSettings.Images),
 	rbac.New(&cfg.LintersSettings.Rbac),
 	monitoring.New(&cfg.LintersSettings.Monitoring),

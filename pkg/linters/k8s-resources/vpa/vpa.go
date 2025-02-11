@@ -35,7 +35,7 @@ func ControllerMustHaveVPA(md *module.Module, lintError *errors.Error) {
 			continue
 		}
 
-		ok := ensureVPAIsPresent(md, vpaTargets, index, object, lintError)
+		ok := ensureVPAIsPresent(vpaTargets, index, object, lintError)
 		if !ok {
 			continue
 		}
@@ -45,12 +45,12 @@ func ControllerMustHaveVPA(md *module.Module, lintError *errors.Error) {
 			continue
 		}
 
-		ok = ensureVPAContainersMatchControllerContainers(md, object, index, vpaContainerNamesMap, lintError)
+		ok = ensureVPAContainersMatchControllerContainers(object, index, vpaContainerNamesMap, lintError)
 		if !ok {
 			continue
 		}
 
-		ensureTolerations(md, vpaTolerationGroups, index, object, lintError)
+		ensureTolerations(vpaTolerationGroups, index, object, lintError)
 	}
 }
 
@@ -78,14 +78,13 @@ func parseTargetsAndTolerationGroups(md *module.Module, lintError *errors.Error)
 			continue
 		}
 
-		fillVPAMaps(md, vpaTargets, vpaTolerationGroups, vpaContainerNamesMap, vpaUpdateModes, object, lintError)
+		fillVPAMaps(vpaTargets, vpaTolerationGroups, vpaContainerNamesMap, vpaUpdateModes, object, lintError)
 	}
 
 	return vpaTargets, vpaTolerationGroups, vpaContainerNamesMap, vpaUpdateModes
 }
 
 func fillVPAMaps(
-	md *module.Module,
 	vpaTargets map[storage.ResourceIndex]struct{},
 	vpaTolerationGroups map[storage.ResourceIndex]string,
 	vpaContainerNamesMap map[storage.ResourceIndex]set.Set,
@@ -93,7 +92,7 @@ func fillVPAMaps(
 	vpa storage.StoreObject,
 	lintError *errors.Error,
 ) {
-	target, ok := parseVPATargetIndex(md.GetName(), vpa, lintError)
+	target, ok := parseVPATargetIndex(vpa, lintError)
 	if !ok {
 		return
 	}
@@ -105,18 +104,16 @@ func fillVPAMaps(
 		vpaTolerationGroups[target] = label
 	}
 
-	updateMode, vnm, ok := parseVPAResourcePolicyContainers(md, vpa, lintError)
+	updateMode, vnm, ok := parseVPAResourcePolicyContainers(vpa, lintError)
 	if !ok {
 		return
 	}
 	vpaContainerNamesMap[target] = vnm
 	vpaUpdateModes[target] = updateMode
-
-	return
 }
 
 // parseVPAResourcePolicyContainers parses VPA containers names in ResourcePolicy and check if minAllowed and maxAllowed for container is set
-func parseVPAResourcePolicyContainers(md *module.Module, vpaObject storage.StoreObject, lintError *errors.Error) (UpdateMode, set.Set, bool) {
+func parseVPAResourcePolicyContainers(vpaObject storage.StoreObject, lintError *errors.Error) (UpdateMode, set.Set, bool) {
 	containers := set.New()
 
 	v := &VerticalPodAutoscaler{}
@@ -176,7 +173,7 @@ func parseVPAResourcePolicyContainers(md *module.Module, vpaObject storage.Store
 }
 
 // parseVPATargetIndex parses VPA target resource index, writes to the passed struct pointer
-func parseVPATargetIndex(name string, vpaObject storage.StoreObject, lintError *errors.Error) (storage.ResourceIndex, bool) {
+func parseVPATargetIndex(vpaObject storage.StoreObject, lintError *errors.Error) (storage.ResourceIndex, bool) {
 	target := storage.ResourceIndex{}
 	specs, ok := vpaObject.Unstructured.Object["spec"].(map[string]any)
 	if !ok {
@@ -201,7 +198,6 @@ func parseVPATargetIndex(name string, vpaObject storage.StoreObject, lintError *
 
 // ensureVPAContainersMatchControllerContainers verifies VPA container names in resourcePolicy match corresponding controller container names
 func ensureVPAContainersMatchControllerContainers(
-	md *module.Module,
 	object storage.StoreObject,
 	index storage.ResourceIndex,
 	vpaContainerNamesMap map[storage.ResourceIndex]set.Set,
@@ -254,7 +250,6 @@ func ensureVPAContainersMatchControllerContainers(
 
 // returns true if linting passed, otherwise returns false
 func ensureTolerations(
-	md *module.Module,
 	vpaTolerationGroups map[storage.ResourceIndex]string,
 	index storage.ResourceIndex,
 	object storage.StoreObject,
@@ -294,7 +289,6 @@ func ensureTolerations(
 
 // returns true if linting passed, otherwise returns false
 func ensureVPAIsPresent(
-	md *module.Module,
 	vpaTargets map[storage.ResourceIndex]struct{},
 	index storage.ResourceIndex,
 	object storage.StoreObject,

@@ -11,7 +11,10 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/linters/images/rules"
+)
+
+const (
+	crdsDir = "crds"
 )
 
 var (
@@ -22,8 +25,7 @@ func shouldSkipCrd(name string) bool {
 	return !strings.Contains(name, "deckhouse.io")
 }
 
-func CrdsModuleRule(name, path string) *errors.LintRuleErrorsList {
-	result := errors.NewError(rules.ID, name)
+func CrdsModuleRule(name, path string, lintError *errors.Error) {
 	_ = filepath.Walk(path, func(path string, _ os.FileInfo, _ error) error {
 		if filepath.Ext(path) != ".yaml" {
 			return nil
@@ -38,9 +40,9 @@ func CrdsModuleRule(name, path string) *errors.LintRuleErrorsList {
 		for _, d := range docs {
 			var crd v1beta1.CustomResourceDefinition
 			if err := yaml.Unmarshal([]byte(d), &crd); err != nil {
-				result.WithObjectID("module = "+name).
+				lintError.WithObjectID("module = "+name).
 					WithValue(err.Error()).
-					Add("Can't parse manifests in %s folder", rules.CrdsDir)
+					Add("Can't parse manifests in %s folder", crdsDir)
 				continue
 			}
 
@@ -49,14 +51,13 @@ func CrdsModuleRule(name, path string) *errors.LintRuleErrorsList {
 			}
 
 			if crd.APIVersion != "apiextensions.k8s.io/v1" {
-				result.WithObjectID(fmt.Sprintf("kind = %s ; name = %s ; module = %s ; file = %s", crd.Kind, crd.Name, name, path)).
+				lintError.WithObjectID(fmt.Sprintf("kind = %s ; name = %s ; module = %s ; file = %s", crd.Kind, crd.Name, name, path)).
 					WithValue(crd.APIVersion).
 					Add(`CRD specified using deprecated api version, wanted "apiextensions.k8s.io/v1"`)
 			}
 		}
 		return nil
 	})
-	return result
 }
 
 func splitManifests(bigFile string) []string {

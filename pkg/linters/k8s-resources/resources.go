@@ -3,6 +3,7 @@ package k8sresources
 import (
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
@@ -10,10 +11,6 @@ import (
 	"github.com/deckhouse/dmt/pkg/linters/k8s-resources/pdb"
 	rbacproxy "github.com/deckhouse/dmt/pkg/linters/k8s-resources/rbac-proxy"
 	"github.com/deckhouse/dmt/pkg/linters/k8s-resources/vpa"
-)
-
-const (
-	CrdsDir = "crds"
 )
 
 // Resources linter
@@ -38,17 +35,21 @@ func Run(m *module.Module) {
 
 	lintError := errors.NewError(o.name, m.GetName())
 
-	rbacproxy.NamespaceMustContainKubeRBACProxyCA(m.GetName(), m.GetObjectStore())
-	vpa.ControllerMustHaveVPA(m, lintError)
-	pdb.ControllerMustHavePDB(m)
-	pdb.DaemonSetMustNotHavePDB(m)
+	rbacproxy.NamespaceMustContainKubeRBACProxyCA(m.GetObjectStore(), lintError.WithLinterID("rbac-proxy"))
+	vpa.ControllerMustHaveVPA(m, lintError.WithLinterID("vpa"))
+	pdb.ControllerMustHavePDB(m, lintError.WithLinterID("pdb"))
+	pdb.DaemonSetMustNotHavePDB(m, lintError.WithLinterID("pdb"))
 
 	for _, object := range m.GetStorage() {
-		applyContainerRules(m.GetName(), object)
+		if slices.Contains(o.cfg.SkipContainerChecks, object.Unstructured.GetName()) {
+			continue
+		}
+
+		applyContainerRules(object, lintError)
 	}
 
-	if isExistsOnFilesystem(m.GetPath(), CrdsDir) {
-		CrdsModuleRule(m.GetName(), filepath.Join(m.GetPath(), CrdsDir))
+	if isExistsOnFilesystem(m.GetPath(), crdsDir) {
+		CrdsModuleRule(m.GetName(), filepath.Join(m.GetPath(), crdsDir), lintError)
 	}
 }
 

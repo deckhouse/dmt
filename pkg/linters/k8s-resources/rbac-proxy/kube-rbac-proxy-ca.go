@@ -11,8 +11,7 @@ import (
 
 var SkipKubeRbacProxyChecks []string
 
-func NamespaceMustContainKubeRBACProxyCA(moduleName string, objectStore *storage.UnstructuredObjectStore) {
-	lintError := errors.NewError("kube-rbac-proxy-ca", moduleName)
+func NamespaceMustContainKubeRBACProxyCA(objectStore *storage.UnstructuredObjectStore, lintError *errors.Error) {
 	proxyInNamespaces := set.New()
 
 	for index := range objectStore.Storage {

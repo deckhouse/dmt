@@ -56,6 +56,15 @@ func GetErrors() *ErrorList {
 	return result
 }
 
+func (l *Error) WithLinterID(id string) *Error {
+	return &Error{
+		ID:          id,
+		Module:      l.Module,
+		ObjectID:    l.ObjectID,
+		ObjectValue: l.ObjectValue,
+	}
+}
+
 func (l *Error) WithObjectID(objectID string) *Error {
 	return &Error{
 		ID:          l.ID,
