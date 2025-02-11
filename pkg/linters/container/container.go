@@ -31,20 +31,16 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Contai
 }
 
 func (l *Container) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList("images", m.GetName()).WithMaxLevel(l.cfg.Impact)
 	if m == nil {
-		return result
+		return nil
 	}
 
+	errorList := l.ErrorList.WithModule(m.GetName())
 	for _, object := range m.GetStorage() {
-		result.Merge(l.applyContainerRules(m, object))
+		applyContainerRules(m.GetName(), object, errorList)
 	}
 
-	result.CorrespondToMaxLevel()
-
-	l.ErrorList.Merge(result)
-
-	return l.ErrorList
+	return nil
 }
 
 func (l *Container) Name() string {
