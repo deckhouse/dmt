@@ -6,43 +6,23 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
-// Ingress linter
 type Ingress struct {
-	name, desc string
-	cfg        *config.IngressSettings
+	name string
+	cfg  *config.IngressSettings
 }
 
-const ID = "ingress"
-
-var Cfg *config.IngressSettings
-
-func New(cfg *config.IngressSettings) *Ingress {
-	Cfg = cfg
-
-	return &Ingress{
-		name: "ingress",
-		desc: "Lint ingresses rules",
-		cfg:  cfg,
-	}
-}
-
-func (*Ingress) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewError(ID, m.GetName())
+func Run(m *module.Module) {
 	if m == nil {
-		return nil
+		return
 	}
+
+	o := &Ingress{
+		name: "ingress",
+		cfg:  &config.Cfg.LintersSettings.Ingress,
+	}
+	lintError := errors.NewError(o.name, m.GetName())
 
 	for _, object := range m.GetStorage() {
-		result.Merge(ingressCopyCustomCertificateRule(m, object))
+		o.ingressCopyCustomCertificateRule(m, object, lintError)
 	}
-
-	return result
-}
-
-func (o *Ingress) Name() string {
-	return o.name
-}
-
-func (o *Ingress) Desc() string {
-	return o.desc
 }
