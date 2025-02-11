@@ -8,8 +8,8 @@ import (
 
 // Conversions linter
 type Conversions struct {
-	name, desc string
-	cfg        *config.ConversionsSettings
+	name string
+	cfg  *ConversionsSettings
 }
 
 type ConversionsSettings struct {
@@ -19,38 +19,24 @@ type ConversionsSettings struct {
 	FirstVersion int
 }
 
-const ID = "conversions"
-
-var cfg *ConversionsSettings
-
-func New(inputCfg *config.ConversionsSettings) *Conversions {
-	cfg = remapConversionsConfig(inputCfg)
-
-	return &Conversions{
-		name: ID,
-		desc: "Lint conversions rules",
-		cfg:  inputCfg,
-	}
-}
-
-func (*Conversions) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewError(ID, m.GetName())
-
+func Run(m *module.Module) {
 	if m == nil {
-		return result
+		return
+	}
+	inputCfg := &config.Cfg.LintersSettings.Conversions
+	o := &Conversions{
+		name: "conversions",
+		cfg:  remapConversionsConfig(inputCfg),
 	}
 
-	result.Merge(checkModuleYaml(m.GetName(), m.GetPath()))
+	lintError := errors.NewError(o.name, m.GetName())
 
-	return result
-}
+	_, ok := o.cfg.SkipCheckModule[m.GetName()]
+	if ok {
+		return
+	}
 
-func (o *Conversions) Name() string {
-	return o.name
-}
-
-func (o *Conversions) Desc() string {
-	return o.desc
+	o.checkModuleYaml(m.GetPath(), lintError)
 }
 
 func remapConversionsConfig(input *config.ConversionsSettings) *ConversionsSettings {

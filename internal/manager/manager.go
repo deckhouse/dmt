@@ -53,7 +53,7 @@ var funcs = []linterFn{
 	monitoring.Run,
 	ingress.Run,
 	moduleLinter.Run,
-	conversions.New(&cfg.LintersSettings.Conversions),
+	conversions.Run,
 }
 
 func NewManager(dirs []string) *Manager {
