@@ -52,7 +52,7 @@ var funcs = []linterFn{
 	rbac.Run,
 	monitoring.Run,
 	ingress.Run,
-	moduleLinter.New(&cfg.LintersSettings.Module),
+	moduleLinter.Run,
 	conversions.New(&cfg.LintersSettings.Conversions),
 }
 

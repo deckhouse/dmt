@@ -37,43 +37,41 @@ type ModulePlatformRequirements struct {
 	Bootstrapped string `yaml:"bootstrapped,omitempty"`
 }
 
-func checkModuleYaml(moduleName, modulePath string) *errors.LintRuleErrorsList {
-	result := errors.NewError(ID, moduleName).WithObjectID(moduleName)
-	if slices.Contains(Cfg.SkipCheckModuleYaml, moduleName) {
-		return nil
-	}
-
+func (*Module) checkModuleYaml(modulePath string, lintError *errors.Error) {
 	_, err := os.Stat(filepath.Join(modulePath, ModuleConfigFilename))
 	if errs.Is(err, os.ErrNotExist) {
-		return nil
+		return
 	}
 	if err != nil {
-		return result.Add(
+		lintError.Add(
 			"Cannot stat file %q: %s",
 			ModuleConfigFilename, err.Error(),
 		)
+		return
 	}
 
 	yamlFile, err := os.ReadFile(filepath.Join(modulePath, ModuleConfigFilename))
 	if err != nil {
-		return result.Add(
+		lintError.Add(
 			"Cannot read file %q: %s",
 			ModuleConfigFilename, err.Error(),
 		)
+		return
 	}
 
-	var yml DeckhouseModule
+	var dml DeckhouseModule
 
-	err = yaml.Unmarshal(yamlFile, &yml)
+	err = yaml.Unmarshal(yamlFile, &dml)
 	if err != nil {
-		return result.Add(
+		lintError.Add(
 			"Cannot parse file %q: %s",
 			ModuleConfigFilename, err.Error(),
 		)
+		return
 	}
 
-	if yml.Name == "" {
-		result.Add("Field %q is required", "name")
+	if dml.Name == "" {
+		lintError.Add("Field %q is required", "name")
 	}
 
 	stages := []string{
@@ -83,25 +81,22 @@ func checkModuleYaml(moduleName, modulePath string) *errors.LintRuleErrorsList {
 		"Deprecated",
 	}
 
-	if yml.Stage != "" && !slices.Contains(stages, yml.Stage) {
-		result.Add(
+	if dml.Stage != "" && !slices.Contains(stages, dml.Stage) {
+		lintError.Add(
 			"Field %q is not one of the following values: %q",
 			"stage", strings.Join(stages, ", "),
 		)
 	}
 
-	if yml.Requirements != nil {
-		result.Merge(yml.Requirements.validateRequirements(moduleName))
+	if dml.Requirements != nil {
+		dml.Requirements.validateRequirements(lintError)
 	}
-
-	return result
 }
 
-func (m ModuleRequirements) validateRequirements(moduleName string) *errors.LintRuleErrorsList {
-	result := errors.NewError(ID, moduleName).WithObjectID(moduleName)
+func (m ModuleRequirements) validateRequirements(lintError *errors.Error) {
 	if m.Deckhouse != "" {
 		if _, err := semver.NewConstraint(m.Deckhouse); err != nil {
-			result.Add(
+			lintError.Add(
 				"Invalid Deckhouse version requirement: %s",
 				err.Error(),
 			)
@@ -110,7 +105,7 @@ func (m ModuleRequirements) validateRequirements(moduleName string) *errors.Lint
 
 	if m.Kubernetes != "" {
 		if _, err := semver.NewConstraint(m.Kubernetes); err != nil {
-			result.Add(
+			lintError.Add(
 				"Invalid Kubernetes version requirement: %s",
 				err.Error(),
 			)
@@ -119,12 +114,10 @@ func (m ModuleRequirements) validateRequirements(moduleName string) *errors.Lint
 
 	for parentModuleName, parentModuleVersion := range m.ParentModules {
 		if _, err := semver.NewConstraint(parentModuleVersion); err != nil {
-			result.Add(
+			lintError.Add(
 				"Invalid module %q version requirement: %s",
 				parentModuleName, err.Error(),
 			)
 		}
 	}
-
-	return result
 }

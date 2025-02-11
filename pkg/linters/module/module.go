@@ -1,6 +1,8 @@
 package module
 
 import (
+	"slices"
+
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -8,39 +10,24 @@ import (
 
 // Module linter
 type Module struct {
-	name, desc string
-	cfg        *config.ModuleSettings
+	name string
+	cfg  *config.ModuleSettings
 }
 
-const ID = "module"
-
-var Cfg *config.ModuleSettings
-
-func New(cfg *config.ModuleSettings) *Module {
-	Cfg = cfg
-
-	return &Module{
-		name: "module",
-		desc: "Lint module rules",
-		cfg:  cfg,
-	}
-}
-
-func (*Module) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewError(ID, m.GetName())
+func Run(m *module.Module) {
 	if m == nil {
-		return result
+		return
 	}
 
-	result.Merge(checkModuleYaml(m.GetName(), m.GetPath()))
+	o := &Module{
+		name: "module",
+		cfg:  &config.Cfg.LintersSettings.Module,
+	}
+	lintError := errors.NewError("module", m.GetName())
 
-	return result
-}
+	if slices.Contains(o.cfg.SkipCheckModuleYaml, m.GetName()) {
+		return
+	}
 
-func (o *Module) Name() string {
-	return o.name
-}
-
-func (o *Module) Desc() string {
-	return o.desc
+	o.checkModuleYaml(m.GetPath(), lintError)
 }
