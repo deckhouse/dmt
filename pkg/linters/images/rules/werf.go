@@ -18,9 +18,7 @@ type werfFile struct {
 	Final    *bool  `json:"final" yaml:"final"`
 }
 
-func lintWerfFile(moduleName, data string) *errors.LintRuleErrorsList {
-	result := errors.NewError(ID, moduleName)
-
+func lintWerfFile(data string, lintError *errors.Error) {
 	werfDocs := splitManifests(data)
 
 	i := 1
@@ -38,7 +36,7 @@ func lintWerfFile(moduleName, data string) *errors.LintRuleErrorsList {
 		}
 
 		if w.Artifact != "" {
-			result.WithObjectID("werf.yaml:manifest-" + strconv.Itoa(i)).
+			lintError.WithObjectID("werf.yaml:manifest-" + strconv.Itoa(i)).
 				WithValue("artifact: " + w.Artifact).
 				Add("Use `from:` or `fromImage:` and `final: false` directives instead of `artifact:` in the werf file")
 		}
@@ -51,14 +49,12 @@ func lintWerfFile(moduleName, data string) *errors.LintRuleErrorsList {
 		// TODO: add skips for some images
 
 		if !isWerfImagesCorrect(w.From) {
-			result.WithObjectID("werf.yaml:manifest-" + strconv.Itoa(i)).
+			lintError.WithObjectID("werf.yaml:manifest-" + strconv.Itoa(i)).
 				WithValue("from: " + w.From).
 				Add("`from:` parameter should be one of our BASE_DISTROLESS images")
 		}
 		i++
 	}
-
-	return result
 }
 
 func splitManifests(bigFile string) map[string]string {

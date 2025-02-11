@@ -9,35 +9,21 @@ import (
 
 // Images linter
 type Images struct {
-	name, desc string
-	cfg        *config.ImageSettings
+	name string
 }
 
-func New(cfg *config.ImageSettings) *Images {
-	rules.Cfg = cfg
-
-	return &Images{
-		name: "images",
-		desc: "Lint docker images",
-		cfg:  cfg,
-	}
-}
-
-func (*Images) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewError("images", m.GetName())
+func Run(m *module.Module) {
 	if m == nil {
-		return result
+		return
 	}
 
-	result.Merge(rules.ApplyImagesRules(m))
+	rules.Cfg = &config.Cfg.LintersSettings.Images
 
-	return result
-}
+	o := &Images{
+		name: "images",
+	}
 
-func (o *Images) Name() string {
-	return o.name
-}
+	lintError := errors.NewError(o.name, m.GetName())
 
-func (o *Images) Desc() string {
-	return o.desc
+	rules.ApplyImagesRules(m, lintError)
 }

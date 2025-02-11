@@ -27,13 +27,13 @@ const (
 
 var Cfg *config.ImageSettings
 
-func chartModuleRule(name, path string) *errors.LintRuleErrorsList {
-	result := errors.NewError(ID, name).WithObjectID(name)
+func chartModuleRule(name, path string, lintError *errors.Error) {
+	lintError = lintError.WithObjectID(name)
 	stat, err := os.Stat(filepath.Join(path, ChartConfigFilename))
 	if err != nil {
 		stat, err = os.Stat(filepath.Join(path, ModuleConfigFilename))
 		if err != nil {
-			result.Add(
+			lintError.Add(
 				"Module does not contain valid %q or %q file",
 				ChartConfigFilename, ModuleConfigFilename)
 		}
@@ -41,7 +41,7 @@ func chartModuleRule(name, path string) *errors.LintRuleErrorsList {
 
 	yamlFile, err := os.ReadFile(filepath.Join(path, stat.Name()))
 	if err != nil {
-		result.Add(
+		lintError.Add(
 			"Module does not contain valid %q or %q file",
 			ChartConfigFilename, ModuleConfigFilename)
 	}
@@ -51,22 +51,20 @@ func chartModuleRule(name, path string) *errors.LintRuleErrorsList {
 	}
 	err = yaml.Unmarshal(yamlFile, &chart)
 	if err != nil {
-		result.Add(
+		lintError.Add(
 			"Module does not contain valid %q or %q file",
 			ChartConfigFilename, ModuleConfigFilename)
 	}
 
 	if chart.Name == "" {
-		result.Add(
+		lintError.Add(
 			"Module does not contain valid %q or %q file",
 			ChartConfigFilename, ModuleConfigFilename)
 	}
 
 	if !IsExistsOnFilesystem(path, openapiDir) {
-		result.Add("Module does not contain %q folder", openapiDir)
+		lintError.Add("Module does not contain %q folder", openapiDir)
 	}
-
-	return result
 }
 
 func IsExistsOnFilesystem(parts ...string) bool {
@@ -74,12 +72,9 @@ func IsExistsOnFilesystem(parts ...string) bool {
 	return err == nil
 }
 
-func ApplyImagesRules(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewError(ID, m.GetName())
-	result.Merge(checkImageNamesInDockerFiles(m.GetName(), m.GetPath()))
-	result.Merge(chartModuleRule(m.GetName(), m.GetPath()))
+func ApplyImagesRules(m *module.Module, lintError *errors.Error) {
+	checkImageNamesInDockerFiles(m.GetName(), m.GetPath(), lintError)
+	chartModuleRule(m.GetName(), m.GetPath(), lintError)
 
-	result.Merge(lintWerfFile(m.GetName(), m.GetWerfFile()))
-
-	return result
+	lintWerfFile(m.GetWerfFile(), lintError)
 }
