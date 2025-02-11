@@ -11,7 +11,7 @@ import (
 	"github.com/kyokomi/emoji"
 )
 
-type lintRuleError struct {
+type Error struct {
 	ID          string
 	Module      string
 	ObjectID    string
@@ -19,135 +19,94 @@ type lintRuleError struct {
 	Text        string
 }
 
-func (l *lintRuleError) EqualsTo(candidate lintRuleError) bool { //nolint:gocritic // it's a simple method
-	return l.ID == candidate.ID &&
-		l.Text == candidate.Text &&
-		l.ObjectID == candidate.ObjectID &&
-		l.Module == candidate.Module
+type ErrorList []Error
+
+var ch chan Error
+
+var result *ErrorList
+
+func Init() {
+	ch = make(chan Error)
 }
 
-type errStorage []lintRuleError
-
-type LintRuleErrorsList struct {
-	storage *errStorage
-
-	linterID string
-	moduleID string
-	objectID string
-	value    any
-}
-
-func NewLinterRuleList(linterID string, module ...string) *LintRuleErrorsList {
-	l := &LintRuleErrorsList{
-		storage:  &errStorage{},
-		linterID: linterID,
+func NewError(linterID string, module ...string) *Error {
+	l := &Error{
+		ID: linterID,
 	}
 	if len(module) > 0 {
-		l.moduleID = module[0]
+		l.Module = module[0]
 	}
 
 	return l
 }
 
-func (l *LintRuleErrorsList) WithObjectID(objectID string) *LintRuleErrorsList {
-	if l.storage == nil {
-		l.storage = &errStorage{}
+func Close() {
+	close(ch)
+}
+
+func GetErrors() *ErrorList {
+	if result != nil {
+		return result
 	}
-	return &LintRuleErrorsList{
-		storage:  l.storage,
-		linterID: l.linterID,
-		moduleID: l.moduleID,
-		objectID: objectID,
-		value:    l.value,
+
+	result = &ErrorList{}
+	for e := range ch {
+		*result = append(*result, e)
+	}
+	return result
+}
+
+func (l *Error) WithObjectID(objectID string) *Error {
+	return &Error{
+		ID:          l.ID,
+		Module:      l.Module,
+		ObjectID:    objectID,
+		ObjectValue: l.ObjectValue,
 	}
 }
 
-func (l *LintRuleErrorsList) WithModule(moduleID string) *LintRuleErrorsList {
-	if l.storage == nil {
-		l.storage = &errStorage{}
-	}
-	return &LintRuleErrorsList{
-		storage:  l.storage,
-		linterID: l.linterID,
-		moduleID: moduleID,
-		objectID: l.objectID,
-		value:    l.value,
+func (l *Error) WithModule(moduleID string) *Error {
+	return &Error{
+		ID:          l.ID,
+		Module:      moduleID,
+		ObjectID:    l.ObjectID,
+		ObjectValue: l.ObjectValue,
 	}
 }
 
-func (l *LintRuleErrorsList) WithValue(value any) *LintRuleErrorsList {
-	if l.storage == nil {
-		l.storage = &errStorage{}
-	}
-	return &LintRuleErrorsList{
-		storage:  l.storage,
-		linterID: l.linterID,
-		moduleID: l.moduleID,
-		objectID: l.objectID,
-		value:    value,
+func (l *Error) WithValue(value any) *Error {
+	return &Error{
+		ID:          l.ID,
+		Module:      l.Module,
+		ObjectID:    l.ObjectID,
+		ObjectValue: value,
 	}
 }
 
-func (l *LintRuleErrorsList) Add(template string, a ...any) *LintRuleErrorsList {
-	if l.storage == nil {
-		l.storage = &errStorage{}
-	}
-
-	if len(a) != 0 {
+func (l *Error) Add(template string, a ...any) {
+	if len(a) > 0 {
 		template = fmt.Sprintf(template, a...)
 	}
 
-	e := lintRuleError{
-		ID:          strings.ToLower(l.linterID),
-		Module:      l.moduleID,
-		ObjectID:    l.objectID,
-		ObjectValue: l.value,
+	e := Error{
+		ID:          strings.ToLower(l.ID),
+		Module:      l.Module,
+		ObjectID:    l.ObjectID,
+		ObjectValue: l.ObjectValue,
 		Text:        template,
 	}
 
-	if slices.ContainsFunc(*l.storage, e.EqualsTo) {
-		return l
-	}
-
-	*l.storage = append(*l.storage, e)
-
-	return l
-}
-
-// Merge merges another LintRuleErrorsList into current one, removing all duplicate errors.
-func (l *LintRuleErrorsList) Merge(e *LintRuleErrorsList) {
-	if l.storage == nil {
-		l.storage = &errStorage{}
-	}
-
-	if e == nil {
-		return
-	}
-
-	for _, el := range *e.storage {
-		if slices.ContainsFunc(*l.storage, el.EqualsTo) {
-			continue
-		}
-		if el.Text == "" {
-			continue
-		}
-
-		*l.storage = append(*l.storage, el)
-	}
+	ch <- e
 }
 
 // ConvertToError converts LintRuleErrorsList to a single error.
 // It returns an error that contains all errors from the list with a nice formatting.
 // If the list is empty, it returns nil.
-func (l *LintRuleErrorsList) ConvertToError() error {
-	if l.storage == nil {
-		l.storage = &errStorage{}
-	}
-
-	if len(*l.storage) == 0 {
+func (l *ErrorList) ConvertToError() error {
+	if l == nil || len(*l) == 0 {
 		return nil
 	}
-	slices.SortFunc(*l.storage, func(a, b lintRuleError) int {
+	slices.SortFunc(*l, func(a, b Error) int {
 		return cmp.Or(
 			cmp.Compare(a.Module, b.Module),
 			cmp.Compare(a.ObjectID, b.ObjectID),
@@ -160,7 +119,7 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 	}
 
 	builder := strings.Builder{}
-	for _, err := range *l.storage {
+	for _, err := range *l {
 		msgColor := color.FgRed
 		if _, ok := warningOnlyLinters[err.ID]; ok {
 			msgColor = color.FgHiYellow
@@ -187,12 +146,8 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 
 var WarningsOnly []string
 
-func (l *LintRuleErrorsList) Critical() bool {
-	if l.storage == nil {
-		l.storage = &errStorage{}
-	}
-
-	for _, err := range *l.storage {
+func (l *ErrorList) Critical() bool {
+	for _, err := range *l {
 		if !slices.Contains(WarningsOnly, err.ID) {
 			return true
 		}

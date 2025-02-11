@@ -23,7 +23,7 @@ func shouldSkipCrd(name string) bool {
 }
 
 func CrdsModuleRule(name, path string) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(rules.ID, name)
+	result := errors.NewError(rules.ID, name)
 	_ = filepath.Walk(path, func(path string, _ os.FileInfo, _ error) error {
 		if filepath.Ext(path) != ".yaml" {
 			return nil

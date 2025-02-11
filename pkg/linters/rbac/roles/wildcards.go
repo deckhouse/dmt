@@ -47,7 +47,7 @@ func ObjectRolesWildcard(m *module.Module, object storage.StoreObject) *errors.L
 }
 
 func checkRoles(m *module.Module, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, m.GetName())
+	result := errors.NewError(ID, m.GetName())
 	// check rbac-proxy for skip
 	for path, rules := range Cfg.SkipCheckWildcards {
 		if strings.EqualFold(object.Path, path) {

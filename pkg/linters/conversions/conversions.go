@@ -34,7 +34,7 @@ func New(inputCfg *config.ConversionsSettings) *Conversions {
 }
 
 func (*Conversions) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, m.GetName())
+	result := errors.NewError(ID, m.GetName())
 
 	if m == nil {
 		return result

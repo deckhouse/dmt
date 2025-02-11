@@ -27,7 +27,7 @@ func New(cfg *config.IngressSettings) *Ingress {
 }
 
 func (*Ingress) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, m.GetName())
+	result := errors.NewError(ID, m.GetName())
 	if m == nil {
 		return nil
 	}

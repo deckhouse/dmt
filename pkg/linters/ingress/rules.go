@@ -15,7 +15,7 @@ import (
 )
 
 func ingressCopyCustomCertificateRule(m *module.Module, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, m.GetName())
+	result := errors.NewError(ID, m.GetName())
 	const (
 		copyCustomCertificateImport = `"github.com/deckhouse/deckhouse/go_lib/hooks/copy_custom_certificate"`
 	)

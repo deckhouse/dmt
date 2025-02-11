@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -8,27 +9,27 @@ import (
 
 // OpenAPI linter
 type OpenAPI struct {
-	name, desc string
-	cfg        *config.OpenAPISettings
+	name string
+	cfg  *config.OpenAPISettings
 }
 
-func New(cfg *config.OpenAPISettings) *OpenAPI {
-	return &OpenAPI{
+func Run(m *module.Module) {
+	o := &OpenAPI{
 		name: "openapi",
-		desc: "OpenAPI will check all openapi files in the module",
-		cfg:  cfg,
+		cfg:  &config.Cfg.LintersSettings.OpenAPI,
 	}
-}
 
-func (o *OpenAPI) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList("openapi", m.GetName())
+	logger.DebugF("Running linter `%s` on module `%s`", o.name, m.GetName())
+
+	lintError := errors.NewError(o.name, m.GetName())
 	if m.GetPath() == "" {
-		return result
+		return
 	}
+
 	apiFiles, err := GetOpenAPIYAMLFiles(m.GetPath())
 	if err != nil {
-		result.WithValue(err.Error()).Add("failed to get openapi files in `%s` module", m.GetName())
-		return result
+		lintError.WithValue(err.Error()).Add("failed to get openapi files in `%s` module", m.GetName())
+		return
 	}
 
 	filesC := make(chan fileValidation, len(apiFiles))
@@ -45,18 +46,8 @@ func (o *OpenAPI) Run(m *module.Module) *errors.LintRuleErrorsList {
 
 	for res := range resultC {
 		if res.validationError != nil {
-			result.WithObjectID(res.filePath).
+			lintError.WithObjectID(res.filePath).
 				WithValue(res.validationError.Error()).Add("errors in `%s` module", m.GetName())
 		}
 	}
-
-	return result
-}
-
-func (o *OpenAPI) Name() string {
-	return o.name
-}
-
-func (o *OpenAPI) Desc() string {
-	return o.desc
 }

@@ -1,19 +1,3 @@
-/*
-Copyright 2021 Flant JSC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package license
 
 import (
@@ -21,7 +5,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"sigs.k8s.io/yaml"
@@ -31,16 +14,14 @@ import (
 
 const ossFilename = "oss.yaml"
 
-func OssModuleRule(name, moduleRoot string) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList("oss", name)
+func OssModuleRule(moduleName, moduleRoot string) {
+	lintError := errors.NewError("oss", moduleName)
 
-	if errs := verifyOssFile(name, moduleRoot); len(errs) > 0 {
+	if errs := verifyOssFile(moduleRoot); len(errs) > 0 {
 		for _, err := range errs {
-			result.WithObjectID(moduleRoot).Add("%v", ossFileErrorMessage(err))
+			lintError.WithObjectID(moduleRoot).Add("%v", ossFileErrorMessage(err))
 		}
 	}
-
-	return result
 }
 
 func ossFileErrorMessage(err error) string {
@@ -50,11 +31,7 @@ func ossFileErrorMessage(err error) string {
 	return fmt.Sprintf("Invalid %s: %s", ossFilename, err.Error())
 }
 
-func verifyOssFile(name, moduleRoot string) []error {
-	if shouldIgnoreOssInfo(name) {
-		return nil
-	}
-
+func verifyOssFile(moduleRoot string) []error {
 	projects, err := readOssFile(moduleRoot)
 	if err != nil {
 		return []error{err}
@@ -139,11 +116,6 @@ func parseProjectList(b []byte) ([]ossProject, error) {
 		return nil, err
 	}
 	return projects, nil
-}
-
-// TODO When lintignore files will be implemented in helm, detect "oss.yaml" line in it
-func shouldIgnoreOssInfo(moduleName string) bool {
-	return slices.Contains(Cfg.SkipOssChecks, moduleName)
 }
 
 type ossProject struct {

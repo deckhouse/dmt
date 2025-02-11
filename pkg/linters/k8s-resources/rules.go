@@ -15,7 +15,7 @@ import (
 )
 
 func applyContainerRules(name string, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, name)
+	result := errors.NewError(ID, name)
 	if slices.Contains(Cfg.SkipContainerChecks, object.Unstructured.GetName()) {
 		return result
 	}
@@ -41,7 +41,7 @@ func applyContainerRules(name string, object storage.StoreObject) *errors.LintRu
 }
 
 func objectRecommendedLabels(name string, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, name)
+	result := errors.NewError(ID, name)
 	labels := object.Unstructured.GetLabels()
 	if _, ok := labels["module"]; !ok {
 		result.WithObjectID(object.Identity()).WithValue(labels).
@@ -56,7 +56,7 @@ func objectRecommendedLabels(name string, object storage.StoreObject) *errors.Li
 }
 
 func namespaceLabels(name string, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, name)
+	result := errors.NewError(ID, name)
 	if object.Unstructured.GetKind() != "Namespace" {
 		return result
 	}
@@ -78,7 +78,7 @@ func namespaceLabels(name string, object storage.StoreObject) *errors.LintRuleEr
 }
 
 func newAPIVersionError(name, wanted, version, objectID string) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, name)
+	result := errors.NewError(ID, name)
 	if version != wanted {
 		result.WithObjectID(objectID).Add(
 			"Object defined using deprecated api version, wanted %q", wanted,
@@ -88,7 +88,7 @@ func newAPIVersionError(name, wanted, version, objectID string) *errors.LintRule
 }
 
 func objectAPIVersion(name string, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, name)
+	result := errors.NewError(ID, name)
 	kind := object.Unstructured.GetKind()
 	version := object.Unstructured.GetAPIVersion()
 
@@ -111,7 +111,7 @@ func objectAPIVersion(name string, object storage.StoreObject) *errors.LintRuleE
 }
 
 func objectRevisionHistoryLimit(name string, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, name)
+	result := errors.NewError(ID, name)
 	if object.Unstructured.GetKind() == "Deployment" {
 		converter := runtime.DefaultUnstructuredConverter
 		deployment := new(appsv1.Deployment)
@@ -146,7 +146,7 @@ func objectRevisionHistoryLimit(name string, object storage.StoreObject) *errors
 }
 
 func objectPriorityClass(name string, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, name)
+	result := errors.NewError(ID, name)
 	if !isPriorityClassSupportedKind(object.Unstructured.GetKind()) {
 		return result
 	}
@@ -209,7 +209,7 @@ func getPriorityClass(object storage.StoreObject) (string, error) {
 }
 
 func objectSecurityContext(name string, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, name)
+	result := errors.NewError(ID, name)
 	if !isSupportedKind(object.Unstructured.GetKind()) {
 		return result
 	}
@@ -273,7 +273,7 @@ func checkRunAsNonRoot(securityContext *v1.PodSecurityContext, result *errors.Li
 }
 
 func objectReadOnlyRootFilesystem(name string, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, name)
+	result := errors.NewError(ID, name)
 	switch object.Unstructured.GetKind() {
 	case "Deployment", "DaemonSet", "StatefulSet", "Pod", "Job", "CronJob":
 	default:
@@ -310,7 +310,7 @@ func objectReadOnlyRootFilesystem(name string, object storage.StoreObject) *erro
 }
 
 func objectServiceTargetPort(name string, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, name)
+	result := errors.NewError(ID, name)
 	switch object.Unstructured.GetKind() {
 	case "Service":
 	default:
@@ -344,7 +344,7 @@ func objectServiceTargetPort(name string, object storage.StoreObject) *errors.Li
 }
 
 func objectHostNetworkPorts(name string, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, name)
+	result := errors.NewError(ID, name)
 	switch object.Unstructured.GetKind() {
 	case "Deployment", "DaemonSet", "StatefulSet", "Pod", "Job", "CronJob":
 	default:
@@ -380,7 +380,7 @@ func objectHostNetworkPorts(name string, object storage.StoreObject) *errors.Lin
 }
 
 func objectDNSPolicy(name string, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, name)
+	result := errors.NewError(ID, name)
 	dnsPolicy, hostNetwork, err := getDNSPolicyAndHostNetwork(object)
 	if err != nil {
 		return result.WithObjectID(object.Unstructured.GetName()).Add(

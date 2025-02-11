@@ -28,7 +28,7 @@ const (
 var Cfg *config.ImageSettings
 
 func chartModuleRule(name, path string) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, name).WithObjectID(name)
+	result := errors.NewError(ID, name).WithObjectID(name)
 	stat, err := os.Stat(filepath.Join(path, ChartConfigFilename))
 	if err != nil {
 		stat, err = os.Stat(filepath.Join(path, ModuleConfigFilename))
@@ -75,7 +75,7 @@ func IsExistsOnFilesystem(parts ...string) bool {
 }
 
 func ApplyImagesRules(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, m.GetName())
+	result := errors.NewError(ID, m.GetName())
 	result.Merge(checkImageNamesInDockerFiles(m.GetName(), m.GetPath()))
 	result.Merge(chartModuleRule(m.GetName(), m.GetPath()))
 

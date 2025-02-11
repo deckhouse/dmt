@@ -38,7 +38,7 @@ type ModulePlatformRequirements struct {
 }
 
 func checkModuleYaml(moduleName, modulePath string) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, moduleName).WithObjectID(moduleName)
+	result := errors.NewError(ID, moduleName).WithObjectID(moduleName)
 	if slices.Contains(Cfg.SkipCheckModuleYaml, moduleName) {
 		return nil
 	}
@@ -98,7 +98,7 @@ func checkModuleYaml(moduleName, modulePath string) *errors.LintRuleErrorsList {
 }
 
 func (m ModuleRequirements) validateRequirements(moduleName string) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, moduleName).WithObjectID(moduleName)
+	result := errors.NewError(ID, moduleName).WithObjectID(moduleName)
 	if m.Deckhouse != "" {
 		if _, err := semver.NewConstraint(m.Deckhouse); err != nil {
 			result.Add(

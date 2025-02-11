@@ -4,9 +4,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/sourcegraph/conc/pool"
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg/config"
@@ -15,71 +15,36 @@ import (
 
 // Probes linter
 type Probes struct {
-	name, desc string
-	cfg        *config.ProbesSettings
+	name string
+	cfg  *config.ProbesSettings
 }
 
-var Cfg *config.ProbesSettings
-
-func New(cfg *config.ProbesSettings) *Probes {
-	Cfg = cfg
-	return &Probes{
+func Run(m *module.Module) {
+	p := &Probes{
 		name: "probes",
-		desc: "Probes will check all containers for correct liveness and readiness probes",
-		cfg:  cfg,
+		cfg:  &config.Cfg.LintersSettings.Probes,
+	}
+
+	logger.DebugF("Running linter `%s` on module `%s`", p.name, m.GetName())
+
+	for _, object := range m.GetStorage() {
+		containers, er := object.GetContainers()
+		if er != nil || containers == nil {
+			continue
+		}
+		p.containerProbes(m.GetName(), object, containers)
 	}
 }
 
-func (*Probes) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList("probes", m.GetName())
-	var err error
-	var ch = make(chan *errors.LintRuleErrorsList)
-	go func() {
-		var g = pool.New().WithErrors()
-		g.Go(func() error {
-			for _, object := range m.GetStorage() {
-				containers, er := object.GetContainers()
-				if er != nil || containers == nil {
-					continue
-				}
-				ch <- containerProbes(m.GetName(), object, containers)
-			}
-
-			return nil
-		})
-		err = g.Wait()
-		close(ch)
-	}()
-
-	for er := range ch {
-		result.Merge(er)
-	}
-
-	if err != nil {
-		result.WithObjectID("module = " + m.GetName()).
-			WithValue(err.Error()).Add("Error in probes linter")
-	}
-
-	return result
-}
-
-func (o *Probes) Name() string {
-	return o.name
-}
-
-func (o *Probes) Desc() string {
-	return o.desc
-}
-
-func containerProbes(
+func (p *Probes) containerProbes(
 	moduleName string,
 	object storage.StoreObject,
 	containers []v1.Container,
-) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList("probes", moduleName)
+) {
+	lintError := errors.NewError("probes", moduleName)
 	for i := range containers {
 		container := containers[i]
-		if skipCheckProbeHandler(object.Unstructured.GetNamespace(), container.Name) {
+		if p.skipCheckProbeHandler(object.Unstructured.GetNamespace(), container.Name) {
 			continue
 		}
 
@@ -97,13 +62,20 @@ func containerProbes(
 		}
 
 		if len(errStrings) > 0 {
-			result.WithObjectID("module = " + moduleName + " ; " + object.Identity() + " ; container = " + container.Name).
+			lintError.WithObjectID("module = " + moduleName + " ; " + object.Identity() + " ; container = " + container.Name).
 				WithValue(strings.Join(errStrings, " and ")).
 				Add("Container does not use correct probes")
 		}
 	}
+}
 
-	return result
+func (p *Probes) skipCheckProbeHandler(namespace, container string) bool {
+	containers, ok := p.cfg.ProbesExcludes[namespace]
+	if ok {
+		return slices.Contains(containers, container)
+	}
+
+	return false
 }
 
 func probeHandlerIsNotValid(probe v1.ProbeHandler) bool {
@@ -122,15 +94,6 @@ func probeHandlerIsNotValid(probe v1.ProbeHandler) bool {
 	}
 	if count != 1 {
 		return true
-	}
-
-	return false
-}
-
-func skipCheckProbeHandler(namespace, container string) bool {
-	containers, ok := Cfg.ProbesExcludes[namespace]
-	if ok {
-		return slices.Contains(containers, container)
 	}
 
 	return false

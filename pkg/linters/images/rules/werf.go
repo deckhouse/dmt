@@ -19,7 +19,7 @@ type werfFile struct {
 }
 
 func lintWerfFile(moduleName, data string) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, moduleName)
+	result := errors.NewError(ID, moduleName)
 
 	werfDocs := splitManifests(data)
 

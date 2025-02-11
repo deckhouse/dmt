@@ -1,50 +1,35 @@
 package container
 
 import (
+	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
-)
-
-const (
-	ID = "container"
 )
 
 var Cfg *config.ContainerSettings
 
 // Container linter
 type Container struct {
-	name, desc string
-	cfg        *config.ContainerSettings
+	name string
 }
 
-func New(cfg *config.ContainerSettings) *Container {
-	Cfg = cfg
-
-	return &Container{
-		name: "container",
-		desc: "Lint container objects",
-		cfg:  cfg,
-	}
-}
-
-func (*Container) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, m.GetName())
+func Run(m *module.Module) {
 	if m == nil {
-		return result
+		return
 	}
+
+	Cfg = &config.Cfg.LintersSettings.Container
+
+	c := &Container{
+		name: "container",
+	}
+
+	logger.DebugF("Running linter `%s` on module `%s`", c.name, m.GetName())
+
+	lintError := errors.NewError(c.name, m.GetName())
 
 	for _, object := range m.GetStorage() {
-		result.Merge(applyContainerRules(m, object))
+		applyContainerRules(object, lintError)
 	}
-
-	return result
-}
-
-func (o *Container) Name() string {
-	return o.name
-}
-
-func (o *Container) Desc() string {
-	return o.desc
 }

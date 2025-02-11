@@ -13,17 +13,19 @@ type Config struct {
 	WarningsOnly    []string        `mapstructure:"warnings-only"`
 }
 
-func NewDefault(dirs []string) (*Config, error) {
-	cfg := &Config{}
+var Cfg *Config
 
-	if err := NewLoader(cfg, dirs).Load(); err != nil {
-		return nil, err
+func NewDefault(dirs []string) error {
+	Cfg = &Config{}
+
+	if err := NewLoader(Cfg, dirs).Load(); err != nil {
+		return err
 	}
 
-	errors.WarningsOnly = cfg.WarningsOnly
-	for _, w := range cfg.WarningsOnly {
+	errors.WarningsOnly = Cfg.WarningsOnly
+	for _, w := range Cfg.WarningsOnly {
 		logger.InfoF("Linter %q is marked as warnings-only. It will not fail the pipeline", w)
 	}
 
-	return cfg, nil
+	return nil
 }

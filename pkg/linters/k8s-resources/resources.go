@@ -13,60 +13,43 @@ import (
 )
 
 const (
-	ID      = "k8s-resources"
 	CrdsDir = "crds"
 )
 
-// Object linter
-type Object struct {
-	name, desc string
-	cfg        *config.K8SResourcesSettings
+// Resources linter
+type Resources struct {
+	name string
+	cfg  *config.K8SResourcesSettings
 }
 
-var Cfg *config.K8SResourcesSettings
-
-func New(cfg *config.K8SResourcesSettings) *Object {
-	Cfg = cfg
-	pdb.SkipPDBChecks = cfg.SkipPDBChecks
-	vpa.SkipVPAChecks = cfg.SkipVPAChecks
-	rbacproxy.SkipKubeRbacProxyChecks = cfg.SkipKubeRbacProxyChecks
-
-	return &Object{
-		name: "k8s-resources",
-		desc: "Lint k8s-resources",
-		cfg:  cfg,
-	}
-}
-
-func (o *Object) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(o.Name(), m.GetName())
+func Run(m *module.Module) {
 	if m == nil {
-		return result
+		return
 	}
 
-	name := m.GetName()
-	result.Merge(rbacproxy.NamespaceMustContainKubeRBACProxyCA(name, m.GetObjectStore()))
-	result.Merge(vpa.ControllerMustHaveVPA(m))
-	result.Merge(pdb.ControllerMustHavePDB(m))
-	result.Merge(pdb.DaemonSetMustNotHavePDB(m))
+	o := &Resources{
+		name: "k8s-resources",
+		cfg:  &config.Cfg.LintersSettings.K8SResources,
+	}
+
+	pdb.SkipPDBChecks = o.cfg.SkipPDBChecks
+	vpa.SkipVPAChecks = o.cfg.SkipVPAChecks
+	rbacproxy.SkipKubeRbacProxyChecks = o.cfg.SkipKubeRbacProxyChecks
+
+	lintError := errors.NewError(o.name, m.GetName())
+
+	rbacproxy.NamespaceMustContainKubeRBACProxyCA(m.GetName(), m.GetObjectStore())
+	vpa.ControllerMustHaveVPA(m, lintError)
+	pdb.ControllerMustHavePDB(m)
+	pdb.DaemonSetMustNotHavePDB(m)
 
 	for _, object := range m.GetStorage() {
-		result.Merge(applyContainerRules(m.GetName(), object))
+		applyContainerRules(m.GetName(), object)
 	}
 
 	if isExistsOnFilesystem(m.GetPath(), CrdsDir) {
-		result.Merge(CrdsModuleRule(m.GetName(), filepath.Join(m.GetPath(), CrdsDir)))
+		CrdsModuleRule(m.GetName(), filepath.Join(m.GetPath(), CrdsDir))
 	}
-
-	return result
-}
-
-func (o *Object) Name() string {
-	return o.name
-}
-
-func (o *Object) Desc() string {
-	return o.desc
 }
 
 func isExistsOnFilesystem(parts ...string) bool {

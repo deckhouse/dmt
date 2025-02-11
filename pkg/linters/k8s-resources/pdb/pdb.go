@@ -49,14 +49,12 @@ func (s *nsLabelSelector) Matches(namespace string, labelSet labels.Set) bool {
 
 // ControllerMustHavePDB adds linting errors if there are pods from controllers which are not covered (except DaemonSets)
 // by a PodDisruptionBudget
-func ControllerMustHavePDB(md *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, md.GetName())
+func ControllerMustHavePDB(md *module.Module, lintError *errors.Error) {
 	if slices.Contains(SkipPDBChecks, md.GetNamespace()+":"+md.GetName()) {
-		return result
+		return
 	}
 
-	pdbSelectors, lerr := collectPDBSelectors(md)
-	result.Merge(lerr)
+	pdbSelectors := collectPDBSelectors(md, lintError)
 
 	for _, object := range md.GetObjectStore().Storage {
 		if !vpa.IsPodController(object.Unstructured.GetKind()) {
@@ -67,11 +65,8 @@ func ControllerMustHavePDB(md *module.Module) *errors.LintRuleErrorsList {
 			continue
 		}
 
-		lerr := ensurePDBIsPresent(md, pdbSelectors, object)
-		result.Merge(lerr)
+		ensurePDBIsPresent(md, pdbSelectors, object)
 	}
-
-	return result
 }
 
 func isPodControllerDaemonSet(kind string) bool {
@@ -81,7 +76,7 @@ func isPodControllerDaemonSet(kind string) bool {
 // DaemonSetMustNotHavePDB adds linting errors if there are pods from DaemonSets which are covered
 // by a PodDisruptionBudget
 func DaemonSetMustNotHavePDB(md *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, md.GetName())
+	result := errors.NewError(ID, md.GetName())
 	if slices.Contains(SkipPDBChecks, md.GetNamespace()+":"+md.GetName()) {
 		return result
 	}
@@ -106,19 +101,14 @@ func DaemonSetMustNotHavePDB(md *module.Module) *errors.LintRuleErrorsList {
 }
 
 // collectPDBSelectors collects selectors for matching pods
-func collectPDBSelectors(md *module.Module) ([]nsLabelSelector, *errors.LintRuleErrorsList) {
+func collectPDBSelectors(moduleName *module.Module, lintError *errors.Error) []nsLabelSelector {
 	var selectors []nsLabelSelector
-	result := errors.NewLinterRuleList(ID, md.GetName())
-	for _, object := range md.GetObjectStore().Storage {
+	for _, object := range moduleName.GetObjectStore().Storage {
 		if object.Unstructured.GetKind() != "PodDisruptionBudget" {
 			continue
 		}
 
-		labelSelector, lerr := parsePDBSelector(md, object)
-		if lerr != nil {
-			result.Merge(lerr)
-		}
-
+		labelSelector := parsePDBSelector(moduleName, object, lintError)
 		sel := nsLabelSelector{
 			namespace: object.Unstructured.GetNamespace(),
 			selector:  labelSelector,
@@ -126,13 +116,13 @@ func collectPDBSelectors(md *module.Module) ([]nsLabelSelector, *errors.LintRule
 		selectors = append(selectors, sel)
 	}
 
-	return selectors, result
+	return selectors
 }
 
 // ensurePDBIsPresent returns true if there is a PDB controlling pods from the pod contoller
 // VPA is assumed to be present, since the PDB check goes after VPA check.
 func ensurePDBIsPresent(md *module.Module, selectors []nsLabelSelector, podController storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, md.GetName())
+	result := errors.NewError(ID, md.GetName())
 	podLabels, err := parsePodControllerLabels(podController)
 	if err != nil {
 		result.WithObjectID(podController.Identity()).WithValue(err).
@@ -155,7 +145,7 @@ func ensurePDBIsPresent(md *module.Module, selectors []nsLabelSelector, podContr
 // ensurePDBIsNotPresent returns true if there is not a PDB controlling pods from the pod contoller
 // VPA is assumed to be present, since the PDB check goes after VPA check.
 func ensurePDBIsNotPresent(md *module.Module, selectors []nsLabelSelector, podController storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, md.GetName())
+	result := errors.NewError(ID, md.GetName())
 	podLabels, err := parsePodControllerLabels(podController)
 	if err != nil {
 		return result.WithObjectID(podController.Identity()).
@@ -177,33 +167,32 @@ func ensurePDBIsNotPresent(md *module.Module, selectors []nsLabelSelector, podCo
 	return nil
 }
 
-func parsePDBSelector(md *module.Module, pdbObj storage.StoreObject) (labels.Selector, *errors.LintRuleErrorsList) {
-	result := errors.NewLinterRuleList(ID, md.GetName())
+func parsePDBSelector(md *module.Module, pdbObj storage.StoreObject, lintError *errors.Error) labels.Selector {
 	content := pdbObj.Unstructured.UnstructuredContent()
 	converter := runtime.DefaultUnstructuredConverter
 
 	pdb := &policyv1.PodDisruptionBudget{}
 	err := converter.FromUnstructured(content, pdb)
 	if err != nil {
-		result.WithObjectID(pdbObj.Identity()).WithValue(err).
+		lintError.WithObjectID(pdbObj.Identity()).WithValue(err).
 			Add("Cannot parse PodDisruptionBudget")
-		return nil, result
+		return nil
 	}
 
 	sel, err := v1.LabelSelectorAsSelector(pdb.Spec.Selector)
 	if err != nil {
-		result.WithObjectID(pdbObj.Identity()).WithValue(err).
+		lintError.WithObjectID(pdbObj.Identity()).WithValue(err).
 			Add("Cannot parse label selector")
-		return nil, result
+		return nil
 	}
 
 	if pdb.Annotations["helm.sh/hook"] != "" || pdb.Annotations["helm.sh/hook-delete-policy"] != "" {
-		result.WithObjectID(pdbObj.Identity()).WithValue(err).
+		lintError.WithObjectID(pdbObj.Identity()).WithValue(err).
 			Add("PDB must have no helm hook annotations")
-		return nil, result
+		return nil
 	}
 
-	return sel, nil
+	return sel
 }
 
 func parsePodControllerLabels(object storage.StoreObject) (map[string]string, error) {

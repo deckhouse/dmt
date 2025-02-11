@@ -33,7 +33,7 @@ func ObjectBindingSubjectServiceAccountCheck(
 	object storage.StoreObject,
 	objectStore *storage.UnstructuredObjectStore,
 ) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, m.GetName())
+	result := errors.NewError(ID, m.GetName())
 	if slices.Contains(Cfg.SkipModuleCheckBinding, m.GetName()) {
 		return nil
 	}

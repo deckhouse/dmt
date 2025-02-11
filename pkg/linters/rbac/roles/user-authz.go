@@ -31,7 +31,7 @@ ObjectUserAuthzClusterRolePath validates that files for user-authz contains only
 Also, it validates that role names equals to d8:user-authz:<ChartName>:<AccessLevel>
 */
 func ObjectUserAuthzClusterRolePath(m *module.Module, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, m.GetName())
+	result := errors.NewError(ID, m.GetName())
 	objectKind := object.Unstructured.GetKind()
 
 	shortPath := object.ShortPath()

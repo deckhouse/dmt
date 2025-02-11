@@ -27,7 +27,7 @@ import (
 )
 
 func dirExists(moduleName, modulePath string, path ...string) (bool, *errors.LintRuleErrorsList) {
-	result := errors.NewLinterRuleList(ID, moduleName)
+	result := errors.NewError(ID, moduleName)
 	searchPath := filepath.Join(append([]string{modulePath}, path...)...)
 	info, err := os.Stat(searchPath)
 	if err != nil {
@@ -40,7 +40,7 @@ func dirExists(moduleName, modulePath string, path ...string) (bool, *errors.Lin
 }
 
 func MonitoringModuleRule(moduleName, modulePath, moduleNamespace string) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, moduleName)
+	result := errors.NewError(ID, moduleName)
 	if slices.Contains(Cfg.SkipModuleChecks, moduleName) {
 		return nil
 	}

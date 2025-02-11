@@ -24,7 +24,7 @@ func New(cfg *config.RbacSettings) *Rbac {
 }
 
 func (o *Rbac) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(o.Name(), m.GetName())
+	result := errors.NewError(o.Name(), m.GetName())
 	if m == nil {
 		return result
 	}

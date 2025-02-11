@@ -92,7 +92,7 @@ func checkRuleFile(path string) error {
 }
 
 func PromtoolRuleCheck(m *module.Module, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, m.GetName())
+	result := errors.NewError(ID, m.GetName())
 	// check promtoolPath exist, if not do not run linter
 	if _, err := os.Stat(promtoolPath); err != nil {
 		return nil

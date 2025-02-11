@@ -51,7 +51,7 @@ func isDeckhouseSystemNamespace(actual string) bool {
 }
 
 func ObjectRBACPlacement(m *module.Module, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, m.GetName())
+	result := errors.NewError(ID, m.GetName())
 	if slices.Contains(Cfg.SkipObjectCheckBinding, m.GetName()) {
 		return nil
 	}
@@ -80,7 +80,7 @@ func ObjectRBACPlacement(m *module.Module, object storage.StoreObject) *errors.L
 
 //nolint:gocyclo // because
 func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, m.GetName())
+	result := errors.NewError(ID, m.GetName())
 	objectName := object.Unstructured.GetName()
 	shortPath := object.ShortPath()
 	namespace := object.Unstructured.GetNamespace()
@@ -159,7 +159,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 }
 
 func objectRBACPlacementClusterRole(kind string, m *module.Module, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, m.GetName())
+	result := errors.NewError(ID, m.GetName())
 	objectName := object.Unstructured.GetName()
 	shortPath := object.ShortPath()
 
@@ -195,7 +195,7 @@ func objectRBACPlacementClusterRole(kind string, m *module.Module, object storag
 }
 
 func objectRBACPlacementRole(kind string, m *module.Module, object storage.StoreObject) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, m.GetName())
+	result := errors.NewError(ID, m.GetName())
 	objectName := object.Unstructured.GetName()
 	shortPath := object.ShortPath()
 	namespace := object.Unstructured.GetNamespace()
@@ -217,7 +217,7 @@ func objectRBACPlacementRole(kind string, m *module.Module, object storage.Store
 
 // handleRootRBACForUs applies to templates/rbac-for-us.yaml file's objects
 func handleRootRBACForUs(m *module.Module, object storage.StoreObject, objectName, kind string) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, m.GetName())
+	result := errors.NewError(ID, m.GetName())
 	prefix := "d8:" + m.GetName()
 	namespace := object.Unstructured.GetNamespace()
 
@@ -250,7 +250,7 @@ func handleRootRBACForUs(m *module.Module, object storage.StoreObject, objectNam
 
 // handleRootRBACToUs applies to templates/rbac-to-us.yaml file's objects
 func handleRootRBACToUs(m *module.Module, object storage.StoreObject, objectName, kind string) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, m.GetName())
+	result := errors.NewError(ID, m.GetName())
 	prefix := "access-to-" + m.GetName()
 	if !strings.HasPrefix(objectName, prefix) {
 		return result.WithObjectID(object.Identity()).Add(
@@ -272,7 +272,7 @@ func handleRootRBACToUs(m *module.Module, object storage.StoreObject, objectName
 
 // handleNestedRBACForUs applies to templates/**/rbac-for-us.yaml file's objects
 func handleNestedRBACForUs(m *module.Module, object storage.StoreObject, shortPath, objectName, namespace, kind string) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, m.GetName())
+	result := errors.NewError(ID, m.GetName())
 	if m == nil {
 		return nil
 	}
@@ -318,7 +318,7 @@ func handleNestedRBACForUs(m *module.Module, object storage.StoreObject, shortPa
 
 // handleNestedRBACToUs applies to templates/**/rbac-to-us.yaml file's objects
 func handleNestedRBACToUs(m *module.Module, object storage.StoreObject, shortPath, objectName, kind string) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, m.GetName())
+	result := errors.NewError(ID, m.GetName())
 	parts := strings.Split(
 		strings.TrimPrefix(strings.TrimSuffix(shortPath, "/rbac-to-us.yaml"), "templates/"),
 		string(os.PathSeparator),

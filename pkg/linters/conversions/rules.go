@@ -38,7 +38,7 @@ type configValues struct {
 
 //nolint:gocyclo // hate this linter
 func checkModuleYaml(moduleName, modulePath string) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, moduleName)
+	result := errors.NewError(ID, moduleName)
 
 	_, ok := cfg.SkipCheckModule[moduleName]
 	if ok {
@@ -174,7 +174,7 @@ func parseConversion(path string) (*conversion, error) {
 }
 
 func conversionCheck(c *conversion, moduleName, path string) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, moduleName)
+	result := errors.NewError(ID, moduleName)
 
 	result.Merge(descriptionCheck(c, moduleName, path))
 
@@ -189,7 +189,7 @@ func conversionCheck(c *conversion, moduleName, path string) *errors.LintRuleErr
 }
 
 func descriptionCheck(c *conversion, moduleName, path string) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, moduleName)
+	result := errors.NewError(ID, moduleName)
 
 	if c.Description == nil {
 		return result.WithObjectID(moduleName).Add(
@@ -216,7 +216,7 @@ func descriptionCheck(c *conversion, moduleName, path string) *errors.LintRuleEr
 }
 
 func compareWithFileName(c *conversion, moduleName, path string) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, moduleName)
+	result := errors.NewError(ID, moduleName)
 
 	versions := regexVersionFile.FindStringSubmatch(filepath.Base(path))
 	if len(versions) <= 1 {

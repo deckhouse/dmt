@@ -67,7 +67,7 @@ func isImageNameUnacceptable(imageName string) (bool, string) { //nolint:gocriti
 }
 
 func checkImageNamesInDockerFiles(name, path string) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, name)
+	result := errors.NewError(ID, name)
 	var filePaths []string
 	imagesPath := filepath.Join(path, ImagesDir)
 
@@ -108,7 +108,7 @@ func checkImageNamesInDockerFiles(name, path string) *errors.LintRuleErrorsList 
 }
 
 func lintOneDockerfile(name, path, imagesPath string) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(ID, name)
+	result := errors.NewError(ID, name)
 	relativeFilePath, err := filepath.Rel(imagesPath, path)
 	if err != nil {
 		return result.WithObjectID(path).Add(
