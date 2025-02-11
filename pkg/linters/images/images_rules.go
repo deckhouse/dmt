@@ -1,4 +1,4 @@
-package rules
+package images
 
 import (
 	"bufio"
@@ -33,17 +33,18 @@ var distrolessImagesPrefix = map[string][]string{
 	},
 }
 
-func skipModuleImageNameIfNeeded(filePath string) bool {
-	for _, img := range Cfg.SkipModuleImageName {
+func (l *Images) skipModuleImageNameIfNeeded(filePath string) bool {
+	for _, img := range l.cfg.SkipModuleImageName {
 		if strings.HasSuffix(filePath, img) {
 			return true
 		}
 	}
+
 	return false
 }
 
-func skipDistrolessImageCheckIfNeeded(image string) bool {
-	for _, img := range Cfg.SkipDistrolessImageCheck {
+func (l *Images) skipDistrolessImageCheckIfNeeded(image string) bool {
+	for _, img := range l.cfg.SkipDistrolessImageCheck {
 		if strings.HasSuffix(image, img) {
 			return true
 		}
@@ -66,9 +67,10 @@ func isImageNameUnacceptable(imageName string) (bool, string) { //nolint:gocriti
 	return false, ""
 }
 
-func checkImageNamesInDockerFiles(name, path string, errorList *errors.LintRuleErrorsList) {
+func (l *Images) checkImageNamesInDockerFiles(moduleName, modulePath string, errorList *errors.LintRuleErrorsList) {
 	var filePaths []string
-	imagesPath := filepath.Join(path, ImagesDir)
+
+	imagesPath := filepath.Join(modulePath, ImagesDir)
 
 	if !IsExistsOnFilesystem(imagesPath) {
 		return
@@ -85,20 +87,22 @@ func checkImageNamesInDockerFiles(name, path string, errorList *errors.LintRuleE
 
 		return nil
 	})
+
 	for _, path := range filePaths {
-		if skipModuleImageNameIfNeeded(path) {
+		if l.skipModuleImageNameIfNeeded(path) {
 			continue
 		}
 
-		lintOneDockerfile(name, path, imagesPath, errorList)
+		l.lintOneDockerfile(moduleName, path, imagesPath, errorList)
 	}
 }
 
-func lintOneDockerfile(name, path, imagesPath string, result *errors.LintRuleErrorsList) {
+func (l *Images) lintOneDockerfile(moduleName, path, imagesPath string, errList *errors.LintRuleErrorsList) {
 	relativeFilePath, err := filepath.Rel(imagesPath, path)
 	if err != nil {
-		result.WithFilePath(path).
+		errList.WithFilePath(path).
 			Errorf("Error calculating relative file path: %s", err)
+
 		return
 	}
 
@@ -108,10 +112,9 @@ func lintOneDockerfile(name, path, imagesPath string, result *errors.LintRuleErr
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		result.WithFilePath(path).Errorf(
-			"Error reading file: %s",
-			err.Error(),
-		)
+		errList.WithFilePath(path).
+			Errorf("Error reading file: %s", err)
+
 		return
 	}
 
@@ -122,11 +125,9 @@ func lintOneDockerfile(name, path, imagesPath string, result *errors.LintRuleErr
 		linePos++
 		ers, ciVariable := isImageNameUnacceptable(line)
 		if ers {
-			result.
-				WithObjectID(fmt.Sprintf("module = %s, image = %s, line = %d", name, relativeFilePath, linePos)).
-				Errorf(
-					"Please use %s as an image name", ciVariable,
-				)
+			errList.WithObjectID(fmt.Sprintf("image = %s", relativeFilePath)).
+				WithLineNumber(linePos).
+				Errorf("Please use %s as an image name", ciVariable)
 		}
 
 		if strings.HasPrefix(line, "FROM ") {
@@ -135,14 +136,15 @@ func lintOneDockerfile(name, path, imagesPath string, result *errors.LintRuleErr
 	}
 
 	for i, fromInstruction := range dockerfileFromInstructions {
-		if skipDistrolessImageCheckIfNeeded(relativeFilePath) {
-			log.Printf("WARNING!!! SKIP DISTROLESS CHECK!!!\nmodule = %s, image = %s\nvalue - %s\n\n", name, relativeFilePath, fromInstruction)
+		if l.skipDistrolessImageCheckIfNeeded(relativeFilePath) {
+			// TODO: add Warn level message
+			log.Printf("WARNING!!! SKIP DISTROLESS CHECK!!!\nmodule = %s, image = %s\nvalue - %s\n\n", moduleName, relativeFilePath, fromInstruction)
 			continue
 		}
 
 		ers, message := isDockerfileInstructionUnacceptable(fromInstruction, i == len(dockerfileFromInstructions)-1)
 		if ers {
-			result.WithObjectID(fmt.Sprintf("module = %s, path = %s", name, relativeFilePath)).
+			errList.WithFilePath(relativeFilePath).
 				WithValue(fromInstruction).
 				Error(message)
 		}
@@ -164,18 +166,23 @@ func isDockerfileInstructionUnacceptable(from string, final bool) (bool, string)
 			return true, "Intermediate `FROM` instructions should use one of our $BASE_ images or have `@sha526:` checksum specified"
 		}
 	}
+
 	return false, ""
 }
 
 func checkDistrolessPrefix(str string, in []string) bool {
 	result := false
+
 	str = strings.TrimPrefix(str, "$.Images.")
 	str = strings.TrimPrefix(str, ".Images.")
+
 	for _, pattern := range in {
 		if strings.HasPrefix(str, pattern) {
 			result = true
+
 			break
 		}
 	}
+
 	return result
 }

@@ -1,4 +1,4 @@
-package rules
+package images
 
 import (
 	"fmt"
@@ -75,6 +75,7 @@ func splitManifests(bigFile string) map[string]string {
 		res[fmt.Sprintf(tpl, count)] = d
 		count++
 	}
+
 	return res
 }
 
@@ -83,6 +84,7 @@ func isWerfImagesCorrect(img string) bool {
 	if len(s) < 2 {
 		return false
 	}
+
 	if s[1] != "base_images" {
 		return false
 	}
