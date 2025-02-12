@@ -262,10 +262,6 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 	w.Init(buf, minWidth, 0, 0, ' ', 0)
 
 	for _, err := range l.storage.GetErrors() {
-		if err.Level == pkg.Ignored {
-			continue
-		}
-
 		msgColor := color.FgRed
 
 		if err.Level == pkg.Warn {
