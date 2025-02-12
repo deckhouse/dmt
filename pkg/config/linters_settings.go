@@ -96,8 +96,8 @@ type ProbesSettings struct {
 }
 
 type ProbesExcludeRules struct {
-	Liveness  []ContainerRuleExclude `mapstructure:"liveness"`
-	Readiness []ContainerRuleExclude `mapstructure:"readiness"`
+	Liveness  ContainerRuleExcludeList `mapstructure:"liveness"`
+	Readiness ContainerRuleExcludeList `mapstructure:"readiness"`
 }
 
 type ContainerSettings struct {
@@ -108,25 +108,14 @@ type ContainerSettings struct {
 }
 
 type ContainerExcludeRules struct {
-	ReadOnlyRootFilesystem []ContainerRuleExclude `mapstructure:"read-only-root-filesystem"`
-	Resources              []ContainerRuleExclude `mapstructure:"resources"`
-	SecurityContext        []ContainerRuleExclude `mapstructure:"security-context"`
+	ReadOnlyRootFilesystem ContainerRuleExcludeList `mapstructure:"read-only-root-filesystem"`
+	Resources              ContainerRuleExcludeList `mapstructure:"resources"`
+	SecurityContext        ContainerRuleExcludeList `mapstructure:"security-context"`
 
-	DNSPolicy []KindRuleExclude `mapstructure:"dns-policy"`
+	DNSPolicy KindRuleExcludeList `mapstructure:"dns-policy"`
 
 	Description []string `mapstructure:"description"`
 	ServicePort []string `mapstructure:"service-port"`
-}
-
-type KindRuleExclude struct {
-	Kind string `mapstructure:"kind"`
-	Name string `mapstructure:"name"`
-}
-
-type ContainerRuleExclude struct {
-	Kind      string `mapstructure:"kind"`
-	Name      string `mapstructure:"name"`
-	Container string `mapstructure:"container"`
 }
 
 type K8SResourcesSettings struct {
@@ -143,8 +132,8 @@ type VPAResourcesSettings struct {
 }
 
 type VPAResourcesExcludeRules struct {
-	Absent      []KindRuleExclude `mapstructure:"absent"`
-	Tolerations []KindRuleExclude `mapstructure:"tolerations"`
+	Absent      KindRuleExcludeList `mapstructure:"absent"`
+	Tolerations KindRuleExcludeList `mapstructure:"tolerations"`
 }
 
 type PDBResourcesSettings struct {
@@ -155,7 +144,7 @@ type PDBResourcesSettings struct {
 }
 
 type PDBResourcesExcludeRules struct {
-	Absent []KindRuleExclude `mapstructure:"absent"`
+	Absent KindRuleExcludeList `mapstructure:"absent"`
 }
 
 type CRDResourcesSettings struct {
@@ -182,8 +171,8 @@ type RbacSettings struct {
 }
 
 type RBACExcludeRules struct {
-	Placement []KindRuleExclude `mapstructure:"placement"`
-	Wildcards []KindRuleExclude `mapstructure:"wildcards"`
+	Placement KindRuleExcludeList `mapstructure:"placement"`
+	Wildcards KindRuleExcludeList `mapstructure:"wildcards"`
 }
 
 type ImageSettings struct {
@@ -213,4 +202,54 @@ type ConversionsSettings struct {
 	FirstVersion int `mapstructure:"first-version"`
 
 	Impact pkg.Level `mapstructure:"impact"`
+}
+
+type KindRuleExcludeList []KindRuleExclude
+
+func (l KindRuleExcludeList) Get() []pkg.KindRuleExclude {
+	result := make([]pkg.KindRuleExclude, 0, len(l))
+
+	for idx := range l {
+		result = append(result, *remapKindRuleExclude(&l[idx]))
+	}
+
+	return result
+}
+
+type ContainerRuleExcludeList []ContainerRuleExclude
+
+func (l ContainerRuleExcludeList) Get() []pkg.ContainerRuleExclude {
+	result := make([]pkg.ContainerRuleExclude, 0, len(l))
+
+	for idx := range l {
+		result = append(result, *remapContainerRuleExclude(&l[idx]))
+	}
+
+	return result
+}
+
+type KindRuleExclude struct {
+	Kind string `mapstructure:"kind"`
+	Name string `mapstructure:"name"`
+}
+
+type ContainerRuleExclude struct {
+	Kind      string `mapstructure:"kind"`
+	Name      string `mapstructure:"name"`
+	Container string `mapstructure:"container"`
+}
+
+func remapKindRuleExclude(input *KindRuleExclude) *pkg.KindRuleExclude {
+	return &pkg.KindRuleExclude{
+		Kind: input.Kind,
+		Name: input.Name,
+	}
+}
+
+func remapContainerRuleExclude(input *ContainerRuleExclude) *pkg.ContainerRuleExclude {
+	return &pkg.ContainerRuleExclude{
+		Kind:      input.Kind,
+		Name:      input.Name,
+		Container: input.Container,
+	}
 }

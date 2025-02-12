@@ -4,37 +4,53 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/deckhouse/dmt/internal/storage"
-	"github.com/deckhouse/dmt/pkg/config"
+	"github.com/deckhouse/dmt/pkg"
 )
 
 const (
 	CheckReadOnlyRootFilesystemRuleName = "read-only-root-filesystem"
+	SecurityContextRuleName             = "security-context"
 )
 
-func NewCheckReadOnlyRootFilesystemRule(excludeRules []config.ContainerRuleExclude) *CheckReadOnlyRootFilesystemRule {
+func NewCheckReadOnlyRootFilesystemRule(excludeRules []pkg.ContainerRuleExclude) *CheckReadOnlyRootFilesystemRule {
 	return &CheckReadOnlyRootFilesystemRule{
-		name:         CheckReadOnlyRootFilesystemRuleName,
-		excludeRules: excludeRules,
+		ContainerRule: ContainerRule{
+			name:         CheckReadOnlyRootFilesystemRuleName,
+			excludeRules: excludeRules,
+		},
 	}
 }
 
 type CheckReadOnlyRootFilesystemRule struct {
-	name string
-
-	excludeRules []config.ContainerRuleExclude
+	ContainerRule
 }
 
-func (r *CheckReadOnlyRootFilesystemRule) Name() string {
+func NewSecurityContextRule(excludeRules []pkg.ContainerRuleExclude) *SecurityContextRule {
+	return &SecurityContextRule{
+		ContainerRule: ContainerRule{
+			name:         SecurityContextRuleName,
+			excludeRules: excludeRules,
+		},
+	}
+}
+
+type SecurityContextRule struct {
+	ContainerRule
+}
+
+type ContainerRule struct {
+	name string
+
+	excludeRules []pkg.ContainerRuleExclude
+}
+
+func (r *ContainerRule) Name() string {
 	return r.name
 }
 
-func (r *CheckReadOnlyRootFilesystemRule) Enabled(object storage.StoreObject, container *corev1.Container) bool {
+func (r *ContainerRule) Enabled(object storage.StoreObject, container *corev1.Container) bool {
 	for _, rule := range r.excludeRules {
-		if rule.Kind == object.Unstructured.GetKind() &&
-			rule.Name == object.Unstructured.GetName() &&
-			(rule.Container == "" || rule.Container == container.Name) {
-			return false
-		}
+		return rule.Enabled(object, container)
 	}
 
 	return true

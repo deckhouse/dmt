@@ -47,7 +47,7 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 
 	containerRules := []func(storage.StoreObject, []corev1.Container, *errors.LintRuleErrorsList){
 		containerNameDuplicates,
-		NewCheckReadOnlyRootFilesystemRule(l.cfg.ExcludeRules.ReadOnlyRootFilesystem).
+		NewCheckReadOnlyRootFilesystemRule(l.cfg.ExcludeRules.ReadOnlyRootFilesystem.Get()).
 			objectReadOnlyRootFilesystem,
 		objectHostNetworkPorts,
 
@@ -56,7 +56,8 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 		containerImageDigestCheck,
 		containersImagePullPolicy,
 		containerStorageEphemeral,
-		containerSecurityContext,
+		NewSecurityContextRule(l.cfg.ExcludeRules.SecurityContext.Get()).
+			containerSecurityContext,
 		containerPorts,
 	}
 
@@ -191,9 +192,16 @@ func containerStorageEphemeral(object storage.StoreObject, containers []corev1.C
 	}
 }
 
-func containerSecurityContext(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
+func (r *SecurityContextRule) containerSecurityContext(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(r.name)
+
 	for i := range containers {
 		c := &containers[i]
+
+		if !r.Enabled(object, c) {
+			// TODO: add metrics
+			continue
+		}
 
 		if c.SecurityContext == nil {
 			errorList.WithObjectID(object.Identity() + "; container = " + c.Name).
