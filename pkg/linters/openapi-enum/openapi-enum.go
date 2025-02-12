@@ -24,7 +24,7 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Enum {
 		name:      "openapi-enum",
 		desc:      "Linter will check openapi enum values is correct",
 		cfg:       &cfg.LintersSettings.OpenAPIEnum,
-		ErrorList: errorList.WithLinterID("openapi-enum").WithMaxLevel(cfg.LintersSettings.Conversions.Impact),
+		ErrorList: errorList.WithLinterID("openapi-enum").WithMaxLevel(cfg.LintersSettings.OpenAPIEnum.Impact),
 	}
 }
 

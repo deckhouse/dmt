@@ -1,9 +1,9 @@
 package errors
 
 import (
+	"bytes"
 	"cmp"
 	"fmt"
-	"os"
 	"slices"
 	"strings"
 	"text/tabwriter"
@@ -16,8 +16,9 @@ import (
 )
 
 type lintRuleError struct {
-	ID          string
-	Module      string
+	LinterID    string
+	ModuleID    string
+	RuleID      string
 	ObjectID    string
 	ObjectValue any
 	Text        string
@@ -27,10 +28,10 @@ type lintRuleError struct {
 }
 
 func (l *lintRuleError) EqualsTo(candidate lintRuleError) bool { //nolint:gocritic // it's a simple method
-	return l.ID == candidate.ID &&
+	return l.LinterID == candidate.LinterID &&
 		l.Text == candidate.Text &&
 		l.ObjectID == candidate.ObjectID &&
-		l.Module == candidate.Module
+		l.ModuleID == candidate.ModuleID
 }
 
 type errStorage struct {
@@ -41,7 +42,7 @@ func (s *errStorage) GetErrors() []lintRuleError {
 	return s.errList
 }
 
-func (s *errStorage) Add(err *lintRuleError) {
+func (s *errStorage) add(err *lintRuleError) {
 	s.errList = append(s.errList, *err)
 }
 
@@ -50,6 +51,7 @@ type LintRuleErrorsList struct {
 
 	linterID   string
 	moduleID   string
+	ruleID     string
 	objectID   string
 	value      any
 	filePath   string
@@ -60,8 +62,11 @@ type LintRuleErrorsList struct {
 
 func NewLintRuleErrorsList() *LintRuleErrorsList {
 	lvl := pkg.Error
+
 	return &LintRuleErrorsList{
-		storage:  &errStorage{},
+		storage: &errStorage{
+			errList: make([]lintRuleError, 0),
+		},
 		maxLevel: &lvl,
 	}
 }
@@ -78,7 +83,7 @@ func NewLinterRuleList(linterID string, module ...string) *LintRuleErrorsList {
 	return l
 }
 
-func (l *LintRuleErrorsList) WithMaxLevel(level pkg.Level) *LintRuleErrorsList {
+func (l *LintRuleErrorsList) copy() *LintRuleErrorsList {
 	if l.storage == nil {
 		l.storage = &errStorage{}
 	}
@@ -87,116 +92,69 @@ func (l *LintRuleErrorsList) WithMaxLevel(level pkg.Level) *LintRuleErrorsList {
 		storage:    l.storage,
 		linterID:   l.linterID,
 		moduleID:   l.moduleID,
+		ruleID:     l.ruleID,
 		objectID:   l.objectID,
 		value:      l.value,
 		filePath:   l.filePath,
 		lineNumber: l.lineNumber,
-		maxLevel:   &level,
+		maxLevel:   l.maxLevel,
 	}
 }
 
-func (l *LintRuleErrorsList) CorrespondToMaxLevel() {
-	if l.storage == nil {
-		return
-	}
+func (l *LintRuleErrorsList) WithMaxLevel(level pkg.Level) *LintRuleErrorsList {
+	list := l.copy()
+	list.maxLevel = &level
 
-	for idx, err := range l.storage.GetErrors() {
-		if l.maxLevel != nil && *l.maxLevel < err.Level {
-			l.storage.errList[idx].Level = *l.maxLevel
-		}
-	}
+	return list
 }
 
 func (l *LintRuleErrorsList) WithLinterID(linterID string) *LintRuleErrorsList {
-	if l.storage == nil {
-		l.storage = &errStorage{}
-	}
+	list := l.copy()
+	list.linterID = linterID
 
-	return &LintRuleErrorsList{
-		storage:  l.storage,
-		linterID: linterID,
-		maxLevel: l.maxLevel,
-	}
-}
-
-func (l *LintRuleErrorsList) WithObjectID(objectID string) *LintRuleErrorsList {
-	if l.storage == nil {
-		l.storage = &errStorage{}
-	}
-	return &LintRuleErrorsList{
-		storage:    l.storage,
-		linterID:   l.linterID,
-		moduleID:   l.moduleID,
-		objectID:   objectID,
-		value:      l.value,
-		filePath:   l.filePath,
-		lineNumber: l.lineNumber,
-		maxLevel:   l.maxLevel,
-	}
+	return list
 }
 
 func (l *LintRuleErrorsList) WithModule(moduleID string) *LintRuleErrorsList {
-	if l.storage == nil {
-		l.storage = &errStorage{}
-	}
-	return &LintRuleErrorsList{
-		storage:    l.storage,
-		linterID:   l.linterID,
-		moduleID:   moduleID,
-		objectID:   l.objectID,
-		value:      l.value,
-		filePath:   l.filePath,
-		lineNumber: l.lineNumber,
-		maxLevel:   l.maxLevel,
-	}
+	list := l.copy()
+	list.moduleID = moduleID
+
+	return list
+}
+
+func (l *LintRuleErrorsList) WithRule(ruleID string) *LintRuleErrorsList {
+	list := l.copy()
+	list.ruleID = ruleID
+
+	return list
+}
+
+func (l *LintRuleErrorsList) WithObjectID(objectID string) *LintRuleErrorsList {
+	list := l.copy()
+	list.objectID = objectID
+
+	return list
 }
 
 func (l *LintRuleErrorsList) WithValue(value any) *LintRuleErrorsList {
-	if l.storage == nil {
-		l.storage = &errStorage{}
-	}
-	return &LintRuleErrorsList{
-		storage:    l.storage,
-		linterID:   l.linterID,
-		moduleID:   l.moduleID,
-		objectID:   l.objectID,
-		value:      value,
-		filePath:   l.filePath,
-		lineNumber: l.lineNumber,
-		maxLevel:   l.maxLevel,
-	}
+	list := l.copy()
+	list.value = value
+
+	return list
 }
 
 func (l *LintRuleErrorsList) WithFilePath(filePath string) *LintRuleErrorsList {
-	if l.storage == nil {
-		l.storage = &errStorage{}
-	}
-	return &LintRuleErrorsList{
-		storage:    l.storage,
-		linterID:   l.linterID,
-		moduleID:   l.moduleID,
-		objectID:   l.objectID,
-		value:      l.value,
-		filePath:   filePath,
-		lineNumber: l.lineNumber,
-		maxLevel:   l.maxLevel,
-	}
+	list := l.copy()
+	list.filePath = filePath
+
+	return list
 }
 
 func (l *LintRuleErrorsList) WithLineNumber(lineNumber int) *LintRuleErrorsList {
-	if l.storage == nil {
-		l.storage = &errStorage{}
-	}
-	return &LintRuleErrorsList{
-		storage:    l.storage,
-		linterID:   l.linterID,
-		moduleID:   l.moduleID,
-		objectID:   l.objectID,
-		value:      l.value,
-		filePath:   l.filePath,
-		lineNumber: lineNumber,
-		maxLevel:   l.maxLevel,
-	}
+	list := l.copy()
+	list.lineNumber = lineNumber
+
+	return list
 }
 
 func (l *LintRuleErrorsList) Warn(str string) *LintRuleErrorsList {
@@ -234,8 +192,9 @@ func (l *LintRuleErrorsList) add(str string, level pkg.Level) *LintRuleErrorsLis
 	}
 
 	e := lintRuleError{
-		ID:          strings.ToLower(l.linterID),
-		Module:      l.moduleID,
+		LinterID:    strings.ToLower(l.linterID),
+		ModuleID:    l.moduleID,
+		RuleID:      l.ruleID,
 		ObjectID:    l.objectID,
 		ObjectValue: l.value,
 		FilePath:    l.filePath,
@@ -244,31 +203,9 @@ func (l *LintRuleErrorsList) add(str string, level pkg.Level) *LintRuleErrorsLis
 		Level:       level,
 	}
 
-	l.storage.Add(&e)
+	l.storage.add(&e)
 
 	return l
-}
-
-// Merge merges another LintRuleErrorsList into current one, removing all duplicate errors.
-func (l *LintRuleErrorsList) Merge(e *LintRuleErrorsList) {
-	if l.storage == nil {
-		l.storage = &errStorage{}
-	}
-
-	if e == nil {
-		return
-	}
-
-	for _, el := range e.storage.GetErrors() {
-		if slices.ContainsFunc(l.storage.errList, el.EqualsTo) {
-			continue
-		}
-		if el.Text == "" {
-			continue
-		}
-
-		l.storage.errList = append(l.storage.errList, el)
-	}
 }
 
 // ConvertToError converts LintRuleErrorsList to a single error.
@@ -285,8 +222,9 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 
 	slices.SortFunc(l.storage.GetErrors(), func(a, b lintRuleError) int {
 		return cmp.Or(
-			cmp.Compare(a.Module, b.Module),
-			cmp.Compare(a.ObjectID, b.ObjectID),
+			cmp.Compare(a.LinterID, b.LinterID),
+			cmp.Compare(a.ModuleID, b.ModuleID),
+			cmp.Compare(a.RuleID, b.RuleID),
 		)
 	})
 
@@ -294,20 +232,23 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 
 	const minWidth = 5
 
-	w.Init(os.Stdout, minWidth, 0, 0, ' ', 0)
+	buf := bytes.NewBuffer([]byte{})
+	w.Init(buf, minWidth, 0, 0, ' ', 0)
 
-	for _, err := range l.storage.GetErrors() {
+	for idx := range l.storage.GetErrors() {
+		err := l.storage.GetErrors()[idx]
+
 		msgColor := color.FgRed
 
 		if err.Level == pkg.Warn {
 			msgColor = color.FgHiYellow
 		}
 
-		fmt.Fprintf(w, "%s%s\n", emoji.Sprintf(":monkey:"), color.New(color.FgHiBlue).SprintfFunc()("[#%s]", err.ID))
+		fmt.Fprintf(w, "%s%s\n", emoji.Sprintf(":monkey:"), color.New(color.FgHiBlue).SprintfFunc()("[%s (#%s)]", err.RuleID, err.LinterID))
 		fmt.Fprintf(w, "\t%s\t\t%s\n", "Message:", color.New(msgColor).SprintfFunc()(prepareString(err.Text)))
-		fmt.Fprintf(w, "\t%s\t\t%s\n", "Module:", err.Module)
+		fmt.Fprintf(w, "\t%s\t\t%s\n", "Module:", err.ModuleID)
 
-		if err.ObjectID != "" && err.ObjectID != err.Module {
+		if err.ObjectID != "" && err.ObjectID != err.ModuleID {
 			fmt.Fprintf(w, "\t%s\t\t%s\n", "Object:", err.ObjectID)
 		}
 
@@ -326,6 +267,9 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 		}
 
 		fmt.Fprintln(w)
+
+		fmt.Println(buf.String())
+
 		w.Flush()
 	}
 
@@ -337,7 +281,9 @@ func (l *LintRuleErrorsList) ContainsErrors() bool {
 		l.storage = &errStorage{}
 	}
 
-	for _, err := range l.storage.GetErrors() {
+	for idx := range l.storage.GetErrors() {
+		err := l.storage.GetErrors()[idx]
+
 		if err.Level == pkg.Error {
 			return true
 		}

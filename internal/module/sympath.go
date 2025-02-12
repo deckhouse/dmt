@@ -47,8 +47,6 @@ func readDirNames(dirname string) ([]string, error) {
 }
 
 // symwalk recursively descends path, calling walkFn.
-//
-//nolint:gocyclo // copypaste from helmv3
 func symwalk(path string, info os.FileInfo, walkFn filepath.WalkFunc) error {
 	// Recursively walk symlinked directories.
 	if IsSymlink(info) {

@@ -30,6 +30,7 @@ func (l *Module) Run(m *module.Module) {
 	}
 
 	l.checkModuleYaml(m.GetName(), m.GetPath())
+	l.checkConversions(m.GetName(), m.GetPath())
 }
 
 func (l *Module) Name() string {

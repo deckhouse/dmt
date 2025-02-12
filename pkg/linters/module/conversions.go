@@ -1,4 +1,4 @@
-package conversions
+package module
 
 import (
 	"fmt"
@@ -36,14 +36,8 @@ type configValues struct {
 	ConfigVersion int `yaml:"x-config-version"`
 }
 
-//nolint:gocyclo // hate this linter
-func (l *Conversions) checkModuleYaml(moduleName, modulePath string) {
+func (l *Module) checkConversions(moduleName, modulePath string) {
 	errorList := l.ErrorList.WithModule(moduleName)
-
-	_, ok := l.cfg.SkipCheckModule[moduleName]
-	if ok {
-		return
-	}
 
 	configFilePath := filepath.Join(modulePath, configValuesFile)
 	_, err := os.Stat(configFilePath)

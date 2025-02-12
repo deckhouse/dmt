@@ -24,7 +24,6 @@ type LintersSettings struct {
 	Monitoring   MonitoringSettings   `mapstructure:"monitoring"`
 	Ingress      IngressSettings      `mapstructure:"ingress"`
 	Module       ModuleSettings       `mapstructure:"module"`
-	Conversions  ConversionsSettings  `mapstructure:"conversions"`
 }
 
 func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
@@ -46,7 +45,6 @@ func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
 	assignIfNotEmpty(&cfg.Monitoring.Impact, lcfg.Monitoring.Impact)
 	assignIfNotEmpty(&cfg.Ingress.Impact, lcfg.Ingress.Impact)
 	assignIfNotEmpty(&cfg.Module.Impact, lcfg.Module.Impact)
-	assignIfNotEmpty(&cfg.Conversions.Impact, lcfg.Conversions.Impact)
 }
 
 type OpenAPIKeysSettings struct {
@@ -71,27 +69,51 @@ type NoCyrillicSettings struct {
 }
 
 type LicenseSettings struct {
-	CopyrightExcludes []string `mapstructure:"copyright-excludes"`
+	CopyrightExcludes []string            `mapstructure:"copyright-excludes"`
+	ExcludeRules      LicenseExcludeRules `mapstructure:"exclude-rules"`
 
 	Impact pkg.Level `mapstructure:"impact"`
 }
 
+type LicenseExcludeRules struct {
+	Files StringRuleExcludeList `mapstructure:"files"`
+}
+
 type OSSSettings struct {
 	SkipOssChecks []string `mapstructure:"skip-oss-checks"`
+	Disable       bool     `mapstructure:"disable"`
 
 	Impact pkg.Level `mapstructure:"impact"`
 }
 
 type ProbesSettings struct {
 	ProbesExcludes map[string][]string `mapstructure:"probes-excludes"`
+	ExcludeRules   ProbesExcludeRules  `mapstructure:"exclude-rules"`
 
 	Impact pkg.Level `mapstructure:"impact"`
 }
 
+type ProbesExcludeRules struct {
+	Liveness  ContainerRuleExcludeList `mapstructure:"liveness"`
+	Readiness ContainerRuleExcludeList `mapstructure:"readiness"`
+}
+
 type ContainerSettings struct {
-	SkipContainers []string `mapstructure:"skip-containers"`
+	SkipContainers []string              `mapstructure:"skip-containers"`
+	ExcludeRules   ContainerExcludeRules `mapstructure:"exclude-rules"`
 
 	Impact pkg.Level `mapstructure:"impact"`
+}
+
+type ContainerExcludeRules struct {
+	ReadOnlyRootFilesystem ContainerRuleExcludeList `mapstructure:"read-only-root-filesystem"`
+	Resources              ContainerRuleExcludeList `mapstructure:"resources"`
+	SecurityContext        ContainerRuleExcludeList `mapstructure:"security-context"`
+
+	DNSPolicy KindRuleExcludeList `mapstructure:"dns-policy"`
+
+	Description StringRuleExcludeList `mapstructure:"description"`
+	ServicePort StringRuleExcludeList `mapstructure:"service-port"`
 }
 
 type K8SResourcesSettings struct {
@@ -101,15 +123,26 @@ type K8SResourcesSettings struct {
 }
 
 type VPAResourcesSettings struct {
-	SkipVPAChecks []string `mapstructure:"skip-vpa-checks"`
+	SkipVPAChecks []string                 `mapstructure:"skip-vpa-checks"`
+	ExcludeRules  VPAResourcesExcludeRules `mapstructure:"exclude-rules"`
 
 	Impact pkg.Level `mapstructure:"impact"`
 }
 
+type VPAResourcesExcludeRules struct {
+	Absent      KindRuleExcludeList `mapstructure:"absent"`
+	Tolerations KindRuleExcludeList `mapstructure:"tolerations"`
+}
+
 type PDBResourcesSettings struct {
-	SkipPDBChecks []string `mapstructure:"skip-pdb-checks"`
+	SkipPDBChecks []string                 `mapstructure:"skip-pdb-checks"`
+	ExcludeRules  PDBResourcesExcludeRules `mapstructure:"exclude-rules"`
 
 	Impact pkg.Level `mapstructure:"impact"`
+}
+
+type PDBResourcesExcludeRules struct {
+	Absent KindRuleExcludeList `mapstructure:"absent"`
 }
 
 type CRDResourcesSettings struct {
@@ -130,8 +163,14 @@ type RbacSettings struct {
 	SkipCheckWildcards     map[string][]string `mapstructure:"skip-check-wildcards"`
 	SkipModuleCheckBinding []string            `mapstructure:"skip-module-check-binding"`
 	SkipObjectCheckBinding []string            `mapstructure:"skip-object-check-binding"`
+	ExcludeRules           RBACExcludeRules    `mapstructure:"exclude-rules"`
 
 	Impact pkg.Level `mapstructure:"impact"`
+}
+
+type RBACExcludeRules struct {
+	Placement KindRuleExcludeList `mapstructure:"placement"`
+	Wildcards KindRuleExcludeList `mapstructure:"wildcards"`
 }
 
 type ImageSettings struct {
@@ -144,6 +183,7 @@ type ImageSettings struct {
 
 type IngressSettings struct {
 	SkipIngressChecks []string `mapstructure:"skip-ingress-checks"`
+	Disable           bool     `mapstructure:"disable"`
 
 	Impact pkg.Level `mapstructure:"impact"`
 }
@@ -151,14 +191,70 @@ type IngressSettings struct {
 type ModuleSettings struct {
 	SkipCheckModuleYaml []string `mapstructure:"skip-check-module-yaml"`
 
-	Impact pkg.Level `mapstructure:"impact"`
-}
-
-type ConversionsSettings struct {
-	// skip all conversion checks for this modules
-	SkipCheckModule []string `mapstructure:"skip-check"`
 	// first conversion version to make conversion flow
 	FirstVersion int `mapstructure:"first-version"`
 
 	Impact pkg.Level `mapstructure:"impact"`
+}
+
+type StringRuleExcludeList []string
+
+func (l StringRuleExcludeList) Get() []pkg.StringRuleExclude {
+	result := make([]pkg.StringRuleExclude, 0, len(l))
+
+	for idx := range l {
+		result = append(result, pkg.StringRuleExclude(l[idx]))
+	}
+
+	return result
+}
+
+type KindRuleExcludeList []KindRuleExclude
+
+func (l KindRuleExcludeList) Get() []pkg.KindRuleExclude {
+	result := make([]pkg.KindRuleExclude, 0, len(l))
+
+	for idx := range l {
+		result = append(result, *remapKindRuleExclude(&l[idx]))
+	}
+
+	return result
+}
+
+type ContainerRuleExcludeList []ContainerRuleExclude
+
+func (l ContainerRuleExcludeList) Get() []pkg.ContainerRuleExclude {
+	result := make([]pkg.ContainerRuleExclude, 0, len(l))
+
+	for idx := range l {
+		result = append(result, *remapContainerRuleExclude(&l[idx]))
+	}
+
+	return result
+}
+
+type KindRuleExclude struct {
+	Kind string `mapstructure:"kind"`
+	Name string `mapstructure:"name"`
+}
+
+type ContainerRuleExclude struct {
+	Kind      string `mapstructure:"kind"`
+	Name      string `mapstructure:"name"`
+	Container string `mapstructure:"container"`
+}
+
+func remapKindRuleExclude(input *KindRuleExclude) *pkg.KindRuleExclude {
+	return &pkg.KindRuleExclude{
+		Kind: input.Kind,
+		Name: input.Name,
+	}
+}
+
+func remapContainerRuleExclude(input *ContainerRuleExclude) *pkg.ContainerRuleExclude {
+	return &pkg.ContainerRuleExclude{
+		Kind:      input.Kind,
+		Name:      input.Name,
+		Container: input.Container,
+	}
 }

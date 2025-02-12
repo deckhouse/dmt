@@ -23,7 +23,6 @@ type Linters struct {
 	Monitoring   LinterConfig `mapstructure:"monitoring"`
 	Ingress      LinterConfig `mapstructure:"ingress"`
 	Module       LinterConfig `mapstructure:"module"`
-	Conversions  LinterConfig `mapstructure:"conversions"`
 }
 
 type LinterConfig struct {

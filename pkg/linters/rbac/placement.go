@@ -78,7 +78,6 @@ func (l *Rbac) objectRBACPlacement(m *module.Module) {
 	}
 }
 
-//nolint:gocyclo // because
 func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	objectName := object.Unstructured.GetName()
 	shortPath := object.ShortPath()
