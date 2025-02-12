@@ -1,9 +1,9 @@
 package errors
 
 import (
-	"bytes"
 	"cmp"
 	"fmt"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -211,28 +211,6 @@ func (l *LintRuleErrorsList) add(str string, level pkg.Level) *LintRuleErrorsLis
 	return l
 }
 
-// Merge merges another LintRuleErrorsList into current one, removing all duplicate errors.
-func (l *LintRuleErrorsList) Merge(e *LintRuleErrorsList) {
-	if l.storage == nil {
-		l.storage = &errStorage{}
-	}
-
-	if e == nil {
-		return
-	}
-
-	for _, el := range e.storage.GetErrors() {
-		if slices.ContainsFunc(l.storage.errList, el.EqualsTo) {
-			continue
-		}
-		if el.Text == "" {
-			continue
-		}
-
-		l.storage.errList = append(l.storage.errList, el)
-	}
-}
-
 // ConvertToError converts LintRuleErrorsList to a single error.
 // It returns an error that contains all errors from the list with a nice formatting.
 // If the list is empty, it returns nil.
@@ -257,11 +235,11 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 
 	const minWidth = 5
 
-	buf := bytes.NewBuffer([]byte{})
-	// w.Init(os.Stdout, minWidth, 0, 0, ' ', 0)
-	w.Init(buf, minWidth, 0, 0, ' ', 0)
+	w.Init(os.Stdout, minWidth, 0, 0, ' ', 0)
 
-	for _, err := range l.storage.GetErrors() {
+	for idx := range l.storage.GetErrors() {
+		err := l.storage.GetErrors()[idx]
+
 		msgColor := color.FgRed
 
 		if err.Level == pkg.Warn {
@@ -302,7 +280,9 @@ func (l *LintRuleErrorsList) ContainsErrors() bool {
 		l.storage = &errStorage{}
 	}
 
-	for _, err := range l.storage.GetErrors() {
+	for idx := range l.storage.GetErrors() {
+		err := l.storage.GetErrors()[idx]
+
 		if err.Level == pkg.Error {
 			return true
 		}

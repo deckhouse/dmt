@@ -3,8 +3,9 @@ package errors
 import (
 	"testing"
 
-	"github.com/deckhouse/dmt/pkg"
 	"github.com/stretchr/testify/require"
+
+	"github.com/deckhouse/dmt/pkg"
 )
 
 func Test_Errors(t *testing.T) {
@@ -48,15 +49,4 @@ func Test_Errors(t *testing.T) {
 		},
 		t3.storage.GetErrors())
 	require.Len(t, t3.storage.GetErrors(), 1)
-
-	t1.Merge(t3)
-	require.Len(t, t1.storage.GetErrors(), 4)
-	require.Equal(t,
-		[]lintRuleError{
-			{LinterID: "linterid", ModuleID: "moduleID", ObjectID: "", Text: "test1", Level: pkg.Error},
-			{LinterID: "linterid", ModuleID: "moduleID", ObjectID: "objectID", Text: "test2", Level: pkg.Error},
-			{LinterID: "linterid", ModuleID: "moduleID", ObjectID: "", Text: "test3", Level: pkg.Error},
-			{LinterID: "linterid", ModuleID: "moduleID2", ObjectID: "objectID3", Text: "test3", Level: pkg.Error},
-		},
-		t1.storage.GetErrors())
 }

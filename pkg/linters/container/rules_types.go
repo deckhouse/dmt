@@ -1,9 +1,10 @@
 package container
 
 import (
+	corev1 "k8s.io/api/core/v1"
+
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg/config"
-	corev1 "k8s.io/api/core/v1"
 )
 
 const (
