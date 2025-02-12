@@ -1,7 +1,6 @@
 package license
 
 import (
-	"slices"
 	"strings"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
@@ -37,17 +36,27 @@ func (l *Copyright) Run(m *module.Module) {
 
 	errorList := l.ErrorList.WithModule(m.GetName())
 
-	files := fsutils.GetFiles(m.GetPath(), false, filterFiles)
+	NewFilesRule(l.cfg.ExcludeRules.Files.Get()).
+		checkFiles(m, errorList)
+
+}
+
+func (r *FilesRule) checkFiles(module *module.Module, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(r.GetName())
+
+	files := fsutils.GetFiles(module.GetPath(), false, filterFiles)
 	for _, fileName := range files {
-		name, _ := strings.CutPrefix(fileName, m.GetPath())
-		name = m.GetName() + ":" + name
-		if slices.Contains(l.cfg.CopyrightExcludes, name) {
+		name, _ := strings.CutPrefix(fileName, module.GetPath())
+		name = module.GetName() + ":" + name
+
+		if !r.Enabled(name) {
+			// TODO: add metrics
 			continue
 		}
 
 		ok, err := checkFileCopyright(fileName)
 		if !ok {
-			path, _ := strings.CutPrefix(fileName, m.GetPath())
+			path, _ := strings.CutPrefix(fileName, module.GetPath())
 
 			errorList.WithFilePath(path).Error(err.Error())
 		}
@@ -58,6 +67,7 @@ func filterFiles(path string) bool {
 	if fileToCheckRe.MatchString(path) && !fileToSkipRe.MatchString(path) {
 		return true
 	}
+
 	return false
 }
 

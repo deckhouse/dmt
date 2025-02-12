@@ -14,6 +14,18 @@ func (m *RuleMeta) GetName() string {
 	return m.Name
 }
 
+type StringRule struct {
+	ExcludeRules []StringRuleExclude
+}
+
+func (r *StringRule) Enabled(str string) bool {
+	for _, rule := range r.ExcludeRules {
+		return string(rule) == str
+	}
+
+	return true
+}
+
 type KindRule struct {
 	ExcludeRules []KindRuleExclude
 }
@@ -36,6 +48,12 @@ func (r *ContainerRule) Enabled(object storage.StoreObject, container *corev1.Co
 	}
 
 	return true
+}
+
+type StringRuleExclude string
+
+func (e StringRuleExclude) Enabled(str string) bool {
+	return string(e) == str
 }
 
 type KindRuleExclude struct {

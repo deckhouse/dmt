@@ -78,7 +78,7 @@ type LicenseSettings struct {
 }
 
 type LicenseExcludeRules struct {
-	Files []string `mapstructure:"files"`
+	Files StringRuleExcludeList `mapstructure:"files"`
 }
 
 type OSSSettings struct {
@@ -202,6 +202,18 @@ type ConversionsSettings struct {
 	FirstVersion int `mapstructure:"first-version"`
 
 	Impact pkg.Level `mapstructure:"impact"`
+}
+
+type StringRuleExcludeList []string
+
+func (l StringRuleExcludeList) Get() []pkg.StringRuleExclude {
+	result := make([]pkg.StringRuleExclude, 0, len(l))
+
+	for idx := range l {
+		result = append(result, pkg.StringRuleExclude(l[idx]))
+	}
+
+	return result
 }
 
 type KindRuleExcludeList []KindRuleExclude
