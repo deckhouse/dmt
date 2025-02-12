@@ -27,7 +27,8 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 			objectDNSPolicy,
 		objectSecurityContext,
 		objectRevisionHistoryLimit,
-		objectServiceTargetPort,
+		NewServicePortRule(l.cfg.ExcludeRules.ServicePort.Get()).
+			objectServiceTargetPort,
 	}
 
 	for _, rule := range objectRules {
@@ -56,7 +57,8 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 		containerEnvVariablesDuplicates,
 		containerImageDigestCheck,
 		containersImagePullPolicy,
-		containerStorageEphemeral, // resources
+		NewResourcesRule(l.cfg.ExcludeRules.Resources.Get()).
+			containerStorageEphemeral,
 		NewSecurityContextRule(l.cfg.ExcludeRules.SecurityContext.Get()).
 			containerSecurityContext,
 		containerPorts,
@@ -182,9 +184,16 @@ func containerImagePullPolicyIfNotPresent(object storage.StoreObject, containers
 	}
 }
 
-func containerStorageEphemeral(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
+func (r *ResourcesRule) containerStorageEphemeral(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(r.Name)
+
 	for i := range containers {
 		c := &containers[i]
+
+		if !r.Enabled(object, c) {
+			// TODO: add metrics
+			continue
+		}
 
 		if c.Resources.Requests.StorageEphemeral() == nil || c.Resources.Requests.StorageEphemeral().Value() == 0 {
 			errorList.WithObjectID(object.Identity() + "; container = " + c.Name).
@@ -518,10 +527,17 @@ func checkRunAsNonRoot(securityContext *corev1.PodSecurityContext, object storag
 	}
 }
 
-func objectServiceTargetPort(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+func (r *ServicePortRule) objectServiceTargetPort(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(r.GetName())
+
 	switch object.Unstructured.GetKind() {
 	case "Service":
 	default:
+		return
+	}
+
+	if !r.Enabled(object.Unstructured.GetName()) {
+		// TODO: add metrics
 		return
 	}
 
@@ -550,7 +566,7 @@ func objectServiceTargetPort(object storage.StoreObject, errorList *errors.LintR
 }
 
 func (r *DNSPolicyRule) objectDNSPolicy(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList.WithRule(r.GetName())
+	errorList = errorList.WithRule(r.GetName())
 
 	if !r.Enabled(object) {
 		// TODO: add metrics

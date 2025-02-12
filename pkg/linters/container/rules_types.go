@@ -8,6 +8,8 @@ const (
 	CheckReadOnlyRootFilesystemRuleName = "read-only-root-filesystem"
 	SecurityContextRuleName             = "security-context"
 	DNSPolicyRuleName                   = "dns-policy"
+	ServicePortRuleName                 = "service-port"
+	ResourcesRuleName                   = "resources"
 )
 
 func NewCheckReadOnlyRootFilesystemRule(excludeRules []pkg.ContainerRuleExclude) *CheckReadOnlyRootFilesystemRule {
@@ -42,6 +44,22 @@ type SecurityContextRule struct {
 	pkg.ContainerRule
 }
 
+func NewResourcesRule(excludeRules []pkg.ContainerRuleExclude) *ResourcesRule {
+	return &ResourcesRule{
+		RuleMeta: pkg.RuleMeta{
+			Name: ResourcesRuleName,
+		},
+		ContainerRule: pkg.ContainerRule{
+			ExcludeRules: excludeRules,
+		},
+	}
+}
+
+type ResourcesRule struct {
+	pkg.RuleMeta
+	pkg.ContainerRule
+}
+
 func NewDNSPolicyRule(excludeRules []pkg.KindRuleExclude) *DNSPolicyRule {
 	return &DNSPolicyRule{
 		RuleMeta: pkg.RuleMeta{
@@ -56,4 +74,20 @@ func NewDNSPolicyRule(excludeRules []pkg.KindRuleExclude) *DNSPolicyRule {
 type DNSPolicyRule struct {
 	pkg.RuleMeta
 	pkg.KindRule
+}
+
+func NewServicePortRule(excludeRules []pkg.StringRuleExclude) *ServicePortRule {
+	return &ServicePortRule{
+		RuleMeta: pkg.RuleMeta{
+			Name: ServicePortRuleName,
+		},
+		StringRule: pkg.StringRule{
+			ExcludeRules: excludeRules,
+		},
+	}
+}
+
+type ServicePortRule struct {
+	pkg.RuleMeta
+	pkg.StringRule
 }

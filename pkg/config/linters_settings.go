@@ -114,8 +114,8 @@ type ContainerExcludeRules struct {
 
 	DNSPolicy KindRuleExcludeList `mapstructure:"dns-policy"`
 
-	Description []string `mapstructure:"description"`
-	ServicePort []string `mapstructure:"service-port"`
+	Description StringRuleExcludeList `mapstructure:"description"`
+	ServicePort StringRuleExcludeList `mapstructure:"service-port"`
 }
 
 type K8SResourcesSettings struct {
