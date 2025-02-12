@@ -1,6 +1,7 @@
 package container
 
 import (
+	stderrors "errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -45,9 +46,11 @@ func applyContainerRules(moduleName string, object storage.StoreObject, errorLis
 		return
 	}
 
+	readOnlyRootFilesystemRule := CheckReadOnlyRootFilesystemRule{}
+
 	containerRules := []func(storage.StoreObject, []corev1.Container, *errors.LintRuleErrorsList){
 		containerNameDuplicates,
-		objectReadOnlyRootFilesystem,
+		readOnlyRootFilesystemRule.objectReadOnlyRootFilesystem,
 		objectHostNetworkPorts,
 	}
 
@@ -246,15 +249,58 @@ func containerPorts(moduleName string, object storage.StoreObject, containers []
 	}
 }
 
-func objectReadOnlyRootFilesystem(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
+const (
+	CheckReadOnlyRootFilesystemRuleName = "read-only-root-filesystem"
+)
+
+type CheckReadOnlyRootFilesystemRuleExclude struct {
+	Kind      string
+	Name      string
+	Container string
+}
+
+type CheckReadOnlyRootFilesystemRule struct {
+	name string
+
+	excludeRules []CheckReadOnlyRootFilesystemRuleExclude
+}
+
+func (r *CheckReadOnlyRootFilesystemRule) Name() string {
+	return r.name
+}
+
+var ErrSkipCheckReadOnlyRootFileSystemRule = stderrors.New("skip check read only file system rule")
+
+func (r *CheckReadOnlyRootFilesystemRule) Enabled(object storage.StoreObject, container *corev1.Container) bool {
+	for _, rule := range r.excludeRules {
+		if rule.Kind == object.Unstructured.GetKind() &&
+			rule.Name == object.Unstructured.GetName() &&
+			rule.Container == container.Name {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (r *CheckReadOnlyRootFilesystemRule) objectReadOnlyRootFilesystem(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 	switch object.Unstructured.GetKind() {
 	case "Deployment", "DaemonSet", "StatefulSet", "Pod", "Job", "CronJob":
 	default:
 		return
 	}
 
+	// - kind: Deployment
+	// name: deckhouse
+	// container: init-downloaded-modules
+
 	for i := range containers {
 		c := &containers[i]
+
+		if !r.Enabled(object, c) {
+			// TODO: add metrics?
+			continue
+		}
 
 		if c.VolumeMounts == nil {
 			continue
