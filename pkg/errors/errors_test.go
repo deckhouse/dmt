@@ -3,6 +3,7 @@ package errors
 import (
 	"testing"
 
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,45 +26,37 @@ func Test_Errors(t *testing.T) {
 	require.Len(t, t1.storage.GetErrors(), 2)
 	require.Len(t, t2.storage.GetErrors(), 2)
 	require.Equal(t,
-		errStorage{
-			errList: []lintRuleError{
-				{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test1", Level: 2},
-				{ID: "linterid", Module: "moduleID", ObjectID: "objectID", Text: "test2", Level: 2}},
-		},
-		*t1.storage)
+		[]lintRuleError{
+			{LinterID: "linterid", ModuleID: "moduleID", RuleID: "", ObjectID: "", Text: "test1", Level: pkg.Error},
+			{LinterID: "linterid", ModuleID: "moduleID", RuleID: "", ObjectID: "objectID", Text: "test2", Level: pkg.Error}},
+		t1.storage.GetErrors())
 	t1.Add("test3")
 	require.Len(t, t1.storage.GetErrors(), 3)
 	require.Equal(t,
-		&errStorage{
-			errList: []lintRuleError{
-				{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test1", Level: 2},
-				{ID: "linterid", Module: "moduleID", ObjectID: "objectID", Text: "test2", Level: 2},
-				{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test3", Level: 2},
-			},
+		[]lintRuleError{
+			{LinterID: "linterid", ModuleID: "moduleID", ObjectID: "", Text: "test1", Level: pkg.Error},
+			{LinterID: "linterid", ModuleID: "moduleID", ObjectID: "objectID", Text: "test2", Level: pkg.Error},
+			{LinterID: "linterid", ModuleID: "moduleID", ObjectID: "", Text: "test3", Level: pkg.Error},
 		},
-		t1.storage)
+		t1.storage.GetErrors())
 	t3 := NewLinterRuleList("linterID", "moduleID2")
 	require.NotNil(t, t3)
 	t3.WithObjectID("objectID3").Add("test3")
 	require.Equal(t,
-		&errStorage{
-			errList: []lintRuleError{
-				{ID: "linterid", Module: "moduleID2", ObjectID: "objectID3", Text: "test3", Level: 2},
-			},
+		[]lintRuleError{
+			{LinterID: "linterid", ModuleID: "moduleID2", ObjectID: "objectID3", Text: "test3", Level: pkg.Error},
 		},
-		t3.storage)
+		t3.storage.GetErrors())
 	require.Len(t, t3.storage.GetErrors(), 1)
 
 	t1.Merge(t3)
 	require.Len(t, t1.storage.GetErrors(), 4)
 	require.Equal(t,
-		errStorage{
-			errList: []lintRuleError{
-				{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test1", Level: 2},
-				{ID: "linterid", Module: "moduleID", ObjectID: "objectID", Text: "test2", Level: 2},
-				{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test3", Level: 2},
-				{ID: "linterid", Module: "moduleID2", ObjectID: "objectID3", Text: "test3", Level: 2},
-			},
+		[]lintRuleError{
+			{LinterID: "linterid", ModuleID: "moduleID", ObjectID: "", Text: "test1", Level: pkg.Error},
+			{LinterID: "linterid", ModuleID: "moduleID", ObjectID: "objectID", Text: "test2", Level: pkg.Error},
+			{LinterID: "linterid", ModuleID: "moduleID", ObjectID: "", Text: "test3", Level: pkg.Error},
+			{LinterID: "linterid", ModuleID: "moduleID2", ObjectID: "objectID3", Text: "test3", Level: pkg.Error},
 		},
-		*t1.storage)
+		t1.storage.GetErrors())
 }
