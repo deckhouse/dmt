@@ -14,7 +14,6 @@ import (
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/container"
-	"github.com/deckhouse/dmt/pkg/linters/conversions"
 	"github.com/deckhouse/dmt/pkg/linters/crd-resources"
 	"github.com/deckhouse/dmt/pkg/linters/images"
 	"github.com/deckhouse/dmt/pkg/linters/ingress"
@@ -135,7 +134,6 @@ func getLintersForModule(cfg *config.ModuleConfig, errList *errors.LintRuleError
 		monitoring.New(cfg, errList),
 		ingress.New(cfg, errList),
 		moduleLinter.New(cfg, errList),
-		conversions.New(cfg, errList),
 	}
 }
 
