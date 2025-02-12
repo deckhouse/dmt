@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"sync"
 	"text/tabwriter"
 
 	"github.com/fatih/color"
@@ -36,7 +35,6 @@ func (l *lintRuleError) EqualsTo(candidate lintRuleError) bool { //nolint:gocrit
 }
 
 type errStorage struct {
-	mu      sync.Mutex
 	errList []lintRuleError
 }
 
@@ -45,9 +43,7 @@ func (s *errStorage) GetErrors() []lintRuleError {
 }
 
 func (s *errStorage) add(err *lintRuleError) {
-	s.mu.Lock()
 	s.errList = append(s.errList, *err)
-	s.mu.Unlock()
 }
 
 type LintRuleErrorsList struct {
