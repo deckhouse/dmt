@@ -194,6 +194,7 @@ func (l *LintRuleErrorsList) add(str string, level pkg.Level) *LintRuleErrorsLis
 	e := lintRuleError{
 		LinterID:    strings.ToLower(l.linterID),
 		ModuleID:    l.moduleID,
+		RuleID:      l.ruleID,
 		ObjectID:    l.objectID,
 		ObjectValue: l.value,
 		FilePath:    l.filePath,
@@ -223,7 +224,7 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 		return cmp.Or(
 			cmp.Compare(a.LinterID, b.LinterID),
 			cmp.Compare(a.ModuleID, b.ModuleID),
-			cmp.Compare(a.ObjectID, b.ObjectID),
+			cmp.Compare(a.RuleID, b.RuleID),
 		)
 	})
 
@@ -243,7 +244,7 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 			msgColor = color.FgHiYellow
 		}
 
-		fmt.Fprintf(w, "%s%s\n", emoji.Sprintf(":monkey:"), color.New(color.FgHiBlue).SprintfFunc()("[#%s]", err.LinterID))
+		fmt.Fprintf(w, "%s%s\n", emoji.Sprintf(":monkey:"), color.New(color.FgHiBlue).SprintfFunc()("[%s (#%s)]", err.RuleID, err.LinterID))
 		fmt.Fprintf(w, "\t%s\t\t%s\n", "Message:", color.New(msgColor).SprintfFunc()(prepareString(err.Text)))
 		fmt.Fprintf(w, "\t%s\t\t%s\n", "Module:", err.ModuleID)
 
