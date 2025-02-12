@@ -36,7 +36,6 @@ type configValues struct {
 	ConfigVersion int `yaml:"x-config-version"`
 }
 
-//nolint:gocyclo // hate this linter
 func (l *Module) checkConversions(moduleName, modulePath string) {
 	errorList := l.ErrorList.WithModule(moduleName)
 

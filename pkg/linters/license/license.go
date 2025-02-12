@@ -38,16 +38,15 @@ func (l *Copyright) Run(m *module.Module) {
 
 	NewFilesRule(l.cfg.ExcludeRules.Files.Get()).
 		checkFiles(m, errorList)
-
 }
 
-func (r *FilesRule) checkFiles(module *module.Module, errorList *errors.LintRuleErrorsList) {
+func (r *FilesRule) checkFiles(mod *module.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
-	files := fsutils.GetFiles(module.GetPath(), false, filterFiles)
+	files := fsutils.GetFiles(mod.GetPath(), false, filterFiles)
 	for _, fileName := range files {
-		name, _ := strings.CutPrefix(fileName, module.GetPath())
-		name = module.GetName() + ":" + name
+		name, _ := strings.CutPrefix(fileName, mod.GetPath())
+		name = mod.GetName() + ":" + name
 
 		if !r.Enabled(name) {
 			// TODO: add metrics
@@ -56,7 +55,7 @@ func (r *FilesRule) checkFiles(module *module.Module, errorList *errors.LintRule
 
 		ok, err := checkFileCopyright(fileName)
 		if !ok {
-			path, _ := strings.CutPrefix(fileName, module.GetPath())
+			path, _ := strings.CutPrefix(fileName, mod.GetPath())
 
 			errorList.WithFilePath(path).Error(err.Error())
 		}

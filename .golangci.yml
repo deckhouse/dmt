@@ -45,8 +45,6 @@ linters-settings:
       - ifElseChain
       - octalLiteral
       - whyNoLint
-  gocyclo:
-    min-complexity: 15
   godox:
     keywords:
       - FIXME

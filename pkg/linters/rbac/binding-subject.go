@@ -26,7 +26,6 @@ import (
 	"github.com/deckhouse/dmt/internal/storage"
 )
 
-//nolint:gocyclo // because
 func (l *Rbac) objectBindingSubjectServiceAccountCheck(m *module.Module) {
 	if slices.Contains(l.cfg.SkipModuleCheckBinding, m.GetName()) {
 		return

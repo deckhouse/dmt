@@ -1,10 +1,11 @@
 package rules
 
 import (
+	corev1 "k8s.io/api/core/v1"
+
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
-	corev1 "k8s.io/api/core/v1"
 )
 
 const (

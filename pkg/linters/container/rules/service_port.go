@@ -1,12 +1,13 @@
 package rules
 
 import (
-	"github.com/deckhouse/dmt/internal/storage"
-	"github.com/deckhouse/dmt/pkg"
-	"github.com/deckhouse/dmt/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
+
+	"github.com/deckhouse/dmt/internal/storage"
+	"github.com/deckhouse/dmt/pkg"
+	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 const (
