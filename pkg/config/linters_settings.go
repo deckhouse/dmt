@@ -183,6 +183,7 @@ type ImageSettings struct {
 
 type IngressSettings struct {
 	SkipIngressChecks []string `mapstructure:"skip-ingress-checks"`
+	Disable           bool     `mapstructure:"disable"`
 
 	Impact pkg.Level `mapstructure:"impact"`
 }
