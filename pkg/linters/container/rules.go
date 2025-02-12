@@ -9,10 +9,10 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters/container/rules"
 )
 
 const defaultRegistry = "registry.example.com/deckhouse"
@@ -23,12 +23,12 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 		namespaceLabels,
 		objectAPIVersion,
 		objectPriorityClass,
-		NewDNSPolicyRule(l.cfg.ExcludeRules.DNSPolicy.Get()).
-			objectDNSPolicy,
+		rules.NewDNSPolicyRule(l.cfg.ExcludeRules.DNSPolicy.Get()).
+			ObjectDNSPolicy,
 		objectSecurityContext,
 		objectRevisionHistoryLimit,
-		NewServicePortRule(l.cfg.ExcludeRules.ServicePort.Get()).
-			objectServiceTargetPort,
+		rules.NewServicePortRule(l.cfg.ExcludeRules.ServicePort.Get()).
+			ObjectServiceTargetPort,
 	}
 
 	for _, rule := range objectRules {
@@ -49,18 +49,18 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 
 	containerRules := []func(storage.StoreObject, []corev1.Container, *errors.LintRuleErrorsList){
 		containerNameDuplicates,
-		NewCheckReadOnlyRootFilesystemRule(l.cfg.ExcludeRules.ReadOnlyRootFilesystem.Get()).
-			objectReadOnlyRootFilesystem,
+		rules.NewCheckReadOnlyRootFilesystemRule(l.cfg.ExcludeRules.ReadOnlyRootFilesystem.Get()).
+			ObjectReadOnlyRootFilesystem,
 		objectHostNetworkPorts,
 
 		// old with module names skipping
 		containerEnvVariablesDuplicates,
 		containerImageDigestCheck,
 		containersImagePullPolicy,
-		NewResourcesRule(l.cfg.ExcludeRules.Resources.Get()).
-			containerStorageEphemeral,
-		NewSecurityContextRule(l.cfg.ExcludeRules.SecurityContext.Get()).
-			containerSecurityContext,
+		rules.NewResourcesRule(l.cfg.ExcludeRules.Resources.Get()).
+			ContainerStorageEphemeral,
+		rules.NewSecurityContextRule(l.cfg.ExcludeRules.SecurityContext.Get()).
+			ContainerSecurityContext,
 		containerPorts,
 	}
 
@@ -184,44 +184,6 @@ func containerImagePullPolicyIfNotPresent(object storage.StoreObject, containers
 	}
 }
 
-func (r *ResourcesRule) containerStorageEphemeral(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.Name)
-
-	for i := range containers {
-		c := &containers[i]
-
-		if !r.Enabled(object, c) {
-			// TODO: add metrics
-			continue
-		}
-
-		if c.Resources.Requests.StorageEphemeral() == nil || c.Resources.Requests.StorageEphemeral().Value() == 0 {
-			errorList.WithObjectID(object.Identity() + "; container = " + c.Name).
-				Error("Ephemeral storage for container is not defined in Resources.Requests")
-		}
-	}
-}
-
-func (r *SecurityContextRule) containerSecurityContext(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
-
-	for i := range containers {
-		c := &containers[i]
-
-		if !r.Enabled(object, c) {
-			// TODO: add metrics
-			continue
-		}
-
-		if c.SecurityContext == nil {
-			errorList.WithObjectID(object.Identity() + "; container = " + c.Name).
-				Error("Container SecurityContext is not defined")
-
-			return
-		}
-	}
-}
-
 func containerPorts(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 	const t = 1024
 	for i := range containers {
@@ -234,48 +196,6 @@ func containerPorts(object storage.StoreObject, containers []corev1.Container, e
 
 				return
 			}
-		}
-	}
-}
-
-func (r *CheckReadOnlyRootFilesystemRule) objectReadOnlyRootFilesystem(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
-
-	switch object.Unstructured.GetKind() {
-	case "Deployment", "DaemonSet", "StatefulSet", "Pod", "Job", "CronJob":
-	default:
-		return
-	}
-
-	for i := range containers {
-		c := &containers[i]
-
-		if !r.Enabled(object, c) {
-			// TODO: add metrics
-			continue
-		}
-
-		if c.VolumeMounts == nil {
-			continue
-		}
-
-		if c.SecurityContext == nil {
-			errorList.WithObjectID(object.Identity()).
-				Error("Container's SecurityContext is missing")
-
-			continue
-		}
-
-		if c.SecurityContext.ReadOnlyRootFilesystem == nil {
-			errorList.WithObjectID(object.Identity() + " ; container = " + c.Name).
-				Error("Container's SecurityContext missing parameter ReadOnlyRootFilesystem")
-
-			continue
-		}
-
-		if !*c.SecurityContext.ReadOnlyRootFilesystem {
-			errorList.WithObjectID(object.Identity() + " ; container = " + c.Name).
-				Error("Container's SecurityContext has `ReadOnlyRootFilesystem: false`, but it must be `true`")
 		}
 	}
 }
@@ -525,100 +445,4 @@ func checkRunAsNonRoot(securityContext *corev1.PodSecurityContext, object storag
 				Error("Object's SecurityContext has `RunAsNonRoot: false`, but RunAsUser:RunAsGroup differs from 0:0")
 		}
 	}
-}
-
-func (r *ServicePortRule) objectServiceTargetPort(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
-
-	switch object.Unstructured.GetKind() {
-	case "Service":
-	default:
-		return
-	}
-
-	if !r.Enabled(object.Unstructured.GetName()) {
-		// TODO: add metrics
-		return
-	}
-
-	converter := runtime.DefaultUnstructuredConverter
-
-	service := new(corev1.Service)
-	if err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), service); err != nil {
-		errorList.WithObjectID(object.Unstructured.GetName()).
-			Errorf("Cannot convert object to %s: %v", object.Unstructured.GetKind(), err)
-
-		return
-	}
-
-	for _, port := range service.Spec.Ports {
-		if port.TargetPort.Type == intstr.Int {
-			if port.TargetPort.IntVal == 0 {
-				errorList.WithObjectID(object.Identity()).
-					Error("Service port must use an explicit named (non-numeric) target port")
-
-				continue
-			}
-			errorList.WithObjectID(object.Identity()).WithValue(port.TargetPort.IntVal).
-				Error("Service port must use a named (non-numeric) target port")
-		}
-	}
-}
-
-func (r *DNSPolicyRule) objectDNSPolicy(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
-
-	if !r.Enabled(object) {
-		// TODO: add metrics
-		return
-	}
-
-	dnsPolicy, hostNetwork, err := getDNSPolicyAndHostNetwork(object)
-	if err != nil {
-		errorList.WithObjectID(object.Unstructured.GetName()).
-			Errorf("Cannot convert object to %s: %v", object.Unstructured.GetKind(), err)
-
-		return
-	}
-
-	validateDNSPolicy(dnsPolicy, hostNetwork, object, errorList)
-}
-
-func validateDNSPolicy(dnsPolicy string, hostNetwork bool, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	if !hostNetwork {
-		return
-	}
-
-	if dnsPolicy != "ClusterFirstWithHostNet" {
-		errorList.WithObjectID(object.Identity()).WithValue(dnsPolicy).
-			Error("dnsPolicy must be `ClusterFirstWithHostNet` when hostNetwork is `true`")
-	}
-}
-
-func getDNSPolicyAndHostNetwork(object storage.StoreObject) (string, bool, error) { //nolint:gocritic // false positive
-	converter := runtime.DefaultUnstructuredConverter
-
-	var dnsPolicy string
-	var hostNetwork bool
-	var err error
-
-	switch object.Unstructured.GetKind() {
-	case "Deployment":
-		deployment := new(appsv1.Deployment)
-		err = converter.FromUnstructured(object.Unstructured.UnstructuredContent(), deployment)
-		dnsPolicy = string(deployment.Spec.Template.Spec.DNSPolicy)
-		hostNetwork = deployment.Spec.Template.Spec.HostNetwork
-	case "DaemonSet":
-		daemonset := new(appsv1.DaemonSet)
-		err = converter.FromUnstructured(object.Unstructured.UnstructuredContent(), daemonset)
-		dnsPolicy = string(daemonset.Spec.Template.Spec.DNSPolicy)
-		hostNetwork = daemonset.Spec.Template.Spec.HostNetwork
-	case "StatefulSet":
-		statefulset := new(appsv1.StatefulSet)
-		err = converter.FromUnstructured(object.Unstructured.UnstructuredContent(), statefulset)
-		dnsPolicy = string(statefulset.Spec.Template.Spec.DNSPolicy)
-		hostNetwork = statefulset.Spec.Template.Spec.HostNetwork
-	}
-
-	return dnsPolicy, hostNetwork, err
 }
