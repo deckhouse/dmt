@@ -56,7 +56,7 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 		containerEnvVariablesDuplicates,
 		containerImageDigestCheck,
 		containersImagePullPolicy,
-		containerStorageEphemeral,
+		containerStorageEphemeral, // resources
 		NewSecurityContextRule(l.cfg.ExcludeRules.SecurityContext.Get()).
 			containerSecurityContext,
 		containerPorts,

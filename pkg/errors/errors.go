@@ -1,9 +1,9 @@
 package errors
 
 import (
+	"bytes"
 	"cmp"
 	"fmt"
-	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -235,7 +235,8 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 
 	const minWidth = 5
 
-	w.Init(os.Stdout, minWidth, 0, 0, ' ', 0)
+	buf := bytes.NewBuffer([]byte{})
+	w.Init(buf, minWidth, 0, 0, ' ', 0)
 
 	for idx := range l.storage.GetErrors() {
 		err := l.storage.GetErrors()[idx]
@@ -269,6 +270,9 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 		}
 
 		fmt.Fprintln(w)
+
+		fmt.Println(buf.String())
+
 		w.Flush()
 	}
 

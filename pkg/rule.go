@@ -1,8 +1,9 @@
 package pkg
 
 import (
-	"github.com/deckhouse/dmt/internal/storage"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/deckhouse/dmt/internal/storage"
 )
 
 type RuleMeta struct {
