@@ -1,7 +1,6 @@
 package container
 
 import (
-	stderrors "errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -268,8 +267,6 @@ type CheckReadOnlyRootFilesystemRule struct {
 func (r *CheckReadOnlyRootFilesystemRule) Name() string {
 	return r.name
 }
-
-var ErrSkipCheckReadOnlyRootFileSystemRule = stderrors.New("skip check read only file system rule")
 
 func (r *CheckReadOnlyRootFilesystemRule) Enabled(object storage.StoreObject, container *corev1.Container) bool {
 	for _, rule := range r.excludeRules {
