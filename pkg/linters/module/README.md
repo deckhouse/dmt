@@ -1,6 +1,7 @@
 ## Description
 
-Checks module.yaml definition file.
+- Checks module.yaml definition file.
+- Check that openapi conversions have human-readable description
 
 
 ## Settings example

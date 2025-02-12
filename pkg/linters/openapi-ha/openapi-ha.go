@@ -24,7 +24,7 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *HA {
 		name:      "openapi-ha",
 		desc:      "Linter will check openapi ha values is correct",
 		cfg:       &cfg.LintersSettings.OpenAPIHA,
-		ErrorList: errorList.WithLinterID("openapi-ha").WithMaxLevel(cfg.LintersSettings.Conversions.Impact),
+		ErrorList: errorList.WithLinterID("openapi-ha").WithMaxLevel(cfg.LintersSettings.OpenAPIHA.Impact),
 	}
 }
 

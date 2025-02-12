@@ -24,7 +24,6 @@ type LintersSettings struct {
 	Monitoring   MonitoringSettings   `mapstructure:"monitoring"`
 	Ingress      IngressSettings      `mapstructure:"ingress"`
 	Module       ModuleSettings       `mapstructure:"module"`
-	Conversions  ConversionsSettings  `mapstructure:"conversions"`
 }
 
 func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
@@ -46,7 +45,6 @@ func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
 	assignIfNotEmpty(&cfg.Monitoring.Impact, lcfg.Monitoring.Impact)
 	assignIfNotEmpty(&cfg.Ingress.Impact, lcfg.Ingress.Impact)
 	assignIfNotEmpty(&cfg.Module.Impact, lcfg.Module.Impact)
-	assignIfNotEmpty(&cfg.Conversions.Impact, lcfg.Conversions.Impact)
 }
 
 type OpenAPIKeysSettings struct {
@@ -192,12 +190,6 @@ type IngressSettings struct {
 type ModuleSettings struct {
 	SkipCheckModuleYaml []string `mapstructure:"skip-check-module-yaml"`
 
-	Impact pkg.Level `mapstructure:"impact"`
-}
-
-type ConversionsSettings struct {
-	// skip all conversion checks for this modules
-	SkipCheckModule []string `mapstructure:"skip-check"`
 	// first conversion version to make conversion flow
 	FirstVersion int `mapstructure:"first-version"`
 

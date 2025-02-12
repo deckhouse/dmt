@@ -24,7 +24,7 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Enum {
 		name:      "openapi-keys",
 		desc:      "Linter will check openapi keys values is correct",
 		cfg:       &cfg.LintersSettings.OpenAPIKeys,
-		ErrorList: errorList.WithLinterID("openapi-keys").WithMaxLevel(cfg.LintersSettings.Conversions.Impact),
+		ErrorList: errorList.WithLinterID("openapi-keys").WithMaxLevel(cfg.LintersSettings.OpenAPIKeys.Impact),
 	}
 }
 
