@@ -39,7 +39,7 @@ func (l *Ingress) ingressCopyCustomCertificateRule(m *module.Module, object stor
 	}
 
 	if _, ok := imports[copyCustomCertificateImport]; !ok {
-		errorList.Error("Ingress does not contain copy_custom_certificate hook")
+		errorList.Error("Ingress resource exists but module does not have copy_custom_certificate hook")
 	}
 }
 
