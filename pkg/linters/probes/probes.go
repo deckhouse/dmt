@@ -2,7 +2,6 @@ package probes
 
 import (
 	"slices"
-	"strings"
 
 	"github.com/sourcegraph/conc/pool"
 	v1 "k8s.io/api/core/v1"
@@ -78,28 +77,16 @@ func (l *Probes) containerProbes(
 	for i := range containers {
 		container := containers[i]
 
+		// TODO: check this skip???
 		if l.skipCheckProbeHandler(object.Unstructured.GetNamespace(), container.Name) {
 			continue
 		}
 
-		var errStrings []string
+		NewLivenessRule(l.cfg.ExcludeRules.Liveness.Get()).
+			CheckProbe(object, &container, errorList)
 
-		// check livenessProbe exist and correct
-		livenessProbe := container.LivenessProbe
-		if livenessProbe == nil || probeHandlerIsNotValid(livenessProbe.ProbeHandler) {
-			errStrings = append(errStrings, "LivenessProbe")
-		}
-
-		// check readinessProbe exist and correct
-		readinessProbe := container.ReadinessProbe
-		if readinessProbe == nil || probeHandlerIsNotValid(readinessProbe.ProbeHandler) {
-			errStrings = append(errStrings, "ReadinessProbe")
-		}
-
-		if len(errStrings) > 0 {
-			errorList.WithObjectID(object.Identity()+" ; container = "+container.Name).
-				Errorf("Container does not use correct probes: %s", strings.Join(errStrings, " and "))
-		}
+		NewReadinessRule(l.cfg.ExcludeRules.Liveness.Get()).
+			CheckProbe(object, &container, errorList)
 	}
 
 	return errorList
@@ -133,4 +120,50 @@ func (l *Probes) skipCheckProbeHandler(namespace, container string) bool {
 	}
 
 	return false
+}
+
+// check livenessProbe exist and correct
+func (r *LivenessRule) CheckProbe(object storage.StoreObject, container *v1.Container, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(r.GetName())
+
+	if !r.Enabled(object, container) {
+		// TODO: add metrics
+		return
+	}
+
+	errorList = errorList.WithObjectID(object.Identity() + " ; container = " + container.Name)
+
+	livenessProbe := container.LivenessProbe
+	if livenessProbe == nil {
+		errorList.Error("Container does not contains liveness-probe")
+
+		return
+	}
+
+	if probeHandlerIsNotValid(livenessProbe.ProbeHandler) {
+		errorList.Error("Container does not use correct liveness-probe")
+	}
+}
+
+// check readinessProbe exist and correct
+func (r *ReadinessRuleNameRule) CheckProbe(object storage.StoreObject, container *v1.Container, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(r.GetName())
+
+	if !r.Enabled(object, container) {
+		// TODO: add metrics
+		return
+	}
+
+	errorList = errorList.WithObjectID(object.Identity() + " ; container = " + container.Name)
+
+	readinessProbe := container.ReadinessProbe
+	if readinessProbe == nil {
+		errorList.Error("Container does not contains readiness-probe")
+
+		return
+	}
+
+	if probeHandlerIsNotValid(readinessProbe.ProbeHandler) {
+		errorList.Error("Container does not use correct readiness-probe")
+	}
 }
