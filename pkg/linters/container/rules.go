@@ -17,7 +17,7 @@ import (
 
 const defaultRegistry = "registry.example.com/deckhouse"
 
-func applyContainerRules(moduleName string, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+func (l *Container) applyContainerRules(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	objectRules := []func(storage.StoreObject, *errors.LintRuleErrorsList){
 		objectRecommendedLabels,
 		namespaceLabels,
@@ -45,19 +45,13 @@ func applyContainerRules(moduleName string, object storage.StoreObject, errorLis
 		return
 	}
 
-	readOnlyRootFilesystemRule := CheckReadOnlyRootFilesystemRule{}
-
 	containerRules := []func(storage.StoreObject, []corev1.Container, *errors.LintRuleErrorsList){
 		containerNameDuplicates,
-		readOnlyRootFilesystemRule.objectReadOnlyRootFilesystem,
+		NewCheckReadOnlyRootFilesystemRule(l.cfg.ExcludeRules.ReadOnlyRootFilesystem).
+			objectReadOnlyRootFilesystem,
 		objectHostNetworkPorts,
-	}
 
-	for _, rule := range containerRules {
-		rule(object, containers, errorList)
-	}
-
-	containerRulesWithModuleName := []func(string, storage.StoreObject, []corev1.Container, *errors.LintRuleErrorsList){
+		// old with module names skipping
 		containerEnvVariablesDuplicates,
 		containerImageDigestCheck,
 		containersImagePullPolicy,
@@ -66,19 +60,19 @@ func applyContainerRules(moduleName string, object storage.StoreObject, errorLis
 		containerPorts,
 	}
 
-	for _, rule := range containerRulesWithModuleName {
-		rule(moduleName, object, containers, errorList)
+	for _, rule := range containerRules {
+		rule(object, containers, errorList)
 	}
 }
 
-func containersImagePullPolicy(moduleName string, object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
+func containersImagePullPolicy(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 	if object.Unstructured.GetNamespace() == "d8-system" && object.Unstructured.GetKind() == "Deployment" && object.Unstructured.GetName() == "deckhouse" {
 		checkImagePullPolicyAlways(object, containers, errorList)
 
 		return
 	}
 
-	containerImagePullPolicyIfNotPresent(moduleName, object, containers, errorList)
+	containerImagePullPolicyIfNotPresent(object, containers, errorList)
 }
 
 func checkImagePullPolicyAlways(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
@@ -96,13 +90,10 @@ func containerNameDuplicates(object storage.StoreObject, containers []corev1.Con
 	}
 }
 
-func containerEnvVariablesDuplicates(moduleName string, object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
+func containerEnvVariablesDuplicates(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 	for i := range containers {
 		c := &containers[i]
 
-		if shouldSkipModuleContainer(moduleName, c.Name) {
-			continue
-		}
 		if hasDuplicates(c.Env, func(e corev1.EnvVar) string { return e.Name }) {
 			errorList.WithObjectID(object.Identity() + "; container = " + c.Name).
 				Error("Container has two env variables with same name")
@@ -124,8 +115,8 @@ func hasDuplicates[T any](items []T, keyFunc func(T) string) bool {
 	return false
 }
 
-func shouldSkipModuleContainer(moduleName, container string) bool {
-	for _, line := range Cfg.SkipContainers {
+func (l *Container) shouldSkipModuleContainer(moduleName, container string) bool {
+	for _, line := range l.cfg.SkipContainers {
 		els := strings.Split(line, ":")
 		if len(els) != 2 {
 			continue
@@ -148,13 +139,9 @@ func shouldSkipModuleContainer(moduleName, container string) bool {
 	return false
 }
 
-func containerImageDigestCheck(moduleName string, object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
+func containerImageDigestCheck(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 	for i := range containers {
 		c := &containers[i]
-
-		if shouldSkipModuleContainer(moduleName, c.Name) {
-			continue
-		}
 
 		re := regexp.MustCompile(`(?P<repository>.+)([@:])imageHash[-a-z0-9A-Z]+$`)
 		match := re.FindStringSubmatch(c.Image)
@@ -181,13 +168,10 @@ func containerImageDigestCheck(moduleName string, object storage.StoreObject, co
 	}
 }
 
-func containerImagePullPolicyIfNotPresent(moduleName string, object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
+func containerImagePullPolicyIfNotPresent(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 	for i := range containers {
 		c := &containers[i]
 
-		if shouldSkipModuleContainer(moduleName, c.Name) {
-			continue
-		}
 		if c.ImagePullPolicy == "" || c.ImagePullPolicy == "IfNotPresent" {
 			continue
 		}
@@ -196,13 +180,9 @@ func containerImagePullPolicyIfNotPresent(moduleName string, object storage.Stor
 	}
 }
 
-func containerStorageEphemeral(moduleName string, object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
+func containerStorageEphemeral(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 	for i := range containers {
 		c := &containers[i]
-
-		if shouldSkipModuleContainer(moduleName, c.Name) {
-			continue
-		}
 
 		if c.Resources.Requests.StorageEphemeral() == nil || c.Resources.Requests.StorageEphemeral().Value() == 0 {
 			errorList.WithObjectID(object.Identity() + "; container = " + c.Name).
@@ -211,13 +191,9 @@ func containerStorageEphemeral(moduleName string, object storage.StoreObject, co
 	}
 }
 
-func containerSecurityContext(moduleName string, object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
+func containerSecurityContext(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 	for i := range containers {
 		c := &containers[i]
-
-		if shouldSkipModuleContainer(moduleName, c.Name) {
-			continue
-		}
 
 		if c.SecurityContext == nil {
 			errorList.WithObjectID(object.Identity() + "; container = " + c.Name).
@@ -228,14 +204,10 @@ func containerSecurityContext(moduleName string, object storage.StoreObject, con
 	}
 }
 
-func containerPorts(moduleName string, object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
+func containerPorts(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 	const t = 1024
 	for i := range containers {
 		c := &containers[i]
-
-		if shouldSkipModuleContainer(moduleName, c.Name) {
-			continue
-		}
 
 		for _, port := range c.Ports {
 			if port.ContainerPort <= t {
@@ -248,54 +220,20 @@ func containerPorts(moduleName string, object storage.StoreObject, containers []
 	}
 }
 
-const (
-	CheckReadOnlyRootFilesystemRuleName = "read-only-root-filesystem"
-)
-
-type CheckReadOnlyRootFilesystemRuleExclude struct {
-	Kind      string
-	Name      string
-	Container string
-}
-
-type CheckReadOnlyRootFilesystemRule struct {
-	name string
-
-	excludeRules []CheckReadOnlyRootFilesystemRuleExclude
-}
-
-func (r *CheckReadOnlyRootFilesystemRule) Name() string {
-	return r.name
-}
-
-func (r *CheckReadOnlyRootFilesystemRule) Enabled(object storage.StoreObject, container *corev1.Container) bool {
-	for _, rule := range r.excludeRules {
-		if rule.Kind == object.Unstructured.GetKind() &&
-			rule.Name == object.Unstructured.GetName() &&
-			rule.Container == container.Name {
-			return false
-		}
-	}
-
-	return true
-}
-
 func (r *CheckReadOnlyRootFilesystemRule) objectReadOnlyRootFilesystem(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(r.name)
+
 	switch object.Unstructured.GetKind() {
 	case "Deployment", "DaemonSet", "StatefulSet", "Pod", "Job", "CronJob":
 	default:
 		return
 	}
 
-	// - kind: Deployment
-	// name: deckhouse
-	// container: init-downloaded-modules
-
 	for i := range containers {
 		c := &containers[i]
 
 		if !r.Enabled(object, c) {
-			// TODO: add metrics?
+			// TODO: add metrics
 			continue
 		}
 

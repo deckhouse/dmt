@@ -10,8 +10,6 @@ const (
 	ID = "container"
 )
 
-var Cfg *config.ContainerSettings
-
 // Container linter
 type Container struct {
 	name, desc string
@@ -20,8 +18,6 @@ type Container struct {
 }
 
 func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Container {
-	Cfg = &cfg.LintersSettings.Container
-
 	return &Container{
 		name:      ID,
 		desc:      "Lint container objects",
@@ -37,7 +33,7 @@ func (l *Container) Run(m *module.Module) {
 
 	errorList := l.ErrorList.WithModule(m.GetName())
 	for _, object := range m.GetStorage() {
-		applyContainerRules(m.GetName(), object, errorList)
+		l.applyContainerRules(object, errorList)
 	}
 }
 

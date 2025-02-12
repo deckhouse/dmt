@@ -71,27 +71,62 @@ type NoCyrillicSettings struct {
 }
 
 type LicenseSettings struct {
-	CopyrightExcludes []string `mapstructure:"copyright-excludes"`
+	CopyrightExcludes []string            `mapstructure:"copyright-excludes"`
+	ExcludeRules      LicenseExcludeRules `mapstructure:"exclude-rules"`
 
 	Impact pkg.Level `mapstructure:"impact"`
 }
 
+type LicenseExcludeRules struct {
+	Files []string `mapstructure:"files"`
+}
+
 type OSSSettings struct {
 	SkipOssChecks []string `mapstructure:"skip-oss-checks"`
+	Disable       bool     `mapstructure:"disable"`
 
 	Impact pkg.Level `mapstructure:"impact"`
 }
 
 type ProbesSettings struct {
 	ProbesExcludes map[string][]string `mapstructure:"probes-excludes"`
+	ExcludeRules   ProbesExcludeRules  `mapstructure:"exclude-rules"`
 
 	Impact pkg.Level `mapstructure:"impact"`
 }
 
+type ProbesExcludeRules struct {
+	Liveness  []ContainerRuleExclude `mapstructure:"liveness"`
+	Readiness []ContainerRuleExclude `mapstructure:"readiness"`
+}
+
 type ContainerSettings struct {
-	SkipContainers []string `mapstructure:"skip-containers"`
+	SkipContainers []string              `mapstructure:"skip-containers"`
+	ExcludeRules   ContainerExcludeRules `mapstructure:"exclude-rules"`
 
 	Impact pkg.Level `mapstructure:"impact"`
+}
+
+type ContainerExcludeRules struct {
+	ReadOnlyRootFilesystem []ContainerRuleExclude `mapstructure:"read-only-root-filesystem"`
+	Resources              []ContainerRuleExclude `mapstructure:"resources"`
+	SecurityContext        []ContainerRuleExclude `mapstructure:"security-context"`
+
+	DNSPolicy []KindRuleExclude `mapstructure:"dns-policy"`
+
+	Description []string `mapstructure:"description"`
+	ServicePort []string `mapstructure:"service-port"`
+}
+
+type KindRuleExclude struct {
+	Kind string `mapstructure:"kind"`
+	Name string `mapstructure:"name"`
+}
+
+type ContainerRuleExclude struct {
+	Kind      string `mapstructure:"kind"`
+	Name      string `mapstructure:"name"`
+	Container string `mapstructure:"container"`
 }
 
 type K8SResourcesSettings struct {
@@ -101,15 +136,26 @@ type K8SResourcesSettings struct {
 }
 
 type VPAResourcesSettings struct {
-	SkipVPAChecks []string `mapstructure:"skip-vpa-checks"`
+	SkipVPAChecks []string                 `mapstructure:"skip-vpa-checks"`
+	ExcludeRules  VPAResourcesExcludeRules `mapstructure:"exclude-rules"`
 
 	Impact pkg.Level `mapstructure:"impact"`
 }
 
+type VPAResourcesExcludeRules struct {
+	Absent      []KindRuleExclude `mapstructure:"absent"`
+	Tolerations []KindRuleExclude `mapstructure:"tolerations"`
+}
+
 type PDBResourcesSettings struct {
-	SkipPDBChecks []string `mapstructure:"skip-pdb-checks"`
+	SkipPDBChecks []string                 `mapstructure:"skip-pdb-checks"`
+	ExcludeRules  PDBResourcesExcludeRules `mapstructure:"exclude-rules"`
 
 	Impact pkg.Level `mapstructure:"impact"`
+}
+
+type PDBResourcesExcludeRules struct {
+	Absent []KindRuleExclude `mapstructure:"absent"`
 }
 
 type CRDResourcesSettings struct {
@@ -130,8 +176,14 @@ type RbacSettings struct {
 	SkipCheckWildcards     map[string][]string `mapstructure:"skip-check-wildcards"`
 	SkipModuleCheckBinding []string            `mapstructure:"skip-module-check-binding"`
 	SkipObjectCheckBinding []string            `mapstructure:"skip-object-check-binding"`
+	ExcludeRules           RBACExcludeRules    `mapstructure:"exclude-rules"`
 
 	Impact pkg.Level `mapstructure:"impact"`
+}
+
+type RBACExcludeRules struct {
+	Placement []KindRuleExclude `mapstructure:"placement"`
+	Wildcards []KindRuleExclude `mapstructure:"wildcards"`
 }
 
 type ImageSettings struct {

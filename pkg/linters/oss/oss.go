@@ -27,7 +27,11 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *OSS {
 }
 
 func (l *OSS) Run(m *module.Module) {
-	if m.GetPath() == "" {
+	if m == nil || m.GetPath() == "" {
+		return
+	}
+
+	if l.cfg.Disable {
 		return
 	}
 
