@@ -23,7 +23,8 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 		namespaceLabels,
 		objectAPIVersion,
 		objectPriorityClass,
-		objectDNSPolicy,
+		NewDNSPolicyRule(l.cfg.ExcludeRules.DNSPolicy.Get()).
+			objectDNSPolicy,
 		objectSecurityContext,
 		objectRevisionHistoryLimit,
 		objectServiceTargetPort,
@@ -193,7 +194,7 @@ func containerStorageEphemeral(object storage.StoreObject, containers []corev1.C
 }
 
 func (r *SecurityContextRule) containerSecurityContext(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.name)
+	errorList = errorList.WithRule(r.GetName())
 
 	for i := range containers {
 		c := &containers[i]
@@ -229,7 +230,7 @@ func containerPorts(object storage.StoreObject, containers []corev1.Container, e
 }
 
 func (r *CheckReadOnlyRootFilesystemRule) objectReadOnlyRootFilesystem(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.name)
+	errorList = errorList.WithRule(r.GetName())
 
 	switch object.Unstructured.GetKind() {
 	case "Deployment", "DaemonSet", "StatefulSet", "Pod", "Job", "CronJob":
@@ -548,7 +549,14 @@ func objectServiceTargetPort(object storage.StoreObject, errorList *errors.LintR
 	}
 }
 
-func objectDNSPolicy(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+func (r *DNSPolicyRule) objectDNSPolicy(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+	errorList.WithRule(r.GetName())
+
+	if !r.Enabled(object) {
+		// TODO: add metrics
+		return
+	}
+
 	dnsPolicy, hostNetwork, err := getDNSPolicyAndHostNetwork(object)
 	if err != nil {
 		errorList.WithObjectID(object.Unstructured.GetName()).
