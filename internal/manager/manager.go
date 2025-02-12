@@ -6,9 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/mitchellh/go-homedir"
-	"github.com/sourcegraph/conc/pool"
 
-	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
@@ -101,19 +99,15 @@ func NewManager(dirs []string, rootConfig *config.RootConfig) *Manager {
 }
 
 func (m *Manager) Run() {
-	var g = pool.New().WithMaxGoroutines(flags.LintersLimit)
 	for _, module := range m.Modules {
 		logger.InfoF("Run linters for `%s` module", module.GetName())
 
 		for _, linter := range getLintersForModule(module.GetModuleConfig(), m.errors) {
-			g.Go(func() {
-				logger.DebugF("Running linter `%s` on module `%s`", linter.Name(), module.GetName())
+			logger.DebugF("Running linter `%s` on module `%s`", linter.Name(), module.GetName())
 
-				linter.Run(module)
-			})
+			linter.Run(module)
 		}
 	}
-	g.Wait()
 }
 
 func getLintersForModule(cfg *config.ModuleConfig, errList *errors.LintRuleErrorsList) []Linter {

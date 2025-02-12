@@ -4,7 +4,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/sourcegraph/conc/pool"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/deckhouse/dmt/internal/module"
@@ -36,29 +35,13 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Probes
 func (l *Probes) Run(m *module.Module) {
 	errorList := l.ErrorList.WithModule(m.GetName())
 
-	var err error
+	for _, object := range m.GetStorage() {
+		containers, er := object.GetContainers()
+		if er != nil || containers == nil {
+			continue
+		}
 
-	go func() {
-		var g = pool.New().WithErrors()
-
-		g.Go(func() error {
-			for _, object := range m.GetStorage() {
-				containers, er := object.GetContainers()
-				if er != nil || containers == nil {
-					continue
-				}
-
-				l.containerProbes(object, containers, errorList)
-			}
-
-			return nil
-		})
-
-		err = g.Wait()
-	}()
-
-	if err != nil {
-		l.ErrorList.Errorf("Error in probes linter: %s", err)
+		l.containerProbes(object, containers, errorList)
 	}
 }
 
