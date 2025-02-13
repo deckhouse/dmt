@@ -6,7 +6,7 @@ import (
 )
 
 type LintersSettings struct {
-	OpenAPI       OpenAPISettings       `mapstructure:"openapi_settings"`
+	OpenAPI       OpenAPISettings       `mapstructure:"openapi"`
 	NoCyrillic    NoCyrillicSettings    `mapstructure:"nocyrillic"`
 	License       LicenseSettings       `mapstructure:"license"`
 	Container     ContainerSettings     `mapstructure:"container"`
@@ -39,8 +39,8 @@ func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
 
 type OpenAPISettings struct {
 	KeyBannedNames         StringRuleExcludeList `mapstructure:"key-banned-names"`
-	EnumFileExcludes       []string              `mapstructure:"enum-file-excludes"`
-	HAAbsoluteKeysExcludes StringRuleExcludeList `mapstructure:"ha-absolute-keys-excludes"`
+	EnumFileExcludes       []string              `mapstructure:"enum"`
+	HAAbsoluteKeysExcludes StringRuleExcludeList `mapstructure:"ha-absolute-keys"`
 	Impact                 pkg.Level             `mapstructure:"impact"`
 }
 

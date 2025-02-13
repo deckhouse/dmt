@@ -268,10 +268,9 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 
 		fmt.Fprintln(w)
 
-		fmt.Println(buf.String())
-
 		w.Flush()
 	}
+	fmt.Println(buf.String())
 
 	return nil
 }
