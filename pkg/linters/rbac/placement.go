@@ -82,6 +82,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 	objectName := object.Unstructured.GetName()
 	shortPath := object.ShortPath()
 	namespace := object.Unstructured.GetNamespace()
+	errorList = errorList.WithFilePath(shortPath)
 
 	if shortPath == RootRBACForUsPath {
 		if isSystemNamespace(namespace) {
@@ -149,6 +150,7 @@ func objectRBACPlacementClusterRole(m *module.Module, object storage.StoreObject
 	objectName := object.Unstructured.GetName()
 	objectKind := object.Unstructured.GetKind()
 	shortPath := object.ShortPath()
+	errorList = errorList.WithFilePath(shortPath)
 
 	name := "d8:" + m.GetName()
 	switch {
@@ -175,6 +177,7 @@ func objectRBACPlacementClusterRole(m *module.Module, object storage.StoreObject
 
 func objectRBACPlacementRole(m *module.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	shortPath := object.ShortPath()
+	errorList = errorList.WithFilePath(shortPath)
 
 	switch {
 	case shortPath == RootRBACForUsPath:

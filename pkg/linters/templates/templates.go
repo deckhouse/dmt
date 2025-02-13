@@ -40,9 +40,7 @@ func (l *Templates) Run(m *module.Module) {
 	// VPA
 	rules.NewVPARule(l.cfg.ExcludeRules.VPAAbsent.Get()).ControllerMustHaveVPA(m, errorList)
 	// PDB
-	pdb := rules.NewPDBRule(l.cfg.ExcludeRules.PDBAbsent.Get())
-	pdb.ControllerMustHavePDB(m, errorList)
-	pdb.DaemonSetMustNotHavePDB(m, errorList)
+	rules.NewPDBRule(l.cfg.ExcludeRules.PDBAbsent.Get()).ControllerMustHavePDB(m, errorList)
 
 	// monitoring
 	prometheusRule := rules.NewPrometheusRule()
