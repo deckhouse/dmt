@@ -25,7 +25,7 @@ import (
 	openapikeys "github.com/deckhouse/dmt/pkg/linters/openapi-keys"
 	"github.com/deckhouse/dmt/pkg/linters/pdb-resources"
 	"github.com/deckhouse/dmt/pkg/linters/rbac"
-	"github.com/deckhouse/dmt/pkg/linters/vpa-resources"
+	"github.com/deckhouse/dmt/pkg/linters/templates"
 )
 
 const (
@@ -116,7 +116,7 @@ func getLintersForModule(cfg *config.ModuleConfig, errList *errors.LintRuleError
 		license.New(cfg, errList),
 		container.New(cfg, errList),
 		rbacproxy.New(cfg, errList),
-		vpa.New(cfg, errList),
+		templates.New(cfg, errList),
 		pdb.New(cfg, errList),
 		crd.New(cfg, errList),
 		images.New(cfg, errList),

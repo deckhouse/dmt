@@ -40,8 +40,12 @@ linters-settings:
           name: machine-controller-manager
       service-port:
         - d8-control-plane-apiserver
-      liveness:
-        - kube-rbac-proxy
-      readiness:
-        - kube-rbac-proxy
+      liveness-probe:
+        - kind: Deployment
+          name: standby-holder-name
+          container: reserve-resources
+      readiness-probe:
+        - kind: Deployment
+          name: standby-holder-name
+          container: reserve-resources
 ```

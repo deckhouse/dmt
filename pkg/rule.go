@@ -46,6 +46,18 @@ func (r *KindRule) Enabled(object storage.StoreObject) bool {
 	return true
 }
 
+type TargetRefRule struct {
+	ExcludeRules []TargetRefRuleExclude
+}
+
+func (r *TargetRefRule) Enabled(kind, name string) bool {
+	for _, rule := range r.ExcludeRules {
+		return rule.Enabled(kind, name)
+	}
+
+	return true
+}
+
 type ContainerRule struct {
 	ExcludeRules []ContainerRuleExclude
 }
@@ -72,6 +84,20 @@ type KindRuleExclude struct {
 func (e *KindRuleExclude) Enabled(object storage.StoreObject) bool {
 	if e.Kind == object.Unstructured.GetKind() &&
 		e.Name == object.Unstructured.GetName() {
+		return false
+	}
+
+	return true
+}
+
+type TargetRefRuleExclude struct {
+	Kind string
+	Name string
+}
+
+func (e *TargetRefRuleExclude) Enabled(kind, name string) bool {
+	if e.Kind == kind &&
+		e.Name == name {
 		return false
 	}
 

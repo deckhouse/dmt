@@ -1,6 +1,7 @@
 ## Description
 
 - Check VerticalPodAutoscaler described
+templates(+): переносим pdb + vpa, переносим objectServiceTargetPort из Containers, переносим kube-rbac-proxy, переносим monitoring
 
 ## Settings example
 

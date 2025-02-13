@@ -1,4 +1,4 @@
-package vpa
+package rules
 
 import (
 	autoscaling "k8s.io/api/autoscaling/v1"

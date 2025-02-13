@@ -1,29 +1,41 @@
-package vpa
+package rules
 
 import (
 	"fmt"
-	"slices"
 
 	"github.com/flant/addon-operator/sdk"
-	appsv1 "k8s.io/api/apps/v1"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/set"
 	"github.com/deckhouse/dmt/internal/storage"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
-var skipVPAChecks []string
+const (
+	VPAAbsentRuleName = "vpa-absent"
+)
+
+func NewVPAAbsentRule(excludeRules []pkg.TargetRefRuleExclude) *VPAAbsentRule {
+	return &VPAAbsentRule{
+		RuleMeta: pkg.RuleMeta{
+			Name: VPAAbsentRuleName,
+		},
+		TargetRefRule: pkg.TargetRefRule{
+			ExcludeRules: excludeRules,
+		},
+	}
+}
+
+type VPAAbsentRule struct {
+	pkg.RuleMeta
+	pkg.TargetRefRule
+}
 
 // controllerMustHaveVPA fills linting error regarding VPA
-func (l *VPAResources) controllerMustHaveVPA(md *module.Module) {
-	errorList := l.ErrorList.WithModule(md.GetName())
-
-	if slices.Contains(skipVPAChecks, md.GetNamespace()+":"+md.GetName()) {
-		return
-	}
+func (r *VPAAbsentRule) ControllerMustHaveVPA(md *module.Module, tr *TolerationsRule, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(r.GetName())
 
 	vpaTargets, vpaTolerationGroups, vpaContainerNamesMap, vpaUpdateModes := parseTargetsAndTolerationGroups(md, errorList)
 
@@ -31,6 +43,31 @@ func (l *VPAResources) controllerMustHaveVPA(md *module.Module) {
 		// Skip non-pod controllers
 		if !IsPodController(object.Unstructured.GetKind()) {
 			continue
+		}
+
+		// spec:
+		//	targetRef:
+		//	  apiVersion: apps/v1
+		//	  kind: Deployment
+		//	  name: nginx
+		kind, foundKind, err := unstructured.NestedString(object.Unstructured.Object, "spec", "targetRef", "kind")
+		if err != nil {
+			errorList.Error("parse target ref kind")
+			return
+		}
+		name, foundName, err := unstructured.NestedString(object.Unstructured.Object, "spec", "targetRef", "name")
+		if err != nil {
+			errorList.Error("parse target ref name")
+			return
+		}
+		if !foundKind || !foundName {
+			errorList.Error("not found target ref")
+			return
+		}
+
+		if !r.Enabled(kind, name) {
+			// TODO: add metrics
+			return
 		}
 
 		ok := ensureVPAIsPresent(vpaTargets, index, errorList.WithObjectID(object.Identity()))
@@ -48,7 +85,7 @@ func (l *VPAResources) controllerMustHaveVPA(md *module.Module) {
 			continue
 		}
 
-		ensureTolerations(vpaTolerationGroups, index, object, errorList)
+		tr.EnsureTolerations(vpaTolerationGroups, index, object, errorList)
 	}
 }
 
@@ -240,42 +277,6 @@ func ensureVPAContainersMatchControllerContainers(
 }
 
 // returns true if linting passed, otherwise returns false
-func ensureTolerations(
-	vpaTolerationGroups map[storage.ResourceIndex]string,
-	index storage.ResourceIndex,
-	object storage.StoreObject,
-	errorList *errors.LintRuleErrorsList,
-) {
-	tolerations, err := getTolerationsList(object)
-
-	errorListObj := errorList.WithObjectID(object.Identity())
-
-	if err != nil {
-		errorListObj.Errorf("Get tolerations list for object failed: %v", err)
-	}
-
-	isTolerationFound := false
-	for _, toleration := range tolerations {
-		if toleration.Key == "node-role.kubernetes.io/master" || toleration.Key == "node-role.kubernetes.io/control-plane" || (toleration.Key == "" && toleration.Operator == "Exists") {
-			isTolerationFound = true
-			break
-		}
-	}
-
-	workloadLabelValue := vpaTolerationGroups[index]
-
-	errorListObjValue := errorListObj.WithValue(workloadLabelValue)
-
-	if isTolerationFound && workloadLabelValue != "every-node" && workloadLabelValue != "master" {
-		errorListObjValue.Error(`Labels "workload-resource-policy.deckhouse.io" in corresponding VPA resource not found`)
-	}
-
-	if !isTolerationFound && workloadLabelValue != "" {
-		errorListObjValue.Error(`Labels "workload-resource-policy.deckhouse.io" in corresponding VPA resource found, but tolerations is not right`)
-	}
-}
-
-// returns true if linting passed, otherwise returns false
 func ensureVPAIsPresent(
 	vpaTargets map[storage.ResourceIndex]struct{},
 	index storage.ResourceIndex,
@@ -287,44 +288,4 @@ func ensureVPAIsPresent(
 	}
 
 	return ok
-}
-
-func getTolerationsList(object storage.StoreObject) ([]v1.Toleration, error) {
-	var tolerations []v1.Toleration
-
-	converter := runtime.DefaultUnstructuredConverter
-
-	switch object.Unstructured.GetKind() {
-	case "Deployment":
-		deployment := new(appsv1.Deployment)
-
-		err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), deployment)
-		if err != nil {
-			return nil, err
-		}
-
-		tolerations = deployment.Spec.Template.Spec.Tolerations
-
-	case "DaemonSet":
-		daemonset := new(appsv1.DaemonSet)
-
-		err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), daemonset)
-		if err != nil {
-			return nil, err
-		}
-
-		tolerations = daemonset.Spec.Template.Spec.Tolerations
-
-	case "StatefulSet":
-		statefulset := new(appsv1.StatefulSet)
-
-		err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), statefulset)
-		if err != nil {
-			return nil, err
-		}
-
-		tolerations = statefulset.Spec.Template.Spec.Tolerations
-	}
-
-	return tolerations, nil
 }

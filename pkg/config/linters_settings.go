@@ -13,7 +13,7 @@ type LintersSettings struct {
 	License       LicenseSettings       `mapstructure:"license"`
 	Container     ContainerSettings     `mapstructure:"container"`
 	KubeRBACProxy KubeRBACProxySettings `mapstructure:"kube-rbac-proxy"`
-	VPAResources  VPAResourcesSettings  `mapstructure:"vpa_resources"`
+	Templates     TemplatesSettings     `mapstructure:"templates"`
 	PDBResources  PDBResourcesSettings  `mapstructure:"pdb_resources"`
 	CRDResources  CRDResourcesSettings  `mapstructure:"crd_resources"`
 	Images        ImageSettings         `mapstructure:"images"`
@@ -32,7 +32,7 @@ func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
 	assignIfNotEmpty(&cfg.License.Impact, lcfg.License.Impact)
 	assignIfNotEmpty(&cfg.Container.Impact, lcfg.Container.Impact)
 	assignIfNotEmpty(&cfg.KubeRBACProxy.Impact, lcfg.KubeRBACProxy.Impact)
-	assignIfNotEmpty(&cfg.VPAResources.Impact, lcfg.VPAResources.Impact)
+	assignIfNotEmpty(&cfg.Templates.Impact, lcfg.VPAResources.Impact)
 	assignIfNotEmpty(&cfg.PDBResources.Impact, lcfg.PDBResources.Impact)
 	assignIfNotEmpty(&cfg.CRDResources.Impact, lcfg.CRDResources.Impact)
 	assignIfNotEmpty(&cfg.Images.Impact, lcfg.Images.Impact)
@@ -86,8 +86,8 @@ type ContainerExcludeRules struct {
 	ReadOnlyRootFilesystem ContainerRuleExcludeList `mapstructure:"read-only-root-filesystem"`
 	Resources              ContainerRuleExcludeList `mapstructure:"resources"`
 	SecurityContext        ContainerRuleExcludeList `mapstructure:"security-context"`
-	Liveness               ContainerRuleExcludeList `mapstructure:"liveness"`
-	Readiness              ContainerRuleExcludeList `mapstructure:"readiness"`
+	Liveness               ContainerRuleExcludeList `mapstructure:"liveness-probe"`
+	Readiness              ContainerRuleExcludeList `mapstructure:"readiness-probe"`
 
 	DNSPolicy KindRuleExcludeList `mapstructure:"dns-policy"`
 
@@ -101,16 +101,21 @@ type KubeRBACProxySettings struct {
 	Impact pkg.Level `mapstructure:"impact"`
 }
 
-type VPAResourcesSettings struct {
-	SkipVPAChecks []string                 `mapstructure:"skip-vpa-checks"`
-	ExcludeRules  VPAResourcesExcludeRules `mapstructure:"exclude-rules"`
+type TemplatesSettings struct {
+	SkipVPAChecks []string              `mapstructure:"skip-vpa-checks"`
+	ExcludeRules  TemplatesExcludeRules `mapstructure:"exclude-rules"`
 
 	Impact pkg.Level `mapstructure:"impact"`
 }
 
-type VPAResourcesExcludeRules struct {
-	Absent      KindRuleExcludeList `mapstructure:"absent"`
-	Tolerations KindRuleExcludeList `mapstructure:"tolerations"`
+type TemplatesExcludeRules struct {
+	Absent      TargetRefRuleExcludeList `mapstructure:"absent"`
+	Tolerations TargetRefRuleExcludeList `mapstructure:"tolerations"`
+}
+
+type VPARuleSettings struct {
+	// disable conversions rule completely
+	Disable bool `mapstructure:"disable"`
 }
 
 type PDBResourcesSettings struct {
@@ -216,6 +221,18 @@ func (l KindRuleExcludeList) Get() []pkg.KindRuleExclude {
 	return result
 }
 
+type TargetRefRuleExcludeList []TargetRefRuleExclude
+
+func (l TargetRefRuleExcludeList) Get() []pkg.TargetRefRuleExclude {
+	result := make([]pkg.TargetRefRuleExclude, 0, len(l))
+
+	for idx := range l {
+		result = append(result, *remapTargetRefRuleExclude(&l[idx]))
+	}
+
+	return result
+}
+
 type ContainerRuleExcludeList []ContainerRuleExclude
 
 func (l ContainerRuleExcludeList) Get() []pkg.ContainerRuleExclude {
@@ -233,6 +250,11 @@ type KindRuleExclude struct {
 	Name string `mapstructure:"name"`
 }
 
+type TargetRefRuleExclude struct {
+	Kind string `mapstructure:"kind"`
+	Name string `mapstructure:"name"`
+}
+
 type ContainerRuleExclude struct {
 	Kind      string `mapstructure:"kind"`
 	Name      string `mapstructure:"name"`
@@ -241,6 +263,12 @@ type ContainerRuleExclude struct {
 
 func remapKindRuleExclude(input *KindRuleExclude) *pkg.KindRuleExclude {
 	return &pkg.KindRuleExclude{
+		Kind: input.Kind,
+		Name: input.Name,
+	}
+}
+func remapTargetRefRuleExclude(input *TargetRefRuleExclude) *pkg.TargetRefRuleExclude {
+	return &pkg.TargetRefRuleExclude{
 		Kind: input.Kind,
 		Name: input.Name,
 	}

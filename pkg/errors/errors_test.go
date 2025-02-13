@@ -21,9 +21,9 @@ func Test_Errors(t *testing.T) {
 	require.Empty(t, t1.objectID)
 	require.NotEqual(t, t1, t2)
 	require.NotEqual(t, t1.objectID, t2.objectID)
-	t1.Add("test1")
+	t1.Error("test1")
 	require.Len(t, t1.storage.GetErrors(), 1)
-	t2.Add("test2")
+	t2.Error("test2")
 	require.Len(t, t1.storage.GetErrors(), 2)
 	require.Len(t, t2.storage.GetErrors(), 2)
 	require.Equal(t,
@@ -31,7 +31,7 @@ func Test_Errors(t *testing.T) {
 			{LinterID: "linterid", ModuleID: "moduleID", RuleID: "", ObjectID: "", Text: "test1", Level: pkg.Error},
 			{LinterID: "linterid", ModuleID: "moduleID", RuleID: "", ObjectID: "objectID", Text: "test2", Level: pkg.Error}},
 		t1.storage.GetErrors())
-	t1.Add("test3")
+	t1.Error("test3")
 	require.Len(t, t1.storage.GetErrors(), 3)
 	require.Equal(t,
 		[]lintRuleError{
@@ -42,7 +42,7 @@ func Test_Errors(t *testing.T) {
 		t1.storage.GetErrors())
 	t3 := NewLinterRuleList("linterID", "moduleID2")
 	require.NotNil(t, t3)
-	t3.WithObjectID("objectID3").Add("test3")
+	t3.WithObjectID("objectID3").Error("test3")
 	require.Equal(t,
 		[]lintRuleError{
 			{LinterID: "linterid", ModuleID: "moduleID2", ObjectID: "objectID3", Text: "test3", Level: pkg.Error},
