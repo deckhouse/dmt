@@ -26,7 +26,7 @@ import (
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg/errors"
 
-	"k8s.io/kubernetes/pkg/apis/core"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -41,7 +41,7 @@ const (
 var deckhouseNamespaces = []string{"d8-monitoring", "d8-system", "d8-admission-policy-engine", "d8-operator-trivy", "d8-log-shipper", "d8-local-path-provisioner"}
 
 func isSystemNamespace(actual string) bool {
-	return actual == core.NamespaceDefault || actual == core.NamespaceSystem
+	return actual == metav1.NamespaceDefault || actual == metav1.NamespaceSystem
 }
 
 func isDeckhouseSystemNamespace(actual string) bool {

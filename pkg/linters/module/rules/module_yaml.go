@@ -59,7 +59,7 @@ type ModulePlatformRequirements struct {
 }
 
 func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.Name)
+	errorList = errorList.WithRule(r.GetName())
 
 	if !r.Enabled() {
 		// TODO: add metrics

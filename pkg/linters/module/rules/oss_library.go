@@ -36,7 +36,7 @@ type OSSRule struct {
 const ossFilename = "oss.yaml"
 
 func (r *OSSRule) OssModuleRule(moduleRoot string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.Name)
+	errorList = errorList.WithRule(r.GetName())
 
 	if !r.Enabled() {
 		// TODO: add metrics
