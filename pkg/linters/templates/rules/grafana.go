@@ -46,13 +46,15 @@ func (r *GrafanaRule) ValidationGrafanaDashboards(m *module.Module, errorList *e
 
 	monitoringFilePath := filepath.Join(m.GetPath(), "templates", "monitoring.yaml")
 	if info, _ := os.Stat(monitoringFilePath); info == nil {
-		errorList.WithFilePath(monitoringFilePath).Error("Module with the 'monitoring' folder should have the 'templates/monitoring.yaml' file")
+		errorList.WithFilePath(monitoringFilePath).
+			Error("Module with the 'monitoring' folder should have the 'templates/monitoring.yaml' file")
 		return
 	}
 
 	content, err := os.ReadFile(monitoringFilePath)
 	if err != nil {
-		errorList.WithFilePath(monitoringFilePath).Errorf("Cannot read 'templates/monitoring.yaml' file: %s", err)
+		errorList.WithFilePath(monitoringFilePath).
+			Errorf("Cannot read 'templates/monitoring.yaml' file: %s", err)
 		return
 	}
 
