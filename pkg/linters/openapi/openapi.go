@@ -10,6 +10,7 @@ import (
 	"github.com/deckhouse/dmt/internal/openapi"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters/openapi/rules"
 )
 
 // OpenAPI linter
@@ -34,8 +35,8 @@ func (o *OpenAPI) Run(m *module.Module) {
 	// check openAPI and CRDs files
 	openAPIFiles := fsutils.GetFiles(m.GetPath(), true, filterOpenAPIfiles)
 
-	enumValidator := NewEnumValidator(o.cfg)
-	haValidator := NewHAValidator(o.cfg)
+	enumValidator := rules.NewEnumValidator(o.cfg)
+	haValidator := rules.NewHAValidator(o.cfg)
 
 	for _, file := range openAPIFiles {
 		if err := openapi.Parse(enumValidator.Run, file); err != nil {
@@ -48,7 +49,9 @@ func (o *OpenAPI) Run(m *module.Module) {
 
 	// check only CRDs files
 	crdFiles := fsutils.GetFiles(m.GetPath(), true, filterCRDsfiles)
-	KeyValidator := NewKeyValidator(o.cfg)
+	crdValidator := rules.NewDeckhouseCRDsRule()
+
+	KeyValidator := rules.NewKeyValidator(o.cfg)
 	for _, file := range crdFiles {
 		if err := openapi.Parse(enumValidator.Run, file); err != nil {
 			errorLists.WithFilePath(fsutils.Rel(m.GetPath(), file)).Errorf("CRD file is not valid:\n%s", err)
@@ -59,7 +62,7 @@ func (o *OpenAPI) Run(m *module.Module) {
 		if err := openapi.Parse(KeyValidator.Run, file); err != nil {
 			errorLists.WithFilePath(fsutils.Rel(m.GetPath(), file)).Errorf("CRD file is not valid: %s", err)
 		}
-		validateDeckhouseCRDS(m.GetName(), file, errorLists)
+		crdValidator.Run(file, errorLists)
 	}
 }
 
