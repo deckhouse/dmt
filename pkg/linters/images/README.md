@@ -4,8 +4,6 @@
 - Check Dockerfile
 - Check that images are distroless
 
-
-
 ## Settings example
 
 ## Module level
