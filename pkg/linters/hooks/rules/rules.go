@@ -36,7 +36,7 @@ func (l *HookRule) CheckIngressCopyCustomCertificateRule(m *module.Module, objec
 		copyCustomCertificateImport = `"github.com/deckhouse/deckhouse/go_lib/hooks/copy_custom_certificate"`
 	)
 
-	if l.Enabled() {
+	if !l.Enabled() {
 		return
 	}
 
