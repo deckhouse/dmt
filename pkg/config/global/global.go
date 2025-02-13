@@ -7,15 +7,14 @@ type Global struct {
 }
 
 type Linters struct {
-	OpenAPI    LinterConfig `mapstructure:"openapi"`
-	NoCyrillic LinterConfig `mapstructure:"nocyrillic"`
-	License    LinterConfig `mapstructure:"license"`
 	Container  LinterConfig `mapstructure:"container"`
-	Images     LinterConfig `mapstructure:"images"`
-	Rbac       LinterConfig `mapstructure:"rbac"`
-	Resources  LinterConfig `mapstructure:"resources"`
 	Hooks      LinterConfig `mapstructure:"hooks"`
+	Images     LinterConfig `mapstructure:"images"`
+	License    LinterConfig `mapstructure:"license"`
 	Module     LinterConfig `mapstructure:"module"`
+	NoCyrillic LinterConfig `mapstructure:"nocyrillic"`
+	OpenAPI    LinterConfig `mapstructure:"openapi"`
+	Rbac       LinterConfig `mapstructure:"rbac"`
 	Templates  LinterConfig `mapstructure:"templates"`
 }
 

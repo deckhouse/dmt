@@ -6,15 +6,14 @@ import (
 )
 
 type LintersSettings struct {
-	OpenAPI    OpenAPISettings    `mapstructure:"openapi"`
-	NoCyrillic NoCyrillicSettings `mapstructure:"nocyrillic"`
-	License    LicenseSettings    `mapstructure:"license"`
 	Container  ContainerSettings  `mapstructure:"container"`
-	Images     ImageSettings      `mapstructure:"images"`
-	Rbac       RbacSettings       `mapstructure:"rbac"`
-	Resources  ResourcesSettings  `mapstructure:"resources"`
 	Hooks      HooksSettings      `mapstructure:"hooks"`
+	Images     ImageSettings      `mapstructure:"images"`
+	License    LicenseSettings    `mapstructure:"license"`
 	Module     ModuleSettings     `mapstructure:"module"`
+	NoCyrillic NoCyrillicSettings `mapstructure:"nocyrillic"`
+	OpenAPI    OpenAPISettings    `mapstructure:"openapi"`
+	Rbac       RbacSettings       `mapstructure:"rbac"`
 	Templates  TemplatesSettings  `mapstructure:"templates"`
 }
 
@@ -26,38 +25,8 @@ func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
 	assignIfNotEmpty(&cfg.Templates.Impact, lcfg.Templates.Impact)
 	assignIfNotEmpty(&cfg.Images.Impact, lcfg.Images.Impact)
 	assignIfNotEmpty(&cfg.Rbac.Impact, lcfg.Rbac.Impact)
-	assignIfNotEmpty(&cfg.Resources.Impact, lcfg.Resources.Impact)
 	assignIfNotEmpty(&cfg.Hooks.Impact, lcfg.Hooks.Impact)
 	assignIfNotEmpty(&cfg.Module.Impact, lcfg.Module.Impact)
-}
-
-type OpenAPISettings struct {
-	OpenAPIExcludeRules `mapstructure:"exclude-rules"`
-
-	Impact pkg.Level `mapstructure:"impact"`
-}
-
-type OpenAPIExcludeRules struct {
-	KeyBannedNames         []string              `mapstructure:"key-banned-names"`
-	EnumFileExcludes       []string              `mapstructure:"enum"`
-	HAAbsoluteKeysExcludes StringRuleExcludeList `mapstructure:"ha-absolute-keys"`
-}
-
-type NoCyrillicSettings struct {
-	NoCyrillicFileExcludes []string `mapstructure:"no-cyrillic-file-excludes"`
-
-	Impact pkg.Level `mapstructure:"impact"`
-}
-
-type LicenseSettings struct {
-	CopyrightExcludes []string            `mapstructure:"copyright-excludes"`
-	ExcludeRules      LicenseExcludeRules `mapstructure:"exclude-rules"`
-
-	Impact pkg.Level `mapstructure:"impact"`
-}
-
-type LicenseExcludeRules struct {
-	Files StringRuleExcludeList `mapstructure:"files"`
 }
 
 type ContainerSettings struct {
@@ -79,36 +48,15 @@ type ContainerExcludeRules struct {
 	Description StringRuleExcludeList `mapstructure:"description"`
 }
 
-type TemplatesSettings struct {
-	SkipVPAChecks []string              `mapstructure:"skip-vpa-checks"`
-	ExcludeRules  TemplatesExcludeRules `mapstructure:"exclude-rules"`
+type HooksSettings struct {
+	Ingress HooksIngressRuleSetting `mapstructure:"ingress"`
 
 	Impact pkg.Level `mapstructure:"impact"`
 }
 
-type TemplatesExcludeRules struct {
-	VPAAbsent     KindRuleExcludeList   `mapstructure:"vpa"`
-	PDBAbsent     KindRuleExcludeList   `mapstructure:"pdb"`
-	ServicePort   StringRuleExcludeList `mapstructure:"service-port"`
-	KubeRBACProxy StringRuleExcludeList `mapstructure:"kube-rbac-proxy"`
-}
-
-type ResourcesSettings struct {
-	Impact pkg.Level `mapstructure:"impact"`
-}
-
-type RbacSettings struct {
-	SkipCheckWildcards     map[string][]string `mapstructure:"skip-check-wildcards"`
-	SkipModuleCheckBinding []string            `mapstructure:"skip-module-check-binding"`
-	SkipObjectCheckBinding []string            `mapstructure:"skip-object-check-binding"`
-	ExcludeRules           RBACExcludeRules    `mapstructure:"exclude-rules"`
-
-	Impact pkg.Level `mapstructure:"impact"`
-}
-
-type RBACExcludeRules struct {
-	Placement KindRuleExcludeList `mapstructure:"placement"`
-	Wildcards KindRuleExcludeList `mapstructure:"wildcards"`
+type HooksIngressRuleSetting struct {
+	// disable ingress rule completely
+	Disable bool `mapstructure:"disable"`
 }
 
 type ImageSettings struct {
@@ -119,15 +67,15 @@ type ImageSettings struct {
 	Impact pkg.Level `mapstructure:"impact"`
 }
 
-type HooksSettings struct {
-	Ingress HooksIngressRuleSetting `mapstructure:"ingress"`
+type LicenseSettings struct {
+	CopyrightExcludes []string            `mapstructure:"copyright-excludes"`
+	ExcludeRules      LicenseExcludeRules `mapstructure:"exclude-rules"`
 
 	Impact pkg.Level `mapstructure:"impact"`
 }
 
-type HooksIngressRuleSetting struct {
-	// disable ingress rule completely
-	Disable bool `mapstructure:"disable"`
+type LicenseExcludeRules struct {
+	Files StringRuleExcludeList `mapstructure:"files"`
 }
 
 type ModuleSettings struct {
@@ -153,6 +101,52 @@ type ModuleDefinitionFileRuleSettings struct {
 type ConversionsRuleSettings struct {
 	// disable conversions rule completely
 	Disable bool `mapstructure:"disable"`
+}
+
+type NoCyrillicSettings struct {
+	NoCyrillicFileExcludes []string `mapstructure:"no-cyrillic-file-excludes"`
+
+	Impact pkg.Level `mapstructure:"impact"`
+}
+
+type OpenAPISettings struct {
+	OpenAPIExcludeRules `mapstructure:"exclude-rules"`
+
+	Impact pkg.Level `mapstructure:"impact"`
+}
+
+type OpenAPIExcludeRules struct {
+	KeyBannedNames         []string              `mapstructure:"key-banned-names"`
+	EnumFileExcludes       []string              `mapstructure:"enum"`
+	HAAbsoluteKeysExcludes StringRuleExcludeList `mapstructure:"ha-absolute-keys"`
+}
+
+type RbacSettings struct {
+	SkipCheckWildcards     map[string][]string `mapstructure:"skip-check-wildcards"`
+	SkipModuleCheckBinding []string            `mapstructure:"skip-module-check-binding"`
+	SkipObjectCheckBinding []string            `mapstructure:"skip-object-check-binding"`
+	ExcludeRules           RBACExcludeRules    `mapstructure:"exclude-rules"`
+
+	Impact pkg.Level `mapstructure:"impact"`
+}
+
+type RBACExcludeRules struct {
+	Placement KindRuleExcludeList `mapstructure:"placement"`
+	Wildcards KindRuleExcludeList `mapstructure:"wildcards"`
+}
+
+type TemplatesSettings struct {
+	SkipVPAChecks []string              `mapstructure:"skip-vpa-checks"`
+	ExcludeRules  TemplatesExcludeRules `mapstructure:"exclude-rules"`
+
+	Impact pkg.Level `mapstructure:"impact"`
+}
+
+type TemplatesExcludeRules struct {
+	VPAAbsent     KindRuleExcludeList   `mapstructure:"vpa"`
+	PDBAbsent     KindRuleExcludeList   `mapstructure:"pdb"`
+	ServicePort   StringRuleExcludeList `mapstructure:"service-port"`
+	KubeRBACProxy StringRuleExcludeList `mapstructure:"kube-rbac-proxy"`
 }
 
 type StringRuleExcludeList []string
