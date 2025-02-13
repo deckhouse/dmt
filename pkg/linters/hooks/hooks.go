@@ -14,12 +14,12 @@ type Hooks struct {
 	ErrorList  *errors.LintRuleErrorsList
 }
 
-const ID = "ingress"
+const ID = "hooks"
 
 func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Hooks {
 	return &Hooks{
 		name:      ID,
-		desc:      "Lint ingresses rules",
+		desc:      "Lint hooks",
 		cfg:       &cfg.LintersSettings.Hooks,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Hooks.Impact),
 	}
