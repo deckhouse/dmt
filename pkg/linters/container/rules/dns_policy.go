@@ -32,7 +32,7 @@ type DNSPolicyRule struct {
 func (r *DNSPolicyRule) ObjectDNSPolicy(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
-	if !r.Enabled(object) {
+	if !r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {
 		// TODO: add metrics
 		return
 	}

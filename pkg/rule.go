@@ -40,21 +40,7 @@ type KindRule struct {
 	ExcludeRules []KindRuleExclude
 }
 
-func (r *KindRule) Enabled(object storage.StoreObject) bool {
-	for _, rule := range r.ExcludeRules {
-		if !rule.Enabled(object) {
-			return false
-		}
-	}
-
-	return true
-}
-
-type TargetRefRule struct {
-	ExcludeRules []TargetRefRuleExclude
-}
-
-func (r *TargetRefRule) Enabled(kind, name string) bool {
+func (r *KindRule) Enabled(kind, name string) bool {
 	for _, rule := range r.ExcludeRules {
 		if !rule.Enabled(kind, name) {
 			return false
@@ -89,27 +75,8 @@ type KindRuleExclude struct {
 	Name string
 }
 
-func (e *KindRuleExclude) Enabled(object storage.StoreObject) bool {
-	if e.Kind == object.Unstructured.GetKind() &&
-		e.Name == object.Unstructured.GetName() {
-		return false
-	}
-
-	return true
-}
-
-type TargetRefRuleExclude struct {
-	Kind string
-	Name string
-}
-
-func (e *TargetRefRuleExclude) Enabled(kind, name string) bool {
-	if e.Kind == kind &&
-		e.Name == name {
-		return false
-	}
-
-	return true
+func (e *KindRuleExclude) Enabled(kind, name string) bool {
+	return e.Kind == kind && e.Name == name
 }
 
 type ContainerRuleExclude struct {
@@ -119,11 +86,7 @@ type ContainerRuleExclude struct {
 }
 
 func (e *ContainerRuleExclude) Enabled(object storage.StoreObject, container *corev1.Container) bool {
-	if e.Kind == object.Unstructured.GetKind() &&
+	return e.Kind == object.Unstructured.GetKind() &&
 		e.Name == object.Unstructured.GetName() &&
-		(e.Container == "" || e.Container == container.Name) {
-		return false
-	}
-
-	return true
+		(e.Container == "" || e.Container == container.Name)
 }

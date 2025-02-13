@@ -18,12 +18,12 @@ const (
 	VPARuleName = "vpa"
 )
 
-func NewVPARule(excludeRules []pkg.TargetRefRuleExclude) *VPARule {
+func NewVPARule(excludeRules []pkg.KindRuleExclude) *VPARule {
 	return &VPARule{
 		RuleMeta: pkg.RuleMeta{
 			Name: VPARuleName,
 		},
-		TargetRefRule: pkg.TargetRefRule{
+		KindRule: pkg.KindRule{
 			ExcludeRules: excludeRules,
 		},
 	}
@@ -31,7 +31,7 @@ func NewVPARule(excludeRules []pkg.TargetRefRuleExclude) *VPARule {
 
 type VPARule struct {
 	pkg.RuleMeta
-	pkg.TargetRefRule
+	pkg.KindRule
 }
 
 // controllerMustHaveVPA fills linting error regarding VPA

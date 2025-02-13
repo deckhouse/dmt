@@ -87,10 +87,10 @@ type TemplatesSettings struct {
 }
 
 type TemplatesExcludeRules struct {
-	VPAAbsent     TargetRefRuleExcludeList `mapstructure:"vpa"`
-	PDBAbsent     TargetRefRuleExcludeList `mapstructure:"pdb"`
-	ServicePort   StringRuleExcludeList    `mapstructure:"service-port"`
-	KubeRBACProxy StringRuleExcludeList    `mapstructure:"kube-rbac-proxy"`
+	VPAAbsent     KindRuleExcludeList   `mapstructure:"vpa"`
+	PDBAbsent     KindRuleExcludeList   `mapstructure:"pdb"`
+	ServicePort   StringRuleExcludeList `mapstructure:"service-port"`
+	KubeRBACProxy StringRuleExcludeList `mapstructure:"kube-rbac-proxy"`
 }
 
 type ResourcesSettings struct {
@@ -179,18 +179,6 @@ func (l KindRuleExcludeList) Get() []pkg.KindRuleExclude {
 	return result
 }
 
-type TargetRefRuleExcludeList []TargetRefRuleExclude
-
-func (l TargetRefRuleExcludeList) Get() []pkg.TargetRefRuleExclude {
-	result := make([]pkg.TargetRefRuleExclude, 0, len(l))
-
-	for idx := range l {
-		result = append(result, *remapTargetRefRuleExclude(&l[idx]))
-	}
-
-	return result
-}
-
 type ContainerRuleExcludeList []ContainerRuleExclude
 
 func (l ContainerRuleExcludeList) Get() []pkg.ContainerRuleExclude {
@@ -208,11 +196,6 @@ type KindRuleExclude struct {
 	Name string `mapstructure:"name"`
 }
 
-type TargetRefRuleExclude struct {
-	Kind string `mapstructure:"kind"`
-	Name string `mapstructure:"name"`
-}
-
 type ContainerRuleExclude struct {
 	Kind      string `mapstructure:"kind"`
 	Name      string `mapstructure:"name"`
@@ -221,12 +204,6 @@ type ContainerRuleExclude struct {
 
 func remapKindRuleExclude(input *KindRuleExclude) *pkg.KindRuleExclude {
 	return &pkg.KindRuleExclude{
-		Kind: input.Kind,
-		Name: input.Name,
-	}
-}
-func remapTargetRefRuleExclude(input *TargetRefRuleExclude) *pkg.TargetRefRuleExclude {
-	return &pkg.TargetRefRuleExclude{
 		Kind: input.Kind,
 		Name: input.Name,
 	}

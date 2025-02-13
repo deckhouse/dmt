@@ -19,12 +19,12 @@ const (
 	PDBRuleName = "pdb"
 )
 
-func NewPDBRule(excludeRules []pkg.TargetRefRuleExclude) *PDBRule {
+func NewPDBRule(excludeRules []pkg.KindRuleExclude) *PDBRule {
 	return &PDBRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: PDBRuleName,
 		},
-		TargetRefRule: pkg.TargetRefRule{
+		KindRule: pkg.KindRule{
 			ExcludeRules: excludeRules,
 		},
 	}
@@ -32,7 +32,7 @@ func NewPDBRule(excludeRules []pkg.TargetRefRuleExclude) *PDBRule {
 
 type PDBRule struct {
 	pkg.RuleMeta
-	pkg.TargetRefRule
+	pkg.KindRule
 }
 
 type nsLabelSelector struct {
