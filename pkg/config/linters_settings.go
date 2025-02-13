@@ -33,7 +33,7 @@ func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
 	assignIfNotEmpty(&cfg.License.Impact, lcfg.License.Impact)
 	assignIfNotEmpty(&cfg.Probes.Impact, lcfg.Probes.Impact)
 	assignIfNotEmpty(&cfg.Container.Impact, lcfg.Container.Impact)
-	assignIfNotEmpty(&cfg.KubeRBACProxy.Impact, lcfg.K8SResources.Impact)
+	assignIfNotEmpty(&cfg.KubeRBACProxy.Impact, lcfg.KubeRBACProxy.Impact)
 	assignIfNotEmpty(&cfg.VPAResources.Impact, lcfg.VPAResources.Impact)
 	assignIfNotEmpty(&cfg.PDBResources.Impact, lcfg.PDBResources.Impact)
 	assignIfNotEmpty(&cfg.CRDResources.Impact, lcfg.CRDResources.Impact)
