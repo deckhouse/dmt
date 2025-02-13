@@ -75,14 +75,14 @@ func (r *LivenessRule) CheckProbe(object storage.StoreObject, containers []v1.Co
 
 		if !r.Enabled(object, c) {
 			// TODO: add metrics
-			return
+			continue
 		}
 
-		errorList = errorList.WithObjectID(object.Identity() + " ; container = " + c.Name)
+		errorList = errorList.WithObjectID(object.Identity() + " ; container = " + c.Name).WithFilePath(object.ShortPath())
 
 		livenessProbe := c.LivenessProbe
 		if livenessProbe == nil {
-			errorList.Error("Container does not contains liveness-probe")
+			errorList.Error("Container does not contain liveness-probe")
 
 			return
 		}
@@ -102,14 +102,14 @@ func (r *ReadinessRuleNameRule) CheckProbe(object storage.StoreObject, container
 
 		if !r.Enabled(object, c) {
 			// TODO: add metrics
-			return
+			continue
 		}
 
-		errorList = errorList.WithObjectID(object.Identity() + " ; container = " + c.Name)
+		errorList = errorList.WithObjectID(object.Identity() + " ; container = " + c.Name).WithFilePath(object.ShortPath())
 
 		readinessProbe := c.ReadinessProbe
 		if readinessProbe == nil {
-			errorList.Error("Container does not contains readiness-probe")
+			errorList.Error("Container does not contain readiness-probe")
 
 			return
 		}
