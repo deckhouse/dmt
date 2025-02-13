@@ -62,32 +62,7 @@ func (l *Monitoring) checkMonitoringRules(moduleName, modulePath, moduleNamespac
 		return
 	}
 
-	validatePrometheusRules(modulePath, moduleNamespace, monitoringFilePath, string(content), errorList)
-
 	validationGrafanaDashboards(modulePath, moduleNamespace, monitoringFilePath, string(content), errorList)
-}
-
-func validatePrometheusRules(modulePath, moduleNamespace, monitoringFilePath, content string, errList *errors.LintRuleErrorsList) {
-	searchPath := filepath.Join(modulePath, "monitoring", "prometheus-rules")
-	_, err := os.Stat(searchPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return
-		}
-		errList.Errorf("reading the 'monitoring/prometheus-rules' folder failed: %s", err)
-		return
-	}
-
-	desiredContent := "{{- include \"helm_lib_prometheus_rules\" (list . %q) }}"
-
-	if !isContentMatching(content, desiredContent, moduleNamespace, true) {
-		errList.WithFilePath(monitoringFilePath).Errorf(
-			"The content of the 'templates/monitoring.yaml' should be equal to:\n%s\nGot:\n%s",
-			fmt.Sprintf(desiredContent, "YOUR NAMESPACE TO DEPLOY RULES: d8-monitoring, d8-system or module namespaces"),
-			content,
-		)
-		return
-	}
 }
 
 func validationGrafanaDashboards(modulePath, moduleNamespace, monitoringFilePath, content string, errList *errors.LintRuleErrorsList) {

@@ -30,11 +30,6 @@ func (l *Monitoring) Run(m *module.Module) {
 	}
 
 	l.checkMonitoringRules(m.GetName(), m.GetPath(), m.GetNamespace())
-
-	// TODO: compile code instead of external binary - promtool
-	for _, object := range m.GetStorage() {
-		l.promtoolRuleCheck(m, object)
-	}
 }
 
 func (l *Monitoring) Name() string {
