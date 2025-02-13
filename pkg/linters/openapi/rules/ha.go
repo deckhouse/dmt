@@ -5,20 +5,55 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/deckhouse/dmt/internal/openapi"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
+	"github.com/deckhouse/dmt/pkg/errors"
 )
 
-type HAValidator struct {
+type HARule struct {
 	cfg *config.OpenAPISettings
+	pkg.RuleMeta
+	pkg.StringRule
 }
 
-func NewHAValidator(cfg *config.OpenAPISettings) HAValidator {
-	return HAValidator{
+func NewHARule(cfg *config.OpenAPISettings) *HARule {
+	return &HARule{
 		cfg: cfg,
+		RuleMeta: pkg.RuleMeta{
+			Name: "openapi-ha",
+		},
+		StringRule: pkg.StringRule{
+			ExcludeRules: cfg.HAAbsoluteKeysExcludes.Get(),
+		},
 	}
 }
 
-func (HAValidator) Run(_, absoluteKey string, value any) error {
+func (e *HARule) Run(path string, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(e.GetName())
+
+	haValidator := newHAValidator(e.StringRule)
+
+	if err := openapi.Parse(haValidator.run, path); err != nil {
+		errorList.WithFilePath(path).Errorf("openAPI file is not valid:\n%s", err)
+	}
+}
+
+type haValidator struct {
+	rule pkg.StringRule
+}
+
+func newHAValidator(rule pkg.StringRule) haValidator {
+	return haValidator{
+		rule: rule,
+	}
+}
+
+func (v *haValidator) run(absoluteKey string, value any) error {
+	if !v.rule.Enabled(absoluteKey) {
+		return nil
+	}
+
 	// Ignore key inside a deep structure, like properties.internal.spec.xxx
 	if absoluteKey != "properties.highAvailability" {
 		return nil

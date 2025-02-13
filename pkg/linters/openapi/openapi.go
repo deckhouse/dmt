@@ -7,7 +7,6 @@ import (
 
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/module"
-	"github.com/deckhouse/dmt/internal/openapi"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/openapi/rules"
@@ -35,33 +34,22 @@ func (o *OpenAPI) Run(m *module.Module) {
 	// check openAPI and CRDs files
 	openAPIFiles := fsutils.GetFiles(m.GetPath(), true, filterOpenAPIfiles)
 
-	enumValidator := rules.NewEnumValidator(o.cfg)
-	haValidator := rules.NewHAValidator(o.cfg)
+	enumValidator := rules.NewEnumRule(o.cfg)
+	haValidator := rules.NewHARule(o.cfg)
 
 	for _, file := range openAPIFiles {
-		if err := openapi.Parse(enumValidator.Run, file); err != nil {
-			errorLists.WithFilePath(fsutils.Rel(m.GetPath(), file)).Errorf("openAPI file is not valid:\n%s", err)
-		}
-		if err := openapi.Parse(haValidator.Run, file); err != nil {
-			errorLists.WithFilePath(fsutils.Rel(m.GetPath(), file)).Errorf("openAPI file is not valid:\n%s", err)
-		}
+		enumValidator.Run(file, errorLists)
+		haValidator.Run(file, errorLists)
 	}
 
 	// check only CRDs files
 	crdFiles := fsutils.GetFiles(m.GetPath(), true, filterCRDsfiles)
 	crdValidator := rules.NewDeckhouseCRDsRule()
-
-	KeyValidator := rules.NewKeyValidator(o.cfg)
+	keyValidator := rules.NewKeysRule(o.cfg)
 	for _, file := range crdFiles {
-		if err := openapi.Parse(enumValidator.Run, file); err != nil {
-			errorLists.WithFilePath(fsutils.Rel(m.GetPath(), file)).Errorf("CRD file is not valid:\n%s", err)
-		}
-		if err := openapi.Parse(haValidator.Run, file); err != nil {
-			errorLists.WithFilePath(fsutils.Rel(m.GetPath(), file)).Errorf("CRD file is not valid:\n%s", err)
-		}
-		if err := openapi.Parse(KeyValidator.Run, file); err != nil {
-			errorLists.WithFilePath(fsutils.Rel(m.GetPath(), file)).Errorf("CRD file is not valid: %s", err)
-		}
+		enumValidator.Run(file, errorLists)
+		haValidator.Run(file, errorLists)
+		keyValidator.Run(file, errorLists)
 		crdValidator.Run(file, errorLists)
 	}
 }
