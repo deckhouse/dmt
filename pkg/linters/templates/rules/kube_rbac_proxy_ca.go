@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	KubeRbacProxyRuleName = "pdb"
+	KubeRbacProxyRuleName = "kube-rbac-proxy"
 )
 
 func NewKubeRbacProxyRule(excludeRules []pkg.StringRuleExclude) *KubeRbacProxyRule {
