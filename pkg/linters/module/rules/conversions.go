@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	ConversionsRuleName = "module-yaml"
+	ConversionsRuleName = "conversions"
 )
 
 func NewConversionsRule(disable bool) *ConversionsRule {
