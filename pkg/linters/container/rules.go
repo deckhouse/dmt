@@ -62,7 +62,7 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 		containerPorts,
 		rules.NewLivenessRule(l.cfg.ExcludeRules.Liveness.Get()).
 			CheckProbe,
-		rules.NewReadinessRule(l.cfg.ExcludeRules.Liveness.Get()).
+		rules.NewReadinessRule(l.cfg.ExcludeRules.Readiness.Get()).
 			CheckProbe,
 	}
 

@@ -46,15 +46,9 @@ func (r *VPARule) ControllerMustHaveVPA(md *module.Module, errorList *errors.Lin
 			continue
 		}
 
-		targetRef, err := parseTargetRef(object)
-		if err != nil {
-			errorList.Errorf("parse target ref: %s", err)
-			return
-		}
-
-		if !r.Enabled(targetRef.Kind, targetRef.Name) {
+		if !r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {
 			// TODO: add metrics
-			return
+			continue
 		}
 
 		ok := ensureVPAIsPresent(vpaTargets, index, errorList.WithObjectID(object.Identity()))

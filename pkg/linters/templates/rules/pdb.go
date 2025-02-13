@@ -56,57 +56,17 @@ func (r *PDBRule) ControllerMustHavePDB(md *module.Module, errorList *errors.Lin
 			continue
 		}
 
-		targetRef, err := parseTargetRef(object)
-		if err != nil {
-			errorList.Errorf("parse target ref: %s", err)
-			return
-		}
-
-		if !r.Enabled(targetRef.Kind, targetRef.Name) {
+		if !r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {
 			// TODO: add metrics
-			return
+			continue
 		}
 
-		if isPodControllerDaemonSet(object.Unstructured.GetKind()) {
-			continue
+		if len(pdbSelectors) == 0 {
+			errorList.WithObjectID(object.Identity()).Error("No PodDisruptionBudget found for controller")
+			return
 		}
 
 		ensurePDBIsPresent(pdbSelectors, object, errorList)
-	}
-}
-
-func isPodControllerDaemonSet(kind string) bool {
-	return kind == "DaemonSet"
-}
-
-// daemonSetMustNotHavePDB adds linting errors if there are pods from DaemonSets which are covered
-// by a PodDisruptionBudget
-func (r *PDBRule) DaemonSetMustNotHavePDB(md *module.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
-
-	pdbSelectors := collectPDBSelectors(md, errorList)
-
-	for _, object := range md.GetObjectStore().Storage {
-		if !isPodController(object.Unstructured.GetKind()) {
-			continue
-		}
-
-		if !isPodControllerDaemonSet(object.Unstructured.GetKind()) {
-			continue
-		}
-
-		targetRef, err := parseTargetRef(object)
-		if err != nil {
-			errorList.Errorf("parse target ref: %s", err)
-			return
-		}
-
-		if !r.Enabled(targetRef.Kind, targetRef.Name) {
-			// TODO: add metrics
-			return
-		}
-
-		ensurePDBIsNotPresent(pdbSelectors, object, errorList)
 	}
 }
 
@@ -152,32 +112,7 @@ func ensurePDBIsPresent(selectors []nsLabelSelector, podController storage.Store
 	}
 
 	errorListObj.WithValue(podLabelsSet).
-		Error("No PodDisruptionBudget matches pod labels of controller")
-}
-
-// ensurePDBIsNotPresent returns true if there is not a PDB controlling pods from the pod contoller
-// PDB is assumed to be present, since the PDB check goes after PDB check.
-func ensurePDBIsNotPresent(selectors []nsLabelSelector, podController storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorListObj := errorList.WithObjectID(podController.Identity())
-
-	podLabels, err := parsePodControllerLabels(podController)
-	if err != nil {
-		errorListObj.Errorf("Cannot parse pod controller: %s", err)
-
-		return
-	}
-
-	podNamespace := podController.Unstructured.GetNamespace()
-	podLabelsSet := labels.Set(podLabels)
-
-	for _, sel := range selectors {
-		if sel.Matches(podNamespace, podLabelsSet) {
-			errorListObj.WithValue(podLabelsSet).
-				Error("PodDisruptionBudget matches pod labels of controller")
-
-			return
-		}
-	}
+		Error("No PodDisruptionBudget matches pod labels of the controller")
 }
 
 func parsePDBSelector(pdbObj storage.StoreObject, errorList *errors.LintRuleErrorsList) labels.Selector {
