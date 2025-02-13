@@ -74,7 +74,7 @@ func (o *OpenAPI) Desc() string {
 	return o.desc
 }
 
-var openapiYamlRegex = regexp.MustCompile(`.*openapi/.*\.ya?ml$`)
+var openapiYamlRegex = regexp.MustCompile(`^openapi/.*\.ya?ml$`)
 
 func filterOpenAPIfiles(path string) bool {
 	filename := filepath.Base(path)
@@ -88,7 +88,7 @@ func filterOpenAPIfiles(path string) bool {
 	return openapiYamlRegex.MatchString(path)
 }
 
-var crdsYamlRegex = regexp.MustCompile(`.*crds/.*\.ya?ml$`)
+var crdsYamlRegex = regexp.MustCompile(`^crds/.*\.ya?ml$`)
 
 func filterCRDsfiles(path string) bool {
 	filename := filepath.Base(path)
