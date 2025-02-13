@@ -16,6 +16,7 @@ const (
 var (
 	LintersLimit int
 	LogLevel     string
+	LinterName   string
 )
 
 var (
@@ -42,6 +43,7 @@ func InitLintFlagSet() *pflag.FlagSet {
 
 	lint.IntVarP(&LintersLimit, "parallel", "p", numThreads, "number of threads for parallel processing")
 	lint.StringVarP(&LogLevel, "log-level", "l", "INFO", "log-level [DEBUG | INFO | WARN | ERROR]")
+	lint.StringVar(&LinterName, "linter", "", "linter name to run")
 
 	lint.Usage = func() {
 		_, _ = fmt.Fprintln(os.Stderr, "Usage: dmt lint [OPTIONS] [dirs...]")
