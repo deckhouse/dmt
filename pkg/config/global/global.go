@@ -10,7 +10,6 @@ type Linters struct {
 	OpenAPI      LinterConfig `mapstructure:"openapi"`
 	NoCyrillic   LinterConfig `mapstructure:"nocyrillic"`
 	License      LinterConfig `mapstructure:"license"`
-	OSS          LinterConfig `mapstructure:"oss"`
 	Probes       LinterConfig `mapstructure:"probes"`
 	Container    LinterConfig `mapstructure:"container"`
 	K8SResources LinterConfig `mapstructure:"k8s_resources"`

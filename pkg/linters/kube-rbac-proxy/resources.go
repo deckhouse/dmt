@@ -13,7 +13,7 @@ const (
 // KubeRbacProxy linter
 type KubeRbacProxy struct {
 	name, desc string
-	cfg        *config.K8SResourcesSettings
+	cfg        *config.KubeRBACProxySettings
 	ErrorList  *errors.LintRuleErrorsList
 }
 
@@ -21,8 +21,8 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *KubeRb
 	return &KubeRbacProxy{
 		name:      ID,
 		desc:      "Lint kube-rbac-proxy-resources",
-		cfg:       &cfg.LintersSettings.K8SResources,
-		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.K8SResources.Impact),
+		cfg:       &cfg.LintersSettings.KubeRBACProxy,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.KubeRBACProxy.Impact),
 	}
 }
 

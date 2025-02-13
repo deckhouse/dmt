@@ -1,22 +1,48 @@
-package oss
+package rules
 
 import (
 	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
+	"github.com/deckhouse/dmt/pkg"
+	"github.com/deckhouse/dmt/pkg/errors"
 	"sigs.k8s.io/yaml"
 )
 
+const (
+	OSSRuleName = "oss"
+)
+
+func NewOSSRule(disable bool) *OSSRule {
+	return &OSSRule{
+		RuleMeta: pkg.RuleMeta{
+			Name: OSSRuleName,
+		},
+		BoolRule: pkg.BoolRule{
+			Exclude: disable,
+		},
+	}
+}
+
+type OSSRule struct {
+	pkg.RuleMeta
+	pkg.BoolRule
+}
+
 const ossFilename = "oss.yaml"
 
-func (l *OSS) ossModuleRule(moduleName, moduleRoot string) {
-	errorList := l.ErrorList.WithModule(moduleName)
+func (r *OSSRule) OssModuleRule(moduleRoot string, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(r.Name)
 
-	if errs := l.verifyOssFile(moduleName, moduleRoot); len(errs) > 0 {
+	if !r.Enabled() {
+		// TODO: add metrics
+		return
+	}
+
+	if errs := r.verifyOssFile(moduleRoot); len(errs) > 0 {
 		for _, err := range errs {
 			errorList.WithObjectID(moduleRoot).Error(ossFileErrorMessage(err))
 		}
@@ -31,11 +57,7 @@ func ossFileErrorMessage(err error) string {
 	return fmt.Sprintf("Invalid %s: %s", ossFilename, err.Error())
 }
 
-func (l *OSS) verifyOssFile(moduleName, moduleRoot string) []error {
-	if l.shouldIgnoreOssInfo(moduleName) {
-		return nil
-	}
-
+func (r *OSSRule) verifyOssFile(moduleRoot string) []error {
 	projects, err := readOssFile(moduleRoot)
 	if err != nil {
 		return []error{err}
@@ -121,11 +143,6 @@ func parseProjectList(b []byte) ([]ossProject, error) {
 		return nil, err
 	}
 	return projects, nil
-}
-
-// TODO When lintignore files will be implemented in helm, detect "oss.yaml" line in it
-func (l *OSS) shouldIgnoreOssInfo(moduleName string) bool {
-	return slices.Contains(l.cfg.SkipOssChecks, moduleName)
 }
 
 type ossProject struct {
