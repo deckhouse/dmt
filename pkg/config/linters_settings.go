@@ -38,10 +38,15 @@ func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
 }
 
 type OpenAPISettings struct {
+	OpenAPIExcludeRules `mapstructure:"exclude-rules"`
+
+	Impact pkg.Level `mapstructure:"impact"`
+}
+
+type OpenAPIExcludeRules struct {
 	KeyBannedNames         StringRuleExcludeList `mapstructure:"key-banned-names"`
 	EnumFileExcludes       []string              `mapstructure:"enum"`
 	HAAbsoluteKeysExcludes StringRuleExcludeList `mapstructure:"ha-absolute-keys"`
-	Impact                 pkg.Level             `mapstructure:"impact"`
 }
 
 type NoCyrillicSettings struct {
