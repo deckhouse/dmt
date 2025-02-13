@@ -10,12 +10,12 @@ type LintersSettings struct {
 	NoCyrillic NoCyrillicSettings `mapstructure:"nocyrillic"`
 	License    LicenseSettings    `mapstructure:"license"`
 	Container  ContainerSettings  `mapstructure:"container"`
-	Templates  TemplatesSettings  `mapstructure:"templates"`
 	Images     ImageSettings      `mapstructure:"images"`
 	Rbac       RbacSettings       `mapstructure:"rbac"`
 	Resources  ResourcesSettings  `mapstructure:"resources"`
-	Ingress    IngressSettings    `mapstructure:"ingress"`
+	Hooks      HooksSettings      `mapstructure:"hooks"`
 	Module     ModuleSettings     `mapstructure:"module"`
+	Templates  TemplatesSettings  `mapstructure:"templates"`
 }
 
 func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
@@ -27,7 +27,7 @@ func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
 	assignIfNotEmpty(&cfg.Images.Impact, lcfg.Images.Impact)
 	assignIfNotEmpty(&cfg.Rbac.Impact, lcfg.Rbac.Impact)
 	assignIfNotEmpty(&cfg.Resources.Impact, lcfg.Resources.Impact)
-	assignIfNotEmpty(&cfg.Ingress.Impact, lcfg.Ingress.Impact)
+	assignIfNotEmpty(&cfg.Hooks.Impact, lcfg.Hooks.Impact)
 	assignIfNotEmpty(&cfg.Module.Impact, lcfg.Module.Impact)
 }
 
@@ -119,11 +119,15 @@ type ImageSettings struct {
 	Impact pkg.Level `mapstructure:"impact"`
 }
 
-type IngressSettings struct {
-	SkipIngressChecks []string `mapstructure:"skip-ingress-checks"`
-	Disable           bool     `mapstructure:"disable"`
+type HooksSettings struct {
+	Ingress HooksIngressRuleSetting `mapstructure:"ingress"`
 
 	Impact pkg.Level `mapstructure:"impact"`
+}
+
+type HooksIngressRuleSetting struct {
+	// disable ingress rule completely
+	Disable bool `mapstructure:"disable"`
 }
 
 type ModuleSettings struct {

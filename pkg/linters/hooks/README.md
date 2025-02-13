@@ -2,9 +2,14 @@
 
 Check hook which copies TLS certificate.
 
-
 ## Settings example
 
 ### Module level
 
-This linter does not have any settings. 
+This linter have settings.
+
+```yaml
+hooks:
+  ingress:
+    disable: true
+```

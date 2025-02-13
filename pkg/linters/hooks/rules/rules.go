@@ -1,4 +1,4 @@
-package ingress
+package rules
 
 import (
 	"go/parser"
@@ -6,21 +6,39 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/storage"
+	"github.com/deckhouse/dmt/pkg"
+	"github.com/deckhouse/dmt/pkg/config"
+	"github.com/deckhouse/dmt/pkg/errors"
 )
 
-func (l *Ingress) ingressCopyCustomCertificateRule(m *module.Module, object storage.StoreObject) {
-	errorList := l.ErrorList.WithModule(m.GetName())
+type HookRule struct {
+	pkg.RuleMeta
+	pkg.BoolRule
+}
+
+func NewHookRule(cfg *config.HooksSettings) *HookRule {
+	return &HookRule{
+		RuleMeta: pkg.RuleMeta{
+			Name: "ingress",
+		},
+		BoolRule: pkg.BoolRule{
+			Exclude: cfg.Ingress.Disable,
+		},
+	}
+}
+
+func (l *HookRule) CheckIngressCopyCustomCertificateRule(m *module.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(l.GetName())
 
 	const (
 		copyCustomCertificateImport = `"github.com/deckhouse/deckhouse/go_lib/hooks/copy_custom_certificate"`
 	)
 
-	if slices.Contains(l.cfg.SkipIngressChecks, m.GetName()) {
+	if !l.Enabled() {
 		return
 	}
 
