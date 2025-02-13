@@ -155,8 +155,19 @@ func (m *Manager) PrintResult() {
 			msgColor = color.FgHiYellow
 		}
 
-		fmt.Fprintf(w, "%s%s\n", emoji.Sprintf(":monkey:"), color.New(color.FgHiBlue).SprintfFunc()("[%s (#%s)]", err.RuleID, err.LinterID))
+		// header
+		fmt.Fprint(w, emoji.Sprintf(":monkey:"))
+		fmt.Fprint(w, color.New(color.FgHiBlue).SprintFunc()("["))
+
+		if err.RuleID != "" {
+			fmt.Fprint(w, color.New(color.FgHiBlue).SprintFunc()(err.RuleID+" "))
+		}
+
+		fmt.Fprintf(w, "%s\n", color.New(color.FgHiBlue).SprintfFunc()("(#%s)]", err.LinterID))
+
+		// body
 		fmt.Fprintf(w, "\t%s\t\t%s\n", "Message:", color.New(msgColor).SprintfFunc()(prepareString(err.Text)))
+
 		fmt.Fprintf(w, "\t%s\t\t%s\n", "Module:", err.ModuleID)
 
 		if err.ObjectID != "" && err.ObjectID != err.ModuleID {
