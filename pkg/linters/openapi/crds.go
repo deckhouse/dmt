@@ -7,8 +7,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+
 	"github.com/ghodss/yaml"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 )
@@ -23,24 +23,10 @@ func shouldSkipCrd(name string) bool {
 	return !strings.Contains(name, "deckhouse.io")
 }
 
-type CRDValidator struct {
-	cfg       *config.CRDResourcesSettings
-	ErrorList *errors.LintRuleErrorsList
-}
-
-func NewCRDValidator(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *CRDValidator {
-	return &CRDValidator{
-		cfg:       &cfg.LintersSettings.CRDResources,
-		ErrorList: errorList.WithLinterID("crd").WithMaxLevel(cfg.LintersSettings.CRDResources.Impact),
-	}
-}
-
-func (l *CRDValidator) Run(moduleName, path string) {
+func validateDeckhouseCRDS(moduleName, path string, errorList *errors.LintRuleErrorsList) {
 	if !isExistsOnFilesystem(moduleName, path) {
 		return
 	}
-
-	errorList := l.ErrorList.WithModule(moduleName)
 
 	_ = filepath.Walk(path, func(path string, _ os.FileInfo, _ error) error {
 		if filepath.Ext(path) != ".yaml" {

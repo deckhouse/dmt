@@ -13,7 +13,6 @@ type LintersSettings struct {
 	KubeRBACProxy KubeRBACProxySettings `mapstructure:"kube-rbac-proxy"`
 	VPAResources  VPAResourcesSettings  `mapstructure:"vpa_resources"`
 	PDBResources  PDBResourcesSettings  `mapstructure:"pdb_resources"`
-	CRDResources  CRDResourcesSettings  `mapstructure:"crd_resources"`
 	Images        ImageSettings         `mapstructure:"images"`
 	Rbac          RbacSettings          `mapstructure:"rbac"`
 	Resources     ResourcesSettings     `mapstructure:"resources"`
@@ -30,7 +29,6 @@ func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
 	assignIfNotEmpty(&cfg.KubeRBACProxy.Impact, lcfg.KubeRBACProxy.Impact)
 	assignIfNotEmpty(&cfg.VPAResources.Impact, lcfg.VPAResources.Impact)
 	assignIfNotEmpty(&cfg.PDBResources.Impact, lcfg.PDBResources.Impact)
-	assignIfNotEmpty(&cfg.CRDResources.Impact, lcfg.CRDResources.Impact)
 	assignIfNotEmpty(&cfg.Images.Impact, lcfg.Images.Impact)
 	assignIfNotEmpty(&cfg.Rbac.Impact, lcfg.Rbac.Impact)
 	assignIfNotEmpty(&cfg.Resources.Impact, lcfg.Resources.Impact)
@@ -110,10 +108,6 @@ type PDBResourcesSettings struct {
 
 type PDBResourcesExcludeRules struct {
 	Absent KindRuleExcludeList `mapstructure:"absent"`
-}
-
-type CRDResourcesSettings struct {
-	Impact pkg.Level `mapstructure:"impact"`
 }
 
 type ResourcesSettings struct {

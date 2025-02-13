@@ -53,6 +53,7 @@ func (o *OpenAPI) Run(m *module.Module) {
 		if err := openapi.Parse(KeyValidator.Run, file); err != nil {
 			errorLists.WithFilePath(fsutils.Rel(m.GetPath(), file)).Errorf("CRD file is not valid: %s", err)
 		}
+		validateDeckhouseCRDS(m.GetName(), file, errorLists)
 	}
 }
 
