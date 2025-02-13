@@ -31,7 +31,7 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *OpenAP
 func (o *OpenAPI) Run(m *module.Module) {
 	errorLists := o.ErrorList.WithModule(m.GetName())
 
-	// check openAPI and CRDs files
+	// check openAPI files
 	openAPIFiles := fsutils.GetFiles(m.GetPath(), true, filterOpenAPIfiles)
 
 	enumValidator := rules.NewEnumRule(o.cfg)

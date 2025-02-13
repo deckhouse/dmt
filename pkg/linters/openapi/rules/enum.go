@@ -1,7 +1,7 @@
 package rules
 
 import (
-	sdkErrors "errors"
+	stdErrors "errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -97,7 +97,7 @@ func validateEnumValues(enumKey string, values []string) error {
 	var res error
 	for _, value := range values {
 		if err := validateEnumValue(value); err != nil {
-			res = sdkErrors.Join(res, fmt.Errorf("enum '%s' is invalid: %w", enumKey, err))
+			res = stdErrors.Join(res, fmt.Errorf("enum '%s' is invalid: %w", enumKey, err))
 		}
 	}
 
