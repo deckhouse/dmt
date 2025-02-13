@@ -1,3 +1,4 @@
+//nolint: dupl // we have doubled code in probes because it's separate rules and we need to edit them separate
 package rules
 
 import (
