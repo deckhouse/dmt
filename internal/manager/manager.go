@@ -1,14 +1,23 @@
 package manager
 
 import (
+	"bytes"
+	"cmp"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
+	"text/tabwriter"
 
+	"github.com/fatih/color"
+	"github.com/kyokomi/emoji"
 	"github.com/mitchellh/go-homedir"
+	"github.com/mitchellh/go-wordwrap"
 
 	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/container"
@@ -116,7 +125,64 @@ func getLintersForModule(cfg *config.ModuleConfig, errList *errors.LintRuleError
 }
 
 func (m *Manager) PrintResult() {
-	m.errors.PrettyPrint()
+	errs := m.errors.GetErrors()
+
+	if len(errs) == 0 {
+		return
+	}
+
+	slices.SortFunc(errs, func(a, b pkg.LinterError) int {
+		return cmp.Or(
+			cmp.Compare(a.LinterID, b.LinterID),
+			cmp.Compare(a.ModuleID, b.ModuleID),
+			cmp.Compare(a.RuleID, b.RuleID),
+		)
+	})
+
+	w := new(tabwriter.Writer)
+
+	const minWidth = 5
+
+	buf := bytes.NewBuffer([]byte{})
+	w.Init(buf, minWidth, 0, 0, ' ', 0)
+
+	for idx := range errs {
+		err := errs[idx]
+
+		msgColor := color.FgRed
+
+		if err.Level == pkg.Warn {
+			msgColor = color.FgHiYellow
+		}
+
+		fmt.Fprintf(w, "%s%s\n", emoji.Sprintf(":monkey:"), color.New(color.FgHiBlue).SprintfFunc()("[%s (#%s)]", err.RuleID, err.LinterID))
+		fmt.Fprintf(w, "\t%s\t\t%s\n", "Message:", color.New(msgColor).SprintfFunc()(prepareString(err.Text)))
+		fmt.Fprintf(w, "\t%s\t\t%s\n", "Module:", err.ModuleID)
+
+		if err.ObjectID != "" && err.ObjectID != err.ModuleID {
+			fmt.Fprintf(w, "\t%s\t\t%s\n", "Object:", err.ObjectID)
+		}
+
+		if err.ObjectValue != nil {
+			value := fmt.Sprintf("%v", err.ObjectValue)
+
+			fmt.Fprintf(w, "\t%s\t\t%s\n", "Value:", prepareString(value))
+		}
+
+		if err.FilePath != "" {
+			fmt.Fprintf(w, "\t%s\t\t%s\n", "FilePath:", strings.TrimSpace(err.FilePath))
+		}
+
+		if err.LineNumber != 0 {
+			fmt.Fprintf(w, "\t%s\t\t%d\n", "LineNumber:", err.LineNumber)
+		}
+
+		fmt.Fprintln(w)
+
+		w.Flush()
+	}
+
+	fmt.Println(buf.String())
 }
 
 func (m *Manager) HasCriticalErrors() bool {
@@ -161,4 +227,24 @@ func getModulePaths(modulesDir string) ([]string, error) {
 	}
 
 	return chartDirs, nil
+}
+
+// prepareString handle ussual string and prepare it for tablewriter
+func prepareString(input string) string {
+	// magic wrap const
+	const wrapLen = 100
+
+	w := &strings.Builder{}
+
+	// split wraps for tablewrite
+	split := strings.Split(wordwrap.WrapString(input, wrapLen), "\n")
+
+	// first string must be pure for correct handling
+	fmt.Fprint(w, strings.TrimSpace(split[0]))
+
+	for i := 1; i < len(split); i++ {
+		fmt.Fprintf(w, "\n\t\t\t%s", strings.TrimSpace(split[i]))
+	}
+
+	return w.String()
 }

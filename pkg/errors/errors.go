@@ -1,16 +1,8 @@
 package errors
 
 import (
-	"bytes"
-	"cmp"
 	"fmt"
-	"slices"
 	"strings"
-	"text/tabwriter"
-
-	"github.com/fatih/color"
-	"github.com/kyokomi/emoji"
-	"github.com/mitchellh/go-wordwrap"
 
 	"github.com/deckhouse/dmt/pkg"
 )
@@ -202,67 +194,8 @@ func (l *LintRuleErrorsList) add(str string, level pkg.Level) *LintRuleErrorsLis
 // PrettyPrint converts LintRuleErrorsList to a single error.
 // It returns an error that contains all errors from the list with a nice formatting.
 // If the list is empty, it returns nil.
-func (l *LintRuleErrorsList) PrettyPrint() {
-	if l.storage == nil {
-		l.storage = &errStorage{}
-	}
-
-	if len(l.storage.GetErrors()) == 0 {
-		return
-	}
-
-	slices.SortFunc(l.storage.GetErrors(), func(a, b lintRuleError) int {
-		return cmp.Or(
-			cmp.Compare(a.LinterID, b.LinterID),
-			cmp.Compare(a.ModuleID, b.ModuleID),
-			cmp.Compare(a.RuleID, b.RuleID),
-		)
-	})
-
-	w := new(tabwriter.Writer)
-
-	const minWidth = 5
-
-	buf := bytes.NewBuffer([]byte{})
-	w.Init(buf, minWidth, 0, 0, ' ', 0)
-
-	for idx := range l.storage.GetErrors() {
-		err := l.storage.GetErrors()[idx]
-
-		msgColor := color.FgRed
-
-		if err.Level == pkg.Warn {
-			msgColor = color.FgHiYellow
-		}
-
-		fmt.Fprintf(w, "%s%s\n", emoji.Sprintf(":monkey:"), color.New(color.FgHiBlue).SprintfFunc()("[%s (#%s)]", err.RuleID, err.LinterID))
-		fmt.Fprintf(w, "\t%s\t\t%s\n", "Message:", color.New(msgColor).SprintfFunc()(prepareString(err.Text)))
-		fmt.Fprintf(w, "\t%s\t\t%s\n", "Module:", err.ModuleID)
-
-		if err.ObjectID != "" && err.ObjectID != err.ModuleID {
-			fmt.Fprintf(w, "\t%s\t\t%s\n", "Object:", err.ObjectID)
-		}
-
-		if err.ObjectValue != nil {
-			value := fmt.Sprintf("%v", err.ObjectValue)
-
-			fmt.Fprintf(w, "\t%s\t\t%s\n", "Value:", prepareString(value))
-		}
-
-		if err.FilePath != "" {
-			fmt.Fprintf(w, "\t%s\t\t%s\n", "FilePath:", strings.TrimSpace(err.FilePath))
-		}
-
-		if err.LineNumber != 0 {
-			fmt.Fprintf(w, "\t%s\t\t%d\n", "LineNumber:", err.LineNumber)
-		}
-
-		fmt.Fprintln(w)
-
-		w.Flush()
-	}
-
-	fmt.Println(buf.String())
+func (l *LintRuleErrorsList) GetErrors() []pkg.LinterError {
+	return remapErrorsToLinterErrors(l.storage.GetErrors()...)
 }
 
 func (l *LintRuleErrorsList) ContainsErrors() bool {
@@ -281,22 +214,26 @@ func (l *LintRuleErrorsList) ContainsErrors() bool {
 	return false
 }
 
-// prepareString handle ussual string and prepare it for tablewriter
-func prepareString(input string) string {
-	// magic wrap const
-	const wrapLen = 100
+func remapErrorsToLinterErrors(errs ...lintRuleError) []pkg.LinterError {
+	result := make([]pkg.LinterError, 0, len(errs))
 
-	w := &strings.Builder{}
-
-	// split wraps for tablewrite
-	split := strings.Split(wordwrap.WrapString(input, wrapLen), "\n")
-
-	// first string must be pure for correct handling
-	fmt.Fprint(w, strings.TrimSpace(split[0]))
-
-	for i := 1; i < len(split); i++ {
-		fmt.Fprintf(w, "\n\t\t\t%s", strings.TrimSpace(split[i]))
+	for idx := range errs {
+		result = append(result, *remapErrorToLinterError(&errs[idx]))
 	}
 
-	return w.String()
+	return result
+}
+
+func remapErrorToLinterError(err *lintRuleError) *pkg.LinterError {
+	return &pkg.LinterError{
+		LinterID:    err.LinterID,
+		ModuleID:    err.ModuleID,
+		RuleID:      err.RuleID,
+		ObjectID:    err.ObjectID,
+		ObjectValue: err.ObjectValue,
+		FilePath:    err.FilePath,
+		LineNumber:  err.LineNumber,
+		Text:        err.Text,
+		Level:       err.Level,
+	}
 }
