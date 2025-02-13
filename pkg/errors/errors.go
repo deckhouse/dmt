@@ -3,6 +3,7 @@ package errors
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/deckhouse/dmt/pkg"
 )
@@ -27,15 +28,24 @@ func (l *lintRuleError) EqualsTo(candidate lintRuleError) bool { //nolint:gocrit
 }
 
 type errStorage struct {
+	mu      sync.Mutex
 	errList []lintRuleError
 }
 
 func (s *errStorage) GetErrors() []lintRuleError {
-	return s.errList
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	result := make([]lintRuleError, 0, len(s.errList))
+	result = append(result, s.errList...)
+
+	return result
 }
 
 func (s *errStorage) add(err *lintRuleError) {
+	s.mu.Lock()
 	s.errList = append(s.errList, *err)
+	s.mu.Unlock()
 }
 
 type LintRuleErrorsList struct {
@@ -203,8 +213,10 @@ func (l *LintRuleErrorsList) ContainsErrors() bool {
 		l.storage = &errStorage{}
 	}
 
-	for idx := range l.storage.GetErrors() {
-		err := l.storage.GetErrors()[idx]
+	errs := l.storage.GetErrors()
+
+	for idx := range errs {
+		err := errs[idx]
 
 		if err.Level == pkg.Error {
 			return true

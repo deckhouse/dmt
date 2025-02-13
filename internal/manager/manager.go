@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"text/tabwriter"
 
 	"github.com/fatih/color"
@@ -15,6 +16,7 @@ import (
 	"github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/go-wordwrap"
 
+	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg"
@@ -99,15 +101,30 @@ func NewManager(dirs []string, rootConfig *config.RootConfig) *Manager {
 }
 
 func (m *Manager) Run() {
+	wg := new(sync.WaitGroup)
+	processingCh := make(chan struct{}, flags.LintersLimit)
+
 	for _, module := range m.Modules {
-		logger.InfoF("Run linters for `%s` module", module.GetName())
+		processingCh <- struct{}{}
+		wg.Add(1)
 
-		for _, linter := range getLintersForModule(module.GetModuleConfig(), m.errors) {
-			logger.DebugF("Running linter `%s` on module `%s`", linter.Name(), module.GetName())
+		go func() {
+			defer func() {
+				<-processingCh
+				wg.Done()
+			}()
 
-			linter.Run(module)
-		}
+			logger.InfoF("Run linters for `%s` module", module.GetName())
+
+			for _, linter := range getLintersForModule(module.GetModuleConfig(), m.errors) {
+				logger.DebugF("Running linter `%s` on module `%s`", linter.Name(), module.GetName())
+
+				linter.Run(module)
+			}
+		}()
 	}
+
+	wg.Wait()
 }
 
 func getLintersForModule(cfg *config.ModuleConfig, errList *errors.LintRuleErrorsList) []Linter {
