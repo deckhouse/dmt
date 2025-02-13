@@ -24,7 +24,6 @@ import (
 	openapiha "github.com/deckhouse/dmt/pkg/linters/openapi-ha"
 	openapikeys "github.com/deckhouse/dmt/pkg/linters/openapi-keys"
 	"github.com/deckhouse/dmt/pkg/linters/pdb-resources"
-	"github.com/deckhouse/dmt/pkg/linters/probes"
 	"github.com/deckhouse/dmt/pkg/linters/rbac"
 	"github.com/deckhouse/dmt/pkg/linters/vpa-resources"
 )
@@ -115,7 +114,6 @@ func getLintersForModule(cfg *config.ModuleConfig, errList *errors.LintRuleError
 		openapikeys.New(cfg, errList),
 		no_cyrillic.New(cfg, errList),
 		license.New(cfg, errList),
-		probes.New(cfg, errList),
 		container.New(cfg, errList),
 		rbacproxy.New(cfg, errList),
 		vpa.New(cfg, errList),

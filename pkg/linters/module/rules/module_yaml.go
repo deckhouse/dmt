@@ -16,13 +16,13 @@ import (
 )
 
 const (
-	ModuleYAMLRuleName = "module-yaml"
+	DefinitionFileRuleName = "definition-file"
 )
 
-func NewModuleYAMLRule(disable bool) *ModuleYAMLRule {
-	return &ModuleYAMLRule{
+func NewDefinitionFileRule(disable bool) *DefinitionFileRule {
+	return &DefinitionFileRule{
 		RuleMeta: pkg.RuleMeta{
-			Name: ModuleYAMLRuleName,
+			Name: DefinitionFileRuleName,
 		},
 		BoolRule: pkg.BoolRule{
 			Exclude: disable,
@@ -30,7 +30,7 @@ func NewModuleYAMLRule(disable bool) *ModuleYAMLRule {
 	}
 }
 
-type ModuleYAMLRule struct {
+type DefinitionFileRule struct {
 	pkg.RuleMeta
 	pkg.BoolRule
 }
@@ -58,7 +58,7 @@ type ModulePlatformRequirements struct {
 	Bootstrapped string `yaml:"bootstrapped,omitempty"`
 }
 
-func (r *ModuleYAMLRule) CheckModuleYaml(modulePath string, errorList *errors.LintRuleErrorsList) {
+func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.Name)
 
 	if !r.Enabled() {

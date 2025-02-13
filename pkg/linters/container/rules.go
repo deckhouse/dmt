@@ -62,6 +62,10 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 		rules.NewSecurityContextRule(l.cfg.ExcludeRules.SecurityContext.Get()).
 			ContainerSecurityContext,
 		containerPorts,
+		rules.NewLivenessRule(l.cfg.ExcludeRules.Liveness.Get()).
+			CheckProbe,
+		rules.NewReadinessRule(l.cfg.ExcludeRules.Liveness.Get()).
+			CheckProbe,
 	}
 
 	for _, rule := range containerRules {

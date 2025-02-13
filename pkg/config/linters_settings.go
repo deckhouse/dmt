@@ -100,6 +100,8 @@ type ContainerExcludeRules struct {
 	ReadOnlyRootFilesystem ContainerRuleExcludeList `mapstructure:"read-only-root-filesystem"`
 	Resources              ContainerRuleExcludeList `mapstructure:"resources"`
 	SecurityContext        ContainerRuleExcludeList `mapstructure:"security-context"`
+	Liveness               ContainerRuleExcludeList `mapstructure:"liveness"`
+	Readiness              ContainerRuleExcludeList `mapstructure:"readiness"`
 
 	DNSPolicy KindRuleExcludeList `mapstructure:"dns-policy"`
 
@@ -182,9 +184,9 @@ type IngressSettings struct {
 type ModuleSettings struct {
 	SkipCheckModuleYaml []string `mapstructure:"skip-check-module-yaml"`
 
-	OSS         ModuleOSSRuleSettings        `mapstructure:"oss"`
-	ModuleYAML  ModuleModuleYAMLRuleSettings `mapstructure:"module-yaml"`
-	Conversions ConversionsRuleSettings      `mapstructure:"conversions"`
+	OSS            ModuleOSSRuleSettings            `mapstructure:"oss"`
+	DefinitionFile ModuleDefinitionFileRuleSettings `mapstructure:"definition-file"`
+	Conversions    ConversionsRuleSettings          `mapstructure:"conversions"`
 
 	Impact pkg.Level `mapstructure:"impact"`
 }
@@ -194,8 +196,8 @@ type ModuleOSSRuleSettings struct {
 	Disable bool `mapstructure:"disable"`
 }
 
-type ModuleModuleYAMLRuleSettings struct {
-	// disable module-yaml rule completely
+type ModuleDefinitionFileRuleSettings struct {
+	// disable definition-file rule completely
 	Disable bool `mapstructure:"disable"`
 }
 
