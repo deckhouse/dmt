@@ -44,7 +44,7 @@ type OpenAPISettings struct {
 }
 
 type OpenAPIExcludeRules struct {
-	KeyBannedNames         StringRuleExcludeList `mapstructure:"key-banned-names"`
+	KeyBannedNames         []string              `mapstructure:"key-banned-names"`
 	EnumFileExcludes       []string              `mapstructure:"enum"`
 	HAAbsoluteKeysExcludes StringRuleExcludeList `mapstructure:"ha-absolute-keys"`
 }
