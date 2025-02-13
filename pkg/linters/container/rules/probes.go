@@ -1,4 +1,3 @@
-// nolint: dupl // we have doubled code in probes because it's separate rules and we need to edit them separate
 package rules
 
 import (
@@ -68,7 +67,7 @@ func probeHandlerIsNotValid(probe v1.ProbeHandler) bool {
 }
 
 // check livenessProbe exist and correct
-func (r *LivenessRule) CheckProbe(object storage.StoreObject, containers []v1.Container, errorList *errors.LintRuleErrorsList) {
+func (r *LivenessRule) CheckProbe(object storage.StoreObject, containers []v1.Container, errorList *errors.LintRuleErrorsList) { //nolint: dupl // we have doubled code in probes because it's separate rules and we need to edit them separate
 	errorList = errorList.WithRule(r.GetName())
 
 	for idx := range containers {
@@ -95,7 +94,7 @@ func (r *LivenessRule) CheckProbe(object storage.StoreObject, containers []v1.Co
 }
 
 // check readinessProbe exist and correct
-func (r *ReadinessRuleNameRule) CheckProbe(object storage.StoreObject, containers []v1.Container, errorList *errors.LintRuleErrorsList) {
+func (r *ReadinessRuleNameRule) CheckProbe(object storage.StoreObject, containers []v1.Container, errorList *errors.LintRuleErrorsList) { //nolint: dupl // we have doubled code in probes because it's separate rules and we need to edit them separate
 	errorList = errorList.WithRule(r.GetName())
 
 	for idx := range containers {
