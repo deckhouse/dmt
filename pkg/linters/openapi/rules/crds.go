@@ -50,7 +50,7 @@ func (r *DeckhouseCRDsRule) Run(path string, errorList *errors.LintRuleErrorsLis
 			continue
 		}
 
-		if strings.Contains(crd.Name, "deckhouse.io") {
+		if !strings.Contains(crd.Name, "deckhouse.io") {
 			continue
 		}
 
