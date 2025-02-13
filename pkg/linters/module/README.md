@@ -14,10 +14,10 @@ This linter have settings.
 linters-settings:
   module:
     oss:
-        disable: false
+      disable: false
     module-yaml:
-        disable: false
+      disable: false
     conversions:
-        disable: false
+      disable: false
     impact: error
 ```

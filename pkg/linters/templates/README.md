@@ -15,14 +15,19 @@ Lint monitoring rules:
 linters-settings:
   templates:
     exclude-rules:
+      # exclude if target ref equals one of
       vpa:
         - kind: Deployment
           name: standby-holder-name
+      # exclude if target ref equals one of
       pdb:
         - kind: Deployment
           name: standby-holder-name
+      # exclude if service name equals one of
       service-port:
         - d8-control-plane-apiserver
+      # exclude if object namespace equals one of
       kube-rbac-proxy:
         - d8-system
+    impact: error
 ```

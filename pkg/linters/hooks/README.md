@@ -9,7 +9,9 @@ Check hook which copies TLS certificate.
 This linter have settings.
 
 ```yaml
-hooks:
-  ingress:
-    disable: true
+linters-settings:
+  hooks:
+    ingress:
+      disable: true
+    impact: error
 ```
