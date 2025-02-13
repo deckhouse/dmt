@@ -14,7 +14,6 @@ type LintersSettings struct {
 	Images     ImageSettings      `mapstructure:"images"`
 	Rbac       RbacSettings       `mapstructure:"rbac"`
 	Resources  ResourcesSettings  `mapstructure:"resources"`
-	Monitoring MonitoringSettings `mapstructure:"monitoring"`
 	Ingress    IngressSettings    `mapstructure:"ingress"`
 	Module     ModuleSettings     `mapstructure:"module"`
 }
@@ -28,7 +27,6 @@ func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
 	assignIfNotEmpty(&cfg.Images.Impact, lcfg.Images.Impact)
 	assignIfNotEmpty(&cfg.Rbac.Impact, lcfg.Rbac.Impact)
 	assignIfNotEmpty(&cfg.Resources.Impact, lcfg.Resources.Impact)
-	assignIfNotEmpty(&cfg.Monitoring.Impact, lcfg.Monitoring.Impact)
 	assignIfNotEmpty(&cfg.Ingress.Impact, lcfg.Ingress.Impact)
 	assignIfNotEmpty(&cfg.Module.Impact, lcfg.Module.Impact)
 }
@@ -96,12 +94,6 @@ type TemplatesExcludeRules struct {
 }
 
 type ResourcesSettings struct {
-	Impact pkg.Level `mapstructure:"impact"`
-}
-
-type MonitoringSettings struct {
-	MonitoringRules *bool `mapstructure:"monitoring-rules"`
-
 	Impact pkg.Level `mapstructure:"impact"`
 }
 

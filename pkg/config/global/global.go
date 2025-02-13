@@ -15,7 +15,6 @@ type Linters struct {
 	Images        LinterConfig `mapstructure:"images"`
 	Rbac          LinterConfig `mapstructure:"rbac"`
 	Resources     LinterConfig `mapstructure:"resources"`
-	Monitoring    LinterConfig `mapstructure:"monitoring"`
 	Ingress       LinterConfig `mapstructure:"ingress"`
 	Module        LinterConfig `mapstructure:"module"`
 	Templates     LinterConfig `mapstructure:"templates"`

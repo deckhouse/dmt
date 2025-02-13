@@ -3,7 +3,9 @@
 - Check VerticalPodAutoscaler described
 - Check PodDisruptionBudgets described
 - Check kube-rbac-proxy CA certificate exists
-templates(+): переносим pdb + vpa, переносим objectServiceTargetPort из Containers, переносим kube-rbac-proxy, переносим monitoring
+Lint monitoring rules:
+- run promtool checks
+- render prometheus rules
 
 ## Settings example
 
