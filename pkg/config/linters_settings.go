@@ -6,19 +6,16 @@ import (
 )
 
 type LintersSettings struct {
-	OpenAPI       OpenAPISettings       `mapstructure:"openapi"`
-	NoCyrillic    NoCyrillicSettings    `mapstructure:"nocyrillic"`
-	License       LicenseSettings       `mapstructure:"license"`
-	Container     ContainerSettings     `mapstructure:"container"`
-	KubeRBACProxy KubeRBACProxySettings `mapstructure:"kube-rbac-proxy"`
-	VPAResources  VPAResourcesSettings  `mapstructure:"vpa_resources"`
-	PDBResources  PDBResourcesSettings  `mapstructure:"pdb_resources"`
-	Images        ImageSettings         `mapstructure:"images"`
-	Rbac          RbacSettings          `mapstructure:"rbac"`
-	Resources     ResourcesSettings     `mapstructure:"resources"`
-	Monitoring    MonitoringSettings    `mapstructure:"monitoring"`
-	Hooks         HooksSettings         `mapstructure:"hooks"`
-	Module        ModuleSettings        `mapstructure:"module"`
+	OpenAPI    OpenAPISettings    `mapstructure:"openapi"`
+	NoCyrillic NoCyrillicSettings `mapstructure:"nocyrillic"`
+	License    LicenseSettings    `mapstructure:"license"`
+	Container  ContainerSettings  `mapstructure:"container"`
+	Images     ImageSettings      `mapstructure:"images"`
+	Rbac       RbacSettings       `mapstructure:"rbac"`
+	Resources  ResourcesSettings  `mapstructure:"resources"`
+	Hooks      HooksSettings      `mapstructure:"hooks"`
+	Module     ModuleSettings     `mapstructure:"module"`
+	Templates  TemplatesSettings  `mapstructure:"templates"`
 }
 
 func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
@@ -26,13 +23,10 @@ func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
 	assignIfNotEmpty(&cfg.NoCyrillic.Impact, lcfg.NoCyrillic.Impact)
 	assignIfNotEmpty(&cfg.License.Impact, lcfg.License.Impact)
 	assignIfNotEmpty(&cfg.Container.Impact, lcfg.Container.Impact)
-	assignIfNotEmpty(&cfg.KubeRBACProxy.Impact, lcfg.KubeRBACProxy.Impact)
-	assignIfNotEmpty(&cfg.VPAResources.Impact, lcfg.VPAResources.Impact)
-	assignIfNotEmpty(&cfg.PDBResources.Impact, lcfg.PDBResources.Impact)
+	assignIfNotEmpty(&cfg.Templates.Impact, lcfg.Templates.Impact)
 	assignIfNotEmpty(&cfg.Images.Impact, lcfg.Images.Impact)
 	assignIfNotEmpty(&cfg.Rbac.Impact, lcfg.Rbac.Impact)
 	assignIfNotEmpty(&cfg.Resources.Impact, lcfg.Resources.Impact)
-	assignIfNotEmpty(&cfg.Monitoring.Impact, lcfg.Monitoring.Impact)
 	assignIfNotEmpty(&cfg.Hooks.Impact, lcfg.Hooks.Impact)
 	assignIfNotEmpty(&cfg.Module.Impact, lcfg.Module.Impact)
 }
@@ -77,51 +71,29 @@ type ContainerExcludeRules struct {
 	ReadOnlyRootFilesystem ContainerRuleExcludeList `mapstructure:"read-only-root-filesystem"`
 	Resources              ContainerRuleExcludeList `mapstructure:"resources"`
 	SecurityContext        ContainerRuleExcludeList `mapstructure:"security-context"`
-	Liveness               ContainerRuleExcludeList `mapstructure:"liveness"`
-	Readiness              ContainerRuleExcludeList `mapstructure:"readiness"`
+	Liveness               ContainerRuleExcludeList `mapstructure:"liveness-probe"`
+	Readiness              ContainerRuleExcludeList `mapstructure:"readiness-probe"`
 
 	DNSPolicy KindRuleExcludeList `mapstructure:"dns-policy"`
 
 	Description StringRuleExcludeList `mapstructure:"description"`
-	ServicePort StringRuleExcludeList `mapstructure:"service-port"`
 }
 
-type KubeRBACProxySettings struct {
-	SkipKubeRbacProxyChecks []string `mapstructure:"skip-kube-rbac-proxy-checks"`
+type TemplatesSettings struct {
+	SkipVPAChecks []string              `mapstructure:"skip-vpa-checks"`
+	ExcludeRules  TemplatesExcludeRules `mapstructure:"exclude-rules"`
 
 	Impact pkg.Level `mapstructure:"impact"`
 }
 
-type VPAResourcesSettings struct {
-	SkipVPAChecks []string                 `mapstructure:"skip-vpa-checks"`
-	ExcludeRules  VPAResourcesExcludeRules `mapstructure:"exclude-rules"`
-
-	Impact pkg.Level `mapstructure:"impact"`
-}
-
-type VPAResourcesExcludeRules struct {
-	Absent      KindRuleExcludeList `mapstructure:"absent"`
-	Tolerations KindRuleExcludeList `mapstructure:"tolerations"`
-}
-
-type PDBResourcesSettings struct {
-	SkipPDBChecks []string                 `mapstructure:"skip-pdb-checks"`
-	ExcludeRules  PDBResourcesExcludeRules `mapstructure:"exclude-rules"`
-
-	Impact pkg.Level `mapstructure:"impact"`
-}
-
-type PDBResourcesExcludeRules struct {
-	Absent KindRuleExcludeList `mapstructure:"absent"`
+type TemplatesExcludeRules struct {
+	VPAAbsent     KindRuleExcludeList   `mapstructure:"vpa"`
+	PDBAbsent     KindRuleExcludeList   `mapstructure:"pdb"`
+	ServicePort   StringRuleExcludeList `mapstructure:"service-port"`
+	KubeRBACProxy StringRuleExcludeList `mapstructure:"kube-rbac-proxy"`
 }
 
 type ResourcesSettings struct {
-	Impact pkg.Level `mapstructure:"impact"`
-}
-
-type MonitoringSettings struct {
-	MonitoringRules *bool `mapstructure:"monitoring-rules"`
-
 	Impact pkg.Level `mapstructure:"impact"`
 }
 

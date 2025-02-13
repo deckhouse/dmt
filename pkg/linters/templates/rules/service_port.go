@@ -62,6 +62,7 @@ func (r *ServicePortRule) ObjectServiceTargetPort(object storage.StoreObject, er
 
 				continue
 			}
+
 			errorList.WithObjectID(object.Identity()).WithValue(port.TargetPort.IntVal).
 				Error("Service port must use a named (non-numeric) target port")
 		}

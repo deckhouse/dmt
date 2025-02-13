@@ -1,7 +1,6 @@
 ## Description
 
 Checks the copyright header in files.
-Check oss info in the `oss.yaml` file.
 
 ## Settings example
 
@@ -10,8 +9,6 @@ Check oss info in the `oss.yaml` file.
 ```yaml
 linters-settings:
   license:
-    oss:
-      disable: true
     copyright:
       files:
         exclude:

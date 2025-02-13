@@ -27,8 +27,6 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 			ObjectDNSPolicy,
 		objectSecurityContext,
 		objectRevisionHistoryLimit,
-		rules.NewServicePortRule(l.cfg.ExcludeRules.ServicePort.Get()).
-			ObjectServiceTargetPort,
 	}
 
 	for _, rule := range objectRules {

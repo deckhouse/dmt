@@ -17,4 +17,5 @@ linters-settings:
         - "properties.storageClass.properties.provision.items.properties.type"
       key-banned-names:
         - "properties.storageClass.properties.provision.items.properties.type"
+    impact: error
 ```

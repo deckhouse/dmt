@@ -173,15 +173,6 @@ func (l *LintRuleErrorsList) Errorf(template string, a ...any) *LintRuleErrorsLi
 	return l.add(fmt.Sprintf(template, a...), pkg.Error)
 }
 
-// Deprecated: use Error or Errorf instead
-func (l *LintRuleErrorsList) Add(templateOrString string, a ...any) *LintRuleErrorsList {
-	if len(a) != 0 {
-		templateOrString = fmt.Sprintf(templateOrString, a...)
-	}
-
-	return l.add(templateOrString, pkg.Error)
-}
-
 func (l *LintRuleErrorsList) add(str string, level pkg.Level) *LintRuleErrorsList {
 	if l.storage == nil {
 		l.storage = &errStorage{}

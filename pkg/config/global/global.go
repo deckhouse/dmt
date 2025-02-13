@@ -7,20 +7,16 @@ type Global struct {
 }
 
 type Linters struct {
-	OpenAPI       LinterConfig `mapstructure:"openapi"`
-	NoCyrillic    LinterConfig `mapstructure:"nocyrillic"`
-	License       LinterConfig `mapstructure:"license"`
-	Container     LinterConfig `mapstructure:"container"`
-	KubeRBACProxy LinterConfig `mapstructure:"kube-rbac-proxy"`
-	VPAResources  LinterConfig `mapstructure:"vpa_resources"`
-	PDBResources  LinterConfig `mapstructure:"pdb_resources"`
-	CRDResources  LinterConfig `mapstructure:"crd_resources"`
-	Images        LinterConfig `mapstructure:"images"`
-	Rbac          LinterConfig `mapstructure:"rbac"`
-	Resources     LinterConfig `mapstructure:"resources"`
-	Monitoring    LinterConfig `mapstructure:"monitoring"`
-	Hooks         LinterConfig `mapstructure:"hooks"`
-	Module        LinterConfig `mapstructure:"module"`
+	OpenAPI    LinterConfig `mapstructure:"openapi"`
+	NoCyrillic LinterConfig `mapstructure:"nocyrillic"`
+	License    LinterConfig `mapstructure:"license"`
+	Container  LinterConfig `mapstructure:"container"`
+	Images     LinterConfig `mapstructure:"images"`
+	Rbac       LinterConfig `mapstructure:"rbac"`
+	Resources  LinterConfig `mapstructure:"resources"`
+	Hooks      LinterConfig `mapstructure:"hooks"`
+	Module     LinterConfig `mapstructure:"module"`
+	Templates  LinterConfig `mapstructure:"templates"`
 }
 
 type LinterConfig struct {

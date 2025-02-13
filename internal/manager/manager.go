@@ -14,15 +14,12 @@ import (
 	"github.com/deckhouse/dmt/pkg/linters/container"
 	"github.com/deckhouse/dmt/pkg/linters/hooks"
 	"github.com/deckhouse/dmt/pkg/linters/images"
-	rbacproxy "github.com/deckhouse/dmt/pkg/linters/kube-rbac-proxy"
 	"github.com/deckhouse/dmt/pkg/linters/license"
 	moduleLinter "github.com/deckhouse/dmt/pkg/linters/module"
-	"github.com/deckhouse/dmt/pkg/linters/monitoring"
 	no_cyrillic "github.com/deckhouse/dmt/pkg/linters/no-cyrillic"
 	"github.com/deckhouse/dmt/pkg/linters/openapi"
-	"github.com/deckhouse/dmt/pkg/linters/pdb-resources"
 	"github.com/deckhouse/dmt/pkg/linters/rbac"
-	"github.com/deckhouse/dmt/pkg/linters/vpa-resources"
+	"github.com/deckhouse/dmt/pkg/linters/templates"
 )
 
 const (
@@ -110,12 +107,9 @@ func getLintersForModule(cfg *config.ModuleConfig, errList *errors.LintRuleError
 		no_cyrillic.New(cfg, errList),
 		license.New(cfg, errList),
 		container.New(cfg, errList),
-		rbacproxy.New(cfg, errList),
-		vpa.New(cfg, errList),
-		pdb.New(cfg, errList),
+		templates.New(cfg, errList),
 		images.New(cfg, errList),
 		rbac.New(cfg, errList),
-		monitoring.New(cfg, errList),
 		hooks.New(cfg, errList),
 		moduleLinter.New(cfg, errList),
 	}

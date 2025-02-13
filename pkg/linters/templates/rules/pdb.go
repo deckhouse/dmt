@@ -1,8 +1,7 @@
-package pdb
+package rules
 
 import (
 	"fmt"
-	"slices"
 
 	appsv1 "k8s.io/api/apps/v1"
 	policyv1 "k8s.io/api/policy/v1"
@@ -12,15 +11,34 @@ import (
 
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/storage"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
+
+const (
+	PDBRuleName = "pdb"
+)
+
+func NewPDBRule(excludeRules []pkg.KindRuleExclude) *PDBRule {
+	return &PDBRule{
+		RuleMeta: pkg.RuleMeta{
+			Name: PDBRuleName,
+		},
+		KindRule: pkg.KindRule{
+			ExcludeRules: excludeRules,
+		},
+	}
+}
+
+type PDBRule struct {
+	pkg.RuleMeta
+	pkg.KindRule
+}
 
 type nsLabelSelector struct {
 	namespace string
 	selector  labels.Selector
 }
-
-var skipPDBChecks []string
 
 func (s *nsLabelSelector) Matches(namespace string, labelSet labels.Set) bool {
 	return s.namespace == namespace && s.selector.Matches(labelSet)
@@ -28,18 +46,25 @@ func (s *nsLabelSelector) Matches(namespace string, labelSet labels.Set) bool {
 
 // controllerMustHavePDB adds linting errors if there are pods from controllers which are not covered (except DaemonSets)
 // by a PodDisruptionBudget
-func (l *PDB) controllerMustHavePDB(md *module.Module) {
-	errorList := l.ErrorList.WithModule(md.GetName())
-
-	if slices.Contains(skipPDBChecks, md.GetNamespace()+":"+md.GetName()) {
-		return
-	}
+func (r *PDBRule) ControllerMustHavePDB(md *module.Module, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(r.GetName())
 
 	pdbSelectors := collectPDBSelectors(md, errorList)
 
 	for _, object := range md.GetObjectStore().Storage {
 		if !isPodController(object.Unstructured.GetKind()) {
 			continue
+		}
+
+		targetRef, err := parseTargetRef(object)
+		if err != nil {
+			errorList.Errorf("parse target ref: %s", err)
+			return
+		}
+
+		if !r.Enabled(targetRef.Kind, targetRef.Name) {
+			// TODO: add metrics
+			return
 		}
 
 		if isPodControllerDaemonSet(object.Unstructured.GetKind()) {
@@ -56,12 +81,8 @@ func isPodControllerDaemonSet(kind string) bool {
 
 // daemonSetMustNotHavePDB adds linting errors if there are pods from DaemonSets which are covered
 // by a PodDisruptionBudget
-func (l *PDB) daemonSetMustNotHavePDB(md *module.Module) {
-	errorList := l.ErrorList.WithModule(md.GetName())
-
-	if slices.Contains(skipPDBChecks, md.GetNamespace()+":"+md.GetName()) {
-		return
-	}
+func (r *PDBRule) DaemonSetMustNotHavePDB(md *module.Module, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(r.GetName())
 
 	pdbSelectors := collectPDBSelectors(md, errorList)
 
@@ -72,6 +93,17 @@ func (l *PDB) daemonSetMustNotHavePDB(md *module.Module) {
 
 		if !isPodControllerDaemonSet(object.Unstructured.GetKind()) {
 			continue
+		}
+
+		targetRef, err := parseTargetRef(object)
+		if err != nil {
+			errorList.Errorf("parse target ref: %s", err)
+			return
+		}
+
+		if !r.Enabled(targetRef.Kind, targetRef.Name) {
+			// TODO: add metrics
+			return
 		}
 
 		ensurePDBIsNotPresent(pdbSelectors, object, errorList)
@@ -101,7 +133,7 @@ func collectPDBSelectors(md *module.Module, errorList *errors.LintRuleErrorsList
 }
 
 // ensurePDBIsPresent returns true if there is a PDB controlling pods from the pod contoller
-// VPA is assumed to be present, since the PDB check goes after VPA check.
+// PDB is assumed to be present, since the PDB check goes after PDB check.
 func ensurePDBIsPresent(selectors []nsLabelSelector, podController storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	errorListObj := errorList.WithObjectID(podController.Identity())
 
@@ -124,7 +156,7 @@ func ensurePDBIsPresent(selectors []nsLabelSelector, podController storage.Store
 }
 
 // ensurePDBIsNotPresent returns true if there is not a PDB controlling pods from the pod contoller
-// VPA is assumed to be present, since the PDB check goes after VPA check.
+// PDB is assumed to be present, since the PDB check goes after PDB check.
 func ensurePDBIsNotPresent(selectors []nsLabelSelector, podController storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	errorListObj := errorList.WithObjectID(podController.Identity())
 

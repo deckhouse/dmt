@@ -14,18 +14,39 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package monitoring
+package rules
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"sync"
 
 	"sigs.k8s.io/yaml"
 
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/storage"
+	"github.com/deckhouse/dmt/pkg"
+	"github.com/deckhouse/dmt/pkg/errors"
 )
+
+const (
+	PrometheusRuleName = "prometheus-rules"
+)
+
+func NewPrometheusRule() *PrometheusRule {
+	return &PrometheusRule{
+		RuleMeta: pkg.RuleMeta{
+			Name: PrometheusRuleName,
+		},
+	}
+}
+
+type PrometheusRule struct {
+	pkg.RuleMeta
+}
 
 type checkResult struct {
 	success bool
@@ -90,8 +111,8 @@ func checkRuleFile(path string) error {
 	return err
 }
 
-func (l *Monitoring) promtoolRuleCheck(m *module.Module, object storage.StoreObject) {
-	errorList := l.ErrorList.WithModule(m.GetName()).WithFilePath(m.GetPath())
+func (r *PrometheusRule) PromtoolRuleCheck(m *module.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithFilePath(m.GetPath()).WithRule(r.GetName())
 
 	// check promtoolPath exist, if not do not run linter
 	if _, err := os.Stat(promtoolPath); err != nil {
@@ -136,4 +157,62 @@ func (l *Monitoring) promtoolRuleCheck(m *module.Module, object storage.StoreObj
 	}
 
 	rulesCache.Put(object.Hash, checkResult{success: true})
+}
+
+func (r *PrometheusRule) ValidatePrometheusRules(m *module.Module, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithFilePath(m.GetPath()).WithRule(r.GetName())
+
+	monitoringFilePath := filepath.Join(m.GetPath(), "templates", "monitoring.yaml")
+	if info, _ := os.Stat(monitoringFilePath); info == nil {
+		errorList.WithFilePath(monitoringFilePath).
+			Error("Module with the 'monitoring' folder should have the 'templates/monitoring.yaml' file")
+
+		return
+	}
+
+	content, err := os.ReadFile(monitoringFilePath)
+	if err != nil {
+		errorList.WithFilePath(monitoringFilePath).
+			Errorf("Cannot read 'templates/monitoring.yaml' file: %s", err)
+
+		return
+	}
+
+	searchPath := filepath.Join(m.GetPath(), "monitoring", "prometheus-rules")
+	_, err = os.Stat(searchPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return
+		}
+		errorList.Errorf("reading the 'monitoring/prometheus-rules' folder failed: %s", err)
+
+		return
+	}
+
+	desiredContent := `{{- include "helm_lib_prometheus_rules" (list . %q) }}`
+
+	if !isContentMatching(string(content), desiredContent, m.GetNamespace(), true) {
+		errorList.WithFilePath(monitoringFilePath).
+			Errorf("The content of the 'templates/monitoring.yaml' should be equal to:\n%s\nGot:\n%s",
+				fmt.Sprintf(desiredContent, "YOUR NAMESPACE TO DEPLOY RULES: d8-monitoring, d8-system or module namespaces"),
+				string(content),
+			)
+
+		return
+	}
+}
+
+func isContentMatching(content, desiredContent, moduleNamespace string, rulesEx bool) bool {
+	for _, namespace := range []string{moduleNamespace, "d8-system", "d8-monitoring"} {
+		checkContent := desiredContent
+		if rulesEx {
+			checkContent = fmt.Sprintf(desiredContent, namespace)
+		}
+
+		if strings.Contains(content, checkContent) {
+			return true
+		}
+	}
+
+	return false
 }

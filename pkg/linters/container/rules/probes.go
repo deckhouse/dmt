@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	LivenessRuleName  = "liveness"
-	ReadinessRuleName = "readiness"
+	LivenessRuleName  = "liveness-probe"
+	ReadinessRuleName = "readiness-probe"
 )
 
 func NewLivenessRule(excludeRules []pkg.ContainerRuleExclude) *LivenessRule {

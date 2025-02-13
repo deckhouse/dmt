@@ -28,7 +28,9 @@ type StringRule struct {
 
 func (r *StringRule) Enabled(str string) bool {
 	for _, rule := range r.ExcludeRules {
-		return rule.Enabled(str)
+		if !rule.Enabled(str) {
+			return false
+		}
 	}
 
 	return true
@@ -38,9 +40,11 @@ type KindRule struct {
 	ExcludeRules []KindRuleExclude
 }
 
-func (r *KindRule) Enabled(object storage.StoreObject) bool {
+func (r *KindRule) Enabled(kind, name string) bool {
 	for _, rule := range r.ExcludeRules {
-		return rule.Enabled(object)
+		if !rule.Enabled(kind, name) {
+			return false
+		}
 	}
 
 	return true
@@ -52,7 +56,9 @@ type ContainerRule struct {
 
 func (r *ContainerRule) Enabled(object storage.StoreObject, container *corev1.Container) bool {
 	for _, rule := range r.ExcludeRules {
-		return rule.Enabled(object, container)
+		if !rule.Enabled(object, container) {
+			return false
+		}
 	}
 
 	return true
@@ -69,9 +75,9 @@ type KindRuleExclude struct {
 	Name string
 }
 
-func (e *KindRuleExclude) Enabled(object storage.StoreObject) bool {
-	if e.Kind == object.Unstructured.GetKind() &&
-		e.Name == object.Unstructured.GetName() {
+func (e *KindRuleExclude) Enabled(kind, name string) bool {
+	if e.Kind == kind &&
+		e.Name == name {
 		return false
 	}
 
