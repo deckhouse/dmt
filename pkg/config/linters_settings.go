@@ -6,9 +6,7 @@ import (
 )
 
 type LintersSettings struct {
-	OpenAPIKeys   OpenAPIKeysSettings   `mapstructure:"openapi"`
-	OpenAPIEnum   OpenAPIEnumSettings   `mapstructure:"openapi_enum"`
-	OpenAPIHA     OpenAPIHASettings     `mapstructure:"openapi_ha"`
+	OpenAPI       OpenAPISettings       `mapstructure:"openapi_settings"`
 	NoCyrillic    NoCyrillicSettings    `mapstructure:"nocyrillic"`
 	License       LicenseSettings       `mapstructure:"license"`
 	Container     ContainerSettings     `mapstructure:"container"`
@@ -25,9 +23,7 @@ type LintersSettings struct {
 }
 
 func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
-	assignIfNotEmpty(&cfg.OpenAPIKeys.Impact, lcfg.OpenAPI.Impact)
-	assignIfNotEmpty(&cfg.OpenAPIEnum.Impact, lcfg.OpenAPI.Impact)
-	assignIfNotEmpty(&cfg.OpenAPIHA.Impact, lcfg.OpenAPI.Impact)
+	assignIfNotEmpty(&cfg.OpenAPI.Impact, lcfg.OpenAPI.Impact)
 	assignIfNotEmpty(&cfg.NoCyrillic.Impact, lcfg.NoCyrillic.Impact)
 	assignIfNotEmpty(&cfg.License.Impact, lcfg.License.Impact)
 	assignIfNotEmpty(&cfg.Container.Impact, lcfg.Container.Impact)
@@ -43,19 +39,11 @@ func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
 	assignIfNotEmpty(&cfg.Module.Impact, lcfg.Module.Impact)
 }
 
-type OpenAPIKeysSettings struct {
-	KeyBannedNames []string  `mapstructure:"key-banned-names"`
-	Impact         pkg.Level `mapstructure:"impact"`
-}
-
-type OpenAPIEnumSettings struct {
-	EnumFileExcludes map[string][]string `mapstructure:"enum-file-excludes"`
-	Impact           pkg.Level           `mapstructure:"impact"`
-}
-
-type OpenAPIHASettings struct {
-	HAAbsoluteKeysExcludes map[string]string `mapstructure:"ha-absolute-keys-excludes"`
-	Impact                 pkg.Level         `mapstructure:"impact"`
+type OpenAPISettings struct {
+	KeyBannedNames         []string            `mapstructure:"key-banned-names"`
+	EnumFileExcludes       map[string][]string `mapstructure:"enum-file-excludes"`
+	HAAbsoluteKeysExcludes map[string]string   `mapstructure:"ha-absolute-keys-excludes"`
+	Impact                 pkg.Level           `mapstructure:"impact"`
 }
 
 type NoCyrillicSettings struct {

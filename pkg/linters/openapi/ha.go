@@ -1,4 +1,4 @@
-package openapiha
+package openapi
 
 import (
 	"fmt"
@@ -9,10 +9,10 @@ import (
 )
 
 type HAValidator struct {
-	cfg *config.OpenAPIHASettings
+	cfg *config.OpenAPISettings
 }
 
-func NewHAValidator(cfg *config.OpenAPIHASettings) HAValidator {
+func NewHAValidator(cfg *config.OpenAPISettings) HAValidator {
 	return HAValidator{
 		cfg: cfg,
 	}

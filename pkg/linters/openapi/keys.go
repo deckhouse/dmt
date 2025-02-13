@@ -1,4 +1,4 @@
-package openapikeys
+package openapi
 
 import (
 	"fmt"
@@ -12,7 +12,7 @@ type KeyValidator struct {
 	bannedNames []string
 }
 
-func NewKeyValidator(cfg *config.OpenAPIKeysSettings) KeyValidator {
+func NewKeyValidator(cfg *config.OpenAPISettings) KeyValidator {
 	return KeyValidator{
 		bannedNames: cfg.KeyBannedNames,
 	}

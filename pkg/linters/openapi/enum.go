@@ -1,4 +1,4 @@
-package openapienum
+package openapi
 
 import (
 	"errors"
@@ -15,12 +15,12 @@ var (
 )
 
 type EnumValidator struct {
-	cfg *config.OpenAPIEnumSettings
+	cfg *config.OpenAPISettings
 
 	excludes map[string]struct{}
 }
 
-func NewEnumValidator(cfg *config.OpenAPIEnumSettings) EnumValidator {
+func NewEnumValidator(cfg *config.OpenAPISettings) EnumValidator {
 	keyExcludes := make(map[string]struct{})
 
 	for _, exc := range cfg.EnumFileExcludes["*"] {

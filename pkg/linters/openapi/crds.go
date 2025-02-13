@@ -1,4 +1,4 @@
-package crd
+package openapi
 
 import (
 	"fmt"
@@ -7,9 +7,13 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/deckhouse/dmt/pkg/config"
+	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/ghodss/yaml"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 )
+
+const CrdsDir = "crds"
 
 var (
 	sep = regexp.MustCompile("(?:^|\\s*\n)---\\s*")
@@ -19,7 +23,19 @@ func shouldSkipCrd(name string) bool {
 	return !strings.Contains(name, "deckhouse.io")
 }
 
-func (l *CRDResources) crdsModuleRule(moduleName, path string) {
+type CRDValidator struct {
+	cfg       *config.CRDResourcesSettings
+	ErrorList *errors.LintRuleErrorsList
+}
+
+func NewCRDValidator(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *CRDValidator {
+	return &CRDValidator{
+		cfg:       &cfg.LintersSettings.CRDResources,
+		ErrorList: errorList.WithLinterID("crd").WithMaxLevel(cfg.LintersSettings.CRDResources.Impact),
+	}
+}
+
+func (l *CRDValidator) Run(moduleName, path string) {
 	if !isExistsOnFilesystem(moduleName, path) {
 		return
 	}
@@ -33,6 +49,7 @@ func (l *CRDResources) crdsModuleRule(moduleName, path string) {
 
 		fileContent, err := os.ReadFile(path)
 		if err != nil {
+			errorList.Errorf("Can't read file %s: %s", path, err)
 			return err
 		}
 
