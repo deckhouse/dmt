@@ -34,9 +34,9 @@ func (l *Templates) Run(m *module.Module) {
 
 	errorList := l.ErrorList.WithModule(m.GetName())
 
-	tr := rules.NewVPATolerationsRule(l.cfg.ExcludeRules.Tolerations.Get())
+	tr := rules.NewVPATolerationsRule(l.cfg.ExcludeRules.VPATolerations.Get())
 
-	rules.NewVPAAbsentRule(l.cfg.ExcludeRules.Absent.Get()).ControllerMustHaveVPA(m, tr, errorList)
+	rules.NewVPAAbsentRule(l.cfg.ExcludeRules.VPAAbsent.Get()).ControllerMustHaveVPA(m, tr, errorList)
 }
 
 func (l *Templates) Name() string {

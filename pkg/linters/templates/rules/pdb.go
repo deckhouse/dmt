@@ -1,4 +1,4 @@
-package pdb
+package rules
 
 import (
 	"fmt"
@@ -12,8 +12,29 @@ import (
 
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/storage"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
+
+const (
+	PDBAbsentRuleName = "pdb-absent"
+)
+
+func NewPDBAbsentRule(excludeRules []pkg.TargetRefRuleExclude) *PDBAbsentRule {
+	return &PDBAbsentRule{
+		RuleMeta: pkg.RuleMeta{
+			Name: PDBAbsentRuleName,
+		},
+		TargetRefRule: pkg.TargetRefRule{
+			ExcludeRules: excludeRules,
+		},
+	}
+}
+
+type PDBAbsentRule struct {
+	pkg.RuleMeta
+	pkg.TargetRefRule
+}
 
 type nsLabelSelector struct {
 	namespace string
@@ -28,8 +49,8 @@ func (s *nsLabelSelector) Matches(namespace string, labelSet labels.Set) bool {
 
 // controllerMustHavePDB adds linting errors if there are pods from controllers which are not covered (except DaemonSets)
 // by a PodDisruptionBudget
-func (l *PDB) controllerMustHavePDB(md *module.Module) {
-	errorList := l.ErrorList.WithModule(md.GetName())
+func (r *PDBAbsentRule) controllerMustHavePDB(md *module.Module, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(r.GetName())
 
 	if slices.Contains(skipPDBChecks, md.GetNamespace()+":"+md.GetName()) {
 		return
@@ -56,8 +77,8 @@ func isPodControllerDaemonSet(kind string) bool {
 
 // daemonSetMustNotHavePDB adds linting errors if there are pods from DaemonSets which are covered
 // by a PodDisruptionBudget
-func (l *PDB) daemonSetMustNotHavePDB(md *module.Module) {
-	errorList := l.ErrorList.WithModule(md.GetName())
+func (r *PDBAbsentRule) daemonSetMustNotHavePDB(md *module.Module, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(r.GetName())
 
 	if slices.Contains(skipPDBChecks, md.GetNamespace()+":"+md.GetName()) {
 		return
@@ -101,7 +122,7 @@ func collectPDBSelectors(md *module.Module, errorList *errors.LintRuleErrorsList
 }
 
 // ensurePDBIsPresent returns true if there is a PDB controlling pods from the pod contoller
-// VPA is assumed to be present, since the PDB check goes after VPA check.
+// PDB is assumed to be present, since the PDB check goes after PDB check.
 func ensurePDBIsPresent(selectors []nsLabelSelector, podController storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	errorListObj := errorList.WithObjectID(podController.Identity())
 
@@ -124,7 +145,7 @@ func ensurePDBIsPresent(selectors []nsLabelSelector, podController storage.Store
 }
 
 // ensurePDBIsNotPresent returns true if there is not a PDB controlling pods from the pod contoller
-// VPA is assumed to be present, since the PDB check goes after VPA check.
+// PDB is assumed to be present, since the PDB check goes after PDB check.
 func ensurePDBIsNotPresent(selectors []nsLabelSelector, podController storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	errorListObj := errorList.WithObjectID(podController.Identity())
 

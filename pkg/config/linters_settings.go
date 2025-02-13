@@ -14,7 +14,6 @@ type LintersSettings struct {
 	Container     ContainerSettings     `mapstructure:"container"`
 	KubeRBACProxy KubeRBACProxySettings `mapstructure:"kube-rbac-proxy"`
 	Templates     TemplatesSettings     `mapstructure:"templates"`
-	PDBResources  PDBResourcesSettings  `mapstructure:"pdb_resources"`
 	CRDResources  CRDResourcesSettings  `mapstructure:"crd_resources"`
 	Images        ImageSettings         `mapstructure:"images"`
 	Rbac          RbacSettings          `mapstructure:"rbac"`
@@ -32,8 +31,7 @@ func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
 	assignIfNotEmpty(&cfg.License.Impact, lcfg.License.Impact)
 	assignIfNotEmpty(&cfg.Container.Impact, lcfg.Container.Impact)
 	assignIfNotEmpty(&cfg.KubeRBACProxy.Impact, lcfg.KubeRBACProxy.Impact)
-	assignIfNotEmpty(&cfg.Templates.Impact, lcfg.VPAResources.Impact)
-	assignIfNotEmpty(&cfg.PDBResources.Impact, lcfg.PDBResources.Impact)
+	assignIfNotEmpty(&cfg.Templates.Impact, lcfg.Templates.Impact)
 	assignIfNotEmpty(&cfg.CRDResources.Impact, lcfg.CRDResources.Impact)
 	assignIfNotEmpty(&cfg.Images.Impact, lcfg.Images.Impact)
 	assignIfNotEmpty(&cfg.Rbac.Impact, lcfg.Rbac.Impact)
@@ -109,24 +107,9 @@ type TemplatesSettings struct {
 }
 
 type TemplatesExcludeRules struct {
-	Absent      TargetRefRuleExcludeList `mapstructure:"absent"`
-	Tolerations TargetRefRuleExcludeList `mapstructure:"tolerations"`
-}
-
-type VPARuleSettings struct {
-	// disable conversions rule completely
-	Disable bool `mapstructure:"disable"`
-}
-
-type PDBResourcesSettings struct {
-	SkipPDBChecks []string                 `mapstructure:"skip-pdb-checks"`
-	ExcludeRules  PDBResourcesExcludeRules `mapstructure:"exclude-rules"`
-
-	Impact pkg.Level `mapstructure:"impact"`
-}
-
-type PDBResourcesExcludeRules struct {
-	Absent KindRuleExcludeList `mapstructure:"absent"`
+	VPAAbsent      TargetRefRuleExcludeList `mapstructure:"vpa-absent"`
+	VPATolerations TargetRefRuleExcludeList `mapstructure:"vpa-tolerations"`
+	PDBAbsent      TargetRefRuleExcludeList `mapstructure:"pdb-absent"`
 }
 
 type CRDResourcesSettings struct {

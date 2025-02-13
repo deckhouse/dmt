@@ -1,6 +1,7 @@
 package rules
 
 import (
+	stderrors "errors"
 	"fmt"
 
 	"github.com/flant/addon-operator/sdk"
@@ -288,4 +289,29 @@ func ensureVPAIsPresent(
 	}
 
 	return ok
+}
+
+type TargetRef struct {
+	Kind string
+	Name string
+}
+
+func getTargetRef(object storage.StoreObject) (*TargetRef, error) {
+	kind, foundKind, err := unstructured.NestedString(object.Unstructured.Object, "spec", "targetRef", "kind")
+	if err != nil {
+		return nil, fmt.Errorf("can not find targetRef kind: %w", err)
+	}
+	name, foundName, err := unstructured.NestedString(object.Unstructured.Object, "spec", "targetRef", "name")
+	if err != nil {
+		return nil, fmt.Errorf("can not find targetRef name: %w", err)
+	}
+
+	if !foundKind || !foundName {
+		return nil, stderrors.New("can not find targetRef kind or name are empty")
+	}
+
+	return &TargetRef{
+		Kind: kind,
+		Name: name,
+	}, nil
 }
