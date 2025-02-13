@@ -2,7 +2,6 @@ package rules
 
 import (
 	"fmt"
-	"slices"
 
 	appsv1 "k8s.io/api/apps/v1"
 	policyv1 "k8s.io/api/policy/v1"
@@ -17,13 +16,13 @@ import (
 )
 
 const (
-	PDBAbsentRuleName = "pdb-absent"
+	PDBRuleName = "pdb"
 )
 
-func NewPDBAbsentRule(excludeRules []pkg.TargetRefRuleExclude) *PDBAbsentRule {
-	return &PDBAbsentRule{
+func NewPDBRule(excludeRules []pkg.TargetRefRuleExclude) *PDBRule {
+	return &PDBRule{
 		RuleMeta: pkg.RuleMeta{
-			Name: PDBAbsentRuleName,
+			Name: PDBRuleName,
 		},
 		TargetRefRule: pkg.TargetRefRule{
 			ExcludeRules: excludeRules,
@@ -31,7 +30,7 @@ func NewPDBAbsentRule(excludeRules []pkg.TargetRefRuleExclude) *PDBAbsentRule {
 	}
 }
 
-type PDBAbsentRule struct {
+type PDBRule struct {
 	pkg.RuleMeta
 	pkg.TargetRefRule
 }
@@ -41,26 +40,31 @@ type nsLabelSelector struct {
 	selector  labels.Selector
 }
 
-var skipPDBChecks []string
-
 func (s *nsLabelSelector) Matches(namespace string, labelSet labels.Set) bool {
 	return s.namespace == namespace && s.selector.Matches(labelSet)
 }
 
 // controllerMustHavePDB adds linting errors if there are pods from controllers which are not covered (except DaemonSets)
 // by a PodDisruptionBudget
-func (r *PDBAbsentRule) controllerMustHavePDB(md *module.Module, errorList *errors.LintRuleErrorsList) {
+func (r *PDBRule) ControllerMustHavePDB(md *module.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
-
-	if slices.Contains(skipPDBChecks, md.GetNamespace()+":"+md.GetName()) {
-		return
-	}
 
 	pdbSelectors := collectPDBSelectors(md, errorList)
 
 	for _, object := range md.GetObjectStore().Storage {
 		if !isPodController(object.Unstructured.GetKind()) {
 			continue
+		}
+
+		targetRef, err := parseTargetRef(object)
+		if err != nil {
+			errorList.Errorf("parse target ref: %s", err)
+			return
+		}
+
+		if !r.Enabled(targetRef.Kind, targetRef.Name) {
+			// TODO: add metrics
+			return
 		}
 
 		if isPodControllerDaemonSet(object.Unstructured.GetKind()) {
@@ -77,12 +81,8 @@ func isPodControllerDaemonSet(kind string) bool {
 
 // daemonSetMustNotHavePDB adds linting errors if there are pods from DaemonSets which are covered
 // by a PodDisruptionBudget
-func (r *PDBAbsentRule) daemonSetMustNotHavePDB(md *module.Module, errorList *errors.LintRuleErrorsList) {
+func (r *PDBRule) DaemonSetMustNotHavePDB(md *module.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
-
-	if slices.Contains(skipPDBChecks, md.GetNamespace()+":"+md.GetName()) {
-		return
-	}
 
 	pdbSelectors := collectPDBSelectors(md, errorList)
 
@@ -93,6 +93,17 @@ func (r *PDBAbsentRule) daemonSetMustNotHavePDB(md *module.Module, errorList *er
 
 		if !isPodControllerDaemonSet(object.Unstructured.GetKind()) {
 			continue
+		}
+
+		targetRef, err := parseTargetRef(object)
+		if err != nil {
+			errorList.Errorf("parse target ref: %s", err)
+			return
+		}
+
+		if !r.Enabled(targetRef.Kind, targetRef.Name) {
+			// TODO: add metrics
+			return
 		}
 
 		ensurePDBIsNotPresent(pdbSelectors, object, errorList)

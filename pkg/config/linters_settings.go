@@ -6,18 +6,17 @@ import (
 )
 
 type LintersSettings struct {
-	OpenAPI       OpenAPISettings       `mapstructure:"openapi"`
-	NoCyrillic    NoCyrillicSettings    `mapstructure:"nocyrillic"`
-	License       LicenseSettings       `mapstructure:"license"`
-	Container     ContainerSettings     `mapstructure:"container"`
-	KubeRBACProxy KubeRBACProxySettings `mapstructure:"kube-rbac-proxy"`
-	Templates     TemplatesSettings     `mapstructure:"templates"`
-	Images        ImageSettings         `mapstructure:"images"`
-	Rbac          RbacSettings          `mapstructure:"rbac"`
-	Resources     ResourcesSettings     `mapstructure:"resources"`
-	Monitoring    MonitoringSettings    `mapstructure:"monitoring"`
-	Ingress       IngressSettings       `mapstructure:"ingress"`
-	Module        ModuleSettings        `mapstructure:"module"`
+	OpenAPI    OpenAPISettings    `mapstructure:"openapi"`
+	NoCyrillic NoCyrillicSettings `mapstructure:"nocyrillic"`
+	License    LicenseSettings    `mapstructure:"license"`
+	Container  ContainerSettings  `mapstructure:"container"`
+	Templates  TemplatesSettings  `mapstructure:"templates"`
+	Images     ImageSettings      `mapstructure:"images"`
+	Rbac       RbacSettings       `mapstructure:"rbac"`
+	Resources  ResourcesSettings  `mapstructure:"resources"`
+	Monitoring MonitoringSettings `mapstructure:"monitoring"`
+	Ingress    IngressSettings    `mapstructure:"ingress"`
+	Module     ModuleSettings     `mapstructure:"module"`
 }
 
 func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
@@ -25,7 +24,6 @@ func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
 	assignIfNotEmpty(&cfg.NoCyrillic.Impact, lcfg.NoCyrillic.Impact)
 	assignIfNotEmpty(&cfg.License.Impact, lcfg.License.Impact)
 	assignIfNotEmpty(&cfg.Container.Impact, lcfg.Container.Impact)
-	assignIfNotEmpty(&cfg.KubeRBACProxy.Impact, lcfg.KubeRBACProxy.Impact)
 	assignIfNotEmpty(&cfg.Templates.Impact, lcfg.Templates.Impact)
 	assignIfNotEmpty(&cfg.Images.Impact, lcfg.Images.Impact)
 	assignIfNotEmpty(&cfg.Rbac.Impact, lcfg.Rbac.Impact)
@@ -81,13 +79,6 @@ type ContainerExcludeRules struct {
 	DNSPolicy KindRuleExcludeList `mapstructure:"dns-policy"`
 
 	Description StringRuleExcludeList `mapstructure:"description"`
-	ServicePort StringRuleExcludeList `mapstructure:"service-port"`
-}
-
-type KubeRBACProxySettings struct {
-	SkipKubeRbacProxyChecks []string `mapstructure:"skip-kube-rbac-proxy-checks"`
-
-	Impact pkg.Level `mapstructure:"impact"`
 }
 
 type TemplatesSettings struct {
@@ -98,9 +89,10 @@ type TemplatesSettings struct {
 }
 
 type TemplatesExcludeRules struct {
-	VPAAbsent      TargetRefRuleExcludeList `mapstructure:"vpa-absent"`
-	VPATolerations TargetRefRuleExcludeList `mapstructure:"vpa-tolerations"`
-	PDBAbsent      TargetRefRuleExcludeList `mapstructure:"pdb-absent"`
+	VPAAbsent     TargetRefRuleExcludeList `mapstructure:"vpa"`
+	PDBAbsent     TargetRefRuleExcludeList `mapstructure:"pdb"`
+	ServicePort   StringRuleExcludeList    `mapstructure:"service-port"`
+	KubeRBACProxy StringRuleExcludeList    `mapstructure:"kube-rbac-proxy"`
 }
 
 type ResourcesSettings struct {

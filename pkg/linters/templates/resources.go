@@ -21,7 +21,7 @@ type Templates struct {
 func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Templates {
 	return &Templates{
 		name:      ID,
-		desc:      "Lint vpa-resources",
+		desc:      "Lint templates",
 		cfg:       &cfg.LintersSettings.Templates,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Templates.Impact),
 	}
@@ -34,9 +34,20 @@ func (l *Templates) Run(m *module.Module) {
 
 	errorList := l.ErrorList.WithModule(m.GetName())
 
-	tr := rules.NewVPATolerationsRule(l.cfg.ExcludeRules.VPATolerations.Get())
+	// VPA
+	rules.NewVPARule(l.cfg.ExcludeRules.VPAAbsent.Get()).ControllerMustHaveVPA(m, errorList)
+	// PDB
+	pdb := rules.NewPDBRule(l.cfg.ExcludeRules.PDBAbsent.Get())
+	pdb.ControllerMustHavePDB(m, errorList)
+	pdb.DaemonSetMustNotHavePDB(m, errorList)
 
-	rules.NewVPAAbsentRule(l.cfg.ExcludeRules.VPAAbsent.Get()).ControllerMustHaveVPA(m, tr, errorList)
+	servicePortRule := rules.NewServicePortRule(l.cfg.ExcludeRules.ServicePort.Get())
+	kubeRbacRule := rules.NewKubeRbacProxyRule(l.cfg.ExcludeRules.KubeRBACProxy.Get())
+
+	for _, object := range m.GetStorage() {
+		servicePortRule.ObjectServiceTargetPort(object, errorList)
+		kubeRbacRule.NamespaceMustContainKubeRBACProxyCA(object, errorList)
+	}
 }
 
 func (l *Templates) Name() string {

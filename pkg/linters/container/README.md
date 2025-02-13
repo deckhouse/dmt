@@ -38,8 +38,6 @@ linters-settings:
       dns-policy:
         - kind: Deployment
           name: machine-controller-manager
-      service-port:
-        - d8-control-plane-apiserver
       liveness-probe:
         - kind: Deployment
           name: standby-holder-name

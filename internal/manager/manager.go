@@ -14,7 +14,6 @@ import (
 	"github.com/deckhouse/dmt/pkg/linters/container"
 	"github.com/deckhouse/dmt/pkg/linters/images"
 	"github.com/deckhouse/dmt/pkg/linters/ingress"
-	rbacproxy "github.com/deckhouse/dmt/pkg/linters/kube-rbac-proxy"
 	"github.com/deckhouse/dmt/pkg/linters/license"
 	moduleLinter "github.com/deckhouse/dmt/pkg/linters/module"
 	"github.com/deckhouse/dmt/pkg/linters/monitoring"
@@ -109,7 +108,6 @@ func getLintersForModule(cfg *config.ModuleConfig, errList *errors.LintRuleError
 		no_cyrillic.New(cfg, errList),
 		license.New(cfg, errList),
 		container.New(cfg, errList),
-		rbacproxy.New(cfg, errList),
 		templates.New(cfg, errList),
 		images.New(cfg, errList),
 		rbac.New(cfg, errList),

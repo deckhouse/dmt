@@ -15,13 +15,13 @@ import (
 )
 
 const (
-	VPAAbsentRuleName = "vpa-absent"
+	VPARuleName = "vpa"
 )
 
-func NewVPAAbsentRule(excludeRules []pkg.TargetRefRuleExclude) *VPAAbsentRule {
-	return &VPAAbsentRule{
+func NewVPARule(excludeRules []pkg.TargetRefRuleExclude) *VPARule {
+	return &VPARule{
 		RuleMeta: pkg.RuleMeta{
-			Name: VPAAbsentRuleName,
+			Name: VPARuleName,
 		},
 		TargetRefRule: pkg.TargetRefRule{
 			ExcludeRules: excludeRules,
@@ -29,16 +29,16 @@ func NewVPAAbsentRule(excludeRules []pkg.TargetRefRuleExclude) *VPAAbsentRule {
 	}
 }
 
-type VPAAbsentRule struct {
+type VPARule struct {
 	pkg.RuleMeta
 	pkg.TargetRefRule
 }
 
 // controllerMustHaveVPA fills linting error regarding VPA
-func (r *VPAAbsentRule) ControllerMustHaveVPA(md *module.Module, tr *TolerationsRule, errorList *errors.LintRuleErrorsList) {
+func (r *VPARule) ControllerMustHaveVPA(md *module.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
-	vpaTargets, vpaTolerationGroups, vpaContainerNamesMap, vpaUpdateModes := parseTargetsAndTolerationGroups(md, errorList)
+	vpaTargets, vpaContainerNamesMap, vpaUpdateModes := parseTargetsGroups(md, errorList)
 
 	for index, object := range md.GetObjectStore().Storage {
 		// Skip non-pod controllers
@@ -46,27 +46,13 @@ func (r *VPAAbsentRule) ControllerMustHaveVPA(md *module.Module, tr *Tolerations
 			continue
 		}
 
-		// spec:
-		//	targetRef:
-		//	  apiVersion: apps/v1
-		//	  kind: Deployment
-		//	  name: nginx
-		kind, foundKind, err := unstructured.NestedString(object.Unstructured.Object, "spec", "targetRef", "kind")
+		targetRef, err := parseTargetRef(object)
 		if err != nil {
-			errorList.Error("parse target ref kind")
-			return
-		}
-		name, foundName, err := unstructured.NestedString(object.Unstructured.Object, "spec", "targetRef", "name")
-		if err != nil {
-			errorList.Error("parse target ref name")
-			return
-		}
-		if !foundKind || !foundName {
-			errorList.Error("not found target ref")
+			errorList.Errorf("parse target ref: %s", err)
 			return
 		}
 
-		if !r.Enabled(kind, name) {
+		if !r.Enabled(targetRef.Kind, targetRef.Name) {
 			// TODO: add metrics
 			return
 		}
@@ -81,12 +67,7 @@ func (r *VPAAbsentRule) ControllerMustHaveVPA(md *module.Module, tr *Tolerations
 			continue
 		}
 
-		ok = ensureVPAContainersMatchControllerContainers(object, index, vpaContainerNamesMap, errorList)
-		if !ok {
-			continue
-		}
-
-		tr.EnsureTolerations(vpaTolerationGroups, index, object, errorList)
+		ensureVPAContainersMatchControllerContainers(object, index, vpaContainerNamesMap, errorList)
 	}
 }
 
@@ -94,16 +75,15 @@ func IsPodController(kind string) bool {
 	return kind == "Deployment" || kind == "DaemonSet" || kind == "StatefulSet"
 }
 
-// parseTargetsAndTolerationGroups resolves target resource indexes
+// parseTargetsGroups resolves target resource indexes
 //
 //nolint:gocritic // false positive
-func parseTargetsAndTolerationGroups(md *module.Module, errorList *errors.LintRuleErrorsList) (
-	map[storage.ResourceIndex]struct{}, map[storage.ResourceIndex]string,
+func parseTargetsGroups(md *module.Module, errorList *errors.LintRuleErrorsList) (
+	map[storage.ResourceIndex]struct{},
 	map[storage.ResourceIndex]set.Set,
 	map[storage.ResourceIndex]UpdateMode,
 ) {
 	vpaTargets := make(map[storage.ResourceIndex]struct{})
-	vpaTolerationGroups := make(map[storage.ResourceIndex]string)
 	vpaContainerNamesMap := make(map[storage.ResourceIndex]set.Set)
 	vpaUpdateModes := make(map[storage.ResourceIndex]UpdateMode)
 
@@ -114,15 +94,14 @@ func parseTargetsAndTolerationGroups(md *module.Module, errorList *errors.LintRu
 			continue
 		}
 
-		fillVPAMaps(vpaTargets, vpaTolerationGroups, vpaContainerNamesMap, vpaUpdateModes, object, errorList)
+		fillVPAMaps(vpaTargets, vpaContainerNamesMap, vpaUpdateModes, object, errorList)
 	}
 
-	return vpaTargets, vpaTolerationGroups, vpaContainerNamesMap, vpaUpdateModes
+	return vpaTargets, vpaContainerNamesMap, vpaUpdateModes
 }
 
 func fillVPAMaps(
 	vpaTargets map[storage.ResourceIndex]struct{},
-	vpaTolerationGroups map[storage.ResourceIndex]string,
 	vpaContainerNamesMap map[storage.ResourceIndex]set.Set,
 	vpaUpdateModes map[storage.ResourceIndex]UpdateMode,
 	vpa storage.StoreObject,
@@ -134,11 +113,6 @@ func fillVPAMaps(
 	}
 
 	vpaTargets[target] = struct{}{}
-
-	labels := vpa.Unstructured.GetLabels()
-	if label, lok := labels["workload-resource-policy.deckhouse.io"]; lok {
-		vpaTolerationGroups[target] = label
-	}
 
 	updateMode, vnm, ok := parseVPAResourcePolicyContainers(vpa, errorList)
 	if !ok {
@@ -296,7 +270,13 @@ type TargetRef struct {
 	Name string
 }
 
-func getTargetRef(object storage.StoreObject) (*TargetRef, error) {
+// spec:
+//
+//	targetRef:
+//	  apiVersion: apps/v1
+//	  kind: Deployment
+//	  name: nginx
+func parseTargetRef(object storage.StoreObject) (*TargetRef, error) {
 	kind, foundKind, err := unstructured.NestedString(object.Unstructured.Object, "spec", "targetRef", "kind")
 	if err != nil {
 		return nil, fmt.Errorf("can not find targetRef kind: %w", err)
