@@ -6,16 +6,13 @@ import (
 )
 
 type LintersSettings struct {
-	OpenAPIKeys   OpenAPIKeysSettings   `mapstructure:"openapi"`
-	OpenAPIEnum   OpenAPIEnumSettings   `mapstructure:"openapi_enum"`
-	OpenAPIHA     OpenAPIHASettings     `mapstructure:"openapi_ha"`
+	OpenAPI       OpenAPISettings       `mapstructure:"openapi"`
 	NoCyrillic    NoCyrillicSettings    `mapstructure:"nocyrillic"`
 	License       LicenseSettings       `mapstructure:"license"`
 	Container     ContainerSettings     `mapstructure:"container"`
 	KubeRBACProxy KubeRBACProxySettings `mapstructure:"kube-rbac-proxy"`
 	VPAResources  VPAResourcesSettings  `mapstructure:"vpa_resources"`
 	PDBResources  PDBResourcesSettings  `mapstructure:"pdb_resources"`
-	CRDResources  CRDResourcesSettings  `mapstructure:"crd_resources"`
 	Images        ImageSettings         `mapstructure:"images"`
 	Rbac          RbacSettings          `mapstructure:"rbac"`
 	Resources     ResourcesSettings     `mapstructure:"resources"`
@@ -25,16 +22,13 @@ type LintersSettings struct {
 }
 
 func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
-	assignIfNotEmpty(&cfg.OpenAPIKeys.Impact, lcfg.OpenAPI.Impact)
-	assignIfNotEmpty(&cfg.OpenAPIEnum.Impact, lcfg.OpenAPI.Impact)
-	assignIfNotEmpty(&cfg.OpenAPIHA.Impact, lcfg.OpenAPI.Impact)
+	assignIfNotEmpty(&cfg.OpenAPI.Impact, lcfg.OpenAPI.Impact)
 	assignIfNotEmpty(&cfg.NoCyrillic.Impact, lcfg.NoCyrillic.Impact)
 	assignIfNotEmpty(&cfg.License.Impact, lcfg.License.Impact)
 	assignIfNotEmpty(&cfg.Container.Impact, lcfg.Container.Impact)
 	assignIfNotEmpty(&cfg.KubeRBACProxy.Impact, lcfg.KubeRBACProxy.Impact)
 	assignIfNotEmpty(&cfg.VPAResources.Impact, lcfg.VPAResources.Impact)
 	assignIfNotEmpty(&cfg.PDBResources.Impact, lcfg.PDBResources.Impact)
-	assignIfNotEmpty(&cfg.CRDResources.Impact, lcfg.CRDResources.Impact)
 	assignIfNotEmpty(&cfg.Images.Impact, lcfg.Images.Impact)
 	assignIfNotEmpty(&cfg.Rbac.Impact, lcfg.Rbac.Impact)
 	assignIfNotEmpty(&cfg.Resources.Impact, lcfg.Resources.Impact)
@@ -43,19 +37,16 @@ func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
 	assignIfNotEmpty(&cfg.Module.Impact, lcfg.Module.Impact)
 }
 
-type OpenAPIKeysSettings struct {
-	KeyBannedNames []string  `mapstructure:"key-banned-names"`
-	Impact         pkg.Level `mapstructure:"impact"`
+type OpenAPISettings struct {
+	OpenAPIExcludeRules `mapstructure:"exclude-rules"`
+
+	Impact pkg.Level `mapstructure:"impact"`
 }
 
-type OpenAPIEnumSettings struct {
-	EnumFileExcludes map[string][]string `mapstructure:"enum-file-excludes"`
-	Impact           pkg.Level           `mapstructure:"impact"`
-}
-
-type OpenAPIHASettings struct {
-	HAAbsoluteKeysExcludes map[string]string `mapstructure:"ha-absolute-keys-excludes"`
-	Impact                 pkg.Level         `mapstructure:"impact"`
+type OpenAPIExcludeRules struct {
+	KeyBannedNames         []string              `mapstructure:"key-banned-names"`
+	EnumFileExcludes       []string              `mapstructure:"enum"`
+	HAAbsoluteKeysExcludes StringRuleExcludeList `mapstructure:"ha-absolute-keys"`
 }
 
 type NoCyrillicSettings struct {
@@ -122,10 +113,6 @@ type PDBResourcesSettings struct {
 
 type PDBResourcesExcludeRules struct {
 	Absent KindRuleExcludeList `mapstructure:"absent"`
-}
-
-type CRDResourcesSettings struct {
-	Impact pkg.Level `mapstructure:"impact"`
 }
 
 type ResourcesSettings struct {

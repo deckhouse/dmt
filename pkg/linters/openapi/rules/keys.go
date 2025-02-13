@@ -1,24 +1,51 @@
-package openapikeys
+package rules
 
 import (
 	"fmt"
 	"reflect"
 	"strings"
 
+	"github.com/deckhouse/dmt/internal/openapi"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
+	"github.com/deckhouse/dmt/pkg/errors"
 )
 
-type KeyValidator struct {
+type KeysRule struct {
+	cfg *config.OpenAPISettings
+	pkg.RuleMeta
+}
+
+func NewKeysRule(cfg *config.OpenAPISettings) *KeysRule {
+	return &KeysRule{
+		cfg: cfg,
+		RuleMeta: pkg.RuleMeta{
+			Name: "openapi-keys",
+		},
+	}
+}
+
+func (e *KeysRule) Run(path string, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(e.GetName())
+
+	haValidator := newKeyValidator(e.cfg)
+
+	if err := openapi.Parse(haValidator.run, path); err != nil {
+		errorList.WithFilePath(path).Errorf("openAPI file is not valid:\n%s", err)
+	}
+}
+
+type keyValidator struct {
 	bannedNames []string
 }
 
-func NewKeyValidator(cfg *config.OpenAPIKeysSettings) KeyValidator {
-	return KeyValidator{
+func newKeyValidator(cfg *config.OpenAPISettings) keyValidator {
+	return keyValidator{
 		bannedNames: cfg.KeyBannedNames,
 	}
 }
 
-func (kn KeyValidator) Run(_, absoluteKey string, value any) error {
+func (kn keyValidator) run(absoluteKey string, value any) error {
 	parts := strings.Split(absoluteKey, ".")
 	if parts[len(parts)-1] != "enum" {
 		return nil

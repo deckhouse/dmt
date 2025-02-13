@@ -1,48 +1,69 @@
-package openapienum
+package rules
 
 import (
-	"errors"
+	stdErrors "errors"
 	"fmt"
 	"regexp"
 	"strings"
 	"unicode"
 
+	"github.com/deckhouse/dmt/internal/openapi"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
+	"github.com/deckhouse/dmt/pkg/errors"
 )
+
+type EnumRule struct {
+	cfg *config.OpenAPISettings
+	pkg.RuleMeta
+}
 
 var (
 	arrayPathRegex = regexp.MustCompile(`[\d+]`)
 )
 
-type EnumValidator struct {
-	cfg *config.OpenAPIEnumSettings
+func NewEnumRule(cfg *config.OpenAPISettings) *EnumRule {
+	return &EnumRule{
+		cfg: cfg,
+		RuleMeta: pkg.RuleMeta{
+			Name: "openapi-enum",
+		},
+	}
+}
+
+func (e *EnumRule) Run(path string, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(e.GetName())
+
+	validator := newEnumValidator(e.cfg)
+
+	if err := openapi.Parse(validator.run, path); err != nil {
+		errorList.WithFilePath(path).Errorf("openAPI file is not valid:\n%s", err)
+	}
+}
+
+type enumValidator struct {
+	cfg *config.OpenAPISettings
 
 	excludes map[string]struct{}
 }
 
-func NewEnumValidator(cfg *config.OpenAPIEnumSettings) EnumValidator {
-	keyExcludes := make(map[string]struct{})
-
-	for _, exc := range cfg.EnumFileExcludes["*"] {
-		keyExcludes[exc+".enum"] = struct{}{}
+func newEnumValidator(cfg *config.OpenAPISettings) enumValidator {
+	excludes := make(map[string]struct{})
+	for _, exc := range cfg.EnumFileExcludes {
+		excludes[exc+".enum"] = struct{}{}
 	}
-
-	return EnumValidator{
+	return enumValidator{
 		cfg:      cfg,
-		excludes: keyExcludes,
+		excludes: excludes,
 	}
 }
 
-func (en EnumValidator) Run(moduleName, absoluteKey string, value any) error {
+func (en enumValidator) run(absoluteKey string, value any) error {
 	parts := strings.Split(absoluteKey, ".")
 	if parts[len(parts)-1] != "enum" {
 		return nil
 	}
 
-	en.excludes = make(map[string]struct{})
-	for _, exc := range en.cfg.EnumFileExcludes[moduleName] {
-		en.excludes[exc+".enum"] = struct{}{}
-	}
 	if _, ok := en.excludes[absoluteKey]; ok {
 		return nil
 	}
@@ -76,7 +97,7 @@ func validateEnumValues(enumKey string, values []string) error {
 	var res error
 	for _, value := range values {
 		if err := validateEnumValue(value); err != nil {
-			res = errors.Join(res, fmt.Errorf("enum '%s' is invalid: %w", enumKey, err))
+			res = stdErrors.Join(res, fmt.Errorf("enum '%s' is invalid: %w", enumKey, err))
 		}
 	}
 
