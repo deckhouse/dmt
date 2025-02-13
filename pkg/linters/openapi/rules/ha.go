@@ -21,7 +21,7 @@ func NewHARule(cfg *config.OpenAPISettings) *HARule {
 	return &HARule{
 		cfg: cfg,
 		RuleMeta: pkg.RuleMeta{
-			Name: "openapi-ha",
+			Name: "high-availability",
 		},
 		StringRule: pkg.StringRule{
 			ExcludeRules: cfg.HAAbsoluteKeysExcludes.Get(),
