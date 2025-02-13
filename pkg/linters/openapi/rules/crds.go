@@ -31,7 +31,9 @@ func NewDeckhouseCRDsRule() *DeckhouseCRDsRule {
 	}
 }
 
-func (*DeckhouseCRDsRule) Run(path string, errorList *errors.LintRuleErrorsList) {
+func (r *DeckhouseCRDsRule) Run(path string, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(r.GetName())
+
 	fileContent, err := os.ReadFile(path)
 	if err != nil {
 		errorList.Errorf("Can't read file %s: %s", path, err)
