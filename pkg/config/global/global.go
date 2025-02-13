@@ -12,7 +12,6 @@ type Linters struct {
 	License       LinterConfig `mapstructure:"license"`
 	Container     LinterConfig `mapstructure:"container"`
 	KubeRBACProxy LinterConfig `mapstructure:"kube-rbac-proxy"`
-	CRDResources  LinterConfig `mapstructure:"crd_resources"`
 	Images        LinterConfig `mapstructure:"images"`
 	Rbac          LinterConfig `mapstructure:"rbac"`
 	Resources     LinterConfig `mapstructure:"resources"`
