@@ -19,7 +19,7 @@ type Linters struct {
 	Rbac          LinterConfig `mapstructure:"rbac"`
 	Resources     LinterConfig `mapstructure:"resources"`
 	Monitoring    LinterConfig `mapstructure:"monitoring"`
-	Ingress       LinterConfig `mapstructure:"ingress"`
+	Hooks         LinterConfig `mapstructure:"hooks"`
 	Module        LinterConfig `mapstructure:"module"`
 }
 
