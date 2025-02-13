@@ -33,22 +33,15 @@ Generate some automatic rules for you module
 
 | Linter                                                   | Description                                                                  |
 |----------------------------------------------------------|------------------------------------------------------------------------------|
-| [container](pkg/linters/container/README.md)             | Check containers - Duplicated names, env variables, ports, security context. |
-| [conversions](pkg/linters/conversions/README.md)         | Check openapi conversions.                                                   |
-| [crd-resources](pkg/linters/crd-resources/README.md)     | Check crd resources                                                          |
-| [images](pkg/linters/conversions/README.md)              | Check images build instructions.                                             |
-| [ingress](pkg/linters/ingress/README.md)                 | Check ingress TLS hook settings.                                             |
-| [pdb-resources](pkg/linters/pdb-resources/README.md)     | Check PDB settings.                                                          |
-| [vpa-resources](pkg/linters/vpa-resources/README.md)     | Check VPA settings.                                                          |
-| [kube-rbac-proxy](pkg/linters/kube-rbac-proxy/README.md) | TODO.                                                                        |
-| [license](pkg/linters/license/README.md)                 | Check license header in files.                                               |
-| [oss](pkg/linters/oss/README.md)                         | Check oss.yaml file exists.                                                  |
-| [module](pkg/linters/module/README.md)                   | Check module.yaml definition.                                                |
-| [monitoring](pkg/linters/monitoring/README.md)           | Check prometheus rules.                                                      |
-| [no-cyrillic](pkg/linters/no-cyrillic/README.md)         | Check cyrillic letters.                                                      |
-| [openapi](pkg/linters/openapi/README.md)                 | Check openapi settings.                                                      |
-| [probes](pkg/linters/probes/README.md)                   | Check liveness and readiness probes.                                         |
-| [rbac](pkg/linters/rbac/README.md)                       | Check rbac rules.                                                            |
+| [container](pkg/linters/container/README.md)             | Check containers - duplicated names, env variables, ports, security context, liveness and readiness probes.|
+| [hooks](pkg/linters/hooks/README.md)                     | Check hooks rules. |
+| [images](pkg/linters/images/README.md)                   | Check images build instructions. |
+| [license](pkg/linters/license/README.md)                 | Check license header in files. |
+| [module](pkg/linters/module/README.md)                   | Check module.yaml definition, openapi conversions, oss.yaml file.|
+| [no-cyrillic](pkg/linters/no-cyrillic/README.md)         | Check cyrillic letters. |
+| [openapi](pkg/linters/openapi/README.md)                 | Check openapi settings, crds. |
+| [rbac](pkg/linters/rbac/README.md)                       | Check rbac rules. |
+| [templates](pkg/linters/templates/README.md)             | Check templates rules, VPA, PDB settings, prometheus, grafana rules, kube-rbac-proxy, service target port. |
 
 ## Configuration
 
