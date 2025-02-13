@@ -33,7 +33,7 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 		rule(object, errorList)
 	}
 
-	containers, err := object.GetAllContainers()
+	allContainers, err := object.GetAllContainers()
 	if err != nil {
 		errorList.WithObjectID(object.Identity()).
 			Errorf("Cannot get containers from object: %s", err)
@@ -41,7 +41,7 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 		return
 	}
 
-	if len(containers) == 0 {
+	if len(allContainers) == 0 {
 		return
 	}
 
@@ -60,14 +60,33 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 		rules.NewSecurityContextRule(l.cfg.ExcludeRules.SecurityContext.Get()).
 			ContainerSecurityContext,
 		containerPorts,
+	}
+
+	for _, rule := range containerRules {
+		rule(object, allContainers, errorList)
+	}
+
+	containers, err := object.GetContainers()
+	if err != nil {
+		errorList.WithObjectID(object.Identity()).
+			Errorf("Cannot get containers from object: %s", err)
+
+		return
+	}
+
+	if len(containers) == 0 {
+		return
+	}
+
+	notInitContainerRules := []func(storage.StoreObject, []corev1.Container, *errors.LintRuleErrorsList){
 		rules.NewLivenessRule(l.cfg.ExcludeRules.Liveness.Get()).
 			CheckProbe,
 		rules.NewReadinessRule(l.cfg.ExcludeRules.Readiness.Get()).
 			CheckProbe,
 	}
 
-	for _, rule := range containerRules {
-		rule(object, containers, errorList)
+	for _, rule := range notInitContainerRules {
+		rule(object, allContainers, errorList)
 	}
 }
 
