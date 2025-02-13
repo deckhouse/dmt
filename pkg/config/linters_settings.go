@@ -148,13 +148,14 @@ type ImageSettings struct {
 }
 
 type HooksSettings struct {
-	HooksExcludeRules `mapstructure:"exclude-rules"`
+	Ingress HooksIngressRuleSetting `mapstructure:"ingress"`
 
 	Impact pkg.Level `mapstructure:"impact"`
 }
 
-type HooksExcludeRules struct {
-	DisableIngress bool `mapstructure:"disable-ingress"`
+type HooksIngressRuleSetting struct {
+	// disable ingress rule completely
+	Disable bool `mapstructure:"disable"`
 }
 
 type ModuleSettings struct {

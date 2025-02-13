@@ -26,7 +26,7 @@ func NewHookRule(cfg *config.HooksSettings) *HookRule {
 			Name: "ingress",
 		},
 		BoolRule: pkg.BoolRule{
-			Exclude: cfg.DisableIngress,
+			Exclude: cfg.Ingress.Disable,
 		},
 	}
 }
