@@ -58,6 +58,13 @@ type configValues struct {
 }
 
 func (r *ConversionsRule) CheckConversions(modulePath string, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(r.GetName())
+
+	if !r.Enabled() {
+		// TODO: add metrics
+		return
+	}
+
 	configFilePath := filepath.Join(modulePath, configValuesFile)
 	_, err := os.Stat(configFilePath)
 	if err != nil && os.IsNotExist(err) {

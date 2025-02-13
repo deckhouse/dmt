@@ -7,9 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"sigs.k8s.io/yaml"
+
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"sigs.k8s.io/yaml"
 )
 
 const (
@@ -42,7 +43,7 @@ func (r *OSSRule) OssModuleRule(moduleRoot string, errorList *errors.LintRuleErr
 		return
 	}
 
-	if errs := r.verifyOssFile(moduleRoot); len(errs) > 0 {
+	if errs := verifyOssFile(moduleRoot); len(errs) > 0 {
 		for _, err := range errs {
 			errorList.WithObjectID(moduleRoot).Error(ossFileErrorMessage(err))
 		}
@@ -57,7 +58,7 @@ func ossFileErrorMessage(err error) string {
 	return fmt.Sprintf("Invalid %s: %s", ossFilename, err.Error())
 }
 
-func (r *OSSRule) verifyOssFile(moduleRoot string) []error {
+func verifyOssFile(moduleRoot string) []error {
 	projects, err := readOssFile(moduleRoot)
 	if err != nil {
 		return []error{err}
