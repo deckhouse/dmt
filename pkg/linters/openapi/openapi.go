@@ -32,7 +32,7 @@ func (o *OpenAPI) Run(m *module.Module) {
 	errorLists := o.ErrorList.WithModule(m.GetName())
 
 	// check openAPI and CRDs files
-	openAPIFiles := fsutils.GetFiles(m.GetPath(), true, filterOpenAPIfiles, filterCRDsfiles)
+	openAPIFiles := fsutils.GetFiles(m.GetPath(), true, filterOpenAPIfiles)
 
 	enumValidator := NewEnumValidator(o.cfg)
 	haValidator := NewHAValidator(o.cfg)
@@ -50,6 +50,12 @@ func (o *OpenAPI) Run(m *module.Module) {
 	crdFiles := fsutils.GetFiles(m.GetPath(), true, filterCRDsfiles)
 	KeyValidator := NewKeyValidator(o.cfg)
 	for _, file := range crdFiles {
+		if err := openapi.Parse(enumValidator.Run, file); err != nil {
+			errorLists.WithFilePath(fsutils.Rel(m.GetPath(), file)).Errorf("CRD file is not valid:\n%s", err)
+		}
+		if err := openapi.Parse(haValidator.Run, file); err != nil {
+			errorLists.WithFilePath(fsutils.Rel(m.GetPath(), file)).Errorf("CRD file is not valid:\n%s", err)
+		}
 		if err := openapi.Parse(KeyValidator.Run, file); err != nil {
 			errorLists.WithFilePath(fsutils.Rel(m.GetPath(), file)).Errorf("CRD file is not valid: %s", err)
 		}
