@@ -42,7 +42,7 @@ type GrafanaRule struct {
 }
 
 func (r *GrafanaRule) ValidationGrafanaDashboards(m *module.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+	errorList = errorList.WithFilePath(m.GetPath()).WithRule(r.GetName())
 
 	monitoringFilePath := filepath.Join(m.GetPath(), "templates", "monitoring.yaml")
 	if info, _ := os.Stat(monitoringFilePath); info == nil {
