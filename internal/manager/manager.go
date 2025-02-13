@@ -116,10 +116,7 @@ func getLintersForModule(cfg *config.ModuleConfig, errList *errors.LintRuleError
 }
 
 func (m *Manager) PrintResult() {
-	convertedError := m.errors.ConvertToError()
-	if convertedError != nil {
-		fmt.Printf("%s\n", convertedError)
-	}
+	m.errors.PrettyPrint()
 }
 
 func (m *Manager) HasCriticalErrors() bool {

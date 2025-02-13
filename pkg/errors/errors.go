@@ -199,16 +199,16 @@ func (l *LintRuleErrorsList) add(str string, level pkg.Level) *LintRuleErrorsLis
 	return l
 }
 
-// ConvertToError converts LintRuleErrorsList to a single error.
+// PrettyPrint converts LintRuleErrorsList to a single error.
 // It returns an error that contains all errors from the list with a nice formatting.
 // If the list is empty, it returns nil.
-func (l *LintRuleErrorsList) ConvertToError() error {
+func (l *LintRuleErrorsList) PrettyPrint() {
 	if l.storage == nil {
 		l.storage = &errStorage{}
 	}
 
 	if len(l.storage.GetErrors()) == 0 {
-		return nil
+		return
 	}
 
 	slices.SortFunc(l.storage.GetErrors(), func(a, b lintRuleError) int {
@@ -261,9 +261,8 @@ func (l *LintRuleErrorsList) ConvertToError() error {
 
 		w.Flush()
 	}
-	fmt.Println(buf.String())
 
-	return nil
+	fmt.Println(buf.String())
 }
 
 func (l *LintRuleErrorsList) ContainsErrors() bool {
