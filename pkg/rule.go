@@ -19,7 +19,7 @@ type BoolRule struct {
 }
 
 func (r *BoolRule) Enabled() bool {
-	return r.Exclude
+	return !r.Exclude
 }
 
 type StringRule struct {
@@ -61,7 +61,7 @@ func (r *ContainerRule) Enabled(object storage.StoreObject, container *corev1.Co
 type StringRuleExclude string
 
 func (e StringRuleExclude) Enabled(str string) bool {
-	return string(e) == str
+	return string(e) != str
 }
 
 type KindRuleExclude struct {
