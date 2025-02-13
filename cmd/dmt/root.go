@@ -5,10 +5,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/deckhouse/dmt/internal/flags"
-	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
+
+	"github.com/deckhouse/dmt/internal/flags"
+	"github.com/deckhouse/dmt/internal/logger"
 )
 
 func execute() {
@@ -24,15 +25,15 @@ func execute() {
 	lintCmd := &cobra.Command{
 		Use:   "lint",
 		Short: "linter for Deckhouse modules",
-		Long:  `A lot of usefull linters to check your modules`,
+		Long:  `A lot of useful linters to check your modules`,
 		Run:   lintCmdFunc,
 	}
 
 	genCmd := &cobra.Command{
 		Use:   "gen",
 		Short: "generator for Deckhouse modules",
-		Long:  `A lot of usefull generators`,
-		Run: func(cmd *cobra.Command, args []string) {
+		Long:  `A lot of useful generators`,
+		Run: func(_ *cobra.Command, _ []string) {
 			fmt.Println("under development")
 		},
 		Hidden: true,
@@ -50,7 +51,7 @@ func execute() {
 	}
 }
 
-func lintCmdFunc(cmd *cobra.Command, args []string) {
+func lintCmdFunc(_ *cobra.Command, args []string) {
 	var dirs = args[0:]
 
 	if len(dirs) == 0 {
