@@ -10,12 +10,11 @@ Checks containers inside the template spec. This linter protects against the nex
  - container uses port <= 1024
 - Checks for probes defined in containers.
 
-# Сюда перенести из linters/k8s-resources
-
-
 ## Settings example
 
 ### Module level
+
+This linter has settings.
 
 ```yaml
 linters-settings:

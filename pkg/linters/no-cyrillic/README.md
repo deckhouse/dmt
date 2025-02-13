@@ -7,6 +7,8 @@ Checks that there are no cyrillic characters in the source code.
 
 ### Module level
 
+This linter has settings.
+
 ```yaml
 linters-settings:
   no-cyrillic:

@@ -6,6 +6,8 @@ Checks the copyright header in files.
 
 ### Module level
 
+This linter has settings.
+
 ```yaml
 linters-settings:
   license:

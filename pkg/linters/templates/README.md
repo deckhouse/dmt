@@ -11,6 +11,8 @@ Lint monitoring rules:
 
 ## Module level
 
+This linter has settings.
+
 ```yaml
 linters-settings:
   templates:

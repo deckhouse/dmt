@@ -6,6 +6,8 @@ Checks that all openapi file is valid.
 
 ### Module level
 
+This linter has settings.
+
 ```yaml
 linters-settings:
   openapi:

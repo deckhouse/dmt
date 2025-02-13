@@ -8,7 +8,7 @@
 
 ### Module level
 
-This linter have settings. 
+This linter has settings.
 
 ```yaml
 linters-settings:
