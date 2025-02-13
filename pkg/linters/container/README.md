@@ -8,8 +8,7 @@ Checks containers inside the template spec. This linter protects against the nex
  - ephemeral storage is not defined in .resources
  - SecurityContext is not defined
  - container uses port <= 1024
-
-
+- Checks for probes defined in containers.
 
 # Сюда перенести из linters/k8s-resources
 
@@ -21,8 +20,28 @@ Checks containers inside the template spec. This linter protects against the nex
 ```yaml
 linters-settings:
   container:
-    containers:
-      exclude:
-        - "d8-kube-dns-sts-pods-hosts-appender-webhook:webhook"
-        - "caps-controller-manager:caps-controller-manager"
+    exclude-rules:
+      read-only-root-filesystem:
+        - kind: Deployment
+          name: deckhouse
+          container: init-downloaded-modules
+      resources:
+        - kind: Deployment
+          name: standby-holder-name
+          container: reserve-resources
+      security-context:
+        - kind: Deployment
+          name: caps-controller-manager
+          container: caps-controller-manager
+        - kind: Deployment
+          name: standby-holder-name
+      dns-policy:
+        - kind: Deployment
+          name: machine-controller-manager
+      service-port:
+        - d8-control-plane-apiserver
+      liveness:
+        - kube-rbac-proxy
+      readiness:
+        - kube-rbac-proxy
 ```

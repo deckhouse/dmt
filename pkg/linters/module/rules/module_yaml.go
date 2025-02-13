@@ -1,4 +1,4 @@
-package module
+package rules
 
 import (
 	errs "errors"
@@ -11,8 +11,29 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
+
+const (
+	DefinitionFileRuleName = "definition-file"
+)
+
+func NewDefinitionFileRule(disable bool) *DefinitionFileRule {
+	return &DefinitionFileRule{
+		RuleMeta: pkg.RuleMeta{
+			Name: DefinitionFileRuleName,
+		},
+		BoolRule: pkg.BoolRule{
+			Exclude: disable,
+		},
+	}
+}
+
+type DefinitionFileRule struct {
+	pkg.RuleMeta
+	pkg.BoolRule
+}
 
 const (
 	ModuleConfigFilename = "module.yaml"
@@ -37,12 +58,13 @@ type ModulePlatformRequirements struct {
 	Bootstrapped string `yaml:"bootstrapped,omitempty"`
 }
 
-func (l *Module) checkModuleYaml(moduleName, modulePath string) {
-	if slices.Contains(l.cfg.SkipCheckModuleYaml, moduleName) {
+func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(r.Name)
+
+	if !r.Enabled() {
+		// TODO: add metrics
 		return
 	}
-
-	errorList := l.ErrorList.WithModule(moduleName)
 
 	_, err := os.Stat(filepath.Join(modulePath, ModuleConfigFilename))
 	if errs.Is(err, os.ErrNotExist) {

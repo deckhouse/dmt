@@ -1,4 +1,4 @@
-package module
+package rules
 
 import (
 	"fmt"
@@ -12,8 +12,29 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
+
+const (
+	ConversionsRuleName = "conversions"
+)
+
+func NewConversionsRule(disable bool) *ConversionsRule {
+	return &ConversionsRule{
+		RuleMeta: pkg.RuleMeta{
+			Name: ConversionsRuleName,
+		},
+		BoolRule: pkg.BoolRule{
+			Exclude: disable,
+		},
+	}
+}
+
+type ConversionsRule struct {
+	pkg.RuleMeta
+	pkg.BoolRule
+}
 
 const (
 	conversionsFolder = "openapi/conversions"
@@ -36,8 +57,13 @@ type configValues struct {
 	ConfigVersion int `yaml:"x-config-version"`
 }
 
-func (l *Module) checkConversions(moduleName, modulePath string) {
-	errorList := l.ErrorList.WithModule(moduleName)
+func (r *ConversionsRule) CheckConversions(modulePath string, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(r.GetName())
+
+	if !r.Enabled() {
+		// TODO: add metrics
+		return
+	}
 
 	configFilePath := filepath.Join(modulePath, configValuesFile)
 	_, err := os.Stat(configFilePath)
@@ -127,8 +153,8 @@ func (l *Module) checkConversions(moduleName, modulePath string) {
 
 	slices.Sort(versions)
 
-	if l.cfg.FirstVersion != 0 && versions[0] != l.cfg.FirstVersion {
-		errorList.Errorf("You need to start with version number: %d", l.cfg.FirstVersion)
+	if versions[0] != 2 {
+		errorList.Errorf("You need to start with version number: 2")
 	}
 
 	for i := 1; i < len(versions); i++ {

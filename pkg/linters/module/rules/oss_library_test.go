@@ -1,4 +1,4 @@
-package oss
+package rules
 
 import (
 	"testing"

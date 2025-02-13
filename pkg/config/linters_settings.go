@@ -6,24 +6,22 @@ import (
 )
 
 type LintersSettings struct {
-	OpenAPIKeys  OpenAPIKeysSettings  `mapstructure:"openapi"`
-	OpenAPIEnum  OpenAPIEnumSettings  `mapstructure:"openapi_enum"`
-	OpenAPIHA    OpenAPIHASettings    `mapstructure:"openapi_ha"`
-	NoCyrillic   NoCyrillicSettings   `mapstructure:"nocyrillic"`
-	License      LicenseSettings      `mapstructure:"license"`
-	OSS          OSSSettings          `mapstructure:"oss"`
-	Probes       ProbesSettings       `mapstructure:"probes"`
-	Container    ContainerSettings    `mapstructure:"container"`
-	K8SResources K8SResourcesSettings `mapstructure:"k8s_resources"`
-	VPAResources VPAResourcesSettings `mapstructure:"vpa_resources"`
-	PDBResources PDBResourcesSettings `mapstructure:"pdb_resources"`
-	CRDResources CRDResourcesSettings `mapstructure:"crd_resources"`
-	Images       ImageSettings        `mapstructure:"images"`
-	Rbac         RbacSettings         `mapstructure:"rbac"`
-	Resources    ResourcesSettings    `mapstructure:"resources"`
-	Monitoring   MonitoringSettings   `mapstructure:"monitoring"`
-	Ingress      IngressSettings      `mapstructure:"ingress"`
-	Module       ModuleSettings       `mapstructure:"module"`
+	OpenAPIKeys   OpenAPIKeysSettings   `mapstructure:"openapi"`
+	OpenAPIEnum   OpenAPIEnumSettings   `mapstructure:"openapi_enum"`
+	OpenAPIHA     OpenAPIHASettings     `mapstructure:"openapi_ha"`
+	NoCyrillic    NoCyrillicSettings    `mapstructure:"nocyrillic"`
+	License       LicenseSettings       `mapstructure:"license"`
+	Container     ContainerSettings     `mapstructure:"container"`
+	KubeRBACProxy KubeRBACProxySettings `mapstructure:"kube-rbac-proxy"`
+	VPAResources  VPAResourcesSettings  `mapstructure:"vpa_resources"`
+	PDBResources  PDBResourcesSettings  `mapstructure:"pdb_resources"`
+	CRDResources  CRDResourcesSettings  `mapstructure:"crd_resources"`
+	Images        ImageSettings         `mapstructure:"images"`
+	Rbac          RbacSettings          `mapstructure:"rbac"`
+	Resources     ResourcesSettings     `mapstructure:"resources"`
+	Monitoring    MonitoringSettings    `mapstructure:"monitoring"`
+	Ingress       IngressSettings       `mapstructure:"ingress"`
+	Module        ModuleSettings        `mapstructure:"module"`
 }
 
 func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
@@ -32,10 +30,8 @@ func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
 	assignIfNotEmpty(&cfg.OpenAPIHA.Impact, lcfg.OpenAPI.Impact)
 	assignIfNotEmpty(&cfg.NoCyrillic.Impact, lcfg.NoCyrillic.Impact)
 	assignIfNotEmpty(&cfg.License.Impact, lcfg.License.Impact)
-	assignIfNotEmpty(&cfg.OSS.Impact, lcfg.OSS.Impact)
-	assignIfNotEmpty(&cfg.Probes.Impact, lcfg.Probes.Impact)
 	assignIfNotEmpty(&cfg.Container.Impact, lcfg.Container.Impact)
-	assignIfNotEmpty(&cfg.K8SResources.Impact, lcfg.K8SResources.Impact)
+	assignIfNotEmpty(&cfg.KubeRBACProxy.Impact, lcfg.KubeRBACProxy.Impact)
 	assignIfNotEmpty(&cfg.VPAResources.Impact, lcfg.VPAResources.Impact)
 	assignIfNotEmpty(&cfg.PDBResources.Impact, lcfg.PDBResources.Impact)
 	assignIfNotEmpty(&cfg.CRDResources.Impact, lcfg.CRDResources.Impact)
@@ -79,25 +75,6 @@ type LicenseExcludeRules struct {
 	Files StringRuleExcludeList `mapstructure:"files"`
 }
 
-type OSSSettings struct {
-	SkipOssChecks []string `mapstructure:"skip-oss-checks"`
-	Disable       bool     `mapstructure:"disable"`
-
-	Impact pkg.Level `mapstructure:"impact"`
-}
-
-type ProbesSettings struct {
-	ProbesExcludes map[string][]string `mapstructure:"probes-excludes"`
-	ExcludeRules   ProbesExcludeRules  `mapstructure:"exclude-rules"`
-
-	Impact pkg.Level `mapstructure:"impact"`
-}
-
-type ProbesExcludeRules struct {
-	Liveness  ContainerRuleExcludeList `mapstructure:"liveness"`
-	Readiness ContainerRuleExcludeList `mapstructure:"readiness"`
-}
-
 type ContainerSettings struct {
 	SkipContainers []string              `mapstructure:"skip-containers"`
 	ExcludeRules   ContainerExcludeRules `mapstructure:"exclude-rules"`
@@ -109,6 +86,8 @@ type ContainerExcludeRules struct {
 	ReadOnlyRootFilesystem ContainerRuleExcludeList `mapstructure:"read-only-root-filesystem"`
 	Resources              ContainerRuleExcludeList `mapstructure:"resources"`
 	SecurityContext        ContainerRuleExcludeList `mapstructure:"security-context"`
+	Liveness               ContainerRuleExcludeList `mapstructure:"liveness"`
+	Readiness              ContainerRuleExcludeList `mapstructure:"readiness"`
 
 	DNSPolicy KindRuleExcludeList `mapstructure:"dns-policy"`
 
@@ -116,7 +95,7 @@ type ContainerExcludeRules struct {
 	ServicePort StringRuleExcludeList `mapstructure:"service-port"`
 }
 
-type K8SResourcesSettings struct {
+type KubeRBACProxySettings struct {
 	SkipKubeRbacProxyChecks []string `mapstructure:"skip-kube-rbac-proxy-checks"`
 
 	Impact pkg.Level `mapstructure:"impact"`
@@ -191,10 +170,26 @@ type IngressSettings struct {
 type ModuleSettings struct {
 	SkipCheckModuleYaml []string `mapstructure:"skip-check-module-yaml"`
 
-	// first conversion version to make conversion flow
-	FirstVersion int `mapstructure:"first-version"`
+	OSS            ModuleOSSRuleSettings            `mapstructure:"oss"`
+	DefinitionFile ModuleDefinitionFileRuleSettings `mapstructure:"definition-file"`
+	Conversions    ConversionsRuleSettings          `mapstructure:"conversions"`
 
 	Impact pkg.Level `mapstructure:"impact"`
+}
+
+type ModuleOSSRuleSettings struct {
+	// disable oss rule completely
+	Disable bool `mapstructure:"disable"`
+}
+
+type ModuleDefinitionFileRuleSettings struct {
+	// disable definition-file rule completely
+	Disable bool `mapstructure:"disable"`
+}
+
+type ConversionsRuleSettings struct {
+	// disable conversions rule completely
+	Disable bool `mapstructure:"disable"`
 }
 
 type StringRuleExcludeList []string

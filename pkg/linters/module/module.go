@@ -4,6 +4,7 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters/module/rules"
 )
 
 // Module linter
@@ -29,8 +30,11 @@ func (l *Module) Run(m *module.Module) {
 		return
 	}
 
-	l.checkModuleYaml(m.GetName(), m.GetPath())
-	l.checkConversions(m.GetName(), m.GetPath())
+	errorList := l.ErrorList.WithModule(m.GetName())
+
+	rules.NewDefinitionFileRule(l.cfg.DefinitionFile.Disable).CheckDefinitionFile(m.GetPath(), errorList)
+	rules.NewOSSRule(l.cfg.OSS.Disable).OssModuleRule(m.GetPath(), errorList)
+	rules.NewConversionsRule(l.cfg.Conversions.Disable).CheckConversions(m.GetPath(), errorList)
 }
 
 func (l *Module) Name() string {
