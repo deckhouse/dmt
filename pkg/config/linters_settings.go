@@ -11,7 +11,6 @@ type LintersSettings struct {
 	OpenAPIHA     OpenAPIHASettings     `mapstructure:"openapi_ha"`
 	NoCyrillic    NoCyrillicSettings    `mapstructure:"nocyrillic"`
 	License       LicenseSettings       `mapstructure:"license"`
-	Probes        ProbesSettings        `mapstructure:"probes"`
 	Container     ContainerSettings     `mapstructure:"container"`
 	KubeRBACProxy KubeRBACProxySettings `mapstructure:"kube-rbac-proxy"`
 	VPAResources  VPAResourcesSettings  `mapstructure:"vpa_resources"`
@@ -31,7 +30,6 @@ func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
 	assignIfNotEmpty(&cfg.OpenAPIHA.Impact, lcfg.OpenAPI.Impact)
 	assignIfNotEmpty(&cfg.NoCyrillic.Impact, lcfg.NoCyrillic.Impact)
 	assignIfNotEmpty(&cfg.License.Impact, lcfg.License.Impact)
-	assignIfNotEmpty(&cfg.Probes.Impact, lcfg.Probes.Impact)
 	assignIfNotEmpty(&cfg.Container.Impact, lcfg.Container.Impact)
 	assignIfNotEmpty(&cfg.KubeRBACProxy.Impact, lcfg.KubeRBACProxy.Impact)
 	assignIfNotEmpty(&cfg.VPAResources.Impact, lcfg.VPAResources.Impact)
@@ -75,18 +73,6 @@ type LicenseSettings struct {
 
 type LicenseExcludeRules struct {
 	Files StringRuleExcludeList `mapstructure:"files"`
-}
-
-type ProbesSettings struct {
-	ProbesExcludes map[string][]string `mapstructure:"probes-excludes"`
-	ExcludeRules   ProbesExcludeRules  `mapstructure:"exclude-rules"`
-
-	Impact pkg.Level `mapstructure:"impact"`
-}
-
-type ProbesExcludeRules struct {
-	Liveness  ContainerRuleExcludeList `mapstructure:"liveness"`
-	Readiness ContainerRuleExcludeList `mapstructure:"readiness"`
 }
 
 type ContainerSettings struct {

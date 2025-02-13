@@ -10,7 +10,6 @@ type Linters struct {
 	OpenAPI       LinterConfig `mapstructure:"openapi"`
 	NoCyrillic    LinterConfig `mapstructure:"nocyrillic"`
 	License       LinterConfig `mapstructure:"license"`
-	Probes        LinterConfig `mapstructure:"probes"`
 	Container     LinterConfig `mapstructure:"container"`
 	KubeRBACProxy LinterConfig `mapstructure:"kube-rbac-proxy"`
 	VPAResources  LinterConfig `mapstructure:"vpa_resources"`
