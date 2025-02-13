@@ -1,11 +1,9 @@
 package rules
 
 import (
-	stderrors "errors"
 	"fmt"
 
 	"github.com/flant/addon-operator/sdk"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/set"
@@ -262,30 +260,4 @@ func ensureVPAIsPresent(
 type TargetRef struct {
 	Kind string
 	Name string
-}
-
-// spec:
-//
-//	targetRef:
-//	  apiVersion: apps/v1
-//	  kind: Deployment
-//	  name: nginx
-func parseTargetRef(object storage.StoreObject) (*TargetRef, error) {
-	kind, foundKind, err := unstructured.NestedString(object.Unstructured.Object, "spec", "targetRef", "kind")
-	if err != nil {
-		return nil, fmt.Errorf("can not find targetRef kind: %w", err)
-	}
-	name, foundName, err := unstructured.NestedString(object.Unstructured.Object, "spec", "targetRef", "name")
-	if err != nil {
-		return nil, fmt.Errorf("can not find targetRef name: %w", err)
-	}
-
-	if !foundKind || !foundName {
-		return nil, stderrors.New("can not find targetRef kind or name are empty")
-	}
-
-	return &TargetRef{
-		Kind: kind,
-		Name: name,
-	}, nil
 }

@@ -29,7 +29,7 @@ type ResourcesRule struct {
 }
 
 func (r *ResourcesRule) ContainerStorageEphemeral(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.Name)
+	errorList = errorList.WithRule(r.GetName())
 
 	for i := range containers {
 		c := &containers[i]
