@@ -424,7 +424,7 @@ func validatePriorityClass(priorityClass string, object storage.StoreObject, err
 	case "":
 		errorList.WithObjectID(object.Identity()).WithValue(priorityClass).
 			Error("Priority class must not be empty")
-	case "system-node-critical", "system-cluster-critical", "cluster-medium", "cluster-low", "cluster-critical":
+	case "system-node-critical", "system-cluster-critical", "cluster-medium", "cluster-low", "cluster-critical", "staging", "standby":
 	default:
 		errorList.WithObjectID(object.Identity()).WithValue(priorityClass).
 			Error("Priority class is not allowed")

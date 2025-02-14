@@ -59,7 +59,7 @@ func (r *SecurityContextRule) ContainerSecurityContext(object storage.StoreObjec
 			errorList.WithObjectID(object.Identity() + "; container = " + c.Name).
 				Error("Container SecurityContext is not defined")
 
-			return
+			continue
 		}
 	}
 }
