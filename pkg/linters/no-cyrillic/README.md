@@ -2,7 +2,6 @@
 
 Checks that there are no cyrillic characters in the source code.
 
-
 ## Settings example
 
 ### Module level

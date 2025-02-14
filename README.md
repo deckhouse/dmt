@@ -22,12 +22,10 @@ drwxrwxr-x 1 deckhouse deckhouse  4096 Nov 12 21:45 002-module-two
 drwxrwxr-x 1 deckhouse deckhouse  4096 Nov 10 21:46 003-module-three
 ```
 
-
 #### Gen
 
 Generate some automatic rules for you module
 <Coming soon>
-
 
 ## Linters list
 
