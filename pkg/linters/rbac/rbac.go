@@ -4,6 +4,7 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters/rbac/rules"
 )
 
 const (
@@ -31,10 +32,16 @@ func (l *Rbac) Run(m *module.Module) {
 		return
 	}
 
-	l.objectUserAuthzClusterRolePath(m)
-	l.objectRBACPlacement(m)
-	l.objectBindingSubjectServiceAccountCheck(m)
-	l.objectRolesWildcard(m)
+	errorList := l.ErrorList.WithModule(m.GetName())
+
+	rules.NewUzerAuthZRule().
+		ObjectUserAuthzClusterRolePath(m, errorList)
+	rules.NewBindingSubjectRule().
+		ObjectBindingSubjectServiceAccountCheck(m, errorList)
+	rules.NewPlacementRule(l.cfg.ExcludeRules.Placement.Get()).
+		ObjectRBACPlacement(m, errorList)
+	rules.NewWildcardsRule(l.cfg.ExcludeRules.Placement.Get()).
+		ObjectRolesWildcard(m, errorList)
 }
 
 func (l *Rbac) Name() string {
