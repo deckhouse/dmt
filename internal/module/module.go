@@ -141,7 +141,7 @@ func NewModule(path string) (*Module, error) {
 		return nil, err
 	}
 
-	reHelmModule := regexp.MustCompile(`{{ include "helm_lib_module_(?:image|common_image).* }}`)
+	reHelmModule := regexp.MustCompile(`{{ include "helm_lib_module_(?:image|common_image|init).* }}`)
 	reImageDigest := regexp.MustCompile(`\$\.Values\.global\.modulesImages\.digests\.\S*`)
 	for i := range ch.Templates {
 		var outputLines strings.Builder
