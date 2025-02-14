@@ -26,7 +26,7 @@ func NewEnumRule(cfg *config.OpenAPISettings) *EnumRule {
 	return &EnumRule{
 		cfg: cfg,
 		RuleMeta: pkg.RuleMeta{
-			Name: "openapi-enum",
+			Name: "enum",
 		},
 	}
 }

@@ -20,7 +20,7 @@ func NewKeysRule(cfg *config.OpenAPISettings) *KeysRule {
 	return &KeysRule{
 		cfg: cfg,
 		RuleMeta: pkg.RuleMeta{
-			Name: "openapi-keys",
+			Name: "keys",
 		},
 	}
 }

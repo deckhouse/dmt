@@ -117,6 +117,10 @@ func (m *Manager) Run() {
 			logger.InfoF("Run linters for `%s` module", module.GetName())
 
 			for _, linter := range getLintersForModule(module.GetModuleConfig(), m.errors) {
+				if flags.LinterName != "" && linter.Name() != flags.LinterName {
+					continue
+				}
+
 				logger.DebugF("Running linter `%s` on module `%s`", linter.Name(), module.GetName())
 
 				linter.Run(module)
