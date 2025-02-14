@@ -17,14 +17,11 @@ limitations under the License.
 package container
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/name"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -34,12 +31,7 @@ import (
 const defaultRegistry = "registry.example.com/deckhouse"
 
 const (
-	objectRecommendedLabelsRuleName         = "object-recommended-labels"
-	namespaceLabelsRuleName                 = "namespace-labels"
-	objectAPIVersionRuleName                = "object-api-version"
 	objectRevisionHistoryLimitRuleName      = "object-revision-history-limit"
-	objectPriorityClassRuleName             = "object-priority-class"
-	validatePriorityClassRuleName           = "validate-priority-class"
 	objectSecurityContextRuleName           = "object-security-context"
 	checkSecurityContextParametersRuleName  = "check-security-context-parameters"
 	checkRunAsNonRootRuleName               = "check-run-as-non-root"
@@ -53,15 +45,17 @@ const (
 
 func (l *Container) applyContainerRules(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithFilePath(object.ShortPath())
+
 	objectRules := []func(storage.StoreObject, *errors.LintRuleErrorsList){
-		objectRecommendedLabels,
-		namespaceLabels,
-		objectAPIVersion,
-		objectPriorityClass,
+		rules.NewRecommendedLabelsRule().ObjectRecommendedLabels,
+		rules.NewNamespaceLabelsRule().ObjectNamespaceLabels,
+		rules.NewAPIVersionRule().ObjectAPIVersion,
+		rules.NewPriorityClassRule().ObjectPriorityClass,
 		rules.NewDNSPolicyRule(l.cfg.ExcludeRules.DNSPolicy.Get()).
 			ObjectDNSPolicy,
-		objectSecurityContext,
-		objectRevisionHistoryLimit,
+		rules.NewControllerSecurityContextRule(l.cfg.ExcludeRules.ControllerSecurityContext.Get()).
+			ControllerSecurityContext,
+		rules.NewRevisionHistoryLimitRule().ObjectRevisionHistoryLimit,
 	}
 
 	for _, rule := range objectRules {
@@ -92,7 +86,7 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 		containersImagePullPolicy,
 		rules.NewResourcesRule(l.cfg.ExcludeRules.Resources.Get()).
 			ContainerStorageEphemeral,
-		rules.NewSecurityContextRule(l.cfg.ExcludeRules.SecurityContext.Get()).
+		rules.NewContainerSecurityContextRule(l.cfg.ExcludeRules.SecurityContext.Get()).
 			ContainerSecurityContext,
 		containerPorts,
 	}
@@ -295,237 +289,6 @@ func objectHostNetworkPorts(object storage.StoreObject, containers []corev1.Cont
 				errorList.WithObjectID(object.Identity() + " ; container = " + c.Name).WithValue(port.HostPort).
 					Error("Container uses hostPort that doesn't fit the range [4200,4299]")
 			}
-		}
-	}
-}
-
-func objectRecommendedLabels(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(objectRecommendedLabelsRuleName)
-
-	labels := object.Unstructured.GetLabels()
-	if _, ok := labels["module"]; !ok {
-		errorList.WithObjectID(object.Identity()).WithValue(labels).
-			Error(`Object does not have the label "module"`)
-	}
-	if _, ok := labels["heritage"]; !ok {
-		errorList.WithObjectID(object.Identity()).WithValue(labels).
-			Error(`Object does not have the label "heritage"`)
-	}
-}
-
-func namespaceLabels(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(namespaceLabelsRuleName)
-
-	if object.Unstructured.GetKind() != "Namespace" || !strings.HasPrefix(object.Unstructured.GetName(), "d8-") {
-		return
-	}
-
-	labels := object.Unstructured.GetLabels()
-
-	if label := labels["prometheus.deckhouse.io/rules-watcher-enabled"]; label == "true" {
-		return
-	}
-
-	errorList.WithObjectID(object.Identity()).WithValue(labels).
-		Error(`Namespace object does not have the label "prometheus.deckhouse.io/rules-watcher-enabled"`)
-}
-
-func objectAPIVersion(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(objectAPIVersionRuleName)
-
-	version := object.Unstructured.GetAPIVersion()
-
-	switch object.Unstructured.GetKind() {
-	case "Role", "RoleBinding", "ClusterRole", "ClusterRoleBinding":
-		compareAPIVersion("rbac.authorization.k8s.io/v1", version, object.Identity(), errorList)
-	case "Deployment", "DaemonSet", "StatefulSet":
-		compareAPIVersion("apps/v1", version, object.Identity(), errorList)
-	case "Ingress":
-		compareAPIVersion("networking.k8s.io/v1", version, object.Identity(), errorList)
-	case "PriorityClass":
-		compareAPIVersion("scheduling.k8s.io/v1", version, object.Identity(), errorList)
-	case "PodSecurityPolicy":
-		compareAPIVersion("policy/v1beta1", version, object.Identity(), errorList)
-	case "NetworkPolicy":
-		compareAPIVersion("networking.k8s.io/v1", version, object.Identity(), errorList)
-	}
-}
-
-func compareAPIVersion(wanted, version, objectID string, errorList *errors.LintRuleErrorsList) {
-	if version != wanted {
-		errorList.WithObjectID(objectID).
-			Errorf("Object defined using deprecated api version, wanted %q", wanted)
-	}
-}
-
-func objectRevisionHistoryLimit(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(objectRevisionHistoryLimitRuleName)
-
-	if object.Unstructured.GetKind() == "Deployment" {
-		converter := runtime.DefaultUnstructuredConverter
-		deployment := new(appsv1.Deployment)
-
-		if err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), deployment); err != nil {
-			errorList.WithObjectID(object.Identity()).
-				Errorf("Cannot convert object to %s: %v", object.Unstructured.GetKind(), err)
-
-			return
-		}
-
-		// https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#revision-history-limit
-		// Revision history limit controls the number of replicasets stored in the cluster for each deployment.
-		// Higher number means higher resource consumption, lower means inability to rollback.
-		//
-		// Since Deckhouse does not use rollback, we can set it to 2 to be able to manually check the previous version.
-		// It is more important to reduce the control plane pressure.
-		maxHistoryLimit := int32(2)
-		actualLimit := deployment.Spec.RevisionHistoryLimit
-
-		if actualLimit == nil {
-			errorList.WithObjectID(object.Identity()).
-				Errorf("Deployment spec.revisionHistoryLimit must be less or equal to %d", maxHistoryLimit)
-		} else if *actualLimit > maxHistoryLimit {
-			errorList.WithObjectID(object.Identity()).WithValue(*actualLimit).
-				Errorf("Deployment spec.revisionHistoryLimit must be less or equal to %d", maxHistoryLimit)
-		}
-	}
-}
-
-func objectPriorityClass(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(objectPriorityClassRuleName)
-
-	if !isPriorityClassSupportedKind(object.Unstructured.GetKind()) {
-		return
-	}
-
-	priorityClass, err := getPriorityClass(object)
-	if err != nil {
-		errorList.WithObjectID(object.Unstructured.GetName()).
-			Errorf("Cannot convert object to %s: %v", object.Unstructured.GetKind(), err)
-
-		return
-	}
-
-	validatePriorityClass(priorityClass, object, errorList)
-}
-
-func isPriorityClassSupportedKind(kind string) bool {
-	switch kind {
-	case "Deployment", "DaemonSet", "StatefulSet":
-		return true
-	default:
-		return false
-	}
-}
-
-func validatePriorityClass(priorityClass string, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(validatePriorityClassRuleName)
-	switch priorityClass {
-	case "":
-		errorList.WithObjectID(object.Identity()).WithValue(priorityClass).
-			Error("Priority class must not be empty")
-	case "system-node-critical", "system-cluster-critical", "cluster-medium", "cluster-low", "cluster-critical", "staging", "standby":
-	default:
-		errorList.WithObjectID(object.Identity()).WithValue(priorityClass).
-			Error("Priority class is not allowed")
-	}
-}
-
-func getPriorityClass(object storage.StoreObject) (string, error) {
-	converter := runtime.DefaultUnstructuredConverter
-
-	var priorityClass string
-	var err error
-
-	switch object.Unstructured.GetKind() {
-	case "Deployment":
-		deployment := new(appsv1.Deployment)
-		err = converter.FromUnstructured(object.Unstructured.UnstructuredContent(), deployment)
-		priorityClass = deployment.Spec.Template.Spec.PriorityClassName
-	case "DaemonSet":
-		daemonset := new(appsv1.DaemonSet)
-		err = converter.FromUnstructured(object.Unstructured.UnstructuredContent(), daemonset)
-		priorityClass = daemonset.Spec.Template.Spec.PriorityClassName
-	case "StatefulSet":
-		statefulset := new(appsv1.StatefulSet)
-		err = converter.FromUnstructured(object.Unstructured.UnstructuredContent(), statefulset)
-		priorityClass = statefulset.Spec.Template.Spec.PriorityClassName
-	}
-
-	return priorityClass, err
-}
-
-func objectSecurityContext(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(objectSecurityContextRuleName)
-
-	if !isSecurityContextSupportedKind(object.Unstructured.GetKind()) {
-		return
-	}
-
-	securityContext, err := object.GetPodSecurityContext()
-	if err != nil {
-		errorList.WithObjectID(object.Identity()).
-			Errorf("GetPodSecurityContext failed: %v", err)
-
-		return
-	}
-
-	if securityContext == nil {
-		errorList.WithObjectID(object.Identity()).
-			Errorf("Object's SecurityContext is not defined")
-
-		return
-	}
-
-	checkSecurityContextParameters(securityContext, object, errorList)
-}
-
-func isSecurityContextSupportedKind(kind string) bool {
-	switch kind {
-	case "Deployment", "DaemonSet", "StatefulSet", "Pod", "Job", "CronJob":
-		return true
-	default:
-		return false
-	}
-}
-
-func checkSecurityContextParameters(securityContext *corev1.PodSecurityContext, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(checkSecurityContextParametersRuleName)
-	if securityContext.RunAsNonRoot == nil {
-		errorList.WithObjectID(object.Identity()).
-			Error("Object's SecurityContext missing parameter RunAsNonRoot")
-	}
-
-	if securityContext.RunAsUser == nil {
-		errorList.WithObjectID(object.Identity()).
-			Error("Object's SecurityContext missing parameter RunAsUser")
-	}
-
-	if securityContext.RunAsGroup == nil {
-		errorList.WithObjectID(object.Identity()).
-			Error("Object's SecurityContext missing parameter RunAsGroup")
-	}
-
-	if securityContext.RunAsNonRoot != nil && securityContext.RunAsUser != nil && securityContext.RunAsGroup != nil {
-		checkRunAsNonRoot(securityContext, object, errorList)
-	}
-}
-
-func checkRunAsNonRoot(securityContext *corev1.PodSecurityContext, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(checkRunAsNonRootRuleName)
-	value := fmt.Sprintf("%d:%d", *securityContext.RunAsUser, *securityContext.RunAsGroup)
-
-	switch *securityContext.RunAsNonRoot {
-	case true:
-		if (*securityContext.RunAsUser != 65534 || *securityContext.RunAsGroup != 65534) &&
-			(*securityContext.RunAsUser != 64535 || *securityContext.RunAsGroup != 64535) {
-			errorList.WithObjectID(object.Identity()).WithValue(value).
-				Error("Object's SecurityContext has `RunAsNonRoot: true`, but RunAsUser:RunAsGroup differs from 65534:65534 (nobody) or 64535:64535 (deckhouse)")
-		}
-	case false:
-		if *securityContext.RunAsUser != 0 || *securityContext.RunAsGroup != 0 {
-			errorList.WithObjectID(object.Identity()).WithValue(value).
-				Error("Object's SecurityContext has `RunAsNonRoot: false`, but RunAsUser:RunAsGroup differs from 0:0")
 		}
 	}
 }

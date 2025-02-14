@@ -25,13 +25,13 @@ import (
 )
 
 const (
-	SecurityContextRuleName = "security-context"
+	ContainerSecurityContextRuleName = "security-context"
 )
 
-func NewSecurityContextRule(excludeRules []pkg.ContainerRuleExclude) *SecurityContextRule {
-	return &SecurityContextRule{
+func NewContainerSecurityContextRule(excludeRules []pkg.ContainerRuleExclude) *ContainerSecurityContextRule {
+	return &ContainerSecurityContextRule{
 		RuleMeta: pkg.RuleMeta{
-			Name: SecurityContextRuleName,
+			Name: ContainerSecurityContextRuleName,
 		},
 		ContainerRule: pkg.ContainerRule{
 			ExcludeRules: excludeRules,
@@ -39,12 +39,12 @@ func NewSecurityContextRule(excludeRules []pkg.ContainerRuleExclude) *SecurityCo
 	}
 }
 
-type SecurityContextRule struct {
+type ContainerSecurityContextRule struct {
 	pkg.RuleMeta
 	pkg.ContainerRule
 }
 
-func (r *SecurityContextRule) ContainerSecurityContext(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
+func (r *ContainerSecurityContextRule) ContainerSecurityContext(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.ShortPath())
 
 	for i := range containers {
@@ -57,7 +57,7 @@ func (r *SecurityContextRule) ContainerSecurityContext(object storage.StoreObjec
 
 		if c.SecurityContext == nil {
 			errorList.WithObjectID(object.Identity() + "; container = " + c.Name).
-				Error("Container SecurityContext is not defined")
+				Error("Container ContainerSecurityContext is not defined")
 
 			continue
 		}
