@@ -56,7 +56,7 @@ func (l *Rbac) Run(m *module.Module) {
 		ObjectBindingSubjectServiceAccountCheck(m, errorList)
 	rules.NewPlacementRule(l.cfg.ExcludeRules.Placement.Get()).
 		ObjectRBACPlacement(m, errorList)
-	rules.NewWildcardsRule(l.cfg.ExcludeRules.Placement.Get()).
+	rules.NewWildcardsRule(l.cfg.ExcludeRules.Wildcards.Get()).
 		ObjectRolesWildcard(m, errorList)
 }
 
