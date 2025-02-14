@@ -28,7 +28,7 @@ type Linters struct {
 	Images     LinterConfig `mapstructure:"images"`
 	License    LinterConfig `mapstructure:"license"`
 	Module     LinterConfig `mapstructure:"module"`
-	NoCyrillic LinterConfig `mapstructure:"nocyrillic"`
+	NoCyrillic LinterConfig `mapstructure:"no-cyrillic"`
 	OpenAPI    LinterConfig `mapstructure:"openapi"`
 	Rbac       LinterConfig `mapstructure:"rbac"`
 	Templates  LinterConfig `mapstructure:"templates"`
