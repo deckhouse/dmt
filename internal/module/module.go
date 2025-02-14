@@ -141,30 +141,8 @@ func NewModule(path string) (*Module, error) {
 		return nil, err
 	}
 
-	reHelmModule := regexp.MustCompile(`{{ include "helm_lib_module_(?:image|common_image|init).* }}`)
-	reImageDigest := regexp.MustCompile(`\$\.Values\.global\.modulesImages\.digests\.\S*`)
-	for i := range ch.Templates {
-		var outputLines strings.Builder
-		scanner := bufio.NewScanner(bytes.NewReader(ch.Templates[i].Data))
-		for scanner.Scan() {
-			line := scanner.Text()
-			if pos := strings.Index(line, `:= include "helm_lib_module_`); pos > -1 {
-				line = line[:pos] + `:= "imageHash-` + name + `-container" }}`
-			}
-			if pos := strings.Index(line, `:= (include "helm_lib_module_`); pos > -1 {
-				line = line[:pos] + `:= "example.domain.com:tags"  | splitn ":" 2 }}`
-			}
-			if pos := strings.Index(line, "image: "); pos > -1 {
-				line = line[:pos] + "image: registry.example.com/deckhouse@imageHash-" + name + "-container"
-			}
-			line = reHelmModule.ReplaceAllString(line, "imageHash-"+name+"-container")
-			line = reImageDigest.ReplaceAllString(line, "$.Values.global.modulesImages.digests.common")
-			outputLines.WriteString(line + "\n")
-		}
-		ch.Templates[i].Data = []byte(outputLines.String())
-	}
-
 	module.chart = ch
+	remapChart(ch, name)
 
 	values, err := ComposeValuesFromSchemas(module)
 	if err != nil {
@@ -190,6 +168,41 @@ func NewModule(path string) (*Module, error) {
 	module.linterConfig = cfg
 
 	return module, nil
+}
+
+func remapChart(ch *chart.Chart, name string) {
+	for _, template := range ch.Templates {
+		template.Data = []byte(remapString(template.Data, name))
+	}
+
+	for _, dependency := range ch.Dependencies() {
+		for _, template := range dependency.Templates {
+			template.Data = []byte(remapString(template.Data, name))
+		}
+	}
+}
+
+func remapString(data []byte, name string) string {
+	reHelmModule := regexp.MustCompile(`{{ include "helm_lib_module_(?:image|common_image).* }}`)
+	reImageDigest := regexp.MustCompile(`\$\.Values\.global\.modulesImages\.digests\.\S*`)
+	var outputLines strings.Builder
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if pos := strings.Index(line, `:= include "helm_lib_module_`); pos > -1 {
+			line = line[:pos] + `:= "imageHash-` + name + `-container" }}`
+		}
+		if pos := strings.Index(line, `:= (include "helm_lib_module_`); pos > -1 {
+			line = line[:pos] + `:= "example.domain.com:tags"  | splitn ":" 2 }}`
+		}
+		if pos := strings.Index(line, "image: "); pos > -1 {
+			line = line[:pos] + "image: registry.example.com/deckhouse@imageHash-" + name + "-container"
+		}
+		line = reHelmModule.ReplaceAllString(line, "imageHash-"+name+"-container")
+		line = reImageDigest.ReplaceAllString(line, "$.Values.global.modulesImages.digests.common")
+		outputLines.WriteString(line + "\n")
+	}
+	return outputLines.String()
 }
 
 func getModuleName(path string) (string, error) {
