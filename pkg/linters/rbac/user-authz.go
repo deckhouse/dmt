@@ -8,12 +8,16 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 )
 
+const (
+	objectUserAuthzClusterRolePathRuleName = "object-user-authz-cluster-role-path"
+)
+
 /*
 objectUserAuthzClusterRolePath validates that files for user-authz contains only cluster roles.
 Also, it validates that role names equals to d8:user-authz:<ChartName>:<AccessLevel>
 */
 func (l *Rbac) objectUserAuthzClusterRolePath(m *module.Module) {
-	errorList := l.ErrorList.WithModule(m.GetName()).WithRule("objectUserAuthzClusterRolePath")
+	errorList := l.ErrorList.WithModule(m.GetName()).WithRule(objectUserAuthzClusterRolePathRuleName)
 	for _, object := range m.GetObjectStore().Storage {
 		errorList = errorList.WithObjectID(object.Identity()).WithFilePath(object.ShortPath())
 		objectKind := object.Unstructured.GetKind()

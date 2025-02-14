@@ -11,6 +11,10 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
+const (
+	werfRuleName = "werf"
+)
+
 type werfFile struct {
 	Artifact string `json:"artifact" yaml:"artifact"`
 	Image    string `json:"image" yaml:"image"`
@@ -19,7 +23,7 @@ type werfFile struct {
 }
 
 func lintWerfFile(data string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule("werf")
+	errorList = errorList.WithRule(werfRuleName)
 	werfDocs := splitManifests(data)
 
 	i := 1

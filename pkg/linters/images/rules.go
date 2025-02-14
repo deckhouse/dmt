@@ -21,8 +21,12 @@ const (
 	ImagesDir  = "images"
 )
 
+const (
+	chartRuleName = "chart"
+)
+
 func chartModuleRule(modulePath string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule("chart")
+	errorList = errorList.WithRule(chartRuleName)
 	errModuleNotContainValidFiles := fmt.Sprintf("Module does not contain valid %q or %q file", ChartConfigFilename, ModuleConfigFilename)
 
 	stat, err := os.Stat(filepath.Join(modulePath, ChartConfigFilename))

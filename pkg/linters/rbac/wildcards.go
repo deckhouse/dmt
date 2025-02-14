@@ -12,10 +12,14 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
+const (
+	objectRolesWildcardRuleName = "object-roles-wildcard"
+)
+
 // objectRolesWildcard is a linter for checking the presence
 // of a wildcard in a Role and ClusterRole
 func (l *Rbac) objectRolesWildcard(m *module.Module) {
-	errorList := l.ErrorList.WithModule(m.GetName()).WithRule("objectRolesWildcard")
+	errorList := l.ErrorList.WithModule(m.GetName()).WithRule(objectRolesWildcardRuleName)
 	for _, object := range m.GetObjectStore().Storage {
 		// check only `rbac-for-us.yaml` files
 		if !strings.HasSuffix(object.ShortPath(), "rbac-for-us.yaml") {

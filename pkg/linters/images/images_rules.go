@@ -12,6 +12,10 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
+const (
+	dockerfileRuleName = "dockerfile"
+)
+
 var regexPatterns = map[string]string{
 	`$BASE_ALPINE`:           imageRegexp(`alpine:[\d.]+`),
 	`$BASE_GOLANG_ALPINE`:    imageRegexp(`golang:1.15.[\d.]+-alpine3.12`),
@@ -97,7 +101,7 @@ func (l *Images) checkImageNamesInDockerFiles(moduleName, modulePath string, err
 }
 
 func (l *Images) lintOneDockerfile(moduleName, path, imagesPath string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithFilePath(path).WithRule("dockerfile")
+	errorList = errorList.WithFilePath(path).WithRule(dockerfileRuleName)
 	relativeFilePath, err := filepath.Rel(imagesPath, path)
 	if err != nil {
 		errorList.WithFilePath(path).
