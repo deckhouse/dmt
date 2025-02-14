@@ -53,13 +53,14 @@ type ContainerSettings struct {
 }
 
 type ContainerExcludeRules struct {
+	ControllerSecurityContext KindRuleExcludeList `mapstructure:"controller-security-context"`
+	DNSPolicy                 KindRuleExcludeList `mapstructure:"dns-policy"`
+
 	ReadOnlyRootFilesystem ContainerRuleExcludeList `mapstructure:"read-only-root-filesystem"`
 	Resources              ContainerRuleExcludeList `mapstructure:"resources"`
 	SecurityContext        ContainerRuleExcludeList `mapstructure:"security-context"`
 	Liveness               ContainerRuleExcludeList `mapstructure:"liveness-probe"`
 	Readiness              ContainerRuleExcludeList `mapstructure:"readiness-probe"`
-
-	DNSPolicy KindRuleExcludeList `mapstructure:"dns-policy"`
 
 	Description StringRuleExcludeList `mapstructure:"description"`
 }
