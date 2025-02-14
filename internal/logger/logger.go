@@ -24,22 +24,27 @@ import (
 	"os"
 )
 
+const (
+	DebugLogLevel = "DEBUG"
+	InfoLogLevel  = "INFO"
+	WarnLogLevel  = "WARN"
+	ErrorLogLevel = "ERROR"
+)
+
 func InitLogger(logLevel string) {
 	lvl := new(slog.LevelVar)
 	lvl.Set(slog.LevelInfo)
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: lvl}))
 
-	if logLevel == "DEBUG" {
+	switch logLevel {
+	case DebugLogLevel:
 		lvl.Set(slog.LevelDebug)
-	}
-	if logLevel == "INFO" {
+	case InfoLogLevel:
 		lvl.Set(slog.LevelInfo)
-	}
-	if logLevel == "WARN" {
+	case WarnLogLevel:
 		lvl.Set(slog.LevelWarn)
-	}
-	if logLevel == "ERROR" {
+	case ErrorLogLevel:
 		lvl.Set(slog.LevelError)
 	}
 

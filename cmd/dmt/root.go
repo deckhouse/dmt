@@ -28,6 +28,8 @@ import (
 	"github.com/deckhouse/dmt/internal/logger"
 )
 
+var version = "devel"
+
 func execute() {
 	rootCmd := &cobra.Command{
 		Use:   "dmt",
@@ -35,6 +37,18 @@ func execute() {
 		Long:  `It's a swiss knife for everyone, who want's create, maintain or use deckhouse modules.`,
 		CompletionOptions: cobra.CompletionOptions{
 			HiddenDefaultCmd: true,
+		},
+		PersistentPreRun: func(_ *cobra.Command, _ []string) {
+			flags.Version = version
+
+			logger.InitLogger(flags.LogLevel)
+
+			if flags.PrintVersion {
+				fmt.Println("dmt version: ", flags.Version)
+				os.Exit(0)
+			}
+		},
+		Run: func(_ *cobra.Command, _ []string) {
 		},
 	}
 

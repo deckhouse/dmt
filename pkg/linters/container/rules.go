@@ -115,7 +115,7 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 	}
 
 	for _, rule := range notInitContainerRules {
-		rule(object, allContainers, errorList)
+		rule(object, containers, errorList)
 	}
 }
 
