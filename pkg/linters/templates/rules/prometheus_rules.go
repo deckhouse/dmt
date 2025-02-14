@@ -1,10 +1,13 @@
 package rules
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -174,16 +177,19 @@ func (r *PrometheusRule) ValidatePrometheusRules(m *module.Module, errorList *er
 	}
 
 	desiredContent := `{{- include "helm_lib_prometheus_rules" (list . %q) }}`
-
-	if !isContentMatching(string(content), desiredContent, m.GetNamespace(), true) {
-		errorList.WithFilePath(monitoringFilePath).
-			Errorf("The content of the 'templates/monitoring.yaml' should be equal to:\n%s\nGot:\n%s",
-				fmt.Sprintf(desiredContent, "YOUR NAMESPACE TO DEPLOY RULES: d8-monitoring, d8-system or module namespaces"),
-				string(content),
-			)
-
+	if isContentMatching(string(content), desiredContent, m.GetNamespace(), true) {
 		return
 	}
+
+	if isContentHasRecursiveRules(content, m.GetNamespace()) {
+		return
+	}
+
+	errorList.WithFilePath(monitoringFilePath).
+		Errorf("The content of the 'templates/monitoring.yaml' should be equal to:\n%s\nGot:\n%s",
+			fmt.Sprintf(desiredContent, "YOUR NAMESPACE TO DEPLOY RULES: d8-monitoring, d8-system or module namespaces"),
+			string(content),
+		)
 }
 
 func isContentMatching(content, desiredContent, moduleNamespace string, rulesEx bool) bool {
@@ -196,6 +202,36 @@ func isContentMatching(content, desiredContent, moduleNamespace string, rulesEx 
 		if strings.Contains(content, checkContent) {
 			return true
 		}
+	}
+
+	return false
+}
+
+func isContentHasRecursiveRules(content []byte, moduleNs string) bool {
+	namespaceRegex := regexp.MustCompile(fmt.Sprintf(`{{-?\s*\$([a-zA-Z_]\w*)\s*:=\s*"(d8-monitoring|d8-system|%s)"\s*}}`, moduleNs))
+
+	var namespaceVar string
+	foundIncludeLine := false
+
+	scanner := bufio.NewScanner(bytes.NewReader(content))
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		if strings.Contains(line, `{{- include "helm_lib_prometheus_rules_recursion" (`) {
+			foundIncludeLine = true
+		}
+
+		if matches := namespaceRegex.FindStringSubmatch(line); matches != nil {
+			namespaceVar = matches[1] // Имя переменной
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return false
+	}
+
+	if foundIncludeLine && namespaceVar != "" {
+		return true
 	}
 
 	return false

@@ -17,12 +17,12 @@ limitations under the License.
 package rules
 
 import (
-	"os"
-	"path/filepath"
-
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"os"
+	"path/filepath"
+	"strings"
 )
 
 const (
@@ -72,10 +72,13 @@ func (r *GrafanaRule) ValidationGrafanaDashboards(m *module.Module, errorList *e
 
 	desiredContent := `{{- include "helm_lib_grafana_dashboard_definitions" . }}`
 
-	if !isContentMatching(string(content), desiredContent, m.GetNamespace(), false) {
-		errorList.WithFilePath(monitoringFilePath).
-			Errorf("The content of the 'templates/monitoring.yaml' should be equal to:\n%s\nGot:\n%s", desiredContent, string(content))
-
+	if isContentMatching(string(content), desiredContent, m.GetNamespace(), false) {
 		return
 	}
+	if strings.Contains(string(content), `include "helm_lib_grafana_dashboard_definitions_recursion" (list .`) {
+		return
+	}
+
+	errorList.WithFilePath(monitoringFilePath).
+		Errorf("The content of the 'templates/monitoring.yaml' should be equal to:\n%s\nGot:\n%s", desiredContent, string(content))
 }
