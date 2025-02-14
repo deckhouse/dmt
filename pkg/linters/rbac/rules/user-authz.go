@@ -46,7 +46,7 @@ type UzerAuthZRule struct {
 objectUserAuthzClusterRolePath validates that files for user-authz contains only cluster roles.
 Also, it validates that role names equals to d8:user-authz:<ChartName>:<AccessLevel>
 */
-func (r *UzerAuthZRule) ObjectUserAuthzClusterRolePath(m *module.Module, errorList *errors.LintRuleErrorsList) {
+func (*UzerAuthZRule) ObjectUserAuthzClusterRolePath(m *module.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithModule(m.GetName())
 
 	for _, object := range m.GetObjectStore().Storage {

@@ -62,18 +62,18 @@ func (r *WildcardsRule) ObjectRolesWildcard(m *module.Module, errorList *errors.
 			continue
 		}
 
-		errorList := errorList.WithObjectID(object.Identity())
+		errorListObj := errorList.WithObjectID(object.Identity())
 
 		// check Role and ClusterRole for wildcards
 		objectKind := object.Unstructured.GetKind()
 		switch objectKind {
 		case "Role", "ClusterRole":
-			r.checkRoles(object, errorList)
+			r.checkRoles(object, errorListObj)
 		}
 	}
 }
 
-func (r *WildcardsRule) checkRoles(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+func (*WildcardsRule) checkRoles(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	converter := runtime.DefaultUnstructuredConverter
 
 	role := new(k8SRbac.Role)
