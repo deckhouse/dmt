@@ -89,7 +89,7 @@ func (r *ConversionsRule) CheckConversions(modulePath string, errorList *errors.
 
 	f, err := os.Open(configFilePath)
 	if err != nil {
-		errorList.WithFilePath(configFilePath).
+		errorList.WithFilePath(configValuesFile).
 			Errorf("Cannot open config-values.yaml file: %s", err)
 
 		return
@@ -98,7 +98,7 @@ func (r *ConversionsRule) CheckConversions(modulePath string, errorList *errors.
 	var cv configValues
 	err = yaml.NewDecoder(f).Decode(&cv)
 	if err != nil {
-		errorList.WithFilePath(configFilePath).
+		errorList.WithFilePath(configValuesFile).
 			Errorf("Cannot decode config-values.yaml file: %s", err)
 
 		return

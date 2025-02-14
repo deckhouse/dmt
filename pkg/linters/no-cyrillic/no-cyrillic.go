@@ -99,7 +99,7 @@ func (l *NoCyrillic) Run(m *module.Module) {
 		cyrMsg, hasCyr := checkCyrillicLettersInArray(lines)
 		fName, _ := strings.CutPrefix(fileName, m.GetPath())
 		if hasCyr {
-			errorList.WithObjectID(fName).WithValue(cyrMsg).
+			errorList.WithFilePath(fName).WithValue(cyrMsg).
 				Error("has cyrillic letters")
 		}
 	}

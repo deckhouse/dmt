@@ -84,7 +84,7 @@ func probeHandlerIsNotValid(probe v1.ProbeHandler) bool {
 
 // check livenessProbe exist and correct
 func (r *LivenessRule) CheckProbe(object storage.StoreObject, containers []v1.Container, errorList *errors.LintRuleErrorsList) { //nolint: dupl // we have doubled code in probes because it's separate rules and we need to edit them separate
-	errorList = errorList.WithRule(r.GetName())
+	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.ShortPath())
 
 	for idx := range containers {
 		c := &containers[idx]
@@ -111,7 +111,7 @@ func (r *LivenessRule) CheckProbe(object storage.StoreObject, containers []v1.Co
 
 // check readinessProbe exist and correct
 func (r *ReadinessRuleNameRule) CheckProbe(object storage.StoreObject, containers []v1.Container, errorList *errors.LintRuleErrorsList) { //nolint: dupl // we have doubled code in probes because it's separate rules and we need to edit them separate
-	errorList = errorList.WithRule(r.GetName())
+	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.ShortPath())
 
 	for idx := range containers {
 		c := &containers[idx]

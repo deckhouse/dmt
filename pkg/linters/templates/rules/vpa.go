@@ -133,7 +133,7 @@ func fillVPAMaps(
 
 // parseVPAResourcePolicyContainers parses VPA containers names in ResourcePolicy and check if minAllowed and maxAllowed for container is set
 func parseVPAResourcePolicyContainers(vpaObject storage.StoreObject, errorList *errors.LintRuleErrorsList) (UpdateMode, set.Set, bool) {
-	errorListObj := errorList.WithObjectID(vpaObject.Identity())
+	errorListObj := errorList.WithObjectID(vpaObject.Identity()).WithFilePath(vpaObject.ShortPath())
 
 	containers := set.New()
 
@@ -190,7 +190,7 @@ func parseVPAResourcePolicyContainers(vpaObject storage.StoreObject, errorList *
 
 // parseVPATargetIndex parses VPA target resource index, writes to the passed struct pointer
 func parseVPATargetIndex(vpaObject storage.StoreObject, errorList *errors.LintRuleErrorsList) (storage.ResourceIndex, bool) {
-	errorListObj := errorList.WithObjectID(vpaObject.Identity())
+	errorListObj := errorList.WithObjectID(vpaObject.Identity()).WithFilePath(vpaObject.ShortPath())
 
 	target := storage.ResourceIndex{}
 	specs, ok := vpaObject.Unstructured.Object["spec"].(map[string]any)

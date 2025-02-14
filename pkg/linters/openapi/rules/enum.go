@@ -19,6 +19,7 @@ package rules
 import (
 	stdErrors "errors"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"unicode"
@@ -30,7 +31,8 @@ import (
 )
 
 type EnumRule struct {
-	cfg *config.OpenAPISettings
+	cfg      *config.OpenAPISettings
+	rootPath string
 	pkg.RuleMeta
 }
 
@@ -38,12 +40,13 @@ var (
 	arrayPathRegex = regexp.MustCompile(`[\d+]`)
 )
 
-func NewEnumRule(cfg *config.OpenAPISettings) *EnumRule {
+func NewEnumRule(cfg *config.OpenAPISettings, rootPath string) *EnumRule {
 	return &EnumRule{
 		cfg: cfg,
 		RuleMeta: pkg.RuleMeta{
 			Name: "enum",
 		},
+		rootPath: rootPath,
 	}
 }
 
@@ -52,8 +55,9 @@ func (e *EnumRule) Run(path string, errorList *errors.LintRuleErrorsList) {
 
 	validator := newEnumValidator(e.cfg)
 
+	shortPath, _ := filepath.Rel(e.rootPath, path)
 	if err := openapi.Parse(validator.run, path); err != nil {
-		errorList.WithFilePath(path).Errorf("openAPI file is not valid:\n%s", err)
+		errorList.WithFilePath(shortPath).Errorf("openAPI file is not valid:\n%s", err)
 	}
 }
 

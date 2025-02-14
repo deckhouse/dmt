@@ -28,6 +28,10 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
+const (
+	dockerfileRuleName = "dockerfile"
+)
+
 var regexPatterns = map[string]string{
 	`$BASE_ALPINE`:           imageRegexp(`alpine:[\d.]+`),
 	`$BASE_GOLANG_ALPINE`:    imageRegexp(`golang:1.15.[\d.]+-alpine3.12`),
@@ -112,10 +116,11 @@ func (l *Images) checkImageNamesInDockerFiles(moduleName, modulePath string, err
 	}
 }
 
-func (l *Images) lintOneDockerfile(moduleName, path, imagesPath string, errList *errors.LintRuleErrorsList) {
+func (l *Images) lintOneDockerfile(moduleName, path, imagesPath string, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithFilePath(path).WithRule(dockerfileRuleName)
 	relativeFilePath, err := filepath.Rel(imagesPath, path)
 	if err != nil {
-		errList.WithFilePath(path).
+		errorList.WithFilePath(path).
 			Errorf("Error calculating relative file path: %s", err)
 
 		return
@@ -127,7 +132,7 @@ func (l *Images) lintOneDockerfile(moduleName, path, imagesPath string, errList 
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		errList.WithFilePath(path).
+		errorList.WithFilePath(path).
 			Errorf("Error reading file: %s", err)
 
 		return
@@ -140,7 +145,7 @@ func (l *Images) lintOneDockerfile(moduleName, path, imagesPath string, errList 
 		linePos++
 		ers, ciVariable := isImageNameUnacceptable(line)
 		if ers {
-			errList.WithObjectID(fmt.Sprintf("image = %s", relativeFilePath)).
+			errorList.WithObjectID(fmt.Sprintf("image = %s", relativeFilePath)).
 				WithLineNumber(linePos).
 				Errorf("Please use %s as an image name", ciVariable)
 		}
@@ -152,7 +157,7 @@ func (l *Images) lintOneDockerfile(moduleName, path, imagesPath string, errList 
 
 	for i, fromInstruction := range dockerfileFromInstructions {
 		if l.skipDistrolessImageCheckIfNeeded(relativeFilePath) {
-			errList.WithObjectID(fmt.Sprintf("module = %s ; image = %s ; value - %s", moduleName, relativeFilePath, fromInstruction)).
+			errorList.WithObjectID(fmt.Sprintf("module = %s ; image = %s ; value - %s", moduleName, relativeFilePath, fromInstruction)).
 				Warn("WARNING!!! SKIP DISTROLESS CHECK!!!")
 
 			continue
@@ -160,7 +165,7 @@ func (l *Images) lintOneDockerfile(moduleName, path, imagesPath string, errList 
 
 		ers, message := isDockerfileInstructionUnacceptable(fromInstruction, i == len(dockerfileFromInstructions)-1)
 		if ers {
-			errList.WithFilePath(relativeFilePath).
+			errorList.WithFilePath(relativeFilePath).
 				WithValue(fromInstruction).
 				Error(message)
 		}

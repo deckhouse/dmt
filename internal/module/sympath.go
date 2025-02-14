@@ -20,7 +20,6 @@ package module
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -70,7 +69,6 @@ func symwalk(path string, info os.FileInfo, walkFn filepath.WalkFunc) error {
 		if err != nil {
 			return fmt.Errorf("failed to evaluate symlink %s: %w", path, err)
 		}
-		log.Printf("found symbolic link in path: %s resolves to %s. Contents of linked file included and used", path, resolved)
 		if info, err = os.Lstat(resolved); err != nil {
 			return err
 		}

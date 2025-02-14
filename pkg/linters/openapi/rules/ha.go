@@ -18,6 +18,7 @@ package rules
 
 import (
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"strings"
 
@@ -31,9 +32,10 @@ type HARule struct {
 	cfg *config.OpenAPISettings
 	pkg.RuleMeta
 	pkg.StringRule
+	rootPath string
 }
 
-func NewHARule(cfg *config.OpenAPISettings) *HARule {
+func NewHARule(cfg *config.OpenAPISettings, rootPath string) *HARule {
 	return &HARule{
 		cfg: cfg,
 		RuleMeta: pkg.RuleMeta{
@@ -42,16 +44,18 @@ func NewHARule(cfg *config.OpenAPISettings) *HARule {
 		StringRule: pkg.StringRule{
 			ExcludeRules: cfg.HAAbsoluteKeysExcludes.Get(),
 		},
+		rootPath: rootPath,
 	}
 }
 
 func (e *HARule) Run(path string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(e.GetName())
 
+	shortPath, _ := filepath.Rel(e.rootPath, path)
 	haValidator := newHAValidator(e.StringRule)
 
 	if err := openapi.Parse(haValidator.run, path); err != nil {
-		errorList.WithFilePath(path).Errorf("openAPI file is not valid:\n%s", err)
+		errorList.WithFilePath(shortPath).Errorf("openAPI file is not valid:\n%s", err)
 	}
 }
 

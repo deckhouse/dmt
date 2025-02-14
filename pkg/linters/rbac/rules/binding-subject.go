@@ -14,29 +14,44 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package rbac
+package rules
 
 import (
-	"slices"
-
 	v1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/storage"
+	"github.com/deckhouse/dmt/pkg"
+	"github.com/deckhouse/dmt/pkg/errors"
 )
 
-func (l *Rbac) objectBindingSubjectServiceAccountCheck(m *module.Module) {
-	if slices.Contains(l.cfg.SkipModuleCheckBinding, m.GetName()) {
-		return
+const (
+	BindingSubjectRuleName = "binding-subject"
+)
+
+func NewBindingSubjectRule() *BindingSubjectRule {
+	return &BindingSubjectRule{
+		RuleMeta: pkg.RuleMeta{
+			Name: BindingSubjectRuleName,
+		},
 	}
+}
+
+type BindingSubjectRule struct {
+	pkg.RuleMeta
+}
+
+func (r *BindingSubjectRule) ObjectBindingSubjectServiceAccountCheck(m *module.Module, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(r.GetName())
 
 	converter := runtime.DefaultUnstructuredConverter
 	objectStore := m.GetObjectStore()
 
 	for _, object := range objectStore.Storage {
+		errorListObj := errorList.WithObjectID(object.Identity()).WithFilePath(object.ShortPath())
+
 		var subjects []v1.Subject
-		errorList := l.ErrorList.WithModule(m.GetName()).WithObjectID(object.Identity())
 
 		// deckhouse module should contain only global cluster roles
 		objectKind := object.Unstructured.GetKind()
@@ -44,7 +59,7 @@ func (l *Rbac) objectBindingSubjectServiceAccountCheck(m *module.Module) {
 		case "ClusterRoleBinding":
 			clusterRoleBinding := new(v1.ClusterRoleBinding)
 			if err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), clusterRoleBinding); err != nil {
-				errorList.Errorf("Cannot convert object to %s: %v", object.Unstructured.GetKind(), err)
+				errorListObj.Errorf("Cannot convert object to %s: %v", object.Unstructured.GetKind(), err)
 				continue
 			}
 			subjects = clusterRoleBinding.Subjects
@@ -52,7 +67,7 @@ func (l *Rbac) objectBindingSubjectServiceAccountCheck(m *module.Module) {
 		case "RoleBinding":
 			roleBinding := new(v1.RoleBinding)
 			if err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), roleBinding); err != nil {
-				errorList.Errorf("Cannot convert object to %s: %v", object.Unstructured.GetKind(), err)
+				errorListObj.Errorf("Cannot convert object to %s: %v", object.Unstructured.GetKind(), err)
 				continue
 			}
 			subjects = roleBinding.Subjects
@@ -84,7 +99,7 @@ func (l *Rbac) objectBindingSubjectServiceAccountCheck(m *module.Module) {
 			if subject.Namespace == m.GetNamespace() && !objectStore.Exists(storage.ResourceIndex{
 				Name: subject.Name, Kind: subject.Kind, Namespace: subject.Namespace,
 			}) {
-				errorList.Errorf("%s bind to the wrong ServiceAccount (doesn't exist in the store)", objectKind)
+				errorListObj.Errorf("%s bind to the wrong ServiceAccount (doesn't exist in the store)", objectKind)
 				return
 			}
 		}

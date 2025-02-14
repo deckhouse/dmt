@@ -17,6 +17,7 @@ limitations under the License.
 package license
 
 import (
+	"os"
 	"strings"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
@@ -79,6 +80,14 @@ func (r *FilesRule) checkFiles(mod *module.Module, errorList *errors.LintRuleErr
 }
 
 func filterFiles(path string) bool {
+	f, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	if f.IsDir() {
+		return false
+	}
+
 	if fileToCheckRe.MatchString(path) && !fileToSkipRe.MatchString(path) {
 		return true
 	}

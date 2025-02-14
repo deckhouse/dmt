@@ -69,12 +69,13 @@ func (l *Templates) Run(m *module.Module) {
 		errorList.Errorf("reading the 'monitoring' folder failed: %s", err)
 	}
 
+	rules.NewKubeRbacProxyRule(l.cfg.ExcludeRules.KubeRBACProxy.Get()).
+		NamespaceMustContainKubeRBACProxyCA(m.GetObjectStore(), errorList)
+
 	servicePortRule := rules.NewServicePortRule(l.cfg.ExcludeRules.ServicePort.Get())
-	kubeRbacRule := rules.NewKubeRbacProxyRule(l.cfg.ExcludeRules.KubeRBACProxy.Get())
 
 	for _, object := range m.GetStorage() {
 		servicePortRule.ObjectServiceTargetPort(object, errorList)
-		kubeRbacRule.NamespaceMustContainKubeRBACProxyCA(object, errorList)
 
 		// TODO: compile code instead of external binary - promtool
 		prometheusRule.PromtoolRuleCheck(m, object, errorList)

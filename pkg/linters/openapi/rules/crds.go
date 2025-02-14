@@ -19,6 +19,7 @@ package rules
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -31,6 +32,7 @@ import (
 
 type DeckhouseCRDsRule struct {
 	pkg.RuleMeta
+	rootPath string
 }
 
 const CrdsDir = "crds"
@@ -39,20 +41,22 @@ var (
 	sep = regexp.MustCompile("(?:^|\\s*\n)---\\s*")
 )
 
-func NewDeckhouseCRDsRule() *DeckhouseCRDsRule {
+func NewDeckhouseCRDsRule(rootPath string) *DeckhouseCRDsRule {
 	return &DeckhouseCRDsRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: "deckhouse-crds",
 		},
+		rootPath: rootPath,
 	}
 }
 
 func (r *DeckhouseCRDsRule) Run(path string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
+	shortPath, _ := filepath.Rel(r.rootPath, path)
 	fileContent, err := os.ReadFile(path)
 	if err != nil {
-		errorList.Errorf("Can't read file %s: %s", path, err)
+		errorList.Errorf("Can't read file %s: %s", shortPath, err)
 		return
 	}
 
@@ -72,7 +76,7 @@ func (r *DeckhouseCRDsRule) Run(path string, errorList *errors.LintRuleErrorsLis
 
 		if crd.APIVersion != "apiextensions.k8s.io/v1" {
 			errorList.WithObjectID(fmt.Sprintf("kind = %s ; name = %s", crd.Kind, crd.Name)).
-				WithFilePath(path).
+				WithFilePath(shortPath).
 				WithValue(crd.APIVersion).
 				Errorf(`CRD specified using deprecated api version, wanted "apiextensions.k8s.io/v1"`)
 		}
