@@ -58,10 +58,6 @@ const (
 	RBACv2Path                  = "templates/rbac"
 )
 
-const (
-	rbacPlacementRuleName = "rbac-placement"
-)
-
 // TODO: remove entries after 'd8-system' after fixing RBAC objects names
 var deckhouseNamespaces = []string{"d8-monitoring", "d8-system", "d8-admission-policy-engine", "d8-operator-trivy", "d8-log-shipper", "d8-local-path-provisioner"}
 
