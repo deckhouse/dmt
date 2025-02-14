@@ -53,6 +53,11 @@ func (r *ControllerSecurityContextRule) ControllerSecurityContext(object storage
 		return
 	}
 
+	if !r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {
+		// TODO: add metrics
+		return
+	}
+
 	securityContext, err := object.GetPodSecurityContext()
 	if err != nil {
 		errorList.WithObjectID(object.Identity()).

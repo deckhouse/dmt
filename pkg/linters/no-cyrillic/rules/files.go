@@ -61,8 +61,9 @@ type FilesRule struct {
 
 func (r *FilesRule) CheckFile(m *module.Module, fileName string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
+	fName, _ := strings.CutPrefix(fileName, m.GetPath()+"/")
 
-	if !r.Enabled(fileName) {
+	if !r.Enabled(fName) {
 		// TODO: add metrics
 		return
 	}
@@ -87,7 +88,6 @@ func (r *FilesRule) CheckFile(m *module.Module, fileName string, errorList *erro
 	}
 
 	cyrMsg, hasCyr := checkCyrillicLettersInArray(lines)
-	fName, _ := strings.CutPrefix(fileName, m.GetPath())
 	if hasCyr {
 		errorList.WithFilePath(fName).WithValue(cyrMsg).
 			Error("has cyrillic letters")

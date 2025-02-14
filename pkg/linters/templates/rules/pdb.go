@@ -205,5 +205,5 @@ func parsePodControllerLabels(object storage.StoreObject) (map[string]string, er
 }
 
 func isPodController(kind string) bool {
-	return kind == "Deployment" || kind == "DaemonSet" || kind == "StatefulSet"
+	return kind == "Deployment" || kind == "StatefulSet"
 }
