@@ -82,9 +82,9 @@ func NewManager(dirs []string, rootConfig *config.RootConfig) *Manager {
 		mdl, err := module.NewModule(paths[i])
 		if err != nil {
 			m.errors.
-				WithLinterID("manager").
+				WithLinterID("!manager").
 				WithModule(moduleName).
-				WithObjectID(paths[i]).
+				WithFilePath(paths[i]).
 				WithValue(err.Error()).
 				Errorf("cannot create module `%s`", moduleName)
 			continue

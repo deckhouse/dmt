@@ -49,7 +49,7 @@ func (r *BindingSubjectRule) ObjectBindingSubjectServiceAccountCheck(m *module.M
 	objectStore := m.GetObjectStore()
 
 	for _, object := range objectStore.Storage {
-		errorListObj := errorList.WithObjectID(object.Identity())
+		errorListObj := errorList.WithObjectID(object.Identity()).WithFilePath(object.ShortPath())
 
 		var subjects []v1.Subject
 

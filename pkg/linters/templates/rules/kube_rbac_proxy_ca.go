@@ -40,7 +40,8 @@ func (r *KubeRbacProxyRule) NamespaceMustContainKubeRBACProxyCA(objectStore *sto
 		}
 	}
 
-	for index := range objectStore.Storage {
+	for index, object := range objectStore.Storage {
+		errorList = errorList.WithFilePath(object.ShortPath())
 		if index.Kind == "Namespace" {
 			if !proxyInNamespaces.Has(index.Name) {
 				errorList.WithObjectID(fmt.Sprintf("namespace = %s", index.Name)).

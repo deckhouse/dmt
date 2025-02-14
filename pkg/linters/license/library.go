@@ -68,13 +68,13 @@ func readFileHead(fName string, size int) ([]byte, error) {
 
 	fi, err := file.Stat()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot get file info, %s", fName)
 	}
 	if fi.IsDir() {
-		return nil, fmt.Errorf("directory")
+		return nil, fmt.Errorf("trying to open file, got directory, %s", fName)
 	}
 	if fi.Mode()&os.ModeSymlink != 0 {
-		return nil, fmt.Errorf("symlink")
+		return nil, fmt.Errorf("trying to open file, got symlink, %s", fName)
 	}
 
 	headBuf := make([]byte, size)

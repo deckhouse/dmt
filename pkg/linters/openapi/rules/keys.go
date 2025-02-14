@@ -2,6 +2,7 @@ package rules
 
 import (
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"strings"
 
@@ -14,24 +15,27 @@ import (
 type KeysRule struct {
 	cfg *config.OpenAPISettings
 	pkg.RuleMeta
+	rootPath string
 }
 
-func NewKeysRule(cfg *config.OpenAPISettings) *KeysRule {
+func NewKeysRule(cfg *config.OpenAPISettings, rootPath string) *KeysRule {
 	return &KeysRule{
 		cfg: cfg,
 		RuleMeta: pkg.RuleMeta{
 			Name: "keys",
 		},
+		rootPath: rootPath,
 	}
 }
 
 func (e *KeysRule) Run(path string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(e.GetName())
 
+	shortPath, _ := filepath.Rel(e.rootPath, path)
 	haValidator := newKeyValidator(e.cfg)
 
 	if err := openapi.Parse(haValidator.run, path); err != nil {
-		errorList.WithFilePath(path).Errorf("openAPI file is not valid:\n%s", err)
+		errorList.WithFilePath(shortPath).Errorf("openAPI file is not valid:\n%s", err)
 	}
 }
 

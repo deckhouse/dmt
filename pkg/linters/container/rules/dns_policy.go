@@ -30,7 +30,7 @@ type DNSPolicyRule struct {
 }
 
 func (r *DNSPolicyRule) ObjectDNSPolicy(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.ShortPath())
 
 	if !r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {
 		// TODO: add metrics
@@ -83,6 +83,7 @@ func validateDNSPolicy(dnsPolicy string, hostNetwork bool, object storage.StoreO
 
 	if dnsPolicy != "ClusterFirstWithHostNet" {
 		errorList.WithObjectID(object.Identity()).WithValue(dnsPolicy).
+			WithFilePath(object.ShortPath()).
 			Error("dnsPolicy must be `ClusterFirstWithHostNet` when hostNetwork is `true`")
 	}
 }

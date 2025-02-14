@@ -50,7 +50,7 @@ func (*UzerAuthZRule) ObjectUserAuthzClusterRolePath(m *module.Module, errorList
 	errorList = errorList.WithModule(m.GetName())
 
 	for _, object := range m.GetObjectStore().Storage {
-		errorListObj := errorList.WithObjectID(object.Identity())
+		errorListObj := errorList.WithObjectID(object.Identity()).WithFilePath(object.ShortPath())
 
 		objectKind := object.Unstructured.GetKind()
 		shortPath := object.ShortPath()

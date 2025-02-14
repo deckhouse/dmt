@@ -17,7 +17,20 @@ import (
 
 const defaultRegistry = "registry.example.com/deckhouse"
 
+const (
+	objectRecommendedLabelsRuleName        = "object-recommended-labels"
+	namespaceLabelsRuleName                = "namespace-labels"
+	objectAPIVersionRuleName               = "object-api-version"
+	objectRevisionHistoryLimitRuleName     = "object-revision-history-limit"
+	objectPriorityClassRuleName            = "object-priority-class"
+	validatePriorityClassRuleName          = "validate-priority-class"
+	objectSecurityContextRuleName          = "object-security-context"
+	checkSecurityContextParametersRuleName = "check-security-context-parameters"
+	checkRunAsNonRootRuleName              = "check-run-as-non-root"
+)
+
 func (l *Container) applyContainerRules(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithFilePath(object.ShortPath())
 	objectRules := []func(storage.StoreObject, *errors.LintRuleErrorsList){
 		objectRecommendedLabels,
 		namespaceLabels,
@@ -253,6 +266,7 @@ func objectHostNetworkPorts(object storage.StoreObject, containers []corev1.Cont
 }
 
 func objectRecommendedLabels(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(objectRecommendedLabelsRuleName)
 	labels := object.Unstructured.GetLabels()
 	if _, ok := labels["module"]; !ok {
 		errorList.WithObjectID(object.Identity()).WithValue(labels).
@@ -265,6 +279,7 @@ func objectRecommendedLabels(object storage.StoreObject, errorList *errors.LintR
 }
 
 func namespaceLabels(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(namespaceLabelsRuleName)
 	if object.Unstructured.GetKind() != "Namespace" || !strings.HasPrefix(object.Unstructured.GetName(), "d8-") {
 		return
 	}
@@ -280,6 +295,7 @@ func namespaceLabels(object storage.StoreObject, errorList *errors.LintRuleError
 }
 
 func objectAPIVersion(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(objectAPIVersionRuleName)
 	version := object.Unstructured.GetAPIVersion()
 
 	switch object.Unstructured.GetKind() {
@@ -306,6 +322,7 @@ func compareAPIVersion(wanted, version, objectID string, errorList *errors.LintR
 }
 
 func objectRevisionHistoryLimit(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(objectRevisionHistoryLimitRuleName)
 	if object.Unstructured.GetKind() == "Deployment" {
 		converter := runtime.DefaultUnstructuredConverter
 		deployment := new(appsv1.Deployment)
@@ -337,6 +354,7 @@ func objectRevisionHistoryLimit(object storage.StoreObject, errorList *errors.Li
 }
 
 func objectPriorityClass(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(objectPriorityClassRuleName)
 	if !isPriorityClassSupportedKind(object.Unstructured.GetKind()) {
 		return
 	}
@@ -362,6 +380,7 @@ func isPriorityClassSupportedKind(kind string) bool {
 }
 
 func validatePriorityClass(priorityClass string, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(validatePriorityClassRuleName)
 	switch priorityClass {
 	case "":
 		errorList.WithObjectID(object.Identity()).WithValue(priorityClass).
@@ -398,6 +417,7 @@ func getPriorityClass(object storage.StoreObject) (string, error) {
 }
 
 func objectSecurityContext(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(objectSecurityContextRuleName)
 	if !isSecurityContextSupportedKind(object.Unstructured.GetKind()) {
 		return
 	}
@@ -430,6 +450,7 @@ func isSecurityContextSupportedKind(kind string) bool {
 }
 
 func checkSecurityContextParameters(securityContext *corev1.PodSecurityContext, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(checkSecurityContextParametersRuleName)
 	if securityContext.RunAsNonRoot == nil {
 		errorList.WithObjectID(object.Identity()).
 			Error("Object's SecurityContext missing parameter RunAsNonRoot")
@@ -451,6 +472,7 @@ func checkSecurityContextParameters(securityContext *corev1.PodSecurityContext, 
 }
 
 func checkRunAsNonRoot(securityContext *corev1.PodSecurityContext, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(checkRunAsNonRootRuleName)
 	value := fmt.Sprintf("%d:%d", *securityContext.RunAsUser, *securityContext.RunAsGroup)
 
 	switch *securityContext.RunAsNonRoot {

@@ -62,7 +62,7 @@ func (r *WildcardsRule) ObjectRolesWildcard(m *module.Module, errorList *errors.
 			continue
 		}
 
-		errorListObj := errorList.WithObjectID(object.Identity())
+		errorListObj := errorList.WithObjectID(object.Identity()).WithFilePath(object.ShortPath())
 
 		// check Role and ClusterRole for wildcards
 		objectKind := object.Unstructured.GetKind()
