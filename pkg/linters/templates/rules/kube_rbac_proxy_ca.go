@@ -30,7 +30,7 @@ type KubeRbacProxyRule struct {
 }
 
 func (r *KubeRbacProxyRule) NamespaceMustContainKubeRBACProxyCA(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.ShortPath())
 
 	if !r.Enabled(object.Unstructured.GetNamespace()) {
 		// TODO: add metrics
