@@ -52,6 +52,7 @@ type WildcardsRule struct {
 // objectRolesWildcard is a linter for checking the presence
 // of a wildcard in a Role and ClusterRole
 func (r *WildcardsRule) ObjectRolesWildcard(m *module.Module, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(r.Name)
 	for _, object := range m.GetObjectStore().Storage {
 		// check only `rbac-for-us.yaml` files
 		if !strings.HasSuffix(object.ShortPath(), "rbac-for-us.yaml") {
