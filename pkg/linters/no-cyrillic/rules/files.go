@@ -65,7 +65,7 @@ func (r *FilesRule) CheckFile(m *module.Module, fileName string, errorList *erro
 	name, _ := strings.CutPrefix(fileName, m.GetPath())
 	name = m.GetName() + ":" + name
 
-	if !r.Enabled(fileName) {
+	if !r.Enabled(name) {
 		// TODO: add metrics
 		return
 	}

@@ -26,15 +26,6 @@ import (
 	"github.com/deckhouse/dmt/pkg/linters/container/rules"
 )
 
-const (
-	containerPortsRuleName                  = "ports"
-	containerImagePullPolicyRuleName        = "image-pull-policy"
-	containerImageDigestCheckRuleName       = "image-digest-check"
-	containerEnvVariablesDuplicatesRuleName = "env-variables-duplicates"
-	objectHostNetworkPortsRuleName          = "host-network-ports"
-	containerNameDuplicatesRuleName         = "name-duplicates"
-)
-
 func (l *Container) applyContainerRules(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithFilePath(object.ShortPath())
 
