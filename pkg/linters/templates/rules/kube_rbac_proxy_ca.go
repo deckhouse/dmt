@@ -29,26 +29,26 @@ type KubeRbacProxyRule struct {
 	pkg.StringRule
 }
 
-func (r *KubeRbacProxyRule) NamespaceMustContainKubeRBACProxyCA(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+func (r *KubeRbacProxyRule) NamespaceMustContainKubeRBACProxyCA(objectStore *storage.UnstructuredObjectStore, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
-
-	if !r.Enabled(object.Unstructured.GetNamespace()) {
-		// TODO: add metrics
-		return
-	}
 
 	proxyInNamespaces := set.New()
 
-	if object.Unstructured.GetKind() == "ConfigMap" && object.Unstructured.GetName() == "kube-rbac-proxy-ca.crt" {
-		proxyInNamespaces.Add(object.Unstructured.GetNamespace())
+	for index := range objectStore.Storage {
+		if index.Kind == "ConfigMap" && index.Name == "kube-rbac-proxy-ca.crt" {
+			proxyInNamespaces.Add(index.Namespace)
+		}
 	}
 
-	if object.Unstructured.GetKind() == "Namespace" {
-		if !proxyInNamespaces.Has(object.Unstructured.GetName()) {
-			errorList.WithObjectID(fmt.Sprintf("namespace = %s", object.Unstructured.GetName())).
-				WithValue(proxyInNamespaces.Slice()).
-				Error("All system namespaces should contain kube-rbac-proxy CA certificate." +
-					"\n\tConsider using corresponding helm_lib helper 'helm_lib_kube_rbac_proxy_ca_certificate'.")
+	for index := range objectStore.Storage {
+		if index.Kind == "Namespace" {
+			if !proxyInNamespaces.Has(index.Name) {
+				errorList.WithObjectID(fmt.Sprintf("namespace = %s", index.Name)).
+					WithValue(proxyInNamespaces.Slice()).
+					Error("All system namespaces should contain kube-rbac-proxy CA certificate." +
+						"\n\tConsider using corresponding helm_lib helper 'helm_lib_kube_rbac_proxy_ca_certificate'.",
+					)
+			}
 		}
 	}
 }
