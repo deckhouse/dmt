@@ -1,3 +1,19 @@
+/*
+Copyright 2025 Flant JSC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package rules
 
 import (
@@ -62,7 +78,9 @@ func (r *PDBRule) ControllerMustHavePDB(md *module.Module, errorList *errors.Lin
 		}
 
 		if len(pdbSelectors) == 0 {
-			errorList.WithObjectID(object.Identity()).Error("No PodDisruptionBudget found for controller")
+			errorList.WithObjectID(object.Identity()).
+				WithFilePath(object.ShortPath()).
+				Error("No PodDisruptionBudget found for controller")
 			return
 		}
 
@@ -95,7 +113,7 @@ func collectPDBSelectors(md *module.Module, errorList *errors.LintRuleErrorsList
 // ensurePDBIsPresent returns true if there is a PDB controlling pods from the pod contoller
 // PDB is assumed to be present, since the PDB check goes after PDB check.
 func ensurePDBIsPresent(selectors []nsLabelSelector, podController storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorListObj := errorList.WithObjectID(podController.Identity())
+	errorListObj := errorList.WithObjectID(podController.Identity()).WithFilePath(podController.ShortPath())
 
 	podLabels, err := parsePodControllerLabels(podController)
 	if err != nil {

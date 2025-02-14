@@ -1,3 +1,19 @@
+/*
+Copyright 2025 Flant JSC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package images
 
 import (
@@ -11,6 +27,10 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
+const (
+	werfRuleName = "werf"
+)
+
 type werfFile struct {
 	Artifact string `json:"artifact" yaml:"artifact"`
 	Image    string `json:"image" yaml:"image"`
@@ -18,7 +38,8 @@ type werfFile struct {
 	Final    *bool  `json:"final" yaml:"final"`
 }
 
-func lintWerfFile(data string, result *errors.LintRuleErrorsList) {
+func lintWerfFile(data string, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(werfRuleName)
 	werfDocs := splitManifests(data)
 
 	i := 1
@@ -36,7 +57,7 @@ func lintWerfFile(data string, result *errors.LintRuleErrorsList) {
 		}
 
 		if w.Artifact != "" {
-			result.WithObjectID("werf.yaml:manifest-" + strconv.Itoa(i)).
+			errorList.WithObjectID("werf.yaml:manifest-" + strconv.Itoa(i)).
 				WithValue("artifact: " + w.Artifact).
 				Error("Use `from:` or `fromImage:` and `final: false` directives instead of `artifact:` in the werf file")
 		}
@@ -49,7 +70,7 @@ func lintWerfFile(data string, result *errors.LintRuleErrorsList) {
 		// TODO: add skips for some images
 
 		if !isWerfImagesCorrect(w.From) {
-			result.WithObjectID("werf.yaml:manifest-" + strconv.Itoa(i)).
+			errorList.WithObjectID("werf.yaml:manifest-" + strconv.Itoa(i)).
 				WithValue("from: " + w.From).
 				Error("`from:` parameter should be one of our BASE_DISTROLESS images")
 		}

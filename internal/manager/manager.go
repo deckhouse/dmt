@@ -1,3 +1,19 @@
+/*
+Copyright 2025 Flant JSC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package manager
 
 import (
@@ -82,9 +98,9 @@ func NewManager(dirs []string, rootConfig *config.RootConfig) *Manager {
 		mdl, err := module.NewModule(paths[i])
 		if err != nil {
 			m.errors.
-				WithLinterID("manager").
+				WithLinterID("!manager").
 				WithModule(moduleName).
-				WithObjectID(paths[i]).
+				WithFilePath(paths[i]).
 				WithValue(err.Error()).
 				Errorf("cannot create module `%s`", moduleName)
 			continue
@@ -117,6 +133,10 @@ func (m *Manager) Run() {
 			logger.InfoF("Run linters for `%s` module", module.GetName())
 
 			for _, linter := range getLintersForModule(module.GetModuleConfig(), m.errors) {
+				if flags.LinterName != "" && linter.Name() != flags.LinterName {
+					continue
+				}
+
 				logger.DebugF("Running linter `%s` on module `%s`", linter.Name(), module.GetName())
 
 				linter.Run(module)

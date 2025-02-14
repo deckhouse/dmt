@@ -1,7 +1,24 @@
+/*
+Copyright 2025 Flant JSC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package rules
 
 import (
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"strings"
 
@@ -14,24 +31,27 @@ import (
 type KeysRule struct {
 	cfg *config.OpenAPISettings
 	pkg.RuleMeta
+	rootPath string
 }
 
-func NewKeysRule(cfg *config.OpenAPISettings) *KeysRule {
+func NewKeysRule(cfg *config.OpenAPISettings, rootPath string) *KeysRule {
 	return &KeysRule{
 		cfg: cfg,
 		RuleMeta: pkg.RuleMeta{
-			Name: "openapi-keys",
+			Name: "keys",
 		},
+		rootPath: rootPath,
 	}
 }
 
 func (e *KeysRule) Run(path string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(e.GetName())
 
+	shortPath, _ := filepath.Rel(e.rootPath, path)
 	haValidator := newKeyValidator(e.cfg)
 
 	if err := openapi.Parse(haValidator.run, path); err != nil {
-		errorList.WithFilePath(path).Errorf("openAPI file is not valid:\n%s", err)
+		errorList.WithFilePath(shortPath).Errorf("openAPI file is not valid:\n%s", err)
 	}
 }
 

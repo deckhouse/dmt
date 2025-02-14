@@ -1,9 +1,26 @@
+/*
+Copyright 2025 Flant JSC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package rbac
 
 import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters/rbac/rules"
 )
 
 const (
@@ -31,10 +48,16 @@ func (l *Rbac) Run(m *module.Module) {
 		return
 	}
 
-	l.objectUserAuthzClusterRolePath(m)
-	l.objectRBACPlacement(m)
-	l.objectBindingSubjectServiceAccountCheck(m)
-	l.objectRolesWildcard(m)
+	errorList := l.ErrorList.WithModule(m.GetName())
+
+	rules.NewUzerAuthZRule().
+		ObjectUserAuthzClusterRolePath(m, errorList)
+	rules.NewBindingSubjectRule().
+		ObjectBindingSubjectServiceAccountCheck(m, errorList)
+	rules.NewPlacementRule(l.cfg.ExcludeRules.Placement.Get()).
+		ObjectRBACPlacement(m, errorList)
+	rules.NewWildcardsRule(l.cfg.ExcludeRules.Placement.Get()).
+		ObjectRolesWildcard(m, errorList)
 }
 
 func (l *Rbac) Name() string {

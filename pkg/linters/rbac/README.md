@@ -6,4 +6,17 @@ Checks RBACv1 (deprecated) rules
 
 ## Module level
 
-This linter does not have any settings. 
+```yaml
+linters-settings:
+  rbac:
+    exclude-rules:
+      # exclude if object kind and object name equals
+      wildcards:
+        - kind: ClusterRole
+          name: d8:deckhouse:webhook-handler
+      # exclude if object kind and object name equals
+      placement:
+        - kind: ClusterRole
+          name: d8:rbac-proxy
+  impact: error
+```

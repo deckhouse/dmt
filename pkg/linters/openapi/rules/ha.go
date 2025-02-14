@@ -1,7 +1,24 @@
+/*
+Copyright 2025 Flant JSC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package rules
 
 import (
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"strings"
 
@@ -15,27 +32,30 @@ type HARule struct {
 	cfg *config.OpenAPISettings
 	pkg.RuleMeta
 	pkg.StringRule
+	rootPath string
 }
 
-func NewHARule(cfg *config.OpenAPISettings) *HARule {
+func NewHARule(cfg *config.OpenAPISettings, rootPath string) *HARule {
 	return &HARule{
 		cfg: cfg,
 		RuleMeta: pkg.RuleMeta{
-			Name: "openapi-ha",
+			Name: "high-availability",
 		},
 		StringRule: pkg.StringRule{
 			ExcludeRules: cfg.HAAbsoluteKeysExcludes.Get(),
 		},
+		rootPath: rootPath,
 	}
 }
 
 func (e *HARule) Run(path string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(e.GetName())
 
+	shortPath, _ := filepath.Rel(e.rootPath, path)
 	haValidator := newHAValidator(e.StringRule)
 
 	if err := openapi.Parse(haValidator.run, path); err != nil {
-		errorList.WithFilePath(path).Errorf("openAPI file is not valid:\n%s", err)
+		errorList.WithFilePath(shortPath).Errorf("openAPI file is not valid:\n%s", err)
 	}
 }
 

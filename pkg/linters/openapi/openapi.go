@@ -1,3 +1,19 @@
+/*
+Copyright 2025 Flant JSC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package openapi
 
 import (
@@ -34,8 +50,8 @@ func (o *OpenAPI) Run(m *module.Module) {
 	// check openAPI files
 	openAPIFiles := fsutils.GetFiles(m.GetPath(), true, filterOpenAPIfiles)
 
-	enumValidator := rules.NewEnumRule(o.cfg)
-	haValidator := rules.NewHARule(o.cfg)
+	enumValidator := rules.NewEnumRule(o.cfg, m.GetPath())
+	haValidator := rules.NewHARule(o.cfg, m.GetPath())
 
 	for _, file := range openAPIFiles {
 		enumValidator.Run(file, errorLists)
@@ -44,8 +60,8 @@ func (o *OpenAPI) Run(m *module.Module) {
 
 	// check only CRDs files
 	crdFiles := fsutils.GetFiles(m.GetPath(), true, filterCRDsfiles)
-	crdValidator := rules.NewDeckhouseCRDsRule()
-	keyValidator := rules.NewKeysRule(o.cfg)
+	crdValidator := rules.NewDeckhouseCRDsRule(m.GetPath())
+	keyValidator := rules.NewKeysRule(o.cfg, m.GetPath())
 	for _, file := range crdFiles {
 		enumValidator.Run(file, errorLists)
 		haValidator.Run(file, errorLists)
