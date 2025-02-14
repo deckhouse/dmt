@@ -184,7 +184,7 @@ func NewModule(path string) (*Module, error) {
 
 	cfg := &config.ModuleConfig{}
 	if err := config.NewLoader(cfg, path).Load(); err != nil {
-		panic(err)
+		return nil, fmt.Errorf("can not parse module config: %s", err)
 	}
 
 	module.linterConfig = cfg
