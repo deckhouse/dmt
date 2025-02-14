@@ -62,10 +62,7 @@ type FilesRule struct {
 func (r *FilesRule) CheckFile(m *module.Module, fileName string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
-	name, _ := strings.CutPrefix(fileName, m.GetPath())
-	name = m.GetName() + ":" + name
-
-	if !r.Enabled(name) {
+	if !r.Enabled(fileName) {
 		// TODO: add metrics
 		return
 	}
