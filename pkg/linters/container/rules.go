@@ -34,15 +34,21 @@ import (
 const defaultRegistry = "registry.example.com/deckhouse"
 
 const (
-	objectRecommendedLabelsRuleName        = "object-recommended-labels"
-	namespaceLabelsRuleName                = "namespace-labels"
-	objectAPIVersionRuleName               = "object-api-version"
-	objectRevisionHistoryLimitRuleName     = "object-revision-history-limit"
-	objectPriorityClassRuleName            = "object-priority-class"
-	validatePriorityClassRuleName          = "validate-priority-class"
-	objectSecurityContextRuleName          = "object-security-context"
-	checkSecurityContextParametersRuleName = "check-security-context-parameters"
-	checkRunAsNonRootRuleName              = "check-run-as-non-root"
+	objectRecommendedLabelsRuleName         = "object-recommended-labels"
+	namespaceLabelsRuleName                 = "namespace-labels"
+	objectAPIVersionRuleName                = "object-api-version"
+	objectRevisionHistoryLimitRuleName      = "object-revision-history-limit"
+	objectPriorityClassRuleName             = "object-priority-class"
+	validatePriorityClassRuleName           = "validate-priority-class"
+	objectSecurityContextRuleName           = "object-security-context"
+	checkSecurityContextParametersRuleName  = "check-security-context-parameters"
+	checkRunAsNonRootRuleName               = "check-run-as-non-root"
+	containerPortsRuleName                  = "ports"
+	containerImagePullPolicyRuleName        = "image-pull-policy"
+	containerImageDigestCheckRuleName       = "image-digest-check"
+	containerEnvVariablesDuplicatesRuleName = "env-variables-duplicates"
+	objectHostNetworkPortsRuleName          = "host-network-ports"
+	containerNameDuplicatesRuleName         = "name-duplicates"
 )
 
 func (l *Container) applyContainerRules(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
@@ -120,6 +126,8 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 }
 
 func containersImagePullPolicy(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(containerImagePullPolicyRuleName)
+
 	if object.Unstructured.GetNamespace() == "d8-system" && object.Unstructured.GetKind() == "Deployment" && object.Unstructured.GetName() == "deckhouse" {
 		checkImagePullPolicyAlways(object, containers, errorList)
 
@@ -138,6 +146,8 @@ func checkImagePullPolicyAlways(object storage.StoreObject, containers []corev1.
 }
 
 func containerNameDuplicates(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(containerNameDuplicatesRuleName)
+
 	if hasDuplicates(containers, func(c corev1.Container) string { return c.Name }) {
 		errorList.WithObjectID(object.Identity()).
 			Error("Duplicate container name")
@@ -145,6 +155,8 @@ func containerNameDuplicates(object storage.StoreObject, containers []corev1.Con
 }
 
 func containerEnvVariablesDuplicates(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(containerEnvVariablesDuplicatesRuleName)
+
 	for i := range containers {
 		c := &containers[i]
 
@@ -194,6 +206,8 @@ func (l *Container) shouldSkipModuleContainer(moduleName, container string) bool
 }
 
 func containerImageDigestCheck(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(containerImageDigestCheckRuleName)
+
 	for i := range containers {
 		c := &containers[i]
 
@@ -235,6 +249,8 @@ func containerImagePullPolicyIfNotPresent(object storage.StoreObject, containers
 }
 
 func containerPorts(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(containerPortsRuleName)
+
 	const t = 1024
 	for i := range containers {
 		c := &containers[i]
@@ -251,6 +267,8 @@ func containerPorts(object storage.StoreObject, containers []corev1.Container, e
 }
 
 func objectHostNetworkPorts(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(objectHostNetworkPortsRuleName)
+
 	switch object.Unstructured.GetKind() {
 	case "Deployment", "DaemonSet", "StatefulSet", "Pod", "Job", "CronJob":
 	default:
@@ -283,6 +301,7 @@ func objectHostNetworkPorts(object storage.StoreObject, containers []corev1.Cont
 
 func objectRecommendedLabels(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(objectRecommendedLabelsRuleName)
+
 	labels := object.Unstructured.GetLabels()
 	if _, ok := labels["module"]; !ok {
 		errorList.WithObjectID(object.Identity()).WithValue(labels).
@@ -296,6 +315,7 @@ func objectRecommendedLabels(object storage.StoreObject, errorList *errors.LintR
 
 func namespaceLabels(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(namespaceLabelsRuleName)
+
 	if object.Unstructured.GetKind() != "Namespace" || !strings.HasPrefix(object.Unstructured.GetName(), "d8-") {
 		return
 	}
@@ -312,6 +332,7 @@ func namespaceLabels(object storage.StoreObject, errorList *errors.LintRuleError
 
 func objectAPIVersion(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(objectAPIVersionRuleName)
+
 	version := object.Unstructured.GetAPIVersion()
 
 	switch object.Unstructured.GetKind() {
@@ -339,6 +360,7 @@ func compareAPIVersion(wanted, version, objectID string, errorList *errors.LintR
 
 func objectRevisionHistoryLimit(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(objectRevisionHistoryLimitRuleName)
+
 	if object.Unstructured.GetKind() == "Deployment" {
 		converter := runtime.DefaultUnstructuredConverter
 		deployment := new(appsv1.Deployment)
@@ -371,6 +393,7 @@ func objectRevisionHistoryLimit(object storage.StoreObject, errorList *errors.Li
 
 func objectPriorityClass(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(objectPriorityClassRuleName)
+
 	if !isPriorityClassSupportedKind(object.Unstructured.GetKind()) {
 		return
 	}
@@ -434,6 +457,7 @@ func getPriorityClass(object storage.StoreObject) (string, error) {
 
 func objectSecurityContext(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(objectSecurityContextRuleName)
+
 	if !isSecurityContextSupportedKind(object.Unstructured.GetKind()) {
 		return
 	}
