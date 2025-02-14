@@ -61,7 +61,7 @@ type keyValidator struct {
 
 func newKeyValidator(cfg *config.OpenAPISettings) keyValidator {
 	return keyValidator{
-		bannedNames: cfg.KeyBannedNames,
+		bannedNames: cfg.OpenAPIExcludeRules.KeyBannedNames,
 	}
 }
 

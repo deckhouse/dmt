@@ -123,11 +123,17 @@ type ConversionsRuleSettings struct {
 type NoCyrillicSettings struct {
 	NoCyrillicFileExcludes []string `mapstructure:"no-cyrillic-file-excludes"`
 
+	NoCyrillicExcludeRules NoCyrillicExcludeRules `mapstructure:"exclude-rules"`
+
 	Impact pkg.Level `mapstructure:"impact"`
 }
 
+type NoCyrillicExcludeRules struct {
+	Files StringRuleExcludeList `mapstructure:"files"`
+}
+
 type OpenAPISettings struct {
-	OpenAPIExcludeRules `mapstructure:"exclude-rules"`
+	OpenAPIExcludeRules OpenAPIExcludeRules `mapstructure:"exclude-rules"`
 
 	Impact pkg.Level `mapstructure:"impact"`
 }

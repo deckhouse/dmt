@@ -17,13 +17,10 @@ limitations under the License.
 package license
 
 import (
-	"os"
-	"strings"
-
-	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters/license/rules"
 )
 
 const (
@@ -53,46 +50,8 @@ func (l *Copyright) Run(m *module.Module) {
 
 	errorList := l.ErrorList.WithModule(m.GetName())
 
-	NewFilesRule(l.cfg.ExcludeRules.Files.Get()).
-		checkFiles(m, errorList)
-}
-
-func (r *FilesRule) checkFiles(mod *module.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
-
-	files := fsutils.GetFiles(mod.GetPath(), false, filterFiles)
-	for _, fileName := range files {
-		name, _ := strings.CutPrefix(fileName, mod.GetPath())
-		name = mod.GetName() + ":" + name
-
-		if !r.Enabled(name) {
-			// TODO: add metrics
-			continue
-		}
-
-		ok, err := checkFileCopyright(fileName)
-		if !ok {
-			path, _ := strings.CutPrefix(fileName, mod.GetPath())
-
-			errorList.WithFilePath(path).Error(err.Error())
-		}
-	}
-}
-
-func filterFiles(path string) bool {
-	f, err := os.Stat(path)
-	if err != nil {
-		return false
-	}
-	if f.IsDir() {
-		return false
-	}
-
-	if fileToCheckRe.MatchString(path) && !fileToSkipRe.MatchString(path) {
-		return true
-	}
-
-	return false
+	rules.NewFilesRule(l.cfg.ExcludeRules.Files.Get()).
+		CheckFiles(m, errorList)
 }
 
 func (l *Copyright) Name() string {

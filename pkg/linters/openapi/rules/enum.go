@@ -69,7 +69,7 @@ type enumValidator struct {
 
 func newEnumValidator(cfg *config.OpenAPISettings) enumValidator {
 	excludes := make(map[string]struct{})
-	for _, exc := range cfg.EnumFileExcludes {
+	for _, exc := range cfg.OpenAPIExcludeRules.EnumFileExcludes {
 		excludes[exc+".enum"] = struct{}{}
 	}
 	return enumValidator{
