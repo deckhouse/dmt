@@ -1,4 +1,20 @@
-package rbac
+/*
+Copyright 2025 Flant JSC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package rules
 
 import (
 	"slices"
@@ -9,49 +25,62 @@ import (
 
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/storage"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 const (
-	objectRolesWildcardRuleName = "object-roles-wildcard"
+	WildcardsRuleName = "wildcards"
 )
+
+func NewWildcardsRule(excludeRules []pkg.KindRuleExclude) *WildcardsRule {
+	return &WildcardsRule{
+		RuleMeta: pkg.RuleMeta{
+			Name: WildcardsRuleName,
+		},
+		KindRule: pkg.KindRule{
+			ExcludeRules: excludeRules,
+		},
+	}
+}
+
+type WildcardsRule struct {
+	pkg.RuleMeta
+	pkg.KindRule
+}
 
 // objectRolesWildcard is a linter for checking the presence
 // of a wildcard in a Role and ClusterRole
-func (l *Rbac) objectRolesWildcard(m *module.Module) {
-	errorList := l.ErrorList.WithModule(m.GetName()).WithRule(objectRolesWildcardRuleName)
+func (r *WildcardsRule) ObjectRolesWildcard(m *module.Module, errorList *errors.LintRuleErrorsList) {
 	for _, object := range m.GetObjectStore().Storage {
 		// check only `rbac-for-us.yaml` files
 		if !strings.HasSuffix(object.ShortPath(), "rbac-for-us.yaml") {
 			continue
 		}
 
-		errorList = errorList.WithObjectID(object.Identity()).WithFilePath(object.ShortPath())
+		if !r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {
+			continue
+		}
+
+		errorListObj := errorList.WithObjectID(object.Identity()).WithFilePath(object.ShortPath())
 
 		// check Role and ClusterRole for wildcards
 		objectKind := object.Unstructured.GetKind()
 		switch objectKind {
 		case "Role", "ClusterRole":
-			l.checkRoles(object, errorList)
+			r.checkRoles(object, errorListObj)
 		}
 	}
 }
 
-func (l *Rbac) checkRoles(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	// check rbac-proxy for skip
-	for path, rules := range l.cfg.SkipCheckWildcards {
-		if strings.EqualFold(object.Path, path) {
-			if slices.Contains(rules, object.Unstructured.GetName()) {
-				return
-			}
-		}
-	}
-
+func (*WildcardsRule) checkRoles(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	converter := runtime.DefaultUnstructuredConverter
+
 	role := new(k8SRbac.Role)
 
 	if err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), role); err != nil {
 		errorList.Errorf("Cannot convert object to %s: %v", object.Unstructured.GetKind(), err)
+
 		return
 	}
 
@@ -71,6 +100,7 @@ func (l *Rbac) checkRoles(object storage.StoreObject, errorList *errors.LintRule
 
 		if len(objs) > 0 {
 			errorList.Errorf("%s contains a wildcards. Replace them with an explicit list of resources", strings.Join(objs, ", "))
+
 			return
 		}
 	}

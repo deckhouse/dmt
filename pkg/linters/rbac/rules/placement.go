@@ -1,4 +1,20 @@
-package rbac
+/*
+Copyright 2025 Flant JSC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package rules
 
 import (
 	"fmt"
@@ -8,10 +24,31 @@ import (
 
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/storage"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+const (
+	PlacementRuleName = "placement"
+)
+
+func NewPlacementRule(excludeRules []pkg.KindRuleExclude) *PlacementRule {
+	return &PlacementRule{
+		RuleMeta: pkg.RuleMeta{
+			Name: PlacementRuleName,
+		},
+		KindRule: pkg.KindRule{
+			ExcludeRules: excludeRules,
+		},
+	}
+}
+
+type PlacementRule struct {
+	pkg.RuleMeta
+	pkg.KindRule
+}
 
 const (
 	serviceAccountNameDelimiter = "-"
@@ -19,10 +56,6 @@ const (
 	RootRBACForUsPath           = "templates/rbac-for-us.yaml"
 	RootRBACToUsPath            = "templates/rbac-to-us.yaml"
 	RBACv2Path                  = "templates/rbac"
-)
-
-const (
-	rbacPlacementRuleName = "rbac-placement"
 )
 
 // TODO: remove entries after 'd8-system' after fixing RBAC objects names
@@ -36,13 +69,16 @@ func isDeckhouseSystemNamespace(actual string) bool {
 	return slices.Contains(deckhouseNamespaces, actual)
 }
 
-func (l *Rbac) objectRBACPlacement(m *module.Module) {
-	if slices.Contains(l.cfg.SkipObjectCheckBinding, m.GetName()) {
-		return
-	}
-	errorList := l.ErrorList.WithModule(m.GetName()).WithRule(rbacPlacementRuleName)
+func (r *PlacementRule) ObjectRBACPlacement(m *module.Module, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(r.GetName())
+
 	for _, object := range m.GetObjectStore().Storage {
-		errorList = errorList.WithObjectID(object.Identity()).WithFilePath(object.ShortPath())
+		errorListObj := errorList.WithObjectID(object.Identity())
+
+		if !r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {
+			// TODO: add metrics
+			continue
+		}
 
 		shortPath := object.ShortPath()
 		if shortPath == UserAuthzClusterRolePath || strings.HasPrefix(shortPath, RBACv2Path) {
@@ -52,14 +88,14 @@ func (l *Rbac) objectRBACPlacement(m *module.Module) {
 		objectKind := object.Unstructured.GetKind()
 		switch objectKind {
 		case "ServiceAccount":
-			objectRBACPlacementServiceAccount(m, object, errorList)
+			objectRBACPlacementServiceAccount(m, object, errorListObj)
 		case "ClusterRole", "ClusterRoleBinding":
-			objectRBACPlacementClusterRole(m, object, errorList)
+			objectRBACPlacementClusterRole(m, object, errorListObj)
 		case "Role", "RoleBinding":
-			objectRBACPlacementRole(m, object, errorList)
+			objectRBACPlacementRole(m, object, errorListObj)
 		default:
 			if strings.HasSuffix(shortPath, "rbac-for-us.yaml") || strings.HasSuffix(shortPath, "rbac-to-us.yaml") {
-				errorList.WithFilePath(shortPath).
+				errorListObj.WithFilePath(shortPath).
 					Errorf("kind %s not allowed", objectKind)
 			}
 		}
