@@ -99,8 +99,7 @@ func (r *LivenessRule) CheckProbe(object storage.StoreObject, containers []v1.Co
 		livenessProbe := c.LivenessProbe
 		if livenessProbe == nil {
 			errorList.Error("Container does not contain liveness-probe")
-
-			return
+			continue
 		}
 
 		if probeHandlerIsNotValid(livenessProbe.ProbeHandler) {
@@ -126,8 +125,7 @@ func (r *ReadinessRuleNameRule) CheckProbe(object storage.StoreObject, container
 		readinessProbe := c.ReadinessProbe
 		if readinessProbe == nil {
 			errorList.Error("Container does not contain readiness-probe")
-
-			return
+			continue
 		}
 
 		if probeHandlerIsNotValid(readinessProbe.ProbeHandler) {
