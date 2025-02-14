@@ -34,8 +34,8 @@ func (o *OpenAPI) Run(m *module.Module) {
 	// check openAPI files
 	openAPIFiles := fsutils.GetFiles(m.GetPath(), true, filterOpenAPIfiles)
 
-	enumValidator := rules.NewEnumRule(o.cfg)
-	haValidator := rules.NewHARule(o.cfg)
+	enumValidator := rules.NewEnumRule(o.cfg, m.GetPath())
+	haValidator := rules.NewHARule(o.cfg, m.GetPath())
 
 	for _, file := range openAPIFiles {
 		enumValidator.Run(file, errorLists)
@@ -44,8 +44,8 @@ func (o *OpenAPI) Run(m *module.Module) {
 
 	// check only CRDs files
 	crdFiles := fsutils.GetFiles(m.GetPath(), true, filterCRDsfiles)
-	crdValidator := rules.NewDeckhouseCRDsRule()
-	keyValidator := rules.NewKeysRule(o.cfg)
+	crdValidator := rules.NewDeckhouseCRDsRule(m.GetPath())
+	keyValidator := rules.NewKeysRule(o.cfg, m.GetPath())
 	for _, file := range crdFiles {
 		enumValidator.Run(file, errorLists)
 		haValidator.Run(file, errorLists)

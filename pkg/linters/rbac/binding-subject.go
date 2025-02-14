@@ -26,6 +26,10 @@ import (
 	"github.com/deckhouse/dmt/internal/storage"
 )
 
+const (
+	bindingSubjectServiceAccountCheckRuleName = "binding-subject-service-account-check"
+)
+
 func (l *Rbac) objectBindingSubjectServiceAccountCheck(m *module.Module) {
 	if slices.Contains(l.cfg.SkipModuleCheckBinding, m.GetName()) {
 		return
@@ -33,10 +37,11 @@ func (l *Rbac) objectBindingSubjectServiceAccountCheck(m *module.Module) {
 
 	converter := runtime.DefaultUnstructuredConverter
 	objectStore := m.GetObjectStore()
+	errorList := l.ErrorList.WithModule(m.GetName()).WithRule(bindingSubjectServiceAccountCheckRuleName)
 
 	for _, object := range objectStore.Storage {
 		var subjects []v1.Subject
-		errorList := l.ErrorList.WithModule(m.GetName()).WithObjectID(object.Identity())
+		errorList = errorList.WithObjectID(object.Identity()).WithFilePath(object.ShortPath())
 
 		// deckhouse module should contain only global cluster roles
 		objectKind := object.Unstructured.GetKind()

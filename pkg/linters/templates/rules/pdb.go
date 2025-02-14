@@ -62,7 +62,9 @@ func (r *PDBRule) ControllerMustHavePDB(md *module.Module, errorList *errors.Lin
 		}
 
 		if len(pdbSelectors) == 0 {
-			errorList.WithObjectID(object.Identity()).Error("No PodDisruptionBudget found for controller")
+			errorList.WithObjectID(object.Identity()).
+				WithFilePath(object.ShortPath()).
+				Error("No PodDisruptionBudget found for controller")
 			return
 		}
 
@@ -95,7 +97,7 @@ func collectPDBSelectors(md *module.Module, errorList *errors.LintRuleErrorsList
 // ensurePDBIsPresent returns true if there is a PDB controlling pods from the pod contoller
 // PDB is assumed to be present, since the PDB check goes after PDB check.
 func ensurePDBIsPresent(selectors []nsLabelSelector, podController storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorListObj := errorList.WithObjectID(podController.Identity())
+	errorListObj := errorList.WithObjectID(podController.Identity()).WithFilePath(podController.ShortPath())
 
 	podLabels, err := parsePodControllerLabels(podController)
 	if err != nil {

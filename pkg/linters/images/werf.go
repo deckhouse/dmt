@@ -11,6 +11,10 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
+const (
+	werfRuleName = "werf"
+)
+
 type werfFile struct {
 	Artifact string `json:"artifact" yaml:"artifact"`
 	Image    string `json:"image" yaml:"image"`
@@ -18,7 +22,8 @@ type werfFile struct {
 	Final    *bool  `json:"final" yaml:"final"`
 }
 
-func lintWerfFile(data string, result *errors.LintRuleErrorsList) {
+func lintWerfFile(data string, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(werfRuleName)
 	werfDocs := splitManifests(data)
 
 	i := 1
@@ -36,7 +41,7 @@ func lintWerfFile(data string, result *errors.LintRuleErrorsList) {
 		}
 
 		if w.Artifact != "" {
-			result.WithObjectID("werf.yaml:manifest-" + strconv.Itoa(i)).
+			errorList.WithObjectID("werf.yaml:manifest-" + strconv.Itoa(i)).
 				WithValue("artifact: " + w.Artifact).
 				Error("Use `from:` or `fromImage:` and `final: false` directives instead of `artifact:` in the werf file")
 		}
@@ -49,7 +54,7 @@ func lintWerfFile(data string, result *errors.LintRuleErrorsList) {
 		// TODO: add skips for some images
 
 		if !isWerfImagesCorrect(w.From) {
-			result.WithObjectID("werf.yaml:manifest-" + strconv.Itoa(i)).
+			errorList.WithObjectID("werf.yaml:manifest-" + strconv.Itoa(i)).
 				WithValue("from: " + w.From).
 				Error("`from:` parameter should be one of our BASE_DISTROLESS images")
 		}
