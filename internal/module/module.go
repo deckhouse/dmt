@@ -189,6 +189,9 @@ func remapString(data []byte, name string) string {
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	for scanner.Scan() {
 		line := scanner.Text()
+		if pos := strings.Index(line, `{{- $camel_chart_name := (include "helm_lib_module_camelcase_name" $context) }}`); pos > -1 {
+			line = line[:pos] + `{{- $camel_chart_name := "system" }}`
+		}
 		if pos := strings.Index(line, `:= include "helm_lib_module_`); pos > -1 {
 			line = line[:pos] + `:= "imageHash-` + name + `-container" }}`
 		}
