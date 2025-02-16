@@ -176,20 +176,6 @@ func (m *Manager) PrintResult() {
 		)
 	})
 
-	//for _, e := range errs {
-	//	if e.LinterID != "container" {
-	//		continue
-	//	}
-	//	arr := strings.Split(e.ObjectID, " ; ")
-	//	fmt.Printf("%s:\n  - %s\n    %s\n    %s\n",
-	//		e.RuleID,
-	//		strings.ReplaceAll(arr[0], " =", ":"),
-	//		strings.ReplaceAll(arr[1], " =", ":"),
-	//		strings.ReplaceAll(arr[3], " =", ":"),
-	//	)
-	//}
-	//return
-
 	w := new(tabwriter.Writer)
 
 	const minWidth = 5
