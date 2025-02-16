@@ -41,6 +41,9 @@ func applyDigests(digests, values map[string]any) {
 		"global": map[string]any{
 			"modulesImages": map[string]any{
 				"digests": digests,
+				"registry": map[string]any{
+					"base": "registry.example.com/deckhouse",
+				},
 			},
 		},
 	}
@@ -56,10 +59,19 @@ func helmFormatModuleImages(m *Module, rawValues map[string]any) (chartutil.Valu
 
 	digests := map[string]any{
 		"common": map[string]any{
-			"module": "sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc",
+			"init":      "sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc",
+			"container": "sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc",
 		},
-		m.GetName(): map[string]any{
-			"module": "sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc",
+		"prompp": map[string]any{
+			"prompp": "sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc",
+		},
+		"module": map[string]any{
+			"container": "sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc",
+		},
+		"controlPlaneManager": map[string]any{
+			"kubeApiserver":         "sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc",
+			"kubeControllerManager": "sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc",
+			"kubeScheduler":         "sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc",
 		},
 	}
 

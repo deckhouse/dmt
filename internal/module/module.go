@@ -17,12 +17,10 @@ limitations under the License.
 package module
 
 import (
-	"bufio"
-	"bytes"
+	_ "embed"
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -142,7 +140,7 @@ func NewModule(path string) (*Module, error) {
 	}
 
 	module.chart = ch
-	remapChart(ch, name)
+	remapChart(ch)
 
 	values, err := ComposeValuesFromSchemas(module)
 	if err != nil {
@@ -170,42 +168,28 @@ func NewModule(path string) (*Module, error) {
 	return module, nil
 }
 
-func remapChart(ch *chart.Chart, name string) {
-	for _, template := range ch.Templates {
-		template.Data = []byte(remapString(template.Data, name))
-	}
-
+func remapChart(ch *chart.Chart) {
+	remapTemplates(ch)
 	for _, dependency := range ch.Dependencies() {
-		for _, template := range dependency.Templates {
-			template.Data = []byte(remapString(template.Data, name))
-		}
+		remapChart(dependency)
 	}
 }
 
-func remapString(data []byte, name string) string {
-	reHelmModule := regexp.MustCompile(`{{ include "helm_lib_module_(?:image|common_image).* }}`)
-	reImageDigest := regexp.MustCompile(`\$\.Values\.global\.modulesImages\.digests\.\S*`)
-	var outputLines strings.Builder
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-	for scanner.Scan() {
-		line := scanner.Text()
-		if pos := strings.Index(line, `{{- $camel_chart_name := (include "helm_lib_module_camelcase_name" $context) }}`); pos > -1 {
-			line = line[:pos] + `{{- $camel_chart_name := "system" }}`
+//go:embed templates/_module_name.tpl
+var moduleNameTemplate []byte
+
+//go:embed templates/_module_image.tpl
+var moduleImageTemplate []byte
+
+func remapTemplates(ch *chart.Chart) {
+	for _, template := range ch.Templates {
+		switch template.Name {
+		case "templates/_module_name.tpl":
+			template.Data = moduleNameTemplate
+		case "templates/_module_image.tpl":
+			template.Data = moduleImageTemplate
 		}
-		if pos := strings.Index(line, `:= include "helm_lib_module_`); pos > -1 {
-			line = line[:pos] + `:= "imageHash-` + name + `-container" }}`
-		}
-		if pos := strings.Index(line, `:= (include "helm_lib_module_`); pos > -1 {
-			line = line[:pos] + `:= "example.domain.com:tags"  | splitn ":" 2 }}`
-		}
-		if pos := strings.Index(line, "image: "); pos > -1 {
-			line = line[:pos] + "image: registry.example.com/deckhouse@imageHash-" + name + "-container"
-		}
-		line = reHelmModule.ReplaceAllString(line, "imageHash-"+name+"-container")
-		line = reImageDigest.ReplaceAllString(line, "$.Values.global.modulesImages.digests.common")
-		outputLines.WriteString(line + "\n")
 	}
-	return outputLines.String()
 }
 
 func getModuleName(path string) (string, error) {
