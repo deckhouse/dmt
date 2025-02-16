@@ -326,7 +326,6 @@ properties:
           Node will have role 'some-role' if it has label with prefix node-role.deckhouse.io/
           Do not use label with prefix node-role.deckhouse.io/ on workers nodes!
         x-examples:
-          - module: 2
           - system: 2
       kubernetesVersions:
         type: array

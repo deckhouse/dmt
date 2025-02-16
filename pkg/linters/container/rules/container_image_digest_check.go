@@ -17,7 +17,7 @@ limitations under the License.
 package rules
 
 import (
-	"regexp"
+	"strings"
 
 	"github.com/google/go-containerregistry/pkg/name"
 	corev1 "k8s.io/api/core/v1"
@@ -51,8 +51,7 @@ func (r *ImageDigestRule) ContainerImageDigestCheck(object storage.StoreObject, 
 	for i := range containers {
 		c := &containers[i]
 
-		re := regexp.MustCompile(`(?P<repository>.+)([@:])imageHash[-a-z0-9A-Z]+$`)
-		match := re.FindStringSubmatch(c.Image)
+		match := strings.Split(c.Image, "@")
 		if len(match) == 0 {
 			errorList.WithObjectID(object.Identity() + "; container = " + c.Name).
 				Error("Cannot parse repository from image")
@@ -60,7 +59,7 @@ func (r *ImageDigestRule) ContainerImageDigestCheck(object storage.StoreObject, 
 			continue
 		}
 
-		repo, err := name.NewRepository(match[re.SubexpIndex("repository")])
+		repo, err := name.NewRepository(match[0])
 		if err != nil {
 			errorList.WithObjectID(object.Identity()+"; container = "+c.Name).
 				Errorf("Cannot parse repository from image: %s", c.Image)
