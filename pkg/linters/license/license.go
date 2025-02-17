@@ -1,83 +1,63 @@
+/*
+Copyright 2025 Flant JSC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package license
 
 import (
-	"slices"
-	"strings"
-
-	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters/license/rules"
+)
+
+const (
+	ID = "license"
 )
 
 // Copyright linter
 type Copyright struct {
 	name, desc string
 	cfg        *config.LicenseSettings
+	ErrorList  *errors.LintRuleErrorsList
 }
 
-var Cfg *config.LicenseSettings
-
-func New(cfg *config.LicenseSettings) *Copyright {
-	Cfg = cfg
+func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Copyright {
 	return &Copyright{
-		name: "license",
-		desc: "Copyright will check all files in the modules for contains copyright",
-		cfg:  cfg,
+		name:      ID,
+		desc:      "Copyright will check all files in the modules for contains copyright",
+		cfg:       &cfg.LintersSettings.License,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.License.Impact),
 	}
 }
 
-func (o *Copyright) Run(m *module.Module) *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList(o.Name(), m.GetName())
-
+func (l *Copyright) Run(m *module.Module) {
 	if m.GetPath() == "" {
-		return result
-	}
-	files, err := getFiles(m.GetPath())
-	if err != nil {
-		return result.WithValue(err.Error()).Add("error getting files in `%s` module", m.GetName())
+		return
 	}
 
-	result.Merge(OssModuleRule(m.GetName(), m.GetPath()))
+	errorList := l.ErrorList.WithModule(m.GetName())
 
-	for _, fileName := range files {
-		name, _ := strings.CutPrefix(fileName, m.GetPath())
-		name = m.GetName() + ":" + name
-		if slices.Contains(o.cfg.CopyrightExcludes, name) {
-			continue
-		}
-
-		ok, err := checkFileCopyright(fileName)
-		if !ok {
-			path, _ := strings.CutPrefix(fileName, m.GetPath())
-			result.WithObjectID(path).WithValue(err).
-				Add("errors in `%s` module", m.GetName())
-		}
-	}
-
-	return result
+	rules.NewFilesRule(l.cfg.ExcludeRules.Files.Get()).
+		CheckFiles(m, errorList)
 }
 
-func getFiles(rootPath string) ([]string, error) {
-	files, err := fsutils.GetFiles(rootPath, true)
-	if err != nil {
-		return nil, err
-	}
-
-	var result []string
-	for _, path := range files {
-		if fileToCheckRe.MatchString(path) && !fileToSkipRe.MatchString(path) {
-			result = append(result, path)
-		}
-	}
-
-	return result, nil
+func (l *Copyright) Name() string {
+	return l.name
 }
 
-func (o *Copyright) Name() string {
-	return o.name
-}
-
-func (o *Copyright) Desc() string {
-	return o.desc
+func (l *Copyright) Desc() string {
+	return l.desc
 }

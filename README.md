@@ -22,72 +22,36 @@ drwxrwxr-x 1 deckhouse deckhouse  4096 Nov 12 21:45 002-module-two
 drwxrwxr-x 1 deckhouse deckhouse  4096 Nov 10 21:46 003-module-three
 ```
 
-
 #### Gen
 
 Generate some automatic rules for you module
 <Coming soon>
 
+## Linters list
 
+| Linter                                                   | Description                                                                  |
+|----------------------------------------------------------|------------------------------------------------------------------------------|
+| [container](pkg/linters/container/README.md)             | Check containers - duplicated names, env variables, ports, security context, liveness and readiness probes.|
+| [hooks](pkg/linters/hooks/README.md)                     | Check hooks rules. |
+| [images](pkg/linters/images/README.md)                   | Check images build instructions. |
+| [license](pkg/linters/license/README.md)                 | Check license header in files. |
+| [module](pkg/linters/module/README.md)                   | Check module.yaml definition, openapi conversions, oss.yaml file.|
+| [no-cyrillic](pkg/linters/no-cyrillic/README.md)         | Check cyrillic letters. |
+| [openapi](pkg/linters/openapi/README.md)                 | Check openapi settings, crds. |
+| [rbac](pkg/linters/rbac/README.md)                       | Check rbac rules. |
+| [templates](pkg/linters/templates/README.md)             | Check templates rules, VPA, PDB settings, prometheus, grafana rules, kube-rbac-proxy, service target port. |
 
 ## Configuration
 
-You can exclude linters or setup them via the config file `.dmt-lint`
+You can exclude linters or setup them via the config file `.dmtlint.yaml`
 
-Example settings:
+### Global settings:
 
 ```yaml
-linters-settings:
-  probes:
-    probes-excludes:
-      d8-istio:
-        - kube-rbac-proxy
-        - operator
-  openapi:
-    enum-file-excludes:
-      - prometheus:/openapi/values.yaml:
-          - "properties.internal.properties.grafana.properties.alertsChannelsConfig.properties.notifiers.items.properties.type"
-  nocyrillic:
-    no-cyrillic-file-excludes:
-      - user-authz:/rbac.yaml
-      - documentation:/images/web/site/_data/topnav.yml
-  license:
-    copyright-excludes:
-      - upmeter:/images/upmeter/stress.sh
-      - cni-simple-bridge:/images/simple-bridge/rootfs/bin/simple-bridge
-    skip-oss-checks:
-      - 001-priority-class
-  rbac:
-    skip-check-wildcards:
-      - "admission-policy-engine/templates/rbac-for-us.yaml":
-          - "d8:admission-policy-engine:gatekeeper"
-    skip-module-check-binding:
-      - "user-authz"
-    skip-object-check-binding:
-      - "user-authz"
-      - "deckhouse"
-  images:
-    skip-module-image-name:
-      - "021-cni-cilium/images/cilium/Dockerfile"
-      - "021-cni-cilium/images/virt-cilium/Dockerfile"
-    skip-distroless-image-check:
-      - "base-cilium-dev/werf.inc.yaml"
-      - "cilium-envoy/werf.inc.yaml"
-  container:
-    skip-containers:
-      - "okmeter:okagent"
-      - "d8-control-plane-manager:*.image-holder"
-  monitoring:
-    skip-module-checks:
-      - "340-extended-monitoring"
-      - "030-cloud-provider-yandex"
-  conversions:
-    skip-check:
-    - flow-schema
-    first-version: 2
-warnings-only:
-  - openapi
-  - no-cyrillic
-  - copyright
-  - probes
+global:  
+  linters:
+    probes:
+      impact: warn | critical
+    images:
+      impact: warn | critical  
 ```

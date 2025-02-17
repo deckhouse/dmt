@@ -1,28 +1,46 @@
+/*
+Copyright 2025 Flant JSC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package config
 
 import (
-	"github.com/deckhouse/dmt/internal/logger"
-	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg"
+	"github.com/deckhouse/dmt/pkg/config/global"
 )
 
-// Config encapsulates the config data specified in the YAML config file.
-type Config struct {
-	cfgDir string // The directory containing the config file.
-
-	LintersSettings LintersSettings `mapstructure:"linters-settings"`
-	WarningsOnly    []string        `mapstructure:"warnings-only"`
+// RootConfig encapsulates the config data specified in the YAML config file.
+type RootConfig struct {
+	GlobalSettings global.Global `mapstructure:"global"`
 }
 
-func NewDefault(dirs []string) (*Config, error) {
-	cfg := &Config{}
+type ModuleConfig struct {
+	LintersSettings LintersSettings `mapstructure:"linters-settings"`
+}
 
-	if err := NewLoader(cfg, dirs).Load(); err != nil {
-		return nil, err
+func assignIfNotEmpty(v, input *pkg.Level) {
+	if input != nil {
+		*v = *input
 	}
+}
 
-	errors.WarningsOnly = cfg.WarningsOnly
-	for _, w := range cfg.WarningsOnly {
-		logger.InfoF("Linter %q is marked as warnings-only. It will not fail the pipeline", w)
+func NewDefaultRootConfig(dirs []string) (*RootConfig, error) {
+	cfg := &RootConfig{}
+
+	if err := NewLoader(cfg, dirs...).Load(); err != nil {
+		return nil, err
 	}
 
 	return cfg, nil

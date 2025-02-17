@@ -1,3 +1,19 @@
+/*
+Copyright 2025 Flant JSC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package config
 
 import (
@@ -5,7 +21,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/mapstructure"
@@ -13,6 +31,7 @@ import (
 
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/logger"
+	"github.com/deckhouse/dmt/pkg"
 )
 
 type LoaderOptions struct {
@@ -22,13 +41,13 @@ type LoaderOptions struct {
 type Loader struct {
 	viper *viper.Viper
 
-	cfg  *Config
+	cfg  any
 	args []string
 }
 
-func NewLoader(cfg *Config, dirs []string) *Loader {
+func NewLoader(cfg any, dirs ...string) *Loader {
 	return &Loader{
-		viper: viper.New(),
+		viper: viper.NewWithOptions(),
 		cfg:   cfg,
 		args:  dirs,
 	}
@@ -53,7 +72,7 @@ func (l *Loader) setConfigFile() error {
 
 	configSearchPaths := l.getConfigSearchPaths()
 
-	logger.InfoF("Config search paths: %s", configSearchPaths)
+	logger.DebugF("Config search paths: %s", configSearchPaths)
 
 	for _, p := range configSearchPaths {
 		l.viper.AddConfigPath(p)
@@ -83,7 +102,7 @@ func (l *Loader) getConfigSearchPaths() []string {
 	}
 
 	// find all dirs from it up to the root
-	searchPaths := []string{"./"}
+	searchPaths := []string{}
 
 	for {
 		searchPaths = append(searchPaths, currentDir)
@@ -146,20 +165,14 @@ func (l *Loader) setConfigDir() error {
 		logger.InfoF("Reading config file stdin")
 	}
 
-	logger.InfoF("Used config file %s", usedConfigFile)
-
-	usedConfigDir, err := filepath.Abs(filepath.Dir(usedConfigFile))
-	if err != nil {
-		return errors.New("can't get config directory")
-	}
-
-	l.cfg.cfgDir = usedConfigDir
+	logger.DebugF("Used config file %s", usedConfigFile)
 
 	return nil
 }
 
 func customDecoderHook() viper.DecoderConfigOption {
 	return viper.DecodeHook(mapstructure.ComposeDecodeHookFunc(
+		StringToLevelHookFunc(),
 		// Default hooks (https://github.com/spf13/viper/blob/518241257478c557633ab36e474dfcaeb9a3c623/viper.go#L135-L138).
 		mapstructure.StringToTimeDurationHookFunc(),
 		mapstructure.StringToSliceHookFunc(","),
@@ -167,4 +180,21 @@ func customDecoderHook() viper.DecoderConfigOption {
 		// Needed for forbidigo, and output.formats.
 		mapstructure.TextUnmarshallerHookFunc(),
 	))
+}
+
+func StringToLevelHookFunc() mapstructure.DecodeHookFuncType {
+	return func(
+		f reflect.Type,
+		t reflect.Type,
+		data any) (any, error) {
+		if f.Kind() != reflect.String || f.Kind() == reflect.Pointer {
+			return data, nil
+		}
+
+		if !strings.Contains(t.String(), "Level") {
+			return data, nil
+		}
+
+		return pkg.ParseStringToLevel(data.(string)), nil
+	}
 }

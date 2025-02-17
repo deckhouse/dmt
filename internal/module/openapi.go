@@ -1,3 +1,19 @@
+/*
+Copyright 2025 Flant JSC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package module
 
 import (
@@ -25,6 +41,9 @@ func applyDigests(digests, values map[string]any) {
 		"global": map[string]any{
 			"modulesImages": map[string]any{
 				"digests": digests,
+				"registry": map[string]any{
+					"base": "registry.example.com/deckhouse",
+				},
 			},
 		},
 	}
@@ -40,10 +59,19 @@ func helmFormatModuleImages(m *Module, rawValues map[string]any) (chartutil.Valu
 
 	digests := map[string]any{
 		"common": map[string]any{
-			"module": "sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc",
+			"init":      "sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc",
+			"container": "sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc",
 		},
-		m.GetName(): map[string]any{
-			"module": "sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc",
+		"prompp": map[string]any{
+			"prompp": "sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc",
+		},
+		"module": map[string]any{
+			"container": "sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc",
+		},
+		"controlPlaneManager": map[string]any{
+			"kubeApiserver":         "sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc",
+			"kubeControllerManager": "sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc",
+			"kubeScheduler":         "sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc",
 		},
 	}
 

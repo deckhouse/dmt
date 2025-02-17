@@ -28,6 +28,8 @@ linters-settings:
   funlen:
     lines: -1 # the number of lines (code + empty lines) is not a right metric and leads to code without empty line or one-liner.
     statements: 50
+  staticcheck:
+    checks: ["all","-SA1019"]
   goconst:
     min-len: 2
     min-occurrences: 3
@@ -43,8 +45,6 @@ linters-settings:
       - ifElseChain
       - octalLiteral
       - whyNoLint
-  gocyclo:
-    min-complexity: 15
   godox:
     keywords:
       - FIXME

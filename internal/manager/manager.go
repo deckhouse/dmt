@@ -1,31 +1,52 @@
+/*
+Copyright 2025 Flant JSC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package manager
 
 import (
+	"bytes"
+	"cmp"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
+	"sync"
+	"text/tabwriter"
 
-	"github.com/deckhouse/dmt/pkg/linters/conversions"
-	"github.com/deckhouse/dmt/pkg/linters/ingress"
-	k8s_resources "github.com/deckhouse/dmt/pkg/linters/k8s-resources"
-	moduleLinter "github.com/deckhouse/dmt/pkg/linters/module"
-	"github.com/deckhouse/dmt/pkg/linters/monitoring"
-
+	"github.com/fatih/color"
+	"github.com/kyokomi/emoji"
 	"github.com/mitchellh/go-homedir"
-	"github.com/sourcegraph/conc/pool"
+	"github.com/mitchellh/go-wordwrap"
 
 	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/container"
+	"github.com/deckhouse/dmt/pkg/linters/hooks"
 	"github.com/deckhouse/dmt/pkg/linters/images"
 	"github.com/deckhouse/dmt/pkg/linters/license"
+	moduleLinter "github.com/deckhouse/dmt/pkg/linters/module"
 	no_cyrillic "github.com/deckhouse/dmt/pkg/linters/no-cyrillic"
 	"github.com/deckhouse/dmt/pkg/linters/openapi"
-	"github.com/deckhouse/dmt/pkg/linters/probes"
 	"github.com/deckhouse/dmt/pkg/linters/rbac"
+	"github.com/deckhouse/dmt/pkg/linters/templates"
 )
 
 const (
@@ -33,35 +54,26 @@ const (
 	ModuleYamlFilename  = "module.yaml"
 	HooksDir            = "hooks"
 	ImagesDir           = "images"
+	OpenAPIDir          = "openapi"
 )
 
+type Linter interface {
+	Run(m *module.Module)
+	Name() string
+}
+
 type Manager struct {
-	cfg     *config.Config
-	Linters LinterList
+	cfg     *config.RootConfig
 	Modules []*module.Module
 
 	errors *errors.LintRuleErrorsList
 }
 
-func NewManager(dirs []string, cfg *config.Config) *Manager {
+func NewManager(dirs []string, rootConfig *config.RootConfig) *Manager {
 	m := &Manager{
-		cfg: cfg,
-	}
+		cfg: rootConfig,
 
-	// fill all linters
-	m.Linters = []Linter{
-		openapi.New(&cfg.LintersSettings.OpenAPI),
-		no_cyrillic.New(&cfg.LintersSettings.NoCyrillic),
-		license.New(&cfg.LintersSettings.License),
-		probes.New(&cfg.LintersSettings.Probes),
-		container.New(&cfg.LintersSettings.Container),
-		k8s_resources.New(&cfg.LintersSettings.K8SResources),
-		images.New(&cfg.LintersSettings.Images),
-		rbac.New(&cfg.LintersSettings.Rbac),
-		monitoring.New(&cfg.LintersSettings.Monitoring),
-		ingress.New(&cfg.LintersSettings.Ingress),
-		moduleLinter.New(&cfg.LintersSettings.Module),
-		conversions.New(&cfg.LintersSettings.Conversions),
+		errors: errors.NewLintRuleErrorsList(),
 	}
 
 	var paths []string
@@ -80,59 +92,149 @@ func NewManager(dirs []string, cfg *config.Config) *Manager {
 		paths = append(paths, result...)
 	}
 
-	errorsList := errors.NewLinterRuleList("manager")
-
 	for i := range paths {
 		moduleName := filepath.Base(paths[i])
 		logger.DebugF("Found `%s` module", moduleName)
 		mdl, err := module.NewModule(paths[i])
 		if err != nil {
-			errorsList.
+			m.errors.
+				WithLinterID("!manager").
 				WithModule(moduleName).
-				WithObjectID(paths[i]).
+				WithFilePath(paths[i]).
 				WithValue(err.Error()).
-				Add("cannot create module `%s`", moduleName)
+				Errorf("cannot create module `%s`", moduleName)
 			continue
 		}
+
+		mdl.MergeRootConfig(rootConfig)
+
 		m.Modules = append(m.Modules, mdl)
 	}
-
-	m.errors = errorsList
 
 	logger.InfoF("Found %d modules", len(m.Modules))
 
 	return m
 }
 
-func (m *Manager) Run() *errors.LintRuleErrorsList {
-	result := errors.NewLinterRuleList("manager")
+func (m *Manager) Run() {
+	wg := new(sync.WaitGroup)
+	processingCh := make(chan struct{}, flags.LintersLimit)
 
-	var ch = make(chan *errors.LintRuleErrorsList)
-	go func() {
-		var g = pool.New().WithMaxGoroutines(flags.LintersLimit)
-		for i := range m.Modules {
-			logger.InfoF("Run linters for `%s` module", m.Modules[i].GetName())
-			for j := range m.Linters {
-				g.Go(func() {
-					logger.DebugF("Running linter `%s` on module `%s`", m.Linters[j].Name(), m.Modules[i].GetName())
-					errs := m.Linters[j].Run(m.Modules[i])
-					if errs.ConvertToError() != nil {
-						ch <- errs
-					}
-				})
+	for _, module := range m.Modules {
+		processingCh <- struct{}{}
+		wg.Add(1)
+
+		go func() {
+			defer func() {
+				<-processingCh
+				wg.Done()
+			}()
+
+			logger.InfoF("Run linters for `%s` module", module.GetName())
+
+			for _, linter := range getLintersForModule(module.GetModuleConfig(), m.errors) {
+				if flags.LinterName != "" && linter.Name() != flags.LinterName {
+					continue
+				}
+
+				logger.DebugF("Running linter `%s` on module `%s`", linter.Name(), module.GetName())
+
+				linter.Run(module)
 			}
-		}
-		g.Wait()
-		close(ch)
-	}()
-
-	for er := range ch {
-		result.Merge(er)
+		}()
 	}
 
-	result.Merge(m.errors)
+	wg.Wait()
+}
 
-	return result
+func getLintersForModule(cfg *config.ModuleConfig, errList *errors.LintRuleErrorsList) []Linter {
+	return []Linter{
+		openapi.New(cfg, errList),
+		no_cyrillic.New(cfg, errList),
+		license.New(cfg, errList),
+		container.New(cfg, errList),
+		templates.New(cfg, errList),
+		images.New(cfg, errList),
+		rbac.New(cfg, errList),
+		hooks.New(cfg, errList),
+		moduleLinter.New(cfg, errList),
+	}
+}
+
+func (m *Manager) PrintResult() {
+	errs := m.errors.GetErrors()
+
+	if len(errs) == 0 {
+		return
+	}
+
+	slices.SortFunc(errs, func(a, b pkg.LinterError) int {
+		return cmp.Or(
+			cmp.Compare(a.LinterID, b.LinterID),
+			cmp.Compare(a.ModuleID, b.ModuleID),
+			cmp.Compare(a.RuleID, b.RuleID),
+		)
+	})
+
+	w := new(tabwriter.Writer)
+
+	const minWidth = 5
+
+	buf := bytes.NewBuffer([]byte{})
+	w.Init(buf, minWidth, 0, 0, ' ', 0)
+
+	for idx := range errs {
+		err := errs[idx]
+
+		msgColor := color.FgRed
+
+		if err.Level == pkg.Warn {
+			msgColor = color.FgHiYellow
+		}
+
+		// header
+		fmt.Fprint(w, emoji.Sprintf(":monkey:"))
+		fmt.Fprint(w, color.New(color.FgHiBlue).SprintFunc()("["))
+
+		if err.RuleID != "" {
+			fmt.Fprint(w, color.New(color.FgHiBlue).SprintFunc()(err.RuleID+" "))
+		}
+
+		fmt.Fprintf(w, "%s\n", color.New(color.FgHiBlue).SprintfFunc()("(#%s)]", err.LinterID))
+
+		// body
+		fmt.Fprintf(w, "\t%s\t\t%s\n", "Message:", color.New(msgColor).SprintfFunc()(prepareString(err.Text)))
+
+		fmt.Fprintf(w, "\t%s\t\t%s\n", "Module:", err.ModuleID)
+
+		if err.ObjectID != "" && err.ObjectID != err.ModuleID {
+			fmt.Fprintf(w, "\t%s\t\t%s\n", "Object:", err.ObjectID)
+		}
+
+		if err.ObjectValue != nil {
+			value := fmt.Sprintf("%v", err.ObjectValue)
+
+			fmt.Fprintf(w, "\t%s\t\t%s\n", "Value:", prepareString(value))
+		}
+
+		if err.FilePath != "" {
+			fmt.Fprintf(w, "\t%s\t\t%s\n", "FilePath:", strings.TrimSpace(err.FilePath))
+		}
+
+		if err.LineNumber != 0 {
+			fmt.Fprintf(w, "\t%s\t\t%d\n", "LineNumber:", err.LineNumber)
+		}
+
+		fmt.Fprintln(w)
+
+		w.Flush()
+	}
+
+	fmt.Println(buf.String())
+}
+
+func (m *Manager) HasCriticalErrors() bool {
+	return m.errors.ContainsErrors()
 }
 
 func isExistsOnFilesystem(parts ...string) bool {
@@ -159,7 +261,9 @@ func getModulePaths(modulesDir string) ([]string, error) {
 		// Check if first level subdirectory has a helm chart configuration file
 		if isExistsOnFilesystem(path, ModuleYamlFilename) ||
 			(isExistsOnFilesystem(path, ChartConfigFilename) &&
-				(isExistsOnFilesystem(path, HooksDir) || isExistsOnFilesystem(path, ImagesDir))) {
+				(isExistsOnFilesystem(path, HooksDir) ||
+					isExistsOnFilesystem(path, ImagesDir) ||
+					isExistsOnFilesystem(path, OpenAPIDir))) {
 			chartDirs = append(chartDirs, path)
 		}
 
@@ -171,4 +275,24 @@ func getModulePaths(modulesDir string) ([]string, error) {
 	}
 
 	return chartDirs, nil
+}
+
+// prepareString handle ussual string and prepare it for tablewriter
+func prepareString(input string) string {
+	// magic wrap const
+	const wrapLen = 100
+
+	w := &strings.Builder{}
+
+	// split wraps for tablewrite
+	split := strings.Split(wordwrap.WrapString(input, wrapLen), "\n")
+
+	// first string must be pure for correct handling
+	fmt.Fprint(w, strings.TrimSpace(split[0]))
+
+	for i := 1; i < len(split); i++ {
+		fmt.Fprintf(w, "\n\t\t\t%s", strings.TrimSpace(split[i]))
+	}
+
+	return w.String()
 }

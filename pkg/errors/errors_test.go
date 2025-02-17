@@ -1,9 +1,27 @@
+/*
+Copyright 2025 Flant JSC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package errors
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/deckhouse/dmt/pkg"
 )
 
 func Test_Errors(t *testing.T) {
@@ -19,43 +37,32 @@ func Test_Errors(t *testing.T) {
 	require.Empty(t, t1.objectID)
 	require.NotEqual(t, t1, t2)
 	require.NotEqual(t, t1.objectID, t2.objectID)
-	t1.Add("test1")
-	require.Len(t, *t1.storage, 1)
-	t2.Add("test2")
-	require.Len(t, *t1.storage, 2)
-	require.Len(t, *t2.storage, 2)
+	t1.Error("test1")
+	require.Len(t, t1.storage.GetErrors(), 1)
+	t2.Error("test2")
+	require.Len(t, t1.storage.GetErrors(), 2)
+	require.Len(t, t2.storage.GetErrors(), 2)
 	require.Equal(t,
-		errStorage{
-			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test1"},
-			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "objectID", Text: "test2"}},
-		*t1.storage)
-	t1.Add("test3")
-	require.Len(t, *t1.storage, 3)
+		[]lintRuleError{
+			{LinterID: "linterid", ModuleID: "moduleID", RuleID: "", ObjectID: "", Text: "test1", Level: pkg.Error},
+			{LinterID: "linterid", ModuleID: "moduleID", RuleID: "", ObjectID: "objectID", Text: "test2", Level: pkg.Error}},
+		t1.storage.GetErrors())
+	t1.Error("test3")
+	require.Len(t, t1.storage.GetErrors(), 3)
 	require.Equal(t,
-		errStorage{
-			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test1"},
-			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "objectID", Text: "test2"},
-			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test3"},
+		[]lintRuleError{
+			{LinterID: "linterid", ModuleID: "moduleID", ObjectID: "", Text: "test1", Level: pkg.Error},
+			{LinterID: "linterid", ModuleID: "moduleID", ObjectID: "objectID", Text: "test2", Level: pkg.Error},
+			{LinterID: "linterid", ModuleID: "moduleID", ObjectID: "", Text: "test3", Level: pkg.Error},
 		},
-		*t1.storage)
+		t1.storage.GetErrors())
 	t3 := NewLinterRuleList("linterID", "moduleID2")
 	require.NotNil(t, t3)
-	t3.WithObjectID("objectID3").Add("test3")
+	t3.WithObjectID("objectID3").Error("test3")
 	require.Equal(t,
-		errStorage{
-			lintRuleError{ID: "linterid", Module: "moduleID2", ObjectID: "objectID3", Text: "test3"},
+		[]lintRuleError{
+			{LinterID: "linterid", ModuleID: "moduleID2", ObjectID: "objectID3", Text: "test3", Level: pkg.Error},
 		},
-		*t3.storage)
-	require.Len(t, *t3.storage, 1)
-
-	t1.Merge(t3)
-	require.Len(t, *t1.storage, 4)
-	require.Equal(t,
-		errStorage{
-			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test1"},
-			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "objectID", Text: "test2"},
-			lintRuleError{ID: "linterid", Module: "moduleID", ObjectID: "", Text: "test3"},
-			lintRuleError{ID: "linterid", Module: "moduleID2", ObjectID: "objectID3", Text: "test3"},
-		},
-		*t1.storage)
+		t3.storage.GetErrors())
+	require.Len(t, t3.storage.GetErrors(), 1)
 }

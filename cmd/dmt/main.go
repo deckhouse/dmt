@@ -1,89 +1,45 @@
+/*
+Copyright 2025 Flant JSC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package main
 
 import (
-	"fmt"
 	"os"
-	"path/filepath"
 
-	"github.com/fatih/color"
-	"github.com/mitchellh/go-homedir"
-
-	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/manager"
 	"github.com/deckhouse/dmt/pkg/config"
 )
 
-var version = "HEAD"
-
 func main() {
-	flags.Version = version
-	color.NoColor = false
-
-	defaults := flags.InitDefaultFlagSet()
-
-	lint := flags.InitLintFlagSet()
-	lint.AddFlagSet(defaults)
-
-	gen := flags.InitGenFlagSet()
-	gen.AddFlagSet(defaults)
-
-	if len(os.Args) < 2 {
-		flags.GeneralParse(defaults)
-		defaults.Usage()
-		return
-	}
-
-	switch os.Args[1] {
-	case "lint":
-		flags.GeneralParse(lint)
-
-		var dirs = lint.Args()[1:]
-		if len(dirs) == 0 {
-			dirs = []string{"."}
-		}
-
-		if len(dirs) == 0 {
-			return
-		}
-
-		var parsedDirs []string
-		for _, dir := range dirs {
-			d, err := homedir.Expand(dir)
-			if err != nil {
-				logger.ErrorF("Error expanding directory: %v", err)
-				continue
-			}
-			d, err = filepath.Abs(d)
-			if err != nil {
-				logger.ErrorF("Error expanding directory: %v\n", err)
-				continue
-			}
-			parsedDirs = append(parsedDirs, d)
-		}
-		runLint(parsedDirs)
-	case "gen":
-		flags.GeneralParse(gen)
-	default:
-		flags.GeneralParse(defaults)
-		defaults.Usage()
-	}
+	execute()
 }
 
 func runLint(dirs []string) {
 	logger.InfoF("Dirs: %v", dirs)
 
-	cfg, err := config.NewDefault(dirs)
+	cfg := &config.RootConfig{}
+	err := config.NewLoader(cfg, dirs...).Load()
 	logger.CheckErr(err)
 
 	mng := manager.NewManager(dirs, cfg)
-	result := mng.Run()
-	convertedError := result.ConvertToError()
-	if convertedError != nil {
-		fmt.Printf("%s\n", convertedError)
-	}
+	mng.Run()
+	mng.PrintResult()
 
-	if result.Critical() {
+	if mng.HasCriticalErrors() {
 		os.Exit(1)
 	}
 }
