@@ -11,12 +11,10 @@ This linter has settings.
 ```yaml
 linters-settings:
   license:
-    copyright:
+    exclude-rules:
       files:
-        exclude:
-          - /images/upmeter/stress.sh
-          - /images/simple-bridge/rootfs/bin/simple-bridge
-      dirs:
-        exclude:
-          - /images
+        - /images/upmeter/stress.sh
+        - /images/simple-bridge/rootfs/bin/simple-bridge
+      directories:
+        - /hooks/venv/
 ```

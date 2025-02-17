@@ -20,6 +20,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/deckhouse/dmt/internal/logger"
+
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg"
@@ -71,12 +73,12 @@ func (r *FilesRule) CheckFiles(mod *module.Module, errorList *errors.LintRuleErr
 func filterFiles(path string) bool {
 	f, err := os.Stat(path)
 	if err != nil {
+		logger.DebugF("Error getting file info: %v", err)
 		return false
 	}
 	if f.IsDir() {
 		return false
 	}
-
 	if fileToCheckRe.MatchString(path) && !fileToSkipRe.MatchString(path) {
 		return true
 	}
