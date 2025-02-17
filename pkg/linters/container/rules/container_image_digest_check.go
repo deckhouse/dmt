@@ -33,16 +33,20 @@ const (
 
 const defaultRegistry = "registry.example.com/deckhouse"
 
-func NewImageDigestRule() *ImageDigestRule {
+func NewImageDigestRule(excludeRules []pkg.ContainerRuleExclude) *ImageDigestRule {
 	return &ImageDigestRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: ImageDigestRuleName,
+		},
+		ContainerRule: pkg.ContainerRule{
+			ExcludeRules: excludeRules,
 		},
 	}
 }
 
 type ImageDigestRule struct {
 	pkg.RuleMeta
+	pkg.ContainerRule
 }
 
 func (r *ImageDigestRule) ContainerImageDigestCheck(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
@@ -50,6 +54,11 @@ func (r *ImageDigestRule) ContainerImageDigestCheck(object storage.StoreObject, 
 
 	for i := range containers {
 		c := &containers[i]
+
+		if !r.Enabled(object, c) {
+			// TODO: add metrics
+			continue
+		}
 
 		match := strings.Split(c.Image, "@")
 		if len(match) == 0 {
@@ -74,4 +83,14 @@ func (r *ImageDigestRule) ContainerImageDigestCheck(object storage.StoreObject, 
 			continue
 		}
 	}
+}
+
+func (r *ImageDigestRule) Enabled(object storage.StoreObject, container *corev1.Container) bool {
+	for _, rule := range r.ExcludeRules {
+		if !rule.Enabled(object, container) {
+			return false
+		}
+	}
+
+	return true
 }

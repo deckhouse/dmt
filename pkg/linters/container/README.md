@@ -52,5 +52,9 @@ linters-settings:
         - kind: Deployment
           name: standby-holder-name
           container: reserve-resources
+      image-digest:
+        - kind: Deployment
+          name: okmeter
+          container: okagent
     impact: error
 ```

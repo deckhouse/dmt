@@ -65,7 +65,7 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 
 		// old with module names skipping
 		rules.NewEnvVariablesDuplicatesRule().ContainerEnvVariablesDuplicates,
-		rules.NewImageDigestRule().ContainerImageDigestCheck,
+		rules.NewImageDigestRule(l.cfg.ExcludeRules.ImageDigest.Get()).ContainerImageDigestCheck,
 		rules.NewImagePullPolicyRule().ContainersImagePullPolicy,
 		rules.NewResourcesRule(l.cfg.ExcludeRules.Resources.Get()).
 			ContainerStorageEphemeral,
