@@ -17,9 +17,10 @@ limitations under the License.
 package rules
 
 import (
-	"github.com/deckhouse/dmt/internal/logger"
 	"os"
 	"strings"
+
+	"github.com/deckhouse/dmt/internal/logger"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/module"
