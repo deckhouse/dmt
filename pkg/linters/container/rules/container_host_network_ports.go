@@ -82,13 +82,3 @@ func (r *HostNetworkPortsRule) ObjectHostNetworkPorts(object storage.StoreObject
 		}
 	}
 }
-
-func (r *HostNetworkPortsRule) Enabled(object storage.StoreObject, container *corev1.Container) bool {
-	for _, rule := range r.ExcludeRules {
-		if !rule.Enabled(object, container) {
-			return false
-		}
-	}
-
-	return true
-}
