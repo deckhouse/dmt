@@ -19,6 +19,8 @@ package main
 import (
 	"os"
 
+	"github.com/fatih/color"
+
 	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/manager"
 	"github.com/deckhouse/dmt/pkg/config"
@@ -29,6 +31,7 @@ func main() {
 }
 
 func runLint(dirs []string) {
+	color.NoColor = false
 	logger.InfoF("Dirs: %v", dirs)
 
 	cfg := &config.RootConfig{}
