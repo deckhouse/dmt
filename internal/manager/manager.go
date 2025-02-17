@@ -85,11 +85,13 @@ func NewManager(dirs []string, rootConfig *config.RootConfig) *Manager {
 			logger.ErrorF("Failed to expand home dir: %v", err)
 			continue
 		}
+
 		result, err := getModulePaths(dir)
 		if err != nil {
 			logger.ErrorF("Error getting module paths: %v", err)
 			continue
 		}
+
 		paths = append(paths, result...)
 	}
 
@@ -171,8 +173,8 @@ func (m *Manager) PrintResult() {
 
 	slices.SortFunc(errs, func(a, b pkg.LinterError) int {
 		return cmp.Or(
-			cmp.Compare(a.LinterID, b.LinterID),
 			cmp.Compare(a.ModuleID, b.ModuleID),
+			cmp.Compare(a.LinterID, b.LinterID),
 			cmp.Compare(a.RuleID, b.RuleID),
 		)
 	})
