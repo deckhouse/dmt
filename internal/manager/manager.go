@@ -70,10 +70,11 @@ type Manager struct {
 }
 
 func NewManager(dirs []string, rootConfig *config.RootConfig) *Manager {
+	managerLevel := pkg.Error
 	m := &Manager{
 		cfg: rootConfig,
 
-		errors: errors.NewLintRuleErrorsList(),
+		errors: errors.NewLintRuleErrorsList().WithMaxLevel(&managerLevel),
 	}
 
 	var paths []string
