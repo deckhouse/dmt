@@ -28,16 +28,20 @@ const (
 	HostNetworkPortsRuleName = "host-network-ports"
 )
 
-func NewHostNetworkPortsRule() *HostNetworkPortsRule {
+func NewHostNetworkPortsRule(excludeRules []pkg.ContainerRuleExclude) *HostNetworkPortsRule {
 	return &HostNetworkPortsRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: HostNetworkPortsRuleName,
+		},
+		ContainerRule: pkg.ContainerRule{
+			ExcludeRules: excludeRules,
 		},
 	}
 }
 
 type HostNetworkPortsRule struct {
 	pkg.RuleMeta
+	pkg.ContainerRule
 }
 
 func (r *HostNetworkPortsRule) ObjectHostNetworkPorts(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
@@ -59,6 +63,11 @@ func (r *HostNetworkPortsRule) ObjectHostNetworkPorts(object storage.StoreObject
 
 	for i := range containers {
 		c := &containers[i]
+
+		if !r.Enabled(object, c) {
+			// TODO: add metrics
+			continue
+		}
 
 		for _, port := range c.Ports {
 			if hostNetworkUsed && (port.ContainerPort < 4200 || port.ContainerPort >= 4300) {

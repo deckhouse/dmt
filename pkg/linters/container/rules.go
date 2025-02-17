@@ -61,7 +61,7 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 		rules.NewNameDuplicatesRule().ContainerNameDuplicates,
 		rules.NewCheckReadOnlyRootFilesystemRule(l.cfg.ExcludeRules.ReadOnlyRootFilesystem.Get()).
 			ObjectReadOnlyRootFilesystem,
-		rules.NewHostNetworkPortsRule().ObjectHostNetworkPorts,
+		rules.NewHostNetworkPortsRule(l.cfg.ExcludeRules.HostNetworkPorts.Get()).ObjectHostNetworkPorts,
 
 		// old with module names skipping
 		rules.NewEnvVariablesDuplicatesRule().ContainerEnvVariablesDuplicates,
@@ -71,7 +71,7 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 			ContainerStorageEphemeral,
 		rules.NewContainerSecurityContextRule(l.cfg.ExcludeRules.SecurityContext.Get()).
 			ContainerSecurityContext,
-		rules.NewPortsRule().ContainerPorts,
+		rules.NewPortsRule(l.cfg.ExcludeRules.Ports.Get()).ContainerPorts,
 	}
 
 	for _, rule := range containerRules {
