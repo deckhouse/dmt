@@ -86,6 +86,34 @@ func (e StringRuleExclude) Enabled(str string) bool {
 	return string(e) != str
 }
 
+type ServicePortRule struct {
+	ExcludeRules []ServicePortExclude
+}
+
+func (r *ServicePortRule) Enabled(name, port string) bool {
+	for _, rule := range r.ExcludeRules {
+		if !rule.Enabled(name, port) {
+			return false
+		}
+	}
+
+	return true
+}
+
+type ServicePortExclude struct {
+	Name string
+	Port string
+}
+
+func (e *ServicePortExclude) Enabled(name, port string) bool {
+	if e.Name == name &&
+		e.Port == port {
+		return false
+	}
+
+	return true
+}
+
 type KindRuleExclude struct {
 	Kind string
 	Name string

@@ -167,10 +167,22 @@ type TemplatesSettings struct {
 }
 
 type TemplatesExcludeRules struct {
-	VPAAbsent     KindRuleExcludeList   `mapstructure:"vpa"`
-	PDBAbsent     KindRuleExcludeList   `mapstructure:"pdb"`
-	ServicePort   StringRuleExcludeList `mapstructure:"service-port"`
-	KubeRBACProxy StringRuleExcludeList `mapstructure:"kube-rbac-proxy"`
+	VPAAbsent     KindRuleExcludeList    `mapstructure:"vpa"`
+	PDBAbsent     KindRuleExcludeList    `mapstructure:"pdb"`
+	ServicePort   ServicePortExcludeList `mapstructure:"service-port"`
+	KubeRBACProxy StringRuleExcludeList  `mapstructure:"kube-rbac-proxy"`
+}
+
+type ServicePortExcludeList []ServicePortExclude
+
+func (l ServicePortExcludeList) Get() []pkg.ServicePortExclude {
+	result := make([]pkg.ServicePortExclude, 0, len(l))
+
+	for idx := range l {
+		result = append(result, *remapServicePortRuleExclude(&l[idx]))
+	}
+
+	return result
 }
 
 type StringRuleExcludeList []string
@@ -220,10 +232,22 @@ type ContainerRuleExclude struct {
 	Container string `mapstructure:"container"`
 }
 
+type ServicePortExclude struct {
+	Name string `mapstructure:"name"`
+	Port string `mapstructure:"port"`
+}
+
 func remapKindRuleExclude(input *KindRuleExclude) *pkg.KindRuleExclude {
 	return &pkg.KindRuleExclude{
-		Kind: input.Kind,
 		Name: input.Name,
+		Kind: input.Kind,
+	}
+}
+
+func remapServicePortRuleExclude(input *ServicePortExclude) *pkg.ServicePortExclude {
+	return &pkg.ServicePortExclude{
+		Name: input.Name,
+		Port: input.Port,
 	}
 }
 

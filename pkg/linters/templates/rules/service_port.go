@@ -30,12 +30,12 @@ const (
 	ServicePortRuleName = "service-port"
 )
 
-func NewServicePortRule(excludeRules []pkg.StringRuleExclude) *ServicePortRule {
+func NewServicePortRule(excludeRules []pkg.ServicePortExclude) *ServicePortRule {
 	return &ServicePortRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: ServicePortRuleName,
 		},
-		StringRule: pkg.StringRule{
+		ServicePortRule: pkg.ServicePortRule{
 			ExcludeRules: excludeRules,
 		},
 	}
@@ -43,7 +43,7 @@ func NewServicePortRule(excludeRules []pkg.StringRuleExclude) *ServicePortRule {
 
 type ServicePortRule struct {
 	pkg.RuleMeta
-	pkg.StringRule
+	pkg.ServicePortRule
 }
 
 func (r *ServicePortRule) ObjectServiceTargetPort(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
@@ -52,11 +52,6 @@ func (r *ServicePortRule) ObjectServiceTargetPort(object storage.StoreObject, er
 	switch object.Unstructured.GetKind() {
 	case "Service":
 	default:
-		return
-	}
-
-	if !r.Enabled(object.Unstructured.GetName()) {
-		// TODO: add metrics
 		return
 	}
 
@@ -71,15 +66,20 @@ func (r *ServicePortRule) ObjectServiceTargetPort(object storage.StoreObject, er
 	}
 
 	for _, port := range service.Spec.Ports {
+		if !r.Enabled(service.GetName(), port.Name) {
+			// TODO: add metrics
+			return
+		}
+
 		if port.TargetPort.Type == intstr.Int {
 			if port.TargetPort.IntVal == 0 {
-				errorList.WithObjectID(object.Identity()).
+				errorList.WithObjectID(object.Identity() + " ; port = " + port.Name).
 					Error("Service port must use an explicit named (non-numeric) target port")
 
 				continue
 			}
 
-			errorList.WithObjectID(object.Identity()).WithValue(port.TargetPort.IntVal).
+			errorList.WithObjectID(object.Identity() + " ; port = " + port.Name).WithValue(port.TargetPort.IntVal).
 				Error("Service port must use a named (non-numeric) target port")
 		}
 	}
