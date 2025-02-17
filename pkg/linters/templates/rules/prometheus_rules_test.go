@@ -2,7 +2,7 @@ package rules
 
 import "testing"
 
-func TestMe(t *testing.T) {
+func TestMe(_ *testing.T) {
 	aaa := `
 {{ $namespace := "d8-monitoring" }}
 

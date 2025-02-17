@@ -355,6 +355,9 @@ func Test_applyDigests(t *testing.T) {
 				"global": map[string]any{
 					"modulesImages": map[string]any{
 						"digests": map[string]any{},
+						"registry": map[string]any{
+							"base": "registry.example.com/deckhouse",
+						},
 					},
 				},
 			},
@@ -373,6 +376,9 @@ func Test_applyDigests(t *testing.T) {
 					"modulesImages": map[string]any{
 						"digests": map[string]any{
 							"image1": "digest1",
+						},
+						"registry": map[string]any{
+							"base": "registry.example.com/deckhouse",
 						},
 					},
 				},
