@@ -28,16 +28,20 @@ const (
 	PortsRuleName = "ports"
 )
 
-func NewPortsRule() *PortsRule {
+func NewPortsRule(excludeRules []pkg.ContainerRuleExclude) *PortsRule {
 	return &PortsRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: PortsRuleName,
+		},
+		ContainerRule: pkg.ContainerRule{
+			ExcludeRules: excludeRules,
 		},
 	}
 }
 
 type PortsRule struct {
 	pkg.RuleMeta
+	pkg.ContainerRule
 }
 
 func (r *PortsRule) ContainerPorts(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
@@ -46,6 +50,11 @@ func (r *PortsRule) ContainerPorts(object storage.StoreObject, containers []core
 	const t = 1024
 	for i := range containers {
 		c := &containers[i]
+
+		if !r.Enabled(object, c) {
+			// TODO: add metrics
+			continue
+		}
 
 		for _, port := range c.Ports {
 			if port.ContainerPort <= t {
@@ -56,4 +65,14 @@ func (r *PortsRule) ContainerPorts(object storage.StoreObject, containers []core
 			}
 		}
 	}
+}
+
+func (r *PortsRule) Enabled(object storage.StoreObject, container *corev1.Container) bool {
+	for _, rule := range r.ExcludeRules {
+		if !rule.Enabled(object, container) {
+			return false
+		}
+	}
+
+	return true
 }

@@ -56,6 +56,8 @@ type ContainerExcludeRules struct {
 	ControllerSecurityContext KindRuleExcludeList `mapstructure:"controller-security-context"`
 	DNSPolicy                 KindRuleExcludeList `mapstructure:"dns-policy"`
 
+	HostNetworkPorts       ContainerRuleExcludeList `mapstructure:"host-network-ports"`
+	Ports                  ContainerRuleExcludeList `mapstructure:"ports"`
 	ReadOnlyRootFilesystem ContainerRuleExcludeList `mapstructure:"read-only-root-filesystem"`
 	ImageDigest            ContainerRuleExcludeList `mapstructure:"image-digest"`
 	Resources              ContainerRuleExcludeList `mapstructure:"resources"`
