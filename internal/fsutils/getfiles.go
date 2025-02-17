@@ -38,7 +38,7 @@ func GetFiles(rootPath string, skipSymlink bool, filters ...fFn) []string {
 			return nil
 		}
 
-		if filterPass(Rel(rootPath, path), filters...) {
+		if filterPass(path, filters...) {
 			result = append(result, path)
 		}
 
