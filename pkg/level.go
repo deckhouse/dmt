@@ -19,8 +19,7 @@ package pkg
 type Level int
 
 const (
-	Init Level = iota
-	Warn
+	Warn Level = iota
 	Error
 	Critical
 )

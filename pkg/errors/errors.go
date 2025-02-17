@@ -119,9 +119,9 @@ func (l *LintRuleErrorsList) copy() *LintRuleErrorsList {
 	}
 }
 
-func (l *LintRuleErrorsList) WithMaxLevel(level pkg.Level) *LintRuleErrorsList {
+func (l *LintRuleErrorsList) WithMaxLevel(level *pkg.Level) *LintRuleErrorsList {
 	list := l.copy()
-	list.maxLevel = &level
+	list.maxLevel = level
 
 	return list
 }

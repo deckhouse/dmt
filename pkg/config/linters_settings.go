@@ -34,22 +34,22 @@ type LintersSettings struct {
 }
 
 func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
-	assignIfNotEmpty(&cfg.OpenAPI.Impact, lcfg.OpenAPI.Impact)
-	assignIfNotEmpty(&cfg.NoCyrillic.Impact, lcfg.NoCyrillic.Impact)
-	assignIfNotEmpty(&cfg.License.Impact, lcfg.License.Impact)
-	assignIfNotEmpty(&cfg.Container.Impact, lcfg.Container.Impact)
-	assignIfNotEmpty(&cfg.Templates.Impact, lcfg.Templates.Impact)
-	assignIfNotEmpty(&cfg.Images.Impact, lcfg.Images.Impact)
-	assignIfNotEmpty(&cfg.Rbac.Impact, lcfg.Rbac.Impact)
-	assignIfNotEmpty(&cfg.Hooks.Impact, lcfg.Hooks.Impact)
-	assignIfNotEmpty(&cfg.Module.Impact, lcfg.Module.Impact)
+	cfg.OpenAPI.Impact = calculateImpact(cfg.OpenAPI.Impact, lcfg.OpenAPI.Impact)
+	cfg.NoCyrillic.Impact = calculateImpact(cfg.NoCyrillic.Impact, lcfg.NoCyrillic.Impact)
+	cfg.License.Impact = calculateImpact(cfg.License.Impact, lcfg.License.Impact)
+	cfg.Container.Impact = calculateImpact(cfg.Container.Impact, lcfg.Container.Impact)
+	cfg.Templates.Impact = calculateImpact(cfg.Templates.Impact, lcfg.Templates.Impact)
+	cfg.Images.Impact = calculateImpact(cfg.Images.Impact, lcfg.Images.Impact)
+	cfg.Rbac.Impact = calculateImpact(cfg.Rbac.Impact, lcfg.Rbac.Impact)
+	cfg.Hooks.Impact = calculateImpact(cfg.Hooks.Impact, lcfg.Hooks.Impact)
+	cfg.Module.Impact = calculateImpact(cfg.Module.Impact, lcfg.Module.Impact)
 }
 
 type ContainerSettings struct {
 	SkipContainers []string              `mapstructure:"skip-containers"`
 	ExcludeRules   ContainerExcludeRules `mapstructure:"exclude-rules"`
 
-	Impact pkg.Level `mapstructure:"impact"`
+	Impact *pkg.Level `mapstructure:"impact"`
 }
 
 type ContainerExcludeRules struct {
@@ -69,7 +69,7 @@ type ContainerExcludeRules struct {
 type HooksSettings struct {
 	Ingress HooksIngressRuleSetting `mapstructure:"ingress"`
 
-	Impact pkg.Level `mapstructure:"impact"`
+	Impact *pkg.Level `mapstructure:"impact"`
 }
 
 type HooksIngressRuleSetting struct {
@@ -82,14 +82,14 @@ type ImageSettings struct {
 	SkipDistrolessImageCheck []string `mapstructure:"skip-distroless-image-check"`
 	SkipNamespaceCheck       []string `mapstructure:"skip-namespace-check"`
 
-	Impact pkg.Level `mapstructure:"impact"`
+	Impact *pkg.Level `mapstructure:"impact"`
 }
 
 type LicenseSettings struct {
 	CopyrightExcludes []string            `mapstructure:"copyright-excludes"`
 	ExcludeRules      LicenseExcludeRules `mapstructure:"exclude-rules"`
 
-	Impact pkg.Level `mapstructure:"impact"`
+	Impact *pkg.Level `mapstructure:"impact"`
 }
 
 type LicenseExcludeRules struct {
@@ -103,7 +103,7 @@ type ModuleSettings struct {
 	DefinitionFile ModuleDefinitionFileRuleSettings `mapstructure:"definition-file"`
 	Conversions    ConversionsRuleSettings          `mapstructure:"conversions"`
 
-	Impact pkg.Level `mapstructure:"impact"`
+	Impact *pkg.Level `mapstructure:"impact"`
 }
 
 type ModuleOSSRuleSettings struct {
@@ -126,7 +126,7 @@ type NoCyrillicSettings struct {
 
 	NoCyrillicExcludeRules NoCyrillicExcludeRules `mapstructure:"exclude-rules"`
 
-	Impact pkg.Level `mapstructure:"impact"`
+	Impact *pkg.Level `mapstructure:"impact"`
 }
 
 type NoCyrillicExcludeRules struct {
@@ -136,7 +136,7 @@ type NoCyrillicExcludeRules struct {
 type OpenAPISettings struct {
 	OpenAPIExcludeRules OpenAPIExcludeRules `mapstructure:"exclude-rules"`
 
-	Impact pkg.Level `mapstructure:"impact"`
+	Impact *pkg.Level `mapstructure:"impact"`
 }
 
 type OpenAPIExcludeRules struct {
@@ -151,7 +151,7 @@ type RbacSettings struct {
 	SkipObjectCheckBinding []string            `mapstructure:"skip-object-check-binding"`
 	ExcludeRules           RBACExcludeRules    `mapstructure:"exclude-rules"`
 
-	Impact pkg.Level `mapstructure:"impact"`
+	Impact *pkg.Level `mapstructure:"impact"`
 }
 
 type RBACExcludeRules struct {
@@ -163,7 +163,7 @@ type TemplatesSettings struct {
 	SkipVPAChecks []string              `mapstructure:"skip-vpa-checks"`
 	ExcludeRules  TemplatesExcludeRules `mapstructure:"exclude-rules"`
 
-	Impact pkg.Level `mapstructure:"impact"`
+	Impact *pkg.Level `mapstructure:"impact"`
 }
 
 type TemplatesExcludeRules struct {
