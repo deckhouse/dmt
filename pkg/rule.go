@@ -17,6 +17,8 @@ limitations under the License.
 package pkg
 
 import (
+	"strings"
+
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/deckhouse/dmt/internal/storage"
@@ -43,6 +45,20 @@ type StringRule struct {
 }
 
 func (r *StringRule) Enabled(str string) bool {
+	for _, rule := range r.ExcludeRules {
+		if !rule.Enabled(str) {
+			return false
+		}
+	}
+
+	return true
+}
+
+type PrefixRule struct {
+	ExcludeRules []PrefixRuleExclude
+}
+
+func (r *PrefixRule) Enabled(str string) bool {
 	for _, rule := range r.ExcludeRules {
 		if !rule.Enabled(str) {
 			return false
@@ -84,6 +100,12 @@ type StringRuleExclude string
 
 func (e StringRuleExclude) Enabled(str string) bool {
 	return string(e) != str
+}
+
+type PrefixRuleExclude string
+
+func (e PrefixRuleExclude) Enabled(str string) bool {
+	return !strings.HasPrefix(str, string(e))
 }
 
 type ServicePortRule struct {

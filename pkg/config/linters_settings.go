@@ -95,7 +95,8 @@ type LicenseSettings struct {
 }
 
 type LicenseExcludeRules struct {
-	Files StringRuleExcludeList `mapstructure:"files"`
+	Files       StringRuleExcludeList `mapstructure:"files"`
+	Directories PrefixRuleExcludeList `mapstructure:"directories"`
 }
 
 type ModuleSettings struct {
@@ -124,15 +125,14 @@ type ConversionsRuleSettings struct {
 }
 
 type NoCyrillicSettings struct {
-	NoCyrillicFileExcludes []string `mapstructure:"no-cyrillic-file-excludes"`
-
 	NoCyrillicExcludeRules NoCyrillicExcludeRules `mapstructure:"exclude-rules"`
 
 	Impact *pkg.Level `mapstructure:"impact"`
 }
 
 type NoCyrillicExcludeRules struct {
-	Files StringRuleExcludeList `mapstructure:"files"`
+	Files       StringRuleExcludeList `mapstructure:"files"`
+	Directories PrefixRuleExcludeList `mapstructure:"directories"`
 }
 
 type OpenAPISettings struct {
@@ -194,6 +194,18 @@ func (l StringRuleExcludeList) Get() []pkg.StringRuleExclude {
 
 	for idx := range l {
 		result = append(result, pkg.StringRuleExclude(l[idx]))
+	}
+
+	return result
+}
+
+type PrefixRuleExcludeList []string
+
+func (l PrefixRuleExcludeList) Get() []pkg.PrefixRuleExclude {
+	result := make([]pkg.PrefixRuleExclude, 0, len(l))
+
+	for idx := range l {
+		result = append(result, pkg.PrefixRuleExclude(l[idx]))
 	}
 
 	return result

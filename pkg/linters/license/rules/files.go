@@ -32,13 +32,17 @@ const (
 	FilesRuleName = "files"
 )
 
-func NewFilesRule(excludeRules []pkg.StringRuleExclude) *FilesRule {
+func NewFilesRule(excludeFilesRules []pkg.StringRuleExclude,
+	excludeDirectoryRules []pkg.PrefixRuleExclude) *FilesRule {
 	return &FilesRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: FilesRuleName,
 		},
 		StringRule: pkg.StringRule{
-			ExcludeRules: excludeRules,
+			ExcludeRules: excludeFilesRules,
+		},
+		PrefixRule: pkg.PrefixRule{
+			ExcludeRules: excludeDirectoryRules,
 		},
 	}
 }
@@ -46,6 +50,15 @@ func NewFilesRule(excludeRules []pkg.StringRuleExclude) *FilesRule {
 type FilesRule struct {
 	pkg.RuleMeta
 	pkg.StringRule
+	pkg.PrefixRule
+}
+
+func (r *FilesRule) Enabled(str string) bool {
+	if !r.StringRule.Enabled(str) || !r.PrefixRule.Enabled(str) {
+		return false
+	}
+
+	return true
 }
 
 func (r *FilesRule) CheckFiles(mod *module.Module, errorList *errors.LintRuleErrorsList) {
@@ -54,8 +67,6 @@ func (r *FilesRule) CheckFiles(mod *module.Module, errorList *errors.LintRuleErr
 	files := fsutils.GetFiles(mod.GetPath(), false, filterFiles)
 	for _, fileName := range files {
 		name, _ := strings.CutPrefix(fileName, mod.GetPath())
-		name = mod.GetName() + ":" + name
-
 		if !r.Enabled(name) {
 			// TODO: add metrics
 			continue

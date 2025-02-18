@@ -50,7 +50,7 @@ func (l *Copyright) Run(m *module.Module) {
 
 	errorList := l.ErrorList.WithModule(m.GetName())
 
-	rules.NewFilesRule(l.cfg.ExcludeRules.Files.Get()).
+	rules.NewFilesRule(l.cfg.ExcludeRules.Files.Get(), l.cfg.ExcludeRules.Directories.Get()).
 		CheckFiles(m, errorList)
 }
 
