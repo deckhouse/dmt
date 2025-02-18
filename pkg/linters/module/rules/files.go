@@ -29,14 +29,14 @@ import (
 )
 
 const (
-	FilesRuleName = "files"
+	LicenseRuleName = "license"
 )
 
 func NewFilesRule(excludeFilesRules []pkg.StringRuleExclude,
 	excludeDirectoryRules []pkg.PrefixRuleExclude) *FilesRule {
 	return &FilesRule{
 		RuleMeta: pkg.RuleMeta{
-			Name: FilesRuleName,
+			Name: LicenseRuleName,
 		},
 		StringRule: pkg.StringRule{
 			ExcludeRules: excludeFilesRules,
