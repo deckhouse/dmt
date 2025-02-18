@@ -17,6 +17,11 @@ limitations under the License.
 package config
 
 import (
+	"path/filepath"
+	"strings"
+
+	"github.com/bmatcuk/doublestar"
+
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config/global"
 )
@@ -124,15 +129,46 @@ type ConversionsRuleSettings struct {
 }
 
 type NoCyrillicSettings struct {
-	NoCyrillicFileExcludes []string `mapstructure:"no-cyrillic-file-excludes"`
-
-	NoCyrillicExcludeRules NoCyrillicExcludeRules `mapstructure:"exclude-rules"`
+	NoCyrillicExcludeRules `mapstructure:"exclude-rules"`
 
 	Impact *pkg.Level `mapstructure:"impact"`
 }
 
 type NoCyrillicExcludeRules struct {
 	Files StringRuleExcludeList `mapstructure:"files"`
+}
+
+func processExcludeRules(rootPath string, files StringRuleExcludeList) StringRuleExcludeList {
+	const defaultExceptions = `.git,vendor,node_modules,venv,dist`
+	var result StringRuleExcludeList
+	for _, exception := range strings.Split(defaultExceptions, ",") {
+		matches, _ := doublestar.Glob(filepath.Join(rootPath, "**", exception, "**"))
+		result = append(result, matches...)
+	}
+
+	for _, fileString := range files {
+		match := strings.Split(fileString, ":")
+		if len(match) == 2 {
+			switch match[0] {
+			case "dir", "directory":
+				matches, err := doublestar.Glob(filepath.Join(rootPath, match[1], "**"))
+				if err != nil {
+					continue
+				}
+				result = append(result, matches...)
+			default:
+				result = append(result, match[1])
+			}
+			continue
+		}
+		result = append(result, fileString)
+	}
+
+	return result
+}
+
+func (excludeRules *NoCyrillicExcludeRules) ProcessExcludeRules(rootPath string) StringRuleExcludeList {
+	return processExcludeRules(rootPath, excludeRules.Files)
 }
 
 type OpenAPISettings struct {

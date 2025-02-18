@@ -27,7 +27,7 @@ type RootConfig struct {
 }
 
 type ModuleConfig struct {
-	LintersSettings LintersSettings `mapstructure:"linters-settings"`
+	LintersSettings `mapstructure:"linters-settings"`
 }
 
 func calculateImpact(v, input *pkg.Level) *pkg.Level {

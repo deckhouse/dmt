@@ -11,11 +11,9 @@ This linter has settings.
 ```yaml
 linters-settings:
   no-cyrillic:
-    files:
-      exclude:
-        - /path/to/file.go
-        - /path/to/file.yaml
-    dirs:
-      exclude:
-        - /path/to/dir
+    exclude-rules:
+      files:
+      - /path/to/file.go
+      - file:/path/to/file.yaml
+      - directory:/path/to/dir
 ```
