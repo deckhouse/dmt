@@ -53,10 +53,7 @@ func (r *FilesRule) CheckFiles(mod *module.Module, errorList *errors.LintRuleErr
 
 	files := fsutils.GetFiles(mod.GetPath(), false, filterFiles)
 	for _, fileName := range files {
-		name, _ := strings.CutPrefix(fileName, mod.GetPath())
-		name = mod.GetName() + ":" + name
-
-		if !r.Enabled(name) {
+		if !r.Enabled(fileName) {
 			// TODO: add metrics
 			continue
 		}

@@ -15,6 +15,5 @@ linters-settings:
       files:
         - /images/upmeter/stress.sh
         - /images/simple-bridge/rootfs/bin/simple-bridge
-      directories:
-        - /hooks/venv/
+        - directory:/hooks/venv/
 ```

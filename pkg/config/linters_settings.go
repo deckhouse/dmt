@@ -17,6 +17,7 @@ limitations under the License.
 package config
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -93,14 +94,17 @@ type ImageSettings struct {
 }
 
 type LicenseSettings struct {
-	CopyrightExcludes []string            `mapstructure:"copyright-excludes"`
-	ExcludeRules      LicenseExcludeRules `mapstructure:"exclude-rules"`
+	LicenseExcludeRules `mapstructure:"exclude-rules"`
 
 	Impact *pkg.Level `mapstructure:"impact"`
 }
 
 type LicenseExcludeRules struct {
 	Files StringRuleExcludeList `mapstructure:"files"`
+}
+
+func (excludeRules *LicenseExcludeRules) ProcessExcludeRules(rootPath string) StringRuleExcludeList {
+	return processExcludeRules(rootPath, excludeRules.Files)
 }
 
 type ModuleSettings struct {
@@ -139,8 +143,9 @@ type NoCyrillicExcludeRules struct {
 }
 
 func processExcludeRules(rootPath string, files StringRuleExcludeList) StringRuleExcludeList {
-	const defaultExceptions = `.git,vendor,node_modules,venv,dist`
 	var result StringRuleExcludeList
+
+	const defaultExceptions = `.git,vendor,node_modules,venv,dist`
 	for _, exception := range strings.Split(defaultExceptions, ",") {
 		matches, _ := doublestar.Glob(filepath.Join(rootPath, "**", exception, "**"))
 		result = append(result, matches...)
@@ -157,11 +162,17 @@ func processExcludeRules(rootPath string, files StringRuleExcludeList) StringRul
 				}
 				result = append(result, matches...)
 			default:
-				result = append(result, match[1])
+				file := filepath.Join(rootPath, match[1])
+				if _, err := os.Stat(file); err == nil {
+					result = append(result, file)
+				}
 			}
 			continue
 		}
-		result = append(result, fileString)
+		file := filepath.Join(rootPath, fileString)
+		if _, err := os.Stat(file); err == nil {
+			result = append(result, filepath.Join(rootPath, fileString))
+		}
 	}
 
 	return result
