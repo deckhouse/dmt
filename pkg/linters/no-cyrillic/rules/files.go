@@ -21,6 +21,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -36,13 +37,15 @@ var (
 	skipI18NRe = `/i18n/`
 )
 
-func NewFilesRule(excludeRules []pkg.StringRuleExclude) *FilesRule {
+func NewFilesRule(excludeFileRules []pkg.StringRuleExclude,
+	excludeDirectoryRules []pkg.PrefixRuleExclude) *FilesRule {
 	return &FilesRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: FilesRuleName,
 		},
-		StringRule: pkg.StringRule{
-			ExcludeRules: excludeRules,
+		PathRule: pkg.PathRule{
+			ExcludeStringRules: excludeFileRules,
+			ExcludePrefixRules: excludeDirectoryRules,
 		},
 		skipDocRe:  regexp.MustCompile(skipDocRe),
 		skipI18NRe: regexp.MustCompile(skipSelfRe),
@@ -52,7 +55,7 @@ func NewFilesRule(excludeRules []pkg.StringRuleExclude) *FilesRule {
 
 type FilesRule struct {
 	pkg.RuleMeta
-	pkg.StringRule
+	pkg.PathRule
 
 	skipDocRe  *regexp.Regexp
 	skipI18NRe *regexp.Regexp
@@ -61,8 +64,8 @@ type FilesRule struct {
 
 func (r *FilesRule) CheckFile(m *module.Module, fileName string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
-	fName, _ := strings.CutPrefix(fileName, m.GetPath()+"/")
 
+	fName := fsutils.Rel(m.GetPath(), fileName)
 	if !r.Enabled(fName) {
 		// TODO: add metrics
 		return

@@ -25,7 +25,6 @@ type LintersSettings struct {
 	Container  ContainerSettings  `mapstructure:"container"`
 	Hooks      HooksSettings      `mapstructure:"hooks"`
 	Images     ImageSettings      `mapstructure:"images"`
-	License    LicenseSettings    `mapstructure:"license"`
 	Module     ModuleSettings     `mapstructure:"module"`
 	NoCyrillic NoCyrillicSettings `mapstructure:"no-cyrillic"`
 	OpenAPI    OpenAPISettings    `mapstructure:"openapi"`
@@ -36,7 +35,6 @@ type LintersSettings struct {
 func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
 	cfg.OpenAPI.Impact = calculateImpact(cfg.OpenAPI.Impact, lcfg.OpenAPI.Impact)
 	cfg.NoCyrillic.Impact = calculateImpact(cfg.NoCyrillic.Impact, lcfg.NoCyrillic.Impact)
-	cfg.License.Impact = calculateImpact(cfg.License.Impact, lcfg.License.Impact)
 	cfg.Container.Impact = calculateImpact(cfg.Container.Impact, lcfg.Container.Impact)
 	cfg.Templates.Impact = calculateImpact(cfg.Templates.Impact, lcfg.Templates.Impact)
 	cfg.Images.Impact = calculateImpact(cfg.Images.Impact, lcfg.Images.Impact)
@@ -87,23 +85,13 @@ type ImageSettings struct {
 	Impact *pkg.Level `mapstructure:"impact"`
 }
 
-type LicenseSettings struct {
-	CopyrightExcludes []string            `mapstructure:"copyright-excludes"`
-	ExcludeRules      LicenseExcludeRules `mapstructure:"exclude-rules"`
-
-	Impact *pkg.Level `mapstructure:"impact"`
-}
-
-type LicenseExcludeRules struct {
-	Files StringRuleExcludeList `mapstructure:"files"`
-}
-
 type ModuleSettings struct {
 	SkipCheckModuleYaml []string `mapstructure:"skip-check-module-yaml"`
 
 	OSS            ModuleOSSRuleSettings            `mapstructure:"oss"`
 	DefinitionFile ModuleDefinitionFileRuleSettings `mapstructure:"definition-file"`
 	Conversions    ConversionsRuleSettings          `mapstructure:"conversions"`
+	License        LicenseExcludeRules              `mapstructure:"license"`
 
 	Impact *pkg.Level `mapstructure:"impact"`
 }
@@ -123,16 +111,24 @@ type ConversionsRuleSettings struct {
 	Disable bool `mapstructure:"disable"`
 }
 
-type NoCyrillicSettings struct {
-	NoCyrillicFileExcludes []string `mapstructure:"no-cyrillic-file-excludes"`
+type LicenseExcludeRules struct {
+	ExcludeRules LicenseExcludeRule `mapstructure:"exclude-rules"`
+}
 
+type LicenseExcludeRule struct {
+	Files       StringRuleExcludeList `mapstructure:"files"`
+	Directories PrefixRuleExcludeList `mapstructure:"directories"`
+}
+
+type NoCyrillicSettings struct {
 	NoCyrillicExcludeRules NoCyrillicExcludeRules `mapstructure:"exclude-rules"`
 
 	Impact *pkg.Level `mapstructure:"impact"`
 }
 
 type NoCyrillicExcludeRules struct {
-	Files StringRuleExcludeList `mapstructure:"files"`
+	Files       StringRuleExcludeList `mapstructure:"files"`
+	Directories PrefixRuleExcludeList `mapstructure:"directories"`
 }
 
 type OpenAPISettings struct {
@@ -194,6 +190,18 @@ func (l StringRuleExcludeList) Get() []pkg.StringRuleExclude {
 
 	for idx := range l {
 		result = append(result, pkg.StringRuleExclude(l[idx]))
+	}
+
+	return result
+}
+
+type PrefixRuleExcludeList []string
+
+func (l PrefixRuleExcludeList) Get() []pkg.PrefixRuleExclude {
+	result := make([]pkg.PrefixRuleExclude, 0, len(l))
+
+	for idx := range l {
+		result = append(result, pkg.PrefixRuleExclude(l[idx]))
 	}
 
 	return result

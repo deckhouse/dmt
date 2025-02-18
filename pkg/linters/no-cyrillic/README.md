@@ -13,9 +13,9 @@ linters-settings:
   no-cyrillic:
     files:
       exclude:
-        - /path/to/file.go
-        - /path/to/file.yaml
-    dirs:
+        - path/to/file.go
+        - path/to/file.yaml
+    directories:
       exclude:
-        - /path/to/dir
+        - path/to/dir
 ```

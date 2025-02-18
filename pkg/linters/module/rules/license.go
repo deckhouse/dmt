@@ -29,33 +29,33 @@ import (
 )
 
 const (
-	FilesRuleName = "files"
+	LicenseRuleName = "license"
 )
 
-func NewFilesRule(excludeRules []pkg.StringRuleExclude) *FilesRule {
-	return &FilesRule{
+func NewLicenseRule(excludeFilesRules []pkg.StringRuleExclude,
+	excludeDirectoryRules []pkg.PrefixRuleExclude) *LicenseRule {
+	return &LicenseRule{
 		RuleMeta: pkg.RuleMeta{
-			Name: FilesRuleName,
+			Name: LicenseRuleName,
 		},
-		StringRule: pkg.StringRule{
-			ExcludeRules: excludeRules,
+		PathRule: pkg.PathRule{
+			ExcludeStringRules: excludeFilesRules,
+			ExcludePrefixRules: excludeDirectoryRules,
 		},
 	}
 }
 
-type FilesRule struct {
+type LicenseRule struct {
 	pkg.RuleMeta
-	pkg.StringRule
+	pkg.PathRule
 }
 
-func (r *FilesRule) CheckFiles(mod *module.Module, errorList *errors.LintRuleErrorsList) {
+func (r *LicenseRule) CheckFiles(mod *module.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
 	files := fsutils.GetFiles(mod.GetPath(), false, filterFiles)
 	for _, fileName := range files {
-		name, _ := strings.CutPrefix(fileName, mod.GetPath())
-		name = mod.GetName() + ":" + name
-
+		name := fsutils.Rel(mod.GetPath(), fileName)
 		if !r.Enabled(name) {
 			// TODO: add metrics
 			continue

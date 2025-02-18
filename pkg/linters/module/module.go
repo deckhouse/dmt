@@ -51,6 +51,8 @@ func (l *Module) Run(m *module.Module) {
 	rules.NewDefinitionFileRule(l.cfg.DefinitionFile.Disable).CheckDefinitionFile(m.GetPath(), errorList)
 	rules.NewOSSRule(l.cfg.OSS.Disable).OssModuleRule(m.GetPath(), errorList)
 	rules.NewConversionsRule(l.cfg.Conversions.Disable).CheckConversions(m.GetPath(), errorList)
+	rules.NewLicenseRule(l.cfg.License.ExcludeRules.Files.Get(), l.cfg.License.ExcludeRules.Directories.Get()).
+		CheckFiles(m, errorList)
 }
 
 func (l *Module) Name() string {

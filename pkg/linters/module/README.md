@@ -19,5 +19,12 @@ linters-settings:
       disable: false
     conversions:
       disable: false
+    license:
+      exclude-rules:
+        files:
+          - images/upmeter/stress.sh
+          - images/simple-bridge/rootfs/bin/simple-bridge
+        directories:
+          - hooks/venv/
     impact: error
 ```
