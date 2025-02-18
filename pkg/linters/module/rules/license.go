@@ -38,27 +38,16 @@ func NewLicenseRule(excludeFilesRules []pkg.StringRuleExclude,
 		RuleMeta: pkg.RuleMeta{
 			Name: LicenseRuleName,
 		},
-		StringRule: pkg.StringRule{
-			ExcludeRules: excludeFilesRules,
-		},
-		PrefixRule: pkg.PrefixRule{
-			ExcludeRules: excludeDirectoryRules,
+		FileRule: pkg.FileRule{
+			ExcludeStringRules: excludeFilesRules,
+			ExcludePrefixRules: excludeDirectoryRules,
 		},
 	}
 }
 
 type LicenseRule struct {
 	pkg.RuleMeta
-	pkg.StringRule
-	pkg.PrefixRule
-}
-
-func (r *LicenseRule) Enabled(str string) bool {
-	if !r.StringRule.Enabled(str) || !r.PrefixRule.Enabled(str) {
-		return false
-	}
-
-	return true
+	pkg.FileRule
 }
 
 func (r *LicenseRule) CheckFiles(mod *module.Module, errorList *errors.LintRuleErrorsList) {

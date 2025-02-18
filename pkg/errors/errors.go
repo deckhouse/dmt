@@ -217,9 +217,6 @@ func (l *LintRuleErrorsList) add(str string, level pkg.Level) *LintRuleErrorsLis
 	return l
 }
 
-// PrettyPrint converts LintRuleErrorsList to a single error.
-// It returns an error that contains all errors from the list with a nice formatting.
-// If the list is empty, it returns nil.
 func (l *LintRuleErrorsList) GetErrors() []pkg.LinterError {
 	return remapErrorsToLinterErrors(l.storage.GetErrors()...)
 }

@@ -165,3 +165,24 @@ func (e *ContainerRuleExclude) Enabled(object storage.StoreObject, container *co
 
 	return true
 }
+
+type FileRule struct {
+	ExcludeStringRules []StringRuleExclude
+	ExcludePrefixRules []PrefixRuleExclude
+}
+
+func (r *FileRule) Enabled(name string) bool {
+	for _, rule := range r.ExcludeStringRules {
+		if !rule.Enabled(name) {
+			return false
+		}
+	}
+
+	for _, rule := range r.ExcludePrefixRules {
+		if !rule.Enabled(name) {
+			return false
+		}
+	}
+
+	return true
+}

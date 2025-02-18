@@ -43,11 +43,9 @@ func NewFilesRule(excludeFileRules []pkg.StringRuleExclude,
 		RuleMeta: pkg.RuleMeta{
 			Name: FilesRuleName,
 		},
-		StringRule: pkg.StringRule{
-			ExcludeRules: excludeFileRules,
-		},
-		PrefixRule: pkg.PrefixRule{
-			ExcludeRules: excludeDirectoryRules,
+		FileRule: pkg.FileRule{
+			ExcludeStringRules: excludeFileRules,
+			ExcludePrefixRules: excludeDirectoryRules,
 		},
 		skipDocRe:  regexp.MustCompile(skipDocRe),
 		skipI18NRe: regexp.MustCompile(skipSelfRe),
@@ -57,20 +55,11 @@ func NewFilesRule(excludeFileRules []pkg.StringRuleExclude,
 
 type FilesRule struct {
 	pkg.RuleMeta
-	pkg.StringRule
-	pkg.PrefixRule
+	pkg.FileRule
 
 	skipDocRe  *regexp.Regexp
 	skipI18NRe *regexp.Regexp
 	skipSelfRe *regexp.Regexp
-}
-
-func (r *FilesRule) Enabled(str string) bool {
-	if !r.StringRule.Enabled(str) || !r.PrefixRule.Enabled(str) {
-		return false
-	}
-
-	return true
 }
 
 func (r *FilesRule) CheckFile(m *module.Module, fileName string, errorList *errors.LintRuleErrorsList) {
