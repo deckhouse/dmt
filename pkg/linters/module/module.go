@@ -53,7 +53,6 @@ func (l *Module) Run(m *module.Module) {
 	rules.NewConversionsRule(l.cfg.Conversions.Disable).CheckConversions(m.GetPath(), errorList)
 	rules.NewFilesRule(l.cfg.License.ExcludeRules.Files.Get(), l.cfg.License.ExcludeRules.Directories.Get()).
 		CheckFiles(m, errorList)
-
 }
 
 func (l *Module) Name() string {
