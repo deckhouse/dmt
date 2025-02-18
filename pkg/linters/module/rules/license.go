@@ -38,7 +38,7 @@ func NewLicenseRule(excludeFilesRules []pkg.StringRuleExclude,
 		RuleMeta: pkg.RuleMeta{
 			Name: LicenseRuleName,
 		},
-		FileRule: pkg.FileRule{
+		PathRule: pkg.PathRule{
 			ExcludeStringRules: excludeFilesRules,
 			ExcludePrefixRules: excludeDirectoryRules,
 		},
@@ -47,7 +47,7 @@ func NewLicenseRule(excludeFilesRules []pkg.StringRuleExclude,
 
 type LicenseRule struct {
 	pkg.RuleMeta
-	pkg.FileRule
+	pkg.PathRule
 }
 
 func (r *LicenseRule) CheckFiles(mod *module.Module, errorList *errors.LintRuleErrorsList) {

@@ -43,7 +43,7 @@ func NewFilesRule(excludeFileRules []pkg.StringRuleExclude,
 		RuleMeta: pkg.RuleMeta{
 			Name: FilesRuleName,
 		},
-		FileRule: pkg.FileRule{
+		PathRule: pkg.PathRule{
 			ExcludeStringRules: excludeFileRules,
 			ExcludePrefixRules: excludeDirectoryRules,
 		},
@@ -55,7 +55,7 @@ func NewFilesRule(excludeFileRules []pkg.StringRuleExclude,
 
 type FilesRule struct {
 	pkg.RuleMeta
-	pkg.FileRule
+	pkg.PathRule
 
 	skipDocRe  *regexp.Regexp
 	skipI18NRe *regexp.Regexp
