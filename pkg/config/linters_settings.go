@@ -132,7 +132,8 @@ type NoCyrillicSettings struct {
 }
 
 type NoCyrillicExcludeRules struct {
-	Files StringRuleExcludeList `mapstructure:"files"`
+	Files       StringRuleExcludeList `mapstructure:"files"`
+	Directories StringRuleExcludeList `mapstructure:"directories"`
 }
 
 type OpenAPISettings struct {

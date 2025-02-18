@@ -18,6 +18,7 @@ package rules
 
 import (
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -36,13 +37,16 @@ var (
 	skipI18NRe = `/i18n/`
 )
 
-func NewFilesRule(excludeRules []pkg.StringRuleExclude) *FilesRule {
+func NewFilesRule(excludeFileRules, excludeDirectiryRules []pkg.StringRuleExclude) *FilesRule {
 	return &FilesRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: FilesRuleName,
 		},
-		StringRule: pkg.StringRule{
-			ExcludeRules: excludeRules,
+		excludeFiles: pkg.StringRule{
+			ExcludeRules: excludeFileRules,
+		},
+		excludeDirectories: pkg.StringRule{
+			ExcludeRules: excludeDirectiryRules,
 		},
 		skipDocRe:  regexp.MustCompile(skipDocRe),
 		skipI18NRe: regexp.MustCompile(skipSelfRe),
@@ -52,7 +56,9 @@ func NewFilesRule(excludeRules []pkg.StringRuleExclude) *FilesRule {
 
 type FilesRule struct {
 	pkg.RuleMeta
-	pkg.StringRule
+
+	excludeFiles       pkg.StringRule
+	excludeDirectories pkg.StringRule
 
 	skipDocRe  *regexp.Regexp
 	skipI18NRe *regexp.Regexp
@@ -63,9 +69,16 @@ func (r *FilesRule) CheckFile(m *module.Module, fileName string, errorList *erro
 	errorList = errorList.WithRule(r.GetName())
 	fName, _ := strings.CutPrefix(fileName, m.GetPath()+"/")
 
-	if !r.Enabled(fName) {
+	if !r.excludeFiles.Enabled(fName) {
 		// TODO: add metrics
 		return
+	}
+
+	for _, dir := range r.excludeDirectories.ExcludeRules {
+		// TODO: do it normally
+		if filepath.Rel(string(dir), fName) {
+
+		}
 	}
 
 	if r.skipDocRe.MatchString(fileName) {
