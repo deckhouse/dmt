@@ -21,6 +21,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -74,8 +75,8 @@ func (r *FilesRule) Enabled(str string) bool {
 
 func (r *FilesRule) CheckFile(m *module.Module, fileName string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
-	fName, _ := strings.CutPrefix(fileName, m.GetPath()+"/")
 
+	fName := fsutils.Rel(m.GetPath(), fileName)
 	if !r.Enabled(fName) {
 		// TODO: add metrics
 		return
