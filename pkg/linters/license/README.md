@@ -13,8 +13,8 @@ linters-settings:
   license:
     exclude-rules:
       files:
-        - /images/upmeter/stress.sh
-        - /images/simple-bridge/rootfs/bin/simple-bridge
+        - images/upmeter/stress.sh
+        - images/simple-bridge/rootfs/bin/simple-bridge
       directories:
-        - /hooks/venv/
+        - hooks/venv/
 ```

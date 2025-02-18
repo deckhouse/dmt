@@ -36,13 +36,17 @@ var (
 	skipI18NRe = `/i18n/`
 )
 
-func NewFilesRule(excludeRules []pkg.StringRuleExclude) *FilesRule {
+func NewFilesRule(excludeFileRules []pkg.StringRuleExclude,
+	excludeDirectoryRules []pkg.PrefixRuleExclude) *FilesRule {
 	return &FilesRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: FilesRuleName,
 		},
 		StringRule: pkg.StringRule{
-			ExcludeRules: excludeRules,
+			ExcludeRules: excludeFileRules,
+		},
+		PrefixRule: pkg.PrefixRule{
+			ExcludeRules: excludeDirectoryRules,
 		},
 		skipDocRe:  regexp.MustCompile(skipDocRe),
 		skipI18NRe: regexp.MustCompile(skipSelfRe),
@@ -53,10 +57,19 @@ func NewFilesRule(excludeRules []pkg.StringRuleExclude) *FilesRule {
 type FilesRule struct {
 	pkg.RuleMeta
 	pkg.StringRule
+	pkg.PrefixRule
 
 	skipDocRe  *regexp.Regexp
 	skipI18NRe *regexp.Regexp
 	skipSelfRe *regexp.Regexp
+}
+
+func (r *FilesRule) Enabled(str string) bool {
+	if !r.StringRule.Enabled(str) || !r.PrefixRule.Enabled(str) {
+		return false
+	}
+
+	return true
 }
 
 func (r *FilesRule) CheckFile(m *module.Module, fileName string, errorList *errors.LintRuleErrorsList) {
