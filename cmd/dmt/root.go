@@ -33,7 +33,7 @@ var version = "devel"
 func execute() {
 	rootCmd := &cobra.Command{
 		Use:   "dmt",
-		Short: "Dechouse module tools",
+		Short: "Deckhouse module tools",
 		Long:  `It's a swiss knife for everyone, who want's create, maintain or use deckhouse modules.`,
 		CompletionOptions: cobra.CompletionOptions{
 			HiddenDefaultCmd: true,
