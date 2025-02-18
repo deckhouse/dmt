@@ -32,9 +32,9 @@ const (
 	LicenseRuleName = "license"
 )
 
-func NewFilesRule(excludeFilesRules []pkg.StringRuleExclude,
-	excludeDirectoryRules []pkg.PrefixRuleExclude) *FilesRule {
-	return &FilesRule{
+func NewLicenseRule(excludeFilesRules []pkg.StringRuleExclude,
+	excludeDirectoryRules []pkg.PrefixRuleExclude) *LicenseRule {
+	return &LicenseRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: LicenseRuleName,
 		},
@@ -47,13 +47,13 @@ func NewFilesRule(excludeFilesRules []pkg.StringRuleExclude,
 	}
 }
 
-type FilesRule struct {
+type LicenseRule struct {
 	pkg.RuleMeta
 	pkg.StringRule
 	pkg.PrefixRule
 }
 
-func (r *FilesRule) Enabled(str string) bool {
+func (r *LicenseRule) Enabled(str string) bool {
 	if !r.StringRule.Enabled(str) || !r.PrefixRule.Enabled(str) {
 		return false
 	}
@@ -61,7 +61,7 @@ func (r *FilesRule) Enabled(str string) bool {
 	return true
 }
 
-func (r *FilesRule) CheckFiles(mod *module.Module, errorList *errors.LintRuleErrorsList) {
+func (r *LicenseRule) CheckFiles(mod *module.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
 	files := fsutils.GetFiles(mod.GetPath(), false, filterFiles)
