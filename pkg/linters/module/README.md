@@ -16,7 +16,7 @@ linters-settings:
   module:
     oss:
       disable: false
-    module-yaml:
+    deinition-file:
       disable: false
     conversions:
       disable: false
