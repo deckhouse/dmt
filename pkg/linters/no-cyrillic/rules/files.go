@@ -32,7 +32,7 @@ const (
 )
 
 var (
-	skipDocRe  = `doc-ru-.+\.y[a]?ml$|_RU\.md$|_ru\.html$|docs/site/_.+|docs/documentation/_.+|tools/spelling/.+|openapi/conversions/.+`
+	skipDocRe  = `doc-ru-.+\.y[a]?ml$|_RU\.md$|_ru\.html$|docs/site/_.+|docs/documentation/_.+|tools/spelling/.+|openapi/conversions/.+|module.yaml`
 	skipSelfRe = `no_cyrillic(_test)?.go$`
 	skipI18NRe = `/i18n/`
 )

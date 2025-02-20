@@ -60,9 +60,15 @@ type DeckhouseModule struct {
 	Weight       uint32              `yaml:"weight,omitempty"`
 	Tags         []string            `yaml:"tags"`
 	Stage        string              `yaml:"stage"`
-	Description  string              `yaml:"description"`
+	Descriptions ModuleDescriptions  `yaml:"descriptions,omitempty"`
 	Requirements *ModuleRequirements `yaml:"requirements,omitempty"`
 }
+
+type ModuleDescriptions struct {
+	English string `yaml:"en,omitempty"`
+	Russian string `yaml:"ru,omitempty"`
+}
+
 type ModuleRequirements struct {
 	ModulePlatformRequirements `yaml:",inline"`
 	ParentModules              map[string]string `yaml:"modules,omitempty"`
@@ -75,7 +81,7 @@ type ModulePlatformRequirements struct {
 }
 
 func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+	errorList = errorList.WithRule(r.GetName()).WithFilePath(ModuleConfigFilename)
 
 	if !r.Enabled() {
 		// TODO: add metrics
@@ -126,6 +132,10 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 
 	if yml.Requirements != nil {
 		yml.Requirements.validateRequirements(errorList)
+	}
+
+	if yml.Descriptions.English == "" && yml.Descriptions.Russian == "" {
+		errorList.Warn("Module descriptions are empty")
 	}
 }
 
