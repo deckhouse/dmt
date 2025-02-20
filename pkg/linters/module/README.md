@@ -1,14 +1,15 @@
 ## Description
 
-- Checks module.yaml definition file.
+- Checks the `module.yaml` definition file.
 - Check that openapi conversions have human-readable description
 - Check oss info in the `oss.yaml` file.
+- Check license header in files.
 
 ## Settings example
 
 ### Module level
 
-This linter has settings.
+This linter has the following settings:
 
 ```yaml
 linters-settings:
