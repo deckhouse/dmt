@@ -86,14 +86,17 @@ type ImageSettings struct {
 }
 
 type ModuleSettings struct {
-	SkipCheckModuleYaml []string `mapstructure:"skip-check-module-yaml"`
+	ExcludeRules ModuleExcludeRules `mapstructure:"exclude-rules"`
 
 	OSS            ModuleOSSRuleSettings            `mapstructure:"oss"`
 	DefinitionFile ModuleDefinitionFileRuleSettings `mapstructure:"definition-file"`
 	Conversions    ConversionsRuleSettings          `mapstructure:"conversions"`
-	License        LicenseExcludeRules              `mapstructure:"license"`
 
 	Impact *pkg.Level `mapstructure:"impact"`
+}
+
+type ModuleExcludeRules struct {
+	License LicenseExcludeRule `mapstructure:"license"`
 }
 
 type ModuleOSSRuleSettings struct {
@@ -109,10 +112,6 @@ type ModuleDefinitionFileRuleSettings struct {
 type ConversionsRuleSettings struct {
 	// disable conversions rule completely
 	Disable bool `mapstructure:"disable"`
-}
-
-type LicenseExcludeRules struct {
-	ExcludeRules LicenseExcludeRule `mapstructure:"exclude-rules"`
 }
 
 type LicenseExcludeRule struct {

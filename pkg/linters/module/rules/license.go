@@ -18,11 +18,9 @@ package rules
 
 import (
 	errs "errors"
+	"github.com/deckhouse/dmt/internal/logger"
 	"io"
 	"os"
-	"strings"
-
-	"github.com/deckhouse/dmt/internal/logger"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/module"
@@ -36,6 +34,7 @@ const (
 
 func NewLicenseRule(excludeFilesRules []pkg.StringRuleExclude,
 	excludeDirectoryRules []pkg.PrefixRuleExclude) *LicenseRule {
+
 	return &LicenseRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: LicenseRuleName,
@@ -58,6 +57,7 @@ func (r *LicenseRule) CheckFiles(mod *module.Module, errorList *errors.LintRuleE
 	files := fsutils.GetFiles(mod.GetPath(), false, filterFiles)
 	for _, fileName := range files {
 		name := fsutils.Rel(mod.GetPath(), fileName)
+
 		if !r.Enabled(name) {
 			// TODO: add metrics
 			continue
@@ -69,8 +69,7 @@ func (r *LicenseRule) CheckFiles(mod *module.Module, errorList *errors.LintRuleE
 				// skip totally empty file
 				continue
 			}
-			path, _ := strings.CutPrefix(fileName, mod.GetPath())
-			errorList.WithFilePath(path).Error(err.Error())
+			errorList.WithFilePath(name).Error(err.Error())
 		}
 	}
 }

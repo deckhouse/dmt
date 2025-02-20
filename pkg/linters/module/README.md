@@ -19,8 +19,8 @@ linters-settings:
       disable: false
     conversions:
       disable: false
-    license:
-      exclude-rules:
+    exclude-rules:
+      license:
         files:
           - images/upmeter/stress.sh
           - images/simple-bridge/rootfs/bin/simple-bridge
