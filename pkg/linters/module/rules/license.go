@@ -20,11 +20,9 @@ import (
 	errs "errors"
 	"io"
 	"os"
-	"strings"
-
-	"github.com/deckhouse/dmt/internal/logger"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
+	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -58,6 +56,7 @@ func (r *LicenseRule) CheckFiles(mod *module.Module, errorList *errors.LintRuleE
 	files := fsutils.GetFiles(mod.GetPath(), false, filterFiles)
 	for _, fileName := range files {
 		name := fsutils.Rel(mod.GetPath(), fileName)
+
 		if !r.Enabled(name) {
 			// TODO: add metrics
 			continue
@@ -69,8 +68,7 @@ func (r *LicenseRule) CheckFiles(mod *module.Module, errorList *errors.LintRuleE
 				// skip totally empty file
 				continue
 			}
-			path, _ := strings.CutPrefix(fileName, mod.GetPath())
-			errorList.WithFilePath(path).Error(err.Error())
+			errorList.WithFilePath(name).Error(err.Error())
 		}
 	}
 }
