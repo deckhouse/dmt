@@ -17,6 +17,8 @@ limitations under the License.
 package rules
 
 import (
+	errs "errors"
+	"io"
 	"os"
 	"strings"
 
@@ -63,8 +65,11 @@ func (r *LicenseRule) CheckFiles(mod *module.Module, errorList *errors.LintRuleE
 
 		ok, err := checkFileCopyright(fileName)
 		if !ok {
+			if errs.Is(err, io.EOF) {
+				// skip totally empty file
+				continue
+			}
 			path, _ := strings.CutPrefix(fileName, mod.GetPath())
-
 			errorList.WithFilePath(path).Error(err.Error())
 		}
 	}
