@@ -34,7 +34,6 @@ Generate some automatic rules for you module
 | [container](pkg/linters/container/README.md)             | Check containers - duplicated names, env variables, ports, security context, liveness and readiness probes.|
 | [hooks](pkg/linters/hooks/README.md)                     | Check hooks rules. |
 | [images](pkg/linters/images/README.md)                   | Check images build instructions. |
-| [license](pkg/linters/license/README.md)                 | Check license header in files. |
 | [module](pkg/linters/module/README.md)                   | Check module.yaml definition, openapi conversions, oss.yaml file.|
 | [no-cyrillic](pkg/linters/no-cyrillic/README.md)         | Check cyrillic letters. |
 | [openapi](pkg/linters/openapi/README.md)                 | Check openapi settings, crds. |
