@@ -18,11 +18,11 @@ package rules
 
 import (
 	errs "errors"
-	"github.com/deckhouse/dmt/internal/logger"
 	"io"
 	"os"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
+	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -34,7 +34,6 @@ const (
 
 func NewLicenseRule(excludeFilesRules []pkg.StringRuleExclude,
 	excludeDirectoryRules []pkg.PrefixRuleExclude) *LicenseRule {
-
 	return &LicenseRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: LicenseRuleName,
