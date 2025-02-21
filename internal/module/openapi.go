@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	ExamplesKey = "x-examples"
+	DmtDefault  = "x-dmt-default"
 	ArrayObject = "array"
 	ObjectKey   = "object"
 )
@@ -167,8 +167,8 @@ func parseProperties(tempNode *spec.Schema) (map[string]any, error) {
 
 func parseProperty(key string, prop *spec.Schema, result map[string]any) error {
 	switch {
-	case prop.Extensions[ExamplesKey] != nil:
-		return parseExamples(key, prop, result)
+	case prop.Extensions[DmtDefault] != nil:
+		return parseDmtDefault(key, prop, result)
 	case len(prop.Enum) > 0:
 		parseEnum(key, prop, result)
 	case prop.Type.Contains(ObjectKey):
@@ -235,20 +235,12 @@ func parseString(key, pattern string, result map[string]any) error {
 	return nil
 }
 
-func parseExamples(key string, prop *spec.Schema, result map[string]any) error {
-	var example any
-
-	switch conv := prop.Extensions[ExamplesKey].(type) {
-	case []any:
-		example = conv[0]
-	case map[string]any:
-		example = conv
-	}
-
-	if example != nil {
-		ex, ok := example.(map[string]any)
+func parseDmtDefault(key string, prop *spec.Schema, result map[string]any) error {
+	def := prop.Extensions[DmtDefault]
+	if def != nil {
+		ex, ok := def.(map[string]any)
 		if !ok {
-			result[key] = example
+			result[key] = def
 			return nil
 		}
 		if prop.Type.Contains(ObjectKey) {
@@ -264,7 +256,7 @@ func parseExamples(key string, prop *spec.Schema, result map[string]any) error {
 			return nil
 		}
 
-		result[key] = example
+		result[key] = def
 	}
 
 	return nil

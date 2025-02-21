@@ -67,47 +67,8 @@ func Test_parseProperties(t *testing.T) {
 							},
 							VendorExtensible: spec.VendorExtensible{
 								Extensions: spec.Extensions{
-									ExamplesKey: map[string]any{
+									DmtDefault: map[string]any{
 										"bar1": "example",
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			want:    map[string]any{"exampleKey": map[string]any{"bar1": "example", "bar2": "text"}},
-			wantErr: false,
-		},
-		{
-			name: "schema with examples",
-			schema: &spec.Schema{
-				SchemaProps: spec.SchemaProps{
-					Properties: map[string]spec.Schema{
-						"exampleKey": {
-							SchemaProps: spec.SchemaProps{
-								Type: spec.StringOrArray{"object"},
-								Properties: map[string]spec.Schema{
-									"bar1": {
-										SchemaProps: spec.SchemaProps{
-											Type:    spec.StringOrArray{"string"},
-											Default: "text",
-										},
-									},
-									"bar2": {
-										SchemaProps: spec.SchemaProps{
-											Type:    spec.StringOrArray{"string"},
-											Default: "text",
-										},
-									},
-								},
-							},
-							VendorExtensible: spec.VendorExtensible{
-								Extensions: spec.Extensions{
-									ExamplesKey: []any{
-										map[string]any{
-											"bar1": "example",
-										},
 									},
 								},
 							},
