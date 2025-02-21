@@ -64,7 +64,7 @@ func (r *DNSPolicyRule) ObjectDNSPolicy(object storage.StoreObject, errorList *e
 	validateDNSPolicy(dnsPolicy, hostNetwork, object, errorList)
 }
 
-func getDNSPolicyAndHostNetwork(object storage.StoreObject) (string, bool, error) { //nolint:gocritic // false positive
+func getDNSPolicyAndHostNetwork(object storage.StoreObject) (string, bool, error) {
 	converter := runtime.DefaultUnstructuredConverter
 
 	var dnsPolicy string

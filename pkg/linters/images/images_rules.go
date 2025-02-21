@@ -76,7 +76,7 @@ func imageRegexp(s string) string {
 	return fmt.Sprintf("^(from:|FROM)(\\s+)(%s)", s)
 }
 
-func isImageNameUnacceptable(imageName string) (bool, string) { //nolint:gocritic // false positive
+func isImageNameUnacceptable(imageName string) (bool, string) {
 	for ciVariable, pattern := range regexPatterns {
 		matched, _ := regexp.MatchString(pattern, imageName)
 		if matched {
@@ -172,7 +172,7 @@ func (l *Images) lintOneDockerfile(moduleName, path, imagesPath string, errorLis
 	}
 }
 
-func isDockerfileInstructionUnacceptable(from string, final bool) (bool, string) { //nolint:gocritic // false positive
+func isDockerfileInstructionUnacceptable(from string, final bool) (bool, string) {
 	if from == "scratch" {
 		return false, ""
 	}

@@ -84,8 +84,6 @@ func IsPodController(kind string) bool {
 }
 
 // parseTargetsGroups resolves target resource indexes
-//
-//nolint:gocritic // false positive
 func parseTargetsGroups(md *module.Module, errorList *errors.LintRuleErrorsList) (
 	map[storage.ResourceIndex]struct{},
 	map[storage.ResourceIndex]set.Set,
