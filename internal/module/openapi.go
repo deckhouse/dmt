@@ -248,8 +248,8 @@ func parseDefault(key string, prop *spec.Schema, extension string, result map[st
 	}
 	// if we have multiple examples, we take the first one
 	if extension == ExamplesDefault {
-		examples, ok := def.([]map[string]any)
-		if !ok {
+		examples, eok := def.([]any)
+		if !eok {
 			return nil
 		}
 		def = examples[0]
