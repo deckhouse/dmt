@@ -45,6 +45,7 @@ linters-settings:
       - ifElseChain
       - octalLiteral
       - whyNoLint
+      - unnamedResult
   godox:
     keywords:
       - FIXME
