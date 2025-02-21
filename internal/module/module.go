@@ -123,14 +123,19 @@ func (m *Module) MergeRootConfig(cfg *config.RootConfig) {
 }
 
 func NewModule(path string) (*Module, error) {
-	name, err := getModuleName(path)
+	name, ns, err := getModuleNameAndNamespaceFromFile(path)
 	if err != nil {
 		return nil, err
 	}
 
+	if ns == "" {
+		// fallback to the 'test' .namespace file
+		ns = getNamespace(path)
+	}
+
 	module := &Module{
 		name:      name,
-		namespace: getNamespace(path),
+		namespace: ns,
 		path:      path,
 	}
 
@@ -192,27 +197,28 @@ func remapTemplates(ch *chart.Chart) {
 	}
 }
 
-func getModuleName(path string) (string, error) {
-	stat, err := os.Stat(filepath.Join(path, ChartConfigFilename))
+func getModuleNameAndNamespaceFromFile(path string) ( /* name */ string /* namespace */, string, error) {
+	stat, err := os.Stat(filepath.Join(path, ModuleConfigFilename))
 	if err != nil {
-		stat, err = os.Stat(filepath.Join(path, ModuleConfigFilename))
+		stat, err = os.Stat(filepath.Join(path, ChartConfigFilename))
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 	}
 	yamlFile, err := os.ReadFile(filepath.Join(path, stat.Name()))
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	var ch struct {
-		Name string `yaml:"name"`
+		Name      string `yaml:"name"`
+		Namespace string `yaml:"namespace"`
 	}
 	err = yaml.Unmarshal(yamlFile, &ch)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	return ch.Name, nil
+	return ch.Name, ch.Namespace, nil
 }
 
 func getNamespace(path string) string {
