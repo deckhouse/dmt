@@ -18,6 +18,7 @@ package module
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	"dario.cat/mergo"
@@ -248,11 +249,10 @@ func parseDefault(key string, prop *spec.Schema, extension string, result map[st
 	}
 	// if we have multiple examples, we take the first one
 	if extension == ExamplesDefault {
-		examples, eok := def.([]any)
-		if !eok {
+		if reflect.TypeOf(def).Kind() != reflect.Slice {
 			return nil
 		}
-		def = examples[0]
+		def = reflect.ValueOf(def).Index(0).Interface()
 	}
 	ex, ok := def.(map[string]any)
 	if !ok {
