@@ -134,8 +134,9 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 		yml.Requirements.validateRequirements(errorList)
 	}
 
-	if yml.Descriptions.English == "" && yml.Descriptions.Russian == "" {
-		errorList.Warn("Module descriptions are empty")
+	// ru description is not required
+	if yml.Descriptions.English == "" {
+		errorList.Warn("Module `descriptions.en` field is required")
 	}
 }
 
