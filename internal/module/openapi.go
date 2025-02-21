@@ -31,9 +31,11 @@ import (
 )
 
 const (
-	DmtDefault  = "x-dmt-default"
-	ArrayObject = "array"
-	ObjectKey   = "object"
+	DmtDefault      = "x-dmt-default"
+	ExamplesDefault = "x-examples"
+	ExampleDefault  = "x-example"
+	ArrayObject     = "array"
+	ObjectKey       = "object"
 )
 
 func applyDigests(digests, values map[string]any) {
@@ -168,7 +170,11 @@ func parseProperties(tempNode *spec.Schema) (map[string]any, error) {
 func parseProperty(key string, prop *spec.Schema, result map[string]any) error {
 	switch {
 	case prop.Extensions[DmtDefault] != nil:
-		return parseDmtDefault(key, prop, result)
+		return parseDefault(key, prop, DmtDefault, result)
+	case prop.Extensions[ExampleDefault] != nil:
+		return parseDefault(key, prop, ExampleDefault, result)
+	case prop.Extensions[ExamplesDefault] != nil:
+		return parseDefault(key, prop, ExamplesDefault, result)
 	case len(prop.Enum) > 0:
 		parseEnum(key, prop, result)
 	case prop.Type.Contains(ObjectKey):
@@ -235,29 +241,38 @@ func parseString(key, pattern string, result map[string]any) error {
 	return nil
 }
 
-func parseDmtDefault(key string, prop *spec.Schema, result map[string]any) error {
-	def := prop.Extensions[DmtDefault]
-	if def != nil {
-		ex, ok := def.(map[string]any)
-		if !ok {
-			result[key] = def
-			return nil
-		}
-		if prop.Type.Contains(ObjectKey) {
-			t, err := parseProperties(prop)
-			if err != nil {
-				return err
-			}
-			if err := mergo.Merge(&t, ex, mergo.WithOverride); err != nil {
-				return err
-			}
-			result[key] = t
-
-			return nil
-		}
-
-		result[key] = def
+func parseDefault(key string, prop *spec.Schema, extension string, result map[string]any) error {
+	def, ok := prop.Extensions[extension]
+	if !ok {
+		return nil
 	}
+	// if we have multiple examples, we take the first one
+	if extension == ExamplesDefault {
+		examples, ok := def.([]map[string]any)
+		if !ok {
+			return nil
+		}
+		def = examples[0]
+	}
+	ex, ok := def.(map[string]any)
+	if !ok {
+		result[key] = def
+		return nil
+	}
+	if prop.Type.Contains(ObjectKey) {
+		t, err := parseProperties(prop)
+		if err != nil {
+			return err
+		}
+		if err := mergo.Merge(&t, ex, mergo.WithOverride); err != nil {
+			return err
+		}
+		result[key] = t
+
+		return nil
+	}
+
+	result[key] = def
 
 	return nil
 }
