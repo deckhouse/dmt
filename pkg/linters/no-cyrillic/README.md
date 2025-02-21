@@ -11,11 +11,10 @@ This linter has settings.
 ```yaml
 linters-settings:
   no-cyrillic:
-    files:
-      exclude-rules:
+    exclude-rules:
+      files:
         - path/to/file.go
         - path/to/file.yaml
-    directories:
-      exclude-rules:
+      directories:
         - path/to/dir
 ```
