@@ -198,9 +198,9 @@ func parseProperty(key string, prop *spec.Schema, result map[string]any) error {
 
 func parseString(key, pattern string, result map[string]any) error {
 	// ignore cniSecretData key
-	if key == "cniSecretData" {
-		return nil
-	}
+	// if key == "cniSecretData" {
+	// 	return nil
+	// }
 
 	if key == "name" {
 		result[key] = "name"
