@@ -17,6 +17,7 @@ limitations under the License.
 package module
 
 import (
+	"encoding/base64"
 	"fmt"
 	"strings"
 
@@ -197,11 +198,6 @@ func parseProperty(key string, prop *spec.Schema, result map[string]any) error {
 }
 
 func parseString(key, pattern string, result map[string]any) error {
-	// ignore cniSecretData key
-	if key == "cniSecretData" {
-		return nil
-	}
-
 	if key == "name" {
 		result[key] = "name"
 		return nil
@@ -223,13 +219,7 @@ func parseString(key, pattern string, result map[string]any) error {
 		}
 		result[key] = r
 	} else {
-		const pattern = "[a-zA-Z0-9]{8}"
-		result[key] = "string"
-		r, err := reggen.Generate(pattern, limit)
-		if err != nil {
-			return err
-		}
-		result[key] = r
+		result[key] = base64.StdEncoding.EncodeToString([]byte(key))
 	}
 
 	return nil
