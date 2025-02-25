@@ -24,13 +24,11 @@ import (
 	"strings"
 
 	"dario.cat/mergo"
-	"github.com/flant/addon-operator/pkg/values/validation"
 	"github.com/go-openapi/spec"
 	"github.com/mohae/deepcopy"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"k8s.io/utils/ptr"
 
-	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/module/reggen"
 	"github.com/deckhouse/dmt/internal/valuesvalidation"
 )
@@ -120,20 +118,6 @@ func ComposeValuesFromSchemas(m *Module) (chartutil.Values, error) {
 	values, ok := schema.Schemas["values"]
 	if values == nil || !ok {
 		return nil, fmt.Errorf("cannot find openapi values schema for module %s", m.GetName())
-	}
-
-	// override values with values from file
-	if flags.ValuesFile != "" {
-		content, rerr := os.ReadFile(flags.ValuesFile)
-		if rerr == nil {
-			overrideStorage, verr := validation.NewSchemaStorage(nil, content)
-			if verr == nil {
-				v, sok := overrideStorage.Schemas["values"]
-				if sok && v != nil {
-					_ = mergo.Merge(values, v, mergo.WithOverride)
-				}
-			}
-		}
 	}
 
 	moduleSchema := *values

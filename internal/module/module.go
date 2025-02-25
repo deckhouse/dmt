@@ -25,7 +25,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 	"helm.sh/helm/v3/pkg/chart"
+	"helm.sh/helm/v3/pkg/chartutil"
 
+	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/internal/werf"
 	"github.com/deckhouse/dmt/pkg/config"
@@ -151,6 +153,12 @@ func NewModule(path string) (*Module, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	v, err := overrideValuesFromFile(ch, flags.ValuesFile)
+	if err == nil {
+		values = v
+	}
+
 	objectStore := storage.NewUnstructuredObjectStore()
 	err = RunRender(module, values, objectStore)
 	if err != nil {
@@ -171,6 +179,30 @@ func NewModule(path string) (*Module, error) {
 	module.linterConfig = cfg
 
 	return module, nil
+}
+
+func overrideValuesFromFile(chrt *chart.Chart, path string) (chartutil.Values, error) {
+	if path == "" {
+		return nil, nil
+	}
+
+	var vals map[string]any
+	content, err := os.ReadFile(flags.ValuesFile)
+	if err != nil {
+		return nil, err
+	}
+
+	err = yaml.Unmarshal(content, &vals)
+	if err != nil {
+		return nil, err
+	}
+
+	v, err := chartutil.CoalesceValues(chrt, vals)
+	if err != nil {
+		return nil, err
+	}
+
+	return v, nil
 }
 
 func remapChart(ch *chart.Chart) {
