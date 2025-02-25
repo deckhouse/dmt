@@ -23,11 +23,13 @@ import (
 	"path/filepath"
 	"strings"
 
+	"dario.cat/mergo"
 	"gopkg.in/yaml.v3"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 
 	"github.com/deckhouse/dmt/internal/flags"
+	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/internal/werf"
 	"github.com/deckhouse/dmt/pkg/config"
@@ -143,8 +145,8 @@ func NewModule(path string) (*Module, error) {
 		return nil, err
 	}
 
-	if v, verr := overrideValuesFromFile(ch, flags.ValuesFile); verr == nil {
-		values = v
+	if err = overrideValuesFromFile(&values, flags.ValuesFile); err != nil {
+		logger.ErrorF("Failed to override values from file: %s", err)
 	}
 
 	objectStore := storage.NewUnstructuredObjectStore()
@@ -169,28 +171,32 @@ func NewModule(path string) (*Module, error) {
 	return module, nil
 }
 
-func overrideValuesFromFile(chrt *chart.Chart, path string) (chartutil.Values, error) {
+func overrideValuesFromFile(values *chartutil.Values, path string) error {
 	if path == "" {
-		return nil, nil
+		return nil
 	}
 
 	var vals map[string]any
-	content, err := os.ReadFile(flags.ValuesFile)
+	f, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	err = yaml.Unmarshal(content, &vals)
+	err = yaml.NewDecoder(f).Decode(&vals)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	v, err := chartutil.CoalesceValues(chrt, vals)
+	v, ok := values.AsMap()["Values"].(map[string]any)
+	if !ok {
+		return fmt.Errorf("values.Values is not a map")
+	}
+	err = mergo.Merge(&v, vals, mergo.WithOverride)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return v, nil
+	return nil
 }
 
 func remapChart(ch *chart.Chart) {
