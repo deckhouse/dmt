@@ -20,9 +20,11 @@ properties:
             properties:
               cert:
                 x-examples: ["YjY0ZW5jX3N0cmluZwo="]
+                x-dmt-default: "YjY0ZW5jX3N0cmluZwo="
                 type: string
               key:
                 x-examples: ["YjY0ZW5jX3N0cmluZwo="]
+                x-dmt-default: "YjY0ZW5jX3N0cmluZwo="
                 type: string
           resourcesRequests:
             type: object
@@ -34,12 +36,14 @@ properties:
                 format: int64
                 minimum: 0
                 x-examples: [ 1024 ]
+                x-dmt-default: 1024
                 default: 0
               memoryControlPlane:
                 type: integer
                 format: int64
                 minimum: 0
                 x-examples: [ 536870912 ]
+                x-dmt-default: 536870912
                 default: 0
   clusterConfiguration:
     type: object
@@ -72,6 +76,23 @@ properties:
           httpsProxy: https://user:password@proxy.company.my:8443
           noProxy:
             - company.my
+    x-dmt-default:
+      apiVersion: deckhouse.io/v1
+      kind: ClusterConfiguration
+      podSubnetNodeCIDRPrefix: "24"
+      podSubnetCIDR: 10.244.0.0/16
+      serviceSubnetCIDR: 192.168.0.0/16
+      kubernetesVersion: "1.27"
+      clusterDomain: k8s.internal
+      clusterType: "Cloud"
+      cloud:
+        prefix: k8s-dev
+        provider: Yandex
+      proxy:
+        httpProxy: https://user:password@proxy.company.my:8443
+        httpsProxy: https://user:password@proxy.company.my:8443
+        noProxy:
+          - company.my
     properties:
       apiVersion:
         type: string
@@ -199,6 +220,7 @@ properties:
               - 'https://user:password@proxy.company.my:8443'
               - 'https://DOMAIN%5Cuser:password@proxy.company.my:8443'
               - 'https://user%40domain.local:password@proxy.company.my:8443'
+            x-dmt-default: 'http://proxy.company.my'
           httpsProxy:
             type: string
             x-doc-d8Revision: ee
@@ -212,6 +234,7 @@ properties:
               - 'https://user:password@proxy.company.my:8443'
               - 'https://DOMAIN%5Cuser:password@proxy.company.my:8443'
               - 'https://user%40domain.local:password@proxy.company.my:8443'
+            x-dmt-default: 'http://proxy.company.my'
           noProxy:
             x-doc-d8Revision: ee
             description: |
@@ -238,13 +261,16 @@ properties:
       The cluster is considered bootstrapped if configmap d8-system/d8-cluster-is-bootstraped exists or
       cluster has at least one non-master node
     x-examples: [ true ]
+    x-dmt-default: true
   deckhouseVersion:
     type: string
     x-examples: [ dev ]
+    x-dmt-default: dev
   deckhouseEdition:
     type: string
     enum: [Unknown, CE, FE, EE, CSE, BE, SE, SE-plus ]
     x-examples: [ FE ]
+    x-dmt-default: FE
   enabledModules:
     type: array
     items:
@@ -252,6 +278,8 @@ properties:
     x-examples:
       - ["cert-manager", "vertical-pod-autoscaler", "vertical-pod-autoscaler-crd", "prometheus", "priority-class", "prometheus-crd", "operator-prometheus", "operator-prometheus"]
       - ["cert-manager", "prometheus", "priority-class"]
+    x-dmt-default:
+      ["cert-manager", "vertical-pod-autoscaler", "vertical-pod-autoscaler-crd", "prometheus", "priority-class", "prometheus-crd", "operator-prometheus", "operator-prometheus"]
   discovery:
     additionalProperties: true
     type: object
@@ -261,22 +289,26 @@ properties:
         type: boolean
         default: false
         x-examples: [ true, false ]
+        x-dmt-default: true
       clusterMasterCount:
         type: integer
         minimum: 0
         x-examples: [ 1, 3 ]
+        x-dmt-default: 1
       podSubnet:
         type: string
         pattern: '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2}$'
         description: |
           Network subnet for pods
         x-examples: [ "10.222.0.0/24" ]
+        x-dmt-default: "10.222.0.0/24"
       serviceSubnet:
         type: string
         pattern: '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2}$'
         description: |
           Network subnet for k8s services
         x-examples: [ "10.222.0.0/24" ]
+        x-dmt-default: "10.222.0.0/24"
       defaultStorageClass:
         type: string
         # it is name of resource in kubernetes
@@ -285,6 +317,7 @@ properties:
           Default storage class for cluster
           It gets form storage class annotated as "storageclass.beta.kubernetes.io/is-default-class" or "storageclass.kubernetes.io/is-default-class"
         x-examples: [ "default" ]
+        x-dmt-default: "default"
       clusterDNSAddress:
         type: string
         pattern: '^([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})$'
@@ -292,6 +325,7 @@ properties:
           DNS server in-cluster address
           It gets form service in kube-system namespace labeled as "kube-dns" or "coredns"
         x-examples: [ "10.222.0.1" ]
+        x-dmt-default: "10.222.0.1"
       kubernetesCA:
         type: string
         description: |
@@ -299,6 +333,7 @@ properties:
           It gets from /var/run/secrets/kubernetes.io/serviceaccount/ca.crt file
         x-examples:
           - "K8S\nCA\nMultilne"
+        x-dmt-default: "K8S\nCA\nMultilne"
       prometheusScrapeInterval:
         type: integer
         default: 30
@@ -306,15 +341,18 @@ properties:
         description: |
           Scrape interval for prometheus. In seconds
         x-examples: [ 1 ]
+        x-dmt-default: 1
       clusterUUID:
         type: string
         description: |
           Unique cluster identifier
         x-examples: [ "f76f54dc-7ea0-11ec-899e-c70701aef75e" ]
+        x-dmt-default: "f76f54dc-7ea0-11ec-899e-c70701aef75e"
       clusterDomain:
         type: string
         pattern: '^[0-9a-zA-Z._-]+$'
         x-examples: [ "cluster.local" ]
+        x-dmt-default: "cluster.local"
       d8SpecificNodeCountByRole:
         # it is map node_role => count
         # we can have multiple roles, for example every module has our own role
@@ -327,6 +365,8 @@ properties:
           Do not use label with prefix node-role.deckhouse.io/ on workers nodes!
         x-examples:
           - system: 2
+        x-dmt-default:
+          system: 2
       kubernetesVersions:
         type: array
         items:
@@ -337,6 +377,7 @@ properties:
           K8s versions for each control-plane node
         x-examples:
           - [ "1.29.2", "1.29.3", "1.29.2" ]
+        x-dmt-default: [ "1.29.2", "1.29.3", "1.29.2" ]
       kubernetesVersion:
         type: string
         # https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
@@ -344,6 +385,7 @@ properties:
         description: |
           Effective (minimal from each control plane node) k8s version
         x-examples: [ "1.29.2" ]
+        x-dmt-default: "1.29.2"
       extensionAPIServerAuthenticationRequestheaderClientCA:
         type: string
         description: |
@@ -351,6 +393,7 @@ properties:
           It gets from kube-system/extension-apiserver-authentication config map
         x-examples:
           - "extention\nCA\nMultiline"
+        x-dmt-default: "extention\nCA\nMultiline"
       apiVersions:
         type: array
         items:
@@ -359,6 +402,7 @@ properties:
           List of GVKs installed from the modules' crds directories.
         x-examples:
           - ["deckhouse.io/v1alpha1/NodeGroup", "deckhouse.io/v1beta1/NodeGroup", "monitoring.coreos.com/v1/PrometheusRule"]
+        x-dmt-default: ["deckhouse.io/v1alpha1/NodeGroup", "deckhouse.io/v1beta1/NodeGroup", "monitoring.coreos.com/v1/PrometheusRule"]
   modulesImages:
     additionalProperties: true
     type: object
@@ -373,22 +417,26 @@ properties:
             description: |
               Path of deckhouse repo
             x-examples: [ "/deckhouse/fe" ]
+            x-dmt-default: "/deckhouse/fe"
           address:
             type: string
             description: |
               Domain of deckhouse repo
             x-examples: [ "registry.deckhouse.io" ]
+            x-dmt-default: "registry.deckhouse.io"
           CA:
             type: string
             description: |
               Registry CA certificate
             x-examples: [ "registry\nCA\nMultiline" ]
+            x-dmt-default: "registry\nCA\nMultiline"
           scheme:
             type: string
             enum: ["http", "https"]
             description: |
               Scheme for registry
             x-examples: [ "https" ]
+            x-dmt-default: "https"
           dockercfg:
             type: string
             # source https://regex101.com/r/Pj4Ako/1
@@ -405,6 +453,7 @@ properties:
               It is used in the helm templates to generate the address of the container image.
               Almost always, concatinateds with tag from modulesImages.tag
             x-examples: [ "registry.example.com/deckhouse" ]
+            x-dmt-default: "registry.example.com/deckhouse"
       tags:
         type: object
         default: {}
@@ -419,3 +468,7 @@ properties:
           - tags:
               module:
                 image: hash
+        x-dmt-default:
+          tags:
+            module:
+              image: hash

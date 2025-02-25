@@ -19,6 +19,7 @@ package module
 import (
 	"encoding/base64"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"dario.cat/mergo"
@@ -32,9 +33,11 @@ import (
 )
 
 const (
-	ExamplesKey = "x-examples"
-	ArrayObject = "array"
-	ObjectKey   = "object"
+	DmtDefault      = "x-dmt-default"
+	ExamplesDefault = "x-examples"
+	ExampleDefault  = "x-example"
+	ArrayObject     = "array"
+	ObjectKey       = "object"
 )
 
 func applyDigests(digests, values map[string]any) {
@@ -168,8 +171,12 @@ func parseProperties(tempNode *spec.Schema) (map[string]any, error) {
 
 func parseProperty(key string, prop *spec.Schema, result map[string]any) error {
 	switch {
-	case prop.Extensions[ExamplesKey] != nil:
-		return parseExamples(key, prop, result)
+	case prop.Extensions[DmtDefault] != nil:
+		return parseDefault(key, prop, DmtDefault, result)
+	case prop.Extensions[ExampleDefault] != nil:
+		return parseDefault(key, prop, ExampleDefault, result)
+	case prop.Extensions[ExamplesDefault] != nil:
+		return parseDefault(key, prop, ExamplesDefault, result)
 	case len(prop.Enum) > 0:
 		parseEnum(key, prop, result)
 	case prop.Type.Contains(ObjectKey):
@@ -225,37 +232,37 @@ func parseString(key, pattern string, result map[string]any) error {
 	return nil
 }
 
-func parseExamples(key string, prop *spec.Schema, result map[string]any) error {
-	var example any
-
-	switch conv := prop.Extensions[ExamplesKey].(type) {
-	case []any:
-		example = conv[0]
-	case map[string]any:
-		example = conv
+func parseDefault(key string, prop *spec.Schema, extension string, result map[string]any) error {
+	def, ok := prop.Extensions[extension]
+	if !ok {
+		return nil
 	}
-
-	if example != nil {
-		ex, ok := example.(map[string]any)
-		if !ok {
-			result[key] = example
+	// if we have multiple examples, we take the first one
+	if extension == ExamplesDefault {
+		if reflect.TypeOf(def).Kind() != reflect.Slice {
 			return nil
 		}
-		if prop.Type.Contains(ObjectKey) {
-			t, err := parseProperties(prop)
-			if err != nil {
-				return err
-			}
-			if err := mergo.Merge(&t, ex, mergo.WithOverride); err != nil {
-				return err
-			}
-			result[key] = t
-
-			return nil
-		}
-
-		result[key] = example
+		def = reflect.ValueOf(def).Index(0).Interface()
 	}
+	ex, ok := def.(map[string]any)
+	if !ok {
+		result[key] = def
+		return nil
+	}
+	if prop.Type.Contains(ObjectKey) {
+		t, err := parseProperties(prop)
+		if err != nil {
+			return err
+		}
+		if err := mergo.Merge(&t, ex, mergo.WithOverride); err != nil {
+			return err
+		}
+		result[key] = t
+
+		return nil
+	}
+
+	result[key] = def
 
 	return nil
 }

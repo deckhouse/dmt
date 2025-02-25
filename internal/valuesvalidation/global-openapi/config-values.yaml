@@ -37,6 +37,7 @@ properties:
 
       If not defined, the value is determined automatically as `true` for clusters with more than one master node. Otherwise, it is determined as`false`.
     x-examples: [ true, false ]
+    x-dmt-default: true
   modules:
     description: |
       Common parameters of Deckhouse modules.
@@ -50,6 +51,7 @@ properties:
         description: |
           The class of the Ingress controller ([Ingress class](https://kubernetes.io/docs/concepts/services-networking/ingress/#ingress-class)) used for Deckhouse modules.
         x-examples: [ "nginx" ]
+        x-dmt-default: "nginx"
         pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$'
       publicDomainTemplate:
         type: string
@@ -70,6 +72,7 @@ properties:
           - If this parameter is omitted, no Ingress resources will be created.
         x-doc-examples: [ "%s.kube.company.my", "kube-%s.company.my" ]
         x-examples: [ "%s.kube.company.my" ]
+        x-dmt-default: "%s.kube.company.my"
       placement:
         description: |
           Parameters regulating the layout of Deckhouse module components.
@@ -91,6 +94,7 @@ properties:
               type: string
             x-examples:
               - [ "dedicated.example.com" ]
+            x-dmt-default: [ "dedicated.example.com" ]
       https:
         description: |
           The HTTPS implementation used by the Deckhouse modules.
@@ -106,6 +110,10 @@ properties:
           - mode: CustomCertificate
             customCertificate:
               secretName: plainstring
+        x-dmt-default:
+          certManager:
+            clusterIssuerName: letsencrypt
+          mode: CertManager
         properties:
           mode:
             type: string
@@ -163,6 +171,9 @@ properties:
             x-examples:
               - cpu: 1000m
                 memory: 500M
+            x-dmt-default:
+              cpu: 1000m
+              memory: 500M
             properties:
               cpu:
                 description: |
@@ -185,6 +196,9 @@ properties:
             x-examples:
               - cpu: 100m
                 memory: 150M
+            x-dmt-default:
+              cpu: 100m
+              memory: 150M
             x-doc-deprecated: true
             properties:
               cpu:
@@ -211,6 +225,9 @@ properties:
             x-examples:
               - cpu: "1"
                 memory: 150Mi
+            x-dmt-default:
+              cpu: "1"
+              memory: 150Mi
             x-doc-deprecated: true
             properties:
               cpu:
