@@ -125,23 +125,12 @@ func (m *Module) MergeRootConfig(cfg *config.RootConfig) {
 }
 
 func NewModule(path string) (*Module, error) {
-	name, ns, err := getModuleNameAndNamespaceFromFile(path)
+	module, err := newModuleFromPath(path)
 	if err != nil {
 		return nil, err
 	}
 
-	if ns == "" {
-		// fallback to the 'test' .namespace file
-		ns = getNamespace(path)
-	}
-
-	module := &Module{
-		name:      name,
-		namespace: ns,
-		path:      path,
-	}
-
-	ch, err := LoadModuleAsChart(name, path)
+	ch, err := LoadModuleAsChart(module.GetName(), path)
 	if err != nil {
 		return nil, err
 	}
@@ -154,8 +143,7 @@ func NewModule(path string) (*Module, error) {
 		return nil, err
 	}
 
-	v, err := overrideValuesFromFile(ch, flags.ValuesFile)
-	if err == nil {
+	if v, verr := overrideValuesFromFile(ch, flags.ValuesFile); verr == nil {
 		values = v
 	}
 
@@ -229,17 +217,17 @@ func remapTemplates(ch *chart.Chart) {
 	}
 }
 
-func getModuleNameAndNamespaceFromFile(path string) ( /* name */ string /* namespace */, string, error) {
+func newModuleFromPath(path string) (*Module, error) {
 	stat, err := os.Stat(filepath.Join(path, ModuleConfigFilename))
 	if err != nil {
 		stat, err = os.Stat(filepath.Join(path, ChartConfigFilename))
 		if err != nil {
-			return "", "", err
+			return nil, err
 		}
 	}
 	yamlFile, err := os.ReadFile(filepath.Join(path, stat.Name()))
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
 
 	var ch struct {
@@ -248,9 +236,21 @@ func getModuleNameAndNamespaceFromFile(path string) ( /* name */ string /* names
 	}
 	err = yaml.Unmarshal(yamlFile, &ch)
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
-	return ch.Name, ch.Namespace, nil
+
+	if ch.Namespace == "" {
+		// fallback to the 'test' .namespace file
+		ch.Namespace = getNamespace(path)
+	}
+
+	module := &Module{
+		name:      ch.Name,
+		namespace: ch.Namespace,
+		path:      path,
+	}
+
+	return module, nil
 }
 
 func getNamespace(path string) string {
