@@ -28,7 +28,6 @@ import (
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 
-	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/internal/werf"
@@ -126,7 +125,7 @@ func (m *Module) MergeRootConfig(cfg *config.RootConfig) {
 	m.linterConfig.LintersSettings.MergeGlobal(&cfg.GlobalSettings.Linters)
 }
 
-func NewModule(path string) (*Module, error) {
+func NewModule(path string, vals map[string]any) (*Module, error) {
 	module, err := newModuleFromPath(path)
 	if err != nil {
 		return nil, err
@@ -145,7 +144,7 @@ func NewModule(path string) (*Module, error) {
 		return nil, err
 	}
 
-	if err = overrideValuesFromFile(&values, flags.ValuesFile); err != nil {
+	if err = overrideValuesFromFile(&values, vals); err != nil {
 		logger.ErrorF("Failed to override values from file: %s", err)
 	}
 
@@ -171,27 +170,15 @@ func NewModule(path string) (*Module, error) {
 	return module, nil
 }
 
-func overrideValuesFromFile(values *chartutil.Values, path string) error {
-	if path == "" {
+func overrideValuesFromFile(values *chartutil.Values, vals map[string]any) error {
+	if vals == nil {
 		return nil
 	}
-
-	var vals map[string]any
-	f, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-
-	err = yaml.NewDecoder(f).Decode(&vals)
-	if err != nil {
-		return err
-	}
-
 	v, ok := values.AsMap()["Values"].(map[string]any)
 	if !ok {
 		return fmt.Errorf("values.Values is not a map")
 	}
-	err = mergo.Merge(&v, vals, mergo.WithOverride)
+	err := mergo.Merge(&v, vals, mergo.WithOverride)
 	if err != nil {
 		return err
 	}

@@ -31,6 +31,7 @@ import (
 	"github.com/kyokomi/emoji"
 	"github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/go-wordwrap"
+	"gopkg.in/yaml.v3"
 
 	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/logger"
@@ -94,10 +95,15 @@ func NewManager(dirs []string, rootConfig *config.RootConfig) *Manager {
 		paths = append(paths, result...)
 	}
 
+	vals, err := decodeValuesFile(flags.ValuesFile)
+	if err != nil {
+		logger.ErrorF("Failed to decode values file: %v", err)
+	}
+
 	for i := range paths {
 		moduleName := filepath.Base(paths[i])
 		logger.DebugF("Found `%s` module", moduleName)
-		mdl, err := module.NewModule(paths[i])
+		mdl, err := module.NewModule(paths[i], vals)
 		if err != nil {
 			m.errors.
 				WithLinterID("!manager").
@@ -116,6 +122,25 @@ func NewManager(dirs []string, rootConfig *config.RootConfig) *Manager {
 	logger.InfoF("Found %d modules", len(m.Modules))
 
 	return m
+}
+
+func decodeValuesFile(path string) (map[string]any, error) {
+	if path == "" {
+		return nil, nil
+	}
+
+	var vals map[string]any
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	err = yaml.NewDecoder(f).Decode(&vals)
+	if err != nil {
+		return nil, err
+	}
+
+	return vals, nil
 }
 
 func (m *Manager) Run() {
