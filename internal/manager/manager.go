@@ -34,6 +34,7 @@ import (
 	"helm.sh/helm/v3/pkg/chartutil"
 
 	"github.com/deckhouse/dmt/internal/flags"
+	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg"
@@ -129,29 +130,12 @@ func decodeValuesFile(path string) (chartutil.Values, error) {
 		return nil, nil
 	}
 
-	valuesFile, err := expandDir(flags.ValuesFile)
+	valuesFile, err := fsutils.ExpandDir(path)
 	if err != nil {
 		return nil, err
 	}
 
 	return chartutil.ReadValuesFile(valuesFile)
-}
-
-func expandDir(path string) (string, error) {
-	if path == "" {
-		return path, nil
-	}
-
-	if path[0] != '~' {
-		return filepath.Abs(path)
-	}
-
-	dir, err := homedir.Dir()
-	if err != nil {
-		return "", err
-	}
-
-	return filepath.Join(dir, path[1:]), nil
 }
 
 func (m *Manager) Run() {

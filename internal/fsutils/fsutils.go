@@ -21,6 +21,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/mitchellh/go-homedir"
 )
 
 // IsDir checks if the given path is a directory
@@ -36,6 +38,7 @@ func IsFile(path string) bool {
 	return err == nil && !info.IsDir()
 }
 
+// ShortestRelPath returns the shortest relative path from the working directory to the given path.
 func ShortestRelPath(path, wd string) (string, error) {
 	if wd == "" { // get it if user don't have cached working dir
 		var err error
@@ -76,6 +79,7 @@ var (
 	getWdOnce     sync.Once
 )
 
+// Getwd returns the current working directory.
 func Getwd() (string, error) {
 	getWdOnce.Do(func() {
 		cachedWd, cachedWdError = os.Getwd()
@@ -102,6 +106,7 @@ type evalSymlinkRes struct {
 	err  error
 }
 
+// EvalSymlinks returns the path name after the evaluation of any symbolic links.
 func EvalSymlinks(path string) (string, error) {
 	r, ok := evalSymlinkCache.Load(path)
 	if ok {
@@ -116,7 +121,27 @@ func EvalSymlinks(path string) (string, error) {
 	return er.path, er.err
 }
 
+// Rel returns a relative path from basepath to targpath.
 func Rel(basepath, targpath string) string {
 	rel, _ := filepath.Rel(basepath, targpath)
 	return rel
+}
+
+// ExpandDir expands a path that starts with ~ to the user's home directory
+// and returns the absolute path.
+func ExpandDir(path string) (string, error) {
+	if path == "" {
+		return path, nil
+	}
+
+	if path[0] != '~' {
+		return filepath.Abs(path)
+	}
+
+	dir, err := homedir.Dir()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(dir, path[1:]), nil
 }
