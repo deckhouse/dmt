@@ -131,14 +131,6 @@ func NewModule(path string, vals *chartutil.Values) (*Module, error) {
 		return nil, err
 	}
 
-	ch, err := LoadModuleAsChart(module.GetName(), path)
-	if err != nil {
-		return nil, err
-	}
-
-	module.chart = ch
-	remapChart(ch)
-
 	values, err := ComposeValuesFromSchemas(module)
 	if err != nil {
 		return nil, err
@@ -232,10 +224,17 @@ func newModuleFromPath(path string) (*Module, error) {
 		ch.Namespace = getNamespace(path)
 	}
 
+	chart, err := LoadModuleAsChart(ch.Name, path)
+	if err != nil {
+		return nil, err
+	}
+	remapChart(chart)
+
 	module := &Module{
 		name:      ch.Name,
 		namespace: ch.Namespace,
 		path:      path,
+		chart:     chart,
 	}
 
 	return module, nil
