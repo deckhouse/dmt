@@ -53,7 +53,7 @@ type WildcardsRule struct {
 // of a wildcard in a Role and ClusterRole
 func (r *WildcardsRule) ObjectRolesWildcard(m *module.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.Name)
-	for _, object := range m.GetObjectStore().Storage {
+	for _, object := range m.GetStorage() {
 		// check only `rbac-for-us.yaml` files
 		if !strings.HasSuffix(object.ShortPath(), "rbac-for-us.yaml") {
 			continue

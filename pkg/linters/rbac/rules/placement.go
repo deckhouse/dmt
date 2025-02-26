@@ -72,7 +72,7 @@ func isDeckhouseSystemNamespace(actual string) bool {
 func (r *PlacementRule) ObjectRBACPlacement(m *module.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
-	for _, object := range m.GetObjectStore().Storage {
+	for _, object := range m.GetStorage() {
 		errorListObj := errorList.WithObjectID(object.Identity())
 
 		if !r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {

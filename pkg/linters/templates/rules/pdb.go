@@ -67,7 +67,7 @@ func (r *PDBRule) ControllerMustHavePDB(md *module.Module, errorList *errors.Lin
 
 	pdbSelectors := collectPDBSelectors(md, errorList)
 
-	for _, object := range md.GetObjectStore().Storage {
+	for _, object := range md.GetStorage() {
 		if !isPodController(object.Unstructured.GetKind()) {
 			continue
 		}
@@ -92,7 +92,7 @@ func (r *PDBRule) ControllerMustHavePDB(md *module.Module, errorList *errors.Lin
 func collectPDBSelectors(md *module.Module, errorList *errors.LintRuleErrorsList) []nsLabelSelector {
 	var selectors []nsLabelSelector
 
-	for _, object := range md.GetObjectStore().Storage {
+	for _, object := range md.GetStorage() {
 		if object.Unstructured.GetKind() != "PodDisruptionBudget" {
 			continue
 		}
