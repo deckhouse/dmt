@@ -31,7 +31,7 @@ import (
 	"github.com/kyokomi/emoji"
 	"github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/go-wordwrap"
-	"gopkg.in/yaml.v3"
+	"helm.sh/helm/v3/pkg/chartutil"
 
 	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/logger"
@@ -103,7 +103,7 @@ func NewManager(dirs []string, rootConfig *config.RootConfig) *Manager {
 	for i := range paths {
 		moduleName := filepath.Base(paths[i])
 		logger.DebugF("Found `%s` module", moduleName)
-		mdl, err := module.NewModule(paths[i], vals)
+		mdl, err := module.NewModule(paths[i], &vals)
 		if err != nil {
 			m.errors.
 				WithLinterID("!manager").
@@ -124,23 +124,21 @@ func NewManager(dirs []string, rootConfig *config.RootConfig) *Manager {
 	return m
 }
 
-func decodeValuesFile(path string) (map[string]any, error) {
+func decodeValuesFile(path string) (chartutil.Values, error) {
 	if path == "" {
 		return nil, nil
 	}
 
-	var vals map[string]any
-	f, err := os.Open(path)
+	f, err := homedir.Expand(flags.ValuesFile)
+	if err != nil {
+		return nil, err
+	}
+	file, err := filepath.Abs(f)
 	if err != nil {
 		return nil, err
 	}
 
-	err = yaml.NewDecoder(f).Decode(&vals)
-	if err != nil {
-		return nil, err
-	}
-
-	return vals, nil
+	return chartutil.ReadValuesFile(file)
 }
 
 func (m *Manager) Run() {

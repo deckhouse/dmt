@@ -125,7 +125,7 @@ func (m *Module) MergeRootConfig(cfg *config.RootConfig) {
 	m.linterConfig.LintersSettings.MergeGlobal(&cfg.GlobalSettings.Linters)
 }
 
-func NewModule(path string, vals map[string]any) (*Module, error) {
+func NewModule(path string, vals *chartutil.Values) (*Module, error) {
 	module, err := newModuleFromPath(path)
 	if err != nil {
 		return nil, err
@@ -170,20 +170,15 @@ func NewModule(path string, vals map[string]any) (*Module, error) {
 	return module, nil
 }
 
-func overrideValuesFromFile(values *chartutil.Values, vals map[string]any) error {
+func overrideValuesFromFile(values, vals *chartutil.Values) error {
 	if vals == nil {
 		return nil
 	}
-	v, ok := values.AsMap()["Values"].(map[string]any)
-	if !ok {
-		return fmt.Errorf("values.Values is not a map")
-	}
-	err := mergo.Merge(&v, vals, mergo.WithOverride)
-	if err != nil {
-		return err
-	}
 
-	return nil
+	v := &chartutil.Values{
+		"Values": *vals,
+	}
+	return mergo.Merge(values, v, mergo.WithOverride)
 }
 
 func remapChart(ch *chart.Chart) {
