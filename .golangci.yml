@@ -147,7 +147,7 @@ issues:
         - mnd
         - lll
 
-  exclude-dirs:
+  exclude-dirs: []
 
 run:
   timeout: 5m

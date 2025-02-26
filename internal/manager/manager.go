@@ -31,8 +31,10 @@ import (
 	"github.com/kyokomi/emoji"
 	"github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/go-wordwrap"
+	"helm.sh/helm/v3/pkg/chartutil"
 
 	"github.com/deckhouse/dmt/internal/flags"
+	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg"
@@ -94,10 +96,15 @@ func NewManager(dirs []string, rootConfig *config.RootConfig) *Manager {
 		paths = append(paths, result...)
 	}
 
+	vals, err := decodeValuesFile(flags.ValuesFile)
+	if err != nil {
+		logger.ErrorF("Failed to decode values file: %v", err)
+	}
+
 	for i := range paths {
 		moduleName := filepath.Base(paths[i])
 		logger.DebugF("Found `%s` module", moduleName)
-		mdl, err := module.NewModule(paths[i])
+		mdl, err := module.NewModule(paths[i], &vals)
 		if err != nil {
 			m.errors.
 				WithLinterID("!manager").
@@ -116,6 +123,19 @@ func NewManager(dirs []string, rootConfig *config.RootConfig) *Manager {
 	logger.InfoF("Found %d modules", len(m.Modules))
 
 	return m
+}
+
+func decodeValuesFile(path string) (chartutil.Values, error) {
+	if path == "" {
+		return nil, nil
+	}
+
+	valuesFile, err := fsutils.ExpandDir(path)
+	if err != nil {
+		return nil, err
+	}
+
+	return chartutil.ReadValuesFile(valuesFile)
 }
 
 func (m *Manager) Run() {
