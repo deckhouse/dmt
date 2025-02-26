@@ -54,7 +54,7 @@ func (r *VPARule) ControllerMustHaveVPA(md *module.Module, errorList *errors.Lin
 
 	vpaTargets, vpaContainerNamesMap, vpaUpdateModes := parseTargetsGroups(md, errorList)
 
-	for index, object := range md.GetObjectStore().Storage {
+	for index, object := range md.GetStorage() {
 		// Skip non-pod controllers
 		if !IsPodController(object.Unstructured.GetKind()) {
 			continue
@@ -93,7 +93,7 @@ func parseTargetsGroups(md *module.Module, errorList *errors.LintRuleErrorsList)
 	vpaContainerNamesMap := make(map[storage.ResourceIndex]set.Set)
 	vpaUpdateModes := make(map[storage.ResourceIndex]UpdateMode)
 
-	for _, object := range md.GetObjectStore().Storage {
+	for _, object := range md.GetStorage() {
 		kind := object.Unstructured.GetKind()
 
 		if kind != "VerticalPodAutoscaler" {
