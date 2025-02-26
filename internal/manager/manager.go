@@ -129,16 +129,29 @@ func decodeValuesFile(path string) (chartutil.Values, error) {
 		return nil, nil
 	}
 
-	f, err := homedir.Expand(flags.ValuesFile)
-	if err != nil {
-		return nil, err
-	}
-	file, err := filepath.Abs(f)
+	valuesFile, err := expandDir(flags.ValuesFile)
 	if err != nil {
 		return nil, err
 	}
 
-	return chartutil.ReadValuesFile(file)
+	return chartutil.ReadValuesFile(valuesFile)
+}
+
+func expandDir(path string) (string, error) {
+	if path == "" {
+		return path, nil
+	}
+
+	if path[0] != '~' {
+		return filepath.Abs(path)
+	}
+
+	dir, err := homedir.Dir()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(dir, path[1:]), nil
 }
 
 func (m *Manager) Run() {
