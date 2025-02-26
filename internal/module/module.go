@@ -144,7 +144,7 @@ func NewModule(path string, vals *chartutil.Values) (*Module, error) {
 		return nil, err
 	}
 
-	if err = overrideValuesFromFile(&values, vals); err != nil {
+	if err = overrideValues(&values, vals); err != nil {
 		logger.ErrorF("Failed to override values from file: %s", err)
 	}
 
@@ -170,7 +170,7 @@ func NewModule(path string, vals *chartutil.Values) (*Module, error) {
 	return module, nil
 }
 
-func overrideValuesFromFile(values, vals *chartutil.Values) error {
+func overrideValues(values, vals *chartutil.Values) error {
 	if vals == nil {
 		return nil
 	}
