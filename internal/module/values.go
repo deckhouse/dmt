@@ -7,7 +7,9 @@ import (
 	"path/filepath"
 
 	"github.com/flant/addon-operator/pkg/utils"
-	"github.com/flant/addon-operator/pkg/values/validation/schema"
+
+	"github.com/deckhouse/dmt/internal/module/schema"
+
 	"github.com/go-openapi/spec"
 	"github.com/go-openapi/swag"
 	"gopkg.in/yaml.v3"
