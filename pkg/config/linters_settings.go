@@ -91,6 +91,7 @@ type ModuleSettings struct {
 	OSS            ModuleOSSRuleSettings            `mapstructure:"oss"`
 	DefinitionFile ModuleDefinitionFileRuleSettings `mapstructure:"definition-file"`
 	Conversions    ConversionsRuleSettings          `mapstructure:"conversions"`
+	Patches        PatchesRuleSettings              `mapstructure:"patches"`
 
 	Impact *pkg.Level `mapstructure:"impact"`
 }
@@ -110,6 +111,11 @@ type ModuleDefinitionFileRuleSettings struct {
 }
 
 type ConversionsRuleSettings struct {
+	// disable conversions rule completely
+	Disable bool `mapstructure:"disable"`
+}
+
+type PatchesRuleSettings struct {
 	// disable conversions rule completely
 	Disable bool `mapstructure:"disable"`
 }
