@@ -80,7 +80,8 @@ func (o *OpenAPI) Desc() string {
 
 var openapiYamlRegex = regexp.MustCompile(`^openapi/.*\.ya?ml$`)
 
-func filterOpenAPIfiles(path string) bool {
+func filterOpenAPIfiles(rootPath, path string) bool {
+	path = fsutils.Rel(rootPath, path)
 	filename := filepath.Base(path)
 	if strings.HasSuffix(filename, "-tests.yaml") {
 		return false
@@ -94,7 +95,8 @@ func filterOpenAPIfiles(path string) bool {
 
 var crdsYamlRegex = regexp.MustCompile(`^crds/.*\.ya?ml$`)
 
-func filterCRDsfiles(path string) bool {
+func filterCRDsfiles(rootPath, path string) bool {
+	path = fsutils.Rel(rootPath, path)
 	filename := filepath.Base(path)
 	if strings.HasSuffix(filename, "-tests.yaml") {
 		return false
