@@ -36,7 +36,7 @@ const (
 
 var (
 	regexPatchFile = regexp.MustCompile(`^\d{3}-.*\.patch$`)
-	regexPatchDir  = regexp.MustCompile(`^images/{a-z,A-Z}*/patches/.*$`)
+	regexPatchDir  = regexp.MustCompile(`^images/[a-zA-Z/\d]*/patches/.*patch$`)
 )
 
 type PatchesRule struct {
@@ -62,12 +62,14 @@ func (r *PatchesRule) CheckPatches(moduleDir string, errorList *errors.LintRuleE
 		return
 	}
 
-	for file := range slices.Values(fsutils.GetFiles(moduleDir, false, filterPatches)) {
-		errorList = errorList.WithFilePath(fsutils.Rel(moduleDir, file))
+	files := fsutils.GetFiles(moduleDir, false, filterPatches)
+	for file := range slices.Values(files) {
+		path := fsutils.Rel(moduleDir, file)
+		errorList = errorList.WithFilePath(path)
 		if !regexPatchFile.MatchString(filepath.Base(file)) {
-			errorList.Errorf("Patch file name should match pattern `XXX-<description>.patch`")
+			errorList.Errorf("Patch file name should match pattern `XXX-<patch-name>.patch`")
 		}
-		if !regexPatchDir.MatchString(fsutils.Rel(moduleDir, file)) {
+		if !regexPatchDir.MatchString(path) {
 			errorList.Errorf("Patch file should be in `images/<image_name>/patches/` directory")
 		}
 		if !checkReadmeFileExist(file) {
@@ -81,7 +83,7 @@ func (r *PatchesRule) CheckPatches(moduleDir string, errorList *errors.LintRuleE
 }
 
 // filterPatches will get all patch files
-func filterPatches(path string) bool {
+func filterPatches(_, path string) bool {
 	f, err := os.Stat(path)
 	if err != nil {
 		logger.DebugF("Error getting file info: %v", err)

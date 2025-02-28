@@ -73,7 +73,7 @@ func (r *LicenseRule) CheckFiles(mod *module.Module, errorList *errors.LintRuleE
 	}
 }
 
-func filterFiles(path string) bool {
+func filterFiles(rootPath, path string) bool {
 	f, err := os.Stat(path)
 	if err != nil {
 		logger.DebugF("Error getting file info: %v", err)
@@ -82,6 +82,7 @@ func filterFiles(path string) bool {
 	if f.IsDir() {
 		return false
 	}
+	path = fsutils.Rel(rootPath, path)
 	if fileToCheckRe.MatchString(path) && !fileToSkipRe.MatchString(path) {
 		return true
 	}

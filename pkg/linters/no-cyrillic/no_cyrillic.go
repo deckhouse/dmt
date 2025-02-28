@@ -68,7 +68,7 @@ func (l *NoCyrillic) Run(m *module.Module) {
 	}
 }
 
-func filterFiles(path string) bool {
+func filterFiles(_, path string) bool {
 	return slices.ContainsFunc(fileExtensions, func(s string) bool {
 		return strings.HasSuffix(path, s)
 	})
