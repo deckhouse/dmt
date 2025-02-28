@@ -36,7 +36,7 @@ const (
 
 var (
 	regexPatchFile = regexp.MustCompile(`^\d{3}-.*\.patch$`)
-	regexPatchDir  = regexp.MustCompile(`^images/[a-zA-Z/\d]*/patches/.*patch$`)
+	regexPatchDir  = regexp.MustCompile(`^images/[\w/\-.]*/patches/.*patch$`)
 )
 
 type PatchesRule struct {
