@@ -19,13 +19,12 @@ package rules
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
-	"regexp"
-
 	"github.com/deckhouse/dmt/internal/fsutils"
-	"github.com/deckhouse/dmt/internal/logger"
+	"github.com/deckhouse/dmt/internal/set"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
@@ -36,7 +35,7 @@ const (
 
 var (
 	regexPatchFile = regexp.MustCompile(`^\d{3}-.*\.patch$`)
-	regexPatchDir  = regexp.MustCompile(`^images/[\w/\-.]*/patches/.*patch$`)
+	regexPatchDir  = regexp.MustCompile(`^images/[\w/\-.]*/patches.*$`)
 )
 
 type PatchesRule struct {
@@ -56,52 +55,46 @@ func NewPatchesRule(disable bool) *PatchesRule {
 }
 
 func (r *PatchesRule) CheckPatches(moduleDir string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.Name)
-
 	if !r.Enabled() {
 		return
 	}
 
+	errorList = errorList.WithRule(r.Name)
+
 	files := fsutils.GetFiles(moduleDir, false, filterPatches)
+	patchDirs := set.New()
+	for _, file := range files {
+		patchDirs.Add(filepath.Dir(file))
+	}
+
+	for _, patchDir := range patchDirs.Slice() {
+		path := fsutils.Rel(moduleDir, patchDir)
+		if !regexPatchDir.MatchString(path) {
+			errorList.WithFilePath(path).Errorf("Patch file should be in `images/<image_name>/patches/` directory")
+		}
+		if !fsutils.IsFileExist(filepath.Join(patchDir, "README.md")) {
+			errorList.WithFilePath(path).Errorf("Patch file should have a corresponding README file")
+		}
+	}
+
 	for file := range slices.Values(files) {
 		path := fsutils.Rel(moduleDir, file)
-		errorList = errorList.WithFilePath(path)
 		if !regexPatchFile.MatchString(filepath.Base(file)) {
-			errorList.Errorf("Patch file name should match pattern `XXX-<patch-name>.patch`")
-		}
-		if !regexPatchDir.MatchString(path) {
-			errorList.Errorf("Patch file should be in `images/<image_name>/patches/` directory")
-		}
-		if !checkReadmeFileExist(file) {
-			errorList.Errorf("Patch file should have a corresponding README file")
-			continue
+			errorList.WithFilePath(path).Errorf("Patch file name should match pattern `XXX-<patch-name>.patch`")
 		}
 		if !checkReadmeFile(file) {
-			errorList.Errorf("README file should contain a description of the patch")
+			errorList.WithFilePath(path).Errorf("README file should contain a description of the patch")
 		}
 	}
 }
 
 // filterPatches will get all patch files
 func filterPatches(_, path string) bool {
-	f, err := os.Stat(path)
-	if err != nil {
-		logger.DebugF("Error getting file info: %v", err)
-		return false
-	}
-	if f.IsDir() {
-		return false
-	}
 	if filepath.Ext(path) == ".patch" {
 		return true
 	}
 
 	return false
-}
-
-func checkReadmeFileExist(patchFile string) bool {
-	readmeFile := filepath.Join(filepath.Dir(patchFile), "README.md")
-	return fsutils.IsFileExist(readmeFile)
 }
 
 func checkReadmeFile(patchFile string) bool {
