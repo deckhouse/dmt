@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -82,8 +83,8 @@ func (r *PatchesRule) CheckPatches(moduleDir string, errorList *errors.LintRuleE
 		if !regexPatchFile.MatchString(filepath.Base(file)) {
 			errorList.WithFilePath(path).Errorf("Patch file name should match pattern `XXX-<patch-name>.patch`")
 		}
-		if !checkReadmeFile(file) {
-			errorList.WithFilePath(path).Errorf("README file should contain a description of the patch")
+		if err := checkReadmeFile(file); err != nil {
+			errorList.WithFilePath(path).Errorf(err.Error())
 		}
 	}
 }
@@ -93,18 +94,18 @@ func filterPatches(_, path string) bool {
 	return filepath.Ext(path) == ".patch"
 }
 
-func checkReadmeFile(patchFile string) bool {
+func checkReadmeFile(patchFile string) error {
 	readmeFile := filepath.Join(filepath.Dir(patchFile), "README.md")
 	content, err := os.ReadFile(readmeFile)
-	if err != nil {
-		return false
+	if os.IsNotExist(err) {
+		return nil
 	}
-	if len(content) == 0 {
-		return false
+	if err != nil {
+		return fmt.Errorf("error reading README.md file: %w", err)
 	}
 	if !strings.Contains(string(content), "# "+filepath.Base(patchFile)) {
-		return false
+		return fmt.Errorf("README.md file does not contain # " + filepath.Base(patchFile))
 	}
 
-	return true
+	return nil
 }
