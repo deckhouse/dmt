@@ -152,3 +152,15 @@ func IsFileExist(path string) bool {
 	}
 	return true
 }
+
+func FilterFileByExtensions(exts ...string) func(_, path string) bool {
+	return func(_, path string) bool {
+		for _, ext := range exts {
+			if filepath.Ext(path) == ext {
+				return true
+			}
+		}
+
+		return false
+	}
+}

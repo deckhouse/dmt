@@ -62,7 +62,7 @@ func (r *PatchesRule) CheckPatches(moduleDir string, errorList *errors.LintRuleE
 
 	errorList = errorList.WithRule(r.Name)
 
-	files := fsutils.GetFiles(moduleDir, false, filterPatches)
+	files := fsutils.GetFiles(moduleDir, false, fsutils.FilterFileByExtensions(".patch"))
 	patchDirs := set.New()
 	for _, file := range files {
 		patchDirs.Add(filepath.Dir(file))
@@ -87,11 +87,6 @@ func (r *PatchesRule) CheckPatches(moduleDir string, errorList *errors.LintRuleE
 			errorList.WithFilePath(path).Errorf(err.Error())
 		}
 	}
-}
-
-// filterPatches will get all patch files
-func filterPatches(_, path string) bool {
-	return filepath.Ext(path) == ".patch"
 }
 
 func checkReadmeFile(patchFile string) error {
