@@ -43,7 +43,7 @@ func Test_parseProperties(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "schema with simple examples",
+			name: "schema with simple x-dmt-example",
 			schema: &spec.Schema{
 				SchemaProps: spec.SchemaProps{
 					Properties: map[string]spec.Schema{
@@ -67,7 +67,7 @@ func Test_parseProperties(t *testing.T) {
 							},
 							VendorExtensible: spec.VendorExtensible{
 								Extensions: spec.Extensions{
-									ExamplesKey: map[string]any{
+									DmtDefault: map[string]any{
 										"bar1": "example",
 									},
 								},
@@ -80,7 +80,7 @@ func Test_parseProperties(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "schema with examples",
+			name: "schema with simple x-dmt-example, x-example",
 			schema: &spec.Schema{
 				SchemaProps: spec.SchemaProps{
 					Properties: map[string]spec.Schema{
@@ -104,10 +104,11 @@ func Test_parseProperties(t *testing.T) {
 							},
 							VendorExtensible: spec.VendorExtensible{
 								Extensions: spec.Extensions{
-									ExamplesKey: []any{
-										map[string]any{
-											"bar1": "example",
-										},
+									DmtDefault: map[string]any{
+										"bar1": "example",
+									},
+									ExampleDefault: map[string]any{
+										"bar1": "text2",
 									},
 								},
 							},
@@ -116,6 +117,85 @@ func Test_parseProperties(t *testing.T) {
 				},
 			},
 			want:    map[string]any{"exampleKey": map[string]any{"bar1": "example", "bar2": "text"}},
+			wantErr: false,
+		},
+		{
+			name: "schema with simple x-example",
+			schema: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Properties: map[string]spec.Schema{
+						"exampleKey": {
+							SchemaProps: spec.SchemaProps{
+								Type: spec.StringOrArray{"object"},
+								Properties: map[string]spec.Schema{
+									"bar1": {
+										SchemaProps: spec.SchemaProps{
+											Type:    spec.StringOrArray{"string"},
+											Default: "text",
+										},
+									},
+									"bar2": {
+										SchemaProps: spec.SchemaProps{
+											Type:    spec.StringOrArray{"string"},
+											Default: "text",
+										},
+									},
+								},
+							},
+							VendorExtensible: spec.VendorExtensible{
+								Extensions: spec.Extensions{
+									ExampleDefault: map[string]any{
+										"bar1": "text2",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want:    map[string]any{"exampleKey": map[string]any{"bar1": "text2", "bar2": "text"}},
+			wantErr: false,
+		},
+		{
+			name: "schema with simple x-examples",
+			schema: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Properties: map[string]spec.Schema{
+						"exampleKey": {
+							SchemaProps: spec.SchemaProps{
+								Type: spec.StringOrArray{"object"},
+								Properties: map[string]spec.Schema{
+									"bar1": {
+										SchemaProps: spec.SchemaProps{
+											Type:    spec.StringOrArray{"string"},
+											Default: "text",
+										},
+									},
+									"bar2": {
+										SchemaProps: spec.SchemaProps{
+											Type:    spec.StringOrArray{"string"},
+											Default: "text",
+										},
+									},
+								},
+							},
+							VendorExtensible: spec.VendorExtensible{
+								Extensions: spec.Extensions{
+									ExamplesDefault: []map[string]any{
+										{
+											"bar1": "text2",
+										},
+										{
+											"bar2": "text2",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want:    map[string]any{"exampleKey": map[string]any{"bar1": "text2", "bar2": "text"}},
 			wantErr: false,
 		},
 		{
