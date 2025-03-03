@@ -145,3 +145,10 @@ func ExpandDir(path string) (string, error) {
 
 	return filepath.Join(dir, path[1:]), nil
 }
+
+func IsFileExist(path string) bool {
+	if _, err := os.Stat(path); err != nil {
+		return false
+	}
+	return true
+}

@@ -101,10 +101,7 @@ func filterPatches(_, path string) bool {
 
 func checkReadmeFileExist(patchFile string) bool {
 	readmeFile := filepath.Join(filepath.Dir(patchFile), "README.md")
-	if _, err := os.Stat(readmeFile); err != nil {
-		return false
-	}
-	return true
+	return fsutils.IsFileExist(readmeFile)
 }
 
 func checkReadmeFile(patchFile string) bool {
