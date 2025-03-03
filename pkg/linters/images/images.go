@@ -52,7 +52,6 @@ func (l *Images) Run(m *module.Module) {
 
 	l.ApplyImagesRules(m, errorList)
 	rules.NewPatchesRule(l.cfg.Patches.Disable).CheckPatches(m.GetPath(), errorList)
-
 }
 
 func (l *Images) Name() string {

@@ -90,11 +90,7 @@ func (r *PatchesRule) CheckPatches(moduleDir string, errorList *errors.LintRuleE
 
 // filterPatches will get all patch files
 func filterPatches(_, path string) bool {
-	if filepath.Ext(path) == ".patch" {
-		return true
-	}
-
-	return false
+	return filepath.Ext(path) == ".patch"
 }
 
 func checkReadmeFile(patchFile string) bool {
