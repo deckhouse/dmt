@@ -19,7 +19,6 @@ package module
 import (
 	"encoding/base64"
 	"fmt"
-	"os"
 	"reflect"
 	"strings"
 
