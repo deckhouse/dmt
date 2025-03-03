@@ -28,7 +28,6 @@ import (
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 
-	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/internal/werf"
 	"github.com/deckhouse/dmt/pkg/config"
@@ -137,7 +136,7 @@ func NewModule(path string, vals *chartutil.Values) (*Module, error) {
 	}
 
 	if err = overrideValues(&values, vals); err != nil {
-		logger.ErrorF("Failed to override values from file: %s", err)
+		return nil, fmt.Errorf("failed to override values from file: %w", err)
 	}
 
 	objectStore := storage.NewUnstructuredObjectStore()
