@@ -104,7 +104,7 @@ func checkReadmeFile(patchFile string) error {
 		return fmt.Errorf("error reading README.md file: %w", err)
 	}
 	if !strings.Contains(string(content), "# "+filepath.Base(patchFile)) {
-		return fmt.Errorf("README.md file does not contain # " + filepath.Base(patchFile))
+		return fmt.Errorf("%s", "README.md file does not contain # "+filepath.Base(patchFile))
 	}
 
 	return nil
