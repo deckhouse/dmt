@@ -59,8 +59,8 @@ func (l *NoCyrillic) Run(m *module.Module) {
 	}
 
 	filesRule := rules.NewFilesRule(
-		l.cfg.NoCyrillicExcludeRules.Files.Get(),
-		l.cfg.NoCyrillicExcludeRules.Directories.Get())
+		l.cfg.NoCyrillicExcludeRules.Files,
+		l.cfg.NoCyrillicExcludeRules.Directories)
 
 	files := fsutils.GetFiles(m.GetPath(), false, filterFiles)
 	for _, fileName := range files {

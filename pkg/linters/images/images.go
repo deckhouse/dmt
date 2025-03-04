@@ -20,6 +20,7 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters/images/rules"
 )
 
 const (
@@ -49,13 +50,10 @@ func (l *Images) Run(m *module.Module) {
 
 	errorList := l.ErrorList.WithModule(m.GetName())
 
-	l.ApplyImagesRules(m, errorList)
+	rules.NewImageRule(l.cfg).CheckImageNamesInDockerFiles(m.GetPath(), errorList)
+	rules.NewWerfRule().LintWerfFile(m.GetWerfFile(), errorList)
 }
 
 func (l *Images) Name() string {
 	return l.name
-}
-
-func (l *Images) Desc() string {
-	return l.desc
 }

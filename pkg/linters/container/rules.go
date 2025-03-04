@@ -34,9 +34,9 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 		rules.NewNamespaceLabelsRule().ObjectNamespaceLabels,
 		rules.NewAPIVersionRule().ObjectAPIVersion,
 		rules.NewPriorityClassRule().ObjectPriorityClass,
-		rules.NewDNSPolicyRule(l.cfg.ExcludeRules.DNSPolicy.Get()).
+		rules.NewDNSPolicyRule(l.cfg.ExcludeRules.DNSPolicy).
 			ObjectDNSPolicy,
-		rules.NewControllerSecurityContextRule(l.cfg.ExcludeRules.ControllerSecurityContext.Get()).
+		rules.NewControllerSecurityContextRule(l.cfg.ExcludeRules.ControllerSecurityContext).
 			ControllerSecurityContext,
 		rules.NewRevisionHistoryLimitRule().ObjectRevisionHistoryLimit,
 	}
@@ -59,19 +59,19 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 
 	containerRules := []func(storage.StoreObject, []corev1.Container, *errors.LintRuleErrorsList){
 		rules.NewNameDuplicatesRule().ContainerNameDuplicates,
-		rules.NewCheckReadOnlyRootFilesystemRule(l.cfg.ExcludeRules.ReadOnlyRootFilesystem.Get()).
+		rules.NewCheckReadOnlyRootFilesystemRule(l.cfg.ExcludeRules.ReadOnlyRootFilesystem).
 			ObjectReadOnlyRootFilesystem,
-		rules.NewHostNetworkPortsRule(l.cfg.ExcludeRules.HostNetworkPorts.Get()).ObjectHostNetworkPorts,
+		rules.NewHostNetworkPortsRule(l.cfg.ExcludeRules.HostNetworkPorts).ObjectHostNetworkPorts,
 
 		// old with module names skipping
 		rules.NewEnvVariablesDuplicatesRule().ContainerEnvVariablesDuplicates,
-		rules.NewImageDigestRule(l.cfg.ExcludeRules.ImageDigest.Get()).ContainerImageDigestCheck,
+		rules.NewImageDigestRule(l.cfg.ExcludeRules.ImageDigest).ContainerImageDigestCheck,
 		rules.NewImagePullPolicyRule().ContainersImagePullPolicy,
-		rules.NewResourcesRule(l.cfg.ExcludeRules.Resources.Get()).
+		rules.NewResourcesRule(l.cfg.ExcludeRules.Resources).
 			ContainerStorageEphemeral,
-		rules.NewContainerSecurityContextRule(l.cfg.ExcludeRules.SecurityContext.Get()).
+		rules.NewContainerSecurityContextRule(l.cfg.ExcludeRules.SecurityContext).
 			ContainerSecurityContext,
-		rules.NewPortsRule(l.cfg.ExcludeRules.Ports.Get()).ContainerPorts,
+		rules.NewPortsRule(l.cfg.ExcludeRules.Ports).ContainerPorts,
 	}
 
 	for _, rule := range containerRules {
@@ -91,9 +91,9 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 	}
 
 	notInitContainerRules := []func(storage.StoreObject, []corev1.Container, *errors.LintRuleErrorsList){
-		rules.NewLivenessRule(l.cfg.ExcludeRules.Liveness.Get()).
+		rules.NewLivenessRule(l.cfg.ExcludeRules.Liveness).
 			CheckProbe,
-		rules.NewReadinessRule(l.cfg.ExcludeRules.Readiness.Get()).
+		rules.NewReadinessRule(l.cfg.ExcludeRules.Readiness).
 			CheckProbe,
 	}
 

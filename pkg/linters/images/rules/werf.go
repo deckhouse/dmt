@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package images
+package rules
 
 import (
 	"fmt"
@@ -24,6 +24,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
@@ -38,8 +39,19 @@ type werfFile struct {
 	Final    *bool  `json:"final" yaml:"final"`
 }
 
-func lintWerfFile(data string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(werfRuleName)
+type WerfRule struct {
+	pkg.RuleMeta
+}
+
+func NewWerfRule() *WerfRule {
+	return &WerfRule{
+		RuleMeta: pkg.RuleMeta{
+			Name: werfRuleName,
+		},
+	}
+}
+func (r *WerfRule) LintWerfFile(data string, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(r.GetName())
 	werfDocs := splitManifests(data)
 
 	i := 1

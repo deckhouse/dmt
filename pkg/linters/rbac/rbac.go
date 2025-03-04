@@ -54,9 +54,9 @@ func (l *Rbac) Run(m *module.Module) {
 		ObjectUserAuthzClusterRolePath(m, errorList)
 	rules.NewBindingSubjectRule().
 		ObjectBindingSubjectServiceAccountCheck(m, errorList)
-	rules.NewPlacementRule(l.cfg.ExcludeRules.Placement.Get()).
+	rules.NewPlacementRule(l.cfg.ExcludeRules.Placement).
 		ObjectRBACPlacement(m, errorList)
-	rules.NewWildcardsRule(l.cfg.ExcludeRules.Wildcards.Get()).
+	rules.NewWildcardsRule(l.cfg.ExcludeRules.Wildcards).
 		ObjectRolesWildcard(m, errorList)
 }
 

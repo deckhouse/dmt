@@ -54,9 +54,9 @@ func (l *Templates) Run(m *module.Module) {
 	errorList := l.ErrorList.WithModule(m.GetName())
 
 	// VPA
-	rules.NewVPARule(l.cfg.ExcludeRules.VPAAbsent.Get()).ControllerMustHaveVPA(m, errorList)
+	rules.NewVPARule(l.cfg.ExcludeRules.VPAAbsent).ControllerMustHaveVPA(m, errorList)
 	// PDB
-	rules.NewPDBRule(l.cfg.ExcludeRules.PDBAbsent.Get()).ControllerMustHavePDB(m, errorList)
+	rules.NewPDBRule(l.cfg.ExcludeRules.PDBAbsent).ControllerMustHavePDB(m, errorList)
 
 	// monitoring
 	prometheusRule := rules.NewPrometheusRule()
@@ -69,10 +69,10 @@ func (l *Templates) Run(m *module.Module) {
 		errorList.Errorf("reading the 'monitoring' folder failed: %s", err)
 	}
 
-	rules.NewKubeRbacProxyRule(l.cfg.ExcludeRules.KubeRBACProxy.Get()).
+	rules.NewKubeRbacProxyRule(l.cfg.ExcludeRules.KubeRBACProxy).
 		NamespaceMustContainKubeRBACProxyCA(m.GetObjectStore(), errorList)
 
-	servicePortRule := rules.NewServicePortRule(l.cfg.ExcludeRules.ServicePort.Get())
+	servicePortRule := rules.NewServicePortRule(l.cfg.ExcludeRules.ServicePort)
 
 	for _, object := range m.GetStorage() {
 		servicePortRule.ObjectServiceTargetPort(object, errorList)

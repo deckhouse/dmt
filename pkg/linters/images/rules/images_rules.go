@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package images
+package rules
 
 import (
 	"bufio"
@@ -25,11 +25,17 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/deckhouse/dmt/pkg"
+	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 const (
 	dockerfileRuleName = "dockerfile"
+)
+
+const (
+	ImagesDir = "images"
 )
 
 var regexPatterns = map[string]string{
@@ -52,28 +58,33 @@ var distrolessImagesPrefix = map[string][]string{
 	},
 }
 
-func (l *Images) skipModuleImageNameIfNeeded(filePath string) bool {
-	for _, img := range l.cfg.SkipModuleImageName {
-		if strings.HasSuffix(filePath, img) {
-			return true
-		}
-	}
-
-	return false
+type ImageRule struct {
+	pkg.RuleMeta
+	SkipModuleImageName      pkg.PrefixRule
+	SkipDistrolessImageCheck pkg.PrefixRule
 }
 
-func (l *Images) skipDistrolessImageCheckIfNeeded(image string) bool {
-	for _, img := range l.cfg.SkipDistrolessImageCheck {
-		if strings.HasSuffix(image, img) {
-			return true
-		}
+func NewImageRule(cfg *config.ImageSettings) *ImageRule {
+	return &ImageRule{
+		RuleMeta: pkg.RuleMeta{
+			Name: dockerfileRuleName,
+		},
+		SkipModuleImageName: pkg.PrefixRule{
+			ExcludeRules: cfg.SkipModuleImageName,
+		},
+		SkipDistrolessImageCheck: pkg.PrefixRule{
+			ExcludeRules: cfg.SkipDistrolessImageCheck,
+		},
 	}
-
-	return false
 }
 
 func imageRegexp(s string) string {
 	return fmt.Sprintf("^(from:|FROM)(\\s+)(%s)", s)
+}
+
+func IsExistsOnFilesystem(parts ...string) bool {
+	_, err := os.Stat(filepath.Join(parts...))
+	return err == nil
 }
 
 func isImageNameUnacceptable(imageName string) (bool, string) {
@@ -86,7 +97,7 @@ func isImageNameUnacceptable(imageName string) (bool, string) {
 	return false, ""
 }
 
-func (l *Images) checkImageNamesInDockerFiles(moduleName, modulePath string, errorList *errors.LintRuleErrorsList) {
+func (r *ImageRule) CheckImageNamesInDockerFiles(modulePath string, errorList *errors.LintRuleErrorsList) {
 	var filePaths []string
 
 	imagesPath := filepath.Join(modulePath, ImagesDir)
@@ -108,15 +119,12 @@ func (l *Images) checkImageNamesInDockerFiles(moduleName, modulePath string, err
 	})
 
 	for _, path := range filePaths {
-		if l.skipModuleImageNameIfNeeded(path) {
-			continue
-		}
-
-		l.lintOneDockerfile(moduleName, path, imagesPath, errorList)
+		errorList = errorList.WithEnabled(r.SkipModuleImageName.Enabled(path))
+		r.lintOneDockerfile(path, imagesPath, errorList)
 	}
 }
 
-func (l *Images) lintOneDockerfile(moduleName, path, imagesPath string, errorList *errors.LintRuleErrorsList) {
+func (r *ImageRule) lintOneDockerfile(path, imagesPath string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithFilePath(path).WithRule(dockerfileRuleName)
 	relativeFilePath, err := filepath.Rel(imagesPath, path)
 	if err != nil {
@@ -156,8 +164,8 @@ func (l *Images) lintOneDockerfile(moduleName, path, imagesPath string, errorLis
 	}
 
 	for i, fromInstruction := range dockerfileFromInstructions {
-		if l.skipDistrolessImageCheckIfNeeded(relativeFilePath) {
-			errorList.WithObjectID(fmt.Sprintf("module = %s ; image = %s ; value - %s", moduleName, relativeFilePath, fromInstruction)).
+		if !r.SkipDistrolessImageCheck.Enabled(relativeFilePath)() {
+			errorList.WithObjectID(fmt.Sprintf("image = %s ; value - %s", relativeFilePath, fromInstruction)).
 				Warn("WARNING!!! SKIP DISTROLESS CHECK!!!")
 
 			continue
@@ -192,18 +200,14 @@ func isDockerfileInstructionUnacceptable(from string, final bool) (bool, string)
 }
 
 func checkDistrolessPrefix(str string, in []string) bool {
-	result := false
-
 	str = strings.TrimPrefix(str, "$.Images.")
 	str = strings.TrimPrefix(str, ".Images.")
 
 	for _, pattern := range in {
 		if strings.HasPrefix(str, pattern) {
-			result = true
-
-			break
+			return true
 		}
 	}
 
-	return result
+	return false
 }

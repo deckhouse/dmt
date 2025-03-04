@@ -80,7 +80,6 @@ type HooksIngressRuleSetting struct {
 type ImageSettings struct {
 	SkipModuleImageName      PrefixRuleExcludeList `mapstructure:"skip-module-image-name"`
 	SkipDistrolessImageCheck PrefixRuleExcludeList `mapstructure:"skip-distroless-image-check"`
-	SkipNamespaceCheck       PrefixRuleExcludeList `mapstructure:"skip-namespace-check"`
 
 	Impact *pkg.Level `mapstructure:"impact"`
 }
@@ -172,17 +171,7 @@ type TemplatesExcludeRules struct {
 
 type ServicePortExcludeList []pkg.ServicePortExclude
 
-type StringRuleExcludeList []string
-
-func (l StringRuleExcludeList) Get() []pkg.StringRuleExclude {
-	result := make([]pkg.StringRuleExclude, 0, len(l))
-
-	for idx := range l {
-		result = append(result, pkg.StringRuleExclude(l[idx]))
-	}
-
-	return result
-}
+type StringRuleExcludeList []pkg.StringRuleExclude
 
 type PrefixRuleExcludeList []pkg.PrefixRuleExclude
 

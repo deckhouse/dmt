@@ -42,7 +42,7 @@ func NewHARule(cfg *config.OpenAPISettings, rootPath string) *HARule {
 			Name: "high-availability",
 		},
 		StringRule: pkg.StringRule{
-			ExcludeRules: cfg.OpenAPIExcludeRules.HAAbsoluteKeysExcludes.Get(),
+			ExcludeRules: cfg.OpenAPIExcludeRules.HAAbsoluteKeysExcludes,
 		},
 		rootPath: rootPath,
 	}
