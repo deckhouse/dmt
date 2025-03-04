@@ -56,10 +56,9 @@ func (r *CheckReadOnlyRootFilesystemRule) ObjectReadOnlyRootFilesystem(object st
 	for i := range containers {
 		c := &containers[i]
 
-		if !r.Enabled(object, c) {
-			// TODO: add metrics
-			continue
-		}
+		errorList = errorList.WithEnabled(func() bool {
+			return r.Enabled(object, c)
+		})
 
 		if c.VolumeMounts == nil {
 			continue

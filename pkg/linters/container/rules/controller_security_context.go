@@ -47,14 +47,11 @@ type ControllerSecurityContextRule struct {
 }
 
 func (r *ControllerSecurityContextRule) ControllerSecurityContext(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+	errorList = errorList.WithRule(r.GetName()).WithEnabled(func() bool {
+		return r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName())
+	})
 
 	if !isSecurityContextSupportedKind(object.Unstructured.GetKind()) {
-		return
-	}
-
-	if !r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {
-		// TODO: add metrics
 		return
 	}
 

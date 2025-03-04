@@ -24,6 +24,7 @@ import (
 	"github.com/deckhouse/dmt/pkg"
 )
 
+type enabledFn func() bool
 type lintRuleError struct {
 	LinterID    string
 	ModuleID    string
@@ -76,6 +77,8 @@ type LintRuleErrorsList struct {
 	lineNumber int
 
 	maxLevel *pkg.Level
+
+	enabled enabledFn
 }
 
 func NewLintRuleErrorsList() *LintRuleErrorsList {
@@ -89,6 +92,9 @@ func NewLintRuleErrorsList() *LintRuleErrorsList {
 	}
 }
 
+// NewLinterRuleList creates a new LintRuleErrorsList with a specified linterID and moduleID.
+// If moduleID is not provided, it will be empty.
+// Used only first moduleID for a linter.
 func NewLinterRuleList(linterID string, module ...string) *LintRuleErrorsList {
 	l := &LintRuleErrorsList{
 		storage:  &errStorage{},
@@ -116,6 +122,7 @@ func (l *LintRuleErrorsList) copy() *LintRuleErrorsList {
 		filePath:   l.filePath,
 		lineNumber: l.lineNumber,
 		maxLevel:   l.maxLevel,
+		enabled:    l.enabled,
 	}
 }
 
@@ -175,6 +182,12 @@ func (l *LintRuleErrorsList) WithLineNumber(lineNumber int) *LintRuleErrorsList 
 	return list
 }
 
+func (l *LintRuleErrorsList) WithEnabled(f enabledFn) *LintRuleErrorsList {
+	list := l.copy()
+	list.enabled = f
+	return list
+}
+
 func (l *LintRuleErrorsList) Warn(str string) *LintRuleErrorsList {
 	return l.add(str, pkg.Warn)
 }
@@ -194,6 +207,10 @@ func (l *LintRuleErrorsList) Errorf(template string, a ...any) *LintRuleErrorsLi
 func (l *LintRuleErrorsList) add(str string, level pkg.Level) *LintRuleErrorsList {
 	if l.storage == nil {
 		l.storage = &errStorage{}
+	}
+
+	if l.enabled != nil && !l.enabled() {
+		return l
 	}
 
 	if l.maxLevel != nil && *l.maxLevel < level {

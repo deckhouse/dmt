@@ -63,13 +63,11 @@ type FilesRule struct {
 }
 
 func (r *FilesRule) CheckFile(m *module.Module, fileName string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
-
 	fName := fsutils.Rel(m.GetPath(), fileName)
-	if !r.Enabled(fName) {
-		// TODO: add metrics
-		return
-	}
+
+	errorList = errorList.WithRule(r.GetName()).WithEnabled(func() bool {
+		return r.Enabled(fileName)
+	})
 
 	if r.skipDocRe.MatchString(fileName) {
 		return

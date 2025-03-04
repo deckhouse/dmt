@@ -57,10 +57,9 @@ func (r *LicenseRule) CheckFiles(mod *module.Module, errorList *errors.LintRuleE
 	for _, fileName := range files {
 		name := fsutils.Rel(mod.GetPath(), fileName)
 
-		if !r.Enabled(name) {
-			// TODO: add metrics
-			continue
-		}
+		errorList = errorList.WithEnabled(func() bool {
+			return r.Enabled(name)
+		})
 
 		ok, err := checkFileCopyright(fileName)
 		if !ok {

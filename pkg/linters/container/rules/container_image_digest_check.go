@@ -55,10 +55,9 @@ func (r *ImageDigestRule) ContainerImageDigestCheck(object storage.StoreObject, 
 	for i := range containers {
 		c := &containers[i]
 
-		if !r.Enabled(object, c) {
-			// TODO: add metrics
-			continue
-		}
+		errorList = errorList.WithEnabled(func() bool {
+			return r.Enabled(object, c)
+		})
 
 		match := strings.Split(c.Image, "@")
 		if len(match) == 0 {

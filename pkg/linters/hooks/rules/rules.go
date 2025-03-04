@@ -48,15 +48,13 @@ func NewHookRule(cfg *config.HooksSettings) *HookRule {
 }
 
 func (l *HookRule) CheckIngressCopyCustomCertificateRule(m *module.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(l.GetName()).WithFilePath(object.ShortPath())
+	errorList = errorList.WithRule(l.GetName()).WithFilePath(object.ShortPath()).WithEnabled(func() bool {
+		return l.Enabled()
+	})
 
 	const (
 		copyCustomCertificateImport = `"github.com/deckhouse/deckhouse/go_lib/hooks/copy_custom_certificate"`
 	)
-
-	if !l.Enabled() {
-		return
-	}
 
 	if object.Unstructured.GetKind() != "Ingress" {
 		return

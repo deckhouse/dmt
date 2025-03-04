@@ -46,12 +46,11 @@ type DNSPolicyRule struct {
 }
 
 func (r *DNSPolicyRule) ObjectDNSPolicy(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.ShortPath())
-
-	if !r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {
-		// TODO: add metrics
-		return
-	}
+	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.ShortPath()).WithEnabled(
+		func() bool {
+			return r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName())
+		},
+	)
 
 	dnsPolicy, hostNetwork, err := getDNSPolicyAndHostNetwork(object)
 	if err != nil {

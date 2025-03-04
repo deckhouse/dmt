@@ -60,7 +60,7 @@ func (s *nsLabelSelector) Matches(namespace string, labelSet labels.Set) bool {
 	return s.namespace == namespace && s.selector.Matches(labelSet)
 }
 
-// controllerMustHavePDB adds linting errors if there are pods from controllers which are not covered (except DaemonSets)
+// ControllerMustHavePDB adds linting errors if there are pods from controllers which are not covered (except DaemonSets)
 // by a PodDisruptionBudget
 func (r *PDBRule) ControllerMustHavePDB(md *module.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
@@ -72,10 +72,9 @@ func (r *PDBRule) ControllerMustHavePDB(md *module.Module, errorList *errors.Lin
 			continue
 		}
 
-		if !r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {
-			// TODO: add metrics
-			continue
-		}
+		errorList = errorList.WithEnabled(func() bool {
+			return r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName())
+		})
 
 		if len(pdbSelectors) == 0 {
 			errorList.WithObjectID(object.Identity()).

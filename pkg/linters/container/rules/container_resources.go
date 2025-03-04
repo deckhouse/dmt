@@ -50,10 +50,9 @@ func (r *ResourcesRule) ContainerStorageEphemeral(object storage.StoreObject, co
 	for i := range containers {
 		c := &containers[i]
 
-		if !r.Enabled(object, c) {
-			// TODO: add metrics
-			continue
-		}
+		errorList = errorList.WithEnabled(func() bool {
+			return r.Enabled(object, c)
+		})
 
 		if c.Resources.Requests.StorageEphemeral() == nil || c.Resources.Requests.StorageEphemeral().Value() == 0 {
 			errorList.WithObjectID(object.Identity() + "; container = " + c.Name).

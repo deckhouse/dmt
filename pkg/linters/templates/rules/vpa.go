@@ -60,10 +60,9 @@ func (r *VPARule) ControllerMustHaveVPA(md *module.Module, errorList *errors.Lin
 			continue
 		}
 
-		if !r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {
-			// TODO: add metrics
-			continue
-		}
+		errorList = errorList.WithEnabled(func() bool {
+			return r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName())
+		})
 
 		ok := ensureVPAIsPresent(vpaTargets, index, errorList.WithObjectID(object.Identity()))
 		if !ok {

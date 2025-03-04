@@ -81,12 +81,9 @@ type ModulePlatformRequirements struct {
 }
 
 func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName()).WithFilePath(ModuleConfigFilename)
-
-	if !r.Enabled() {
-		// TODO: add metrics
-		return
-	}
+	errorList = errorList.WithRule(r.GetName()).WithFilePath(ModuleConfigFilename).WithEnabled(func() bool {
+		return r.Enabled()
+	})
 
 	_, err := os.Stat(filepath.Join(modulePath, ModuleConfigFilename))
 	if errs.Is(err, os.ErrNotExist) {

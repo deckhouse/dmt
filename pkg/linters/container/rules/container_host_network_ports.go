@@ -64,10 +64,9 @@ func (r *HostNetworkPortsRule) ObjectHostNetworkPorts(object storage.StoreObject
 	for i := range containers {
 		c := &containers[i]
 
-		if !r.Enabled(object, c) {
-			// TODO: add metrics
-			continue
-		}
+		errorList = errorList.WithEnabled(func() bool {
+			return r.Enabled(object, c)
+		})
 
 		for _, port := range c.Ports {
 			if hostNetworkUsed && (port.ContainerPort < 4200 || port.ContainerPort >= 4300) {
