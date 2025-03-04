@@ -139,8 +139,8 @@ func (r *ServicePortRule) Enabled(name, port string) func() bool {
 }
 
 type ServicePortExclude struct {
-	Name string
-	Port string
+	Name string `mapstructure:"name"`
+	Port string `mapstructure:"port"`
 }
 
 func (e *ServicePortExclude) Enabled(name, port string) func() bool {
@@ -155,8 +155,8 @@ func (e *ServicePortExclude) Enabled(name, port string) func() bool {
 }
 
 type KindRuleExclude struct {
-	Kind string
-	Name string
+	Kind string `mapstructure:"kind"`
+	Name string `mapstructure:"name"`
 }
 
 func (e *KindRuleExclude) Enabled(kind, name string) func() bool {
@@ -171,9 +171,9 @@ func (e *KindRuleExclude) Enabled(kind, name string) func() bool {
 }
 
 type ContainerRuleExclude struct {
-	Kind      string
-	Name      string
-	Container string
+	Kind      string `mapstructure:"kind"`
+	Name      string `mapstructure:"name"`
+	Container string `mapstructure:"container"`
 }
 
 func (e *ContainerRuleExclude) Enabled(object storage.StoreObject, container *corev1.Container) func() bool {

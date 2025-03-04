@@ -78,9 +78,9 @@ type HooksIngressRuleSetting struct {
 }
 
 type ImageSettings struct {
-	SkipModuleImageName      []string `mapstructure:"skip-module-image-name"`
-	SkipDistrolessImageCheck []string `mapstructure:"skip-distroless-image-check"`
-	SkipNamespaceCheck       []string `mapstructure:"skip-namespace-check"`
+	SkipModuleImageName      PrefixRuleExcludeList `mapstructure:"skip-module-image-name"`
+	SkipDistrolessImageCheck PrefixRuleExcludeList `mapstructure:"skip-distroless-image-check"`
+	SkipNamespaceCheck       PrefixRuleExcludeList `mapstructure:"skip-namespace-check"`
 
 	Impact *pkg.Level `mapstructure:"impact"`
 }
@@ -170,17 +170,7 @@ type TemplatesExcludeRules struct {
 	KubeRBACProxy StringRuleExcludeList  `mapstructure:"kube-rbac-proxy"`
 }
 
-type ServicePortExcludeList []ServicePortExclude
-
-func (l ServicePortExcludeList) Get() []pkg.ServicePortExclude {
-	result := make([]pkg.ServicePortExclude, 0, len(l))
-
-	for idx := range l {
-		result = append(result, *remapServicePortRuleExclude(&l[idx]))
-	}
-
-	return result
-}
+type ServicePortExcludeList []pkg.ServicePortExclude
 
 type StringRuleExcludeList []string
 
@@ -194,76 +184,8 @@ func (l StringRuleExcludeList) Get() []pkg.StringRuleExclude {
 	return result
 }
 
-type PrefixRuleExcludeList []string
+type PrefixRuleExcludeList []pkg.PrefixRuleExclude
 
-func (l PrefixRuleExcludeList) Get() []pkg.PrefixRuleExclude {
-	result := make([]pkg.PrefixRuleExclude, 0, len(l))
+type KindRuleExcludeList []pkg.KindRuleExclude
 
-	for idx := range l {
-		result = append(result, pkg.PrefixRuleExclude(l[idx]))
-	}
-
-	return result
-}
-
-type KindRuleExcludeList []KindRuleExclude
-
-func (l KindRuleExcludeList) Get() []pkg.KindRuleExclude {
-	result := make([]pkg.KindRuleExclude, 0, len(l))
-
-	for idx := range l {
-		result = append(result, *remapKindRuleExclude(&l[idx]))
-	}
-
-	return result
-}
-
-type ContainerRuleExcludeList []ContainerRuleExclude
-
-func (l ContainerRuleExcludeList) Get() []pkg.ContainerRuleExclude {
-	result := make([]pkg.ContainerRuleExclude, 0, len(l))
-
-	for idx := range l {
-		result = append(result, *remapContainerRuleExclude(&l[idx]))
-	}
-
-	return result
-}
-
-type KindRuleExclude struct {
-	Kind string `mapstructure:"kind"`
-	Name string `mapstructure:"name"`
-}
-
-type ContainerRuleExclude struct {
-	Kind      string `mapstructure:"kind"`
-	Name      string `mapstructure:"name"`
-	Container string `mapstructure:"container"`
-}
-
-type ServicePortExclude struct {
-	Name string `mapstructure:"name"`
-	Port string `mapstructure:"port"`
-}
-
-func remapKindRuleExclude(input *KindRuleExclude) *pkg.KindRuleExclude {
-	return &pkg.KindRuleExclude{
-		Name: input.Name,
-		Kind: input.Kind,
-	}
-}
-
-func remapServicePortRuleExclude(input *ServicePortExclude) *pkg.ServicePortExclude {
-	return &pkg.ServicePortExclude{
-		Name: input.Name,
-		Port: input.Port,
-	}
-}
-
-func remapContainerRuleExclude(input *ContainerRuleExclude) *pkg.ContainerRuleExclude {
-	return &pkg.ContainerRuleExclude{
-		Kind:      input.Kind,
-		Name:      input.Name,
-		Container: input.Container,
-	}
-}
+type ContainerRuleExcludeList []pkg.ContainerRuleExclude
