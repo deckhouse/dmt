@@ -44,8 +44,7 @@ func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
 }
 
 type ContainerSettings struct {
-	SkipContainers []string              `mapstructure:"skip-containers"`
-	ExcludeRules   ContainerExcludeRules `mapstructure:"exclude-rules"`
+	ExcludeRules ContainerExcludeRules `mapstructure:"exclude-rules"`
 
 	Impact *pkg.Level `mapstructure:"impact"`
 }
@@ -143,10 +142,7 @@ type OpenAPIExcludeRules struct {
 }
 
 type RbacSettings struct {
-	SkipCheckWildcards     map[string][]string `mapstructure:"skip-check-wildcards"`
-	SkipModuleCheckBinding []string            `mapstructure:"skip-module-check-binding"`
-	SkipObjectCheckBinding []string            `mapstructure:"skip-object-check-binding"`
-	ExcludeRules           RBACExcludeRules    `mapstructure:"exclude-rules"`
+	ExcludeRules RBACExcludeRules `mapstructure:"exclude-rules"`
 
 	Impact *pkg.Level `mapstructure:"impact"`
 }
@@ -157,8 +153,7 @@ type RBACExcludeRules struct {
 }
 
 type TemplatesSettings struct {
-	SkipVPAChecks []string              `mapstructure:"skip-vpa-checks"`
-	ExcludeRules  TemplatesExcludeRules `mapstructure:"exclude-rules"`
+	ExcludeRules TemplatesExcludeRules `mapstructure:"exclude-rules"`
 
 	Impact *pkg.Level `mapstructure:"impact"`
 }
