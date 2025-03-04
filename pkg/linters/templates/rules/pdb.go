@@ -72,9 +72,7 @@ func (r *PDBRule) ControllerMustHavePDB(md *module.Module, errorList *errors.Lin
 			continue
 		}
 
-		errorList = errorList.WithEnabled(func() bool {
-			return r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName())
-		})
+		errorList = errorList.WithEnabled(r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()))
 
 		if len(pdbSelectors) == 0 {
 			errorList.WithObjectID(object.Identity()).

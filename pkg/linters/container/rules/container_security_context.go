@@ -50,9 +50,7 @@ func (r *ContainerSecurityContextRule) ContainerSecurityContext(object storage.S
 	for i := range containers {
 		c := &containers[i]
 
-		errorList = errorList.WithEnabled(func() bool {
-			return r.Enabled(object, c)
-		})
+		errorList = errorList.WithEnabled(r.Enabled(object, c))
 
 		if c.SecurityContext == nil {
 			errorList.WithObjectID(object.Identity() + "; container = " + c.Name).

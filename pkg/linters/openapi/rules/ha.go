@@ -70,7 +70,7 @@ func newHAValidator(rule pkg.StringRule) haValidator {
 }
 
 func (v *haValidator) run(absoluteKey string, value any) error {
-	if !v.rule.Enabled(absoluteKey) {
+	if !v.rule.Enabled(absoluteKey)() {
 		return nil
 	}
 

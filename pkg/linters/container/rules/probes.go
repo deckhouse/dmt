@@ -93,9 +93,7 @@ func (r *LivenessRule) CheckProbe(object storage.StoreObject, containers []v1.Co
 	for idx := range containers {
 		c := &containers[idx]
 
-		errorList = errorList.WithEnabled(func() bool {
-			return r.Enabled(object, c)
-		})
+		errorList = errorList.WithEnabled(r.Enabled(object, c))
 		errorList = errorList.WithObjectID(object.Identity() + " ; container = " + c.Name).WithFilePath(object.ShortPath())
 
 		livenessProbe := c.LivenessProbe
@@ -121,9 +119,7 @@ func (r *ReadinessRuleNameRule) CheckProbe(object storage.StoreObject, container
 	for idx := range containers {
 		c := &containers[idx]
 
-		errorList = errorList.WithEnabled(func() bool {
-			return r.Enabled(object, c)
-		})
+		errorList = errorList.WithEnabled(r.Enabled(object, c))
 		errorList = errorList.WithObjectID(object.Identity() + " ; container = " + c.Name).WithFilePath(object.ShortPath())
 
 		readinessProbe := c.ReadinessProbe

@@ -60,9 +60,7 @@ func (r *WildcardsRule) ObjectRolesWildcard(m *module.Module, errorList *errors.
 		}
 
 		errorListObj := errorList.WithObjectID(object.Identity()).WithFilePath(object.ShortPath()).
-			WithEnabled(func() bool {
-				return r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName())
-			})
+			WithEnabled(r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()))
 
 		// check Role and ClusterRole for wildcards
 		objectKind := object.Unstructured.GetKind()

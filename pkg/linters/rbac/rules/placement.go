@@ -73,9 +73,7 @@ func (r *PlacementRule) ObjectRBACPlacement(m *module.Module, errorList *errors.
 	errorList = errorList.WithRule(r.GetName())
 
 	for _, object := range m.GetObjectStore().Storage {
-		errorListObj := errorList.WithObjectID(object.Identity()).WithEnabled(func() bool {
-			return r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName())
-		})
+		errorListObj := errorList.WithObjectID(object.Identity()).WithEnabled(r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()))
 
 		shortPath := object.ShortPath()
 		if shortPath == UserAuthzClusterRolePath || strings.HasPrefix(shortPath, RBACv2Path) {

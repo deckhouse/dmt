@@ -36,90 +36,106 @@ type BoolRule struct {
 	Exclude bool
 }
 
-func (r *BoolRule) Enabled() bool {
-	return !r.Exclude
+func (r *BoolRule) Enabled() func() bool {
+	return func() bool {
+		return !r.Exclude
+	}
 }
 
 type StringRule struct {
 	ExcludeRules []StringRuleExclude
 }
 
-func (r *StringRule) Enabled(str string) bool {
-	for _, rule := range r.ExcludeRules {
-		if !rule.Enabled(str) {
-			return false
+func (r *StringRule) Enabled(str string) func() bool {
+	return func() bool {
+		for _, rule := range r.ExcludeRules {
+			if !rule.Enabled(str)() {
+				return false
+			}
 		}
-	}
 
-	return true
+		return true
+	}
 }
 
 type PrefixRule struct {
 	ExcludeRules []PrefixRuleExclude
 }
 
-func (r *PrefixRule) Enabled(str string) bool {
-	for _, rule := range r.ExcludeRules {
-		if !rule.Enabled(str) {
-			return false
+func (r *PrefixRule) Enabled(str string) func() bool {
+	return func() bool {
+		for _, rule := range r.ExcludeRules {
+			if !rule.Enabled(str)() {
+				return false
+			}
 		}
-	}
 
-	return true
+		return true
+	}
 }
 
 type KindRule struct {
 	ExcludeRules []KindRuleExclude
 }
 
-func (r *KindRule) Enabled(kind, name string) bool {
-	for _, rule := range r.ExcludeRules {
-		if !rule.Enabled(kind, name) {
-			return false
+func (r *KindRule) Enabled(kind, name string) func() bool {
+	return func() bool {
+		for _, rule := range r.ExcludeRules {
+			if !rule.Enabled(kind, name)() {
+				return false
+			}
 		}
-	}
 
-	return true
+		return true
+	}
 }
 
 type ContainerRule struct {
 	ExcludeRules []ContainerRuleExclude
 }
 
-func (r *ContainerRule) Enabled(object storage.StoreObject, container *corev1.Container) bool {
-	for _, rule := range r.ExcludeRules {
-		if !rule.Enabled(object, container) {
-			return false
+func (r *ContainerRule) Enabled(object storage.StoreObject, container *corev1.Container) func() bool {
+	return func() bool {
+		for _, rule := range r.ExcludeRules {
+			if !rule.Enabled(object, container)() {
+				return false
+			}
 		}
-	}
 
-	return true
+		return true
+	}
 }
 
 type StringRuleExclude string
 
-func (e StringRuleExclude) Enabled(str string) bool {
-	return string(e) != str
+func (e StringRuleExclude) Enabled(str string) func() bool {
+	return func() bool {
+		return string(e) != str
+	}
 }
 
 type PrefixRuleExclude string
 
-func (e PrefixRuleExclude) Enabled(str string) bool {
-	return !strings.HasPrefix(str, string(e))
+func (e PrefixRuleExclude) Enabled(str string) func() bool {
+	return func() bool {
+		return !strings.HasPrefix(str, string(e))
+	}
 }
 
 type ServicePortRule struct {
 	ExcludeRules []ServicePortExclude
 }
 
-func (r *ServicePortRule) Enabled(name, port string) bool {
-	for _, rule := range r.ExcludeRules {
-		if !rule.Enabled(name, port) {
-			return false
+func (r *ServicePortRule) Enabled(name, port string) func() bool {
+	return func() bool {
+		for _, rule := range r.ExcludeRules {
+			if !rule.Enabled(name, port)() {
+				return false
+			}
 		}
-	}
 
-	return true
+		return true
+	}
 }
 
 type ServicePortExclude struct {
@@ -127,13 +143,15 @@ type ServicePortExclude struct {
 	Port string
 }
 
-func (e *ServicePortExclude) Enabled(name, port string) bool {
-	if e.Name == name &&
-		e.Port == port {
-		return false
-	}
+func (e *ServicePortExclude) Enabled(name, port string) func() bool {
+	return func() bool {
+		if e.Name == name &&
+			e.Port == port {
+			return false
+		}
 
-	return true
+		return true
+	}
 }
 
 type KindRuleExclude struct {
@@ -141,13 +159,15 @@ type KindRuleExclude struct {
 	Name string
 }
 
-func (e *KindRuleExclude) Enabled(kind, name string) bool {
-	if e.Kind == kind &&
-		e.Name == name {
-		return false
-	}
+func (e *KindRuleExclude) Enabled(kind, name string) func() bool {
+	return func() bool {
+		if e.Kind == kind &&
+			e.Name == name {
+			return false
+		}
 
-	return true
+		return true
+	}
 }
 
 type ContainerRuleExclude struct {
@@ -156,14 +176,16 @@ type ContainerRuleExclude struct {
 	Container string
 }
 
-func (e *ContainerRuleExclude) Enabled(object storage.StoreObject, container *corev1.Container) bool {
-	if e.Kind == object.Unstructured.GetKind() &&
-		e.Name == object.Unstructured.GetName() &&
-		(e.Container == "" || e.Container == container.Name) {
-		return false
-	}
+func (e *ContainerRuleExclude) Enabled(object storage.StoreObject, container *corev1.Container) func() bool {
+	return func() bool {
+		if e.Kind == object.Unstructured.GetKind() &&
+			e.Name == object.Unstructured.GetName() &&
+			(e.Container == "" || e.Container == container.Name) {
+			return false
+		}
 
-	return true
+		return true
+	}
 }
 
 type PathRule struct {
@@ -171,18 +193,20 @@ type PathRule struct {
 	ExcludePrefixRules []PrefixRuleExclude
 }
 
-func (r *PathRule) Enabled(name string) bool {
-	for _, rule := range r.ExcludeStringRules {
-		if !rule.Enabled(name) {
-			return false
+func (r *PathRule) Enabled(name string) func() bool {
+	return func() bool {
+		for _, rule := range r.ExcludeStringRules {
+			if !rule.Enabled(name)() {
+				return false
+			}
 		}
-	}
 
-	for _, rule := range r.ExcludePrefixRules {
-		if !rule.Enabled(name) {
-			return false
+		for _, rule := range r.ExcludePrefixRules {
+			if !rule.Enabled(name)() {
+				return false
+			}
 		}
-	}
 
-	return true
+		return true
+	}
 }

@@ -48,7 +48,7 @@ type VPARule struct {
 	pkg.KindRule
 }
 
-// controllerMustHaveVPA fills linting error regarding VPA
+// ControllerMustHaveVPA fills linting error regarding VPA
 func (r *VPARule) ControllerMustHaveVPA(md *module.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
@@ -60,9 +60,7 @@ func (r *VPARule) ControllerMustHaveVPA(md *module.Module, errorList *errors.Lin
 			continue
 		}
 
-		errorList = errorList.WithEnabled(func() bool {
-			return r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName())
-		})
+		errorList = errorList.WithEnabled(r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()))
 
 		ok := ensureVPAIsPresent(vpaTargets, index, errorList.WithObjectID(object.Identity()))
 		if !ok {

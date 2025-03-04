@@ -55,9 +55,7 @@ func (r *ImageDigestRule) ContainerImageDigestCheck(object storage.StoreObject, 
 	for i := range containers {
 		c := &containers[i]
 
-		errorList = errorList.WithEnabled(func() bool {
-			return r.Enabled(object, c)
-		})
+		errorList = errorList.WithEnabled(r.Enabled(object, c))
 
 		match := strings.Split(c.Image, "@")
 		if len(match) == 0 {
@@ -84,12 +82,14 @@ func (r *ImageDigestRule) ContainerImageDigestCheck(object storage.StoreObject, 
 	}
 }
 
-func (r *ImageDigestRule) Enabled(object storage.StoreObject, container *corev1.Container) bool {
-	for _, rule := range r.ExcludeRules {
-		if !rule.Enabled(object, container) {
-			return false
+func (r *ImageDigestRule) Enabled(object storage.StoreObject, container *corev1.Container) func() bool {
+	return func() bool {
+		for _, rule := range r.ExcludeRules {
+			if !rule.Enabled(object, container)() {
+				return false
+			}
 		}
-	}
 
-	return true
+		return true
+	}
 }

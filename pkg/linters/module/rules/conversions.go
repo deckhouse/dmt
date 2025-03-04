@@ -74,9 +74,7 @@ type configValues struct {
 }
 
 func (r *ConversionsRule) CheckConversions(modulePath string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName()).WithEnabled(func() bool {
-		return r.Enabled()
-	})
+	errorList = errorList.WithRule(r.GetName()).WithEnabled(r.Enabled())
 
 	configFilePath := filepath.Join(modulePath, configValuesFile)
 	_, err := os.Stat(configFilePath)

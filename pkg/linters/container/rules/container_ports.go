@@ -51,9 +51,7 @@ func (r *PortsRule) ContainerPorts(object storage.StoreObject, containers []core
 	for i := range containers {
 		c := &containers[i]
 
-		errorList = errorList.WithEnabled(func() bool {
-			return r.Enabled(object, c)
-		})
+		errorList = errorList.WithEnabled(r.Enabled(object, c))
 
 		for _, port := range c.Ports {
 			if port.ContainerPort <= t {

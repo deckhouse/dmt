@@ -66,9 +66,7 @@ func (r *ServicePortRule) ObjectServiceTargetPort(object storage.StoreObject, er
 	}
 
 	for _, port := range service.Spec.Ports {
-		errorList = errorList.WithEnabled(func() bool {
-			return r.Enabled(service.GetName(), port.Name)
-		})
+		errorList = errorList.WithEnabled(r.Enabled(service.GetName(), port.Name))
 
 		if port.TargetPort.Type == intstr.Int {
 			if port.TargetPort.IntVal == 0 {

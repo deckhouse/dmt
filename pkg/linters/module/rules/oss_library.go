@@ -52,9 +52,7 @@ type OSSRule struct {
 const ossFilename = "oss.yaml"
 
 func (r *OSSRule) OssModuleRule(moduleRoot string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName()).WithEnabled(func() bool {
-		return r.Enabled()
-	})
+	errorList = errorList.WithRule(r.GetName()).WithEnabled(r.Enabled())
 
 	if errs := verifyOssFile(moduleRoot); len(errs) > 0 {
 		for _, err := range errs {
