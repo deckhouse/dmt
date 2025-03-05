@@ -20,6 +20,7 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters/images/rules"
 )
 
 const (
@@ -50,6 +51,7 @@ func (l *Images) Run(m *module.Module) {
 	errorList := l.ErrorList.WithModule(m.GetName())
 
 	l.ApplyImagesRules(m, errorList)
+	rules.NewPatchesRule(l.cfg.Patches.Disable).CheckPatches(m.GetPath(), errorList)
 }
 
 func (l *Images) Name() string {
