@@ -118,7 +118,9 @@ func (r *ImageRule) CheckImageNamesInDockerFiles(modulePath string, errorList *e
 	})
 
 	for _, path := range filePaths {
-		// TODO add exceptions for some images
+		if !r.SkipModuleImageName.Enabled(path) {
+			continue
+		}
 		r.lintOneDockerfile(path, imagesPath, errorList)
 	}
 }
