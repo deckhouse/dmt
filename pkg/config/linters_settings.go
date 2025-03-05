@@ -81,6 +81,8 @@ type ImageSettings struct {
 	SkipDistrolessImageCheck []string `mapstructure:"skip-distroless-image-check"`
 	SkipNamespaceCheck       []string `mapstructure:"skip-namespace-check"`
 
+	Patches PatchesRuleSettings `mapstructure:"patches"`
+
 	Impact *pkg.Level `mapstructure:"impact"`
 }
 
@@ -109,6 +111,11 @@ type ModuleDefinitionFileRuleSettings struct {
 }
 
 type ConversionsRuleSettings struct {
+	// disable conversions rule completely
+	Disable bool `mapstructure:"disable"`
+}
+
+type PatchesRuleSettings struct {
 	// disable conversions rule completely
 	Disable bool `mapstructure:"disable"`
 }

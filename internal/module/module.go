@@ -23,8 +23,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"dario.cat/mergo"
 	"gopkg.in/yaml.v3"
 	"helm.sh/helm/v3/pkg/chart"
+	"helm.sh/helm/v3/pkg/chartutil"
 
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/internal/werf"
@@ -122,35 +124,21 @@ func (m *Module) MergeRootConfig(cfg *config.RootConfig) {
 	m.linterConfig.LintersSettings.MergeGlobal(&cfg.GlobalSettings.Linters)
 }
 
-func NewModule(path string) (*Module, error) {
-	name, ns, err := getModuleNameAndNamespaceFromFile(path)
+func NewModule(path string, vals *chartutil.Values) (*Module, error) {
+	module, err := newModuleFromPath(path)
 	if err != nil {
 		return nil, err
 	}
-
-	if ns == "" {
-		// fallback to the 'test' .namespace file
-		ns = getNamespace(path)
-	}
-
-	module := &Module{
-		name:      name,
-		namespace: ns,
-		path:      path,
-	}
-
-	ch, err := LoadModuleAsChart(name, path)
-	if err != nil {
-		return nil, err
-	}
-
-	module.chart = ch
-	remapChart(ch)
 
 	values, err := ComposeValuesFromSchemas(module)
 	if err != nil {
 		return nil, err
 	}
+
+	if err = overrideValues(&values, vals); err != nil {
+		return nil, fmt.Errorf("failed to override values from file: %w", err)
+	}
+
 	objectStore := storage.NewUnstructuredObjectStore()
 	err = RunRender(module, values, objectStore)
 	if err != nil {
@@ -171,6 +159,17 @@ func NewModule(path string) (*Module, error) {
 	module.linterConfig = cfg
 
 	return module, nil
+}
+
+func overrideValues(values, vals *chartutil.Values) error {
+	if vals == nil {
+		return nil
+	}
+
+	v := &chartutil.Values{
+		"Values": *vals,
+	}
+	return mergo.Merge(values, v, mergo.WithOverride)
 }
 
 func remapChart(ch *chart.Chart) {
@@ -197,17 +196,17 @@ func remapTemplates(ch *chart.Chart) {
 	}
 }
 
-func getModuleNameAndNamespaceFromFile(path string) ( /* name */ string /* namespace */, string, error) {
+func newModuleFromPath(path string) (*Module, error) {
 	stat, err := os.Stat(filepath.Join(path, ModuleConfigFilename))
 	if err != nil {
 		stat, err = os.Stat(filepath.Join(path, ChartConfigFilename))
 		if err != nil {
-			return "", "", err
+			return nil, err
 		}
 	}
 	yamlFile, err := os.ReadFile(filepath.Join(path, stat.Name()))
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
 
 	var ch struct {
@@ -216,9 +215,28 @@ func getModuleNameAndNamespaceFromFile(path string) ( /* name */ string /* names
 	}
 	err = yaml.Unmarshal(yamlFile, &ch)
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
-	return ch.Name, ch.Namespace, nil
+
+	if ch.Namespace == "" {
+		// fallback to the 'test' .namespace file
+		ch.Namespace = getNamespace(path)
+	}
+
+	chart, err := LoadModuleAsChart(ch.Name, path)
+	if err != nil {
+		return nil, err
+	}
+	remapChart(chart)
+
+	module := &Module{
+		name:      ch.Name,
+		namespace: ch.Namespace,
+		path:      path,
+		chart:     chart,
+	}
+
+	return module, nil
 }
 
 func getNamespace(path string) string {

@@ -21,9 +21,9 @@ import (
 	"path/filepath"
 )
 
-type fFn func(string) bool
+type filterFn func(string, string) bool
 
-func GetFiles(rootPath string, skipSymlink bool, filters ...fFn) []string {
+func GetFiles(rootPath string, skipSymlink bool, filters ...filterFn) []string {
 	var result []string
 	_ = filepath.Walk(rootPath, func(path string, info os.FileInfo, _ error) error {
 		if skipSymlink && info.Mode()&os.ModeSymlink != 0 {
@@ -38,7 +38,7 @@ func GetFiles(rootPath string, skipSymlink bool, filters ...fFn) []string {
 			return nil
 		}
 
-		if filterPass(Rel(rootPath, path), filters...) {
+		if filterPass(rootPath, path, filters...) {
 			result = append(result, path)
 		}
 
@@ -48,13 +48,13 @@ func GetFiles(rootPath string, skipSymlink bool, filters ...fFn) []string {
 	return result
 }
 
-func filterPass(path string, filters ...fFn) bool {
+func filterPass(rootPath, path string, filters ...filterFn) bool {
 	if len(filters) == 0 {
 		return true
 	}
 
 	for _, filter := range filters {
-		if filter(path) {
+		if filter(rootPath, path) {
 			return true
 		}
 	}

@@ -17,9 +17,6 @@ limitations under the License.
 package nocyrillic
 
 import (
-	"slices"
-	"strings"
-
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
@@ -62,16 +59,10 @@ func (l *NoCyrillic) Run(m *module.Module) {
 		l.cfg.NoCyrillicExcludeRules.Files.Get(),
 		l.cfg.NoCyrillicExcludeRules.Directories.Get())
 
-	files := fsutils.GetFiles(m.GetPath(), false, filterFiles)
+	files := fsutils.GetFiles(m.GetPath(), false, fsutils.FilterFileByExtensions(fileExtensions...))
 	for _, fileName := range files {
 		filesRule.CheckFile(m, fileName, errorList)
 	}
-}
-
-func filterFiles(path string) bool {
-	return slices.ContainsFunc(fileExtensions, func(s string) bool {
-		return strings.HasSuffix(path, s)
-	})
 }
 
 func (l *NoCyrillic) Name() string {
