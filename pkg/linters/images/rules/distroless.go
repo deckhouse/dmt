@@ -74,8 +74,8 @@ func (r *DistrolessRule) CheckImageNamesInDockerFiles(modulePath string, errorLi
 }
 
 func (r *DistrolessRule) lintOneDockerfile(path, imagesPath string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithFilePath(path).WithRule(dockerfileRuleName)
-	relativeFilePath := fsutils.Rel(path, imagesPath)
+	relativeFilePath := fsutils.Rel(imagesPath, path)
+	errorList = errorList.WithFilePath(relativeFilePath).WithRule(distrolessRuleName)
 
 	var (
 		dockerfileFromInstructions []string

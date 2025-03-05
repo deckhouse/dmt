@@ -100,8 +100,8 @@ func (r *ImageRule) CheckImageNamesInDockerFiles(modulePath string, errorList *e
 }
 
 func (*ImageRule) lintOneDockerfile(path, imagesPath string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithFilePath(path).WithRule(dockerfileRuleName)
-	relativeFilePath := fsutils.Rel(path, imagesPath)
+	relativeFilePath := fsutils.Rel(imagesPath, path)
+	errorList = errorList.WithFilePath(relativeFilePath).WithRule(dockerfileRuleName)
 
 	data, err := os.ReadFile(path)
 	if err != nil {
