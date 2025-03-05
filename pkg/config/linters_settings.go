@@ -85,8 +85,8 @@ type ImageSettings struct {
 }
 
 type ImageExcludeRules struct {
-	SkipImageFilePathPrefix      PrefixRuleExcludeList `mapstructure:"skip-module-image-name"`
-	SkipDistrolessFilePathPrefix PrefixRuleExcludeList `mapstructure:"skip-distroless-image-check"`
+	SkipImageFilePathPrefix      PrefixRuleExcludeList `mapstructure:"skip-image-file-path-prefix"`
+	SkipDistrolessFilePathPrefix PrefixRuleExcludeList `mapstructure:"skip-distroless-file-path-prefix"`
 }
 
 type ModuleSettings struct {
