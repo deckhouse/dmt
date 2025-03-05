@@ -57,8 +57,7 @@ var regexPatterns = map[string]string{
 
 type ImageRule struct {
 	pkg.RuleMeta
-	SkipImageFilePathPrefix      pkg.PrefixRule
-	SkipDistrolessFilePathPrefix pkg.PrefixRule
+	SkipImageFilePathPrefix pkg.PrefixRule
 }
 
 func NewImageRule(cfg *config.ImageSettings) *ImageRule {
@@ -68,9 +67,6 @@ func NewImageRule(cfg *config.ImageSettings) *ImageRule {
 		},
 		SkipImageFilePathPrefix: pkg.PrefixRule{
 			ExcludeRules: cfg.ExcludeRules.SkipImageFilePathPrefix.Get(),
-		},
-		SkipDistrolessFilePathPrefix: pkg.PrefixRule{
-			ExcludeRules: cfg.ExcludeRules.SkipDistrolessFilePathPrefix.Get(),
 		},
 	}
 }
