@@ -57,7 +57,7 @@ var regexPatterns = map[string]string{
 
 type ImageRule struct {
 	pkg.RuleMeta
-	SkipImageFilePathPrefix pkg.PrefixRule
+	pkg.PrefixRule
 }
 
 func NewImageRule(cfg *config.ImageSettings) *ImageRule {
@@ -65,7 +65,7 @@ func NewImageRule(cfg *config.ImageSettings) *ImageRule {
 		RuleMeta: pkg.RuleMeta{
 			Name: dockerfileRuleName,
 		},
-		SkipImageFilePathPrefix: pkg.PrefixRule{
+		PrefixRule: pkg.PrefixRule{
 			ExcludeRules: cfg.ExcludeRules.SkipImageFilePathPrefix.Get(),
 		},
 	}
@@ -92,7 +92,7 @@ func (r *ImageRule) CheckImageNamesInDockerFiles(modulePath string, errorList *e
 	})
 
 	for _, path := range filePaths {
-		if !r.SkipImageFilePathPrefix.Enabled(path) {
+		if !r.PrefixRule.Enabled(path) {
 			continue
 		}
 		r.lintOneDockerfile(path, imagesPath, errorList)

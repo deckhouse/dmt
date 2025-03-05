@@ -44,7 +44,7 @@ var distrolessImagesPrefix = map[string][]string{
 
 type DistrolessRule struct {
 	pkg.RuleMeta
-	SkipDistrolessFilePathPrefix pkg.PrefixRule
+	pkg.PrefixRule
 }
 
 func NewDistrolessRule(cfg *config.ImageSettings) *DistrolessRule {
@@ -52,7 +52,7 @@ func NewDistrolessRule(cfg *config.ImageSettings) *DistrolessRule {
 		RuleMeta: pkg.RuleMeta{
 			Name: distrolessRuleName,
 		},
-		SkipDistrolessFilePathPrefix: pkg.PrefixRule{
+		PrefixRule: pkg.PrefixRule{
 			ExcludeRules: cfg.ExcludeRules.SkipDistrolessFilePathPrefix.Get(),
 		},
 	}
@@ -98,7 +98,7 @@ func (r *DistrolessRule) lintOneDockerfile(path, imagesPath string, errorList *e
 	}
 
 	for i, fromInstruction := range dockerfileFromInstructions {
-		if !r.SkipDistrolessFilePathPrefix.Enabled(relativeFilePath) {
+		if !r.PrefixRule.Enabled(relativeFilePath) {
 			errorList.WithObjectID(fmt.Sprintf("image = %s ; value - %s", relativeFilePath, fromInstruction)).
 				Warn("WARNING!!! SKIP DISTROLESS CHECK!!!")
 
