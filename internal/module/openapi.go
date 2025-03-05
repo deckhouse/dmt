@@ -114,7 +114,7 @@ func ComposeValuesFromSchemas(m *Module) (chartutil.Values, error) {
 		return nil, nil
 	}
 
-	values, ok := valueValidator.ModuleSchemaStorages[m.GetName()].Schemas["values"]
+	values, ok := schema.Schemas["values"]
 	if values == nil || !ok {
 		return nil, fmt.Errorf("cannot find openapi values schema for module %s", m.GetName())
 	}
