@@ -23,7 +23,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strings"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/pkg"
@@ -54,13 +53,6 @@ var regexPatterns = map[string]string{
 	`$BASE_UBUNTU`:           imageRegexp(`ubuntu:[\d.]+`),
 	`$BASE_JEKYLL`:           imageRegexp(`jekyll/jekyll:[\d.]+`),
 	`$BASE_SCRATCH`:          imageRegexp(`scratch:[\d.]+`),
-}
-
-var distrolessImagesPrefix = map[string][]string{
-	"docker": {
-		"$BASE_DISTROLESS",
-		"$BASE_ALT",
-	},
 }
 
 type ImageRule struct {
@@ -111,19 +103,9 @@ func (r *ImageRule) CheckImageNamesInDockerFiles(modulePath string, errorList *e
 	}
 }
 
-func (r *ImageRule) lintOneDockerfile(path, imagesPath string, errorList *errors.LintRuleErrorsList) {
+func (*ImageRule) lintOneDockerfile(path, imagesPath string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithFilePath(path).WithRule(dockerfileRuleName)
-	relativeFilePath, err := filepath.Rel(imagesPath, path)
-	if err != nil {
-		errorList.WithFilePath(path).
-			Errorf("Error calculating relative file path: %s", err)
-
-		return
-	}
-
-	var (
-		dockerfileFromInstructions []string
-	)
+	relativeFilePath := fsutils.Rel(path, imagesPath)
 
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -144,57 +126,5 @@ func (r *ImageRule) lintOneDockerfile(path, imagesPath string, errorList *errors
 				WithLineNumber(linePos).
 				Errorf("Please use %s as an image name", ciVariable)
 		}
-
-		if strings.HasPrefix(line, "FROM ") {
-			dockerfileFromInstructions = append(dockerfileFromInstructions, strings.TrimPrefix(line, "FROM "))
-		}
 	}
-
-	for i, fromInstruction := range dockerfileFromInstructions {
-		if !r.SkipDistrolessFilePathPrefix.Enabled(relativeFilePath) {
-			errorList.WithObjectID(fmt.Sprintf("image = %s ; value - %s", relativeFilePath, fromInstruction)).
-				Warn("WARNING!!! SKIP DISTROLESS CHECK!!!")
-
-			continue
-		}
-
-		ers, message := isDockerfileInstructionUnacceptable(fromInstruction, i == len(dockerfileFromInstructions)-1)
-		if ers {
-			errorList.WithFilePath(relativeFilePath).
-				WithValue(fromInstruction).
-				Error(message)
-		}
-	}
-}
-
-func isDockerfileInstructionUnacceptable(from string, final bool) (bool, string) {
-	if from == "scratch" {
-		return false, ""
-	}
-
-	if final {
-		if !checkDistrolessPrefix(from, distrolessImagesPrefix["docker"]) {
-			return true, "Last `FROM` instruction should use one of our $BASE_DISTROLESS images"
-		}
-	} else {
-		matched, _ := regexp.MatchString("@sha256:[A-Fa-f0-9]{64}", from)
-		if !strings.HasPrefix(from, "$BASE_") && !matched {
-			return true, "Intermediate `FROM` instructions should use one of our $BASE_ images or have `@sha526:` checksum specified"
-		}
-	}
-
-	return false, ""
-}
-
-func checkDistrolessPrefix(str string, in []string) bool {
-	str = strings.TrimPrefix(str, "$.Images.")
-	str = strings.TrimPrefix(str, ".Images.")
-
-	for _, pattern := range in {
-		if strings.HasPrefix(str, pattern) {
-			return true
-		}
-	}
-
-	return false
 }

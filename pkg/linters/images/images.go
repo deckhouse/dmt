@@ -51,6 +51,7 @@ func (l *Images) Run(m *module.Module) {
 	errorList := l.ErrorList.WithModule(m.GetName())
 
 	rules.NewImageRule(l.cfg).CheckImageNamesInDockerFiles(m.GetPath(), errorList)
+	rules.NewDistrolessRule(l.cfg).CheckImageNamesInDockerFiles(m.GetPath(), errorList)
 	rules.NewWerfRule().LintWerfFile(m.GetWerfFile(), errorList)
 	rules.NewPatchesRule(l.cfg.Patches.Disable).CheckPatches(m.GetPath(), errorList)
 }
