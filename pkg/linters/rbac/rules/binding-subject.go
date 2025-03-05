@@ -44,11 +44,9 @@ type BindingSubjectRule struct {
 
 func (r *BindingSubjectRule) ObjectBindingSubjectServiceAccountCheck(m *module.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
-
 	converter := runtime.DefaultUnstructuredConverter
-	objectStore := m.GetObjectStore()
 
-	for _, object := range objectStore.Storage {
+	for _, object := range m.GetStorage() {
 		errorListObj := errorList.WithObjectID(object.Identity()).WithFilePath(object.ShortPath())
 
 		var subjects []v1.Subject
@@ -96,7 +94,7 @@ func (r *BindingSubjectRule) ObjectBindingSubjectServiceAccountCheck(m *module.M
 				continue
 			}
 
-			if subject.Namespace == m.GetNamespace() && !objectStore.Exists(storage.ResourceIndex{
+			if subject.Namespace == m.GetNamespace() && !m.GetObjectStore().Exists(storage.ResourceIndex{
 				Name: subject.Name, Kind: subject.Kind, Namespace: subject.Namespace,
 			}) {
 				errorListObj.Errorf("%s bind to the wrong ServiceAccount (doesn't exist in the store)", objectKind)

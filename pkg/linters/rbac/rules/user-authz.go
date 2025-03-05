@@ -49,7 +49,7 @@ Also, it validates that role names equals to d8:user-authz:<ChartName>:<AccessLe
 func (*UzerAuthZRule) ObjectUserAuthzClusterRolePath(m *module.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithModule(m.GetName())
 
-	for _, object := range m.GetObjectStore().Storage {
+	for _, object := range m.GetStorage() {
 		errorListObj := errorList.WithObjectID(object.Identity()).WithFilePath(object.ShortPath())
 
 		objectKind := object.Unstructured.GetKind()

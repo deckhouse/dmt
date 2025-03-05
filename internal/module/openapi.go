@@ -29,7 +29,6 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/deckhouse/dmt/internal/module/reggen"
-	"github.com/deckhouse/dmt/internal/valuesvalidation"
 )
 
 const (
@@ -98,37 +97,22 @@ func helmFormatModuleImages(m *Module, rawValues map[string]any) (chartutil.Valu
 }
 
 func ComposeValuesFromSchemas(m *Module) (chartutil.Values, error) {
-	valueValidator, err := valuesvalidation.NewValuesValidator(m.GetName(), m.GetPath())
+	values, err := GetModuleValues(m.GetPath())
 	if err != nil {
-		return nil, fmt.Errorf("schemas load: %w", err)
-	}
-
-	if valueValidator == nil {
-		return nil, nil
-	}
-
-	camelizedModuleName := ToLowerCamel(m.GetName())
-
-	schema, ok := valueValidator.ModuleSchemaStorages[m.GetName()]
-	if !ok || schema.Schemas == nil {
-		return nil, nil
-	}
-
-	values, ok := schema.Schemas["values"]
-	if values == nil || !ok {
 		return nil, fmt.Errorf("cannot find openapi values schema for module %s", m.GetName())
 	}
 
 	moduleSchema := *values
 	moduleSchema.Default = make(map[string]any)
 
-	values, ok = valueValidator.GlobalSchemaStorage.Schemas["values"]
+	values, err = GetGlobalValues()
 	var globalSchema spec.Schema
-	if ok && values != nil {
+	if err == nil && values != nil {
 		globalSchema = *values
 	}
 	globalSchema.Default = make(map[string]any)
 
+	camelizedModuleName := ToLowerCamel(m.GetName())
 	combinedSchema := spec.Schema{}
 	combinedSchema.Properties = map[string]spec.Schema{camelizedModuleName: moduleSchema, "global": globalSchema}
 

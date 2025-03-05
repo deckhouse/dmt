@@ -11,6 +11,7 @@ require (
 	github.com/flant/addon-operator v1.5.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-openapi/spec v0.21.0
+	github.com/go-openapi/swag v0.23.0
 	github.com/google/go-containerregistry v0.20.2
 	github.com/iancoleman/strcase v0.3.0
 	github.com/kyokomi/emoji v2.2.4+incompatible
@@ -60,7 +61,6 @@ require (
 	github.com/go-openapi/loads v0.19.5 // indirect
 	github.com/go-openapi/runtime v0.19.16 // indirect
 	github.com/go-openapi/strfmt v0.19.5 // indirect
-	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/go-openapi/validate v0.19.12 // indirect
 	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
