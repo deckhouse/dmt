@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -37,6 +38,10 @@ const (
 const (
 	ImagesDir = "images"
 )
+
+func imageRegexp(s string) string {
+	return fmt.Sprintf("^(from:|FROM)(\\s+)(%s)", s)
+}
 
 var regexPatterns = map[string]string{
 	`$BASE_ALPINE`:           imageRegexp(`alpine:[\d.]+`),
@@ -60,8 +65,8 @@ var distrolessImagesPrefix = map[string][]string{
 
 type ImageRule struct {
 	pkg.RuleMeta
-	SkipModuleImageName      pkg.PrefixRule
-	SkipDistrolessImageCheck pkg.PrefixRule
+	SkipImageFilePathPrefix      pkg.PrefixRule
+	SkipDistrolessFilePathPrefix pkg.PrefixRule
 }
 
 func NewImageRule(cfg *config.ImageSettings) *ImageRule {
@@ -69,23 +74,15 @@ func NewImageRule(cfg *config.ImageSettings) *ImageRule {
 		RuleMeta: pkg.RuleMeta{
 			Name: dockerfileRuleName,
 		},
-		SkipModuleImageName: pkg.PrefixRule{
-			ExcludeRules: cfg.SkipModuleImageName.Get(),
+		SkipImageFilePathPrefix: pkg.PrefixRule{
+			ExcludeRules: cfg.ExcludeRules.SkipImageFilePathPrefix.Get(),
 		},
-		SkipDistrolessImageCheck: pkg.PrefixRule{
-			ExcludeRules: cfg.SkipDistrolessImageCheck.Get(),
+		SkipDistrolessFilePathPrefix: pkg.PrefixRule{
+			ExcludeRules: cfg.ExcludeRules.SkipDistrolessFilePathPrefix.Get(),
 		},
 	}
 }
 
-func imageRegexp(s string) string {
-	return fmt.Sprintf("^(from:|FROM)(\\s+)(%s)", s)
-}
-
-func IsExistsOnFilesystem(parts ...string) bool {
-	_, err := os.Stat(filepath.Join(parts...))
-	return err == nil
-}
 func isImageNameUnacceptable(imageName string) (bool, string) {
 	for ciVariable, pattern := range regexPatterns {
 		matched, _ := regexp.MatchString(pattern, imageName)
@@ -97,28 +94,17 @@ func isImageNameUnacceptable(imageName string) (bool, string) {
 }
 
 func (r *ImageRule) CheckImageNamesInDockerFiles(modulePath string, errorList *errors.LintRuleErrorsList) {
-	var filePaths []string
-
 	imagesPath := filepath.Join(modulePath, ImagesDir)
-
-	if !IsExistsOnFilesystem(imagesPath) {
+	if !fsutils.IsFileExist(imagesPath) {
 		return
 	}
 
-	_ = filepath.Walk(imagesPath, func(fullPath string, f os.FileInfo, _ error) error {
-		if f.IsDir() {
-			return nil
-		}
-
-		if f.Name() == "Dockerfile" {
-			filePaths = append(filePaths, fullPath)
-		}
-
-		return nil
+	filePaths := fsutils.GetFiles(imagesPath, false, func(_, path string) bool {
+		return filepath.Base(path) == "Dockerfile"
 	})
 
 	for _, path := range filePaths {
-		if !r.SkipModuleImageName.Enabled(path) {
+		if !r.SkipImageFilePathPrefix.Enabled(path) {
 			continue
 		}
 		r.lintOneDockerfile(path, imagesPath, errorList)
@@ -165,7 +151,7 @@ func (r *ImageRule) lintOneDockerfile(path, imagesPath string, errorList *errors
 	}
 
 	for i, fromInstruction := range dockerfileFromInstructions {
-		if !r.SkipDistrolessImageCheck.Enabled(relativeFilePath) {
+		if !r.SkipDistrolessFilePathPrefix.Enabled(relativeFilePath) {
 			errorList.WithObjectID(fmt.Sprintf("image = %s ; value - %s", relativeFilePath, fromInstruction)).
 				Warn("WARNING!!! SKIP DISTROLESS CHECK!!!")
 
