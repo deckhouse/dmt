@@ -17,8 +17,6 @@ limitations under the License.
 package container
 
 import (
-	"strings"
-
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/deckhouse/dmt/internal/storage"
@@ -100,28 +98,4 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 	for _, rule := range notInitContainerRules {
 		rule(object, containers, errorList)
 	}
-}
-
-func (l *Container) shouldSkipModuleContainer(moduleName, container string) bool {
-	for _, line := range l.cfg.SkipContainers {
-		els := strings.Split(line, ":")
-		if len(els) != 2 {
-			continue
-		}
-
-		containerModuleName := strings.TrimSpace(els[0])
-		containerName := strings.TrimSpace(els[1])
-
-		checkContainer := container == containerName
-		subString := strings.Trim(containerName, "*")
-		if len(subString) != len(containerName) {
-			checkContainer = strings.Contains(container, subString)
-		}
-
-		if moduleName == containerModuleName && checkContainer {
-			return true
-		}
-	}
-
-	return false
 }
