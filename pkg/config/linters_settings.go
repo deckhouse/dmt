@@ -77,13 +77,16 @@ type HooksIngressRuleSetting struct {
 }
 
 type ImageSettings struct {
-	SkipModuleImageName      []string `mapstructure:"skip-module-image-name"`
-	SkipDistrolessImageCheck []string `mapstructure:"skip-distroless-image-check"`
-	SkipNamespaceCheck       []string `mapstructure:"skip-namespace-check"`
+	ExcludeRules ImageExcludeRules `mapstructure:"exclude-rules"`
 
 	Patches PatchesRuleSettings `mapstructure:"patches"`
 
 	Impact *pkg.Level `mapstructure:"impact"`
+}
+
+type ImageExcludeRules struct {
+	SkipImageFilePathPrefix      PrefixRuleExcludeList `mapstructure:"skip-image-file-path-prefix"`
+	SkipDistrolessFilePathPrefix PrefixRuleExcludeList `mapstructure:"skip-distroless-file-path-prefix"`
 }
 
 type ModuleSettings struct {
