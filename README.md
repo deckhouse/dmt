@@ -48,8 +48,8 @@ You can exclude linters or setup them via the config file `.dmtlint.yaml`
 
 ```yaml
 global:  
-  linters:
-    probes:
+  linters-settings:
+    module:
       impact: warn | critical
     images:
       impact: warn | critical  
