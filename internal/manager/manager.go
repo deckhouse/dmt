@@ -282,14 +282,10 @@ func (m *Manager) PrintMetrics() {
 		}
 		linterID := t[0]
 		ruleID := t[1]
-		fmt.Fprintf(f, `dmt_linter_warnings_count{"version": "%s", "linter": "%s", "rule": "%s"} %d\n`, flags.Version, linterID, ruleID, count)
+		fmt.Fprintf(f, "dmt_linter_warnings_count{\"version\": \"%s\", \"linter\": \"%s\", \"rule\": \"%s\"} %d\n", flags.Version, linterID, ruleID, count)
 	}
 	if err := f.Sync(); err != nil {
 		logger.ErrorF("Failed to sync metrics file: %v", err)
-		return
-	}
-	if err := f.Close(); err != nil {
-		logger.ErrorF("Failed to close metrics file: %v", err)
 		return
 	}
 }
