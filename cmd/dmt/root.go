@@ -88,10 +88,6 @@ func lintCmdFunc(_ *cobra.Command, args []string) {
 		dirs = []string{"."}
 	}
 
-	if len(dirs) == 0 {
-		return
-	}
-
 	var parsedDirs []string
 	for _, dir := range dirs {
 		d, err := homedir.Expand(dir)
