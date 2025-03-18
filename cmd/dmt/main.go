@@ -32,6 +32,7 @@ func main() {
 
 func runLint(dirs []string) {
 	color.NoColor = false
+	logger.InfoF("DMT version: %s", version)
 	logger.InfoF("Dirs: %v", dirs)
 
 	cfg, err := config.NewDefaultRootConfig(dirs)
