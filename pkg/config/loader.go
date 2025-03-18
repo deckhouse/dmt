@@ -41,15 +41,15 @@ type LoaderOptions struct {
 type Loader struct {
 	viper *viper.Viper
 
-	cfg  any
-	args []string
+	cfg any
+	dir string
 }
 
-func NewLoader(cfg any, dirs ...string) *Loader {
+func NewLoader(cfg any, dir string) *Loader {
 	return &Loader{
 		viper: viper.NewWithOptions(),
 		cfg:   cfg,
-		args:  dirs,
+		dir:   dir,
 	}
 }
 
@@ -83,8 +83,8 @@ func (l *Loader) setConfigFile() error {
 
 func (l *Loader) getConfigSearchPaths() []string {
 	firstArg := "./..."
-	if len(l.args) > 0 {
-		firstArg = l.args[0]
+	if l.dir != "" {
+		firstArg = l.dir
 	}
 
 	absPath, err := filepath.Abs(firstArg)

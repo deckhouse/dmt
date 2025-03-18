@@ -70,7 +70,7 @@ type Manager struct {
 	errors *errors.LintRuleErrorsList
 }
 
-func NewManager(dirs []string, rootConfig *config.RootConfig) *Manager {
+func NewManager(dir string, rootConfig *config.RootConfig) *Manager {
 	managerLevel := pkg.Error
 	m := &Manager{
 		cfg: rootConfig,
@@ -78,22 +78,10 @@ func NewManager(dirs []string, rootConfig *config.RootConfig) *Manager {
 		errors: errors.NewLintRuleErrorsList().WithMaxLevel(&managerLevel),
 	}
 
-	var paths []string
-
-	for i := range dirs {
-		dir, err := homedir.Expand(dirs[i])
-		if err != nil {
-			logger.ErrorF("Failed to expand home dir: %v", err)
-			continue
-		}
-
-		result, err := getModulePaths(dir)
-		if err != nil {
-			logger.ErrorF("Error getting module paths: %v", err)
-			continue
-		}
-
-		paths = append(paths, result...)
+	paths, err := getModulePaths(dir)
+	if err != nil {
+		logger.ErrorF("Error getting module paths: %v", err)
+		return m
 	}
 
 	vals, err := decodeValuesFile(flags.ValuesFile)

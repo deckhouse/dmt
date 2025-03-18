@@ -30,15 +30,15 @@ func main() {
 	execute()
 }
 
-func runLint(dirs []string) {
+func runLint(dir string) {
 	color.NoColor = false
 	logger.InfoF("DMT version: %s", version)
-	logger.InfoF("Dirs: %v", dirs)
+	logger.InfoF("Dir: %v", dir)
 
-	cfg, err := config.NewDefaultRootConfig(dirs)
+	cfg, err := config.NewDefaultRootConfig(dir)
 	logger.CheckErr(err)
 
-	mng := manager.NewManager(dirs, cfg)
+	mng := manager.NewManager(dir, cfg)
 	mng.Run()
 	mng.PrintResult()
 

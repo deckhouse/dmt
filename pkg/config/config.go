@@ -44,10 +44,10 @@ func calculateImpact(v, input *pkg.Level) *pkg.Level {
 	return &lvl
 }
 
-func NewDefaultRootConfig(dirs []string) (*RootConfig, error) {
+func NewDefaultRootConfig(dir string) (*RootConfig, error) {
 	cfg := &RootConfig{}
 
-	if err := NewLoader(cfg, dirs...).Load(); err != nil {
+	if err := NewLoader(cfg, dir).Load(); err != nil {
 		return nil, err
 	}
 
