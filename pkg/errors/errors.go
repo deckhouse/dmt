@@ -67,6 +67,8 @@ func (s *errStorage) add(err *lintRuleError) {
 type LintRuleErrorsList struct {
 	storage *errStorage
 
+	telemetry *sync.Map
+
 	linterID   string
 	moduleID   string
 	ruleID     string
@@ -85,20 +87,9 @@ func NewLintRuleErrorsList() *LintRuleErrorsList {
 		storage: &errStorage{
 			errList: make([]lintRuleError, 0),
 		},
-		maxLevel: &lvl,
+		telemetry: &sync.Map{},
+		maxLevel:  &lvl,
 	}
-}
-
-func NewLinterRuleList(linterID string, module ...string) *LintRuleErrorsList {
-	l := &LintRuleErrorsList{
-		storage:  &errStorage{},
-		linterID: linterID,
-	}
-	if len(module) > 0 {
-		l.moduleID = module[0]
-	}
-
-	return l
 }
 
 func (l *LintRuleErrorsList) copy() *LintRuleErrorsList {
@@ -106,17 +97,8 @@ func (l *LintRuleErrorsList) copy() *LintRuleErrorsList {
 		l.storage = &errStorage{}
 	}
 
-	return &LintRuleErrorsList{
-		storage:    l.storage,
-		linterID:   l.linterID,
-		moduleID:   l.moduleID,
-		ruleID:     l.ruleID,
-		objectID:   l.objectID,
-		value:      l.value,
-		filePath:   l.filePath,
-		lineNumber: l.lineNumber,
-		maxLevel:   l.maxLevel,
-	}
+	t := *l
+	return &t
 }
 
 func (l *LintRuleErrorsList) WithMaxLevel(level *pkg.Level) *LintRuleErrorsList {
@@ -200,6 +182,15 @@ func (l *LintRuleErrorsList) add(str string, level pkg.Level) *LintRuleErrorsLis
 		level = *l.maxLevel
 	}
 
+	if level == pkg.Warn {
+		key := fmt.Sprintf("%s:%s", l.linterID, l.ruleID)
+		value, ok := l.telemetry.Load(key)
+		if !ok {
+			value = 0
+		}
+		l.telemetry.Store(key, value.(int)+1)
+	}
+
 	e := lintRuleError{
 		LinterID:    strings.ToLower(l.linterID),
 		ModuleID:    l.moduleID,
@@ -237,6 +228,21 @@ func (l *LintRuleErrorsList) ContainsErrors() bool {
 	}
 
 	return false
+}
+
+func (l *LintRuleErrorsList) GetMetrics() map[string]int {
+	if l.telemetry == nil {
+		l.telemetry = &sync.Map{}
+	}
+
+	result := make(map[string]int)
+
+	l.telemetry.Range(func(key, value any) bool {
+		result[key.(string)] = value.(int)
+		return true
+	})
+
+	return result
 }
 
 func remapErrorsToLinterErrors(errs ...lintRuleError) []pkg.LinterError {

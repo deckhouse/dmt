@@ -41,6 +41,7 @@ func runLint(dirs []string) {
 	mng := manager.NewManager(dirs, cfg)
 	mng.Run()
 	mng.PrintResult()
+	mng.PrintMetrics()
 
 	if mng.HasCriticalErrors() {
 		os.Exit(1)

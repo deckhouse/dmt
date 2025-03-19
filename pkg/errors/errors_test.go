@@ -25,7 +25,7 @@ import (
 )
 
 func Test_Errors(t *testing.T) {
-	t1 := NewLinterRuleList("linterID", "moduleID")
+	t1 := NewLintRuleErrorsList().WithLinterID("linterID").WithModule("moduleID")
 	require.NotNil(t, t1)
 	require.Equal(t, "linterID", t1.linterID)
 	require.Equal(t, "moduleID", t1.moduleID)
@@ -56,7 +56,7 @@ func Test_Errors(t *testing.T) {
 			{LinterID: "linterid", ModuleID: "moduleID", ObjectID: "", Text: "test3", Level: pkg.Error},
 		},
 		t1.storage.GetErrors())
-	t3 := NewLinterRuleList("linterID", "moduleID2")
+	t3 := NewLintRuleErrorsList().WithLinterID("linterID").WithModule("moduleID2")
 	require.NotNil(t, t3)
 	t3.WithObjectID("objectID3").Error("test3")
 	require.Equal(t,
