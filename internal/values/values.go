@@ -1,12 +1,15 @@
-package module
+package values
 
 import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 
+	"dario.cat/mergo"
 	"github.com/flant/addon-operator/pkg/utils"
+	"helm.sh/helm/v3/pkg/chartutil"
 
 	"github.com/deckhouse/dmt/internal/module/schema"
 
@@ -19,8 +22,6 @@ type SchemaType string
 type Schemas map[SchemaType]*spec.Schema
 
 const (
-	GlobalSchema       SchemaType = "global"
-	ModuleSchema       SchemaType = "module"
 	ConfigValuesSchema SchemaType = "config"
 	ValuesSchema       SchemaType = "values"
 	HelmValuesSchema   SchemaType = "helm"
@@ -106,17 +107,50 @@ func prepareSchemas(configBytes, valuesBytes []byte) (Schemas, error) {
 	return schemas, nil
 }
 
-func GetGlobalValues() (*spec.Schema, error) {
-	schema, err := prepareSchemas(globalConfigBytes, globalValuesBytes)
+var globalValues *spec.Schema
+
+func GetGlobalValues(rootDir string) (*spec.Schema, error) {
+	if globalValues != nil {
+		return globalValues, nil
+	}
+
+	configBytes := globalConfigBytes
+	valuesBytes := globalValuesBytes
+
+	if rootDir != "" {
+		if configBytesT, valuesBytesT, err := readConfigFiles(rootDir); err == nil {
+			configBytes = configBytesT
+			valuesBytes = valuesBytesT
+		}
+	}
+
+	schemas, err := prepareSchemas(configBytes, valuesBytes)
 	if err != nil {
 		return nil, err
 	}
 
-	if values, ok := schema[ValuesSchema]; !ok || values == nil {
+	if values, ok := schemas[ValuesSchema]; !ok || values == nil {
 		return nil, fmt.Errorf("cannot find global values schema")
 	}
 
-	return schema[ValuesSchema], nil
+	return schemas[ValuesSchema], nil
+}
+
+func readConfigFiles(rootDir string) ([]byte, []byte, error) {
+	configValuesFile := filepath.Join(rootDir, "global-hooks", "openapi", "config-values.yaml")
+	valuesFile := filepath.Join(rootDir, "global-hooks", "openapi", "values.yaml")
+
+	configBytes, err := os.ReadFile(configValuesFile)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot read config values file: %w", err)
+	}
+
+	valuesBytes, err := os.ReadFile(valuesFile)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot read values file: %w", err)
+	}
+
+	return configBytes, valuesBytes, nil
 }
 
 func GetModuleValues(modulePath string) (*spec.Schema, error) {
@@ -126,14 +160,25 @@ func GetModuleValues(modulePath string) (*spec.Schema, error) {
 		return nil, fmt.Errorf("cannot read openAPI schemas: %w", err)
 	}
 
-	schema, err := prepareSchemas(configBytes, valuesBytes)
+	schemas, err := prepareSchemas(configBytes, valuesBytes)
 	if err != nil {
 		return nil, err
 	}
 
-	if values, ok := schema[ValuesSchema]; !ok || values == nil {
+	if values, ok := schemas[ValuesSchema]; !ok || values == nil {
 		return nil, fmt.Errorf("cannot find global values schema")
 	}
 
-	return schema[ValuesSchema], nil
+	return schemas[ValuesSchema], nil
+}
+
+func OverrideValues(values, vals *chartutil.Values) error {
+	if vals == nil {
+		return nil
+	}
+
+	v := &chartutil.Values{
+		"Values": *vals,
+	}
+	return mergo.Merge(values, v, mergo.WithOverride)
 }

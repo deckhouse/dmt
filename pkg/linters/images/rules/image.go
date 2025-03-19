@@ -83,7 +83,7 @@ func isImageNameUnacceptable(imageName string) (bool, string) {
 
 func (r *ImageRule) CheckImageNamesInDockerFiles(modulePath string, errorList *errors.LintRuleErrorsList) {
 	imagesPath := filepath.Join(modulePath, ImagesDir)
-	if !fsutils.IsFileExist(imagesPath) {
+	if !fsutils.IsFile(imagesPath) {
 		return
 	}
 

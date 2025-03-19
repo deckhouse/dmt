@@ -29,6 +29,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/deckhouse/dmt/internal/module/reggen"
+	"github.com/deckhouse/dmt/internal/values"
 )
 
 const (
@@ -96,25 +97,22 @@ func helmFormatModuleImages(m *Module, rawValues map[string]any) (chartutil.Valu
 	return top, nil
 }
 
-func ComposeValuesFromSchemas(m *Module) (chartutil.Values, error) {
-	values, err := GetModuleValues(m.GetPath())
+func ComposeValuesFromSchemas(m *Module, globalSchema *spec.Schema) (chartutil.Values, error) {
+	if globalSchema == nil {
+		globalSchema = &spec.Schema{}
+	}
+
+	moduleValues, err := values.GetModuleValues(m.GetPath())
 	if err != nil {
 		return nil, fmt.Errorf("cannot find openapi values schema for module %s", m.GetName())
 	}
 
-	moduleSchema := *values
+	moduleSchema := *moduleValues
 	moduleSchema.Default = make(map[string]any)
-
-	values, err = GetGlobalValues()
-	var globalSchema spec.Schema
-	if err == nil && values != nil {
-		globalSchema = *values
-	}
-	globalSchema.Default = make(map[string]any)
 
 	camelizedModuleName := ToLowerCamel(m.GetName())
 	combinedSchema := spec.Schema{}
-	combinedSchema.Properties = map[string]spec.Schema{camelizedModuleName: moduleSchema, "global": globalSchema}
+	combinedSchema.Properties = map[string]spec.Schema{camelizedModuleName: moduleSchema, "global": *globalSchema}
 
 	rawValues, err := NewOpenAPIValuesGenerator(&combinedSchema).Do()
 	if err != nil {

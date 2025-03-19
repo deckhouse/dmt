@@ -60,7 +60,7 @@ func NewDistrolessRule(cfg *config.ImageSettings) *DistrolessRule {
 
 func (r *DistrolessRule) CheckImageNamesInDockerFiles(modulePath string, errorList *errors.LintRuleErrorsList) {
 	imagesPath := filepath.Join(modulePath, ImagesDir)
-	if !fsutils.IsFileExist(imagesPath) {
+	if !fsutils.IsFile(imagesPath) {
 		return
 	}
 

@@ -28,8 +28,8 @@ import (
 	"text/tabwriter"
 
 	"github.com/fatih/color"
+	"github.com/go-openapi/spec"
 	"github.com/kyokomi/emoji"
-	"github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/go-wordwrap"
 	"helm.sh/helm/v3/pkg/chartutil"
 
@@ -37,6 +37,7 @@ import (
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/internal/values"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -89,10 +90,17 @@ func NewManager(dir string, rootConfig *config.RootConfig) *Manager {
 		logger.ErrorF("Failed to decode values file: %v", err)
 	}
 
+	globalValues, err := values.GetGlobalValues(getRootDirectory(dir))
+	var globalSchema spec.Schema
+	if err == nil && globalValues != nil {
+		globalSchema = *globalValues
+	}
+	globalSchema.Default = make(map[string]any)
+
 	for i := range paths {
 		moduleName := filepath.Base(paths[i])
 		logger.DebugF("Found `%s` module", moduleName)
-		mdl, err := module.NewModule(paths[i], &vals)
+		mdl, err := module.NewModule(paths[i], &vals, globalValues)
 		if err != nil {
 			m.errors.
 				WithLinterID("!manager").
@@ -304,4 +312,23 @@ func prepareString(input string) string {
 	}
 
 	return w.String()
+}
+
+func getRootDirectory(dir string) string {
+	for {
+		if fsutils.IsDir(filepath.Join(dir, "global-hooks", "openapi")) &&
+			fsutils.IsDir(filepath.Join(dir, "modules")) &&
+			fsutils.IsFile(filepath.Join(dir, "global-hooks", "openapi", "config-values.yaml")) &&
+			fsutils.IsFile(filepath.Join(dir, "global-hooks", "openapi", "values.yaml")) {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if dir == parent || parent == "" {
+			break
+		}
+
+		dir = parent
+	}
+
+	return ""
 }
