@@ -108,13 +108,7 @@ func prepareSchemas(configBytes, valuesBytes []byte) (Schemas, error) {
 	return schemas, nil
 }
 
-var globalValues *spec.Schema
-
 func GetGlobalValues(rootDir string) (*spec.Schema, error) {
-	if globalValues != nil {
-		return globalValues, nil
-	}
-
 	configBytes := globalConfigBytes
 	valuesBytes := globalValuesBytes
 
