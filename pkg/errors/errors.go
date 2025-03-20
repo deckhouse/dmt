@@ -89,34 +89,14 @@ func NewLintRuleErrorsList() *LintRuleErrorsList {
 	}
 }
 
-func NewLinterRuleList(linterID string, module ...string) *LintRuleErrorsList {
-	l := &LintRuleErrorsList{
-		storage:  &errStorage{},
-		linterID: linterID,
-	}
-	if len(module) > 0 {
-		l.moduleID = module[0]
-	}
-
-	return l
-}
-
 func (l *LintRuleErrorsList) copy() *LintRuleErrorsList {
 	if l.storage == nil {
 		l.storage = &errStorage{}
 	}
 
-	return &LintRuleErrorsList{
-		storage:    l.storage,
-		linterID:   l.linterID,
-		moduleID:   l.moduleID,
-		ruleID:     l.ruleID,
-		objectID:   l.objectID,
-		value:      l.value,
-		filePath:   l.filePath,
-		lineNumber: l.lineNumber,
-		maxLevel:   l.maxLevel,
-	}
+	t := *l
+
+	return &t
 }
 
 func (l *LintRuleErrorsList) WithMaxLevel(level *pkg.Level) *LintRuleErrorsList {
