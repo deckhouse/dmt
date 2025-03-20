@@ -16,11 +16,11 @@ func GetInfo(dir string) prometheus.Counter {
 		return nil
 	}
 	repositoryElements := strings.Split(repository, "/")
+	repositoryID := repository
 	if len(repositoryElements) > 1 {
-		repository = repositoryElements[len(repositoryElements)-1]
-		repository = strings.TrimSuffix(repository, ".git")
+		repositoryID = repositoryElements[len(repositoryElements)-1]
 	}
-	id := cmp.Or(os.Getenv("DMT_METRICS_ID"), repository)
+	id := cmp.Or(os.Getenv("DMT_METRICS_ID"), repositoryID)
 
 	c := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "dmt_info",

@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/ini.v1"
 
@@ -27,7 +28,13 @@ func getRepositoryAddress(dir string) string {
 		return ""
 	}
 
-	return sec.Key("url").String()
+	repositoryULR := sec.Key("url").String()
+	if split := strings.Split(repositoryULR, "@"); len(split) > 1 {
+		repositoryULR = split[1]
+	}
+	repositoryULR = strings.TrimSuffix(repositoryULR, ".git")
+
+	return repositoryULR
 }
 
 func getGitConfigFile(dir string) string {
