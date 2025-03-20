@@ -43,10 +43,12 @@ func runLint(dir string) {
 	mng.Run()
 	mng.PrintResult()
 
-	if err := metrics.NewPusher(
+	pusher := metrics.NewPusher(
 		os.Getenv("DMT_METRICS_URL"),
 		os.Getenv("DMT_METRICS_TOKEN"),
-	).Push(); err != nil {
+	)
+	// TODO: prevent panic if dirs[0] is empty
+	if err := pusher.Collector(metrics.GetInfo(dirs[0])).Push(); err != nil {
 		logger.ErrorF("Failed to push metrics: %v", err)
 	}
 
