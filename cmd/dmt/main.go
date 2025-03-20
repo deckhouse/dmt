@@ -43,11 +43,11 @@ func runLint(dir string) {
 	mng.Run()
 	mng.PrintResult()
 
-	if os.Getenv("DMT_METRICS_URL") != "" && os.Getenv("DMT_METRICS_TOKEN") != "" {
-		err := metrics.NewPusher(os.Getenv("DMT_METRICS_URL"), os.Getenv("DMT_METRICS_TOKEN")).Push()
-		if err != nil {
-			logger.ErrorF("Failed to push metrics: %v", err)
-		}
+	if err := metrics.NewPusher(
+		os.Getenv("DMT_METRICS_URL"),
+		os.Getenv("DMT_METRICS_TOKEN"),
+	).Push(); err != nil {
+		logger.ErrorF("Failed to push metrics: %v", err)
 	}
 
 	if mng.HasCriticalErrors() {
