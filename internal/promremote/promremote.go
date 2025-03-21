@@ -109,7 +109,7 @@ type Config struct {
 	// WriteURL is the URL which the client uses to write to m3coordinator.
 	WriteURL string `yaml:"writeURL"`
 
-	//HTTPClientTimeout is the timeout that is set for the client.
+	// HTTPClientTimeout is the timeout that is set for the client.
 	HTTPClientTimeout time.Duration `yaml:"httpClientTimeout"`
 
 	// If not nil, http client is used instead of constructing one.
@@ -218,7 +218,7 @@ func (c *client) WriteProto(
 	var result WriteResult
 	data, err := proto.Marshal(promWR)
 	if err != nil {
-		return result, writeError{err: fmt.Errorf("unable to marshal protobuf: %v", err)}
+		return result, writeError{err: fmt.Errorf("unable to marshal protobuf: %w", err)}
 	}
 
 	encoded := snappy.Encode(nil, data)
@@ -277,7 +277,7 @@ func (t TSList) toPromWriteRequest() *prompb.WriteRequest {
 			labels[j] = prompb.Label{Name: label.Name, Value: label.Value}
 		}
 
-		sample := []prompb.Sample{prompb.Sample{
+		sample := []prompb.Sample{{
 			// Timestamp is int milliseconds for remote write.
 			Timestamp: ts.Datapoint.Timestamp.UnixNano() / int64(time.Millisecond),
 			Value:     ts.Datapoint.Value,

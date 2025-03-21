@@ -66,7 +66,7 @@ func sendMetrics(dir string) error {
 		),
 	)
 	if err != nil {
-		return fmt.Errorf("failed to create promremote client: %v", err)
+		return fmt.Errorf("failed to create promremote client: %w", err)
 	}
 
 	ts := promremote.ConvertMetric(metrics.GetInfo(dir), "dmt_info")
@@ -76,7 +76,7 @@ func sendMetrics(dir string) error {
 			"Authorization": "Bearer " + os.Getenv("DMT_METRICS_TOKEN"),
 		},
 	}); err != nil {
-		return fmt.Errorf("failed to send metrics: %v", err)
+		return fmt.Errorf("failed to send metrics: %w", err)
 	}
 
 	return nil
