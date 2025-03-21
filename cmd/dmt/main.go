@@ -60,9 +60,11 @@ func sendMetrics(dir string) error {
 		return nil
 	}
 
-	promclient, err := promremote.NewClient(promremote.Config{
-		WriteURL: os.Getenv("DMT_METRICS_URL"),
-	})
+	promclient, err := promremote.NewClient(
+		promremote.NewConfig(
+			promremote.WriteURLOption(os.Getenv("DMT_METRICS_URL")),
+		),
+	)
 	if err != nil {
 		return fmt.Errorf("failed to create promremote client: %v", err)
 	}
