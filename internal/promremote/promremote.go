@@ -256,11 +256,11 @@ func (c *client) WriteProto(
 
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			writeErr.err = fmt.Errorf("%v, body_read_error=%s", writeErr.err, err)
+			writeErr.err = fmt.Errorf("%w, body_read_error=%w", writeErr.err, err)
 			return result, writeErr
 		}
 
-		writeErr.err = fmt.Errorf("%v, body=%s", writeErr.err, body)
+		writeErr.err = fmt.Errorf("%w, body=%s", writeErr.err, body)
 		return result, writeErr
 	}
 
