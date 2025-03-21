@@ -19,12 +19,11 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
-	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 
 	"github.com/deckhouse/dmt/internal/flags"
+	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/logger"
 )
 
@@ -88,26 +87,11 @@ func lintCmdFunc(_ *cobra.Command, args []string) {
 		dirs = []string{"."}
 	}
 
-	if len(dirs) == 0 {
+	dir, err := fsutils.ExpandDir(dirs[0])
+	if err != nil {
+		logger.ErrorF("Error expanding directory: %v", err)
 		return
 	}
 
-	var parsedDirs []string
-	for _, dir := range dirs {
-		d, err := homedir.Expand(dir)
-		if err != nil {
-			logger.ErrorF("Error expanding directory: %v", err)
-			continue
-		}
-
-		d, err = filepath.Abs(d)
-		if err != nil {
-			logger.ErrorF("Error expanding directory: %v\n", err)
-			continue
-		}
-
-		parsedDirs = append(parsedDirs, d)
-	}
-
-	runLint(parsedDirs)
+	runLint(dir)
 }

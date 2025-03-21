@@ -73,7 +73,7 @@ func (r *PatchesRule) CheckPatches(moduleDir string, errorList *errors.LintRuleE
 		if !regexPatchDir.MatchString(path) {
 			errorList.WithFilePath(path).Errorf("Patch file should be in `images/<image_name>/patches/` directory")
 		}
-		if !fsutils.IsFileExist(filepath.Join(patchDir, "README.md")) {
+		if !fsutils.IsFile(filepath.Join(patchDir, "README.md")) {
 			errorList.WithFilePath(path).Errorf("Patch file should have a corresponding README file")
 		}
 	}

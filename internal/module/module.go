@@ -23,12 +23,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"dario.cat/mergo"
+	"github.com/go-openapi/spec"
 	"gopkg.in/yaml.v3"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 
 	"github.com/deckhouse/dmt/internal/storage"
+	"github.com/deckhouse/dmt/internal/values"
 	"github.com/deckhouse/dmt/internal/werf"
 	"github.com/deckhouse/dmt/pkg/config"
 )
@@ -124,23 +125,23 @@ func (m *Module) MergeRootConfig(cfg *config.RootConfig) {
 	m.linterConfig.LintersSettings.MergeGlobal(&cfg.GlobalSettings.Linters)
 }
 
-func NewModule(path string, vals *chartutil.Values) (*Module, error) {
+func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema) (*Module, error) {
 	module, err := newModuleFromPath(path)
 	if err != nil {
 		return nil, err
 	}
 
-	values, err := ComposeValuesFromSchemas(module)
+	schemas, err := ComposeValuesFromSchemas(module, globalSchema)
 	if err != nil {
 		return nil, err
 	}
 
-	if err = overrideValues(&values, vals); err != nil {
+	if err = values.OverrideValues(&schemas, vals); err != nil {
 		return nil, fmt.Errorf("failed to override values from file: %w", err)
 	}
 
 	objectStore := storage.NewUnstructuredObjectStore()
-	err = RunRender(module, values, objectStore)
+	err = RunRender(module, schemas, objectStore)
 	if err != nil {
 		return nil, err
 	}
@@ -159,17 +160,6 @@ func NewModule(path string, vals *chartutil.Values) (*Module, error) {
 	module.linterConfig = cfg
 
 	return module, nil
-}
-
-func overrideValues(values, vals *chartutil.Values) error {
-	if vals == nil {
-		return nil
-	}
-
-	v := &chartutil.Values{
-		"Values": *vals,
-	}
-	return mergo.Merge(values, v, mergo.WithOverride)
 }
 
 func remapChart(ch *chart.Chart) {
