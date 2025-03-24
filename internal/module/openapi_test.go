@@ -440,6 +440,11 @@ func Test_applyDigests(t *testing.T) {
 						},
 					},
 				},
+				"myModule": map[string]any{
+					"registry": map[string]any{
+						"dockercfg": "ZG9ja2VyY2Zn",
+					},
+				},
 			},
 		},
 		{
@@ -462,13 +467,18 @@ func Test_applyDigests(t *testing.T) {
 						},
 					},
 				},
+				"myModule": map[string]any{
+					"registry": map[string]any{
+						"dockercfg": "ZG9ja2VyY2Zn",
+					},
+				},
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			applyDigests(tt.digests, tt.values)
+			applyDigests("myModule", tt.digests, tt.values)
 			require.Equal(t, tt.want, tt.values)
 		})
 	}
