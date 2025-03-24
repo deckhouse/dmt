@@ -55,6 +55,18 @@ func applyDigests(digests, values map[string]any) {
 	_ = mergo.Merge(&values, obj, mergo.WithOverride)
 }
 
+func setDefaultModuleRegistry(moduleName string, values map[string]any) {
+	obj := map[string]any{
+		moduleName: map[string]any{
+			"registry": map[string]any{
+				"dockercfg": "ZG9ja2VyY2Zn",
+			},
+		},
+	}
+
+	_ = mergo.Merge(&values, obj, mergo.WithOverride)
+}
+
 func helmFormatModuleImages(m *Module, rawValues map[string]any) (chartutil.Values, error) {
 	caps := chartutil.DefaultCapabilities
 	vers := []string(caps.APIVersions)
@@ -118,6 +130,8 @@ func ComposeValuesFromSchemas(m *Module, globalSchema *spec.Schema) (chartutil.V
 	if err != nil {
 		return nil, fmt.Errorf("generate values: %w", err)
 	}
+
+	setDefaultModuleRegistry(camelizedModuleName, rawValues)
 
 	return helmFormatModuleImages(m, rawValues)
 }
