@@ -41,6 +41,7 @@ const (
 )
 
 func applyDigests(moduleName string, digests, values map[string]any) {
+	moduleName = ToLowerCamel(moduleName)
 	obj := map[string]any{
 		"global": map[string]any{
 			"modulesImages": map[string]any{
@@ -84,7 +85,7 @@ func helmFormatModuleImages(m *Module, rawValues map[string]any) (chartutil.Valu
 		},
 	}
 
-	applyDigests(ToLowerCamel(m.GetName()), digests, rawValues)
+	applyDigests(m.GetName(), digests, rawValues)
 	top := map[string]any{
 		"Chart":        m.GetMetadata(),
 		"Capabilities": caps,
