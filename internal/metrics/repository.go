@@ -45,12 +45,7 @@ func getRepositoryAddress(dir string) string {
 	}
 
 	repositoryULR := sec.Key("url").String()
-	if split := strings.Split(repositoryULR, "@"); len(split) > 1 {
-		repositoryULR = split[1]
-	}
-	repositoryULR = strings.TrimSuffix(repositoryULR, ".git")
-
-	return repositoryULR
+	return convertToHTTPS(repositoryULR)
 }
 
 func getGitConfigFile(dir string) string {
@@ -68,4 +63,14 @@ func getGitConfigFile(dir string) string {
 	}
 
 	return ""
+}
+
+func convertToHTTPS(repoURL string) string {
+	if strings.HasPrefix(repoURL, "git@") {
+		// Convert SSH format to HTTPS
+		repoURL = strings.Replace(repoURL, ":", "/", 1)
+		repoURL = strings.Replace(repoURL, "git@", "https://", 1)
+		repoURL = strings.TrimSuffix(repoURL, ".git")
+	}
+	return repoURL
 }
