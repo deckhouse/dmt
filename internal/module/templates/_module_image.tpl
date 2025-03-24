@@ -57,3 +57,15 @@
   {{- $imageDigest := index $context.Values.global.modulesImages.digests "common" $containerName }}
   {{- printf "%s@%s" $context.Values.global.modulesImages.registry.base $imageDigest }}
 {{- end }}
+
+{{- /* Usage: {{ include "helm_lib_module_image_digest" (list . "<container-name>" "<module-name>(optional)") }} */ -}}
+{{- /* returns image digest */ -}}
+{{- define "helm_lib_module_image_digest" }}
+  {{- printf "%s" "sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc" }}
+{{- end }}
+
+{{- /* Usage: {{ include "helm_lib_module_image_digest_no_fail" (list . "<container-name>" "<module-name>(optional)") }} */ -}}
+{{- /* returns image digest if found */ -}}
+{{- define "helm_lib_module_image_digest_no_fail" }}
+  {{- printf "%s" "sha256:d478cd82cb6a604e3a27383daf93637326d402570b2f3bec835d1f84c9ed0acc" }}
+{{- end }}
