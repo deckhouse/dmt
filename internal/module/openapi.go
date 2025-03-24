@@ -40,7 +40,8 @@ const (
 	ObjectKey       = "object"
 )
 
-func applyDigests(digests, values map[string]any) {
+func applyDigests(moduleName string, digests, values map[string]any) {
+	moduleName = ToLowerCamel(moduleName)
 	obj := map[string]any{
 		"global": map[string]any{
 			"modulesImages": map[string]any{
@@ -48,6 +49,11 @@ func applyDigests(digests, values map[string]any) {
 				"registry": map[string]any{
 					"base": "registry.example.com/deckhouse",
 				},
+			},
+		},
+		moduleName: map[string]any{
+			"registry": map[string]any{
+				"dockercfg": "ZG9ja2VyY2Zn",
 			},
 		},
 	}
@@ -79,7 +85,7 @@ func helmFormatModuleImages(m *Module, rawValues map[string]any) (chartutil.Valu
 		},
 	}
 
-	applyDigests(digests, rawValues)
+	applyDigests(m.GetName(), digests, rawValues)
 	top := map[string]any{
 		"Chart":        m.GetMetadata(),
 		"Capabilities": caps,
