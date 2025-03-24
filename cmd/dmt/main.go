@@ -17,8 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"context"
-	"fmt"
 	"os"
 
 	"github.com/fatih/color"
@@ -26,7 +24,6 @@ import (
 	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/manager"
 	"github.com/deckhouse/dmt/internal/metrics"
-	"github.com/deckhouse/dmt/internal/promremote"
 	"github.com/deckhouse/dmt/pkg/config"
 )
 
@@ -46,38 +43,11 @@ func runLint(dir string) {
 	mng.Run()
 	mng.PrintResult()
 
-	if err := sendMetrics(dir); err != nil {
+	if err := metrics.Send(dir); err != nil {
 		logger.ErrorF("Failed to send metrics: %v", err)
 	}
 
 	if mng.HasCriticalErrors() {
 		os.Exit(1)
 	}
-}
-
-func sendMetrics(dir string) error {
-	if os.Getenv("DMT_METRICS_URL") == "" || os.Getenv("DMT_METRICS_TOKEN") == "" {
-		return nil
-	}
-
-	promclient, err := promremote.NewClient(
-		promremote.NewConfig(
-			promremote.WriteURLOption(os.Getenv("DMT_METRICS_URL")),
-		),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create promremote client: %w", err)
-	}
-
-	ts := promremote.ConvertMetric(metrics.GetInfo(dir), "dmt_info")
-
-	if _, err = promclient.WriteTimeSeries(context.Background(), []promremote.TimeSeries{ts}, promremote.WriteOptions{
-		Headers: map[string]string{
-			"Authorization": "Bearer " + os.Getenv("DMT_METRICS_TOKEN"),
-		},
-	}); err != nil {
-		return fmt.Errorf("failed to send metrics: %w", err)
-	}
-
-	return nil
 }

@@ -18,12 +18,15 @@ package metrics
 
 import (
 	"cmp"
+	"context"
+	"fmt"
 	"os"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/deckhouse/dmt/internal/flags"
+	"github.com/deckhouse/dmt/internal/promremote"
 )
 
 func GetInfo(dir string) prometheus.Counter {
@@ -49,4 +52,31 @@ func GetInfo(dir string) prometheus.Counter {
 	c.Add(1)
 
 	return c
+}
+
+func Send(dir string) error {
+	if os.Getenv("DMT_METRICS_URL") == "" || os.Getenv("DMT_METRICS_TOKEN") == "" {
+		return nil
+	}
+
+	promclient, err := promremote.NewClient(
+		promremote.NewConfig(
+			promremote.WriteURLOption(os.Getenv("DMT_METRICS_URL")),
+		),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create promremote client: %w", err)
+	}
+
+	ts := promremote.ConvertMetric(GetInfo(dir), "dmt_info")
+
+	if _, err = promclient.WriteTimeSeries(context.Background(), []promremote.TimeSeries{ts}, promremote.WriteOptions{
+		Headers: map[string]string{
+			"Authorization": "Bearer " + os.Getenv("DMT_METRICS_TOKEN"),
+		},
+	}); err != nil {
+		return fmt.Errorf("failed to send metrics: %w", err)
+	}
+
+	return nil
 }
