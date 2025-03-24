@@ -19,64 +19,37 @@ package metrics
 import (
 	"cmp"
 	"context"
-	"fmt"
 	"os"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/deckhouse/dmt/internal/flags"
-	"github.com/deckhouse/dmt/internal/promremote"
 )
 
-func GetInfo(dir string) prometheus.Counter {
-	repository := cmp.Or(os.Getenv("DMT_REPOSITORY"), getRepositoryAddress(dir))
-	if repository == "" {
-		return nil
+func GetInfo(dir string) PrometheusCollectorFunc {
+	return func(_ context.Context) (string, prometheus.Metric) {
+		repository := cmp.Or(os.Getenv("DMT_REPOSITORY"), getRepositoryAddress(dir))
+		if repository == "" {
+			return "", nil
+		}
+		repositoryElements := strings.Split(repository, "/")
+		repositoryID := repository
+		if len(repositoryElements) > 1 {
+			repositoryID = repositoryElements[len(repositoryElements)-1]
+		}
+		id := cmp.Or(os.Getenv("DMT_METRICS_ID"), repositoryID)
+
+		c := prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "dmt_info",
+			Help: "DMT info",
+		}, []string{"version", "id", "repository"}).With(prometheus.Labels{
+			"id":         id,
+			"version":    flags.Version,
+			"repository": repository,
+		})
+		c.Add(1)
+
+		return "dmt_info", c
 	}
-	repositoryElements := strings.Split(repository, "/")
-	repositoryID := repository
-	if len(repositoryElements) > 1 {
-		repositoryID = repositoryElements[len(repositoryElements)-1]
-	}
-	id := cmp.Or(os.Getenv("DMT_METRICS_ID"), repositoryID)
-
-	c := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "dmt_info",
-		Help: "DMT info",
-	}, []string{"version", "id", "repository"}).With(prometheus.Labels{
-		"id":         id,
-		"version":    flags.Version,
-		"repository": repository,
-	})
-	c.Add(1)
-
-	return c
-}
-
-func Send(dir string) error {
-	if os.Getenv("DMT_METRICS_URL") == "" || os.Getenv("DMT_METRICS_TOKEN") == "" {
-		return nil
-	}
-
-	promclient, err := promremote.NewClient(
-		promremote.NewConfig(
-			promremote.WriteURLOption(os.Getenv("DMT_METRICS_URL")),
-		),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create promremote client: %w", err)
-	}
-
-	ts := promremote.ConvertMetric(GetInfo(dir), "dmt_info")
-
-	if _, err = promclient.WriteTimeSeries(context.Background(), []promremote.TimeSeries{ts}, promremote.WriteOptions{
-		Headers: map[string]string{
-			"Authorization": "Bearer " + os.Getenv("DMT_METRICS_TOKEN"),
-		},
-	}); err != nil {
-		return fmt.Errorf("failed to send metrics: %w", err)
-	}
-
-	return nil
 }

@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"os"
 
 	"github.com/fatih/color"
@@ -43,9 +44,13 @@ func runLint(dir string) {
 	mng.Run()
 	mng.PrintResult()
 
-	if err := metrics.Send(dir); err != nil {
-		logger.ErrorF("Failed to send metrics: %v", err)
+	metricsClient, err := metrics.NewPrometheusMetricsService(os.Getenv("DMT_METRICS_URL"), os.Getenv("DMT_METRICS_TOKEN"))
+	if err != nil {
+		logger.ErrorF("Failed to create metrics client: %v", err)
 	}
+
+	metricsClient.AddMetrics(metrics.GetInfo(dir))
+	metricsClient.Send(context.Background())
 
 	if mng.HasCriticalErrors() {
 		os.Exit(1)
