@@ -17,12 +17,14 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"os"
 
 	"github.com/fatih/color"
 
 	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/manager"
+	"github.com/deckhouse/dmt/internal/metrics"
 	"github.com/deckhouse/dmt/pkg/config"
 )
 
@@ -41,6 +43,14 @@ func runLint(dir string) {
 	mng := manager.NewManager(dir, cfg)
 	mng.Run()
 	mng.PrintResult()
+
+	metricsClient, err := metrics.NewPrometheusMetricsService(os.Getenv("DMT_METRICS_URL"), os.Getenv("DMT_METRICS_TOKEN"))
+	if err != nil {
+		logger.ErrorF("Failed to create metrics client: %v", err)
+	}
+
+	metricsClient.AddMetrics(metrics.GetInfo(dir))
+	metricsClient.Send(context.Background())
 
 	if mng.HasCriticalErrors() {
 		os.Exit(1)
