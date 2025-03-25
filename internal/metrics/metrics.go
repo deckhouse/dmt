@@ -71,6 +71,7 @@ func GetInfoMetric(dir string) PrometheusCollectorFunc {
 			"version":    flags.Version,
 			"repository": repository,
 		})
+
 		c.Add(1)
 
 		return "dmt_info", c

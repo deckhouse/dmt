@@ -258,7 +258,8 @@ func (m *Manager) HasCriticalErrors() bool {
 
 func (m *Manager) GetLinterWarningsCountLabels() map[string]map[string]struct{} {
 	result := make(map[string]map[string]struct{})
-	for _, err := range m.errors.GetErrors() {
+	for i := range m.errors.GetErrors() {
+		err := m.errors.GetErrors()[i]
 		if _, ok := result[err.LinterID]; !ok {
 			result[err.LinterID] = make(map[string]struct{})
 		}
