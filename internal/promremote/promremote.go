@@ -23,7 +23,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"time"
 
@@ -254,7 +254,7 @@ func (c *client) WriteProto(
 			code: result.StatusCode,
 		}
 
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			writeErr.err = fmt.Errorf("%w, body_read_error=%w", writeErr.err, err)
 			return result, writeErr

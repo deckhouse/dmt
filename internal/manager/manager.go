@@ -36,6 +36,7 @@ import (
 	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/logger"
+	"github.com/deckhouse/dmt/internal/metrics"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/values"
 	"github.com/deckhouse/dmt/pkg"
@@ -207,6 +208,7 @@ func (m *Manager) PrintResult() {
 
 		if err.Level == pkg.Warn {
 			msgColor = color.FgHiYellow
+			metrics.IncLinterWarning(err.LinterID, err.RuleID)
 		}
 
 		// header

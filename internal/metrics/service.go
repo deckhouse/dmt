@@ -40,21 +40,18 @@ type PrometheusMetricsService struct {
 	metricsFuncs []PrometheusCollectorFunc
 }
 
-func NewPrometheusMetricsService(url, token string) (*PrometheusMetricsService, error) {
+func NewPrometheusMetricsService(url, token string) *PrometheusMetricsService {
 	if url == "" || token == "" {
-		return nil, nil
+		return nil
 	}
 
-	client, err := promremote.NewClient(promremote.NewConfig(promremote.WriteURLOption(url)))
-	if err != nil {
-		return nil, err
-	}
+	client, _ := promremote.NewClient(promremote.NewConfig(promremote.WriteURLOption(url)))
 
 	return &PrometheusMetricsService{
 		url:    url,
 		token:  token,
 		client: client,
-	}, nil
+	}
 }
 
 func (p *PrometheusMetricsService) AddMetrics(fns ...PrometheusCollectorFunc) {
@@ -68,21 +65,22 @@ func (p *PrometheusMetricsService) Send(ctx context.Context) {
 	if p == nil {
 		return
 	}
+	var timeSeries []promremote.TimeSeries
 	for _, fn := range p.metricsFuncs {
 		name, metric := fn(ctx)
-		_, err := p.client.WriteTimeSeries(
-			ctx,
-			[]promremote.TimeSeries{
-				promremote.ConvertMetric(metric, name),
-			},
-			promremote.WriteOptions{
-				Headers: map[string]string{
-					"Authorization": "Bearer " + p.token,
-				},
-			},
-		)
-		if err != nil {
-			logger.ErrorF("error in sending metrics: %v", err)
-		}
+		timeSeries = append(timeSeries, promremote.ConvertMetric(metric, name))
 	}
+	_, err := p.client.WriteTimeSeries(
+		ctx,
+		timeSeries,
+		promremote.WriteOptions{
+			Headers: map[string]string{
+				"Authorization": "Bearer " + p.token,
+			},
+		},
+	)
+	if err != nil {
+		logger.ErrorF("error in sending metrics: %v", err)
+	}
+
 }

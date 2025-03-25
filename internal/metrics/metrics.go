@@ -27,6 +27,32 @@ import (
 	"github.com/deckhouse/dmt/internal/flags"
 )
 
+var (
+	metrics *PrometheusMetricsService
+)
+
+var (
+	dmtInfo = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "dmt_info",
+		Help: "DMT info",
+	}, []string{"version", "id", "repository"})
+
+	dmtLinterWarningsCount = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "dmt_linter_warnings_count",
+		Help: "DMT linter warnings count",
+	}, []string{"version", "linter", "rule"})
+)
+
+func GetClient() *PrometheusMetricsService {
+	if metrics != nil {
+		return metrics
+	}
+
+	metrics = NewPrometheusMetricsService(os.Getenv("DMT_METRICS_URL"), os.Getenv("DMT_METRICS_TOKEN"))
+
+	return metrics
+}
+
 func GetInfo(dir string) PrometheusCollectorFunc {
 	return func(_ context.Context) (string, prometheus.Metric) {
 		repository := cmp.Or(os.Getenv("DMT_REPOSITORY"), getRepositoryAddress(dir))
@@ -40,10 +66,7 @@ func GetInfo(dir string) PrometheusCollectorFunc {
 		}
 		id := cmp.Or(os.Getenv("DMT_METRICS_ID"), repositoryID)
 
-		c := prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "dmt_info",
-			Help: "DMT info",
-		}, []string{"version", "id", "repository"}).With(prometheus.Labels{
+		c := dmtInfo.With(prometheus.Labels{
 			"id":         id,
 			"version":    flags.Version,
 			"repository": repository,
@@ -52,4 +75,23 @@ func GetInfo(dir string) PrometheusCollectorFunc {
 
 		return "dmt_info", c
 	}
+}
+
+var singletonLinterWarnings = make(map[string]struct{})
+
+func IncLinterWarning(linter, rule string) {
+	if _, ok := singletonLinterWarnings[linter+rule]; !ok {
+		GetClient().AddMetrics(
+			func(_ context.Context) (string, prometheus.Metric) {
+				return "dmt_linter_warnings_count",
+					dmtLinterWarningsCount.With(prometheus.Labels{"version": flags.Version, "linter": linter, "rule": rule})
+			})
+		singletonLinterWarnings[linter+rule] = struct{}{}
+	}
+
+	dmtLinterWarningsCount.With(prometheus.Labels{
+		"version": flags.Version,
+		"linter":  linter,
+		"rule":    rule,
+	}).Add(1)
 }

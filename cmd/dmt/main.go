@@ -44,11 +44,7 @@ func runLint(dir string) {
 	mng.Run()
 	mng.PrintResult()
 
-	metricsClient, err := metrics.NewPrometheusMetricsService(os.Getenv("DMT_METRICS_URL"), os.Getenv("DMT_METRICS_TOKEN"))
-	if err != nil {
-		logger.ErrorF("Failed to create metrics client: %v", err)
-	}
-
+	metricsClient := metrics.GetClient()
 	metricsClient.AddMetrics(metrics.GetInfo(dir))
 	metricsClient.Send(context.Background())
 
