@@ -19,7 +19,6 @@ package main
 import (
 	"context"
 	"os"
-	"slices"
 
 	"github.com/fatih/color"
 
