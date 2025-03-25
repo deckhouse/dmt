@@ -208,7 +208,6 @@ func (m *Manager) PrintResult() {
 
 		if err.Level == pkg.Warn {
 			msgColor = color.FgHiYellow
-			metrics.IncLinterWarning(err.LinterID, err.RuleID)
 		}
 
 		// header
@@ -270,6 +269,16 @@ func (m *Manager) GetLinterWarningsCountLabels() map[string]map[string]struct{} 
 	}
 
 	return result
+}
+
+func (m *Manager) ProcessLinterWarningsCountMetrics() {
+	for i := range m.errors.GetErrors() {
+		err := m.errors.GetErrors()[i]
+		if err.Level != pkg.Warn {
+			continue
+		}
+		metrics.IncLinterWarning(err.LinterID, err.RuleID)
+	}
 }
 
 func isExistsOnFilesystem(parts ...string) bool {
