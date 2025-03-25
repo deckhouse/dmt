@@ -250,46 +250,6 @@ func (m *Manager) PrintResult() {
 	fmt.Println(buf.String())
 }
 
-func (m *Manager) PrintMetrics() {
-	if flags.MetricsFile == "" {
-		return
-	}
-
-	const (
-		metricsFilePermission = 0644
-		metricsDirPermission  = 0755
-	)
-
-	metricsFile, err := fsutils.ExpandDir(flags.MetricsFile)
-	if err != nil {
-		logger.ErrorF("Failed to expand metrics file: %v", err)
-		return
-	}
-	if err = os.MkdirAll(filepath.Dir(metricsFile), metricsDirPermission); err != nil {
-		logger.ErrorF("Failed to create metrics file directory: %v", err)
-		return
-	}
-	f, err := os.OpenFile(metricsFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, metricsFilePermission)
-	if err != nil {
-		logger.ErrorF("Failed to open metrics file: %v", err)
-		return
-	}
-	defer f.Close()
-	for labels, count := range m.errors.GetMetrics() {
-		t := strings.Split(labels, ":")
-		if len(t) != 2 {
-			continue
-		}
-		linterID := t[0]
-		ruleID := t[1]
-		fmt.Fprintf(f, "dmt_linter_warnings_count{\"version\": \"%s\", \"linter\": \"%s\", \"rule\": \"%s\"} %d\n", flags.Version, linterID, ruleID, count)
-	}
-	if err := f.Sync(); err != nil {
-		logger.ErrorF("Failed to sync metrics file: %v", err)
-		return
-	}
-}
-
 func (m *Manager) HasCriticalErrors() bool {
 	return m.errors.ContainsErrors()
 }

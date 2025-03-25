@@ -43,7 +43,6 @@ func runLint(dir string) {
 	mng := manager.NewManager(dir, cfg)
 	mng.Run()
 	mng.PrintResult()
-	mng.PrintMetrics()
 
 	metricsClient, err := metrics.NewPrometheusMetricsService(os.Getenv("DMT_METRICS_URL"), os.Getenv("DMT_METRICS_TOKEN"))
 	if err != nil {
