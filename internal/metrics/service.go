@@ -82,5 +82,4 @@ func (p *PrometheusMetricsService) Send(ctx context.Context) {
 	if err != nil {
 		logger.ErrorF("error in sending metrics: %v", err)
 	}
-
 }
