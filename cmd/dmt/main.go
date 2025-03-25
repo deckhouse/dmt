@@ -53,6 +53,7 @@ func runLint(dir string) {
 		metricsClient.AddMetrics(metric)
 	}
 
+	mng.ProcessLinterWarningsCountMetrics()
 	metricsClient.Send(context.Background())
 
 	if mng.HasCriticalErrors() {
