@@ -260,6 +260,9 @@ func (m *Manager) GetLinterWarningsCountLabels() map[string]map[string]struct{} 
 	result := make(map[string]map[string]struct{})
 	for i := range m.errors.GetErrors() {
 		err := m.errors.GetErrors()[i]
+		if err.Level != pkg.Warn {
+			continue
+		}
 		if _, ok := result[err.LinterID]; !ok {
 			result[err.LinterID] = make(map[string]struct{})
 		}
