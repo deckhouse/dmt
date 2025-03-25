@@ -37,3 +37,7 @@ type Linters struct {
 type LinterConfig struct {
 	Impact *pkg.Level `mapstructure:"impact"`
 }
+
+func (c LinterConfig) IsWarn() bool {
+	return c.Impact != nil && *c.Impact == pkg.Warn
+}

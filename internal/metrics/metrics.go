@@ -25,6 +25,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/deckhouse/dmt/internal/flags"
+	"github.com/deckhouse/dmt/pkg/config/global"
 )
 
 var (
@@ -41,6 +42,11 @@ var (
 		Name: "dmt_linter_warnings_count",
 		Help: "DMT linter warnings count",
 	}, []string{"version", "linter", "rule"})
+
+	dmtLinterWarnings = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "dmt_linter_warnings",
+		Help: "DMT linter warnings",
+	}, []string{"version", "linter"})
 )
 
 func GetClient() *PrometheusMetricsService {
@@ -101,4 +107,73 @@ func IncLinterWarning(linter, rule string) {
 		"linter":  linter,
 		"rule":    rule,
 	}).Add(1)
+}
+
+func GetLinterWarningsMetrics(cfg global.Global) []PrometheusCollectorFunc {
+	result := make([]PrometheusCollectorFunc, 0)
+	if cfg.Linters.Templates.IsWarn() {
+		c := dmtLinterWarnings.With(prometheus.Labels{"version": flags.Version, "linter": "templates"})
+		c.Add(1)
+		result = append(result, func(_ context.Context) (string, prometheus.Metric) {
+			return "dmt_linter_warnings", c
+		})
+	}
+	if cfg.Linters.Images.IsWarn() {
+		c := dmtLinterWarnings.With(prometheus.Labels{"version": flags.Version, "linter": "images"})
+		c.Add(1)
+		result = append(result, func(_ context.Context) (string, prometheus.Metric) {
+			return "dmt_linter_warnings", c
+		})
+	}
+	if cfg.Linters.Container.IsWarn() {
+		c := dmtLinterWarnings.With(prometheus.Labels{"version": flags.Version, "linter": "container"})
+		c.Add(1)
+		result = append(result, func(_ context.Context) (string, prometheus.Metric) {
+			return "dmt_linter_warnings", c
+		})
+	}
+	if cfg.Linters.Rbac.IsWarn() {
+		c := dmtLinterWarnings.With(prometheus.Labels{"version": flags.Version, "linter": "rbac"})
+		c.Add(1)
+		result = append(result, func(_ context.Context) (string, prometheus.Metric) {
+			return "dmt_linter_warnings", c
+		})
+	}
+	if cfg.Linters.Hooks.IsWarn() {
+		c := dmtLinterWarnings.With(prometheus.Labels{"version": flags.Version, "linter": "hooks"})
+		c.Add(1)
+		result = append(result, func(_ context.Context) (string, prometheus.Metric) {
+			return "dmt_linter_warnings", c
+		})
+	}
+	if cfg.Linters.Module.IsWarn() {
+		c := dmtLinterWarnings.With(prometheus.Labels{"version": flags.Version, "linter": "module"})
+		c.Add(1)
+		result = append(result, func(_ context.Context) (string, prometheus.Metric) {
+			return "dmt_linter_warnings", c
+		})
+	}
+	if cfg.Linters.OpenAPI.IsWarn() {
+		c := dmtLinterWarnings.With(prometheus.Labels{"version": flags.Version, "linter": "openapi"})
+		c.Add(1)
+		result = append(result, func(_ context.Context) (string, prometheus.Metric) {
+			return "dmt_linter_warnings", c
+		})
+	}
+	if cfg.Linters.NoCyrillic.IsWarn() {
+		c := dmtLinterWarnings.With(prometheus.Labels{"version": flags.Version, "linter": "no-cyrillic"})
+		c.Add(1)
+		result = append(result, func(_ context.Context) (string, prometheus.Metric) {
+			return "dmt_linter_warnings", c
+		})
+	}
+	if cfg.Linters.License.IsWarn() {
+		c := dmtLinterWarnings.With(prometheus.Labels{"version": flags.Version, "linter": "license"})
+		c.Add(1)
+		result = append(result, func(_ context.Context) (string, prometheus.Metric) {
+			return "dmt_linter_warnings", c
+		})
+	}
+
+	return result
 }

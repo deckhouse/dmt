@@ -54,6 +54,11 @@ func runLint(dir string) {
 	}
 
 	mng.ProcessLinterWarningsCountMetrics()
+
+	for metric := range slices.Values(metrics.GetLinterWarningsMetrics(cfg.GlobalSettings)) {
+		metricsClient.AddMetrics(metric)
+	}
+
 	metricsClient.Send(context.Background())
 
 	if mng.HasCriticalErrors() {
