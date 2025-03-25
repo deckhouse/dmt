@@ -69,7 +69,7 @@ func RunRender(m *Module, values chartutil.Values, objectStore *storage.Unstruct
 
 			err = yaml.Unmarshal(docBytes, &node)
 			if err != nil {
-				return fmt.Errorf(manifestErrorMessage, err)
+				return fmt.Errorf(manifestErrorMessage, strings.TrimPrefix(path, m.GetName()+"/"), err)
 			}
 
 			if len(node) == 0 {
@@ -108,5 +108,5 @@ func SplitAt(substring string) func(data []byte, atEOF bool) (advance int, token
 }
 
 const (
-	manifestErrorMessage = `manifest unmarshal: %v`
+	manifestErrorMessage = `manifest (%q) unmarshal: %v`
 )
