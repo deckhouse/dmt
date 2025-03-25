@@ -53,7 +53,7 @@ func GetClient() *PrometheusMetricsService {
 	return metrics
 }
 
-func GetInfo(dir string) PrometheusCollectorFunc {
+func GetInfoMetric(dir string) PrometheusCollectorFunc {
 	return func(_ context.Context) (string, prometheus.Metric) {
 		repository := cmp.Or(os.Getenv("DMT_REPOSITORY"), getRepositoryAddress(dir))
 		if repository == "" {
@@ -77,18 +77,24 @@ func GetInfo(dir string) PrometheusCollectorFunc {
 	}
 }
 
-var singletonLinterWarnings = make(map[string]struct{})
-
-func IncLinterWarning(linter, rule string) {
-	if _, ok := singletonLinterWarnings[linter+rule]; !ok {
-		GetClient().AddMetrics(
-			func(_ context.Context) (string, prometheus.Metric) {
-				return "dmt_linter_warnings_count",
-					dmtLinterWarningsCount.With(prometheus.Labels{"version": flags.Version, "linter": linter, "rule": rule})
+func GetLinterWarningsCountMetrics(labels map[string]map[string]struct{}) []PrometheusCollectorFunc {
+	result := make([]PrometheusCollectorFunc, 0)
+	for linter, rules := range labels {
+		for rule := range rules {
+			result = append(result, func(_ context.Context) (string, prometheus.Metric) {
+				return "dmt_linter_warnings_count", dmtLinterWarningsCount.With(prometheus.Labels{
+					"version": flags.Version,
+					"linter":  linter,
+					"rule":    rule,
+				})
 			})
-		singletonLinterWarnings[linter+rule] = struct{}{}
+		}
 	}
 
+	return result
+}
+
+func IncLinterWarning(linter, rule string) {
 	dmtLinterWarningsCount.With(prometheus.Labels{
 		"version": flags.Version,
 		"linter":  linter,

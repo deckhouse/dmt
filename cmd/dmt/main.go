@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"os"
+	"slices"
 
 	"github.com/fatih/color"
 
@@ -45,7 +46,13 @@ func runLint(dir string) {
 	mng.PrintResult()
 
 	metricsClient := metrics.GetClient()
-	metricsClient.AddMetrics(metrics.GetInfo(dir))
+	metricsClient.AddMetrics(metrics.GetInfoMetric(dir))
+
+	labels := mng.GetLinterWarningsCountLabels()
+	for metric := range slices.Values(metrics.GetLinterWarningsCountMetrics(labels)) {
+		metricsClient.AddMetrics(metric)
+	}
+
 	metricsClient.Send(context.Background())
 
 	if mng.HasCriticalErrors() {

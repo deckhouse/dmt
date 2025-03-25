@@ -256,6 +256,18 @@ func (m *Manager) HasCriticalErrors() bool {
 	return m.errors.ContainsErrors()
 }
 
+func (m *Manager) GetLinterWarningsCountLabels() map[string]map[string]struct{} {
+	result := make(map[string]map[string]struct{})
+	for _, err := range m.errors.GetErrors() {
+		if _, ok := result[err.LinterID]; !ok {
+			result[err.LinterID] = make(map[string]struct{})
+		}
+		result[err.LinterID][err.RuleID] = struct{}{}
+	}
+
+	return result
+}
+
 func isExistsOnFilesystem(parts ...string) bool {
 	_, err := os.Stat(filepath.Join(parts...))
 	return err == nil
