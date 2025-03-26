@@ -32,33 +32,25 @@ type PrometheusMetricsService struct {
 }
 
 func NewPrometheusMetricsService(url, token string) *PrometheusMetricsService {
-	if url == "" || token == "" {
-		return nil
-	}
-
-	client := promremote.NewClient(url)
 	storage := newMetricStorage()
 
 	return &PrometheusMetricsService{
 		url:           url,
 		token:         token,
-		client:        client,
+		client:        promremote.NewClient(url, token),
 		metricStorage: storage,
 	}
 }
+
 func (p *PrometheusMetricsService) Send(ctx context.Context) {
-	if p == nil {
+	if p == nil || p.client == nil {
 		return
 	}
 
 	_, err := p.client.WriteTimeSeries(
 		ctx,
 		p.GetTimeSeries(),
-		promremote.WriteOptions{
-			Headers: map[string]string{
-				"Authorization": "Bearer " + p.token,
-			},
-		},
+		promremote.WriteOptions{},
 	)
 	if err != nil {
 		logger.ErrorF("error in sending metrics: %v", err)

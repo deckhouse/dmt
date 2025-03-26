@@ -41,7 +41,7 @@ func GetClient() *PrometheusMetricsService {
 	return metrics
 }
 
-func (p *PrometheusMetricsService) SetDmtInfo(dir string) {
+func SetDmtInfo(dir string) {
 	repository := cmp.Or(os.Getenv("DMT_REPOSITORY"), getRepositoryAddress(dir))
 	if repository == "" {
 		return
@@ -61,7 +61,7 @@ func (p *PrometheusMetricsService) SetDmtInfo(dir string) {
 	})
 }
 
-func (p *PrometheusMetricsService) SetLinterWarningsMetrics(cfg global.Global) {
+func SetLinterWarningsMetrics(cfg global.Global) {
 	if cfg.Linters.Templates.IsWarn() {
 		metrics.CounterAdd("dmt_linter_warnings", 1, prometheus.Labels{
 			"version": flags.Version,

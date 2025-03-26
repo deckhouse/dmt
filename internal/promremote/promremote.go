@@ -77,17 +77,23 @@ type WriteError interface {
 
 type Client struct {
 	writeURL   string
+	token      string
 	httpClient *http.Client
 	userAgent  string
 }
 
 // NewClient creates a new remote write coordinator client.
-func NewClient(url string) *Client {
+func NewClient(url, token string) *Client {
+	if url == "" || token == "" {
+		return nil
+	}
+
 	httpClient := &http.Client{
 		Timeout: defaultHTTPClientTimeout,
 	}
 
 	return &Client{
+		token:      token,
 		writeURL:   url,
 		httpClient: httpClient,
 		userAgent:  defaultUserAgent,
@@ -125,6 +131,8 @@ func (c *Client) WriteProto(
 	req.Header.Set("Content-Encoding", "snappy")
 	req.Header.Set("User-Agent", c.userAgent)
 	req.Header.Set("X-Prometheus-Remote-Write-Version", "0.1.0")
+	req.Header.Set("Authorization", "Bearer "+c.token)
+
 	if opts.Headers != nil {
 		for k, v := range opts.Headers {
 			req.Header.Set(k, v)
