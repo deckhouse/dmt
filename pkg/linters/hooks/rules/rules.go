@@ -69,7 +69,7 @@ func (l *HookRule) CheckIngressCopyCustomCertificateRule(m *module.Module, objec
 	}
 
 	var imports = make(map[string]struct{})
-	for _, hookPath := range fsutils.GetFiles(m.GetPath(), false, filterGoHooks) {
+	for _, hookPath := range fsutils.GetFiles(hooksDir, false, filterGoHooks) {
 		p, err := getImports(hookPath)
 		if err != nil {
 			continue
