@@ -21,10 +21,12 @@ import (
 	"context"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/deckhouse/dmt/internal/flags"
+	"github.com/deckhouse/dmt/internal/promremote"
 	"github.com/deckhouse/dmt/pkg/config/global"
 )
 
@@ -59,46 +61,20 @@ func GetClient() *PrometheusMetricsService {
 	return metrics
 }
 
-func GetInfoMetric(dir string) PrometheusCollectorFunc {
-	return func(_ context.Context) (string, prometheus.Metric) {
-		repository := cmp.Or(os.Getenv("DMT_REPOSITORY"), getRepositoryAddress(dir))
-		if repository == "" {
-			return "", nil
-		}
-		repositoryElements := strings.Split(repository, "/")
-		repositoryID := repository
-		if len(repositoryElements) > 1 {
-			repositoryID = repositoryElements[len(repositoryElements)-1]
-		}
-		id := cmp.Or(os.Getenv("DMT_METRICS_ID"), repositoryID)
-
-		c := dmtInfo.With(prometheus.Labels{
-			"id":         id,
-			"version":    flags.Version,
-			"repository": repository,
-		})
-
-		c.Add(1)
-
-		return "dmt_info", c
-	}
-}
-
-func GetLinterWarningsCountMetrics(labels map[string]map[string]struct{}) []PrometheusCollectorFunc {
-	result := make([]PrometheusCollectorFunc, 0)
-	for linter, rules := range labels {
-		for rule := range rules {
-			result = append(result, func(_ context.Context) (string, prometheus.Metric) {
-				return "dmt_linter_warnings_count", dmtLinterWarningsCount.With(prometheus.Labels{
-					"version": flags.Version,
-					"linter":  linter,
-					"rule":    rule,
-				})
-			})
-		}
+func (p *PrometheusMetricsService) SetInfoMetric(dir string) {
+	repository := cmp.Or(os.Getenv("DMT_REPOSITORY"), getRepositoryAddress(dir))
+	if repository == "" {
+		return
 	}
 
-	return result
+	repositoryElements := strings.Split(repository, "/")
+	repositoryID := repository
+	if len(repositoryElements) > 1 {
+		repositoryID = repositoryElements[len(repositoryElements)-1]
+	}
+	id := cmp.Or(os.Getenv("DMT_METRICS_ID"), repositoryID)
+
+	p.Add("dmt_info", map[string]string{"version": flags.Version, "id": id, "repository": repository}, 1)
 }
 
 func IncLinterWarning(linter, rule string) {

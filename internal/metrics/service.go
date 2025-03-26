@@ -18,26 +18,21 @@ package metrics
 
 import (
 	"context"
-
-	"github.com/prometheus/client_golang/prometheus"
+	"sync"
+	"time"
 
 	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/promremote"
 )
 
-type PrometheusCollectorFunc func(ctx context.Context) (string, prometheus.Metric)
-
-// Service is a metrics service
-type Service interface {
-	Send(ctx context.Context)
-}
-
 type PrometheusMetricsService struct {
 	url   string
 	token string
 
-	client       promremote.Client
-	metricsFuncs []PrometheusCollectorFunc
+	client promremote.Client
+
+	mu         sync.Mutex
+	timeSeries []promremote.TimeSeries
 }
 
 func NewPrometheusMetricsService(url, token string) *PrometheusMetricsService {
@@ -54,25 +49,13 @@ func NewPrometheusMetricsService(url, token string) *PrometheusMetricsService {
 	}
 }
 
-func (p *PrometheusMetricsService) AddMetrics(fns ...PrometheusCollectorFunc) {
-	if p == nil {
-		return
-	}
-	p.metricsFuncs = append(p.metricsFuncs, fns...)
-}
-
 func (p *PrometheusMetricsService) Send(ctx context.Context) {
 	if p == nil {
 		return
 	}
-	var timeSeries []promremote.TimeSeries
-	for _, fn := range p.metricsFuncs {
-		name, metric := fn(ctx)
-		timeSeries = append(timeSeries, promremote.ConvertMetric(metric, name))
-	}
 	_, err := p.client.WriteTimeSeries(
 		ctx,
-		timeSeries,
+		p.timeSeries,
 		promremote.WriteOptions{
 			Headers: map[string]string{
 				"Authorization": "Bearer " + p.token,
@@ -82,4 +65,33 @@ func (p *PrometheusMetricsService) Send(ctx context.Context) {
 	if err != nil {
 		logger.ErrorF("error in sending metrics: %v", err)
 	}
+}
+
+func (p *PrometheusMetricsService) AddTimeSeries(ts ...promremote.TimeSeries) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.timeSeries = append(p.timeSeries, ts...)
+}
+
+func (p *PrometheusMetricsService) Add(name string, labels map[string]string, value float64) {
+	lbs := []promremote.Label{
+		{Name: "__name__", Value: name},
+	}
+
+	for labelName, labelValue := range labels {
+		lbs = append(lbs, promremote.Label{
+			Name:  labelName,
+			Value: labelValue,
+		})
+	}
+
+	labels["__name__"] = name
+	p.AddTimeSeries(promremote.TimeSeries{
+		Labels: lbs,
+		Datapoint: promremote.Datapoint{
+			Timestamp: time.Now(),
+			Value:     value,
+		},
+	})
 }
