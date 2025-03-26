@@ -40,16 +40,18 @@ func runLint(dir string) {
 	cfg, err := config.NewDefaultRootConfig(dir)
 	logger.CheckErr(err)
 
+	// init metrics storage
+	metrics.GetClient(dir)
+
 	mng := manager.NewManager(dir, cfg)
 	mng.Run()
 	mng.PrintResult()
 
-	metricsClient, err := metrics.NewPrometheusMetricsService(os.Getenv("DMT_METRICS_URL"), os.Getenv("DMT_METRICS_TOKEN"))
-	if err != nil {
-		logger.ErrorF("Failed to create metrics client: %v", err)
-	}
+	metrics.SetDmtInfo()
+	metrics.SetLinterWarningsMetrics(cfg.GlobalSettings)
+	metrics.SetDmtRuntimeDuration()
 
-	metricsClient.AddMetrics(metrics.GetInfo(dir))
+	metricsClient := metrics.GetClient(dir)
 	metricsClient.Send(context.Background())
 
 	if mng.HasCriticalErrors() {

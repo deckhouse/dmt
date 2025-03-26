@@ -19,70 +19,48 @@ package metrics
 import (
 	"context"
 
-	"github.com/prometheus/client_golang/prometheus"
-
 	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/promremote"
 )
 
-type PrometheusCollectorFunc func(ctx context.Context) (string, prometheus.Metric)
-
-// Service is a metrics service
-type Service interface {
-	Send(ctx context.Context)
-}
-
 type PrometheusMetricsService struct {
-	url   string
-	token string
+	url        string
+	token      string
+	dir        string
+	id         string
+	repository string
 
-	client       promremote.Client
-	metricsFuncs []PrometheusCollectorFunc
+	client *promremote.Client
+	*metricStorage
 }
 
-func NewPrometheusMetricsService(url, token string) (*PrometheusMetricsService, error) {
-	if url == "" || token == "" {
-		return nil, nil
-	}
+func newPrometheusMetricsService(url, token, dir string) *PrometheusMetricsService {
+	storage := newMetricStorage()
 
-	client, err := promremote.NewClient(promremote.NewConfig(promremote.WriteURLOption(url)))
-	if err != nil {
-		return nil, err
-	}
+	id, repository := getDmtInfo(dir)
 
 	return &PrometheusMetricsService{
-		url:    url,
-		token:  token,
-		client: client,
-	}, nil
-}
-
-func (p *PrometheusMetricsService) AddMetrics(fns ...PrometheusCollectorFunc) {
-	if p == nil {
-		return
+		url:           url,
+		token:         token,
+		client:        promremote.NewClient(url, token),
+		metricStorage: storage,
+		dir:           dir,
+		id:            id,
+		repository:    repository,
 	}
-	p.metricsFuncs = append(p.metricsFuncs, fns...)
 }
 
 func (p *PrometheusMetricsService) Send(ctx context.Context) {
-	if p == nil {
+	if p == nil || p.client == nil {
 		return
 	}
-	for _, fn := range p.metricsFuncs {
-		name, metric := fn(ctx)
-		_, err := p.client.WriteTimeSeries(
-			ctx,
-			[]promremote.TimeSeries{
-				promremote.ConvertMetric(metric, name),
-			},
-			promremote.WriteOptions{
-				Headers: map[string]string{
-					"Authorization": "Bearer " + p.token,
-				},
-			},
-		)
-		if err != nil {
-			logger.ErrorF("error in sending metrics: %v", err)
-		}
+
+	_, err := p.client.WriteTimeSeries(
+		ctx,
+		p.GetTimeSeries(),
+		promremote.WriteOptions{},
+	)
+	if err != nil {
+		logger.ErrorF("error in sending metrics: %v", err)
 	}
 }
