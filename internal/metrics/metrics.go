@@ -20,6 +20,7 @@ import (
 	"cmp"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -28,7 +29,8 @@ import (
 )
 
 var (
-	metrics *PrometheusMetricsService
+	metrics   *PrometheusMetricsService
+	startTime = time.Now()
 )
 
 func GetClient() *PrometheusMetricsService {
@@ -41,10 +43,10 @@ func GetClient() *PrometheusMetricsService {
 	return metrics
 }
 
-func SetDmtInfo(dir string) {
+func getDmtInfo(dir string) (string, string) {
 	repository := cmp.Or(os.Getenv("DMT_REPOSITORY"), getRepositoryAddress(dir))
 	if repository == "" {
-		return
+		return "", ""
 	}
 
 	repositoryElements := strings.Split(repository, "/")
@@ -54,6 +56,11 @@ func SetDmtInfo(dir string) {
 	}
 	id := cmp.Or(os.Getenv("DMT_METRICS_ID"), repositoryID)
 
+	return id, repository
+}
+
+func SetDmtInfo(dir string) {
+	id, repository := getDmtInfo(dir)
 	metrics.CounterAdd("dmt_info", 1, prometheus.Labels{
 		"id":         id,
 		"version":    flags.Version,
@@ -124,4 +131,17 @@ func IncDmtLinterWarningsCount(linter, rule string) {
 		"linter":  linter,
 		"rule":    rule,
 	})
+}
+
+func SetDmtRuntimeDuration(dir string) {
+	id, repository := getDmtInfo(dir)
+	metrics.HistogramObserve(
+		"dmt_runtime_duration",
+		time.Since(startTime).Seconds(),
+		prometheus.Labels{
+			"version":    flags.Version,
+			"id":         id,
+			"repository": repository,
+		},
+		prometheus.DefBuckets)
 }
