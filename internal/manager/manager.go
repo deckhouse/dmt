@@ -208,7 +208,7 @@ func (m *Manager) PrintResult() {
 
 		if err.Level == pkg.Warn {
 			msgColor = color.FgHiYellow
-			metrics.IncDmtLinterWarningsCount(err.LinterID, err.RuleID)
+			metrics.IncDmtLinterWarningsCount(err.LinterID, err.RuleID, err.Level.String())
 		}
 
 		// header
