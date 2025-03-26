@@ -146,7 +146,6 @@ func SetDmtRuntimeDuration() {
 		"dmt_runtime_duration",
 		time.Since(startTime).Seconds(),
 		prometheus.Labels{
-			"version":    flags.Version,
 			"id":         metrics.id,
 			"repository": metrics.repository,
 		},
