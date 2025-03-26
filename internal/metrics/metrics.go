@@ -36,7 +36,7 @@ func GetClient() *PrometheusMetricsService {
 		return metrics
 	}
 
-	metrics = NewPrometheusMetricsService(os.Getenv("DMT_METRICS_URL"), os.Getenv("DMT_METRICS_TOKEN"))
+	metrics = newPrometheusMetricsService(os.Getenv("DMT_METRICS_URL"), os.Getenv("DMT_METRICS_TOKEN"))
 
 	return metrics
 }

@@ -31,7 +31,7 @@ type PrometheusMetricsService struct {
 	*metricStorage
 }
 
-func NewPrometheusMetricsService(url, token string) *PrometheusMetricsService {
+func newPrometheusMetricsService(url, token string) *PrometheusMetricsService {
 	storage := newMetricStorage()
 
 	return &PrometheusMetricsService{
