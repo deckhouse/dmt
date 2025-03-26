@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/deckhouse/dmt/internal/promremote"
@@ -35,7 +36,8 @@ func (p *PrometheusMetricsService) GetTimeSeries() []promremote.TimeSeries {
 			switch {
 			case metric.GetCounter() != nil:
 				// Add counter as a single time series
-				counterLabels := append(labels, promremote.Label{
+				counterLabels := slices.Clone(labels)
+				counterLabels = append(counterLabels, promremote.Label{
 					Name:  "__name__",
 					Value: metricName,
 				})
@@ -50,7 +52,8 @@ func (p *PrometheusMetricsService) GetTimeSeries() []promremote.TimeSeries {
 
 			case metric.GetGauge() != nil:
 				// Add gauge as a single time series
-				gaugeLabels := append(labels, promremote.Label{
+				gaugeLabels := slices.Clone(labels)
+				gaugeLabels = append(gaugeLabels, promremote.Label{
 					Name:  "__name__",
 					Value: metricName,
 				})
@@ -67,7 +70,7 @@ func (p *PrometheusMetricsService) GetTimeSeries() []promremote.TimeSeries {
 				histogram := metric.GetHistogram()
 
 				// 1. Add sum time series
-				sumLabels := append([]promremote.Label{}, labels...)
+				sumLabels := slices.Clone(labels)
 				sumLabels = append(sumLabels, promremote.Label{
 					Name:  "__name__",
 					Value: metricName + "_sum",
@@ -82,7 +85,7 @@ func (p *PrometheusMetricsService) GetTimeSeries() []promremote.TimeSeries {
 				})
 
 				// 2. Add count time series
-				countLabels := append([]promremote.Label{}, labels...)
+				countLabels := slices.Clone(labels)
 				countLabels = append(countLabels, promremote.Label{
 					Name:  "__name__",
 					Value: metricName + "_count",
@@ -98,7 +101,7 @@ func (p *PrometheusMetricsService) GetTimeSeries() []promremote.TimeSeries {
 
 				// 3. Add bucket time series
 				for _, bucket := range histogram.GetBucket() {
-					bucketLabels := append([]promremote.Label{}, labels...)
+					bucketLabels := slices.Clone(labels)
 					bucketLabels = append(bucketLabels,
 						promremote.Label{
 							Name:  "le",
@@ -123,7 +126,7 @@ func (p *PrometheusMetricsService) GetTimeSeries() []promremote.TimeSeries {
 				summary := metric.GetSummary()
 
 				// 1. Add sum time series
-				sumLabels := append([]promremote.Label{}, labels...)
+				sumLabels := slices.Clone(labels)
 				sumLabels = append(sumLabels, promremote.Label{
 					Name:  "__name__",
 					Value: metricName + "_sum",
@@ -138,7 +141,7 @@ func (p *PrometheusMetricsService) GetTimeSeries() []promremote.TimeSeries {
 				})
 
 				// 2. Add count time series
-				countLabels := append([]promremote.Label{}, labels...)
+				countLabels := slices.Clone(labels)
 				countLabels = append(countLabels, promremote.Label{
 					Name:  "__name__",
 					Value: metricName + "_count",
@@ -154,7 +157,7 @@ func (p *PrometheusMetricsService) GetTimeSeries() []promremote.TimeSeries {
 
 				// 3. Add quantile time series
 				for _, quantile := range summary.GetQuantile() {
-					quantileLabels := append([]promremote.Label{}, labels...)
+					quantileLabels := slices.Clone(labels)
 					quantileLabels = append(quantileLabels,
 						promremote.Label{
 							Name:  "quantile",
