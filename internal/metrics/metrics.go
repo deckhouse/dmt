@@ -33,12 +33,12 @@ var (
 	startTime = time.Now()
 )
 
-func GetClient() *PrometheusMetricsService {
+func GetClient(dir string) *PrometheusMetricsService {
 	if metrics != nil {
 		return metrics
 	}
 
-	metrics = newPrometheusMetricsService(os.Getenv("DMT_METRICS_URL"), os.Getenv("DMT_METRICS_TOKEN"))
+	metrics = newPrometheusMetricsService(os.Getenv("DMT_METRICS_URL"), os.Getenv("DMT_METRICS_TOKEN"), dir)
 
 	return metrics
 }
@@ -59,89 +59,107 @@ func getDmtInfo(dir string) (string, string) {
 	return id, repository
 }
 
-func SetDmtInfo(dir string) {
-	id, repository := getDmtInfo(dir)
+func SetDmtInfo() {
 	metrics.CounterAdd("dmt_info", 1, prometheus.Labels{
-		"id":         id,
+		"id":         metrics.id,
 		"version":    flags.Version,
-		"repository": repository,
+		"repository": metrics.repository,
 	})
 }
 
 func SetLinterWarningsMetrics(cfg global.Global) {
 	if cfg.Linters.Templates.IsWarn() {
 		metrics.CounterAdd("dmt_linter_warnings", 1, prometheus.Labels{
-			"version": flags.Version,
-			"linter":  "templates",
+			"version":    flags.Version,
+			"linter":     "templates",
+			"id":         metrics.id,
+			"repository": metrics.repository,
 		})
 	}
 	if cfg.Linters.Images.IsWarn() {
 		metrics.CounterAdd("dmt_linter_warnings", 1, prometheus.Labels{
-			"version": flags.Version,
-			"linter":  "images",
+			"version":    flags.Version,
+			"linter":     "images",
+			"id":         metrics.id,
+			"repository": metrics.repository,
 		})
 	}
 	if cfg.Linters.Container.IsWarn() {
 		metrics.CounterAdd("dmt_linter_warnings", 1, prometheus.Labels{
-			"version": flags.Version,
-			"linter":  "container",
+			"version":    flags.Version,
+			"linter":     "container",
+			"id":         metrics.id,
+			"repository": metrics.repository,
 		})
 	}
 	if cfg.Linters.Rbac.IsWarn() {
 		metrics.CounterAdd("dmt_linter_warnings", 1, prometheus.Labels{
-			"version": flags.Version,
-			"linter":  "rbac",
+			"version":    flags.Version,
+			"linter":     "rbac",
+			"id":         metrics.id,
+			"repository": metrics.repository,
 		})
 	}
 	if cfg.Linters.Hooks.IsWarn() {
 		metrics.CounterAdd("dmt_linter_warnings", 1, prometheus.Labels{
-			"version": flags.Version,
-			"linter":  "hooks",
+			"version":    flags.Version,
+			"linter":     "hooks",
+			"id":         metrics.id,
+			"repository": metrics.repository,
 		})
 	}
 	if cfg.Linters.Module.IsWarn() {
 		metrics.CounterAdd("dmt_linter_warnings", 1, prometheus.Labels{
-			"version": flags.Version,
-			"linter":  "module",
+			"version":    flags.Version,
+			"linter":     "module",
+			"id":         metrics.id,
+			"repository": metrics.repository,
 		})
 	}
 	if cfg.Linters.OpenAPI.IsWarn() {
 		metrics.CounterAdd("dmt_linter_warnings", 1, prometheus.Labels{
-			"version": flags.Version,
-			"linter":  "openapi",
+			"version":    flags.Version,
+			"linter":     "openapi",
+			"id":         metrics.id,
+			"repository": metrics.repository,
 		})
 	}
 	if cfg.Linters.NoCyrillic.IsWarn() {
 		metrics.CounterAdd("dmt_linter_warnings", 1, prometheus.Labels{
-			"version": flags.Version,
-			"linter":  "no-cyrillic",
+			"version":    flags.Version,
+			"linter":     "no-cyrillic",
+			"id":         metrics.id,
+			"repository": metrics.repository,
 		})
 	}
 	if cfg.Linters.License.IsWarn() {
 		metrics.CounterAdd("dmt_linter_warnings", 1, prometheus.Labels{
-			"version": flags.Version,
-			"linter":  "license",
+			"version":    flags.Version,
+			"linter":     "license",
+			"id":         metrics.id,
+			"repository": metrics.repository,
 		})
 	}
 }
 
 func IncDmtLinterWarningsCount(linter, rule string) {
 	metrics.CounterAdd("dmt_linter_warnings_count", 1, prometheus.Labels{
-		"version": flags.Version,
-		"linter":  linter,
-		"rule":    rule,
+		"version":    flags.Version,
+		"linter":     linter,
+		"rule":       rule,
+		"id":         metrics.id,
+		"repository": metrics.repository,
 	})
 }
 
-func SetDmtRuntimeDuration(dir string) {
-	id, repository := getDmtInfo(dir)
+func SetDmtRuntimeDuration() {
 	metrics.HistogramObserve(
 		"dmt_runtime_duration",
 		time.Since(startTime).Seconds(),
 		prometheus.Labels{
 			"version":    flags.Version,
-			"id":         id,
-			"repository": repository,
+			"id":         metrics.id,
+			"repository": metrics.repository,
 		},
 		prometheus.DefBuckets)
 }

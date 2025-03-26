@@ -24,21 +24,29 @@ import (
 )
 
 type PrometheusMetricsService struct {
-	url   string
-	token string
+	url        string
+	token      string
+	dir        string
+	id         string
+	repository string
 
 	client *promremote.Client
 	*metricStorage
 }
 
-func newPrometheusMetricsService(url, token string) *PrometheusMetricsService {
+func newPrometheusMetricsService(url, token, dir string) *PrometheusMetricsService {
 	storage := newMetricStorage()
+
+	id, repository := getDmtInfo(dir)
 
 	return &PrometheusMetricsService{
 		url:           url,
 		token:         token,
 		client:        promremote.NewClient(url, token),
 		metricStorage: storage,
+		dir:           dir,
+		id:            id,
+		repository:    repository,
 	}
 }
 

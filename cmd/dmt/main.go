@@ -29,8 +29,6 @@ import (
 )
 
 func main() {
-	// init metrics storage
-	metrics.GetClient()
 	execute()
 }
 
@@ -42,15 +40,18 @@ func runLint(dir string) {
 	cfg, err := config.NewDefaultRootConfig(dir)
 	logger.CheckErr(err)
 
+	// init metrics storage
+	metrics.GetClient(dir)
+
 	mng := manager.NewManager(dir, cfg)
 	mng.Run()
 	mng.PrintResult()
 
-	metrics.SetDmtInfo(dir)
+	metrics.SetDmtInfo()
 	metrics.SetLinterWarningsMetrics(cfg.GlobalSettings)
-	metrics.SetDmtRuntimeDuration(dir)
+	metrics.SetDmtRuntimeDuration()
 
-	metricsClient := metrics.GetClient()
+	metricsClient := metrics.GetClient(dir)
 	metricsClient.Send(context.Background())
 
 	if mng.HasCriticalErrors() {
