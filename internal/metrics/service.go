@@ -19,25 +19,16 @@ package metrics
 import (
 	"context"
 
-	"github.com/prometheus/client_golang/prometheus"
-
 	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/promremote"
 )
-
-type PrometheusCollectorFunc func(ctx context.Context) (string, prometheus.Metric)
-
-// Service is a metrics service
-type Service interface {
-	Send(ctx context.Context)
-}
 
 type PrometheusMetricsService struct {
 	url   string
 	token string
 
-	client       promremote.Client
-	metricsFuncs []PrometheusCollectorFunc
+	client *promremote.Client
+	*metricStorage
 }
 
 func NewPrometheusMetricsService(url, token string) *PrometheusMetricsService {
@@ -45,34 +36,24 @@ func NewPrometheusMetricsService(url, token string) *PrometheusMetricsService {
 		return nil
 	}
 
-	client, _ := promremote.NewClient(promremote.NewConfig(promremote.WriteURLOption(url)))
+	client := promremote.NewClient(url)
+	storage := newMetricStorage()
 
 	return &PrometheusMetricsService{
-		url:    url,
-		token:  token,
-		client: client,
+		url:           url,
+		token:         token,
+		client:        client,
+		metricStorage: storage,
 	}
 }
-
-func (p *PrometheusMetricsService) AddMetrics(fns ...PrometheusCollectorFunc) {
-	if p == nil {
-		return
-	}
-	p.metricsFuncs = append(p.metricsFuncs, fns...)
-}
-
 func (p *PrometheusMetricsService) Send(ctx context.Context) {
 	if p == nil {
 		return
 	}
-	var timeSeries []promremote.TimeSeries
-	for _, fn := range p.metricsFuncs {
-		name, metric := fn(ctx)
-		timeSeries = append(timeSeries, promremote.ConvertMetric(metric, name))
-	}
+
 	_, err := p.client.WriteTimeSeries(
 		ctx,
-		timeSeries,
+		p.GetTimeSeries(),
 		promremote.WriteOptions{
 			Headers: map[string]string{
 				"Authorization": "Bearer " + p.token,

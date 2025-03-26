@@ -208,6 +208,7 @@ func (m *Manager) PrintResult() {
 
 		if err.Level == pkg.Warn {
 			msgColor = color.FgHiYellow
+			metrics.IncDmtLinterWarningsCount(err.LinterID, err.RuleID)
 		}
 
 		// header
@@ -253,32 +254,6 @@ func (m *Manager) PrintResult() {
 
 func (m *Manager) HasCriticalErrors() bool {
 	return m.errors.ContainsErrors()
-}
-
-func (m *Manager) GetLinterWarningsCountLabels() map[string]map[string]struct{} {
-	result := make(map[string]map[string]struct{})
-	for i := range m.errors.GetErrors() {
-		err := m.errors.GetErrors()[i]
-		if err.Level != pkg.Warn {
-			continue
-		}
-		if _, ok := result[err.LinterID]; !ok {
-			result[err.LinterID] = make(map[string]struct{})
-		}
-		result[err.LinterID][err.RuleID] = struct{}{}
-	}
-
-	return result
-}
-
-func (m *Manager) ProcessLinterWarningsCountMetrics() {
-	for i := range m.errors.GetErrors() {
-		err := m.errors.GetErrors()[i]
-		if err.Level != pkg.Warn {
-			continue
-		}
-		metrics.IncLinterWarning(err.LinterID, err.RuleID)
-	}
 }
 
 func isExistsOnFilesystem(parts ...string) bool {

@@ -21,7 +21,6 @@ package promremote
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -33,19 +32,9 @@ import (
 )
 
 const (
-	// DefaultRemoteWrite is the default Prom remote write endpoint in m3coordinator.
-	DefaultRemoteWrite = "http://localhost:7201/api/v1/prom/remote/write"
-
 	defaultHTTPClientTimeout = 30 * time.Second
 	defaultUserAgent         = "promremote-go/1.0.0"
 )
-
-// DefaultConfig represents the default configuration used to construct a client.
-var DefaultConfig = Config{
-	WriteURL:          DefaultRemoteWrite,
-	HTTPClientTimeout: defaultHTTPClientTimeout,
-	UserAgent:         defaultUserAgent,
-}
 
 // Label is a metric label.
 type Label struct {
@@ -68,24 +57,6 @@ type Datapoint struct {
 	Value     float64
 }
 
-// Client is used to write timeseries data to a Prom remote write endpoint
-// such as the one in m3coordinator.
-type Client interface {
-	// WriteProto writes the Prom proto WriteRequest to the specified endpoint.
-	WriteProto(
-		ctx context.Context,
-		req *prompb.WriteRequest,
-		opts WriteOptions,
-	) (WriteResult, WriteError)
-
-	// WriteTimeSeries converts the []TimeSeries to Protobuf then writes it to the specified endpoint.
-	WriteTimeSeries(
-		ctx context.Context,
-		ts TSList,
-		opts WriteOptions,
-	) (WriteResult, WriteError)
-}
-
 // WriteOptions specifies additional write options.
 type WriteOptions struct {
 	// Headers to append or override the outgoing headers.
@@ -104,105 +75,26 @@ type WriteError interface {
 	StatusCode() int
 }
 
-// Config defines the configuration used to construct a client.
-type Config struct {
-	// WriteURL is the URL which the client uses to write to m3coordinator.
-	WriteURL string `yaml:"writeURL"`
-
-	// HTTPClientTimeout is the timeout that is set for the client.
-	HTTPClientTimeout time.Duration `yaml:"httpClientTimeout"`
-
-	// If not nil, http client is used instead of constructing one.
-	HTTPClient *http.Client
-
-	// UserAgent is the `User-Agent` header in the request.
-	UserAgent string `yaml:"userAgent"`
-}
-
-// ConfigOption defines a config option that can be used when constructing a client.
-type ConfigOption func(*Config)
-
-// NewConfig creates a new Config struct based on options passed to the function.
-func NewConfig(opts ...ConfigOption) Config {
-	cfg := DefaultConfig
-	for _, opt := range opts {
-		opt(&cfg)
-	}
-
-	return cfg
-}
-
-func (c Config) validate() error {
-	if c.HTTPClientTimeout <= 0 {
-		return fmt.Errorf("http client timeout should be greater than 0: %d", c.HTTPClientTimeout)
-	}
-
-	if c.WriteURL == "" {
-		return errors.New("remote write URL should not be blank")
-	}
-
-	if c.UserAgent == "" {
-		return errors.New("User-Agent should not be blank")
-	}
-
-	return nil
-}
-
-// WriteURLOption sets the URL which the client uses to write to m3coordinator.
-func WriteURLOption(writeURL string) ConfigOption {
-	return func(c *Config) {
-		c.WriteURL = writeURL
-	}
-}
-
-// HTTPClientTimeoutOption sets the timeout that is set for the client.
-func HTTPClientTimeoutOption(httpClientTimeout time.Duration) ConfigOption {
-	return func(c *Config) {
-		c.HTTPClientTimeout = httpClientTimeout
-	}
-}
-
-// HTTPClientOption sets the HTTP client that is set for the client.
-func HTTPClientOption(httpClient *http.Client) ConfigOption {
-	return func(c *Config) {
-		c.HTTPClient = httpClient
-	}
-}
-
-// UserAgent sets the `User-Agent` header in the request.
-func UserAgent(userAgent string) ConfigOption {
-	return func(c *Config) {
-		c.UserAgent = userAgent
-	}
-}
-
-type client struct {
+type Client struct {
 	writeURL   string
 	httpClient *http.Client
 	userAgent  string
 }
 
 // NewClient creates a new remote write coordinator client.
-func NewClient(c Config) (Client, error) {
-	if err := c.validate(); err != nil {
-		return nil, err
-	}
-
+func NewClient(url string) *Client {
 	httpClient := &http.Client{
-		Timeout: c.HTTPClientTimeout,
+		Timeout: defaultHTTPClientTimeout,
 	}
 
-	if c.HTTPClient != nil {
-		httpClient = c.HTTPClient
-	}
-
-	return &client{
-		writeURL:   c.WriteURL,
+	return &Client{
+		writeURL:   url,
 		httpClient: httpClient,
-	}, nil
+		userAgent:  defaultUserAgent,
+	}
 }
 
-func (c *client) WriteTimeSeries(
+func (c *Client) WriteTimeSeries(
 	ctx context.Context,
 	seriesList TSList,
 	opts WriteOptions,
@@ -210,7 +102,7 @@ func (c *client) WriteTimeSeries(
 	return c.WriteProto(ctx, seriesList.toPromWriteRequest(), opts)
 }
 
-func (c *client) WriteProto(
+func (c *Client) WriteProto(
 	ctx context.Context,
 	promWR *prompb.WriteRequest,
 	opts WriteOptions,

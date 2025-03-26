@@ -37,6 +37,8 @@ func runLint(dir string) {
 	logger.InfoF("DMT version: %s", version)
 	logger.InfoF("Dir: %v", dir)
 
+	metricsClient := metrics.GetClient()
+
 	cfg, err := config.NewDefaultRootConfig(dir)
 	logger.CheckErr(err)
 
@@ -44,15 +46,8 @@ func runLint(dir string) {
 	mng.Run()
 	mng.PrintResult()
 
-	metricsClient := metrics.GetClient()
-	metricsClient.AddMetrics(metrics.GetInfoMetric(dir))
-
-	labels := mng.GetLinterWarningsCountLabels()
-	metricsClient.AddMetrics(metrics.GetLinterWarningsCountMetrics(labels)...)
-
-	mng.ProcessLinterWarningsCountMetrics()
-	metricsClient.AddMetrics(metrics.GetLinterWarningsMetrics(cfg.GlobalSettings)...)
-
+	metricsClient.SetDmtInfo(dir)
+	metricsClient.SetLinterWarningsMetrics(cfg.GlobalSettings)
 	metricsClient.Send(context.Background())
 
 	if mng.HasCriticalErrors() {
