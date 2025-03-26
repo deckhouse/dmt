@@ -20,10 +20,10 @@ import (
 	"go/parser"
 	"go/token"
 	"maps"
-	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
@@ -62,8 +62,14 @@ func (l *HookRule) CheckIngressCopyCustomCertificateRule(m *module.Module, objec
 		return
 	}
 
+	hooksDir := filepath.Join(m.GetPath(), "hooks")
+	files := fsutils.GetFiles(hooksDir, false, filterCopyCustomCertificateHook)
+	if len(files) > 0 {
+		return
+	}
+
 	var imports = make(map[string]struct{})
-	for _, hookPath := range collectGoHooks(m.GetPath()) {
+	for _, hookPath := range fsutils.GetFiles(m.GetPath(), false, filterGoHooks) {
 		p, err := getImports(hookPath)
 		if err != nil {
 			continue
@@ -77,28 +83,30 @@ func (l *HookRule) CheckIngressCopyCustomCertificateRule(m *module.Module, objec
 	}
 }
 
-func collectGoHooks(moduleDir string) []string {
-	goHooks := make([]string, 0)
+func filterCopyCustomCertificateHook(rootPath, path string) bool {
+	path = fsutils.Rel(rootPath, path)
+	filename := filepath.Base(path)
 
-	_ = filepath.Walk(moduleDir, func(path string, _ os.FileInfo, err error) error {
-		switch {
-		case err != nil:
-			return err
+	if filename == "copy_custom_certificate.go" ||
+		filename == "copy_custom_certificate.py" {
+		return true
+	}
 
-		case strings.HasSuffix(path, "test.go"): // ignore tests
-			return nil
+	return false
+}
 
-		case strings.HasSuffix(path, ".go"):
-			goHooks = append(goHooks, path)
+func filterGoHooks(rootPath, path string) bool {
+	path = fsutils.Rel(rootPath, path)
+	filename := filepath.Base(path)
 
-		default:
-			return nil
-		}
+	if strings.HasSuffix(filename, "test.go") {
+		return false
+	}
+	if strings.HasSuffix(filename, ".go") {
+		return true
+	}
 
-		return nil
-	})
-
-	return goHooks
+	return false
 }
 
 func getImports(filename string) (map[string]struct{}, error) {
