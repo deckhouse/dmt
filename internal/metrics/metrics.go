@@ -72,73 +72,73 @@ func SetLinterWarningsMetrics(cfg global.Global) {
 		metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
 			"id":     metrics.id,
 			"linter": "templates",
-			"level":  "warning",
+			"level":  cfg.Linters.Templates.Impact.String(),
 		})
 	}
 	if cfg.Linters.Images.IsWarn() {
 		metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
 			"id":     metrics.id,
 			"linter": "images",
-			"level":  "warning",
+			"level":  cfg.Linters.Images.Impact.String(),
 		})
 	}
 	if cfg.Linters.Container.IsWarn() {
 		metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
 			"id":     metrics.id,
 			"linter": "container",
-			"level":  "warning",
+			"level":  cfg.Linters.Container.Impact.String(),
 		})
 	}
 	if cfg.Linters.Rbac.IsWarn() {
 		metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
 			"id":     metrics.id,
 			"linter": "rbac",
-			"level":  "warning",
+			"level":  cfg.Linters.Rbac.Impact.String(),
 		})
 	}
 	if cfg.Linters.Hooks.IsWarn() {
 		metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
 			"id":     metrics.id,
 			"linter": "hooks",
-			"level":  "warning",
+			"level":  cfg.Linters.Hooks.Impact.String(),
 		})
 	}
 	if cfg.Linters.Module.IsWarn() {
 		metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
 			"id":     metrics.id,
 			"linter": "module",
-			"level":  "warning",
+			"level":  cfg.Linters.Module.Impact.String(),
 		})
 	}
 	if cfg.Linters.OpenAPI.IsWarn() {
 		metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
 			"id":     metrics.id,
 			"linter": "openapi",
-			"level":  "warning",
+			"level":  cfg.Linters.OpenAPI.Impact.String(),
 		})
 	}
 	if cfg.Linters.NoCyrillic.IsWarn() {
 		metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
 			"id":     metrics.id,
 			"linter": "no-cyrillic",
-			"level":  "warning",
+			"level":  cfg.Linters.NoCyrillic.Impact.String(),
 		})
 	}
 	if cfg.Linters.License.IsWarn() {
 		metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
 			"id":     metrics.id,
 			"linter": "license",
-			"level":  "warning",
+			"level":  cfg.Linters.License.Impact.String(),
 		})
 	}
 }
 
-func IncDmtLinterWarningsCount(linter, rule string) {
+func IncDmtLinterWarningsCount(linter, rule, level string) {
 	metrics.CounterAdd("dmt_linter_check_count", 1, prometheus.Labels{
 		"linter": linter,
 		"rule":   rule,
 		"id":     metrics.id,
-		"level":  "warning"})
+		"level":  level})
 }
 
 func SetDmtRuntimeDuration() {
