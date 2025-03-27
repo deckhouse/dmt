@@ -18,6 +18,7 @@ package rules
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/deckhouse/dmt/internal/set"
 	"github.com/deckhouse/dmt/internal/storage"
@@ -57,6 +58,10 @@ func (r *KubeRbacProxyRule) NamespaceMustContainKubeRBACProxyCA(objectStore *sto
 	}
 
 	for index, object := range objectStore.Storage {
+		if !strings.HasPrefix(index.Namespace, "d8-") {
+			// skip non-deckhouse namespaces
+			continue
+		}
 		errorList = errorList.WithFilePath(object.ShortPath())
 		if index.Kind == "Namespace" {
 			if !proxyInNamespaces.Has(index.Name) {
