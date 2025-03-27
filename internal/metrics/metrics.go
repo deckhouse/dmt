@@ -69,87 +69,76 @@ func SetDmtInfo() {
 
 func SetLinterWarningsMetrics(cfg global.Global) {
 	if cfg.Linters.Templates.IsWarn() {
-		metrics.CounterAdd("dmt_linter_warnings", 1, prometheus.Labels{
-			"version":    flags.Version,
-			"linter":     "templates",
-			"id":         metrics.id,
-			"repository": metrics.repository,
+		metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
+			"id":     metrics.id,
+			"linter": "templates",
+			"level":  cfg.Linters.Templates.Impact.String(),
 		})
 	}
 	if cfg.Linters.Images.IsWarn() {
-		metrics.CounterAdd("dmt_linter_warnings", 1, prometheus.Labels{
-			"version":    flags.Version,
-			"linter":     "images",
-			"id":         metrics.id,
-			"repository": metrics.repository,
+		metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
+			"id":     metrics.id,
+			"linter": "images",
+			"level":  cfg.Linters.Images.Impact.String(),
 		})
 	}
 	if cfg.Linters.Container.IsWarn() {
-		metrics.CounterAdd("dmt_linter_warnings", 1, prometheus.Labels{
-			"version":    flags.Version,
-			"linter":     "container",
-			"id":         metrics.id,
-			"repository": metrics.repository,
+		metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
+			"id":     metrics.id,
+			"linter": "container",
+			"level":  cfg.Linters.Container.Impact.String(),
 		})
 	}
 	if cfg.Linters.Rbac.IsWarn() {
-		metrics.CounterAdd("dmt_linter_warnings", 1, prometheus.Labels{
-			"version":    flags.Version,
-			"linter":     "rbac",
-			"id":         metrics.id,
-			"repository": metrics.repository,
+		metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
+			"id":     metrics.id,
+			"linter": "rbac",
+			"level":  cfg.Linters.Rbac.Impact.String(),
 		})
 	}
 	if cfg.Linters.Hooks.IsWarn() {
-		metrics.CounterAdd("dmt_linter_warnings", 1, prometheus.Labels{
-			"version":    flags.Version,
-			"linter":     "hooks",
-			"id":         metrics.id,
-			"repository": metrics.repository,
+		metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
+			"id":     metrics.id,
+			"linter": "hooks",
+			"level":  cfg.Linters.Hooks.Impact.String(),
 		})
 	}
 	if cfg.Linters.Module.IsWarn() {
-		metrics.CounterAdd("dmt_linter_warnings", 1, prometheus.Labels{
-			"version":    flags.Version,
-			"linter":     "module",
-			"id":         metrics.id,
-			"repository": metrics.repository,
+		metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
+			"id":     metrics.id,
+			"linter": "module",
+			"level":  cfg.Linters.Module.Impact.String(),
 		})
 	}
 	if cfg.Linters.OpenAPI.IsWarn() {
-		metrics.CounterAdd("dmt_linter_warnings", 1, prometheus.Labels{
-			"version":    flags.Version,
-			"linter":     "openapi",
-			"id":         metrics.id,
-			"repository": metrics.repository,
+		metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
+			"id":     metrics.id,
+			"linter": "openapi",
+			"level":  cfg.Linters.OpenAPI.Impact.String(),
 		})
 	}
 	if cfg.Linters.NoCyrillic.IsWarn() {
-		metrics.CounterAdd("dmt_linter_warnings", 1, prometheus.Labels{
-			"version":    flags.Version,
-			"linter":     "no-cyrillic",
-			"id":         metrics.id,
-			"repository": metrics.repository,
+		metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
+			"id":     metrics.id,
+			"linter": "no-cyrillic",
+			"level":  cfg.Linters.NoCyrillic.Impact.String(),
 		})
 	}
 	if cfg.Linters.License.IsWarn() {
-		metrics.CounterAdd("dmt_linter_warnings", 1, prometheus.Labels{
-			"version":    flags.Version,
-			"linter":     "license",
-			"id":         metrics.id,
-			"repository": metrics.repository,
+		metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
+			"id":     metrics.id,
+			"linter": "license",
+			"level":  cfg.Linters.License.Impact.String(),
 		})
 	}
 }
 
-func IncDmtLinterWarningsCount(linter, rule string) {
-	metrics.CounterAdd("dmt_linter_warnings_count", 1, prometheus.Labels{
-		"version":    flags.Version,
-		"linter":     linter,
-		"rule":       rule,
-		"id":         metrics.id,
-		"repository": metrics.repository,
-	})
+func IncDmtLinterWarningsCount(linter, rule, level string) {
+	metrics.CounterAdd("dmt_linter_check_count", 1, prometheus.Labels{
+		"linter": linter,
+		"rule":   rule,
+		"id":     metrics.id,
+		"level":  level})
 }
 
 func SetDmtRuntimeDuration() {
@@ -157,9 +146,18 @@ func SetDmtRuntimeDuration() {
 		"dmt_runtime_duration",
 		time.Since(startTime).Seconds(),
 		prometheus.Labels{
-			"version":    flags.Version,
 			"id":         metrics.id,
 			"repository": metrics.repository,
 		},
 		prometheus.DefBuckets)
+}
+
+func SetDmtRuntimeDurationSeconds() {
+	metrics.GaugeSet(
+		"dmt_runtime_duration_seconds",
+		time.Since(startTime).Seconds(),
+		prometheus.Labels{
+			"id":         metrics.id,
+			"repository": metrics.repository,
+		})
 }

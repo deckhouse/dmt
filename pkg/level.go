@@ -24,8 +24,20 @@ const (
 	Critical
 )
 
+var stringLevelMappings = map[Level]string{
+	Warn:     "warn",
+	Error:    "error",
+	Critical: "critical",
+}
+
+var levelStringMappings = map[string]Level{
+	"warn":     Warn,
+	"error":    Error,
+	"critical": Critical,
+}
+
 func ParseStringToLevel(str string) Level {
-	lvl, ok := getStringLevelMappings()[str]
+	lvl, ok := levelStringMappings[str]
 	if !ok {
 		return Error
 	}
@@ -33,10 +45,11 @@ func ParseStringToLevel(str string) Level {
 	return lvl
 }
 
-func getStringLevelMappings() map[string]Level {
-	return map[string]Level{
-		"warn":     Warn,
-		"error":    Error,
-		"critical": Critical,
+func (l Level) String() string {
+	str, ok := stringLevelMappings[l]
+	if !ok {
+		return "error"
 	}
+
+	return str
 }
