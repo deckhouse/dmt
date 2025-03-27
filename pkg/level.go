@@ -37,16 +37,12 @@ var levelStringMappings = map[string]Level{
 }
 
 func ParseStringToLevel(str string) Level {
-	lvl, ok := getStringLevelMappings()[str]
+	lvl, ok := levelStringMappings[str]
 	if !ok {
 		return Error
 	}
 
 	return lvl
-}
-
-func getStringLevelMappings() map[string]Level {
-	return levelStringMappings
 }
 
 func (l Level) String() string {
