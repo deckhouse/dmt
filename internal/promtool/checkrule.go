@@ -29,7 +29,7 @@ var ls = rulesLintConfig{
 	all:                 true,
 	duplicateRules:      true,
 	fatal:               false,
-	ignoreUnknownFields: true,
+	ignoreUnknownFields: false,
 }
 
 // CheckRules validates rule files.
@@ -37,24 +37,27 @@ func CheckRules(data []byte) error {
 	rgs, errs := rulefmt.Parse(data, ls.ignoreUnknownFields)
 	var ruleErrors, checkGroupErrors error
 	if errs != nil {
-		errMessage := "  FAILED:"
+		errStr := make([]string, len(errs))
 		for _, e := range errs {
-			errMessage += fmt.Sprintf("\n%s", e.Error())
+			errStr = append(errStr, e.Error())
 		}
-		ruleErrors = errors.New(errMessage)
+		ruleErrors = fmt.Errorf("%s", strings.Join(errStr, "\n"))
 	}
 	if _, errs := checkRuleGroups(rgs, ls); errs != nil {
-		errMessage := "  FAILED:"
+		errStr := make([]string, len(errs))
 		for _, e := range errs {
-			errMessage += fmt.Sprintf("\n%s", e.Error())
+			errStr = append(errStr, e.Error())
 		}
-		checkGroupErrors = errors.New(errMessage)
+		checkGroupErrors = fmt.Errorf("%s", strings.Join(errStr, "\n"))
 	}
 
 	return errors.Join(ruleErrors, checkGroupErrors)
 }
 
 func checkRuleGroups(rgs *rulefmt.RuleGroups, lintSettings rulesLintConfig) (int, []error) {
+	if rgs == nil || len(rgs.Groups) == 0 {
+		return 0, []error{fmt.Errorf("%w: no rule groups found", errLint)}
+	}
 	numRules := 0
 	for _, rg := range rgs.Groups {
 		numRules += len(rg.Rules)

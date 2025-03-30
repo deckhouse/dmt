@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -97,12 +96,11 @@ func (r *PrometheusRule) PromtoolRuleCheck(m *module.Module, object storage.Stor
 
 	err = promtool.CheckRules(marshal)
 	if err != nil {
-		errorMessage := string(err.(*exec.ExitError).Stderr)
 		rulesCache.Put(object.Hash, checkResult{
 			success: false,
-			errMsg:  errorMessage,
+			errMsg:  err.Error(),
 		})
-		errorList.Errorf("Promtool check failed for Helm chart: %s", errorMessage)
+		errorList.Errorf("Promtool check failed for Helm chart: %s", err.Error())
 		return
 	}
 
