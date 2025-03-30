@@ -14,6 +14,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/internal/promtool"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -45,8 +46,6 @@ type rulesCacheStruct struct {
 	mu    sync.RWMutex
 }
 
-const promtoolPath = "/deckhouse/bin/promtool"
-
 var rulesCache = rulesCacheStruct{
 	cache: make(map[string]checkResult),
 	mu:    sync.RWMutex{},
@@ -75,36 +74,8 @@ func marshalChartYaml(object storage.StoreObject) ([]byte, error) {
 	return marshal, nil
 }
 
-func writeTempRuleFileFromObject(m *module.Module, marshalledYaml []byte) (string, error) {
-	renderedFile, err := os.CreateTemp("", m.GetName()+".*.yml")
-	if err != nil {
-		return "", err
-	}
-	defer func(renderedFile *os.File) {
-		_ = renderedFile.Close()
-	}(renderedFile)
-
-	_, err = renderedFile.Write(marshalledYaml)
-	if err != nil {
-		return "", err
-	}
-	_ = renderedFile.Sync()
-	return renderedFile.Name(), nil
-}
-
-func checkRuleFile(path string) error {
-	promtoolComand := exec.Command(promtoolPath, "check", "rules", path)
-	_, err := promtoolComand.Output()
-	return err
-}
-
 func (r *PrometheusRule) PromtoolRuleCheck(m *module.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithFilePath(m.GetPath()).WithRule(r.GetName())
-
-	// check promtoolPath exist, if not do not run linter
-	if _, err := os.Stat(promtoolPath); err != nil {
-		return
-	}
 
 	if object.Unstructured.GetKind() != "PrometheusRule" {
 		return
@@ -124,15 +95,7 @@ func (r *PrometheusRule) PromtoolRuleCheck(m *module.Module, object storage.Stor
 		return
 	}
 
-	path, err := writeTempRuleFileFromObject(m, marshal)
-	defer os.Remove(path)
-
-	if err != nil {
-		errorList.Errorf("Error creating temporary rule file from Helm chart: %s", err.Error())
-		return
-	}
-
-	err = checkRuleFile(path)
+	err = promtool.CheckRules(marshal)
 	if err != nil {
 		errorMessage := string(err.(*exec.ExitError).Stderr)
 		rulesCache.Put(object.Hash, checkResult{
