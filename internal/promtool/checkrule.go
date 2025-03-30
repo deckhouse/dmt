@@ -128,6 +128,7 @@ func checkDuplicates(groups []rulefmt.RuleGroup) []compareRuleType {
 	return duplicates
 }
 
+//nolint:gocritic // ...
 func ruleMetric(rule rulefmt.Rule) string {
 	if rule.Alert != "" {
 		return rule.Alert

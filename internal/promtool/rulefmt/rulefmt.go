@@ -96,6 +96,8 @@ type ruleGroups struct {
 }
 
 // Validate validates all rules in the rule groups.
+//
+//nolint:nonamedreturns // ...
 func (g *RuleGroups) Validate(node ruleGroups) (errs []error) {
 	set := map[string]struct{}{}
 
@@ -192,6 +194,8 @@ type RuleNode struct {
 }
 
 // Validate the rule and return a list of encountered errors.
+//
+//nolint:nonamedreturns,gocritic // ...
 func (r *Rule) Validate(node RuleNode) (nodes []WrappedError) {
 	if r.Record != "" && r.Alert != "" {
 		nodes = append(nodes, WrappedError{
@@ -280,11 +284,13 @@ func (r *Rule) Validate(node RuleNode) (nodes []WrappedError) {
 		nodes = append(nodes, WrappedError{err: err})
 	}
 
-	return
+	return nodes
 }
 
 // testTemplateParsing checks if the templates used in labels and annotations
 // of the alerting rules are parsed correctly.
+//
+//nolint:nonamedreturns // ...
 func testTemplateParsing(rl *Rule) (errs []error) {
 	if rl.Alert == "" {
 		// Not an alerting rule.
