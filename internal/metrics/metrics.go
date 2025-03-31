@@ -19,6 +19,7 @@ package metrics
 import (
 	"cmp"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
@@ -68,68 +69,21 @@ func SetDmtInfo() {
 }
 
 func SetLinterWarningsMetrics(cfg global.Global) {
-	if cfg.Linters.Templates.IsWarn() {
-		metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
-			"id":     metrics.id,
-			"linter": "templates",
-			"level":  cfg.Linters.Templates.Impact.String(),
-		})
-	}
-	if cfg.Linters.Images.IsWarn() {
-		metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
-			"id":     metrics.id,
-			"linter": "images",
-			"level":  cfg.Linters.Images.Impact.String(),
-		})
-	}
-	if cfg.Linters.Container.IsWarn() {
-		metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
-			"id":     metrics.id,
-			"linter": "container",
-			"level":  cfg.Linters.Container.Impact.String(),
-		})
-	}
-	if cfg.Linters.Rbac.IsWarn() {
-		metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
-			"id":     metrics.id,
-			"linter": "rbac",
-			"level":  cfg.Linters.Rbac.Impact.String(),
-		})
-	}
-	if cfg.Linters.Hooks.IsWarn() {
-		metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
-			"id":     metrics.id,
-			"linter": "hooks",
-			"level":  cfg.Linters.Hooks.Impact.String(),
-		})
-	}
-	if cfg.Linters.Module.IsWarn() {
-		metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
-			"id":     metrics.id,
-			"linter": "module",
-			"level":  cfg.Linters.Module.Impact.String(),
-		})
-	}
-	if cfg.Linters.OpenAPI.IsWarn() {
-		metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
-			"id":     metrics.id,
-			"linter": "openapi",
-			"level":  cfg.Linters.OpenAPI.Impact.String(),
-		})
-	}
-	if cfg.Linters.NoCyrillic.IsWarn() {
-		metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
-			"id":     metrics.id,
-			"linter": "no-cyrillic",
-			"level":  cfg.Linters.NoCyrillic.Impact.String(),
-		})
-	}
-	if cfg.Linters.License.IsWarn() {
-		metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
-			"id":     metrics.id,
-			"linter": "license",
-			"level":  cfg.Linters.License.Impact.String(),
-		})
+	v := reflect.ValueOf(&cfg.Linters).Elem()
+	for i := range v.NumField() {
+		field := v.Field(i)
+		fType := v.Type().Field(i)
+
+		if field.CanInterface() {
+			linterConfig, ok := field.Interface().(global.LinterConfig)
+			if ok && linterConfig.IsWarn() {
+				metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
+					"id":     metrics.id,
+					"linter": strings.ToLower(fType.Name),
+					"level":  linterConfig.Impact.String(),
+				})
+			}
+		}
 	}
 }
 
