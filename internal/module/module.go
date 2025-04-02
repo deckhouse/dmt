@@ -29,7 +29,6 @@ import (
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 
-	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/internal/values"
 	"github.com/deckhouse/dmt/internal/werf"
@@ -217,7 +216,7 @@ func newModuleFromPath(path string) (*Module, error) {
 	if info.Namespace == "" {
 		// fallback to the 'test' .namespace file
 		namespace := getNamespace(path)
-		if namespace != "" {
+		if namespace == "" {
 			return nil, fmt.Errorf("module %q has no namespace", info.Name)
 		}
 		info.Namespace = namespace
@@ -250,7 +249,7 @@ func getNamespace(path string) string {
 
 func ParseModuleConfigFile(path string) (*ModuleYaml, error) {
 	moduleFilename := filepath.Join(path, ModuleConfigFilename)
-	yamlFile, err := fsutils.ReadFile(moduleFilename)
+	yamlFile, err := os.ReadFile(moduleFilename)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
@@ -268,7 +267,7 @@ func ParseModuleConfigFile(path string) (*ModuleYaml, error) {
 
 func ParseChartFile(path string) (*ChartYaml, error) {
 	chartFilename := filepath.Join(path, ChartConfigFilename)
-	yamlFile, err := fsutils.ReadFile(chartFilename)
+	yamlFile, err := os.ReadFile(chartFilename)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
