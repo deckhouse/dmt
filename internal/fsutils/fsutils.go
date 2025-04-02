@@ -164,9 +164,9 @@ func ReadFile(filePath string) ([]byte, error) {
 		return nil, err
 	}
 
-	yamlFile, err := os.ReadFile(filePath)
+	bytes, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
 	}
-	return yamlFile, nil
+	return bytes, nil
 }
