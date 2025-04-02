@@ -50,6 +50,7 @@ func runLint(dir string) {
 	metrics.SetDmtInfo()
 	metrics.SetLinterWarningsMetrics(cfg.GlobalSettings)
 	metrics.SetDmtRuntimeDuration()
+	metrics.SetDmtRuntimeDurationSeconds()
 
 	metricsClient := metrics.GetClient(dir)
 	metricsClient.Send(context.Background())
