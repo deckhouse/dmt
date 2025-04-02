@@ -209,27 +209,18 @@ func newModuleFromPath(path string) (*Module, error) {
 	}
 
 	var info ModuleYaml
-	if moduleYamlConfig != nil {
-		if moduleYamlConfig.Name != "" {
-			info.Name = moduleYamlConfig.Name
-		}
-		if moduleYamlConfig.Namespace != "" {
-			info.Namespace = moduleYamlConfig.Namespace
-		}
-	}
-	if info.Name == "" && chartYamlConfig != nil {
-		if chartYamlConfig.Name != "" {
-			info.Name = chartYamlConfig.Name
-		}
+	info.Name = GetModuleName(moduleYamlConfig, chartYamlConfig)
+	if moduleYamlConfig != nil && moduleYamlConfig.Namespace != "" {
+		info.Namespace = moduleYamlConfig.Namespace
 	}
 
 	if info.Namespace == "" {
 		// fallback to the 'test' .namespace file
-		info.Namespace = getNamespace(path)
-	}
-
-	if info.Namespace == "" {
-		return nil, fmt.Errorf("module %q has no namespace", info.Name)
+		namespace := getNamespace(path)
+		if namespace != "" {
+			return nil, fmt.Errorf("module %q has no namespace", info.Name)
+		}
+		info.Namespace = namespace
 	}
 
 	moduleChart, err := LoadModuleAsChart(info.Name, path)
@@ -291,4 +282,14 @@ func ParseChartFile(path string) (*ChartYaml, error) {
 	}
 
 	return &chartYaml, nil
+}
+
+func GetModuleName(moduleYamlFile *ModuleYaml, chartYamlFile *ChartYaml) string {
+	if moduleYamlFile != nil && moduleYamlFile.Name != "" {
+		return moduleYamlFile.Name
+	}
+	if chartYamlFile != nil && chartYamlFile.Name != "" {
+		return chartYamlFile.Name
+	}
+	return ""
 }

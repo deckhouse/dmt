@@ -55,7 +55,7 @@ func (m *Manager) validateModule(path string) error {
 		m.errors.Errorf(err.Error())
 	}
 
-	moduleName := getModuleName(moduleYamlFile, chartYamlFile)
+	moduleName := module.GetModuleName(moduleYamlFile, chartYamlFile)
 	if moduleName == "" && chartYamlFile == nil {
 		err := fmt.Errorf("module `name` property is empty")
 		errs = errors.Join(errs, err)
@@ -74,16 +74,6 @@ func (m *Manager) validateModule(path string) error {
 	}
 
 	return errs
-}
-
-func getModuleName(moduleYamlFile *module.ModuleYaml, chartYamlFile *module.ChartYaml) string {
-	if moduleYamlFile != nil && moduleYamlFile.Name != "" {
-		return moduleYamlFile.Name
-	}
-	if chartYamlFile != nil && chartYamlFile.Name != "" {
-		return chartYamlFile.Name
-	}
-	return ""
 }
 
 func getNamespace(path string) string {
