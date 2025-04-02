@@ -28,61 +28,45 @@ func (m *Manager) validateModule(path string) error {
 	}
 	if chartYamlFile != nil {
 		if chartYamlFile.Name == "" {
-			err := fmt.Errorf("property `name` in Chart.yaml is empty")
+			err := errors.New("property `name` in Chart.yaml is empty")
 			errs = errors.Join(errs, err)
 			m.errors.Error(err.Error())
 		}
 		if chartYamlFile.Version == "" {
-			err := fmt.Errorf("property `version` in Chart.yaml is empty")
+			err := errors.New("property `version` in Chart.yaml is empty")
 			errs = errors.Join(errs, err)
 			m.errors.Error(err.Error())
 		}
 	}
 	if moduleYamlFile != nil {
 		if moduleYamlFile.Name == "" {
-			err := fmt.Errorf("module.yaml `name` is empty")
-			m.errors.Warn(err.Error())
+			m.errors.Warn("module.yaml `name` is empty")
 		}
 		if moduleYamlFile.Namespace == "" {
-			err := fmt.Errorf("module.yaml `namespace` is empty")
-			m.errors.Warn(err.Error())
-		}
-	}
-	if moduleYamlFile != nil && chartYamlFile != nil {
-		if chartYamlFile.Name != "" && moduleYamlFile.Name != "" && chartYamlFile.Name != moduleYamlFile.Name {
-			err := fmt.Errorf("module.yaml name (%s) does not match Chart.yaml name (%s)", moduleYamlFile.Name, chartYamlFile.Name)
-			errs = errors.Join(errs, err)
-			m.errors.Errorf(err.Error())
+			m.errors.Warn("module.yaml `namespace` is empty")
 		}
 	}
 
-	var moduleName string
-	if moduleYamlFile != nil {
-		if moduleYamlFile.Name != "" {
-			moduleName = moduleYamlFile.Name
-		}
+	if moduleYamlFile != nil && chartYamlFile != nil &&
+		moduleYamlFile.Name != "" && chartYamlFile.Name != "" &&
+		chartYamlFile.Name != moduleYamlFile.Name {
+		err := fmt.Errorf("module.yaml name (%s) does not match Chart.yaml name (%s)", moduleYamlFile.Name, chartYamlFile.Name)
+		errs = errors.Join(errs, err)
+		m.errors.Errorf(err.Error())
 	}
-	if moduleName == "" && chartYamlFile != nil {
-		if chartYamlFile.Name != "" {
-			moduleName = chartYamlFile.Name
-		}
-	}
-	if moduleName == "" {
+
+	moduleName := getModuleName(moduleYamlFile, chartYamlFile)
+	if moduleName == "" && chartYamlFile == nil {
 		err := fmt.Errorf("module `name` property is empty")
 		errs = errors.Join(errs, err)
 		m.errors.Errorf(err.Error())
 	}
 
-	// validate namespace
-	if moduleYamlFile == nil && chartYamlFile != nil {
-		if getNamespace(path) == "" {
-			err := fmt.Errorf("file Chart.yaml is present, but .namespace file is missing")
-			errs = errors.Join(errs, err)
-			m.errors.Errorf(err.Error())
-		}
+	if moduleYamlFile == nil && chartYamlFile != nil && getNamespace(path) == "" {
+		err := fmt.Errorf("file Chart.yaml is present, but .namespace file is missing")
+		errs = errors.Join(errs, err)
+		m.errors.Errorf(err.Error())
 	}
-
-	// validate openapi directory
 
 	if err := validateOpenAPIDir(path); err != nil {
 		errs = errors.Join(errs, err)
@@ -92,30 +76,35 @@ func (m *Manager) validateModule(path string) error {
 	return errs
 }
 
+func getModuleName(moduleYamlFile *module.ModuleYaml, chartYamlFile *module.ChartYaml) string {
+	if moduleYamlFile != nil && moduleYamlFile.Name != "" {
+		return moduleYamlFile.Name
+	}
+	if chartYamlFile != nil && chartYamlFile.Name != "" {
+		return chartYamlFile.Name
+	}
+	return ""
+}
+
 func getNamespace(path string) string {
 	content, err := os.ReadFile(filepath.Join(path, ".namespace"))
 	if err != nil {
 		return ""
 	}
-
-	return strings.TrimRight(string(content), " \t\n")
+	return strings.TrimSpace(string(content))
 }
 
 func validateOpenAPIDir(path string) error {
 	openAPIDir := filepath.Join(path, "openapi")
-	_, err := os.Stat(openAPIDir)
-	if err != nil {
+	if _, err := os.Stat(openAPIDir); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("OpenAPI dir does not exist")
 		}
-
 		return fmt.Errorf("failed to access OpenAPI dir: %w", err)
 	}
 
 	var errs error
-	valuesFile := filepath.Join(openAPIDir, "values.yaml")
-	_, err = os.Stat(valuesFile)
-	if err != nil {
+	if _, err := os.Stat(filepath.Join(openAPIDir, "values.yaml")); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			errs = errors.Join(errs, fmt.Errorf("OpenAPI dir does not contain values.yaml"))
 		} else {
@@ -123,9 +112,7 @@ func validateOpenAPIDir(path string) error {
 		}
 	}
 
-	configValuesFile := filepath.Join(openAPIDir, "config-values.yaml")
-	_, err = os.Stat(configValuesFile)
-	if err != nil {
+	if _, err := os.Stat(filepath.Join(openAPIDir, "config-values.yaml")); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			errs = errors.Join(errs, fmt.Errorf("OpenAPI dir does not contain config-values.yaml"))
 		} else {
