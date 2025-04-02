@@ -41,8 +41,7 @@ func (m *Manager) validateModule(path string) error {
 	if moduleYamlFile != nil {
 		if moduleYamlFile.Name == "" {
 			err := fmt.Errorf("module.yaml `name` is empty")
-			errs = errors.Join(errs, err)
-			m.errors.Error(err.Error())
+			m.errors.Warn(err.Error())
 		}
 		if moduleYamlFile.Namespace == "" {
 			err := fmt.Errorf("module.yaml `namespace` is empty")
@@ -55,6 +54,23 @@ func (m *Manager) validateModule(path string) error {
 			errs = errors.Join(errs, err)
 			m.errors.Errorf(err.Error())
 		}
+	}
+
+	var moduleName string
+	if moduleYamlFile != nil {
+		if moduleYamlFile.Name != "" {
+			moduleName = moduleYamlFile.Name
+		}
+	}
+	if moduleName == "" && chartYamlFile != nil {
+		if chartYamlFile.Name != "" {
+			moduleName = chartYamlFile.Name
+		}
+	}
+	if moduleName == "" {
+		err := fmt.Errorf("module `name` property is empty")
+		errs = errors.Join(errs, err)
+		m.errors.Errorf(err.Error())
 	}
 
 	// validate namespace
