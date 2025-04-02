@@ -28,7 +28,6 @@ import (
 	"text/tabwriter"
 
 	"github.com/fatih/color"
-	"github.com/go-openapi/spec"
 	"github.com/kyokomi/emoji"
 	"github.com/mitchellh/go-wordwrap"
 	"helm.sh/helm/v3/pkg/chartutil"
@@ -92,21 +91,21 @@ func NewManager(dir string, rootConfig *config.RootConfig) *Manager {
 	}
 
 	globalValues, err := values.GetGlobalValues(getRootDirectory(dir))
-	var globalSchema spec.Schema
-	if err == nil && globalValues != nil {
-		globalSchema = *globalValues
+	if err != nil {
+		logger.ErrorF("Failed to get global values: %v", err)
+		return m
 	}
-	globalSchema.Default = make(map[string]any)
-
 	for i := range paths {
 		moduleName := filepath.Base(paths[i])
+		m.errors = m.errors.WithLinterID("manager").WithFilePath(paths[i]).WithModule(moduleName)
 		logger.DebugF("Found `%s` module", moduleName)
+		if err := m.validateModule(paths[i]); err != nil {
+			// linting errors are already logged
+			continue
+		}
 		mdl, err := module.NewModule(paths[i], &vals, globalValues)
 		if err != nil {
 			m.errors.
-				WithLinterID("!manager").
-				WithModule(moduleName).
-				WithFilePath(paths[i]).
 				WithValue(err.Error()).
 				Errorf("cannot create module `%s`", moduleName)
 			continue
