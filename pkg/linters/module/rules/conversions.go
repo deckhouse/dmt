@@ -120,7 +120,7 @@ func (r *ConversionsRule) CheckConversions(modulePath string, errorList *errors.
 
 	if os.IsNotExist(err) || !stat.IsDir() {
 		errorList.WithFilePath(conversionsFolder).
-			Errorf("Conversions folder is not exist")
+			Error("Conversions folder is not exist")
 
 		return
 	}

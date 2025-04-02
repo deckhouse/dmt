@@ -256,13 +256,13 @@ func ParseModuleConfigFile(path string) (*ModuleYaml, error) {
 	if err != nil {
 		return nil, err
 	}
-	var deckhouseModule ModuleYaml
-	err = yaml.Unmarshal(yamlFile, &deckhouseModule)
+	var moduleConfig ModuleYaml
+	err = yaml.Unmarshal(yamlFile, &moduleConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	return &deckhouseModule, nil
+	return &moduleConfig, nil
 }
 
 func ParseChartFile(path string) (*ChartYaml, error) {
