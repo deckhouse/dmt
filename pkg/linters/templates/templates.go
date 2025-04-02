@@ -76,8 +76,6 @@ func (l *Templates) Run(m *module.Module) {
 
 	for _, object := range m.GetStorage() {
 		servicePortRule.ObjectServiceTargetPort(object, errorList)
-
-		// TODO: compile code instead of external binary - promtool
 		prometheusRule.PromtoolRuleCheck(m, object, errorList)
 	}
 }
