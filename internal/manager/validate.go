@@ -7,32 +7,20 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gopkg.in/yaml.v3"
-
 	"github.com/deckhouse/dmt/internal/module"
 )
-
-type moduleYaml struct {
-	Name      string `yaml:"name"`
-	Namespace string `yaml:"namespace"`
-}
-
-type chartYaml struct {
-	Name    string `yaml:"name"`
-	Version string `yaml:"version"`
-}
 
 func (m *Manager) validateModule(path string) error {
 	var errs error
 	m.errors = m.errors.WithLinterID("module").WithRule("definition-file")
 	// validate module.yaml and Chart.yaml
-	chartYamlFile, err := parseChartFile(path)
+	chartYamlFile, err := module.ParseChartFile(path)
 	if err != nil {
 		err = fmt.Errorf("failed to parse Chart.yaml: %w", err)
 		errs = errors.Join(errs, err)
 		m.errors.Error(err.Error())
 	}
-	moduleYamlFile, err := parseModuleConfigFile(path)
+	moduleYamlFile, err := module.ParseModuleConfigFile(path)
 	if err != nil {
 		err = fmt.Errorf("failed to parse module.yaml: %w", err)
 		errs = errors.Join(errs, err)
@@ -58,8 +46,7 @@ func (m *Manager) validateModule(path string) error {
 		}
 		if moduleYamlFile.Namespace == "" {
 			err := fmt.Errorf("module.yaml `namespace` is empty")
-			errs = errors.Join(errs, err)
-			m.errors.Error(err.Error())
+			m.errors.Warn(err.Error())
 		}
 	}
 	if moduleYamlFile != nil && chartYamlFile != nil {
@@ -87,55 +74,6 @@ func (m *Manager) validateModule(path string) error {
 	}
 
 	return errs
-}
-
-func parseModuleConfigFile(path string) (*moduleYaml, error) {
-	moduleFilename := filepath.Join(path, module.ModuleConfigFilename)
-	yamlFile, err := readFile(moduleFilename)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	var deckhouseModule moduleYaml
-	err = yaml.Unmarshal(yamlFile, &deckhouseModule)
-	if err != nil {
-		return nil, err
-	}
-
-	return &deckhouseModule, nil
-}
-
-func parseChartFile(path string) (*chartYaml, error) {
-	chartFilename := filepath.Join(path, module.ChartConfigFilename)
-	yamlFile, err := readFile(chartFilename)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	var chart chartYaml
-	err = yaml.Unmarshal(yamlFile, &chart)
-	if err != nil {
-		return nil, err
-	}
-
-	return &chart, nil
-}
-
-func readFile(filePath string) ([]byte, error) {
-	_, err := os.Stat(filePath)
-	if err != nil {
-		return nil, err
-	}
-
-	yamlFile, err := os.ReadFile(filePath)
-	if err != nil {
-		return nil, err
-	}
-	return yamlFile, nil
 }
 
 func getNamespace(path string) string {

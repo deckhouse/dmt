@@ -157,3 +157,16 @@ func FilterFileByExtensions(exts ...string) func(_, path string) bool {
 		return false
 	}
 }
+
+func ReadFile(filePath string) ([]byte, error) {
+	_, err := os.Stat(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	yamlFile, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, err
+	}
+	return yamlFile, nil
+}

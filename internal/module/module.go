@@ -18,6 +18,7 @@ package module
 
 import (
 	_ "embed"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -28,6 +29,7 @@ import (
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 
+	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/internal/values"
 	"github.com/deckhouse/dmt/internal/werf"
@@ -51,6 +53,16 @@ type Module struct {
 }
 
 type ModuleList []*Module
+
+type ModuleYaml struct {
+	Name      string `yaml:"name"`
+	Namespace string `yaml:"namespace"`
+}
+
+type ChartYaml struct {
+	Name    string `yaml:"name"`
+	Version string `yaml:"version"`
+}
 
 func (m *Module) String() string {
 	return fmt.Sprintf("{Name: %s, Namespace: %s, Path: %s}", m.name, m.namespace, m.path)
@@ -187,46 +199,53 @@ func remapTemplates(ch *chart.Chart) {
 }
 
 func newModuleFromPath(path string) (*Module, error) {
-	stat, err := os.Stat(filepath.Join(path, ModuleConfigFilename))
+	moduleYamlConfig, err := ParseModuleConfigFile(path)
 	if err != nil {
-		stat, err = os.Stat(filepath.Join(path, ChartConfigFilename))
-		if err != nil {
-			return nil, err
+		return nil, err
+	}
+	chartYamlConfig, err := ParseChartFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var info ModuleYaml
+	if moduleYamlConfig != nil {
+		if moduleYamlConfig.Name != "" {
+			info.Name = moduleYamlConfig.Name
+		}
+		if moduleYamlConfig.Namespace != "" {
+			info.Namespace = moduleYamlConfig.Namespace
 		}
 	}
-	yamlFile, err := os.ReadFile(filepath.Join(path, stat.Name()))
-	if err != nil {
-		return nil, err
+	if info.Name == "" && chartYamlConfig != nil {
+		if chartYamlConfig.Name != "" {
+			info.Name = chartYamlConfig.Name
+		}
 	}
 
-	var ch struct {
-		Name      string `yaml:"name"`
-		Namespace string `yaml:"namespace"`
-	}
-	err = yaml.Unmarshal(yamlFile, &ch)
-	if err != nil {
-		return nil, err
-	}
-
-	if ch.Namespace == "" {
+	if info.Namespace == "" {
 		// fallback to the 'test' .namespace file
-		ch.Namespace = getNamespace(path)
+		info.Namespace = getNamespace(path)
 	}
 
-	chart, err := LoadModuleAsChart(ch.Name, path)
+	if info.Namespace == "" {
+		return nil, fmt.Errorf("module %q has no namespace", info.Name)
+	}
+
+	moduleChart, err := LoadModuleAsChart(info.Name, path)
 	if err != nil {
 		return nil, err
 	}
-	remapChart(chart)
+	remapChart(moduleChart)
 
-	module := &Module{
-		name:      ch.Name,
-		namespace: ch.Namespace,
+	resultModule := &Module{
+		name:      info.Name,
+		namespace: info.Namespace,
 		path:      path,
-		chart:     chart,
+		chart:     moduleChart,
 	}
 
-	return module, nil
+	return resultModule, nil
 }
 
 func getNamespace(path string) string {
@@ -236,4 +255,40 @@ func getNamespace(path string) string {
 	}
 
 	return strings.TrimRight(string(content), " \t\n")
+}
+
+func ParseModuleConfigFile(path string) (*ModuleYaml, error) {
+	moduleFilename := filepath.Join(path, ModuleConfigFilename)
+	yamlFile, err := fsutils.ReadFile(moduleFilename)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var deckhouseModule ModuleYaml
+	err = yaml.Unmarshal(yamlFile, &deckhouseModule)
+	if err != nil {
+		return nil, err
+	}
+
+	return &deckhouseModule, nil
+}
+
+func ParseChartFile(path string) (*ChartYaml, error) {
+	chartFilename := filepath.Join(path, ChartConfigFilename)
+	yamlFile, err := fsutils.ReadFile(chartFilename)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var chartYaml ChartYaml
+	err = yaml.Unmarshal(yamlFile, &chartYaml)
+	if err != nil {
+		return nil, err
+	}
+
+	return &chartYaml, nil
 }
