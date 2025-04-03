@@ -12,38 +12,38 @@ import (
 
 func (m *Manager) validateModule(path string) error {
 	var errs error
-	m.errors = m.errors.WithLinterID("module").WithRule("definition-file")
+	errorList := m.errors.WithLinterID("module").WithRule("definition-file")
 	// validate module.yaml and Chart.yaml
 	chartYamlFile, err := module.ParseChartFile(path)
 	if err != nil {
 		err = fmt.Errorf("failed to parse Chart.yaml: %w", err)
 		errs = errors.Join(errs, err)
-		m.errors.Error(err.Error())
+		errorList.Error(err.Error())
 	}
 	moduleYamlFile, err := module.ParseModuleConfigFile(path)
 	if err != nil {
 		err = fmt.Errorf("failed to parse module.yaml: %w", err)
 		errs = errors.Join(errs, err)
-		m.errors.Error(err.Error())
+		errorList.Error(err.Error())
 	}
 	if chartYamlFile != nil {
 		if chartYamlFile.Name == "" {
 			err := errors.New("property `name` in Chart.yaml is empty")
 			errs = errors.Join(errs, err)
-			m.errors.Error(err.Error())
+			errorList.Error(err.Error())
 		}
 		if chartYamlFile.Version == "" {
 			err := errors.New("property `version` in Chart.yaml is empty")
 			errs = errors.Join(errs, err)
-			m.errors.Error(err.Error())
+			errorList.Error(err.Error())
 		}
 	}
 	if moduleYamlFile != nil {
 		if moduleYamlFile.Name == "" {
-			m.errors.Warn("module.yaml `name` is empty")
+			errorList.Warn("module.yaml `name` is empty")
 		}
 		if moduleYamlFile.Namespace == "" {
-			m.errors.Warn("module.yaml `namespace` is empty")
+			errorList.Warn("module.yaml `namespace` is empty")
 		}
 	}
 
@@ -52,25 +52,25 @@ func (m *Manager) validateModule(path string) error {
 		chartYamlFile.Name != moduleYamlFile.Name {
 		err := fmt.Errorf("module.yaml name (%s) does not match Chart.yaml name (%s)", moduleYamlFile.Name, chartYamlFile.Name)
 		errs = errors.Join(errs, err)
-		m.errors.Errorf(err.Error())
+		errorList.Errorf(err.Error())
 	}
 
 	moduleName := module.GetModuleName(moduleYamlFile, chartYamlFile)
 	if moduleName == "" && chartYamlFile == nil {
 		err := fmt.Errorf("module `name` property is empty")
 		errs = errors.Join(errs, err)
-		m.errors.Errorf(err.Error())
+		errorList.Errorf(err.Error())
 	}
 
 	if moduleYamlFile == nil && chartYamlFile != nil && getNamespace(path) == "" {
 		err := fmt.Errorf("file Chart.yaml is present, but .namespace file is missing")
 		errs = errors.Join(errs, err)
-		m.errors.Errorf(err.Error())
+		errorList.Errorf(err.Error())
 	}
 
 	if err := validateOpenAPIDir(path); err != nil {
 		errs = errors.Join(errs, err)
-		m.errors.Error(err.Error())
+		errorList.Error(err.Error())
 	}
 
 	return errs

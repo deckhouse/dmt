@@ -97,7 +97,7 @@ func NewManager(dir string, rootConfig *config.RootConfig) *Manager {
 	}
 	for i := range paths {
 		moduleName := filepath.Base(paths[i])
-		m.errors = m.errors.WithLinterID("manager").WithFilePath(paths[i]).WithModule(moduleName)
+		errorList := m.errors.WithLinterID("manager").WithFilePath(paths[i]).WithModule(moduleName)
 		logger.DebugF("Found `%s` module", moduleName)
 		if err := m.validateModule(paths[i]); err != nil {
 			// linting errors are already logged
@@ -105,7 +105,7 @@ func NewManager(dir string, rootConfig *config.RootConfig) *Manager {
 		}
 		mdl, err := module.NewModule(paths[i], &vals, globalValues)
 		if err != nil {
-			m.errors.
+			errorList.
 				WithValue(err.Error()).
 				Errorf("cannot create module `%s`", moduleName)
 			continue
