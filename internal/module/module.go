@@ -18,6 +18,7 @@ package module
 
 import (
 	_ "embed"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -51,6 +52,16 @@ type Module struct {
 }
 
 type ModuleList []*Module
+
+type ModuleYaml struct {
+	Name      string `yaml:"name"`
+	Namespace string `yaml:"namespace"`
+}
+
+type ChartYaml struct {
+	Name    string `yaml:"name"`
+	Version string `yaml:"version"`
+}
 
 func (m *Module) String() string {
 	return fmt.Sprintf("{Name: %s, Namespace: %s, Path: %s}", m.name, m.namespace, m.path)
@@ -187,46 +198,44 @@ func remapTemplates(ch *chart.Chart) {
 }
 
 func newModuleFromPath(path string) (*Module, error) {
-	stat, err := os.Stat(filepath.Join(path, ModuleConfigFilename))
+	moduleYamlConfig, err := ParseModuleConfigFile(path)
 	if err != nil {
-		stat, err = os.Stat(filepath.Join(path, ChartConfigFilename))
-		if err != nil {
-			return nil, err
-		}
+		return nil, err
 	}
-	yamlFile, err := os.ReadFile(filepath.Join(path, stat.Name()))
+	chartYamlConfig, err := ParseChartFile(path)
 	if err != nil {
 		return nil, err
 	}
 
-	var ch struct {
-		Name      string `yaml:"name"`
-		Namespace string `yaml:"namespace"`
-	}
-	err = yaml.Unmarshal(yamlFile, &ch)
-	if err != nil {
-		return nil, err
+	var info ModuleYaml
+	info.Name = GetModuleName(moduleYamlConfig, chartYamlConfig)
+	if moduleYamlConfig != nil && moduleYamlConfig.Namespace != "" {
+		info.Namespace = moduleYamlConfig.Namespace
 	}
 
-	if ch.Namespace == "" {
+	if info.Namespace == "" {
 		// fallback to the 'test' .namespace file
-		ch.Namespace = getNamespace(path)
+		namespace := getNamespace(path)
+		if namespace == "" {
+			return nil, fmt.Errorf("module %q has no namespace", info.Name)
+		}
+		info.Namespace = namespace
 	}
 
-	chart, err := LoadModuleAsChart(ch.Name, path)
+	moduleChart, err := LoadModuleAsChart(info.Name, path)
 	if err != nil {
 		return nil, err
 	}
-	remapChart(chart)
+	remapChart(moduleChart)
 
-	module := &Module{
-		name:      ch.Name,
-		namespace: ch.Namespace,
+	resultModule := &Module{
+		name:      info.Name,
+		namespace: info.Namespace,
 		path:      path,
-		chart:     chart,
+		chart:     moduleChart,
 	}
 
-	return module, nil
+	return resultModule, nil
 }
 
 func getNamespace(path string) string {
@@ -236,4 +245,50 @@ func getNamespace(path string) string {
 	}
 
 	return strings.TrimRight(string(content), " \t\n")
+}
+
+func ParseModuleConfigFile(path string) (*ModuleYaml, error) {
+	moduleFilename := filepath.Join(path, ModuleConfigFilename)
+	yamlFile, err := os.ReadFile(moduleFilename)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var moduleConfig ModuleYaml
+	err = yaml.Unmarshal(yamlFile, &moduleConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	return &moduleConfig, nil
+}
+
+func ParseChartFile(path string) (*ChartYaml, error) {
+	chartFilename := filepath.Join(path, ChartConfigFilename)
+	yamlFile, err := os.ReadFile(chartFilename)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var chartYaml ChartYaml
+	err = yaml.Unmarshal(yamlFile, &chartYaml)
+	if err != nil {
+		return nil, err
+	}
+
+	return &chartYaml, nil
+}
+
+func GetModuleName(moduleYamlFile *ModuleYaml, chartYamlFile *ChartYaml) string {
+	if moduleYamlFile != nil && moduleYamlFile.Name != "" {
+		return moduleYamlFile.Name
+	}
+	if chartYamlFile != nil && chartYamlFile.Name != "" {
+		return chartYamlFile.Name
+	}
+	return ""
 }
