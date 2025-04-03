@@ -95,9 +95,9 @@ func NewManager(dir string, rootConfig *config.RootConfig) *Manager {
 		logger.ErrorF("Failed to get global values: %v", err)
 		return m
 	}
+	errorList := m.errors.WithLinterID("manager")
 	for i := range paths {
 		moduleName := filepath.Base(paths[i])
-		errorList := m.errors.WithLinterID("manager").WithFilePath(paths[i]).WithModule(moduleName)
 		logger.DebugF("Found `%s` module", moduleName)
 		if err := m.validateModule(paths[i]); err != nil {
 			// linting errors are already logged
@@ -106,6 +106,7 @@ func NewManager(dir string, rootConfig *config.RootConfig) *Manager {
 		mdl, err := module.NewModule(paths[i], &vals, globalValues)
 		if err != nil {
 			errorList.
+				WithFilePath(paths[i]).WithModule(moduleName).
 				WithValue(err.Error()).
 				Errorf("cannot create module `%s`", moduleName)
 			continue
