@@ -57,6 +57,8 @@ func (l *Templates) Run(m *module.Module) {
 	rules.NewVPARule(l.cfg.ExcludeRules.VPAAbsent.Get()).ControllerMustHaveVPA(m, errorList)
 	// PDB
 	rules.NewPDBRule(l.cfg.ExcludeRules.PDBAbsent.Get()).ControllerMustHavePDB(m, errorList)
+	// Ingress
+	ingressRule := rules.NewIngressRule(l.cfg.ExcludeRules.Ingress.Get())
 
 	// monitoring
 	prometheusRule := rules.NewPrometheusRule()
@@ -77,6 +79,7 @@ func (l *Templates) Run(m *module.Module) {
 	for _, object := range m.GetStorage() {
 		servicePortRule.ObjectServiceTargetPort(object, errorList)
 		prometheusRule.PromtoolRuleCheck(m, object, errorList)
+		ingressRule.CheckSnippetsRule(object, errorList)
 	}
 }
 

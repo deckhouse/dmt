@@ -173,6 +173,7 @@ type TemplatesExcludeRules struct {
 	PDBAbsent     KindRuleExcludeList    `mapstructure:"pdb"`
 	ServicePort   ServicePortExcludeList `mapstructure:"service-port"`
 	KubeRBACProxy StringRuleExcludeList  `mapstructure:"kube-rbac-proxy"`
+	Ingress       KindRuleExcludeList    `mapstructure:"ingress"`
 }
 
 type ServicePortExcludeList []ServicePortExclude
