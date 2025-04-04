@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"fmt"
 	"strings"
 
 	v1 "k8s.io/api/networking/v1"
@@ -54,6 +55,11 @@ func (r *IngressRule) CheckSnippetsRule(object storage.StoreObject, errorList *e
 	switch object.Unstructured.GetKind() {
 	case "Ingress":
 	default:
+		return
+	}
+
+	if !r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {
+		fmt.Printf("⚠️ Skip Ingress %q due to exclusion rule.\n", object.Unstructured.GetName())
 		return
 	}
 
