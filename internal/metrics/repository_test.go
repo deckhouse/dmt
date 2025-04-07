@@ -34,6 +34,20 @@ func Test_convertToHTTPS(t *testing.T) {
 			},
 			want: "https://gitlab.com/deckhouse/flant-integration",
 		},
+		{
+			name: "Invalid URL",
+			args: args{
+				repoURL: "https://git@",
+			},
+			want: "https://",
+		},
+		{
+			name: "Invalid URL 2",
+			args: args{
+				repoURL: "https://@git",
+			},
+			want: "https://git",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
