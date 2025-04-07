@@ -34,6 +34,7 @@ var (
 	PrintVersion bool
 	Version      string
 	ValuesFile   string
+	PprofFile    string
 )
 
 func InitDefaultFlagSet() *pflag.FlagSet {
@@ -52,6 +53,7 @@ func InitLintFlagSet() *pflag.FlagSet {
 	lint.StringVar(&LinterName, "linter", "", "linter name to run")
 	lint.StringVarP(&LogLevel, "log-level", "l", "INFO", "log-level [DEBUG | INFO | WARN | ERROR]")
 	lint.StringVarP(&ValuesFile, "values-file", "f", "", "path to values.yaml file with override values")
+	lint.StringVarP(&PprofFile, "pprof-file", "r", "", "path to pprof file")
 
 	return lint
 }

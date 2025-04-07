@@ -93,5 +93,7 @@ func lintCmdFunc(_ *cobra.Command, args []string) {
 		return
 	}
 
-	runLint(dir)
+	if err := runLint(dir); err != nil {
+		os.Exit(1)
+	}
 }
