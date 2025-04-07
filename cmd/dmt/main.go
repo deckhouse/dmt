@@ -18,10 +18,15 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
+	"runtime"
+	"runtime/pprof"
 
 	"github.com/fatih/color"
 
+	"github.com/deckhouse/dmt/internal/flags"
+	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/manager"
 	"github.com/deckhouse/dmt/internal/metrics"
@@ -32,7 +37,32 @@ func main() {
 	execute()
 }
 
-func runLint(dir string) {
+func runLint(dir string) error {
+	if flags.PprofFile != "" {
+		logger.InfoF("Profiling enabled. Profile file: %s", flags.PprofFile)
+		defer func() {
+			pproFile, err := fsutils.ExpandDir(flags.PprofFile)
+			if err != nil {
+				logger.ErrorF("could not get current working directory: %s", err)
+				return
+			}
+			logger.InfoF("Writing memory profile to %s", pproFile)
+			f, err := os.Create(pproFile)
+			if err != nil {
+				logger.ErrorF("could not create memory profile: %s", err)
+				return
+			}
+			defer f.Close()
+			runtime.GC()
+			// Lookup("allocs") creates a profile similar to go test -memprofile.
+			// Alternatively, use Lookup("heap") for a profile
+			// that has inuse_space as the default index.
+			if err := pprof.Lookup("allocs").WriteTo(f, 0); err != nil {
+				logger.ErrorF("could not write memory profile: %s", err)
+				return
+			}
+		}()
+	}
 	// enable color output for Github actions, do not remove it
 	color.NoColor = false
 	logger.InfoF("DMT version: %s", version)
@@ -57,6 +87,8 @@ func runLint(dir string) {
 	metricsClient.Send(context.Background())
 
 	if mng.HasCriticalErrors() {
-		os.Exit(1)
+		return errors.New("critical errors found")
 	}
+
+	return nil
 }
