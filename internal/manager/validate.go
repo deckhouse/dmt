@@ -12,7 +12,7 @@ import (
 
 func (m *Manager) validateModule(path string) error {
 	var errs error
-	errorList := m.errors.WithLinterID("module").WithRule("definition-file")
+	errorList := m.errors.WithLinterID("module").WithRule("definition-file").WithFilePath(path)
 	// validate module.yaml and Chart.yaml
 	chartYamlFile, err := module.ParseChartFile(path)
 	if err != nil {
