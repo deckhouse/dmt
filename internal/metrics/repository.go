@@ -72,5 +72,11 @@ func convertToHTTPS(repoURL string) string {
 		repoURL = strings.Replace(repoURL, "git@", "https://", 1)
 		repoURL = strings.TrimSuffix(repoURL, ".git")
 	}
+	if strings.HasPrefix(repoURL, "https://") && strings.Contains(repoURL, "@") {
+		// Remove token from HTTPS URL
+		repoURL = strings.Split(repoURL, "@")[1]
+		repoURL = strings.TrimSuffix(repoURL, ".git")
+		repoURL = "https://" + repoURL
+	}
 	return repoURL
 }
