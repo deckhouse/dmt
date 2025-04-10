@@ -49,7 +49,7 @@ func IsDeckhouseCRD(data map[any]any) bool {
 		return false
 	}
 
-	metadata, ok := data["metadata"].(map[any]any)
+	metadata, ok := data["metadata"].(map[string]any)
 	if !ok {
 		return false
 	}
