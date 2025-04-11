@@ -19,8 +19,8 @@ func TestValidateModule(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(tempDir, "module.yaml"), []byte("name: test-chart\nnamespace: test-namespace"), 0600)
 	_ = os.WriteFile(filepath.Join(tempDir, ".namespace"), []byte("test-namespace"), 0600)
 	_ = os.Mkdir(filepath.Join(tempDir, "openapi"), 0755)
-	_ = os.WriteFile(filepath.Join(tempDir, "openapi/values.yaml"), []byte(""), 0600)
-	_ = os.WriteFile(filepath.Join(tempDir, "openapi/config-values.yaml"), []byte(""), 0600)
+	_ = os.WriteFile(filepath.Join(tempDir, "openapi", "values.yaml"), []byte(""), 0600)
+	_ = os.WriteFile(filepath.Join(tempDir, "openapi", "config-values.yaml"), []byte(""), 0600)
 
 	m := &Manager{
 		errors: &errors.LintRuleErrorsList{},
