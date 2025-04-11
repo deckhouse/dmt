@@ -25,12 +25,12 @@ import (
 func TestGetFiles(t *testing.T) {
 	rootDir := t.TempDir()
 
-	os.Mkdir(filepath.Join(rootDir, "dir1"), 0755)
-	os.WriteFile(filepath.Join(rootDir, "dir1", "file1.txt"), []byte("test"), 0644)
-	os.WriteFile(filepath.Join(rootDir, "file2.txt"), []byte("test"), 0644)
-	os.Mkdir(filepath.Join(rootDir, ".git"), 0755)
-	os.WriteFile(filepath.Join(rootDir, ".git", "config"), []byte("test"), 0644)
-	os.Symlink(filepath.Join(rootDir, "file2.txt"), filepath.Join(rootDir, "symlink.txt"))
+	_ = os.Mkdir(filepath.Join(rootDir, "dir1"), 0755)
+	_ = os.WriteFile(filepath.Join(rootDir, "dir1", "file1.txt"), []byte("test"), 0644)
+	_ = os.WriteFile(filepath.Join(rootDir, "file2.txt"), []byte("test"), 0644)
+	_ = os.Mkdir(filepath.Join(rootDir, ".git"), 0755)
+	_ = os.WriteFile(filepath.Join(rootDir, ".git", "config"), []byte("test"), 0644)
+	_ = os.Symlink(filepath.Join(rootDir, "file2.txt"), filepath.Join(rootDir, "symlink.txt"))
 
 	files := GetFiles(rootDir, false)
 	expectedFiles := []string{
@@ -47,7 +47,7 @@ func TestGetFiles(t *testing.T) {
 	}
 	assertEqualFiles(t, files, expectedFiles)
 
-	filter := func(root, path string) bool {
+	filter := func(_, path string) bool {
 		return filepath.Ext(path) == ".txt"
 	}
 	files = GetFiles(rootDir, false, filter)

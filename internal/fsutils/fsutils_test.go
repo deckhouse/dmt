@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIsDir(t *testing.T) {
@@ -35,8 +36,8 @@ func TestIsFile(t *testing.T) {
 	tempDir := t.TempDir()
 	tempFile := filepath.Join(tempDir, "testfile.txt")
 
-	err := os.WriteFile(tempFile, []byte("test"), 0644)
-	assert.NoError(t, err, "Failed to create test file")
+	err := os.WriteFile(tempFile, []byte("test"), 0600)
+	require.NoError(t, err, "Failed to create test file")
 
 	assert.True(t, IsFile(tempFile), "Expected IsFile to return true for a file")
 	assert.False(t, IsFile(tempDir), "Expected IsFile to return false for a directory")
@@ -44,23 +45,23 @@ func TestIsFile(t *testing.T) {
 
 func TestGetwd(t *testing.T) {
 	wd, err := Getwd()
-	assert.NoError(t, err, "Getwd returned an error")
+	require.NoError(t, err, "Getwd returned an error")
 
 	expectedWd, err := os.Getwd()
-	assert.NoError(t, err, "os.Getwd returned an error")
+	require.NoError(t, err, "os.Getwd returned an error")
 	assert.Equal(t, expectedWd, wd, "Getwd returned an unexpected working directory")
 }
 
 func TestExpandDir(t *testing.T) {
 	homeDir, err := os.UserHomeDir()
-	assert.NoError(t, err, "Failed to get user home directory")
+	require.NoError(t, err, "Failed to get user home directory")
 
 	expandedPath, err := ExpandDir("~/testdir")
-	assert.NoError(t, err, "ExpandDir returned an error")
+	require.NoError(t, err, "ExpandDir returned an error")
 	assert.Equal(t, filepath.Join(homeDir, "testdir"), expandedPath, "ExpandDir did not expand the path correctly")
 
 	absPath, err := ExpandDir("/absolute/path")
-	assert.NoError(t, err, "ExpandDir returned an error for absolute path")
+	require.NoError(t, err, "ExpandDir returned an error for absolute path")
 	assert.Equal(t, "/absolute/path", absPath, "ExpandDir modified an absolute path unexpectedly")
 }
 
