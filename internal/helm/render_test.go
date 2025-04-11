@@ -34,7 +34,7 @@ func TestRenderChartFromRawValues(t *testing.T) {
 		}
 
 		_, err := renderer.RenderChartFromRawValues(&chart.Chart{}, chartutil.Values{})
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, "helm chart must have a name", err.Error())
 	})
 

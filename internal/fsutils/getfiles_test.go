@@ -26,10 +26,10 @@ func TestGetFiles(t *testing.T) {
 	rootDir := t.TempDir()
 
 	_ = os.Mkdir(filepath.Join(rootDir, "dir1"), 0755)
-	_ = os.WriteFile(filepath.Join(rootDir, "dir1", "file1.txt"), []byte("test"), 0644)
-	_ = os.WriteFile(filepath.Join(rootDir, "file2.txt"), []byte("test"), 0644)
+	_ = os.WriteFile(filepath.Join(rootDir, "dir1", "file1.txt"), []byte("test"), 0600)
+	_ = os.WriteFile(filepath.Join(rootDir, "file2.txt"), []byte("test"), 0600)
 	_ = os.Mkdir(filepath.Join(rootDir, ".git"), 0755)
-	_ = os.WriteFile(filepath.Join(rootDir, ".git", "config"), []byte("test"), 0644)
+	_ = os.WriteFile(filepath.Join(rootDir, ".git", "config"), []byte("test"), 0600)
 	_ = os.Symlink(filepath.Join(rootDir, "file2.txt"), filepath.Join(rootDir, "symlink.txt"))
 
 	files := GetFiles(rootDir, false)
