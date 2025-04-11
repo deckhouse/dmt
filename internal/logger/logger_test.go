@@ -53,8 +53,7 @@ func TestInitLogger(t *testing.T) {
 
 func TestLogFunctions(t *testing.T) {
 	var buf bytes.Buffer
-	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{}))
-	slog.SetDefault(logger)
+	InitLogger(&buf, DebugLogLevel)
 
 	DebugF("Debug message: %d", 1)
 	InfoF("Info message: %s", "test")
