@@ -40,7 +40,7 @@ func execute() {
 		PersistentPreRun: func(_ *cobra.Command, _ []string) {
 			flags.Version = version
 
-			logger.InitLogger(flags.LogLevel)
+			logger.InitLogger(os.Stdout, flags.LogLevel)
 
 			if flags.PrintVersion {
 				fmt.Println("dmt version: ", flags.Version)
