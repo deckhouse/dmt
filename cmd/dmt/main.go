@@ -33,6 +33,7 @@ func main() {
 }
 
 func runLint(dir string) {
+	// enable color output for Github actions, do not remove it
 	color.NoColor = false
 	logger.InfoF("DMT version: %s", version)
 	logger.InfoF("Dir: %v", dir)
@@ -40,7 +41,7 @@ func runLint(dir string) {
 	cfg, err := config.NewDefaultRootConfig(dir)
 	logger.CheckErr(err)
 
-	// init metrics storage
+	// init metrics storage, should be done before running manager
 	metrics.GetClient(dir)
 
 	mng := manager.NewManager(dir, cfg)
