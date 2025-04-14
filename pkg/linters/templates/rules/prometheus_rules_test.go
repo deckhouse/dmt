@@ -15,5 +15,5 @@ func TestMe(_ *testing.T) {
 {{- end }}
 `
 
-	isContentHasRecursiveRules([]byte(aaa), "test")
+	isContentMatching([]byte(aaa), "include \"helm_lib_prometheus_rules")
 }

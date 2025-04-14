@@ -71,15 +71,16 @@ func (r *GrafanaRule) ValidationGrafanaDashboards(m *module.Module, errorList *e
 		return
 	}
 
-	desiredContent := `{{- include "helm_lib_grafana_dashboard_definitions" . }}`
+	desiredContent := `include "helm_lib_grafana_dashboard_definitions`
 
-	if isContentMatching(string(content), desiredContent, m.GetNamespace(), false) {
+	if isContentMatching(content, desiredContent) {
 		return
 	}
 	if strings.Contains(string(content), `include "helm_lib_grafana_dashboard_definitions_recursion" (list .`) {
 		return
 	}
 
+	desiredContent = `{{- include "helm_lib_grafana_dashboard_definitions" . }}`
 	errorList.WithFilePath(monitoringFilePath).
 		Errorf("The content of the 'templates/monitoring.yaml' should be equal to:\n%s\nGot:\n%s", desiredContent, string(content))
 }

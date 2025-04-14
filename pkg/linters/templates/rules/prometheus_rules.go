@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 
@@ -153,53 +152,28 @@ func (r *PrometheusRule) ValidatePrometheusRules(m *module.Module, errorList *er
 		return
 	}
 
+	if isContentMatching(content, `include "helm_lib_prometheus_rules`) {
+		return
+	}
+
 	desiredContent := `{{- include "helm_lib_prometheus_rules" (list . %q) }}`
-	if isContentMatching(string(content), desiredContent, m.GetNamespace(), true) {
-		return
-	}
-
-	if isContentHasRecursiveRules(content, m.GetNamespace()) {
-		return
-	}
-
 	errorList.WithFilePath(monitoringFilePath).
-		Errorf("The content of the 'templates/monitoring.yaml' should be equal to:\n%s\nGot:\n%s",
-			fmt.Sprintf(desiredContent, "YOUR NAMESPACE TO DEPLOY RULES: d8-monitoring, d8-system or module namespaces"),
-			string(content),
+		Errorf("The content of the 'templates/monitoring.yaml' should be equal to:\n%s",
+			fmt.Sprintf(desiredContent, "YOUR NAMESPACE TO DEPLOY RULES: d8-monitoring, d8-system or module namespace"),
 		)
 }
 
-func isContentMatching(content, desiredContent, moduleNamespace string, rulesEx bool) bool {
-	for _, namespace := range []string{moduleNamespace, "d8-system", "d8-monitoring"} {
-		checkContent := desiredContent
-		if rulesEx {
-			checkContent = fmt.Sprintf(desiredContent, namespace)
-		}
-
-		if strings.Contains(content, checkContent) {
-			return true
-		}
-	}
-
-	return false
-}
-
-func isContentHasRecursiveRules(content []byte, moduleNs string) bool {
-	namespaceRegex := regexp.MustCompile(fmt.Sprintf(`{{-?\s*\$([a-zA-Z_]\w*)\s*:=\s*"(d8-monitoring|d8-system|%s)"\s*}}`, moduleNs))
-
-	var namespaceVar string
+func isContentMatching(content []byte, desiredContent string) bool {
 	foundIncludeLine := false
-
 	scanner := bufio.NewScanner(bytes.NewReader(content))
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		if strings.Contains(line, `{{- include "helm_lib_prometheus_rules_recursion" (`) {
-			foundIncludeLine = true
-		}
+		line = strings.ReplaceAll(line, " ", "")
+		desiredContent = strings.ReplaceAll(desiredContent, " ", "")
 
-		if matches := namespaceRegex.FindStringSubmatch(line); matches != nil {
-			namespaceVar = matches[1] // Имя переменной
+		if strings.Contains(line, desiredContent) {
+			foundIncludeLine = true
 		}
 	}
 
@@ -207,7 +181,7 @@ func isContentHasRecursiveRules(content []byte, moduleNs string) bool {
 		return false
 	}
 
-	if foundIncludeLine && namespaceVar != "" {
+	if foundIncludeLine {
 		return true
 	}
 
