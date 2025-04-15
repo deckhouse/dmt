@@ -37,7 +37,6 @@ func (r Renderer) RenderChartFromRawValues(c *chart.Chart, values chartutil.Valu
 	}
 	// render chart with prepared values
 	var e engine.Engine
-	e.LintMode = r.LintMode
 
 	out, err := e.Render(c, values)
 	if err != nil {

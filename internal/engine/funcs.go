@@ -69,6 +69,7 @@ func funcMap() template.FuncMap {
 		"lookup": func(string, string, string, string) (map[string]any, error) {
 			return map[string]any{}, nil
 		},
+		// Custom function b64dec for kade decoding values
 		"b64dec": func(string) (string, error) {
 			return "decoded", nil
 		},
