@@ -31,11 +31,11 @@ const (
 	ErrorLogLevel = "ERROR"
 )
 
-func InitLogger(logLevel string) {
+func InitLogger(w io.Writer, logLevel string) {
 	lvl := new(slog.LevelVar)
 	lvl.Set(slog.LevelInfo)
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: lvl}))
+	logger := slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{Level: lvl}))
 
 	switch logLevel {
 	case DebugLogLevel:
