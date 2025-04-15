@@ -69,9 +69,13 @@ func funcMap() template.FuncMap {
 		"lookup": func(string, string, string, string) (map[string]any, error) {
 			return map[string]any{}, nil
 		},
-		// Custom function b64dec for kade decoding values
+		// Custom function b64dec for fade decoding values
 		"b64dec": func(string) (string, error) {
-			return "decoded", nil
+			return "b64decDecoded_String", nil
+		},
+		// Custom function b32dec for fade decoding values
+		"b32enc": func(string) (string, error) {
+			return "b32decDecoded_String", nil
 		},
 	}
 
