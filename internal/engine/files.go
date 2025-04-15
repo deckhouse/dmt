@@ -158,7 +158,7 @@ func (f files) Lines(path string) []string {
 		return []string{}
 	}
 	s := string(f[path])
-	if s[len(s)-1] == '\n' {
+	if s != "" && s[len(s)-1] == '\n' {
 		s = s[:len(s)-1]
 	}
 	return strings.Split(s, "\n")
