@@ -17,7 +17,6 @@ limitations under the License.
 package module
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"strings"
@@ -57,16 +56,13 @@ func RunRender(m *Module, values chartutil.Values, objectStore *storage.Unstruct
 
 	defer renderedTemplatesHash.Store(hash, struct{}{})
 
-	var docBytes []byte
-
 	for path, bigFile := range files {
-		scanner := bufio.NewScanner(strings.NewReader(bigFile))
-		scanner.Split(SplitAt("---"))
-
-		for scanner.Scan() {
-			var node map[string]any
-			docBytes = scanner.Bytes()
-
+		for _, doc := range strings.Split(bigFile, "---") {
+			docBytes := []byte(doc)
+			if len(docBytes) == 0 {
+				continue
+			}
+			node := make(map[string]any)
 			err = yaml.Unmarshal(docBytes, &node)
 			if err != nil {
 				return fmt.Errorf(manifestErrorMessage, strings.TrimPrefix(path, m.GetName()+"/"), err)
