@@ -94,6 +94,7 @@ func (r *ConversionsRule) CheckConversions(modulePath string, errorList *errors.
 
 		return
 	}
+	defer f.Close()
 
 	var cv configValues
 	err = yaml.NewDecoder(f).Decode(&cv)
@@ -185,6 +186,7 @@ func parseConversion(path string) (*conversion, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot open file to read conversion %q: %w", conversionsFolder, err)
 	}
+	defer file.Close()
 
 	c := new(conversion)
 	err = yaml.NewDecoder(file).Decode(c)
