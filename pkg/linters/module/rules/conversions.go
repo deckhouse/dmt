@@ -87,17 +87,16 @@ func (r *ConversionsRule) CheckConversions(modulePath string, errorList *errors.
 		return
 	}
 
-	f, err := os.Open(configFilePath)
+	f, err := os.ReadFile(configFilePath)
 	if err != nil {
 		errorList.WithFilePath(configValuesFile).
 			Errorf("Cannot open config-values.yaml file: %s", err)
 
 		return
 	}
-	defer f.Close()
 
 	var cv configValues
-	err = yaml.NewDecoder(f).Decode(&cv)
+	err = yaml.Unmarshal(f, &cv)
 	if err != nil {
 		errorList.WithFilePath(configValuesFile).
 			Errorf("Cannot decode config-values.yaml file: %s", err)
@@ -182,14 +181,13 @@ func (r *ConversionsRule) CheckConversions(modulePath string, errorList *errors.
 }
 
 func parseConversion(path string) (*conversion, error) {
-	file, err := os.Open(path)
+	file, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open file to read conversion %q: %w", conversionsFolder, err)
 	}
-	defer file.Close()
 
 	c := new(conversion)
-	err = yaml.NewDecoder(file).Decode(c)
+	err = yaml.Unmarshal(file, c)
 	if err != nil {
 		return nil, fmt.Errorf("cannot decode yaml %q: %w", conversionsFolder, err)
 	}
