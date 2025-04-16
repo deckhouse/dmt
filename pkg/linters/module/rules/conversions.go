@@ -26,7 +26,7 @@ import (
 	"strconv"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"sigs.k8s.io/yaml"
 
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -60,17 +60,17 @@ const (
 var regexVersionFile = regexp.MustCompile(`^v([1-9]\d{0,2})\.ya?ml$`)
 
 type conversion struct {
-	Version     *int         `yaml:"version,omitempty"`
-	Description *description `yaml:"description,omitempty"`
+	Version     *int         `json:"version,omitempty"`
+	Description *description `json:"description,omitempty"`
 }
 
 type description struct {
-	English string `yaml:"en,omitempty"`
-	Russian string `yaml:"ru,omitempty"`
+	English string `json:"en,omitempty"`
+	Russian string `json:"ru,omitempty"`
 }
 
 type configValues struct {
-	ConfigVersion int `yaml:"x-config-version"`
+	ConfigVersion int `json:"x-config-version"`
 }
 
 func (r *ConversionsRule) CheckConversions(modulePath string, errorList *errors.LintRuleErrorsList) {

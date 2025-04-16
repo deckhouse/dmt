@@ -2,7 +2,6 @@ package values
 
 import (
 	_ "embed"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,8 +14,7 @@ import (
 	"github.com/deckhouse/dmt/internal/module/schema"
 
 	"github.com/go-openapi/spec"
-	"github.com/go-openapi/swag"
-	"gopkg.in/yaml.v3"
+	"sigs.k8s.io/yaml"
 )
 
 type SchemaType string
@@ -34,36 +32,14 @@ var globalConfigBytes []byte
 //go:embed global-openapi/values.yaml
 var globalValuesBytes []byte
 
-// YAMLBytesToJSONDoc is a replacement of swag.YAMLData and YAMLDoc to Unmarshal into interface{}.
-// swag.BytesToYAML uses yaml.MapSlice to unmarshal YAML. This type doesn't support map merge of YAML anchors.
-func YAMLBytesToJSONDoc(data []byte) (json.RawMessage, error) {
-	var yamlObj any
-	err := yaml.Unmarshal(data, &yamlObj)
-	if err != nil {
-		return nil, fmt.Errorf("yaml unmarshal: %w", err)
-	}
-
-	doc, err := swag.YAMLToJSON(yamlObj)
-	if err != nil {
-		return nil, fmt.Errorf("yaml to json: %w", err)
-	}
-
-	return doc, nil
-}
-
 // LoadSchemaFromBytes returns spec.Schema object loaded from YAML bytes.
 func LoadSchemaFromBytes(openAPIContent []byte) (*spec.Schema, error) {
-	jsonDoc, err := YAMLBytesToJSONDoc(openAPIContent)
-	if err != nil {
-		return nil, err
-	}
-
 	s := new(spec.Schema)
-	if err = json.Unmarshal(jsonDoc, s); err != nil {
+	if err := yaml.Unmarshal(openAPIContent, s); err != nil {
 		return nil, fmt.Errorf("json unmarshal: %w", err)
 	}
 
-	err = spec.ExpandSchema(s, s, nil)
+	err := spec.ExpandSchema(s, s, nil)
 	if err != nil {
 		return nil, fmt.Errorf("expand schema: %w", err)
 	}

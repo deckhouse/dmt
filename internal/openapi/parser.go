@@ -23,7 +23,7 @@ import (
 	"reflect"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"sigs.k8s.io/yaml"
 )
 
 func IsCRD(data map[string]any) bool {

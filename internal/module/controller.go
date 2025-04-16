@@ -23,8 +23,8 @@ import (
 	"sync"
 
 	"github.com/mitchellh/hashstructure/v2"
-	"gopkg.in/yaml.v3"
 	"helm.sh/helm/v3/pkg/chartutil"
+	"sigs.k8s.io/yaml"
 
 	"github.com/deckhouse/dmt/internal/helm"
 	"github.com/deckhouse/dmt/internal/storage"
@@ -63,7 +63,7 @@ func RunRender(m *Module, values chartutil.Values, objectStore *storage.Unstruct
 				continue
 			}
 			node := make(map[string]any)
-			err = yaml.Unmarshal(docBytes, &node)
+			err = yaml.UnmarshalStrict(docBytes, &node)
 			if err != nil {
 				return fmt.Errorf(manifestErrorMessage, strings.TrimPrefix(path, m.GetName()+"/"), err)
 			}
