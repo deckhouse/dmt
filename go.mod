@@ -13,7 +13,6 @@ require (
 	github.com/bmatcuk/doublestar v1.3.4
 	github.com/fatih/color v1.16.0
 	github.com/flant/addon-operator v1.5.0
-	github.com/ghodss/yaml v1.0.0
 	github.com/go-openapi/spec v0.21.0
 	github.com/gobwas/glob v0.2.3
 	github.com/golang/protobuf v1.5.4

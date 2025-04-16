@@ -98,7 +98,7 @@ func getFileYAMLContent(path string) (map[string]any, error) {
 
 	m := make(map[string]any)
 
-	err = yaml.Unmarshal(data, &m)
+	err = yaml.UnmarshalStrict(data, &m)
 	if err != nil {
 		return nil, err
 	}

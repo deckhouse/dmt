@@ -111,7 +111,7 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 
 	var yml DeckhouseModule
 
-	err = yaml.Unmarshal(yamlFile, &yml)
+	err = yaml.UnmarshalStrict(yamlFile, &yml)
 	if err != nil {
 		errorList.Errorf("Cannot parse file %q: %s", ModuleConfigFilename, err)
 

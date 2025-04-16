@@ -155,7 +155,7 @@ func readOssFile(moduleRoot string) ([]ossProject, error) {
 
 func parseProjectList(b []byte) ([]ossProject, error) {
 	var projects []ossProject
-	err := yaml.Unmarshal(b, &projects)
+	err := yaml.UnmarshalStrict(b, &projects)
 	if err != nil {
 		return nil, err
 	}

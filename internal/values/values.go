@@ -35,7 +35,7 @@ var globalValuesBytes []byte
 // LoadSchemaFromBytes returns spec.Schema object loaded from YAML bytes.
 func LoadSchemaFromBytes(openAPIContent []byte) (*spec.Schema, error) {
 	s := new(spec.Schema)
-	if err := yaml.Unmarshal(openAPIContent, s); err != nil {
+	if err := yaml.UnmarshalStrict(openAPIContent, s); err != nil {
 		return nil, fmt.Errorf("yaml unmarshal: %w", err)
 	}
 
