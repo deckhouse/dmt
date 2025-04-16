@@ -15,7 +15,6 @@ require (
 	github.com/flant/addon-operator v1.5.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-openapi/spec v0.21.0
-	github.com/go-openapi/swag v0.23.0
 	github.com/gobwas/glob v0.2.3
 	github.com/golang/protobuf v1.5.4
 	github.com/golang/snappy v0.0.4
@@ -84,6 +83,7 @@ require (
 	github.com/go-openapi/jsonreference v0.21.0 // indirect
 	github.com/go-openapi/loads v0.22.0 // indirect
 	github.com/go-openapi/strfmt v0.23.0 // indirect
+	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/go-openapi/validate v0.24.0 // indirect
 	github.com/gofrs/uuid/v5 v5.3.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
