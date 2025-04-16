@@ -74,7 +74,7 @@ func funcMap() template.FuncMap {
 			return "b64decDecoded_String", nil
 		},
 		// Custom function b32dec for fade decoding values
-		"b32enc": func(string) (string, error) {
+		"b32dec": func(string) (string, error) {
 			return "b32decDecoded_String", nil
 		},
 	}
