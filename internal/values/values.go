@@ -36,7 +36,7 @@ var globalValuesBytes []byte
 func LoadSchemaFromBytes(openAPIContent []byte) (*spec.Schema, error) {
 	s := new(spec.Schema)
 	if err := yaml.Unmarshal(openAPIContent, s); err != nil {
-		return nil, fmt.Errorf("json unmarshal: %w", err)
+		return nil, fmt.Errorf("yaml unmarshal: %w", err)
 	}
 
 	err := spec.ExpandSchema(s, s, nil)
