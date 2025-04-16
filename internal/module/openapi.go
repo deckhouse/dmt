@@ -17,7 +17,6 @@ limitations under the License.
 package module
 
 import (
-	"encoding/base64"
 	"fmt"
 	"reflect"
 	"strings"
@@ -214,7 +213,7 @@ func parseString(key, pattern string, result map[string]any) error {
 		}
 		result[key] = r
 	} else {
-		result[key] = base64.StdEncoding.EncodeToString([]byte(key))
+		result[key] = key
 	}
 
 	return nil
