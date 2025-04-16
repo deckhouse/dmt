@@ -120,9 +120,9 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 	}
 
 	stages := []string{
-		"Sandbox",
-		"Incubating",
-		"Graduated",
+		"Experimental",
+		"Preview",
+		"General Availability",
 		"Deprecated",
 	}
 
