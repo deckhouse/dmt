@@ -60,7 +60,9 @@ type DeckhouseModule struct {
 	Namespace    string              `json:"namespace"`
 	Weight       uint32              `json:"weight,omitempty"`
 	Tags         []string            `json:"tags"`
+	Subsystems   []string            `json:"subsystems,omitempty"`
 	Stage        string              `json:"stage"`
+	Description  string              `json:"description,omitempty"`
 	Descriptions ModuleDescriptions  `json:"descriptions,omitempty"`
 	Requirements *ModuleRequirements `json:"requirements,omitempty"`
 }
@@ -109,7 +111,7 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 
 	var yml DeckhouseModule
 
-	err = yaml.Unmarshal(yamlFile, &yml)
+	err = yaml.UnmarshalStrict(yamlFile, &yml)
 	if err != nil {
 		errorList.Errorf("Cannot parse file %q: %s", ModuleConfigFilename, err)
 
