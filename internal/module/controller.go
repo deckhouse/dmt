@@ -46,7 +46,7 @@ func RunRender(m *Module, values chartutil.Values, objectStore *storage.Unstruct
 				continue
 			}
 			node := make(map[string]any)
-			err = yaml.UnmarshalStrict(docBytes, &node)
+			err = yaml.Unmarshal(docBytes, &node)
 			if err != nil {
 				return fmt.Errorf(manifestErrorMessage, strings.TrimPrefix(path, m.GetName()+"/"), err)
 			}
