@@ -20,18 +20,12 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
-	"sync"
 
-	"github.com/mitchellh/hashstructure/v2"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"sigs.k8s.io/yaml"
 
 	"github.com/deckhouse/dmt/internal/helm"
 	"github.com/deckhouse/dmt/internal/storage"
-)
-
-var (
-	renderedTemplatesHash = sync.Map{}
 )
 
 func RunRender(m *Module, values chartutil.Values, objectStore *storage.UnstructuredObjectStore) error {
@@ -44,17 +38,6 @@ func RunRender(m *Module, values chartutil.Values, objectStore *storage.Unstruct
 	if err != nil {
 		return fmt.Errorf("helm chart render: %w", err)
 	}
-
-	hash, err := hashstructure.Hash(files, hashstructure.FormatV2, nil)
-	if err != nil {
-		return fmt.Errorf("helm chart render: %w", err)
-	}
-
-	if _, ok := renderedTemplatesHash.Load(hash); ok {
-		return nil
-	}
-
-	defer renderedTemplatesHash.Store(hash, struct{}{})
 
 	for path, bigFile := range files {
 		for _, doc := range strings.Split(bigFile, "---") {
