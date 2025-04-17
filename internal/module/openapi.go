@@ -19,7 +19,6 @@ package module
 import (
 	"fmt"
 	"reflect"
-	"strings"
 
 	"dario.cat/mergo"
 	"github.com/go-openapi/spec"
@@ -172,14 +171,14 @@ func parseProperty(key string, prop *spec.Schema, result map[string]any) error {
 		result[key] = prop.Default
 	case prop.Type.Contains(ArrayObject) && prop.Items != nil && prop.Items.Schema != nil:
 		return parseArray(key, prop, result)
-	case prop.Type.Contains("string"):
-		return parseString(key, prop.Pattern, result)
 	case prop.Type.Contains("integer"):
 		result[key] = 123
 	case prop.Type.Contains("number"):
 		result[key] = 123
 	case prop.Type.Contains("boolean"):
 		result[key] = true
+	case prop.Type.Contains("string"):
+		return parseString(key, prop.Pattern, result)
 	case len(prop.AllOf) > 0:
 		return parseAllOf(key, prop, result)
 	case len(prop.OneOf) > 0:
@@ -196,25 +195,16 @@ func parseString(key, pattern string, result map[string]any) error {
 		result[key] = "name"
 		return nil
 	}
-	if strings.Contains(strings.ToLower(key), "cpu") {
-		result[key] = "100m"
-		return nil
-	}
-	if strings.Contains(strings.ToLower(key), "memory") {
-		result[key] = "128Mi"
-		return nil
+	result[key] = "string"
+	if pattern == "" {
+		pattern = "[a-zA-Z]+"
 	}
 	const limit = 8
-	if pattern != "" {
-		result[key] = "string"
-		r, err := reggen.Generate(pattern, limit)
-		if err != nil {
-			return err
-		}
-		result[key] = r
-	} else {
-		result[key] = key
+	r, err := reggen.Generate(pattern, limit)
+	if err != nil {
+		return err
 	}
+	result[key] = r
 
 	return nil
 }
