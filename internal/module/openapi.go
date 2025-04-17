@@ -196,15 +196,15 @@ func parseString(key, pattern string, result map[string]any) error {
 		result[key] = "name"
 		return nil
 	}
-	const limit = 8
-	if strings.Contains(key, "CPU") {
+	if strings.Contains(strings.ToLower(key), "cpu") {
 		result[key] = "100m"
 		return nil
 	}
-	if strings.Contains(key, "Memory") {
+	if strings.Contains(strings.ToLower(key), "memory") {
 		result[key] = "128Mi"
 		return nil
 	}
+	const limit = 8
 	if pattern != "" {
 		result[key] = "string"
 		r, err := reggen.Generate(pattern, limit)
