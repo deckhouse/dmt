@@ -8,7 +8,6 @@ func TestGenerate(t *testing.T) {
 	type args struct {
 		regex string
 		limit int
-		len   int
 	}
 	tests := []struct {
 		name    string
