@@ -17,7 +17,6 @@ limitations under the License.
 package module
 
 import (
-	"bytes"
 	"fmt"
 	"strings"
 
@@ -63,27 +62,6 @@ func RunRender(m *Module, values chartutil.Values, objectStore *storage.Unstruct
 	}
 
 	return nil
-}
-
-func SplitAt(substring string) func(data []byte, atEOF bool) (advance int, token []byte, err error) {
-	return func(data []byte, atEOF bool) (int, []byte, error) {
-		// Return nothing if at end of file and no data passed
-		if atEOF && len(data) == 0 {
-			return 0, nil, nil
-		}
-
-		// Find the index of the input of the separator substring
-		if i := bytes.Index(data, []byte(substring)); i >= 0 {
-			return i + len(substring), data[0:i], nil
-		}
-
-		// If at end of file with data return the data
-		if atEOF {
-			return len(data), data, nil
-		}
-
-		return 0, nil, nil
-	}
 }
 
 const (
