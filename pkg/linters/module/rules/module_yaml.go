@@ -23,7 +23,7 @@ import (
 	"slices"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"sigs.k8s.io/yaml"
 
 	"github.com/Masterminds/semver/v3"
 
@@ -56,28 +56,31 @@ const (
 )
 
 type DeckhouseModule struct {
-	Name         string              `yaml:"name"`
-	Weight       uint32              `yaml:"weight,omitempty"`
-	Tags         []string            `yaml:"tags"`
-	Stage        string              `yaml:"stage"`
-	Descriptions ModuleDescriptions  `yaml:"descriptions,omitempty"`
-	Requirements *ModuleRequirements `yaml:"requirements,omitempty"`
+	Name         string              `json:"name"`
+	Namespace    string              `json:"namespace"`
+	Weight       uint32              `json:"weight,omitempty"`
+	Tags         []string            `json:"tags"`
+	Subsystems   []string            `json:"subsystems,omitempty"`
+	Stage        string              `json:"stage"`
+	Description  string              `json:"description,omitempty"`
+	Descriptions ModuleDescriptions  `json:"descriptions,omitempty"`
+	Requirements *ModuleRequirements `json:"requirements,omitempty"`
 }
 
 type ModuleDescriptions struct {
-	English string `yaml:"en,omitempty"`
-	Russian string `yaml:"ru,omitempty"`
+	English string `json:"en,omitempty"`
+	Russian string `json:"ru,omitempty"`
 }
 
 type ModuleRequirements struct {
-	ModulePlatformRequirements `yaml:",inline"`
-	ParentModules              map[string]string `yaml:"modules,omitempty"`
+	ModulePlatformRequirements `json:",inline"`
+	ParentModules              map[string]string `json:"modules,omitempty"`
 }
 
 type ModulePlatformRequirements struct {
-	Deckhouse    string `yaml:"deckhouse,omitempty"`
-	Kubernetes   string `yaml:"kubernetes,omitempty"`
-	Bootstrapped string `yaml:"bootstrapped,omitempty"`
+	Deckhouse    string `json:"deckhouse,omitempty"`
+	Kubernetes   string `json:"kubernetes,omitempty"`
+	Bootstrapped bool   `json:"bootstrapped,omitempty"`
 }
 
 func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *errors.LintRuleErrorsList) {
@@ -108,7 +111,7 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 
 	var yml DeckhouseModule
 
-	err = yaml.Unmarshal(yamlFile, &yml)
+	err = yaml.UnmarshalStrict(yamlFile, &yml)
 	if err != nil {
 		errorList.Errorf("Cannot parse file %q: %s", ModuleConfigFilename, err)
 

@@ -161,7 +161,7 @@ func (g *Generator) handleCapture(s *state, re *syntax.Regexp) string {
 
 func (g *Generator) handleStar(s *state, re *syntax.Regexp) string {
 	res := ""
-	count := g.rand.Intn(s.limit + 1)
+	count := int(math.Max(float64(s.limit), 1))
 	for range make([]struct{}, count) {
 		for _, r := range re.Sub {
 			res += g.generate(s, r)
@@ -172,7 +172,7 @@ func (g *Generator) handleStar(s *state, re *syntax.Regexp) string {
 
 func (g *Generator) handlePlus(s *state, re *syntax.Regexp) string {
 	res := ""
-	count := g.rand.Intn(s.limit) + 1
+	count := int(math.Max(float64(s.limit), 1))
 	for range make([]struct{}, count) {
 		for _, r := range re.Sub {
 			res += g.generate(s, r)
@@ -183,7 +183,7 @@ func (g *Generator) handlePlus(s *state, re *syntax.Regexp) string {
 
 func (g *Generator) handleQuest(s *state, re *syntax.Regexp) string {
 	res := ""
-	count := g.rand.Intn(2)
+	count := 1
 	if g.debug {
 		fmt.Println("Quest", count)
 	}
@@ -203,7 +203,7 @@ func (g *Generator) handleRepeat(s *state, re *syntax.Regexp) string {
 	count := 0
 	re.Max = int(math.Min(float64(re.Max), float64(s.limit)))
 	if re.Max > re.Min {
-		count = g.rand.Intn(re.Max - re.Min + 1)
+		count = re.Max - 1
 	}
 	if g.debug {
 		fmt.Println(re.Max, count)
@@ -232,13 +232,10 @@ func (g *Generator) handleAlternate(s *state, re *syntax.Regexp) string {
 	return g.generate(s, re.Sub[i])
 }
 
-// limit is the maximum number of times star, range or plus should repeat
-// i.e. [0-9]+ will generate at most 10 characters if this is set to 10
 func (g *Generator) Generate(limit int) string {
 	return g.generate(&state{limit: limit}, g.re)
 }
 
-// create a new generator
 func NewGenerator(regex string) (*Generator, error) {
 	re, err := syntax.Parse(regex, syntax.Perl)
 	if err != nil {
@@ -254,10 +251,16 @@ func (g *Generator) SetSeed(seed int64) {
 	g.rand = rand.New(rand.NewSource(seed)) //nolint:gosec  // seed is not used for security
 }
 
+// Generate generates a string based on the provided regex and limit.
+//
+// limit is the maximum number of times star, range or plus should repeat
+// i.e. [0-9]+ will generate at most 10 characters if this is set to 10
+// len is the length of the generated string
 func Generate(regex string, limit int) (string, error) {
 	g, err := NewGenerator(regex)
 	if err != nil {
 		return "", err
 	}
+	g.SetSeed(time.Now().UnixNano())
 	return g.Generate(limit), nil
 }

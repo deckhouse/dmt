@@ -25,9 +25,9 @@ import (
 	"strings"
 
 	"github.com/go-openapi/spec"
-	"gopkg.in/yaml.v3"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
+	"sigs.k8s.io/yaml"
 
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/internal/values"
@@ -54,13 +54,13 @@ type Module struct {
 type ModuleList []*Module
 
 type ModuleYaml struct {
-	Name      string `yaml:"name"`
-	Namespace string `yaml:"namespace"`
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
 }
 
 type ChartYaml struct {
-	Name    string `yaml:"name"`
-	Version string `yaml:"version"`
+	Name    string `json:"name"`
+	Version string `json:"version"`
 }
 
 func (m *Module) String() string {

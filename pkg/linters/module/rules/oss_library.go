@@ -155,7 +155,7 @@ func readOssFile(moduleRoot string) ([]ossProject, error) {
 
 func parseProjectList(b []byte) ([]ossProject, error) {
 	var projects []ossProject
-	err := yaml.Unmarshal(b, &projects)
+	err := yaml.UnmarshalStrict(b, &projects)
 	if err != nil {
 		return nil, err
 	}
@@ -163,9 +163,9 @@ func parseProjectList(b []byte) ([]ossProject, error) {
 }
 
 type ossProject struct {
-	Name        string `yaml:"name"`           // example: Dex
-	Description string `yaml:"description"`    // example: A Federated OpenID Connect Provider with pluggable connectors
-	Link        string `yaml:"link"`           // example: https://github.com/dexidp/dex
-	Logo        string `yaml:"logo,omitempty"` // example: https://dexidp.io/img/logos/dex-horizontal-color.png
-	License     string `yaml:"license"`        // example: Apache License 2.0
+	Name        string `json:"name"`           // example: Dex
+	Description string `json:"description"`    // example: A Federated OpenID Connect Provider with pluggable connectors
+	Link        string `json:"link"`           // example: https://github.com/dexidp/dex
+	Logo        string `json:"logo,omitempty"` // example: https://dexidp.io/img/logos/dex-horizontal-color.png
+	License     string `json:"license"`        // example: Apache License 2.0
 }

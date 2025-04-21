@@ -26,8 +26,8 @@ import (
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 
-	"github.com/ghodss/yaml"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	"sigs.k8s.io/yaml"
 )
 
 type DeckhouseCRDsRule struct {

@@ -17,21 +17,14 @@ limitations under the License.
 package module
 
 import (
-	"bytes"
 	"fmt"
 	"strings"
-	"sync"
 
-	"github.com/mitchellh/hashstructure/v2"
-	"gopkg.in/yaml.v3"
 	"helm.sh/helm/v3/pkg/chartutil"
+	"sigs.k8s.io/yaml"
 
 	"github.com/deckhouse/dmt/internal/helm"
 	"github.com/deckhouse/dmt/internal/storage"
-)
-
-var (
-	renderedTemplatesHash = sync.Map{}
 )
 
 func RunRender(m *Module, values chartutil.Values, objectStore *storage.UnstructuredObjectStore) error {
@@ -45,17 +38,6 @@ func RunRender(m *Module, values chartutil.Values, objectStore *storage.Unstruct
 		return fmt.Errorf("helm chart render: %w", err)
 	}
 
-	hash, err := hashstructure.Hash(files, hashstructure.FormatV2, nil)
-	if err != nil {
-		return fmt.Errorf("helm chart render: %w", err)
-	}
-
-	if _, ok := renderedTemplatesHash.Load(hash); ok {
-		return nil
-	}
-
-	defer renderedTemplatesHash.Store(hash, struct{}{})
-
 	for path, bigFile := range files {
 		for _, doc := range strings.Split(bigFile, "---") {
 			docBytes := []byte(doc)
@@ -63,7 +45,7 @@ func RunRender(m *Module, values chartutil.Values, objectStore *storage.Unstruct
 				continue
 			}
 			node := make(map[string]any)
-			err = yaml.Unmarshal(docBytes, &node)
+			err = yaml.UnmarshalStrict(docBytes, &node)
 			if err != nil {
 				return fmt.Errorf(manifestErrorMessage, strings.TrimPrefix(path, m.GetName()+"/"), err)
 			}
@@ -80,27 +62,6 @@ func RunRender(m *Module, values chartutil.Values, objectStore *storage.Unstruct
 	}
 
 	return nil
-}
-
-func SplitAt(substring string) func(data []byte, atEOF bool) (advance int, token []byte, err error) {
-	return func(data []byte, atEOF bool) (int, []byte, error) {
-		// Return nothing if at end of file and no data passed
-		if atEOF && len(data) == 0 {
-			return 0, nil, nil
-		}
-
-		// Find the index of the input of the separator substring
-		if i := bytes.Index(data, []byte(substring)); i >= 0 {
-			return i + len(substring), data[0:i], nil
-		}
-
-		// If at end of file with data return the data
-		if atEOF {
-			return len(data), data, nil
-		}
-
-		return 0, nil, nil
-	}
 }
 
 const (

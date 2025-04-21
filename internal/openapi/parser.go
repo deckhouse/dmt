@@ -23,10 +23,10 @@ import (
 	"reflect"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"sigs.k8s.io/yaml"
 )
 
-func IsCRD(data map[any]any) bool {
+func IsCRD(data map[string]any) bool {
 	kind, ok := data["kind"].(string)
 	if !ok {
 		return false
@@ -39,7 +39,7 @@ func IsCRD(data map[any]any) bool {
 	return true
 }
 
-func IsDeckhouseCRD(data map[any]any) bool {
+func IsDeckhouseCRD(data map[string]any) bool {
 	kind, ok := data["kind"].(string)
 	if !ok {
 		return false
@@ -84,21 +84,21 @@ func Parse(parser parser, path string) error {
 	}
 
 	for k, v := range data {
-		err = errors.Join(err, fp.parseValue(k.(string), v))
+		err = errors.Join(err, fp.parseValue(k, v))
 	}
 
 	return err
 }
 
-func getFileYAMLContent(path string) (map[any]any, error) {
+func getFileYAMLContent(path string) (map[string]any, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 
-	m := make(map[any]any)
+	m := make(map[string]any)
 
-	err = yaml.Unmarshal(data, &m)
+	err = yaml.UnmarshalStrict(data, &m)
 	if err != nil {
 		return nil, err
 	}
