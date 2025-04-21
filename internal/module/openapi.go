@@ -108,7 +108,7 @@ func ComposeValuesFromSchemas(m *Module, globalSchema *spec.Schema) (chartutil.V
 
 	moduleValues, err := values.GetModuleValues(m.GetPath())
 	if err != nil {
-		return nil, fmt.Errorf("cannot find openapi values schema for module %q: %v", m.GetName(), err)
+		return nil, fmt.Errorf("cannot find openapi values schema for module %q: %w", m.GetName(), err)
 	}
 
 	moduleSchema := *moduleValues
