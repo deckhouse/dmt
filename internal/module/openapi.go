@@ -192,8 +192,7 @@ func parseProperty(key string, prop *spec.Schema, result map[string]any) error {
 
 func parseString(key, pattern string, result map[string]any) error {
 	if pattern == "" {
-		result[key] = key
-		return nil
+		pattern = `^[a-zA-Z0-9]{8}$`
 	}
 	const limit = 8
 	r, err := reggen.Generate(pattern, limit)
