@@ -63,7 +63,7 @@ func (l *Templates) Run(m *module.Module) {
 	grafanaRule := rules.NewGrafanaRule()
 
 	if err := dirExists(m.GetPath(), "monitoring"); err == nil {
-		grafanaRule.ValidationGrafanaDashboards(m, errorList)
+		grafanaRule.ValidateGrafanaDashboards(m, errorList)
 		prometheusRule.ValidatePrometheusRules(m, errorList)
 	} else if !os.IsNotExist(err) {
 		errorList.Errorf("reading the 'monitoring' folder failed: %s", err)
