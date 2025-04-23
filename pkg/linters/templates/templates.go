@@ -78,6 +78,9 @@ func (l *Templates) Run(m *module.Module) {
 		servicePortRule.ObjectServiceTargetPort(object, errorList)
 		prometheusRule.PromtoolRuleCheck(m, object, errorList)
 	}
+
+	// werf file
+	rules.NewWerfRule().ValidateWerfTemplates(m, errorList)
 }
 
 func (l *Templates) Name() string {
