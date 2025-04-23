@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/deckhouse/dmt/pkg/errors"
 )
@@ -22,8 +23,8 @@ descriptions:
 requirements:
   deckhouse: ">=1.0.0"
   kubernetes: ">=1.20.0"
-`), 0644)
-	assert.NoError(t, err)
+`), 0600)
+	require.NoError(t, err)
 
 	rule := NewDefinitionFileRule(false)
 	errorList := errors.NewLintRuleErrorsList()
@@ -46,8 +47,8 @@ func TestCheckDefinitionFile_NameField(t *testing.T) {
 stage: Experimental
 descriptions:
   en: "Test description"
-`), 0644)
-	assert.NoError(t, err)
+`), 0600)
+	require.NoError(t, err)
 
 	rule := NewDefinitionFileRule(false)
 	errorList := errors.NewLintRuleErrorsList()
@@ -62,8 +63,8 @@ name: "this-is-a-very-long-module-name-that-exceeds-the-sixty-four-character-lim
 stage: Experimental
 descriptions:
   en: "Test description"
-`), 0644)
-	assert.NoError(t, err)
+`), 0600)
+	require.NoError(t, err)
 
 	errorList = errors.NewLintRuleErrorsList()
 	rule.CheckDefinitionFile(tempDir, errorList)
@@ -76,8 +77,8 @@ name: "valid-module-name"
 stage: Experimental
 descriptions:
   en: "Test description"
-`), 0644)
-	assert.NoError(t, err)
+`), 0600)
+	require.NoError(t, err)
 
 	errorList = errors.NewLintRuleErrorsList()
 	rule.CheckDefinitionFile(tempDir, errorList)
