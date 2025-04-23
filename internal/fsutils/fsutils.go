@@ -116,21 +116,13 @@ func ExpandDir(path string) (string, error) {
 
 func FilterFileByExtensions(exts ...string) func(_, path string) bool {
 	return func(_, path string) bool {
-		if slices.Contains(exts, filepath.Ext(path)) {
-			return true
-		}
-
-		return false
+		return slices.Contains(exts, filepath.Ext(path))
 	}
 }
 
 func FilterFileByNames(names ...string) func(_, path string) bool {
 	return func(_, path string) bool {
-		if slices.Contains(names, filepath.Base(path)) {
-			return true
-		}
-
-		return false
+		return slices.Contains(names, filepath.Base(path))
 	}
 }
 

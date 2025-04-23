@@ -87,7 +87,7 @@ func TestSplitManifestsHandlesSingleManifest(t *testing.T) {
 func TestSplitManifestsHandlesMultipleManifests(t *testing.T) {
 	data := "apiVersion: v1\nkind: Pod\n---\napiVersion: v1\nkind: Service"
 	parts := SplitManifests(data)
-	assert.Equal(t, 2, len(parts), "SplitManifests did not split the data into the correct number of parts")
+	assert.Len(t, parts, 2, "SplitManifests did not split the data into the correct number of parts")
 	assert.Equal(t, "apiVersion: v1\nkind: Pod", parts[0], "SplitManifests did not return the correct first part")
 	assert.Equal(t, "apiVersion: v1\nkind: Service", parts[1], "SplitManifests did not return the correct second part")
 }

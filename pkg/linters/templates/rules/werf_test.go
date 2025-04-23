@@ -15,7 +15,7 @@ type mockModule struct {
 func (m *mockModule) GetWerfFile() string {
 	return m.werfFile
 }
-func (m *mockModule) GetPath() string {
+func (*mockModule) GetPath() string {
 	return "/mock/path"
 }
 
