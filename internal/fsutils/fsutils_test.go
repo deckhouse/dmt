@@ -72,3 +72,49 @@ func TestFilterFileByExtensions(t *testing.T) {
 	assert.True(t, filter("", "file.md"), "FilterFileByExtensions did not match .md file")
 	assert.False(t, filter("", "file.go"), "FilterFileByExtensions matched an unexpected file extension")
 }
+
+func TestSplitManifestsHandlesEmptyString(t *testing.T) {
+	parts := SplitManifests("")
+	assert.Empty(t, parts, "SplitManifests did not return an empty slice for an empty string")
+}
+
+func TestSplitManifestsHandlesSingleManifest(t *testing.T) {
+	data := "apiVersion: v1\nkind: Pod"
+	parts := SplitManifests(data)
+	assert.Equal(t, []string{data}, parts, "SplitManifests did not return the correct single manifest")
+}
+
+func TestSplitManifestsHandlesMultipleManifests(t *testing.T) {
+	data := "apiVersion: v1\nkind: Pod\n---\napiVersion: v1\nkind: Service"
+	parts := SplitManifests(data)
+	assert.Equal(t, 2, len(parts), "SplitManifests did not split the data into the correct number of parts")
+	assert.Equal(t, "apiVersion: v1\nkind: Pod", parts[0], "SplitManifests did not return the correct first part")
+	assert.Equal(t, "apiVersion: v1\nkind: Service", parts[1], "SplitManifests did not return the correct second part")
+}
+
+func TestFilterFileByNamesMatchesExactName(t *testing.T) {
+	filter := FilterFileByNames("file.txt", "config.yaml")
+
+	assert.True(t, filter("", "file.txt"), "FilterFileByNames did not match the exact file name 'file.txt'")
+	assert.True(t, filter("", "config.yaml"), "FilterFileByNames did not match the exact file name 'config.yaml'")
+	assert.False(t, filter("", "otherfile.txt"), "FilterFileByNames matched an unexpected file name")
+}
+
+func TestFilterFileByNamesHandlesEmptyNamesList(t *testing.T) {
+	filter := FilterFileByNames()
+
+	assert.False(t, filter("", "file.txt"), "FilterFileByNames matched a file name when the names list was empty")
+}
+
+func TestFilterFileByNamesHandlesEmptyPath(t *testing.T) {
+	filter := FilterFileByNames("file.txt")
+
+	assert.False(t, filter("", ""), "FilterFileByNames matched an empty path unexpectedly")
+}
+
+func TestFilterFileByNamesHandlesCaseSensitivity(t *testing.T) {
+	filter := FilterFileByNames("file.txt")
+
+	assert.False(t, filter("", "File.txt"), "FilterFileByNames matched a file name with different case unexpectedly")
+	assert.True(t, filter("", "file.txt"), "FilterFileByNames did not match the exact case-sensitive file name")
+}
