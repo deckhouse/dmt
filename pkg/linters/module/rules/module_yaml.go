@@ -122,8 +122,9 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 		errorList.Error("Field 'name' is required")
 	}
 
-	if len(yml.Name) > 64 {
-		errorList.Error("Module 'name' must be less than 64 characters")
+	const maxNameLength = 64
+	if len(yml.Name) > maxNameLength {
+		errorList.Error("Field 'name' must not exceed 64 characters")
 	}
 
 	stages := []string{
