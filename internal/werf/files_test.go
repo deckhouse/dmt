@@ -37,7 +37,8 @@ func setupTestEnvironment(t *testing.T) (rootDir, moduleDir string, cleanup func
 	directories := []string{
 		filepath.Join(rootDirPath, "dir1"),
 		filepath.Join(rootDirPath, "dir2"),
-		filepath.Join(rootDirPath, "module"),
+		filepath.Join(rootDirPath, "modules"),
+		filepath.Join(rootDirPath, "modules", "module"),
 	}
 
 	for _, dir := range directories {
@@ -48,11 +49,11 @@ func setupTestEnvironment(t *testing.T) (rootDir, moduleDir string, cleanup func
 	}
 
 	testFiles := map[string]string{
-		filepath.Join(rootDirPath, "test.txt"):                "test content",
-		filepath.Join(rootDirPath, "dir1", "file1.txt"):       "file1 content",
-		filepath.Join(rootDirPath, "dir2", "file2.txt"):       "file2 content",
-		filepath.Join(rootDirPath, "werf.yaml"):               "root module yaml",
-		filepath.Join(rootDirPath, "module", "werf.inc.yaml"): "submodule yaml",
+		filepath.Join(rootDirPath, "test.txt"):                           "test content",
+		filepath.Join(rootDirPath, "dir1", "file1.txt"):                  "file1 content",
+		filepath.Join(rootDirPath, "dir2", "file2.txt"):                  "file2 content",
+		filepath.Join(rootDirPath, "werf.yaml"):                          "root module yaml",
+		filepath.Join(rootDirPath, "modules", "module", "werf.inc.yaml"): "module yaml",
 	}
 
 	for path, content := range testFiles {
@@ -66,7 +67,7 @@ func setupTestEnvironment(t *testing.T) (rootDir, moduleDir string, cleanup func
 		os.RemoveAll(tempDir)
 	}
 
-	return rootDirPath, filepath.Join(rootDirPath, "module"), cleanup
+	return rootDirPath, filepath.Join(rootDirPath, "modules", "module"), cleanup
 }
 
 func TestNewFiles(t *testing.T) {
@@ -76,9 +77,7 @@ func TestNewFiles(t *testing.T) {
 	f := NewFiles(rootDir, moduleDir)
 
 	absModuleDir, _ := filepath.Abs(moduleDir)
-	if f.moduleDir != absModuleDir {
-		t.Errorf("moduleDir not matches: expected %s, got %s", absModuleDir, f.moduleDir)
-	}
+	require.Equal(t, f.moduleDir, absModuleDir, "moduleDir not matches: expected %s, got %s", absModuleDir, f.moduleDir)
 }
 
 func TestGet(t *testing.T) {
@@ -88,9 +87,7 @@ func TestGet(t *testing.T) {
 	f := NewFiles(rootDir, moduleDir)
 
 	content := f.Get("test.txt")
-	if content != "test content" {
-		t.Errorf("file content not matches: expected 'test content', got '%s'", content)
-	}
+	require.Equal(t, content, "test content", "file content not matches: expected 'test content', got '%s'", content)
 
 	defer func() {
 		if r := recover(); r == nil {
@@ -107,36 +104,21 @@ func TestDoGlob(t *testing.T) {
 	f := NewFiles(rootDir, moduleDir)
 
 	result, err := f.doGlob("**/*.txt")
-	if err != nil {
-		t.Fatalf("doGlob returned error: %v", err)
-	}
-
-	if len(result) != 3 {
-		t.Errorf("incorrect number of found files: expected 3, got %d", len(result))
-	}
+	require.NoError(t, err, "doGlob returned error: %v", err)
+	require.Len(t, result, 3)
 
 	expectedPaths := []string{"test.txt", "dir1/file1.txt", "dir2/file2.txt"}
+	require.Len(t, result, len(expectedPaths))
 	for _, path := range expectedPaths {
 		if _, ok := result[path]; !ok {
 			t.Errorf("file %s not found in results", path)
 		}
 	}
 
-	result, err = f.doGlob("modules/**/werf.inc.yaml")
-	if err != nil {
-		t.Fatalf("doGlob returned error: %v", err)
-	}
-
-	found := false
-	for _, content := range result {
-		if content == "submodule yaml" {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Errorf("file werf.inc.yaml from submodule not found in results")
-	}
+	result, err = f.doGlob("modules/*/werf.inc.yaml")
+	require.NoError(t, err, "doGlob returned error: %v", err)
+	require.Len(t, result, 1)
+	require.Equal(t, result["modules/module/werf.inc.yaml"], "module yaml", "file werf.inc.yaml from submodule not found in results")
 }
 
 func TestGlob(t *testing.T) {
@@ -146,9 +128,7 @@ func TestGlob(t *testing.T) {
 	f := NewFiles(rootDir, moduleDir)
 
 	result := f.Glob("**/*.txt")
-	if len(result) != 3 {
-		t.Errorf("incorrect number of found files: expected 3, got %d", len(result))
-	}
+	require.Equal(t, len(result), 3, "incorrect number of found files: expected 3, got %d", len(result))
 
 	defer func() {
 		if r := recover(); r == nil {
@@ -164,11 +144,10 @@ func TestGlobWithWerfIncYaml(t *testing.T) {
 
 	f := NewFiles(rootDir, moduleDir)
 
-	result := f.Glob("modules/**/werf.inc.yaml")
+	result := f.Glob("modules/*/werf.inc.yaml")
 
 	require.Equal(t, len(result), 1)
-	t.Logf("%v", result)
-	require.Equal(t, result["module/werf.inc.yaml"], "submodule yaml")
+	require.Equal(t, result["modules/module/werf.inc.yaml"], "module yaml")
 
 	result = f.Glob("werf.yaml")
 	require.Equal(t, len(result), 1)
