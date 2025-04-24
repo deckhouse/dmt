@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/bmatcuk/doublestar"
+	"github.com/deckhouse/dmt/internal/fsutils"
 )
 
 type files struct {
@@ -31,8 +32,11 @@ type files struct {
 
 func NewFiles(rootDir, moduleDir string) files {
 	moduleDir, _ = filepath.Abs(moduleDir)
+	if !fsutils.IsDir(rootDir) {
+		rootDir = filepath.Dir(rootDir)
+	}
 	return files{
-		rootDir:   filepath.Dir(rootDir),
+		rootDir:   rootDir,
 		moduleDir: moduleDir,
 	}
 }
@@ -58,7 +62,7 @@ func (f files) doGlob(pattern string) (map[string]any, error) {
 	// Specific for Deckhouse project
 	if strings.Contains(pattern, "werf.inc.yaml") {
 		dir = f.moduleDir
-		pattern = strings.TrimPrefix(pattern, "modules/*")
+		pattern = strings.TrimPrefix(pattern, "modules/**")
 	}
 	matches, err := doublestar.Glob(filepath.Join(dir, pattern))
 	if err != nil {
