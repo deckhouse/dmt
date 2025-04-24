@@ -78,9 +78,7 @@ func GetWerfConfig(dir string) (string, error) {
 		},
 	}
 
-	config, err := executeTemplate(tmpl, "werfConfig", templateData)
-
-	return config, err
+	return executeTemplate(tmpl, "werfConfig", templateData)
 }
 
 func getRootWerfFile(dir string) string {
