@@ -72,6 +72,9 @@ func (f files) doGlob(pattern string) (map[string]any, error) {
 		return nil, err
 	}
 	for _, path := range matches {
+		if fsutils.IsDir(path) {
+			continue
+		}
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return nil, err
