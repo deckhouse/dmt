@@ -24,15 +24,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTestEnvironment(t *testing.T) (rootDir, moduleDir string, cleanup func()) {
+func setupTestEnvironment(t *testing.T) (string, string, func()) {
 	tempDir := t.TempDir()
 
 	rootDirPath := filepath.Join(tempDir, "root")
 	err := os.MkdirAll(rootDirPath, 0755)
-	if err != nil {
-		os.RemoveAll(tempDir)
-		t.Fatalf("cannot create rootDir directory: %v", err)
-	}
+	require.NoError(t, err, "cannot create rootDir directory: %v", err)
 
 	directories := []string{
 		filepath.Join(rootDirPath, "dir1"),
@@ -42,8 +39,8 @@ func setupTestEnvironment(t *testing.T) (rootDir, moduleDir string, cleanup func
 	}
 
 	for _, dir := range directories {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			os.RemoveAll(tempDir)
+		if err = os.MkdirAll(dir, 0755); err != nil {
+			_ = os.RemoveAll(tempDir)
 			t.Fatalf("cannot create directory %s: %v", dir, err)
 		}
 	}
@@ -57,14 +54,14 @@ func setupTestEnvironment(t *testing.T) (rootDir, moduleDir string, cleanup func
 	}
 
 	for path, content := range testFiles {
-		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-			os.RemoveAll(tempDir)
+		if err = os.WriteFile(path, []byte(content), 0600); err != nil {
+			_ = os.RemoveAll(tempDir)
 			t.Fatalf("cannot create file %s: %v", path, err)
 		}
 	}
 
-	cleanup = func() {
-		os.RemoveAll(tempDir)
+	cleanup := func() {
+		_ = os.RemoveAll(tempDir)
 	}
 
 	return rootDirPath, filepath.Join(rootDirPath, "modules", "module"), cleanup
@@ -87,7 +84,7 @@ func TestGet(t *testing.T) {
 	f := NewFiles(rootDir, moduleDir)
 
 	content := f.Get("test.txt")
-	require.Equal(t, content, "test content", "file content not matches: expected 'test content', got '%s'", content)
+	require.Equal(t, "test content", content, "file content not matches: expected 'test content', got '%s'", content)
 
 	defer func() {
 		if r := recover(); r == nil {
@@ -118,7 +115,7 @@ func TestDoGlob(t *testing.T) {
 	result, err = f.doGlob("modules/*/werf.inc.yaml")
 	require.NoError(t, err, "doGlob returned error: %v", err)
 	require.Len(t, result, 1)
-	require.Equal(t, result["modules/module/werf.inc.yaml"], "module yaml", "file werf.inc.yaml from submodule not found in results")
+	require.Equal(t, "module yaml", result["modules/module/werf.inc.yaml"], "file werf.inc.yaml from submodule not found in results")
 }
 
 func TestGlob(t *testing.T) {
@@ -128,7 +125,7 @@ func TestGlob(t *testing.T) {
 	f := NewFiles(rootDir, moduleDir)
 
 	result := f.Glob("**/*.txt")
-	require.Equal(t, len(result), 3, "incorrect number of found files: expected 3, got %d", len(result))
+	require.Equal(t, 3, len(result), "incorrect number of found files: expected 3, got %d", len(result))
 
 	defer func() {
 		if r := recover(); r == nil {
@@ -150,6 +147,6 @@ func TestGlobWithWerfIncYaml(t *testing.T) {
 	require.Equal(t, result["modules/module/werf.inc.yaml"], "module yaml")
 
 	result = f.Glob("werf.yaml")
-	require.Equal(t, len(result), 1)
-	require.Equal(t, result["werf.yaml"], "root module yaml")
+	require.Len(t, result, 1)
+	require.Equal(t, "root module yaml", result["werf.yaml"])
 }
