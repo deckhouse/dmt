@@ -33,6 +33,8 @@ type files struct {
 
 func NewFiles(rootDir, moduleDir string) files {
 	moduleDir, _ = filepath.Abs(moduleDir)
+	// If rootDir is not a directory, fallback to using its parent directory.
+	// This ensures that rootDir always points to a valid directory.
 	if !fsutils.IsDir(rootDir) {
 		rootDir = filepath.Dir(rootDir)
 	}

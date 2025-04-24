@@ -125,7 +125,7 @@ func TestGlob(t *testing.T) {
 	f := NewFiles(rootDir, moduleDir)
 
 	result := f.Glob("**/*.txt")
-	require.Equal(t, 3, len(result), "incorrect number of found files: expected 3, got %d", len(result))
+	require.Len(t, result, 3, "incorrect number of found files: expected 3, got %d", len(result))
 
 	defer func() {
 		if r := recover(); r == nil {
@@ -143,8 +143,8 @@ func TestGlobWithWerfIncYaml(t *testing.T) {
 
 	result := f.Glob("modules/*/werf.inc.yaml")
 
-	require.Equal(t, len(result), 1)
-	require.Equal(t, result["modules/module/werf.inc.yaml"], "module yaml")
+	require.Len(t, result, 1)
+	require.Equal(t, "module yaml", result["modules/module/werf.inc.yaml"])
 
 	result = f.Glob("werf.yaml")
 	require.Len(t, result, 1)
