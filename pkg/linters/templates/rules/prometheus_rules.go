@@ -27,7 +27,6 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/promtool"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
@@ -80,7 +79,7 @@ func (*rulesCacheStruct) Get(hash string) (checkResult, bool) {
 	return res, ok
 }
 
-func marshalChartYaml(object storage.StoreObject) ([]byte, error) {
+func marshalStorageObject(object storage.StoreObject) ([]byte, error) {
 	marshal, err := yaml.Marshal(object.Unstructured.Object["spec"])
 	if err != nil {
 		return nil, err
@@ -88,44 +87,15 @@ func marshalChartYaml(object storage.StoreObject) ([]byte, error) {
 	return marshal, nil
 }
 
-func (r *PrometheusRule) PromtoolRuleCheck(m *module.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithFilePath(m.GetPath()).WithRule(r.GetName())
-
-	if object.Unstructured.GetKind() != "PrometheusRule" {
-		return
-	}
-
-	res, ok := rulesCache.Get(object.Hash)
-	if ok {
-		if !res.success {
-			errorList.Errorf("Promtool check failed for Helm chart: %s", res.errMsg)
-		}
-		return
-	}
-
-	marshal, err := marshalChartYaml(object)
-	if err != nil {
-		errorList.Error("Error marshaling Helm chart to yaml")
-		return
-	}
-
-	err = promtool.CheckRules(marshal)
-	if err != nil {
-		rulesCache.Put(object.Hash, checkResult{
-			success: false,
-			errMsg:  err.Error(),
-		})
-		errorList.Errorf("Promtool check failed for Helm chart: %s", err.Error())
-		return
-	}
-
-	rulesCache.Put(object.Hash, checkResult{success: true})
+type imodule interface {
+	GetPath() string
 }
 
-func (r *PrometheusRule) ValidatePrometheusRules(m *module.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithFilePath(m.GetPath()).WithRule(r.GetName())
+func (r *PrometheusRule) ValidatePrometheusRules(m imodule, errorList *errors.LintRuleErrorsList) {
+	modulePath := m.GetPath()
+	errorList = errorList.WithFilePath(modulePath).WithRule(r.GetName())
 
-	monitoringFilePath := filepath.Join(m.GetPath(), "templates", "monitoring.yaml")
+	monitoringFilePath := filepath.Join(modulePath, "templates", "monitoring.yaml")
 	if info, _ := os.Stat(monitoringFilePath); info == nil {
 		errorList.WithFilePath(monitoringFilePath).
 			Error("Module with the 'monitoring' folder should have the 'templates/monitoring.yaml' file")
@@ -141,7 +111,7 @@ func (r *PrometheusRule) ValidatePrometheusRules(m *module.Module, errorList *er
 		return
 	}
 
-	searchPath := filepath.Join(m.GetPath(), "monitoring", "prometheus-rules")
+	searchPath := filepath.Join(modulePath, "monitoring", "prometheus-rules")
 	_, err = os.Stat(searchPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -186,4 +156,38 @@ func isContentMatching(content []byte, desiredContent string) bool {
 	}
 
 	return false
+}
+
+func (r *PrometheusRule) PromtoolRuleCheck(m imodule, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithFilePath(m.GetPath()).WithRule(r.GetName())
+
+	if object.Unstructured.GetKind() != "PrometheusRule" {
+		return
+	}
+
+	res, ok := rulesCache.Get(object.Hash)
+	if ok {
+		if !res.success {
+			errorList.Errorf("Promtool check failed for Prometheus rule: %s", res.errMsg)
+		}
+		return
+	}
+
+	marshal, err := marshalStorageObject(object)
+	if err != nil {
+		errorList.Error("Error marshaling Prometheus rule to yaml")
+		return
+	}
+
+	err = promtool.CheckRules(marshal)
+	if err != nil {
+		rulesCache.Put(object.Hash, checkResult{
+			success: false,
+			errMsg:  err.Error(),
+		})
+		errorList.Errorf("Promtool check failed for Prometheus rule: %s", err.Error())
+		return
+	}
+
+	rulesCache.Put(object.Hash, checkResult{success: true})
 }
