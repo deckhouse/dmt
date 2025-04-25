@@ -29,7 +29,7 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
-func RunRender(m ModuleInterface, values chartutil.Values, objectStore *storage.UnstructuredObjectStore, errorList *errors.LintRuleErrorsList) error {
+func RunRender(m *Module, values chartutil.Values, objectStore *storage.UnstructuredObjectStore, errorList *errors.LintRuleErrorsList) error {
 	var renderer helm.Renderer
 	renderer.Name = m.GetName()
 	renderer.Namespace = m.GetNamespace()

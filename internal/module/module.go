@@ -41,19 +41,6 @@ const (
 	ModuleConfigFilename = "module.yaml"
 )
 
-type ModuleInterface interface {
-	GetName() string
-	GetNamespace() string
-	GetPath() string
-	GetChart() *chart.Chart
-	GetMetadata() *chart.Metadata
-	GetObjectStore() *storage.UnstructuredObjectStore
-	GetStorage() map[storage.ResourceIndex]storage.StoreObject
-	GetWerfFile() string
-	GetModuleConfig() *config.ModuleConfig
-	MergeRootConfig(cfg *config.RootConfig)
-}
-
 type Module struct {
 	name        string
 	namespace   string
@@ -64,9 +51,6 @@ type Module struct {
 
 	linterConfig *config.ModuleConfig
 }
-
-// validate that Module implements ModuleInterface
-var _ ModuleInterface = (*Module)(nil)
 
 type ModuleList []*Module
 
