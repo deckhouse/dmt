@@ -67,7 +67,7 @@ func RunRender(m ModuleInterface, values chartutil.Values, objectStore *storage.
 
 	if resultErr != nil {
 		errorList.WithFilePath(m.GetPath()).WithModule(m.GetName()).
-			WithValue(err.Error()).Errorf("module render error: %s", resultErr.Error())
+			WithValue(resultErr.Error()).Error("module contains duplicate objects")
 	}
 
 	return nil
