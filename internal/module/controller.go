@@ -17,7 +17,7 @@ limitations under the License.
 package module
 
 import (
-	stderrors "errors"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -26,10 +26,10 @@ import (
 
 	"github.com/deckhouse/dmt/internal/helm"
 	"github.com/deckhouse/dmt/internal/storage"
-	"github.com/deckhouse/dmt/pkg/errors"
+	dmtErrors "github.com/deckhouse/dmt/pkg/errors"
 )
 
-func RunRender(m *Module, values chartutil.Values, objectStore *storage.UnstructuredObjectStore, errorList *errors.LintRuleErrorsList) error {
+func RunRender(m *Module, values chartutil.Values, objectStore *storage.UnstructuredObjectStore, errorList *dmtErrors.LintRuleErrorsList) error {
 	var renderer helm.Renderer
 	renderer.Name = m.GetName()
 	renderer.Namespace = m.GetNamespace()
@@ -59,7 +59,7 @@ func RunRender(m *Module, values chartutil.Values, objectStore *storage.Unstruct
 
 			err = objectStore.Put(path, node, docBytes)
 			if err != nil {
-				resultErr = stderrors.Join(resultErr, err)
+				resultErr = errors.Join(resultErr, err)
 				continue
 			}
 		}

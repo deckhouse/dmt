@@ -18,7 +18,7 @@ package module
 
 import (
 	_ "embed"
-	stderrors "errors"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -33,7 +33,7 @@ import (
 	"github.com/deckhouse/dmt/internal/values"
 	"github.com/deckhouse/dmt/internal/werf"
 	"github.com/deckhouse/dmt/pkg/config"
-	"github.com/deckhouse/dmt/pkg/errors"
+	dmtErrors "github.com/deckhouse/dmt/pkg/errors"
 )
 
 const (
@@ -137,7 +137,7 @@ func (m *Module) MergeRootConfig(cfg *config.RootConfig) {
 	m.linterConfig.LintersSettings.MergeGlobal(&cfg.GlobalSettings.Linters)
 }
 
-func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, errorList *errors.LintRuleErrorsList) (*Module, error) {
+func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, errorList *dmtErrors.LintRuleErrorsList) (*Module, error) {
 	module, err := newModuleFromPath(path)
 	if err != nil {
 		return nil, err
@@ -251,7 +251,7 @@ func getNamespace(path string) string {
 func ParseModuleConfigFile(path string) (*ModuleYaml, error) {
 	moduleFilename := filepath.Join(path, ModuleConfigFilename)
 	yamlFile, err := os.ReadFile(moduleFilename)
-	if stderrors.Is(err, os.ErrNotExist) {
+	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
 	if err != nil {
@@ -269,7 +269,7 @@ func ParseModuleConfigFile(path string) (*ModuleYaml, error) {
 func ParseChartFile(path string) (*ChartYaml, error) {
 	chartFilename := filepath.Join(path, ChartConfigFilename)
 	yamlFile, err := os.ReadFile(chartFilename)
-	if stderrors.Is(err, os.ErrNotExist) {
+	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
 	if err != nil {
