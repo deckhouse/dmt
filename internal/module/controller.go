@@ -17,6 +17,7 @@ limitations under the License.
 package module
 
 import (
+	stderrors "errors"
 	"fmt"
 	"strings"
 
@@ -25,9 +26,10 @@ import (
 
 	"github.com/deckhouse/dmt/internal/helm"
 	"github.com/deckhouse/dmt/internal/storage"
+	"github.com/deckhouse/dmt/pkg/errors"
 )
 
-func RunRender(m *Module, values chartutil.Values, objectStore *storage.UnstructuredObjectStore) error {
+func RunRender(m ModuleInterface, values chartutil.Values, objectStore *storage.UnstructuredObjectStore, errorList *errors.LintRuleErrorsList) error {
 	var renderer helm.Renderer
 	renderer.Name = m.GetName()
 	renderer.Namespace = m.GetNamespace()
@@ -38,6 +40,7 @@ func RunRender(m *Module, values chartutil.Values, objectStore *storage.Unstruct
 		return fmt.Errorf("helm chart render: %w", err)
 	}
 
+	var resultErr error
 	for path, bigFile := range files {
 		for _, doc := range strings.Split(bigFile, "---") {
 			docBytes := []byte(doc)
@@ -56,9 +59,15 @@ func RunRender(m *Module, values chartutil.Values, objectStore *storage.Unstruct
 
 			err = objectStore.Put(path, node, docBytes)
 			if err != nil {
-				return fmt.Errorf("helm chart object already exists: %w", err)
+				resultErr = stderrors.Join(resultErr, err)
+				continue
 			}
 		}
+	}
+
+	if resultErr != nil {
+		errorList.WithFilePath(m.GetPath()).WithModule(m.GetName()).
+			WithValue(err.Error()).Errorf("module render error: %s", resultErr.Error())
 	}
 
 	return nil

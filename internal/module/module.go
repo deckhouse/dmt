@@ -18,7 +18,7 @@ package module
 
 import (
 	_ "embed"
-	"errors"
+	stderrors "errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -33,12 +33,26 @@ import (
 	"github.com/deckhouse/dmt/internal/values"
 	"github.com/deckhouse/dmt/internal/werf"
 	"github.com/deckhouse/dmt/pkg/config"
+	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 const (
 	ChartConfigFilename  = "Chart.yaml"
 	ModuleConfigFilename = "module.yaml"
 )
+
+type ModuleInterface interface {
+	GetName() string
+	GetNamespace() string
+	GetPath() string
+	GetChart() *chart.Chart
+	GetMetadata() *chart.Metadata
+	GetObjectStore() *storage.UnstructuredObjectStore
+	GetStorage() map[storage.ResourceIndex]storage.StoreObject
+	GetWerfFile() string
+	GetModuleConfig() *config.ModuleConfig
+	MergeRootConfig(cfg *config.RootConfig)
+}
 
 type Module struct {
 	name        string
@@ -50,6 +64,9 @@ type Module struct {
 
 	linterConfig *config.ModuleConfig
 }
+
+// validate that Module implements ModuleInterface
+var _ ModuleInterface = (*Module)(nil)
 
 type ModuleList []*Module
 
@@ -136,7 +153,7 @@ func (m *Module) MergeRootConfig(cfg *config.RootConfig) {
 	m.linterConfig.LintersSettings.MergeGlobal(&cfg.GlobalSettings.Linters)
 }
 
-func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema) (*Module, error) {
+func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, errorList *errors.LintRuleErrorsList) (*Module, error) {
 	module, err := newModuleFromPath(path)
 	if err != nil {
 		return nil, err
@@ -152,7 +169,7 @@ func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema) (
 	}
 
 	objectStore := storage.NewUnstructuredObjectStore()
-	err = RunRender(module, schemas, objectStore)
+	err = RunRender(module, schemas, objectStore, errorList)
 	if err != nil {
 		return nil, err
 	}
@@ -250,7 +267,7 @@ func getNamespace(path string) string {
 func ParseModuleConfigFile(path string) (*ModuleYaml, error) {
 	moduleFilename := filepath.Join(path, ModuleConfigFilename)
 	yamlFile, err := os.ReadFile(moduleFilename)
-	if errors.Is(err, os.ErrNotExist) {
+	if stderrors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
 	if err != nil {
@@ -268,7 +285,7 @@ func ParseModuleConfigFile(path string) (*ModuleYaml, error) {
 func ParseChartFile(path string) (*ChartYaml, error) {
 	chartFilename := filepath.Join(path, ChartConfigFilename)
 	yamlFile, err := os.ReadFile(chartFilename)
-	if errors.Is(err, os.ErrNotExist) {
+	if stderrors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
 	if err != nil {
