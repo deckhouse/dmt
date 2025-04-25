@@ -88,8 +88,8 @@ key: value
 					Object: map[string]any{},
 				},
 			},
-			expectedYAML:   "null\n",
-			expectingError: false,
+			expectedYAML:   "",
+			expectingError: true,
 		},
 		{
 			name: "Nested spec structure",

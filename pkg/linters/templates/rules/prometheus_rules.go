@@ -79,14 +79,6 @@ func (*rulesCacheStruct) Get(hash string) (checkResult, bool) {
 	return res, ok
 }
 
-func marshalStorageObject(object storage.StoreObject) ([]byte, error) {
-	marshal, err := yaml.Marshal(object.Unstructured.Object["spec"])
-	if err != nil {
-		return nil, err
-	}
-	return marshal, nil
-}
-
 type imodule interface {
 	GetPath() string
 }
@@ -175,7 +167,7 @@ func (r *PrometheusRule) PromtoolRuleCheck(m imodule, object storage.StoreObject
 
 	marshal, err := marshalStorageObject(object)
 	if err != nil {
-		errorList.Error("Error marshaling Prometheus rule to yaml")
+		errorList.Errorf("Error marshaling Prometheus rule to yaml: %s", err)
 		return
 	}
 
@@ -190,4 +182,20 @@ func (r *PrometheusRule) PromtoolRuleCheck(m imodule, object storage.StoreObject
 	}
 
 	rulesCache.Put(object.Hash, checkResult{success: true})
+}
+
+func marshalStorageObject(object storage.StoreObject) ([]byte, error) {
+	ispec, ok := object.Unstructured.Object["spec"]
+	if !ok {
+		return nil, fmt.Errorf("spec field not found in object 'PrometheusRule'")
+	}
+	spec, ok := ispec.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("spec field is not a map[string]any")
+	}
+	marshal, err := yaml.Marshal(spec)
+	if err != nil {
+		return nil, err
+	}
+	return marshal, nil
 }
