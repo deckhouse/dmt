@@ -79,11 +79,11 @@ func (*rulesCacheStruct) Get(hash string) (checkResult, bool) {
 	return res, ok
 }
 
-type imodule interface {
+type ModuleInterface interface {
 	GetPath() string
 }
 
-func (r *PrometheusRule) ValidatePrometheusRules(m imodule, errorList *errors.LintRuleErrorsList) {
+func (r *PrometheusRule) ValidatePrometheusRules(m ModuleInterface, errorList *errors.LintRuleErrorsList) {
 	modulePath := m.GetPath()
 	errorList = errorList.WithFilePath(modulePath).WithRule(r.GetName())
 
@@ -150,7 +150,7 @@ func isContentMatching(content []byte, desiredContent string) bool {
 	return false
 }
 
-func (r *PrometheusRule) PromtoolRuleCheck(m imodule, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+func (r *PrometheusRule) PromtoolRuleCheck(m ModuleInterface, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithFilePath(m.GetPath()).WithRule(r.GetName())
 
 	if object.Unstructured.GetKind() != "PrometheusRule" {
