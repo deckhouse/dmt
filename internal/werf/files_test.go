@@ -60,6 +60,18 @@ func setupTestEnvironment(t *testing.T) (string, string, func()) {
 		}
 	}
 
+	// Create symlink
+	if err = os.Symlink(filepath.Join(rootDirPath, "test.txt"), filepath.Join(rootDirPath, "test_symlink.txt")); err != nil {
+		_ = os.RemoveAll(tempDir)
+		t.Fatalf("cannot create symlink %s: %v", filepath.Join(rootDirPath, "test_symlink.txt"), err)
+	}
+
+	// Create directory
+	if err = os.Mkdir(filepath.Join(rootDirPath, "dir3"), 0700); err != nil {
+		_ = os.RemoveAll(tempDir)
+		t.Fatalf("cannot create directory %s: %v", filepath.Join(rootDirPath, "dir3"), err)
+	}
+
 	cleanup := func() {
 		_ = os.RemoveAll(tempDir)
 	}
@@ -102,9 +114,9 @@ func TestDoGlob(t *testing.T) {
 
 	result, err := f.doGlob("**/*.txt")
 	require.NoError(t, err, "doGlob returned error: %v", err)
-	require.Len(t, result, 3)
+	require.Len(t, result, 4)
 
-	expectedPaths := []string{"test.txt", "dir1/file1.txt", "dir2/file2.txt"}
+	expectedPaths := []string{"test.txt", "dir1/file1.txt", "dir2/file2.txt", "test_symlink.txt"}
 	require.Len(t, result, len(expectedPaths))
 	for _, path := range expectedPaths {
 		if _, ok := result[path]; !ok {
@@ -116,6 +128,11 @@ func TestDoGlob(t *testing.T) {
 	require.NoError(t, err, "doGlob returned error: %v", err)
 	require.Len(t, result, 1)
 	require.Equal(t, "module yaml", result["modules/module/werf.inc.yaml"], "file werf.inc.yaml from submodule not found in results")
+
+	result, err = f.doGlob("*")
+	require.NoError(t, err, "doGlob returned error: %v", err)
+	require.Len(t, result, 3)
+	t.Logf("%v", result)
 }
 
 func TestGlob(t *testing.T) {
@@ -125,7 +142,7 @@ func TestGlob(t *testing.T) {
 	f := NewFiles(rootDir, moduleDir)
 
 	result := f.Glob("**/*.txt")
-	require.Len(t, result, 3, "incorrect number of found files: expected 3, got %d", len(result))
+	require.Len(t, result, 4, "incorrect number of found files: expected 4, got %d", len(result))
 
 	defer func() {
 		if r := recover(); r == nil {
