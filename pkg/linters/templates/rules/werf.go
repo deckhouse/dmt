@@ -62,7 +62,8 @@ func checkGitSection(manifests []string, errorList *errors.LintRuleErrorsList) {
 		}
 		gjson.GetBytes(jsonData, "git").ForEach(func(_, value gjson.Result) bool {
 			if !value.Get("stageDependencies").Exists() {
-				errorList.Errorf("parsing Werf file, document %d failed: 'git.stageDependencies' is required", i+1)
+				image := gjson.GetBytes(jsonData, "image").String()
+				errorList.Errorf("parsing Werf file, document %d (image: %s) failed: 'git.stageDependencies' is required", i+1, image)
 				return false
 			}
 			return true
