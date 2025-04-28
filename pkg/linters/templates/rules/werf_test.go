@@ -18,6 +18,9 @@ func (m *mockModule) GetWerfFile() string {
 func (*mockModule) GetPath() string {
 	return "/mock/path"
 }
+func (*mockModule) GetName() string {
+	return "mock-module"
+}
 
 func TestValidateWerfTemplates(t *testing.T) {
 	rule := NewWerfRule()
@@ -26,6 +29,7 @@ func TestValidateWerfTemplates(t *testing.T) {
 	// Mock module with valid Werf file
 	mock := &mockModule{
 		werfFile: `
+image: mock-module/test-image
 git:
 - add: /deckhouse/modules/910-test-module/images/test-image
   to: /src
@@ -41,6 +45,7 @@ git:
 	// Mock module with invalid Werf file
 	mockModuleInvalid := &mockModule{
 		werfFile: `
+image: mock-module/test-image
 git:
 - add: /deckhouse/modules/910-test-module/images/test-image
   to: /src
@@ -59,6 +64,7 @@ func TestCheckGitSection(t *testing.T) {
 	// Valid manifest
 	validManifests := []string{
 		`
+image: mock-module/test-image
 git:
 - add: /deckhouse/modules/910-test-module/images/test-image
   to: /src
@@ -68,12 +74,13 @@ git:
 `,
 	}
 
-	checkGitSection(validManifests, errorList)
+	checkGitSection("mock-module", validManifests, errorList)
 	assert.False(t, errorList.ContainsErrors(), "Expected no errors for valid manifest")
 
 	// Invalid manifest
 	invalidManifests := []string{
 		`
+image: mock-module/test-image
 git:
 - add: /deckhouse/modules/910-test-module/images/test-image
   to: /src
@@ -81,19 +88,20 @@ git:
 `,
 	}
 
-	checkGitSection(invalidManifests, errorList)
+	checkGitSection("mock-module", invalidManifests, errorList)
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for invalid manifest")
 	assert.Contains(t, errorList.GetErrors()[0].Text, "'git.stageDependencies' is required")
 
 	// Malformed YAML
 	malformedManifests := []string{
 		`
+image: mock-module/test-image
 git:
   - stageDependencies: [build: "file1", "file2"]
 `,
 	}
 
-	checkGitSection(malformedManifests, errorList)
+	checkGitSection("mock-module", malformedManifests, errorList)
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for malformed YAML")
-	assert.Contains(t, errorList.GetErrors()[0].Text, "parsing Werf file, document 1 failed")
+	assert.Contains(t, errorList.GetErrors()[0].Text, "parsing Werf file, document 1 (image: mock-module/test-image) failed")
 }
