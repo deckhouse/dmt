@@ -208,8 +208,9 @@ func (m *Manager) PrintResult() {
 
 		if err.Level == pkg.Warn {
 			msgColor = color.FgHiYellow
-			metrics.IncDmtLinterWarningsCount(err.LinterID, err.RuleID, err.Level.String())
 		}
+
+		metrics.IncDmtLinterErrorsCount(err.LinterID, err.RuleID, err.Level.String())
 
 		// header
 		fmt.Fprint(w, emoji.Sprintf(":monkey:"))

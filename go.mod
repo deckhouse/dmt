@@ -2,8 +2,6 @@ module github.com/deckhouse/dmt
 
 go 1.23.5
 
-toolchain go1.24.1
-
 require (
 	dario.cat/mergo v1.0.1
 	github.com/BurntSushi/toml v1.5.0
