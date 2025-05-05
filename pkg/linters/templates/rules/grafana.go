@@ -42,7 +42,7 @@ type GrafanaRule struct {
 	pkg.RuleMeta
 }
 
-func (r *GrafanaRule) ValidationGrafanaDashboards(m *module.Module, errorList *errors.LintRuleErrorsList) {
+func (r *GrafanaRule) ValidateGrafanaDashboards(m *module.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithFilePath(m.GetPath()).WithRule(r.GetName())
 
 	monitoringFilePath := filepath.Join(m.GetPath(), "templates", "monitoring.yaml")
