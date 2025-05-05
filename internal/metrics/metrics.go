@@ -87,7 +87,7 @@ func SetLinterWarningsMetrics(cfg global.Global) {
 	}
 }
 
-func IncDmtLinterWarningsCount(linter, rule, level string) {
+func IncDmtLinterErrorsCount(linter, rule, level string) {
 	metrics.CounterAdd("dmt_linter_check_count", 1, prometheus.Labels{
 		"linter": linter,
 		"rule":   rule,
