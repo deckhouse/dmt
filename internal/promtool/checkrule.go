@@ -59,7 +59,7 @@ func CheckRules(data []byte) error {
 		}
 		ruleErrors = fmt.Errorf("%s", strings.Join(errStr, "\n"))
 	}
-	if _, errs := checkRuleGroups(rgs, ls); errs != nil {
+	if errs := checkRuleGroups(rgs, ls); errs != nil {
 		errStr := make([]string, len(errs))
 		for _, e := range errs {
 			errStr = append(errStr, e.Error())
@@ -70,9 +70,9 @@ func CheckRules(data []byte) error {
 	return errors.Join(ruleErrors, checkGroupErrors)
 }
 
-func checkRuleGroups(rgs *rulefmt.RuleGroups, lintSettings rulesLintConfig) (int, []error) {
+func checkRuleGroups(rgs *rulefmt.RuleGroups, lintSettings rulesLintConfig) []error {
 	if rgs == nil || len(rgs.Groups) == 0 {
-		return 0, []error{fmt.Errorf("%w: no rule groups found", errLint)}
+		return []error{fmt.Errorf("%w: no rule groups found", errLint)}
 	}
 	numRules := 0
 	for _, rg := range rgs.Groups {
@@ -90,11 +90,11 @@ func checkRuleGroups(rgs *rulefmt.RuleGroups, lintSettings rulesLintConfig) (int
 				})
 			}
 			errMessage += "Might cause inconsistency while recording expressions"
-			return 0, []error{fmt.Errorf("%w %s", errLint, errMessage)}
+			return []error{fmt.Errorf("%w %s", errLint, errMessage)}
 		}
 	}
 
-	return numRules, nil
+	return nil
 }
 
 type compareRuleType struct {

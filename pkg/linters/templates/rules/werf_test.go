@@ -8,17 +8,19 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
-type mockModule struct {
+type mockModuleWerf struct {
 	werfFile string
 }
 
-func (m *mockModule) GetWerfFile() string {
+func (m *mockModuleWerf) GetWerfFile() string {
 	return m.werfFile
 }
-func (*mockModule) GetPath() string {
+
+func (*mockModuleWerf) GetPath() string {
 	return "/mock/path"
 }
-func (*mockModule) GetName() string {
+
+func (*mockModuleWerf) GetName() string {
 	return "mock-module"
 }
 
@@ -27,7 +29,7 @@ func TestValidateWerfTemplates(t *testing.T) {
 	errorList := errors.NewLintRuleErrorsList()
 
 	// Mock module with valid Werf file
-	mock := &mockModule{
+	mock := &mockModuleWerf{
 		werfFile: `
 image: mock-module/test-image
 git:
@@ -43,7 +45,7 @@ git:
 
 	errorList = errors.NewLintRuleErrorsList()
 	// Mock module with invalid Werf file
-	mockModuleInvalid := &mockModule{
+	mockModuleWerfInvalid := &mockModuleWerf{
 		werfFile: `
 image: mock-module/test-image
 git:
@@ -53,7 +55,7 @@ git:
 
 `}
 
-	rule.ValidateWerfTemplates(mockModuleInvalid, errorList)
+	rule.ValidateWerfTemplates(mockModuleWerfInvalid, errorList)
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for invalid Werf file")
 	assert.Contains(t, errorList.GetErrors()[0].Text, "'git.stageDependencies' is required")
 }

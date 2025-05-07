@@ -381,6 +381,7 @@ func (s *UnstructuredObjectStore) Put(path string, object map[string]any, raw []
 
 	storeObject := StoreObject{Path: path, Unstructured: u, Hash: NewSHA256(raw)}
 
+	var err error
 	index := GetResourceIndex(storeObject)
 	if _, ok := s.Storage[index]; ok {
 		// for cert-manager migration we have duplicated resources for legacy version
@@ -388,11 +389,11 @@ func (s *UnstructuredObjectStore) Put(path string, object map[string]any, raw []
 		if strings.Contains(index.AsString(), "ClusterIssuer") || strings.HasPrefix(index.AsString(), "d8-cert-manager") {
 			return nil
 		}
-		return fmt.Errorf("object %q already exists in the object store", index.AsString())
+		err = fmt.Errorf("object %q already exists", index.AsString())
 	}
 
 	s.Storage[index] = storeObject
-	return nil
+	return err
 }
 
 func (s *UnstructuredObjectStore) Get(key ResourceIndex) StoreObject {

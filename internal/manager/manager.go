@@ -103,7 +103,7 @@ func NewManager(dir string, rootConfig *config.RootConfig) *Manager {
 			// linting errors are already logged
 			continue
 		}
-		mdl, err := module.NewModule(paths[i], &vals, globalValues)
+		mdl, err := module.NewModule(paths[i], &vals, globalValues, errorList)
 		if err != nil {
 			errorList.
 				WithFilePath(paths[i]).WithModule(moduleName).
