@@ -63,7 +63,7 @@ func (l *Templates) Run(m *module.Module) {
 	grafanaRule := rules.NewGrafanaRule()
 
 	if err := dirExists(m.GetPath(), "monitoring"); err == nil {
-		grafanaRule.ValidationGrafanaDashboards(m, errorList)
+		grafanaRule.ValidateGrafanaDashboards(m, errorList)
 		prometheusRule.ValidatePrometheusRules(m, errorList)
 	} else if !os.IsNotExist(err) {
 		errorList.Errorf("reading the 'monitoring' folder failed: %s", err)
@@ -78,6 +78,9 @@ func (l *Templates) Run(m *module.Module) {
 		servicePortRule.ObjectServiceTargetPort(object, errorList)
 		prometheusRule.PromtoolRuleCheck(m, object, errorList)
 	}
+
+	// werf file
+	rules.NewWerfRule().ValidateWerfTemplates(m, errorList)
 }
 
 func (l *Templates) Name() string {

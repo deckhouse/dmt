@@ -20,6 +20,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
+	"strings"
 	"sync"
 
 	"github.com/mitchellh/go-homedir"
@@ -38,14 +41,14 @@ func IsFile(path string) bool {
 	return err == nil && !info.IsDir()
 }
 
-var (
-	cachedWd      string
-	cachedWdError error
-	getWdOnce     sync.Once
-)
-
 // Getwd returns the current working directory.
 func Getwd() (string, error) {
+	var (
+		cachedWd      string
+		cachedWdError error
+		getWdOnce     sync.Once
+	)
+
 	getWdOnce.Do(func() {
 		cachedWd, cachedWdError = os.Getwd()
 		if cachedWdError != nil {
@@ -64,15 +67,15 @@ func Getwd() (string, error) {
 	return cachedWd, cachedWdError
 }
 
-var evalSymlinkCache sync.Map
-
-type evalSymlinkRes struct {
-	path string
-	err  error
-}
-
 // EvalSymlinks returns the path name after the evaluation of any symbolic links.
 func EvalSymlinks(path string) (string, error) {
+	var evalSymlinkCache sync.Map
+
+	type evalSymlinkRes struct {
+		path string
+		err  error
+	}
+
 	r, ok := evalSymlinkCache.Load(path)
 	if ok {
 		er := r.(evalSymlinkRes)
@@ -113,12 +116,32 @@ func ExpandDir(path string) (string, error) {
 
 func FilterFileByExtensions(exts ...string) func(_, path string) bool {
 	return func(_, path string) bool {
-		for _, ext := range exts {
-			if filepath.Ext(path) == ext {
-				return true
-			}
-		}
-
-		return false
+		return slices.Contains(exts, filepath.Ext(path))
 	}
+}
+
+func FilterFileByNames(names ...string) func(_, path string) bool {
+	return func(_, path string) bool {
+		return slices.Contains(names, filepath.Base(path))
+	}
+}
+
+func SplitManifests(data string) []string {
+	// Split the data by "---" separator
+	parts := regexp.MustCompile(`(?m)^---\s*$`).Split(data, -1)
+
+	// Remove any leading or trailing whitespace from each part
+	for i := range parts {
+		parts[i] = strings.TrimSpace(parts[i])
+	}
+
+	// Filter out empty parts
+	var nonEmptyParts []string
+	for _, part := range parts {
+		if part != "" {
+			nonEmptyParts = append(nonEmptyParts, part)
+		}
+	}
+
+	return nonEmptyParts
 }

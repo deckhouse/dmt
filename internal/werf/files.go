@@ -22,6 +22,8 @@ import (
 	"strings"
 
 	"github.com/bmatcuk/doublestar"
+
+	"github.com/deckhouse/dmt/internal/fsutils"
 )
 
 type files struct {
@@ -31,8 +33,13 @@ type files struct {
 
 func NewFiles(rootDir, moduleDir string) files {
 	moduleDir, _ = filepath.Abs(moduleDir)
+	// If rootDir is not a directory, fallback to using its parent directory.
+	// This ensures that rootDir always points to a valid directory.
+	if !fsutils.IsDir(rootDir) {
+		rootDir = filepath.Dir(rootDir)
+	}
 	return files{
-		rootDir:   filepath.Dir(rootDir),
+		rootDir:   rootDir,
 		moduleDir: moduleDir,
 	}
 }
@@ -65,6 +72,9 @@ func (f files) doGlob(pattern string) (map[string]any, error) {
 		return nil, err
 	}
 	for _, path := range matches {
+		if !fsutils.IsFile(path) {
+			continue
+		}
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return nil, err

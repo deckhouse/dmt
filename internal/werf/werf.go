@@ -28,7 +28,7 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/Masterminds/sprig"
+	"github.com/Masterminds/sprig/v3"
 
 	"sigs.k8s.io/yaml"
 
@@ -78,9 +78,7 @@ func GetWerfConfig(dir string) (string, error) {
 		},
 	}
 
-	config, err := executeTemplate(tmpl, "werfConfig", templateData)
-
-	return config, err
+	return executeTemplate(tmpl, "werfConfig", templateData)
 }
 
 func getRootWerfFile(dir string) string {
@@ -151,7 +149,7 @@ func addTemplate(tmpl *template.Template, templateName, templateContent string) 
 func executeTemplate(tmpl *template.Template, name string, data any) (string, error) {
 	buf := bytes.NewBuffer(nil)
 	if err := tmpl.ExecuteTemplate(buf, name, data); err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to execute template %s: %w", name, err)
 	}
 	return buf.String(), nil
 }

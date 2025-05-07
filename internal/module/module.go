@@ -160,7 +160,10 @@ func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, e
 	module.objectStore = objectStore
 
 	werfFile, err := werf.GetWerfConfig(path)
-	if err == nil && werfFile != "" {
+	if err != nil {
+		return nil, fmt.Errorf("failed to get werf config: %w", err)
+	}
+	if werfFile != "" {
 		module.werfFile = werfFile
 	}
 
