@@ -189,12 +189,12 @@ func TestValidatePrometheusRules(t *testing.T) {
 			}()
 
 			// Mock module
-			mockModule := &mockModule{path: modulePath}
+			mockModuleProm := &mockModuleProm{path: modulePath}
 
 			// Run validation
 			rule := NewPrometheusRule()
 			errorList := errors.NewLintRuleErrorsList()
-			rule.ValidatePrometheusRules(mockModule, errorList)
+			rule.ValidatePrometheusRules(mockModuleProm, errorList)
 
 			// Assert errors
 			if len(tt.expectedErrors) == 0 {
@@ -209,10 +209,10 @@ func TestValidatePrometheusRules(t *testing.T) {
 	}
 }
 
-type mockModule struct {
+type mockModuleProm struct {
 	path string
 }
 
-func (m *mockModule) GetPath() string {
+func (m *mockModuleProm) GetPath() string {
 	return m.path
 }
