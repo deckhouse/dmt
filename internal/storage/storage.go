@@ -18,7 +18,6 @@ package storage
 
 import (
 	"crypto/sha256"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
