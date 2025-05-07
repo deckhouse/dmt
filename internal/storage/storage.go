@@ -390,7 +390,7 @@ func (s *UnstructuredObjectStore) Put(path string, object map[string]any, raw []
 		if strings.Contains(index.AsString(), "ClusterIssuer") || strings.HasPrefix(index.AsString(), "d8-cert-manager") {
 			return nil
 		}
-		err = errors.Join(err, fmt.Errorf("object %q already exists", index.AsString()))
+		err = fmt.Errorf("object %q already exists", index.AsString())
 	}
 
 	s.Storage[index] = storeObject
