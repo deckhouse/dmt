@@ -33,6 +33,7 @@ import (
 	"github.com/deckhouse/dmt/internal/values"
 	"github.com/deckhouse/dmt/internal/werf"
 	"github.com/deckhouse/dmt/pkg/config"
+	dmtErrors "github.com/deckhouse/dmt/pkg/errors"
 )
 
 const (
@@ -136,7 +137,7 @@ func (m *Module) MergeRootConfig(cfg *config.RootConfig) {
 	m.linterConfig.LintersSettings.MergeGlobal(&cfg.GlobalSettings.Linters)
 }
 
-func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema) (*Module, error) {
+func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, errorList *dmtErrors.LintRuleErrorsList) (*Module, error) {
 	module, err := newModuleFromPath(path)
 	if err != nil {
 		return nil, err
@@ -152,7 +153,7 @@ func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema) (
 	}
 
 	objectStore := storage.NewUnstructuredObjectStore()
-	err = RunRender(module, schemas, objectStore)
+	err = RunRender(module, schemas, objectStore, errorList)
 	if err != nil {
 		return nil, err
 	}
