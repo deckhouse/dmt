@@ -1,100 +1,6 @@
-# This configuration file is not a recommendation.
-#
-# We intentionally use a limited set of linters.
-# This configuration file is used with different version of golangci-lint to avoid regressions:
-# the linters can change between version,
-# their configuration may be not compatible or their reports can be different,
-# and this can break some of our tests.
-# Also, some linters are not relevant for the project (e.g. linters related to SQL).
-#
-# We have specific constraints, so we use a specific configuration.
-#
-# See the file `.golangci.reference.yml` to have a list of all available configuration options.
-
-linters-settings:
-  depguard:
-    rules:
-      logger:
-        deny:
-          # logging is allowed only by logutils.Log,
-          - pkg: "github.com/sirupsen/logrus"
-            desc: logging is allowed only by sLog.
-          - pkg: "github.com/pkg/errors"
-            desc: Should be replaced by standard lib errors package.
-          - pkg: "github.com/instana/testify"
-            desc: It's a fork of github.com/stretchr/testify.
-  dupl:
-    threshold: 100
-  funlen:
-    lines: -1 # the number of lines (code + empty lines) is not a right metric and leads to code without empty line or one-liner.
-    statements: 50
-  staticcheck:
-    checks: ["all","-SA1019"]
-  goconst:
-    min-len: 2
-    min-occurrences: 3
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - experimental
-      - opinionated
-      - performance
-      - style
-    disabled-checks:
-      - dupImport # https://github.com/go-critic/go-critic/issues/845
-      - ifElseChain
-      - octalLiteral
-      - whyNoLint
-      - unnamedResult
-  godox:
-    keywords:
-      - FIXME
-  gofmt:
-    rewrite-rules:
-      - pattern: 'interface{}'
-        replacement: 'any'
-  goimports:
-    local-prefixes: github.com/deckhouse/dmt
-  mnd:
-    # don't include the "operation" and "assign"
-    checks:
-      - argument
-      - case
-      - condition
-      - return
-    ignored-numbers:
-      - '0'
-      - '1'
-      - '2'
-      - '3'
-    ignored-functions:
-      - strings.SplitN
-  govet:
-    enable:
-      - nilness
-      - shadow
-  errorlint:
-    asserts: false
-  lll:
-    line-length: 140
-  misspell:
-    locale: US
-    ignore-words:
-      - "importas" # linter name
-  nolintlint:
-    allow-unused: false # report any unused nolint directives
-    require-explanation: true # require an explanation for nolint directives
-    require-specific: true # require nolint directives to be specific about which linter is being skipped
-  revive:
-    rules:
-      - name: indent-error-flow
-      - name: unexported-return
-        disabled: true
-      - name: unused-parameter
-      - name: unused-receiver
-
+version: "2"
 linters:
-  disable-all: true
+  default: none
   enable:
     - bodyclose
     - copyloopvar
@@ -106,48 +12,134 @@ linters:
     - funlen
     - gocheckcompilerdirectives
     - gochecknoinits
-    - gochecknoinits
-#    - goconst
     - gocritic
     - gocyclo
     - godox
-    - gofmt
-    - goimports
-    - mnd
     - goprintffuncname
     - gosec
-    - gosimple
     - govet
-    - intrange
     - ineffassign
-#    - lll
+    - intrange
     - misspell
+    - mnd
     - nakedret
     - noctx
-    - nonamedreturns
     - nolintlint
+    - nonamedreturns
     - revive
     - staticcheck
-    - stylecheck
     - testifylint
     - unconvert
     - unparam
     - unused
     - whitespace
-
-  # This list of linters is not a recommendation (same thing for all this configuration file).
-  # We intentionally use a limited set of linters.
-  # See the comment on top of this file.
-
-issues:
-  exclude-rules:
-    - path: (.+)_test\.go
-      linters:
-        - dupl
-        - mnd
-        - lll
-
-  exclude-dirs: []
-
-run:
-  timeout: 5m
+  settings:
+    depguard:
+      rules:
+        logger:
+          deny:
+            - pkg: github.com/sirupsen/logrus
+              desc: logging is allowed only by sLog.
+            - pkg: github.com/pkg/errors
+              desc: Should be replaced by standard lib errors package.
+            - pkg: github.com/instana/testify
+              desc: It's a fork of github.com/stretchr/testify.
+    dupl:
+      threshold: 100
+    errorlint:
+      asserts: false
+    funlen:
+      lines: -1
+      statements: 50
+    goconst:
+      min-len: 2
+      min-occurrences: 3
+    gocritic:
+      disabled-checks:
+        - dupImport
+        - ifElseChain
+        - octalLiteral
+        - whyNoLint
+        - unnamedResult
+      enabled-tags:
+        - diagnostic
+        - experimental
+        - opinionated
+        - performance
+        - style
+    godox:
+      keywords:
+        - FIXME
+    govet:
+      enable:
+        - nilness
+        - shadow
+    lll:
+      line-length: 140
+    misspell:
+      locale: US
+      ignore-rules:
+        - importas
+    mnd:
+      checks:
+        - argument
+        - case
+        - condition
+        - return
+      ignored-numbers:
+        - "0"
+        - "1"
+        - "2"
+        - "3"
+      ignored-functions:
+        - strings.SplitN
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+      allow-unused: false
+    revive:
+      rules:
+        - name: indent-error-flow
+        - name: unexported-return
+          disabled: true
+        - name: unused-parameter
+        - name: unused-receiver
+    staticcheck:
+      checks:
+        - all
+        - -SA1019
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - dupl
+          - lll
+          - mnd
+        path: (.+)_test\.go
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    gofmt:
+      rewrite-rules:
+        - pattern: interface{}
+          replacement: any
+    goimports:
+      local-prefixes:
+        - github.com/deckhouse/dmt
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

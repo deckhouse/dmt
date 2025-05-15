@@ -38,7 +38,7 @@ const (
 	ObjectKey       = "object"
 )
 
-func applyDigests(moduleName string, digests, values map[string]any) {
+func applyDigests(moduleName string, digests, helmValues map[string]any) {
 	moduleName = ToLowerCamel(moduleName)
 	obj := map[string]any{
 		"global": map[string]any{
@@ -56,7 +56,7 @@ func applyDigests(moduleName string, digests, values map[string]any) {
 		},
 	}
 
-	_ = mergo.Merge(&values, obj, mergo.WithOverride)
+	_ = mergo.Merge(&helmValues, obj, mergo.WithOverride)
 }
 
 func helmFormatModuleImages(m *Module, rawValues map[string]any) (chartutil.Values, error) {

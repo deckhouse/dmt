@@ -92,7 +92,7 @@ func (r *ImageRule) CheckImageNamesInDockerFiles(modulePath string, errorList *e
 	})
 
 	for _, path := range filePaths {
-		if !r.PrefixRule.Enabled(fsutils.Rel(imagesPath, path)) {
+		if !r.Enabled(fsutils.Rel(imagesPath, path)) {
 			continue
 		}
 		r.lintOneDockerfile(path, imagesPath, errorList)

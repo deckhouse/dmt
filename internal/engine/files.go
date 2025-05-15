@@ -153,11 +153,11 @@ func (f files) AsSecrets() string {
 //
 // {{ range .Files.Lines "foo/bar.html" }}
 // {{ . }}{{ end }}
-func (f files) Lines(path string) []string {
-	if f == nil || f[path] == nil {
+func (f files) Lines(filePath string) []string {
+	if f == nil || f[filePath] == nil {
 		return []string{}
 	}
-	s := string(f[path])
+	s := string(f[filePath])
 	if s != "" && s[len(s)-1] == '\n' {
 		s = s[:len(s)-1]
 	}

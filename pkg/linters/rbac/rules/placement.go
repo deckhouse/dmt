@@ -143,12 +143,13 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 			return
 		}
 
-		if objectName == serviceAccountName {
+		switch objectName {
+		case serviceAccountName:
 			if m.GetNamespace() != namespace {
 				errorList.Errorf("ServiceAccount should be deployed to %q", m.GetNamespace())
 			}
 			return
-		} else if objectName == expectedServiceAccountName {
+		case expectedServiceAccountName:
 			if !isDeckhouseSystemNamespace(namespace) {
 				errorList.Error("ServiceAccount should be deployed to \"d8-system\" or \"d8-monitoring\"")
 			}
