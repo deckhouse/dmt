@@ -98,7 +98,7 @@ func (r *DistrolessRule) lintOneDockerfile(path, imagesPath string, errorList *e
 	}
 
 	for i, fromInstruction := range dockerfileFromInstructions {
-		if !r.PrefixRule.Enabled(relativeFilePath) {
+		if !r.Enabled(relativeFilePath) {
 			errorList.WithObjectID(fmt.Sprintf("image = %s ; value - %s", relativeFilePath, fromInstruction)).
 				Warn("WARNING!!! SKIP DISTROLESS CHECK!!!")
 

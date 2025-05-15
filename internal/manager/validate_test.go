@@ -40,7 +40,7 @@ func TestGetNamespace(t *testing.T) {
 
 	_ = os.Remove(namespaceFile)
 	namespace = getNamespace(tempDir)
-	assert.Equal(t, "", namespace)
+	assert.Empty(t, namespace)
 }
 
 func TestValidateOpenAPIDir(t *testing.T) {
