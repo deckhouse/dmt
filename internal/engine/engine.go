@@ -163,8 +163,8 @@ func tplFun(parent *template.Template, includedNames map[string]int, strict bool
 	}
 }
 
-// initFunMap creates the Engine's FuncMap and adds context-specific functions.
-func (e Engine) initFunMap(t *template.Template) {
+// initFuncMap creates the Engine's FuncMap and adds context-specific functions.
+func (e Engine) initFuncMap(t *template.Template) {
 	funcMap := funcMap()
 	includedNames := make(map[string]int)
 
@@ -240,7 +240,7 @@ func (e Engine) render(tpls map[string]renderable) (rendered map[string]string, 
 		t.Option("missingkey=zero")
 	}
 
-	e.initFunMap(t)
+	e.initFuncMap(t)
 
 	// We want to parse the templates in a predictable order. The order favors
 	// higher-level (in file system) templates over deeply nested templates.
@@ -263,6 +263,9 @@ func (e Engine) render(tpls map[string]renderable) (rendered map[string]string, 
 		// At render time, add information about the template that is being rendered.
 		vals := tpls[filename].vals
 		vals["Template"] = chartutil.Values{"Name": filename, "BasePath": tpls[filename].basePath}
+		if values, ok := vals["Values"]; !ok || values == nil {
+			vals["Values"] = make(map[string]any)
+		}
 		var buf strings.Builder
 		if err := t.ExecuteTemplate(&buf, filename, vals); err != nil {
 			return map[string]string{}, cleanupExecError(filename, err)
