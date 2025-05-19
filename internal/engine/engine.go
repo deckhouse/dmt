@@ -27,9 +27,10 @@ import (
 
 	"errors"
 
-	"github.com/deckhouse/dmt/internal/logger"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
+
+	"github.com/deckhouse/dmt/internal/logger"
 )
 
 // Engine is an implementation of the Helm rendering implementation for templates.
