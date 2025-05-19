@@ -18,7 +18,6 @@ package engine
 
 import (
 	"fmt"
-	"log"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -28,6 +27,7 @@ import (
 
 	"errors"
 
+	"github.com/deckhouse/dmt/internal/logger"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 )
@@ -177,7 +177,7 @@ func (e Engine) initFuncMap(t *template.Template) {
 		if val == nil {
 			if e.LintMode {
 				// Don't fail on missing required values when linting
-				log.Printf("[INFO] Missing required value: %s", warn)
+				logger.ErrorF("[ERROR] Missing required value: %s", warn)
 				return "", nil
 			}
 			return val, errors.New(warnWrap(warn))
@@ -185,7 +185,7 @@ func (e Engine) initFuncMap(t *template.Template) {
 			if val == "" {
 				if e.LintMode {
 					// Don't fail on missing required values when linting
-					log.Printf("[INFO] Missing required value: %s", warn)
+					logger.ErrorF("[ERROR] Missing required value: %s", warn)
 					return "", nil
 				}
 				return val, errors.New(warnWrap(warn))
@@ -198,7 +198,7 @@ func (e Engine) initFuncMap(t *template.Template) {
 	funcMap["fail"] = func(msg string) (string, error) {
 		if e.LintMode {
 			// Don't fail when linting
-			log.Printf("[INFO] Fail: %s", msg)
+			logger.ErrorF("[ERROR] Fail: %s", msg)
 			return "", nil
 		}
 		return "", errors.New(warnWrap(msg))
@@ -279,7 +279,7 @@ func (e Engine) render(tpls map[string]renderable) (rendered map[string]string, 
 			}
 
 			if e.LintMode && isRecoverableNilError {
-				log.Printf("[LINT] Template %s encountered a nil pointer access during execution: %v. Using partially rendered output.", filename, executeErr)
+				logger.ErrorF("[LINT] Template %s encountered a nil pointer access during execution: %v. Using partially rendered output.", filename, executeErr)
 				// Use the content of the buffer as is (output before the error), then replace "<no value>"
 				rendered[filename] = strings.ReplaceAll(buf.String(), "<no value>", "")
 			} else {
