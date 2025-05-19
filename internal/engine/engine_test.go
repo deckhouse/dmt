@@ -239,17 +239,17 @@ func TestRender_LibraryChart(t *testing.T) {
 	require.Equal(t, expectedContent, out["main-chart/templates/main.yaml"], "Rendered content from library chart does not match expected output")
 
 	// Ensure templates from library chart (non-helpers) are not in the output
-	if _, exists := out["library-chart/templates/somefile.yaml"]; exists {
-		t.Error("Non-helper template from library chart was rendered, but should not have been")
-	}
+	_, exists := out["library-chart/templates/somefile.yaml"]
+	require.False(t, exists, "Non-helper template from library chart was rendered, but should not have been")
+
 	// The assertion now correctly expects "main-chart/templates/nonhelper.yaml" (old name) to not exist.
 	// And "_nonhelper.yaml" (new name) also won't exist in output because it's a partial.
-	if _, exists := out["main-chart/templates/nonhelper.yaml"]; exists {
-		t.Error("Non-helper template from main chart (nonhelper.yaml) was rendered, but should not have been as per test logic (now _nonhelper.yaml and thus a partial)")
-	}
-	if _, exists := out["main-chart/templates/_nonhelper.yaml"]; exists {
-		t.Error("Partial template _nonhelper.yaml from main chart was rendered directly, but should not have been.")
-	}
+	_, exists = out["main-chart/templates/nonhelper.yaml"]
+	require.False(t, exists, "Non-helper template from main chart (nonhelper.yaml) was rendered, but should not have been as per test logic (now _nonhelper.yaml and thus a partial)")
+
+	_, exists = out["main-chart/templates/_nonhelper.yaml"]
+	require.False(t, exists, "Partial template _nonhelper.yaml from main chart was rendered directly, but should not have been.")
+
 }
 
 func TestRender_SubchartValues(t *testing.T) {
