@@ -267,21 +267,24 @@ func (e Engine) render(tpls map[string]renderable) (rendered map[string]string, 
 			vals["Values"] = make(chartutil.Values)
 		}
 		var buf strings.Builder
-		currentErr := t.ExecuteTemplate(&buf, filename, vals)
+		executeErr := t.ExecuteTemplate(&buf, filename, vals)
 
-		if currentErr != nil {
-			// In LintMode, if a template execution error is due to trying to access a field on a nil object
-			// (e.g. .Values.missing.key where .Values.missing is nil),
-			// we should output an empty string for that template and continue, rather than failing.
-			// This mimics a more lenient approach for linting.
-			// The error message typically contains "nil pointer evaluating" or "invalid memory address or nil pointer dereference".
-			if e.LintMode && (strings.Contains(currentErr.Error(), ": nil pointer evaluating") || strings.Contains(currentErr.Error(), "invalid memory address or nil pointer dereference")) {
-				log.Printf("[LINT] Template %s execution failed due to nil pointer access: %v. Rendering as empty string.", filename, currentErr)
-				rendered[filename] = ""
-				// Continue to the next template file
+		if executeErr != nil {
+			// Check for specific recoverable nil pointer errors from template execution
+			isRecoverableNilError := false
+			errStr := executeErr.Error()
+			if strings.Contains(errStr, "nil pointer evaluating") || // Error from text/template like ".nilInterface.field"
+				strings.Contains(errStr, "invalid memory address or nil pointer dereference") { // General runtime error for nil dereference
+				isRecoverableNilError = true
+			}
+
+			if e.LintMode && isRecoverableNilError {
+				log.Printf("[LINT] Template %s encountered a nil pointer access during execution: %v. Using partially rendered output.", filename, executeErr)
+				// Use the content of the buffer as is (output before the error), then replace "<no value>"
+				rendered[filename] = strings.ReplaceAll(buf.String(), "<no value>", "")
 			} else {
 				// For other errors, or if not in LintMode, this is a hard error.
-				return map[string]string{}, cleanupExecError(filename, currentErr)
+				return map[string]string{}, cleanupExecError(filename, executeErr)
 			}
 		} else {
 			// No error during template execution.
