@@ -249,7 +249,6 @@ func TestRender_LibraryChart(t *testing.T) {
 
 	_, exists = out["main-chart/templates/_nonhelper.yaml"]
 	require.False(t, exists, "Partial template _nonhelper.yaml from main chart was rendered directly, but should not have been.")
-
 }
 
 func TestRender_SubchartValues(t *testing.T) {
