@@ -101,6 +101,36 @@ func TestRender_LintMode(t *testing.T) {
 	require.Equal(t, expectedContent, out["test-chart/templates/config.yaml"], "Rendered content in LintMode does not match expected output")
 }
 
+func TestRender_LintMode_NestedMissingValues(t *testing.T) {
+	engine := New()
+	engine.LintMode = true
+	vals := chartutil.Values{ // Intentionally not defining .Values.parent.child
+		"Release": map[string]any{
+			"Name": "test-release",
+		},
+		"Values": map[string]any{}, // Define Values, but not the nested structure
+	}
+
+	chrt := &chart.Chart{
+		Metadata: &chart.Metadata{
+			Name:       "test-chart",
+			Version:    "0.1.0",
+			APIVersion: "v2",
+		},
+		Templates: []*chart.File{
+			{Name: "templates/nested.yaml", Data: []byte("value: {{ .Values.parent.child }}")},
+		},
+	}
+
+	out, err := engine.Render(chrt, vals)
+	require.NoError(t, err, "Render should not fail in LintMode with missing nested values")
+
+	// Expect an empty string because .Values.parent.child does not exist and LintMode is on.
+	// The 'missingkey=zero' option in the template engine should handle this.
+	expectedContent := "value: "
+	require.Equal(t, expectedContent, out["test-chart/templates/nested.yaml"], "Rendered content with missing nested values in LintMode does not match expected output")
+}
+
 func TestRender_Include(t *testing.T) {
 	engine := New()
 	vals := chartutil.Values{
