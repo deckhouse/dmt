@@ -264,7 +264,7 @@ func (e Engine) render(tpls map[string]renderable) (rendered map[string]string, 
 		vals := tpls[filename].vals
 		vals["Template"] = chartutil.Values{"Name": filename, "BasePath": tpls[filename].basePath}
 		if values, ok := vals["Values"]; !ok || values == nil {
-			vals["Values"] = make(map[string]any)
+			vals["Values"] = make(chartutil.Values)
 		}
 		var buf strings.Builder
 		if err := t.ExecuteTemplate(&buf, filename, vals); err != nil {

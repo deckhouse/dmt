@@ -10,15 +10,9 @@ import (
 
 func TestNew(t *testing.T) {
 	engine := New()
-	if engine.Strict {
-		t.Error("Expected Strict to be false by default")
-	}
-	if engine.LintMode {
-		t.Error("Expected LintMode to be false by default")
-	}
-	if engine.EnableDNS {
-		t.Error("Expected EnableDNS to be false by default")
-	}
+	require.False(t, engine.Strict, "Expected Strict to be false by default")
+	require.False(t, engine.LintMode, "Expected LintMode to be false by default")
+	require.False(t, engine.EnableDNS, "Expected EnableDNS to be false by default")
 }
 
 func TestRender(t *testing.T) {
