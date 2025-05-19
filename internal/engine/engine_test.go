@@ -48,7 +48,7 @@ func TestRender(t *testing.T) {
 	require.NoError(t, err, "Failed to render chart")
 
 	expectedContent := "bar"
-	require.Equal(t, 1, len(out), "Expected one rendered template")
+	require.Len(t, out, 1, "Expected one rendered template")
 	require.Contains(t, out, "test-chart/templates/NOTES.txt", "Expected rendered output to contain the template")
 	require.Equal(t, expectedContent, out["test-chart/templates/NOTES.txt"], "Rendered content does not match expected output")
 }
