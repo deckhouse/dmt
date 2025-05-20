@@ -116,7 +116,7 @@ key: value
 			result, err := marshalStorageObject(tt.input)
 
 			if tt.expectingError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 				assert.Equal(t, tt.expectedYAML, string(result))

@@ -18,7 +18,6 @@ package engine
 
 import (
 	"fmt"
-	"log"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -30,6 +29,8 @@ import (
 
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
+
+	"github.com/deckhouse/dmt/internal/logger"
 )
 
 // Engine is an implementation of the Helm rendering implementation for templates.
@@ -163,8 +164,8 @@ func tplFun(parent *template.Template, includedNames map[string]int, strict bool
 	}
 }
 
-// initFunMap creates the Engine's FuncMap and adds context-specific functions.
-func (e Engine) initFunMap(t *template.Template) {
+// initFuncMap creates the Engine's FuncMap and adds context-specific functions.
+func (e Engine) initFuncMap(t *template.Template) {
 	funcMap := funcMap()
 	includedNames := make(map[string]int)
 
@@ -177,7 +178,7 @@ func (e Engine) initFunMap(t *template.Template) {
 		if val == nil {
 			if e.LintMode {
 				// Don't fail on missing required values when linting
-				log.Printf("[INFO] Missing required value: %s", warn)
+				logger.WarnF("[WARNING] Missing required value: %s", warn)
 				return "", nil
 			}
 			return val, errors.New(warnWrap(warn))
@@ -185,7 +186,7 @@ func (e Engine) initFunMap(t *template.Template) {
 			if val == "" {
 				if e.LintMode {
 					// Don't fail on missing required values when linting
-					log.Printf("[INFO] Missing required value: %s", warn)
+					logger.ErrorF("[ERROR] Missing required value: %s", warn)
 					return "", nil
 				}
 				return val, errors.New(warnWrap(warn))
@@ -198,7 +199,7 @@ func (e Engine) initFunMap(t *template.Template) {
 	funcMap["fail"] = func(msg string) (string, error) {
 		if e.LintMode {
 			// Don't fail when linting
-			log.Printf("[INFO] Fail: %s", msg)
+			logger.WarnF("[WARNING] Fail: %s", msg)
 			return "", nil
 		}
 		return "", errors.New(warnWrap(msg))
@@ -240,7 +241,7 @@ func (e Engine) render(tpls map[string]renderable) (rendered map[string]string, 
 		t.Option("missingkey=zero")
 	}
 
-	e.initFunMap(t)
+	e.initFuncMap(t)
 
 	// We want to parse the templates in a predictable order. The order favors
 	// higher-level (in file system) templates over deeply nested templates.
@@ -263,15 +264,36 @@ func (e Engine) render(tpls map[string]renderable) (rendered map[string]string, 
 		// At render time, add information about the template that is being rendered.
 		vals := tpls[filename].vals
 		vals["Template"] = chartutil.Values{"Name": filename, "BasePath": tpls[filename].basePath}
-		var buf strings.Builder
-		if err := t.ExecuteTemplate(&buf, filename, vals); err != nil {
-			return map[string]string{}, cleanupExecError(filename, err)
+		if values, ok := vals["Values"]; !ok || values == nil {
+			vals["Values"] = make(chartutil.Values)
 		}
+		var buf strings.Builder
+		executeErr := t.ExecuteTemplate(&buf, filename, vals)
 
-		// Work around the issue where Go will emit "<no value>" even if Options(missing=zero)
-		// is set. Since missing=error will never get here, we do not need to handle
-		// the Strict case.
-		rendered[filename] = strings.ReplaceAll(buf.String(), "<no value>", "")
+		if executeErr != nil {
+			// Check for specific recoverable nil pointer errors from template execution
+			isRecoverableNilError := false
+			errStr := executeErr.Error()
+			if strings.Contains(errStr, "nil pointer evaluating") || // Error from text/template like ".nilInterface.field"
+				strings.Contains(errStr, "invalid memory address or nil pointer dereference") { // General runtime error for nil dereference
+				isRecoverableNilError = true
+			}
+
+			if e.LintMode && isRecoverableNilError {
+				logger.ErrorF("[LINT] Template %s encountered a nil pointer access during execution: %v. Using partially rendered output.", filename, executeErr)
+				// Use the content of the buffer as is (output before the error), then replace "<no value>"
+				rendered[filename] = strings.ReplaceAll(buf.String(), "<no value>", "")
+			} else {
+				// For other errors, or if not in LintMode, this is a hard error.
+				return map[string]string{}, cleanupExecError(filename, executeErr)
+			}
+		} else {
+			// No error during template execution.
+			// Work around the issue where Go will emit "<no value>" even if Options(missing=zero)
+			// is set. Since missing=error will never get here, we do not need to handle
+			// the Strict case.
+			rendered[filename] = strings.ReplaceAll(buf.String(), "<no value>", "")
+		}
 	}
 
 	return rendered, nil

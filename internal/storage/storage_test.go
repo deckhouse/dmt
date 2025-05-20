@@ -201,7 +201,7 @@ func TestStoreObject_GetInitContainers(t *testing.T) {
 
 			initContainers, err := obj.GetInitContainers()
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 				var containerNames []string
@@ -285,7 +285,7 @@ func TestStoreObject_GetContainers(t *testing.T) {
 
 			containers, err := obj.GetContainers()
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 				var containerNames []string
@@ -389,7 +389,7 @@ func TestStoreObject_GetAllContainers(t *testing.T) {
 
 			allContainers, err := obj.GetAllContainers()
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 				var containerNames []string
@@ -472,7 +472,7 @@ func TestStoreObject_GetPodSecurityContext(t *testing.T) {
 
 			securityContext, err := obj.GetPodSecurityContext()
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 				assert.Equal(t, tt.expected, securityContext)
@@ -564,7 +564,7 @@ func TestStoreObject_IsHostNetwork(t *testing.T) {
 
 			hostNetwork, err := obj.IsHostNetwork()
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 				assert.Equal(t, tt.expected, hostNetwork)

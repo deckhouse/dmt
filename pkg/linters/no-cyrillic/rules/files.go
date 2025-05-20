@@ -22,7 +22,6 @@ import (
 	"strings"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
-	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
@@ -62,7 +61,11 @@ type FilesRule struct {
 	skipSelfRe *regexp.Regexp
 }
 
-func (r *FilesRule) CheckFile(m *module.Module, fileName string, errorList *errors.LintRuleErrorsList) {
+type moduleInterface interface {
+	GetPath() string
+}
+
+func (r *FilesRule) CheckFile(m moduleInterface, fileName string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
 	fName := fsutils.Rel(m.GetPath(), fileName)
