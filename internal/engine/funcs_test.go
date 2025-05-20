@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestToYAML(t *testing.T) {
@@ -408,7 +409,7 @@ func TestPlaceholderFunctions(t *testing.T) {
 	}
 	result, err := requiredFn("", nil)
 	assert.Equal(t, "not implemented", result)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	lookupFn, ok := fm["lookup"].(func(string, string, string, string) (map[string]any, error))
 	if !ok {
@@ -416,7 +417,7 @@ func TestPlaceholderFunctions(t *testing.T) {
 	}
 	m, err := lookupFn("", "", "", "")
 	assert.Equal(t, map[string]any{}, m)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	b64decFn, ok := fm["b64dec"].(func(string) (string, error))
 	if !ok {
@@ -424,7 +425,7 @@ func TestPlaceholderFunctions(t *testing.T) {
 	}
 	b64result, b64err := b64decFn("")
 	assert.Equal(t, "b64decDecoded_String", b64result)
-	assert.NoError(t, b64err)
+	require.NoError(t, b64err)
 
 	b32decFn, ok := fm["b32dec"].(func(string) (string, error))
 	if !ok {
@@ -432,5 +433,5 @@ func TestPlaceholderFunctions(t *testing.T) {
 	}
 	b32result, b32err := b32decFn("")
 	assert.Equal(t, "b32decDecoded_String", b32result)
-	assert.NoError(t, b32err)
+	require.NoError(t, b32err)
 }
