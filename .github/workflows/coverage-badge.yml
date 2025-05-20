@@ -37,7 +37,18 @@ jobs:
           if awk "BEGIN {exit !($COVERAGE < 50)}"; then COLOR="#e05d44"; fi
           echo "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"120\" height=\"20\"><linearGradient id=\"b\" x2=\"0\" y2=\"100%\"><stop offset=\"0\" stop-color=\"#bbb\" stop-opacity=\".1\"/><stop offset=\"1\" stop-opacity=\".1\"/></linearGradient><mask id=\"a\"><rect width=\"120\" height=\"20\" rx=\"3\" fill=\"#fff\"/></mask><g mask=\"url(#a)\"><rect width=\"70\" height=\"20\" fill=\"#555\"/><rect x=\"70\" width=\"50\" height=\"20\" fill=\"$COLOR\"/><rect width=\"120\" height=\"20\" fill=\"url(#b)\"/></g><g fill=\"#fff\" text-anchor=\"middle\" font-family=\"Verdana,Geneva,DejaVu Sans,sans-serif\" font-size=\"11\"><text x=\"35\" y=\"15\" fill=\"#010101\" fill-opacity=\".3\">coverage</text><text x=\"35\" y=\"14\">coverage</text><text id=\"percent\" x=\"95\" y=\"15\" fill=\"#010101\" fill-opacity=\".3\">$VALUE%</text><text id=\"percent\" x=\"95\" y=\"14\">$VALUE%</text></g></svg>" > coverage.svg
 
+      - name: Check if coverage badge changed
+        id: coverage_changed
+        run: |
+          git fetch origin main
+          if ! git diff --exit-code origin/main -- coverage.svg; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Commit and push changes
+        if: steps.coverage_changed.outputs.changed == 'true'
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: 'chore: update test coverage badge in README [skip ci]'
@@ -47,6 +58,7 @@ jobs:
           push_options: '--force'
 
       - name: Create Pull Request
+        if: steps.coverage_changed.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
           commit-message: 'chore: update test coverage badge in README [skip ci]'
@@ -57,6 +69,7 @@ jobs:
           delete-branch: true
 
       - name: Auto-merge PR
+        if: steps.coverage_changed.outputs.changed == 'true'
         uses: pascalgn/automerge-action@v0.16.3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
