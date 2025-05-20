@@ -74,6 +74,14 @@ jobs:
             echo "changed=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Get last commit author
+        id: last_author
+        run: |
+          AUTHOR_NAME=$(git log -1 --pretty=format:'%an')
+          AUTHOR_EMAIL=$(git log -1 --pretty=format:'%ae')
+          echo "author_name=$AUTHOR_NAME" >> $GITHUB_OUTPUT
+          echo "author_email=$AUTHOR_EMAIL" >> $GITHUB_OUTPUT
+
       - name: Commit and push changes
         if: steps.coverage_changed.outputs.changed == 'true'
         uses: stefanzweifel/git-auto-commit-action@v5
@@ -81,3 +89,4 @@ jobs:
           commit_message: 'chore: update test coverage badge [skip ci]'
           branch: ${{ github.ref_name }}
           file_pattern: coverage.svg
+          commit_author: "${{ steps.last_author.outputs.author_name }} <${{ steps.last_author.outputs.author_email }}>"
