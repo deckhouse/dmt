@@ -185,5 +185,5 @@ func TestGetFileContent(t *testing.T) {
 
 	// Test reading non-existent file
 	_, err = os.ReadFile(filepath.Join(tempDir, "nonexistent.txt"))
-	assert.Error(t, err)
+	require.Error(t, err)
 }

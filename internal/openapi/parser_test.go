@@ -160,7 +160,7 @@ spec:
     image: nginx:latest
 `
 		filePath := filepath.Join(tempDir, "valid.yaml")
-		err := os.WriteFile(filePath, []byte(yamlContent), 0644)
+		err := os.WriteFile(filePath, []byte(yamlContent), 0600)
 		require.NoError(t, err)
 
 		content, err := getFileYAMLContent(filePath)
@@ -187,11 +187,11 @@ spec:
     image: nginx:latest
 `
 		filePath := filepath.Join(tempDir, "invalid.yaml")
-		err := os.WriteFile(filePath, []byte(yamlContent), 0644)
+		err := os.WriteFile(filePath, []byte(yamlContent), 0600)
 		require.NoError(t, err)
 
 		content, err := getFileYAMLContent(filePath)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, content)
 	})
 
@@ -199,7 +199,7 @@ spec:
 		filePath := filepath.Join(tempDir, "nonexistent.yaml")
 
 		content, err := getFileYAMLContent(filePath)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, content)
 	})
 }
@@ -217,11 +217,11 @@ key3:
   - item2
 `
 		filePath := filepath.Join(tempDir, "valid.yaml")
-		err := os.WriteFile(filePath, []byte(yamlContent), 0644)
+		err := os.WriteFile(filePath, []byte(yamlContent), 0600)
 		require.NoError(t, err)
 
 		var parsedKeys []string
-		testParser := func(key string, value any) error {
+		testParser := func(key string, _ any) error {
 			parsedKeys = append(parsedKeys, key)
 			return nil
 		}
@@ -240,11 +240,11 @@ metadata:
   name: example.other.io
 `
 		filePath := filepath.Join(tempDir, "external-crd.yaml")
-		err := os.WriteFile(filePath, []byte(yamlContent), 0644)
+		err := os.WriteFile(filePath, []byte(yamlContent), 0600)
 		require.NoError(t, err)
 
 		called := false
-		testParser := func(key string, value any) error {
+		testParser := func(_ string, _ any) error {
 			called = true
 			return nil
 		}
@@ -265,11 +265,11 @@ spec:
   something: value
 `
 		filePath := filepath.Join(tempDir, "deckhouse-crd.yaml")
-		err := os.WriteFile(filePath, []byte(yamlContent), 0644)
+		err := os.WriteFile(filePath, []byte(yamlContent), 0600)
 		require.NoError(t, err)
 
 		var parsedKeys []string
-		testParser := func(key string, value any) error {
+		testParser := func(key string, _ any) error {
 			parsedKeys = append(parsedKeys, key)
 			return nil
 		}
@@ -285,7 +285,7 @@ spec:
 func TestFileParser_ParseValue(t *testing.T) {
 	t.Run("parse map string", func(t *testing.T) {
 		var parsedKeys []string
-		testParser := func(key string, value any) error {
+		testParser := func(key string, _ any) error {
 			parsedKeys = append(parsedKeys, key)
 			return nil
 		}
@@ -308,7 +308,7 @@ func TestFileParser_ParseValue(t *testing.T) {
 
 	t.Run("parse map any", func(t *testing.T) {
 		var parsedKeys []string
-		testParser := func(key string, value any) error {
+		testParser := func(key string, _ any) error {
 			parsedKeys = append(parsedKeys, key)
 			return nil
 		}
@@ -332,7 +332,7 @@ func TestFileParser_ParseValue(t *testing.T) {
 
 	t.Run("parse slice", func(t *testing.T) {
 		var parsedKeys []string
-		testParser := func(key string, value any) error {
+		testParser := func(key string, _ any) error {
 			parsedKeys = append(parsedKeys, key)
 			return nil
 		}
@@ -350,7 +350,7 @@ func TestFileParser_ParseValue(t *testing.T) {
 
 	t.Run("nil value", func(t *testing.T) {
 		var parsedKeys []string
-		testParser := func(key string, value any) error {
+		testParser := func(key string, _ any) error {
 			parsedKeys = append(parsedKeys, key)
 			return nil
 		}
