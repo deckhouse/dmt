@@ -25,15 +25,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
-
-// mockModuleInterface implements just enough interface to test the linter
-type mockModuleInterface interface {
-	GetPath() string
-}
 
 // mockModule implements the mockModuleInterface for testing
 type mockModule struct {
@@ -43,53 +37,6 @@ type mockModule struct {
 func (m *mockModule) GetPath() string {
 	return m.path
 }
-
-// mockCheckFile is a helper function to call CheckFile with our mock module
-func mockCheckFile(rule *FilesRule, m mockModuleInterface, fileName string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(rule.GetName())
-
-	fName := fsutils.Rel(m.GetPath(), fileName)
-	if !rule.Enabled(fName) {
-		return
-	}
-
-	if rule.skipDocRe.MatchString(fileName) {
-		return
-	}
-
-	if rule.skipI18NRe.MatchString(fileName) {
-		return
-	}
-
-	if rule.skipSelfRe.MatchString(fileName) {
-		return
-	}
-
-	lines, err := readFileLines(fileName)
-	if err != nil {
-		errorList.Error(err.Error())
-		return
-	}
-
-	cyrMsg, hasCyr := checkCyrillicLettersInArray(lines)
-	if hasCyr {
-		errorList.WithFilePath(fName).WithValue(cyrMsg).
-			Error("has cyrillic letters")
-	}
-}
-
-// helper function for testing
-func readFileLines(filename string) ([]string, error) {
-	fileBytes, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
-
-	sliceData := strings.Split(string(fileBytes), "\n")
-	return sliceData, nil
-}
-
-
 
 func TestNewFilesRule(t *testing.T) {
 	excludeFiles := []pkg.StringRuleExclude{
@@ -115,33 +62,33 @@ func TestCheckFile(t *testing.T) {
 
 	// Create test files
 	normalFile := filepath.Join(tempDir, "normal.txt")
-	err := os.WriteFile(normalFile, []byte("This is English text."), 0644)
+	err := os.WriteFile(normalFile, []byte("This is English text."), 0600)
 	require.NoError(t, err)
 
 	cyrillicFile := filepath.Join(tempDir, "cyrillic.txt")
-	err = os.WriteFile(cyrillicFile, []byte("This contains Cyrillic: Привет"), 0644)
+	err = os.WriteFile(cyrillicFile, []byte("This contains Cyrillic: Привет"), 0600)
 	require.NoError(t, err)
 
 	docRuFile := filepath.Join(tempDir, "doc-ru-test.yml")
-	err = os.WriteFile(docRuFile, []byte("This contains Cyrillic: Привет"), 0644)
+	err = os.WriteFile(docRuFile, []byte("This contains Cyrillic: Привет"), 0600)
 	require.NoError(t, err)
 
 	ruMdFile := filepath.Join(tempDir, "test_RU.md")
-	err = os.WriteFile(ruMdFile, []byte("This contains Cyrillic: Привет"), 0644)
+	err = os.WriteFile(ruMdFile, []byte("This contains Cyrillic: Привет"), 0600)
 	require.NoError(t, err)
 
 	err = os.MkdirAll(filepath.Join(tempDir, "i18n"), 0755)
 	require.NoError(t, err)
 	i18nFile := filepath.Join(tempDir, "i18n", "strings.txt")
-	err = os.WriteFile(i18nFile, []byte("This contains Cyrillic: Привет"), 0644)
+	err = os.WriteFile(i18nFile, []byte("This contains Cyrillic: Привет"), 0600)
 	require.NoError(t, err)
 
 	selfFile := filepath.Join(tempDir, "no_cyrillic.go")
-	err = os.WriteFile(selfFile, []byte("This contains Cyrillic: Привет"), 0644)
+	err = os.WriteFile(selfFile, []byte("This contains Cyrillic: Привет"), 0600)
 	require.NoError(t, err)
 
 	excludedFile := filepath.Join(tempDir, "exclude.txt")
-	err = os.WriteFile(excludedFile, []byte("This contains Cyrillic: Привет"), 0644)
+	err = os.WriteFile(excludedFile, []byte("This contains Cyrillic: Привет"), 0600)
 	require.NoError(t, err)
 
 	// Setup mock module for testing
@@ -157,14 +104,14 @@ func TestCheckFile(t *testing.T) {
 	// Test normal file (no Cyrillic)
 	t.Run("NormalFile", func(t *testing.T) {
 		errorList := errors.NewLintRuleErrorsList()
-		mockCheckFile(rule, mod, normalFile, errorList)
+		rule.CheckFile(mod, normalFile, errorList)
 		assert.Empty(t, errorList.GetErrors())
 	})
 
 	// Test file with Cyrillic
 	t.Run("CyrillicFile", func(t *testing.T) {
 		errorList := errors.NewLintRuleErrorsList()
-		mockCheckFile(rule, mod, cyrillicFile, errorList)
+		rule.CheckFile(mod, cyrillicFile, errorList)
 		errs := errorList.GetErrors()
 		// Just check that an error is produced for files with Cyrillic
 		assert.NotEmpty(t, errs, "Should report error for Cyrillic content")
@@ -176,42 +123,42 @@ func TestCheckFile(t *testing.T) {
 	// Test excluded file by regex (doc-ru)
 	t.Run("DocRuFile", func(t *testing.T) {
 		errorList := errors.NewLintRuleErrorsList()
-		mockCheckFile(rule, mod, docRuFile, errorList)
+		rule.CheckFile(mod, docRuFile, errorList)
 		assert.Empty(t, errorList.GetErrors())
 	})
 
 	// Test excluded RU.md file pattern
 	t.Run("RUMdFile", func(t *testing.T) {
 		errorList := errors.NewLintRuleErrorsList()
-		mockCheckFile(rule, mod, ruMdFile, errorList)
+		rule.CheckFile(mod, ruMdFile, errorList)
 		assert.Empty(t, errorList.GetErrors())
 	})
 
 	// Test excluded file by regex (i18n)
 	t.Run("I18nFile", func(t *testing.T) {
 		errorList := errors.NewLintRuleErrorsList()
-		mockCheckFile(rule, mod, i18nFile, errorList)
+		rule.CheckFile(mod, i18nFile, errorList)
 		assert.Empty(t, errorList.GetErrors())
 	})
 
 	// Test excluded file by regex (self)
 	t.Run("SelfFile", func(t *testing.T) {
 		errorList := errors.NewLintRuleErrorsList()
-		mockCheckFile(rule, mod, selfFile, errorList)
+		rule.CheckFile(mod, selfFile, errorList)
 		assert.Empty(t, errorList.GetErrors())
 	})
 
 	// Test excluded file by rule
 	t.Run("ExcludedFile", func(t *testing.T) {
 		errorList := errors.NewLintRuleErrorsList()
-		mockCheckFile(rule, mod, excludedFile, errorList)
+		rule.CheckFile(mod, excludedFile, errorList)
 		assert.Empty(t, errorList.GetErrors())
 	})
 
 	// Test non-existent file
 	t.Run("NonExistentFile", func(t *testing.T) {
 		errorList := errors.NewLintRuleErrorsList()
-		mockCheckFile(rule, mod, filepath.Join(tempDir, "nonexistent.txt"), errorList)
+		rule.CheckFile(mod, filepath.Join(tempDir, "nonexistent.txt"), errorList)
 		errs := errorList.GetErrors()
 		assert.NotEmpty(t, errs, "Should report error for non-existent file")
 		if len(errs) > 0 {
@@ -227,12 +174,12 @@ func TestGetFileContent(t *testing.T) {
 	// Create a test file
 	testFile := filepath.Join(tempDir, "test.txt")
 	content := "line1\nline2\nline3"
-	err := os.WriteFile(testFile, []byte(content), 0644)
+	err := os.WriteFile(testFile, []byte(content), 0600)
 	require.NoError(t, err)
 
 	// Test reading existing file
 	fileBytes, err := os.ReadFile(testFile)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	lines := strings.Split(string(fileBytes), "\n")
 	assert.Equal(t, []string{"line1", "line2", "line3"}, lines)
 
