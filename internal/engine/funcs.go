@@ -22,6 +22,8 @@ import (
 	"strings"
 	"text/template"
 
+	"maps"
+
 	"github.com/BurntSushi/toml"
 	"github.com/Masterminds/sprig/v3"
 	"sigs.k8s.io/yaml"
@@ -79,9 +81,7 @@ func funcMap() template.FuncMap {
 		},
 	}
 
-	for k, v := range extra {
-		f[k] = v
-	}
+	maps.Copy(f, extra)
 
 	return f
 }
