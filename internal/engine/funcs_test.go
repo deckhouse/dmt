@@ -25,17 +25,17 @@ import (
 func TestToYAML(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    interface{}
+		input    any
 		expected string
 	}{
 		{
 			name:     "simple map",
-			input:    map[string]interface{}{"key": "value"},
+			input:    map[string]any{"key": "value"},
 			expected: "key: value",
 		},
 		{
 			name:     "nested map",
-			input:    map[string]interface{}{"outer": map[string]interface{}{"inner": "value"}},
+			input:    map[string]any{"outer": map[string]any{"inner": "value"}},
 			expected: "outer:\n  inner: value",
 		},
 		{
@@ -45,7 +45,7 @@ func TestToYAML(t *testing.T) {
 		},
 		{
 			name:     "empty map",
-			input:    map[string]interface{}{},
+			input:    map[string]any{},
 			expected: "{}",
 		},
 	}
@@ -61,17 +61,17 @@ func TestToYAML(t *testing.T) {
 func TestToYAMLPretty(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    interface{}
+		input    any
 		expected string
 	}{
 		{
 			name:     "simple map",
-			input:    map[string]interface{}{"key": "value"},
+			input:    map[string]any{"key": "value"},
 			expected: "key: value",
 		},
 		{
 			name:     "nested map",
-			input:    map[string]interface{}{"outer": map[string]interface{}{"inner": "value"}},
+			input:    map[string]any{"outer": map[string]any{"inner": "value"}},
 			expected: "outer:\n  inner: value",
 		},
 		{
@@ -81,7 +81,7 @@ func TestToYAMLPretty(t *testing.T) {
 		},
 		{
 			name:     "empty map",
-			input:    map[string]interface{}{},
+			input:    map[string]any{},
 			expected: "{}",
 		},
 	}
@@ -98,27 +98,27 @@ func TestFromYAML(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
-		expected map[string]interface{}
+		expected map[string]any
 	}{
 		{
 			name:     "simple map",
 			input:    "key: value",
-			expected: map[string]interface{}{"key": "value"},
+			expected: map[string]any{"key": "value"},
 		},
 		{
 			name:     "nested map",
 			input:    "outer:\n  inner: value",
-			expected: map[string]interface{}{"outer": map[string]interface{}{"inner": "value"}},
+			expected: map[string]any{"outer": map[string]any{"inner": "value"}},
 		},
 		{
 			name:     "invalid yaml",
 			input:    "invalid: : yaml:",
-			expected: map[string]interface{}{"Error": "error converting YAML to JSON: yaml: mapping values are not allowed in this context"},
+			expected: map[string]any{"Error": "error converting YAML to JSON: yaml: mapping values are not allowed in this context"},
 		},
 		{
 			name:     "empty string",
 			input:    "",
-			expected: map[string]interface{}{},
+			expected: map[string]any{},
 		},
 	}
 
@@ -134,27 +134,27 @@ func TestFromYAMLArray(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
-		expected []interface{}
+		expected []any
 	}{
 		{
 			name:     "string array",
 			input:    "- item1\n- item2",
-			expected: []interface{}{"item1", "item2"},
+			expected: []any{"item1", "item2"},
 		},
 		{
 			name:     "nested array",
 			input:    "- - nested1\n  - nested2\n- item2",
-			expected: []interface{}{[]interface{}{"nested1", "nested2"}, "item2"},
+			expected: []any{[]any{"nested1", "nested2"}, "item2"},
 		},
 		{
 			name:     "invalid yaml array",
 			input:    "invalid: yaml array",
-			expected: []interface{}{"error unmarshaling JSON: json: cannot unmarshal object into Go value of type []interface {}"},
+			expected: []any{"error unmarshaling JSON: json: cannot unmarshal object into Go value of type []interface {}"},
 		},
 		{
 			name:     "empty string",
 			input:    "",
-			expected: []interface{}{},
+			expected: []any{},
 		},
 	}
 
@@ -175,20 +175,20 @@ func TestFromYAMLArray(t *testing.T) {
 func TestToTOML(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    interface{}
+		input    any
 		expected string
 	}{
 		{
 			name: "simple map",
-			input: map[string]interface{}{
+			input: map[string]any{
 				"key": "value",
 			},
 			expected: "key = \"value\"\n",
 		},
 		{
 			name: "nested map",
-			input: map[string]interface{}{
-				"outer": map[string]interface{}{
+			input: map[string]any{
+				"outer": map[string]any{
 					"inner": "value",
 				},
 			},
@@ -208,27 +208,27 @@ func TestFromTOML(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
-		expected map[string]interface{}
+		expected map[string]any
 	}{
 		{
 			name:     "simple key-value",
 			input:    "key = \"value\"",
-			expected: map[string]interface{}{"key": "value"},
+			expected: map[string]any{"key": "value"},
 		},
 		{
 			name:     "nested map",
 			input:    "[outer]\ninner = \"value\"",
-			expected: map[string]interface{}{"outer": map[string]interface{}{"inner": "value"}},
+			expected: map[string]any{"outer": map[string]any{"inner": "value"}},
 		},
 		{
 			name:     "invalid toml",
 			input:    "invalid = toml =",
-			expected: map[string]interface{}{"Error": "toml: line 1 (last key \"invalid\"): expected value but found \"toml\" instead"},
+			expected: map[string]any{"Error": "toml: line 1 (last key \"invalid\"): expected value but found \"toml\" instead"},
 		},
 		{
 			name:     "empty string",
 			input:    "",
-			expected: map[string]interface{}{},
+			expected: map[string]any{},
 		},
 	}
 
@@ -243,20 +243,20 @@ func TestFromTOML(t *testing.T) {
 func TestToJSON(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    interface{}
+		input    any
 		expected string
 	}{
 		{
 			name: "simple map",
-			input: map[string]interface{}{
+			input: map[string]any{
 				"key": "value",
 			},
 			expected: `{"key":"value"}`,
 		},
 		{
 			name: "nested map",
-			input: map[string]interface{}{
-				"outer": map[string]interface{}{
+			input: map[string]any{
+				"outer": map[string]any{
 					"inner": "value",
 				},
 			},
@@ -269,7 +269,7 @@ func TestToJSON(t *testing.T) {
 		},
 		{
 			name:     "empty map",
-			input:    map[string]interface{}{},
+			input:    map[string]any{},
 			expected: `{}`,
 		},
 	}
@@ -286,27 +286,27 @@ func TestFromJSON(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
-		expected map[string]interface{}
+		expected map[string]any
 	}{
 		{
 			name:     "simple map",
 			input:    `{"key":"value"}`,
-			expected: map[string]interface{}{"key": "value"},
+			expected: map[string]any{"key": "value"},
 		},
 		{
 			name:     "nested map",
 			input:    `{"outer":{"inner":"value"}}`,
-			expected: map[string]interface{}{"outer": map[string]interface{}{"inner": "value"}},
+			expected: map[string]any{"outer": map[string]any{"inner": "value"}},
 		},
 		{
 			name:     "invalid json",
 			input:    `{"key":"value"`,
-			expected: map[string]interface{}{"Error": "unexpected end of JSON input"},
+			expected: map[string]any{"Error": "unexpected end of JSON input"},
 		},
 		{
 			name:     "empty string",
 			input:    "",
-			expected: map[string]interface{}{"Error": "unexpected end of JSON input"},
+			expected: map[string]any{"Error": "unexpected end of JSON input"},
 		},
 	}
 
@@ -322,27 +322,27 @@ func TestFromJSONArray(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
-		expected []interface{}
+		expected []any
 	}{
 		{
 			name:     "string array",
 			input:    `["item1","item2"]`,
-			expected: []interface{}{"item1", "item2"},
+			expected: []any{"item1", "item2"},
 		},
 		{
 			name:     "nested array",
 			input:    `[["nested1","nested2"],"item2"]`,
-			expected: []interface{}{[]interface{}{"nested1", "nested2"}, "item2"},
+			expected: []any{[]any{"nested1", "nested2"}, "item2"},
 		},
 		{
 			name:     "invalid json array",
 			input:    `["item1","item2"`,
-			expected: []interface{}{"unexpected end of JSON input"},
+			expected: []any{"unexpected end of JSON input"},
 		},
 		{
 			name:     "empty string",
 			input:    "",
-			expected: []interface{}{"unexpected end of JSON input"},
+			expected: []any{"unexpected end of JSON input"},
 		},
 	}
 
@@ -390,33 +390,33 @@ func TestPlaceholderFunctions(t *testing.T) {
 	fm := funcMap()
 
 	// Test placeholder functions
-	includeFn, ok := fm["include"].(func(string, interface{}) string)
+	includeFn, ok := fm["include"].(func(string, any) string)
 	if !ok {
 		t.Fatalf("include function has wrong type")
 	}
 	assert.Equal(t, "not implemented", includeFn("", nil))
 
-	tplFn, ok := fm["tpl"].(func(string, interface{}) interface{})
+	tplFn, ok := fm["tpl"].(func(string, any) any)
 	if !ok {
 		t.Fatalf("tpl function has wrong type")
 	}
 	assert.Equal(t, "not implemented", tplFn("", nil))
 
-	requiredFn, ok := fm["required"].(func(string, interface{}) (interface{}, error))
+	requiredFn, ok := fm["required"].(func(string, any) (any, error))
 	if !ok {
 		t.Fatalf("required function has wrong type")
 	}
 	result, err := requiredFn("", nil)
 	assert.Equal(t, "not implemented", result)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
-	lookupFn, ok := fm["lookup"].(func(string, string, string, string) (map[string]interface{}, error))
+	lookupFn, ok := fm["lookup"].(func(string, string, string, string) (map[string]any, error))
 	if !ok {
 		t.Fatalf("lookup function has wrong type")
 	}
 	m, err := lookupFn("", "", "", "")
-	assert.Equal(t, map[string]interface{}{}, m)
-	assert.Nil(t, err)
+	assert.Equal(t, map[string]any{}, m)
+	assert.NoError(t, err)
 
 	b64decFn, ok := fm["b64dec"].(func(string) (string, error))
 	if !ok {
@@ -424,7 +424,7 @@ func TestPlaceholderFunctions(t *testing.T) {
 	}
 	b64result, b64err := b64decFn("")
 	assert.Equal(t, "b64decDecoded_String", b64result)
-	assert.Nil(t, b64err)
+	assert.NoError(t, b64err)
 
 	b32decFn, ok := fm["b32dec"].(func(string) (string, error))
 	if !ok {
@@ -432,5 +432,5 @@ func TestPlaceholderFunctions(t *testing.T) {
 	}
 	b32result, b32err := b32decFn("")
 	assert.Equal(t, "b32decDecoded_String", b32result)
-	assert.Nil(t, b32err)
+	assert.NoError(t, b32err)
 }
