@@ -24,7 +24,7 @@ clean:
 
 # Test
 test:
-	go test -v -parallel 2 ./...
+	go test -v -parallel 2 ./... -coverprofile=coverage.out
 .PHONY: test
 
 # Non-PHONY targets (real files)
