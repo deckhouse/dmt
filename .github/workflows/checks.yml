@@ -8,7 +8,7 @@ env:
   # ex:
   # - 1.18beta1 -> 1.18.0-beta.1
   # - 1.18rc1 -> 1.18.0-rc.1
-  GO_VERSION: '1.23'
+  GO_VERSION: '1.24'
 
 jobs:
   # Check if there is any dirty change for go mod tidy
@@ -48,13 +48,16 @@ jobs:
       - name: Run tests
         run: make test
 
+      # Only run the following steps on push, not on pull_request
       - name: Extract coverage percentage
+        if: github.event_name == 'push'
         id: coverage
         run: |
           COVERAGE=$(go tool cover -func=coverage.out | grep total: | awk '{print substr($3, 1, length($3)-1)}')
           echo "COVERAGE=$COVERAGE" >> $GITHUB_ENV
 
       - name: Generate coverage badge
+        if: github.event_name == 'push'
         run: |
           COVERAGE=$(go tool cover -func=coverage.out | grep total: | awk '{print substr($3, 1, length($3)-1)}')
           COLOR="#4c1"
@@ -65,6 +68,7 @@ jobs:
           echo "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"120\" height=\"20\"><linearGradient id=\"b\" x2=\"0\" y2=\"100%\"><stop offset=\"0\" stop-color=\"#bbb\" stop-opacity=\".1\"/><stop offset=\"1\" stop-opacity=\".1\"/></linearGradient><mask id=\"a\"><rect width=\"120\" height=\"20\" rx=\"3\" fill=\"#fff\"/></mask><g mask=\"url(#a)\"><rect width=\"70\" height=\"20\" fill=\"#555\"/><rect x=\"70\" width=\"50\" height=\"20\" fill=\"$COLOR\"/><rect width=\"120\" height=\"20\" fill=\"url(#b)\"/></g><g fill=\"#fff\" text-anchor=\"middle\" font-family=\"Verdana,Geneva,DejaVu Sans,sans-serif\" font-size=\"11\"><text x=\"35\" y=\"15\" fill=\"#010101\" fill-opacity=\".3\">coverage</text><text x=\"35\" y=\"14\">coverage</text><text id=\"percent\" x=\"95\" y=\"15\" fill=\"#010101\" fill-opacity=\".3\">$VALUE%</text><text id=\"percent\" x=\"95\" y=\"14\">$VALUE%</text></g></svg>" > coverage.svg
 
       - name: Check if coverage badge changed
+        if: github.event_name == 'push'
         id: coverage_changed
         run: |
           git fetch origin ${{ github.ref_name }}
@@ -75,6 +79,7 @@ jobs:
           fi
 
       - name: Get last commit author
+        if: github.event_name == 'push'
         id: last_author
         run: |
           AUTHOR_NAME=$(git log -1 --pretty=format:'%an')
@@ -83,7 +88,7 @@ jobs:
           echo "author_email=$AUTHOR_EMAIL" >> $GITHUB_OUTPUT
 
       - name: Commit and push changes
-        if: steps.coverage_changed.outputs.changed == 'true'
+        if: github.event_name == 'push' && steps.coverage_changed.outputs.changed == 'true'
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: 'chore: update test coverage badge [skip ci]'
