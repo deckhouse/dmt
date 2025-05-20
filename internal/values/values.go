@@ -89,11 +89,13 @@ func GetGlobalValues(rootDir string) (*spec.Schema, error) {
 	valuesBytes := globalValuesBytes
 
 	if rootDir != "" {
-		if configBytesT, valuesBytesT, err := readConfigFiles(rootDir); err == nil {
-			logger.InfoF("Using global values from `%s` directory", rootDir)
-			configBytes = configBytesT
-			valuesBytes = valuesBytesT
+		configBytesT, valuesBytesT, err := readConfigFiles(rootDir)
+		if err != nil {
+			return nil, err
 		}
+		logger.InfoF("Using global values from `%s` directory", rootDir)
+		configBytes = configBytesT
+		valuesBytes = valuesBytesT
 	}
 
 	schemas, err := prepareSchemas(configBytes, valuesBytes)
