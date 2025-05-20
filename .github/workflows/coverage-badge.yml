@@ -54,4 +54,3 @@ jobs:
           commit_message: 'chore: update test coverage badge [skip ci]'
           branch: ${{ github.ref_name }}
           file_pattern: coverage.svg
-          push_options: '--force'
