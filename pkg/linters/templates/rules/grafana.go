@@ -19,6 +19,7 @@ package rules
 import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg"
+	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 
 	"os"
@@ -30,19 +31,31 @@ const (
 	GrafanaRuleName = "grafana"
 )
 
-func NewGrafanaRule() *GrafanaRule {
+func NewGrafanaRule(cfg *config.TemplatesSettings) *GrafanaRule {
+	var exclude bool
+	if cfg != nil {
+		exclude = cfg.GrafanaDashboards.Disable
+	}
 	return &GrafanaRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: GrafanaRuleName,
+		},
+		BoolRule: pkg.BoolRule{
+			Exclude: exclude,
 		},
 	}
 }
 
 type GrafanaRule struct {
 	pkg.RuleMeta
+	pkg.BoolRule
 }
 
 func (r *GrafanaRule) ValidateGrafanaDashboards(m *module.Module, errorList *errors.LintRuleErrorsList) {
+	if !r.Enabled() {
+		return
+	}
+
 	errorList = errorList.WithFilePath(m.GetPath()).WithRule(r.GetName())
 
 	monitoringFilePath := filepath.Join(m.GetPath(), "templates", "monitoring.yaml")
