@@ -163,7 +163,8 @@ type RBACExcludeRules struct {
 }
 
 type TemplatesSettings struct {
-	ExcludeRules TemplatesExcludeRules `mapstructure:"exclude-rules"`
+	ExcludeRules      TemplatesExcludeRules        `mapstructure:"exclude-rules"`
+	GrafanaDashboards GrafanaDashboardsExcludeList `mapstructure:"grafana-dashboards"`
 
 	Impact *pkg.Level `mapstructure:"impact"`
 }
@@ -173,6 +174,10 @@ type TemplatesExcludeRules struct {
 	PDBAbsent     KindRuleExcludeList    `mapstructure:"pdb"`
 	ServicePort   ServicePortExcludeList `mapstructure:"service-port"`
 	KubeRBACProxy StringRuleExcludeList  `mapstructure:"kube-rbac-proxy"`
+}
+
+type GrafanaDashboardsExcludeList struct {
+	Disable bool `mapstructure:"disable"`
 }
 
 type ServicePortExcludeList []ServicePortExclude

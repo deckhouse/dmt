@@ -16,6 +16,9 @@ This linter has settings.
 ```yaml
 linters-settings:
   templates:
+    # disable grafana-dashboards rule
+    grafana-dashboards:
+      disable: true
     exclude-rules:
       # exclude if target ref equals one of
       vpa:
