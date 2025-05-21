@@ -60,6 +60,57 @@ func TestLoader_Load_WithConfigFile(t *testing.T) {
 	assert.Equal(t, 42, cfg2.Field2)
 }
 
+func TestLoader_Load_InvalidYaml(t *testing.T) {
+	cfg := &testConfig{}
+	l := NewLoader(cfg, "")
+	l.viper = viper.New()
+	l.viper.SetConfigType("yaml")
+	l.viper.SetConfigName("invalidconfig")
+	dir := t.TempDir()
+	l.viper.AddConfigPath(dir)
+
+	fileContent := []byte("field1: value1\nfield2: not_an_int\n")
+	filePath := dir + "/invalidconfig.yaml"
+	err := os.WriteFile(filePath, fileContent, 0600)
+	require.NoError(t, err, "failed to write config file")
+
+	l.viper.SetConfigFile(filePath)
+	err = l.viper.ReadInConfig()
+	require.NoError(t, err)
+	err = l.viper.Unmarshal(cfg)
+	assert.Error(t, err, "Should return error for invalid yaml type")
+}
+
+func TestLoader_Load_NestedStruct(t *testing.T) {
+	type Nested struct {
+		SubField string `mapstructure:"sub_field"`
+	}
+	type nestedConfig struct {
+		Field1 string `mapstructure:"field1"`
+		Nested Nested `mapstructure:"nested"`
+	}
+	cfg := &nestedConfig{}
+	l := NewLoader(cfg, "")
+	l.viper = viper.New()
+	l.viper.SetConfigType("yaml")
+	l.viper.SetConfigName("nestedconfig")
+	dir := t.TempDir()
+	l.viper.AddConfigPath(dir)
+
+	fileContent := []byte("field1: value1\nnested:\n  sub_field: subvalue\n")
+	filePath := dir + "/nestedconfig.yaml"
+	err := os.WriteFile(filePath, fileContent, 0600)
+	require.NoError(t, err, "failed to write config file")
+
+	l.viper.SetConfigFile(filePath)
+	err = l.viper.ReadInConfig()
+	require.NoError(t, err)
+	err = l.viper.Unmarshal(cfg)
+	require.NoError(t, err)
+	assert.Equal(t, "value1", cfg.Field1)
+	assert.Equal(t, "subvalue", cfg.Nested.SubField)
+}
+
 func TestLoader_setConfigDir_Stdin(t *testing.T) {
 	cfg := &testConfig{}
 	l := NewLoader(cfg, "")
@@ -72,4 +123,28 @@ func TestLoader_setConfigDir_Stdin(t *testing.T) {
 	l.viper.SetConfigFile(tempFile.Name())
 	err = l.setConfigDir()
 	require.NoError(t, err)
+}
+
+func TestLoader_setConfigDir_Stdin_Content(t *testing.T) {
+	cfg := &testConfig{}
+	l := NewLoader(cfg, "")
+	l.viper = viper.New()
+	l.viper.SetConfigType("yaml")
+	// Create a temporary file with config content
+	fileContent := []byte("field1: stdinval\nfield2: 99\n")
+	tempFile, err := os.CreateTemp("", "stdin_mock")
+	assert.NoError(t, err, "failed to create temp file")
+	defer os.Remove(tempFile.Name())
+	_, err = tempFile.Write(fileContent)
+	assert.NoError(t, err, "failed to write to temp file")
+	tempFile.Close()
+	l.viper.SetConfigFile(tempFile.Name())
+	err = l.setConfigDir()
+	require.NoError(t, err)
+	err = l.viper.ReadInConfig()
+	require.NoError(t, err)
+	err = l.viper.Unmarshal(cfg)
+	require.NoError(t, err)
+	assert.Equal(t, "stdinval", cfg.Field1)
+	assert.Equal(t, 99, cfg.Field2)
 }
