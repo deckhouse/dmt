@@ -3,10 +3,11 @@ package container
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestContainer_NameAndDesc(t *testing.T) {
@@ -18,7 +19,7 @@ func TestContainer_NameAndDesc(t *testing.T) {
 	assert.Equal(t, "Lint container objects", linter.Desc(), "Desc() should return linter description")
 }
 
-func TestContainer_Run_NilModule(t *testing.T) {
+func TestContainer_Run_NilModule(_ *testing.T) {
 	cfg := &config.ModuleConfig{}
 	errList := errors.NewLintRuleErrorsList()
 	linter := New(cfg, errList)

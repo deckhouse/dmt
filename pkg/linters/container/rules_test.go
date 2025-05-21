@@ -5,10 +5,11 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestApplyContainerRules_NoContainers(t *testing.T) {
