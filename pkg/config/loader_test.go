@@ -117,7 +117,7 @@ func TestLoader_setConfigDir_Stdin(t *testing.T) {
 	l.viper = viper.New()
 	// Create a temporary file to simulate stdin
 	tempFile, err := os.CreateTemp("", "stdin_mock")
-	assert.NoError(t, err, "failed to create temp file")
+	require.NoError(t, err, "failed to create temp file")
 	defer os.Remove(tempFile.Name()) // Clean up the temp file
 	// Use the temporary file as the config file
 	l.viper.SetConfigFile(tempFile.Name())
@@ -133,10 +133,10 @@ func TestLoader_setConfigDir_Stdin_Content(t *testing.T) {
 	// Create a temporary file with config content
 	fileContent := []byte("field1: stdinval\nfield2: 99\n")
 	tempFile, err := os.CreateTemp("", "stdin_mock")
-	assert.NoError(t, err, "failed to create temp file")
+	require.NoError(t, err, "failed to create temp file")
 	defer os.Remove(tempFile.Name())
 	_, err = tempFile.Write(fileContent)
-	assert.NoError(t, err, "failed to write to temp file")
+	require.NoError(t, err, "failed to write to temp file")
 	tempFile.Close()
 	l.viper.SetConfigFile(tempFile.Name())
 	err = l.setConfigDir()
