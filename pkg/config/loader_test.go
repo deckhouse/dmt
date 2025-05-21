@@ -39,12 +39,10 @@ func TestLoader_Load_WithConfigFile(t *testing.T) {
 	err := os.WriteFile(filePath, fileContent, 0600)
 	require.NoError(t, err, "failed to write config file")
 
-	// Debug: check file exists and print content
 	data, err := os.ReadFile(filePath)
 	require.NoError(t, err, "failed to read config file")
 	t.Logf("config file content: %s", string(data))
 
-	// Direct viper read/unmarshal for debug
 	err = l.viper.ReadInConfig()
 	require.NoError(t, err, "viper.ReadInConfig failed")
 	err = l.viper.Unmarshal(cfg)
@@ -66,7 +64,12 @@ func TestLoader_setConfigDir_Stdin(t *testing.T) {
 	cfg := &testConfig{}
 	l := NewLoader(cfg, "")
 	l.viper = viper.New()
-	l.viper.SetConfigFile(os.Stdin.Name())
-	err := l.setConfigDir()
+	// Create a temporary file to simulate stdin
+	tempFile, err := os.CreateTemp("", "stdin_mock")
+	assert.NoError(t, err, "failed to create temp file")
+	defer os.Remove(tempFile.Name()) // Clean up the temp file
+	// Use the temporary file as the config file
+	l.viper.SetConfigFile(tempFile.Name())
+	err = l.setConfigDir()
 	require.NoError(t, err)
 }
