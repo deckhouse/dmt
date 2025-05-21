@@ -32,12 +32,16 @@ const (
 )
 
 func NewGrafanaRule(cfg *config.TemplatesSettings) *GrafanaRule {
+	var exclude bool
+	if cfg != nil {
+		exclude = cfg.GrafanaDashboards.Disable
+	}
 	return &GrafanaRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: GrafanaRuleName,
 		},
 		BoolRule: pkg.BoolRule{
-			Exclude: cfg.GrafanaDashboards.Disable,
+			Exclude: exclude,
 		},
 	}
 }
