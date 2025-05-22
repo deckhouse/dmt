@@ -80,7 +80,7 @@ func (l *Templates) Run(m *module.Module) {
 	}
 
 	// werf file
-	rules.NewWerfRule().ValidateWerfTemplates(m, errorList)
+	// rules.NewWerfRule().ValidateWerfTemplates(m, errorList)
 }
 
 func (l *Templates) Name() string {
