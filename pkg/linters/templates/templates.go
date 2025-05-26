@@ -60,7 +60,7 @@ func (l *Templates) Run(m *module.Module) {
 
 	// monitoring
 	prometheusRule := rules.NewPrometheusRule()
-	grafanaRule := rules.NewGrafanaRule()
+	grafanaRule := rules.NewGrafanaRule(l.cfg)
 
 	if err := dirExists(m.GetPath(), "monitoring"); err == nil {
 		grafanaRule.ValidateGrafanaDashboards(m, errorList)
