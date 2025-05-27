@@ -28,6 +28,9 @@ import (
 	"github.com/mitchellh/go-homedir"
 )
 
+// evalSymlinkCache is a cache for evaluated symlinks to avoid multiple evaluations
+var evalSymlinkCache sync.Map
+
 // IsDir checks if the given path is a directory
 func IsDir(path string) bool {
 	fi, err := os.Stat(path)
@@ -36,9 +39,9 @@ func IsDir(path string) bool {
 
 // IsFile checks if the given path is a file
 func IsFile(path string) bool {
-	info, err := os.Stat(path)
+	fi, err := os.Stat(path)
 
-	return err == nil && !info.IsDir()
+	return err == nil && !fi.IsDir()
 }
 
 // Getwd returns the current working directory.
@@ -69,8 +72,6 @@ func Getwd() (string, error) {
 
 // EvalSymlinks returns the path name after the evaluation of any symbolic links.
 func EvalSymlinks(path string) (string, error) {
-	var evalSymlinkCache sync.Map
-
 	type evalSymlinkRes struct {
 		path string
 		err  error

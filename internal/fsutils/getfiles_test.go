@@ -57,6 +57,12 @@ func TestGetFiles(t *testing.T) {
 		filepath.Join(rootDir, "symlink.txt"),
 	}
 	assertEqualFiles(t, files, expectedFiles)
+
+	nonExistentPath := filepath.Join(rootDir, "does_not_exist")
+	files = GetFiles(nonExistentPath, false)
+	if len(files) != 0 {
+		t.Errorf("expected no files for nonexistent path, got %d files", len(files))
+	}
 }
 
 func assertEqualFiles(t *testing.T, actual, expected []string) {

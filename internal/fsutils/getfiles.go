@@ -25,6 +25,10 @@ type filterFn func(string, string) bool
 
 func GetFiles(rootPath string, skipSymlink bool, filters ...filterFn) []string {
 	var result []string
+	// Check if rootPath exists
+	if _, err := os.Stat(rootPath); os.IsNotExist(err) {
+		return result
+	}
 	_ = filepath.Walk(rootPath, func(path string, info os.FileInfo, _ error) error {
 		if skipSymlink && info.Mode()&os.ModeSymlink != 0 {
 			return filepath.SkipDir
