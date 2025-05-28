@@ -135,6 +135,10 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 		"Deprecated",
 	}
 
+	if yml.Stage == "" {
+		errorList.Error("Field 'stage' is required")
+	}
+
 	if yml.Stage != "" && !slices.Contains(stages, yml.Stage) {
 		errorList.Errorf("Field 'stage' is not one of the following values: %q", strings.Join(stages, ", "))
 	}
