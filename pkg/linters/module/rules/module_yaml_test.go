@@ -344,7 +344,10 @@ func TestCheckDefinitionFile_FileErrors(t *testing.T) {
 	// Remove read permissions to simulate read error
 	err = os.WriteFile(moduleFilePath, []byte(`name: test-module`), 0000)
 	require.NoError(t, err)
-	defer os.Chmod(moduleFilePath, 0600) // Restore permissions after test
+	defer func() {
+		err := os.Chmod(moduleFilePath, 0600) // Restore permissions after test
+		require.NoError(t, err)
+	}()
 
 	errorList = errors.NewLintRuleErrorsList()
 	rule.CheckDefinitionFile(tempDir, errorList)
