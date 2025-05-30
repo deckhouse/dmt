@@ -158,8 +158,9 @@ type RbacSettings struct {
 }
 
 type RBACExcludeRules struct {
-	Placement KindRuleExcludeList `mapstructure:"placement"`
-	Wildcards KindRuleExcludeList `mapstructure:"wildcards"`
+	BindingSubject StringRuleExcludeList `mapstructure:"binding-subject"`
+	Placement      KindRuleExcludeList   `mapstructure:"placement"`
+	Wildcards      KindRuleExcludeList   `mapstructure:"wildcards"`
 }
 
 type TemplatesSettings struct {
