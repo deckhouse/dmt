@@ -83,7 +83,7 @@ func (r *BindingSubjectRule) ObjectBindingSubjectServiceAccountCheck(m *module.M
 				continue
 			}
 
-			if !r.StringRule.Enabled(subject.Name) {
+			if !r.Enabled(subject.Name) {
 				continue
 			}
 
