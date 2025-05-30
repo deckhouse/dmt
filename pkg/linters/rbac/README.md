@@ -18,5 +18,10 @@ linters-settings:
       placement:
         - kind: ClusterRole
           name: d8:rbac-proxy
+      # exclude binding subjects by name
+      binding-subject:
+        - cdi-sa
+        - kubevirt-internal-virtualization-controller
+        - kubevirt-internal-virtualization-handler
   impact: error
 ```

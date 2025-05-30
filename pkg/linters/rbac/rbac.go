@@ -52,7 +52,7 @@ func (l *Rbac) Run(m *module.Module) {
 
 	rules.NewUzerAuthZRule().
 		ObjectUserAuthzClusterRolePath(m, errorList)
-	rules.NewBindingSubjectRule().
+	rules.NewBindingSubjectRule(l.cfg.ExcludeRules.BindingSubject.Get()).
 		ObjectBindingSubjectServiceAccountCheck(m, errorList)
 	rules.NewPlacementRule(l.cfg.ExcludeRules.Placement.Get()).
 		ObjectRBACPlacement(m, errorList)

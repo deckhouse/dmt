@@ -30,16 +30,20 @@ const (
 	BindingSubjectRuleName = "binding-subject"
 )
 
-func NewBindingSubjectRule() *BindingSubjectRule {
+func NewBindingSubjectRule(excludeRules []pkg.StringRuleExclude) *BindingSubjectRule {
 	return &BindingSubjectRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: BindingSubjectRuleName,
+		},
+		StringRule: pkg.StringRule{
+			ExcludeRules: excludeRules,
 		},
 	}
 }
 
 type BindingSubjectRule struct {
 	pkg.RuleMeta
+	pkg.StringRule
 }
 
 func (r *BindingSubjectRule) ObjectBindingSubjectServiceAccountCheck(m *module.Module, errorList *errors.LintRuleErrorsList) {
@@ -76,6 +80,10 @@ func (r *BindingSubjectRule) ObjectBindingSubjectServiceAccountCheck(m *module.M
 
 		for _, subject := range subjects {
 			if subject.Kind != "ServiceAccount" {
+				continue
+			}
+
+			if !r.Enabled(subject.Name) {
 				continue
 			}
 
