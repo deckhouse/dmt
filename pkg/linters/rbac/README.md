@@ -18,7 +18,7 @@ linters-settings:
       placement:
         - kind: ClusterRole
           name: d8:rbac-proxy
-      # exlude binding-subject by ClusterRole name
+      # exclude binding subjects by name
       binding-subject:
         - cdi-sa
         - kubevirt-internal-virtualization-controller
