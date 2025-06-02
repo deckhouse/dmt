@@ -99,7 +99,7 @@ func TestGet(t *testing.T) {
 	require.Equal(t, "test content", content, "file content not matches: expected 'test content', got '%s'", content)
 
 	content = f.Get("base_images.yml")
-	require.Equal(t, "", content, "file content not matches: expected 'base images content', got '%s'", content)
+	require.Equal(t, "", content, "file content not matches: expected '', got '%s'", content)
 
 	defer func() {
 		if r := recover(); r == nil {
