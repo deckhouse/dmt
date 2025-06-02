@@ -46,6 +46,12 @@ func NewFiles(rootDir, moduleDir string) files {
 
 func (f files) Get(relPath string) string {
 	var res []byte
+	if relPath == "base_images.yml" || relPath == "base_images.yaml" {
+		// Special case for base_images.yaml, which is a file in the root directory
+		// and should not be looked for in the module directory.
+		return string(res)
+	}
+
 	res, err := os.ReadFile(filepath.Join(f.rootDir, relPath))
 	if err != nil {
 		panic(err.Error())
