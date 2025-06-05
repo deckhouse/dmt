@@ -12,7 +12,7 @@ func createTempFile(t *testing.T, content string) (string, func()) {
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "test.yaml")
 
-	err := os.WriteFile(filePath, []byte(content), 0644)
+	err := os.WriteFile(filePath, []byte(content), 0o600)
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}

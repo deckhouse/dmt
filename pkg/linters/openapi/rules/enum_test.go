@@ -3,9 +3,10 @@ package rules
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestEnumRule(t *testing.T) {
@@ -178,7 +179,7 @@ components:
 			if tt.wantErrors == nil {
 				assert.Empty(t, errs)
 			} else {
-				assert.Equal(t, len(tt.wantErrors), len(errs))
+				assert.Len(t, errs, len(tt.wantErrors))
 				for i, err := range errs {
 					assert.Contains(t, err.Text, tt.wantErrors[i])
 				}

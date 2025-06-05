@@ -55,7 +55,7 @@ func NewDeckhouseCRDsRule(cfg *config.OpenAPISettings, rootPath string) *Deckhou
 	}
 }
 
-func (r *DeckhouseCRDsRule) validateLabel(crd v1beta1.CustomResourceDefinition, labelName, expectedValue string, errorList *errors.LintRuleErrorsList, shortPath string) {
+func (*DeckhouseCRDsRule) validateLabel(crd *v1beta1.CustomResourceDefinition, labelName, expectedValue string, errorList *errors.LintRuleErrorsList, shortPath string) {
 	if value, ok := crd.Labels[labelName]; ok {
 		if value != expectedValue {
 			errorList.WithObjectID(fmt.Sprintf("kind = %s ; name = %s", crd.Kind, crd.Name)).
@@ -105,8 +105,8 @@ func (r *DeckhouseCRDsRule) Run(moduleName, path string, errorList *errors.LintR
 			continue
 		}
 
-		r.validateLabel(crd, "heritage", "deckhouse", errorList, shortPath)
-		r.validateLabel(crd, "module", moduleName, errorList, shortPath)
+		r.validateLabel(&crd, "heritage", "deckhouse", errorList, shortPath)
+		r.validateLabel(&crd, "module", moduleName, errorList, shortPath)
 	}
 }
 
