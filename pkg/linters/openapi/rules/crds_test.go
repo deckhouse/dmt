@@ -164,6 +164,31 @@ spec:
           type: object`,
 			wantErrors: []string{`CRD should contain "module = test-module" label, but got "module = wrong-module"`},
 		},
+		{
+			name:       "excluded CRD name",
+			moduleName: "test-module",
+			content: `apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: excluded.deckhouse.io
+  labels:
+    heritage: deckhouse
+    module: wrong-module
+spec:
+  group: deckhouse.io
+  names:
+    kind: Test
+    plural: tests
+  scope: Cluster
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object`,
+			wantErrors: nil,
+		},
 	}
 
 	for _, tt := range tests {
@@ -171,7 +196,12 @@ spec:
 			filePath, cleanup := createTempFile(t, tt.content)
 			defer cleanup()
 
-			rule := NewDeckhouseCRDsRule(&config.OpenAPISettings{}, "test")
+			cfg := &config.OpenAPISettings{}
+			if tt.name == "excluded CRD name" {
+				cfg.OpenAPIExcludeRules.CRDNamesExcludes = []string{"excluded.deckhouse.io"}
+			}
+
+			rule := NewDeckhouseCRDsRule(cfg, "test")
 			errorList := errors.NewLintRuleErrorsList()
 			rule.Run(tt.moduleName, filePath, errorList)
 
