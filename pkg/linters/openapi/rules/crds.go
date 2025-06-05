@@ -55,6 +55,22 @@ func NewDeckhouseCRDsRule(cfg *config.OpenAPISettings, rootPath string) *Deckhou
 	}
 }
 
+func (r *DeckhouseCRDsRule) validateLabel(crd v1beta1.CustomResourceDefinition, labelName, expectedValue string, errorList *errors.LintRuleErrorsList, shortPath string) {
+	if value, ok := crd.Labels[labelName]; ok {
+		if value != expectedValue {
+			errorList.WithObjectID(fmt.Sprintf("kind = %s ; name = %s", crd.Kind, crd.Name)).
+				WithFilePath(shortPath).
+				WithValue(fmt.Sprintf("%s = %s", labelName, value)).
+				Errorf(`CRD should contain "%s = %s" label, but got "%s = %s"`, labelName, expectedValue, labelName, value)
+		}
+	} else {
+		errorList.WithObjectID(fmt.Sprintf("kind = %s ; name = %s", crd.Kind, crd.Name)).
+			WithFilePath(shortPath).
+			WithValue(fmt.Sprintf("%s = %s", labelName, expectedValue)).
+			Errorf(`CRD should contain "%s = %s" label`, labelName, expectedValue)
+	}
+}
+
 func (r *DeckhouseCRDsRule) Run(moduleName, path string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
@@ -71,7 +87,6 @@ func (r *DeckhouseCRDsRule) Run(moduleName, path string, errorList *errors.LintR
 
 		if err := yaml.Unmarshal([]byte(d), &crd); err != nil {
 			errorList.Errorf("Can't parse manifests in %s folder: %s", CrdsDir, err)
-
 			continue
 		}
 
@@ -90,33 +105,8 @@ func (r *DeckhouseCRDsRule) Run(moduleName, path string, errorList *errors.LintR
 			continue
 		}
 
-		if heritage, ok := crd.Labels["heritage"]; ok {
-			if heritage != "deckhouse" {
-				errorList.WithObjectID(fmt.Sprintf("kind = %s ; name = %s", crd.Kind, crd.Name)).
-					WithFilePath(shortPath).
-					WithValue("heritage = "+heritage).
-					Errorf(`CRD should contain "heritage = deckhouse" label, but got "heritage = %s"`, heritage)
-			}
-		} else {
-			errorList.WithObjectID(fmt.Sprintf("kind = %s ; name = %s", crd.Kind, crd.Name)).
-				WithFilePath(shortPath).
-				WithValue("heritage = deckhouse").
-				Errorf(`CRD should contain "heritage = deckhouse" label`)
-		}
-
-		if name, ok := crd.Labels["module"]; ok {
-			if name != moduleName {
-				errorList.WithObjectID(fmt.Sprintf("kind = %s ; name = %s", crd.Kind, crd.Name)).
-					WithFilePath(shortPath).
-					WithValue("module = "+name).
-					Errorf(`CRD should contain "module = %s" label, but got "module = %s"`, moduleName, name)
-			}
-		} else {
-			errorList.WithObjectID(fmt.Sprintf("kind = %s ; name = %s", crd.Kind, crd.Name)).
-				WithFilePath(shortPath).
-				WithValue("module = "+moduleName).
-				Errorf(`CRD should contain "module = %s" label`, moduleName)
-		}
+		r.validateLabel(crd, "heritage", "deckhouse", errorList, shortPath)
+		r.validateLabel(crd, "module", moduleName, errorList, shortPath)
 	}
 }
 
