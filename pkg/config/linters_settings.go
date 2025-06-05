@@ -149,6 +149,7 @@ type OpenAPIExcludeRules struct {
 	KeyBannedNames         []string              `mapstructure:"key-banned-names"`
 	EnumFileExcludes       []string              `mapstructure:"enum"`
 	HAAbsoluteKeysExcludes StringRuleExcludeList `mapstructure:"ha-absolute-keys"`
+	CRDNamesExcludes       StringRuleExcludeList `mapstructure:"crd-names"`
 }
 
 type RbacSettings struct {

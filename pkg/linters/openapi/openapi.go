@@ -60,7 +60,7 @@ func (o *OpenAPI) Run(m *module.Module) {
 
 	// check only CRDs files
 	crdFiles := fsutils.GetFiles(m.GetPath(), true, filterCRDsfiles)
-	crdValidator := rules.NewDeckhouseCRDsRule(m.GetPath())
+	crdValidator := rules.NewDeckhouseCRDsRule(o.cfg, m.GetPath())
 	keyValidator := rules.NewKeysRule(o.cfg, m.GetPath())
 	for _, file := range crdFiles {
 		enumValidator.Run(file, errorLists)
