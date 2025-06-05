@@ -174,12 +174,12 @@ spec:
 			errorList := errors.NewLintRuleErrorsList()
 			rule.Run(tt.moduleName, filePath, errorList)
 
-			errors := errorList.GetErrors()
+			errs := errorList.GetErrors()
 			if tt.wantErrors == nil {
-				assert.Empty(t, errors)
+				assert.Empty(t, errs)
 			} else {
-				assert.Equal(t, len(tt.wantErrors), len(errors))
-				for i, err := range errors {
+				assert.Equal(t, len(tt.wantErrors), len(errs))
+				for i, err := range errs {
 					assert.Contains(t, err.Text, tt.wantErrors[i])
 				}
 			}
