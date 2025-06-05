@@ -66,7 +66,7 @@ func (o *OpenAPI) Run(m *module.Module) {
 		enumValidator.Run(file, errorLists)
 		haValidator.Run(file, errorLists)
 		keyValidator.Run(file, errorLists)
-		crdValidator.Run(file, errorLists)
+		crdValidator.Run(m.GetName(), file, errorLists)
 	}
 }
 

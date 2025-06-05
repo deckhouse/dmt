@@ -50,7 +50,7 @@ func NewDeckhouseCRDsRule(rootPath string) *DeckhouseCRDsRule {
 	}
 }
 
-func (r *DeckhouseCRDsRule) Run(path string, errorList *errors.LintRuleErrorsList) {
+func (r *DeckhouseCRDsRule) Run(moduleName, path string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
 	shortPath, _ := filepath.Rel(r.rootPath, path)
@@ -79,6 +79,34 @@ func (r *DeckhouseCRDsRule) Run(path string, errorList *errors.LintRuleErrorsLis
 				WithFilePath(shortPath).
 				WithValue(crd.APIVersion).
 				Errorf(`CRD specified using deprecated api version, wanted "apiextensions.k8s.io/v1"`)
+		}
+
+		if heritage, ok := crd.Labels["heritage"]; ok {
+			if heritage != "deckhouse" {
+				errorList.WithObjectID(fmt.Sprintf("kind = %s ; name = %s", crd.Kind, crd.Name)).
+					WithFilePath(shortPath).
+					WithValue("heritage = "+heritage).
+					Errorf(`CRD should contain "heritage = deckhouse" label, but got "heritage = %s"`, heritage)
+			}
+		} else {
+			errorList.WithObjectID(fmt.Sprintf("kind = %s ; name = %s", crd.Kind, crd.Name)).
+				WithFilePath(shortPath).
+				WithValue("heritage = deckhouse").
+				Errorf(`CRD should contain "heritage = deckhouse" label`)
+		}
+
+		if name, ok := crd.Labels["module"]; ok {
+			if name != moduleName {
+				errorList.WithObjectID(fmt.Sprintf("kind = %s ; name = %s", crd.Kind, crd.Name)).
+					WithFilePath(shortPath).
+					WithValue("module = "+name).
+					Errorf(`CRD should contain "module = %s" label, but got "module = %s"`, moduleName, name)
+			}
+		} else {
+			errorList.WithObjectID(fmt.Sprintf("kind = %s ; name = %s", crd.Kind, crd.Name)).
+				WithFilePath(shortPath).
+				WithValue("module = "+moduleName).
+				Errorf(`CRD should contain "module = %s" label`, moduleName)
 		}
 	}
 }
