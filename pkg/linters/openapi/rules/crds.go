@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/deckhouse/dmt/pkg"
+	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -32,6 +33,7 @@ import (
 
 type DeckhouseCRDsRule struct {
 	pkg.RuleMeta
+	pkg.StringRule
 	rootPath string
 }
 
@@ -41,16 +43,35 @@ var (
 	sep = regexp.MustCompile("(?:^|\\s*\n)---\\s*")
 )
 
-func NewDeckhouseCRDsRule(rootPath string) *DeckhouseCRDsRule {
+func NewDeckhouseCRDsRule(cfg *config.OpenAPISettings, rootPath string) *DeckhouseCRDsRule {
 	return &DeckhouseCRDsRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: "deckhouse-crds",
+		},
+		StringRule: pkg.StringRule{
+			ExcludeRules: cfg.OpenAPIExcludeRules.CRDNamesExcludes.Get(),
 		},
 		rootPath: rootPath,
 	}
 }
 
-func (r *DeckhouseCRDsRule) Run(path string, errorList *errors.LintRuleErrorsList) {
+func (*DeckhouseCRDsRule) validateLabel(crd *v1beta1.CustomResourceDefinition, labelName, expectedValue string, errorList *errors.LintRuleErrorsList, shortPath string) {
+	if value, ok := crd.Labels[labelName]; ok {
+		if value != expectedValue {
+			errorList.WithObjectID(fmt.Sprintf("kind = %s ; name = %s", crd.Kind, crd.Name)).
+				WithFilePath(shortPath).
+				WithValue(fmt.Sprintf("%s = %s", labelName, value)).
+				Errorf(`CRD should contain "%s = %s" label, but got "%s = %s"`, labelName, expectedValue, labelName, value)
+		}
+	} else {
+		errorList.WithObjectID(fmt.Sprintf("kind = %s ; name = %s", crd.Kind, crd.Name)).
+			WithFilePath(shortPath).
+			WithValue(fmt.Sprintf("%s = %s", labelName, expectedValue)).
+			Errorf(`CRD should contain "%s = %s" label`, labelName, expectedValue)
+	}
+}
+
+func (r *DeckhouseCRDsRule) Run(moduleName, path string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
 	shortPath, _ := filepath.Rel(r.rootPath, path)
@@ -66,7 +87,6 @@ func (r *DeckhouseCRDsRule) Run(path string, errorList *errors.LintRuleErrorsLis
 
 		if err := yaml.Unmarshal([]byte(d), &crd); err != nil {
 			errorList.Errorf("Can't parse manifests in %s folder: %s", CrdsDir, err)
-
 			continue
 		}
 
@@ -80,6 +100,13 @@ func (r *DeckhouseCRDsRule) Run(path string, errorList *errors.LintRuleErrorsLis
 				WithValue(crd.APIVersion).
 				Errorf(`CRD specified using deprecated api version, wanted "apiextensions.k8s.io/v1"`)
 		}
+
+		if !r.Enabled(crd.Name) {
+			continue
+		}
+
+		r.validateLabel(&crd, "heritage", "deckhouse", errorList, shortPath)
+		r.validateLabel(&crd, "module", moduleName, errorList, shortPath)
 	}
 }
 

@@ -72,7 +72,19 @@ func (kn keyValidator) run(absoluteKey string, value any) error {
 	}
 
 	rv := reflect.ValueOf(value)
-	if rv.Kind() == reflect.Map {
+	switch rv.Kind() {
+	case reflect.Slice:
+		for i := range rv.Len() {
+			item := rv.Index(i).Interface()
+			if strKey, ok := item.(string); ok {
+				for _, ban := range kn.bannedNames {
+					if strKey == ban {
+						return fmt.Errorf("%s is invalid name for property %s", ban, strKey)
+					}
+				}
+			}
+		}
+	case reflect.Map:
 		m := make(map[any]any)
 		for _, key := range rv.MapKeys() {
 			v := rv.MapIndex(key)

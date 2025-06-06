@@ -19,6 +19,9 @@ linters-settings:
         - "properties.storageClass.properties.provision.items.properties.type"
       key-banned-names:
         - "properties.storageClass.properties.provision.items.properties.type"
+      crd-names:
+        - projects.deckhouse.io
+        - projecttemplates.deckhouse.io
     impact: error
 ```
 
