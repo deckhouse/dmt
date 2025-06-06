@@ -72,7 +72,8 @@ func (kn keyValidator) run(absoluteKey string, value any) error {
 	}
 
 	rv := reflect.ValueOf(value)
-	if rv.Kind() == reflect.Slice {
+	switch rv.Kind() {
+	case reflect.Slice:
 		for i := range rv.Len() {
 			item := rv.Index(i).Interface()
 			if strKey, ok := item.(string); ok {
@@ -83,7 +84,7 @@ func (kn keyValidator) run(absoluteKey string, value any) error {
 				}
 			}
 		}
-	} else if rv.Kind() == reflect.Map {
+	case reflect.Map:
 		m := make(map[any]any)
 		for _, key := range rv.MapKeys() {
 			v := rv.MapIndex(key)
