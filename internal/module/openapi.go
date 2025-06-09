@@ -213,13 +213,22 @@ func parseDefault(key string, prop *spec.Schema, extension string, result map[st
 			return nil
 		}
 		slice, isSlice := def.([]any)
-		if !isSlice {
-			return nil
+		if isSlice {
+			if len(slice) == 0 {
+				return nil
+			}
+			def = slice[0]
+		} else {
+			mapSlice, isMapSlice := def.([]map[string]any)
+			if isMapSlice {
+				if len(mapSlice) == 0 {
+					return nil
+				}
+				def = mapSlice[0]
+			} else {
+				return nil
+			}
 		}
-		if len(slice) == 0 {
-			return nil
-		}
-		def = slice[0]
 	}
 	ex, ok := def.(map[string]any)
 	if !ok {
@@ -235,12 +244,9 @@ func parseDefault(key string, prop *spec.Schema, extension string, result map[st
 			return err
 		}
 		result[key] = t
-
 		return nil
 	}
-
 	result[key] = def
-
 	return nil
 }
 
