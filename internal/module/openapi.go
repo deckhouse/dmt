@@ -226,6 +226,7 @@ func parseDefault(key string, prop *spec.Schema, extension string, result map[st
 				}
 				def = mapSlice[0]
 			} else {
+				// Skip non-slice and non-map-slice default values as they are not supported in this context
 				return nil
 			}
 		}
