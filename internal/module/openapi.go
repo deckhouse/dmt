@@ -209,8 +209,10 @@ func parseDefault(key string, prop *spec.Schema, extension string, result map[st
 	if !ok {
 		return nil
 	}
-	// if we have multiple examples, we take the first one
 	if extension == ExamplesDefault {
+		if def == nil {
+			return nil
+		}
 		if reflect.TypeOf(def).Kind() != reflect.Slice {
 			return nil
 		}

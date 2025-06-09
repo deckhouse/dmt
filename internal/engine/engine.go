@@ -216,6 +216,14 @@ func (e Engine) initFuncMap(t *template.Template) {
 	t.Funcs(funcMap)
 }
 
+// getRenderedContent returns the rendered content from the buffer with "<no value>" replaced
+func getRenderedContent(buf strings.Builder) string {
+	if buf.Len() == 0 {
+		return ""
+	}
+	return strings.ReplaceAll(buf.String(), "<no value>", "")
+}
+
 // render takes a map of templates/values and renders them.
 //
 //nolint:nonamedreturns // copy from helm
@@ -281,12 +289,7 @@ func (e Engine) render(tpls map[string]renderable) (rendered map[string]string, 
 
 			if e.LintMode && isRecoverableNilError {
 				logger.ErrorF("[LINT] Template %s encountered a nil pointer access during execution: %v. Using partially rendered output.", filename, executeErr)
-				// Use the content of the buffer as is (output before the error), then replace "<no value>"
-				if buf.Len() > 0 {
-					rendered[filename] = strings.ReplaceAll(buf.String(), "<no value>", "")
-				} else {
-					rendered[filename] = ""
-				}
+				rendered[filename] = getRenderedContent(buf)
 			} else {
 				// For other errors, or if not in LintMode, this is a hard error.
 				return map[string]string{}, cleanupExecError(filename, executeErr)
@@ -296,11 +299,7 @@ func (e Engine) render(tpls map[string]renderable) (rendered map[string]string, 
 			// Work around the issue where Go will emit "<no value>" even if Options(missing=zero)
 			// is set. Since missing=error will never get here, we do not need to handle
 			// the Strict case.
-			if buf.Len() > 0 {
-				rendered[filename] = strings.ReplaceAll(buf.String(), "<no value>", "")
-			} else {
-				rendered[filename] = ""
-			}
+			rendered[filename] = getRenderedContent(buf)
 		}
 	}
 
