@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -298,5 +299,50 @@ Sub: ` + expectedSubOutput
 
 	if got := out["main-chart/templates/main.yaml"]; got != expectedMainOutput {
 		t.Errorf("Rendered main chart content does not match. Expected %q, got %q", expectedMainOutput, got)
+	}
+}
+
+func TestGetRenderedContent(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "empty buffer",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "buffer with no value",
+			input:    "<no value>",
+			expected: "",
+		},
+		{
+			name:     "buffer with multiple no values",
+			input:    "prefix <no value> suffix <no value>",
+			expected: "prefix  suffix ",
+		},
+		{
+			name:     "buffer with normal content",
+			input:    "normal content",
+			expected: "normal content",
+		},
+		{
+			name:     "buffer with mixed content",
+			input:    "normal <no value> content",
+			expected: "normal  content",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf strings.Builder
+			buf.WriteString(tt.input)
+			result := getRenderedContent(buf)
+			if result != tt.expected {
+				t.Errorf("getRenderedContent() = %q, want %q", result, tt.expected)
+			}
+		})
 	}
 }

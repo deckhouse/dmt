@@ -18,7 +18,6 @@ package module
 
 import (
 	"fmt"
-	"reflect"
 
 	"dario.cat/mergo"
 	"github.com/go-openapi/spec"
@@ -213,14 +212,14 @@ func parseDefault(key string, prop *spec.Schema, extension string, result map[st
 		if def == nil {
 			return nil
 		}
-		if reflect.TypeOf(def).Kind() != reflect.Slice {
+		slice, ok := def.([]any)
+		if !ok {
 			return nil
 		}
-		slice := reflect.ValueOf(def)
-		if slice.Len() == 0 {
+		if len(slice) == 0 {
 			return nil
 		}
-		def = slice.Index(0).Interface()
+		def = slice[0]
 	}
 	ex, ok := def.(map[string]any)
 	if !ok {
