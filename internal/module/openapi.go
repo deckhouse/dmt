@@ -212,8 +212,8 @@ func parseDefault(key string, prop *spec.Schema, extension string, result map[st
 		if def == nil {
 			return nil
 		}
-		slice, ok := def.([]any)
-		if !ok {
+		slice, isSlice := def.([]any)
+		if !isSlice {
 			return nil
 		}
 		if len(slice) == 0 {
