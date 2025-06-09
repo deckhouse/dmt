@@ -67,7 +67,7 @@ func newKeyValidator(cfg *config.OpenAPISettings) keyValidator {
 
 func (kn keyValidator) run(absoluteKey string, value any) error {
 	parts := strings.Split(absoluteKey, ".")
-	if len(parts) == 0 || parts[len(parts)-1] != "enum" {
+	if parts[len(parts)-1] != "enum" {
 		return nil
 	}
 
