@@ -214,7 +214,11 @@ func parseDefault(key string, prop *spec.Schema, extension string, result map[st
 		if reflect.TypeOf(def).Kind() != reflect.Slice {
 			return nil
 		}
-		def = reflect.ValueOf(def).Index(0).Interface()
+		slice := reflect.ValueOf(def)
+		if slice.Len() == 0 {
+			return nil
+		}
+		def = slice.Index(0).Interface()
 	}
 	ex, ok := def.(map[string]any)
 	if !ok {
