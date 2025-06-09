@@ -339,7 +339,7 @@ func TestGetRenderedContent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var buf strings.Builder
 			buf.WriteString(tt.input)
-			result := getRenderedContent(buf)
+			result := getRenderedContent(&buf)
 			if result != tt.expected {
 				t.Errorf("getRenderedContent() = %q, want %q", result, tt.expected)
 			}
