@@ -105,7 +105,6 @@ func (r *DeckhouseCRDsRule) Run(moduleName, path string, errorList *errors.LintR
 			continue
 		}
 
-		r.validateLabel(&crd, "heritage", "deckhouse", errorList, shortPath)
 		r.validateLabel(&crd, "module", moduleName, errorList, shortPath)
 	}
 }
