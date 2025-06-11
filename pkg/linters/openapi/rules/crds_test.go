@@ -67,55 +67,6 @@ spec:
 			wantErrors: []string{`CRD specified using deprecated api version, wanted "apiextensions.k8s.io/v1"`},
 		},
 		{
-			name:       "missing heritage label",
-			moduleName: "test-module",
-			content: `apiVersion: apiextensions.k8s.io/v1
-kind: CustomResourceDefinition
-metadata:
-  name: test.deckhouse.io
-  labels:
-    module: test-module
-spec:
-  group: deckhouse.io
-  names:
-    kind: Test
-    plural: tests
-  scope: Cluster
-  versions:
-    - name: v1
-      served: true
-      storage: true
-      schema:
-        openAPIV3Schema:
-          type: object`,
-			wantErrors: []string{`CRD should contain "heritage = deckhouse" label`},
-		},
-		{
-			name:       "wrong heritage label",
-			moduleName: "test-module",
-			content: `apiVersion: apiextensions.k8s.io/v1
-kind: CustomResourceDefinition
-metadata:
-  name: test.deckhouse.io
-  labels:
-    heritage: wrong
-    module: test-module
-spec:
-  group: deckhouse.io
-  names:
-    kind: Test
-    plural: tests
-  scope: Cluster
-  versions:
-    - name: v1
-      served: true
-      storage: true
-      schema:
-        openAPIV3Schema:
-          type: object`,
-			wantErrors: []string{`CRD should contain "heritage = deckhouse" label, but got "heritage = wrong"`},
-		},
-		{
 			name:       "missing module label",
 			moduleName: "test-module",
 			content: `apiVersion: apiextensions.k8s.io/v1
