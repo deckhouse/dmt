@@ -22,21 +22,20 @@ import (
 	"testing"
 
 	"github.com/Masterminds/semver/v3"
-	"github.com/deckhouse/dmt/pkg"
-	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/deckhouse/dmt/pkg"
+	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 func TestNewRequirementsRule(t *testing.T) {
 	tests := []struct {
 		name     string
-		disable  bool
 		expected *RequirementsRule
 	}{
 		{
-			name:    "create rule with disable=false",
-			disable: false,
+			name: "create rule",
 			expected: &RequirementsRule{
 				RuleMeta: pkg.RuleMeta{
 					Name: RequirementsRuleName,
@@ -44,8 +43,7 @@ func TestNewRequirementsRule(t *testing.T) {
 			},
 		},
 		{
-			name:    "create rule with disable=true",
-			disable: true,
+			name: "create rule",
 			expected: &RequirementsRule{
 				RuleMeta: pkg.RuleMeta{
 					Name: RequirementsRuleName,
@@ -56,7 +54,7 @@ func TestNewRequirementsRule(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := NewRequirementsRule(tt.disable)
+			result := NewRequirementsRule()
 			assert.Equal(t, tt.expected, result)
 			assert.Equal(t, RequirementsRuleName, result.GetName())
 		})
@@ -77,7 +75,7 @@ func TestRequirementsRule_CheckRequirements(t *testing.T) {
 		{
 			name:       "module.yaml does not exist",
 			modulePath: tempDir,
-			setupFiles: func(path string) error {
+			setupFiles: func(_ string) error {
 				// Don't create any files
 				return nil
 			},
@@ -88,7 +86,7 @@ func TestRequirementsRule_CheckRequirements(t *testing.T) {
 			modulePath: tempDir,
 			setupFiles: func(path string) error {
 				content := `invalid: yaml: content: [`
-				return os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(content), 0644)
+				return os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(content), 0600)
 			},
 			expectedErrors: []string{
 				"Cannot parse file \"module.yaml\"",
@@ -100,7 +98,7 @@ func TestRequirementsRule_CheckRequirements(t *testing.T) {
 			setupFiles: func(path string) error {
 				content := `name: test-module
 namespace: test`
-				return os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(content), 0644)
+				return os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(content), 0600)
 			},
 			expectedErrors: []string{},
 		},
@@ -111,7 +109,7 @@ namespace: test`
 				content := `name: test-module
 namespace: test
 stage: "General Availability"`
-				return os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(content), 0644)
+				return os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(content), 0600)
 			},
 			expectedErrors: []string{
 				"stage should be used with requirements: deckhouse >= 1.68.0",
@@ -126,7 +124,7 @@ namespace: test
 stage: "General Availability"
 requirements:
   deckhouse: ">= 1.68.0"`
-				return os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(content), 0644)
+				return os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(content), 0600)
 			},
 			expectedErrors: []string{},
 		},
@@ -139,7 +137,7 @@ namespace: test
 stage: "General Availability"
 requirements:
   deckhouse: "invalid-constraint"`
-				return os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(content), 0644)
+				return os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(content), 0600)
 			},
 			expectedErrors: []string{
 				"invalid deckhouse version constraint: invalid-constraint",
@@ -154,7 +152,7 @@ namespace: test
 stage: "General Availability"
 requirements:
   deckhouse: ">= 1.67.0"`
-				return os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(content), 0644)
+				return os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(content), 0600)
 			},
 			expectedErrors: []string{
 				"requirements: deckhouse range should start no lower than 1.68.0 (currently: 1.67.0)",
@@ -169,7 +167,7 @@ namespace: test
 stage: "General Availability"
 requirements:
   deckhouse: ">= 1.68.0, < 2.0.0"`
-				return os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(content), 0644)
+				return os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(content), 0600)
 			},
 			expectedErrors: []string{},
 		},
@@ -182,7 +180,7 @@ namespace: test
 stage: "General Availability"
 requirements:
   deckhouse: "= 1.68.0"`
-				return os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(content), 0644)
+				return os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(content), 0600)
 			},
 			expectedErrors: []string{},
 		},
@@ -195,7 +193,7 @@ namespace: test
 stage: "General Availability"
 requirements:
   deckhouse: "> 1.68.0"`
-				return os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(content), 0644)
+				return os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(content), 0600)
 			},
 			expectedErrors: []string{},
 		},
@@ -210,7 +208,7 @@ requirements:
 			}
 
 			// Create rule and error list
-			rule := NewRequirementsRule(false)
+			rule := NewRequirementsRule()
 			errorList := errors.NewLintRuleErrorsList()
 
 			// Run the check
@@ -221,12 +219,12 @@ requirements:
 				assert.False(t, errorList.ContainsErrors(), "Expected no errors but got: %v", errorList.GetErrors())
 			} else {
 				assert.True(t, errorList.ContainsErrors(), "Expected errors but got none")
-				errors := errorList.GetErrors()
-				assert.Len(t, errors, len(tt.expectedErrors), "Expected %d errors, got %d", len(tt.expectedErrors), len(errors))
+				errs := errorList.GetErrors()
+				assert.Len(t, errs, len(tt.expectedErrors), "Expected %d errors, got %d", len(tt.expectedErrors), len(errs))
 
 				for i, expectedError := range tt.expectedErrors {
-					if i < len(errors) {
-						assert.Contains(t, errors[i].Text, expectedError, "Error %d should contain '%s'", i, expectedError)
+					if i < len(errs) {
+						assert.Contains(t, errs[i].Text, expectedError, "Error %d should contain '%s'", i, expectedError)
 					}
 				}
 			}
@@ -427,12 +425,12 @@ func Test_checkStage(t *testing.T) {
 				assert.False(t, errorList.ContainsErrors(), "Expected no errors but got: %v", errorList.GetErrors())
 			} else {
 				assert.True(t, errorList.ContainsErrors(), "Expected errors but got none")
-				errors := errorList.GetErrors()
-				assert.Len(t, errors, len(tt.expectedErrors), "Expected %d errors, got %d", len(tt.expectedErrors), len(errors))
+				errs := errorList.GetErrors()
+				assert.Len(t, errs, len(tt.expectedErrors), "Expected %d errors, got %d", len(tt.expectedErrors), len(errs))
 
 				for i, expectedError := range tt.expectedErrors {
-					if i < len(errors) {
-						assert.Contains(t, errors[i].Text, expectedError, "Error %d should contain '%s'", i, expectedError)
+					if i < len(errs) {
+						assert.Contains(t, errs[i].Text, expectedError, "Error %d should contain '%s'", i, expectedError)
 					}
 				}
 			}
@@ -553,7 +551,7 @@ func Test_getDeckhouseModule(t *testing.T) {
 		{
 			name:       "module.yaml does not exist",
 			modulePath: tempDir,
-			setupFiles: func(path string) error {
+			setupFiles: func(_ string) error {
 				// Don't create any files
 				return nil
 			},
@@ -565,7 +563,7 @@ func Test_getDeckhouseModule(t *testing.T) {
 			modulePath: tempDir,
 			setupFiles: func(path string) error {
 				content := `invalid: yaml: content: [`
-				return os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(content), 0644)
+				return os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(content), 0600)
 			},
 			expectedErrors: []string{
 				"Cannot parse file \"module.yaml\"",
@@ -581,7 +579,7 @@ namespace: test
 stage: "General Availability"
 requirements:
   deckhouse: ">= 1.68.0"`
-				return os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(content), 0644)
+				return os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(content), 0600)
 			},
 			expectedErrors: []string{},
 			expectedModule: &DeckhouseModule{
@@ -600,7 +598,7 @@ requirements:
 			modulePath: tempDir,
 			setupFiles: func(path string) error {
 				content := `name: test-module`
-				return os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(content), 0644)
+				return os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(content), 0600)
 			},
 			expectedErrors: []string{},
 			expectedModule: &DeckhouseModule{
@@ -646,12 +644,12 @@ requirements:
 				assert.False(t, errorList.ContainsErrors(), "Expected no errors but got: %v", errorList.GetErrors())
 			} else {
 				assert.True(t, errorList.ContainsErrors(), "Expected errors but got none")
-				errors := errorList.GetErrors()
-				assert.Len(t, errors, len(tt.expectedErrors), "Expected %d errors, got %d", len(tt.expectedErrors), len(errors))
+				errs := errorList.GetErrors()
+				assert.Len(t, errs, len(tt.expectedErrors), "Expected %d errors, got %d", len(tt.expectedErrors), len(errs))
 
 				for i, expectedError := range tt.expectedErrors {
-					if i < len(errors) {
-						assert.Contains(t, errors[i].Text, expectedError, "Error %d should contain '%s'", i, expectedError)
+					if i < len(errs) {
+						assert.Contains(t, errs[i].Text, expectedError, "Error %d should contain '%s'", i, expectedError)
 					}
 				}
 			}

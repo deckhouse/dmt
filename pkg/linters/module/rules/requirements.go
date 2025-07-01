@@ -23,9 +23,10 @@ import (
 	"regexp"
 
 	"github.com/Masterminds/semver/v3"
+	"sigs.k8s.io/yaml"
+
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"sigs.k8s.io/yaml"
 )
 
 const (
@@ -34,7 +35,7 @@ const (
 	MinimalDeckhouseVersionForStage = "1.68.0"
 )
 
-func NewRequirementsRule(disable bool) *RequirementsRule {
+func NewRequirementsRule() *RequirementsRule {
 	return &RequirementsRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: RequirementsRuleName,
@@ -90,22 +91,22 @@ func checkStage(module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
 
 // findMinimalAllowedVersion finds the minimum allowed version among all >=, >, = in the constraint string
 func findMinimalAllowedVersion(constraint *semver.Constraints) *semver.Version {
-	pattern := regexp.MustCompile(`([><=]=?)\s*v?([0-9]+\.[0-9]+\.[0-9]+)`) // finds >= 1.2.3, > 1.2.3, = 1.2.3
+	pattern := regexp.MustCompile(`([><=]=?)\s*v?(\d+\.\d+\.\d+)`) // finds >= 1.2.3, > 1.2.3, = 1.2.3
 	matches := pattern.FindAllStringSubmatch(constraint.String(), -1)
-	var min *semver.Version
+	var minVersion *semver.Version
 	for _, m := range matches {
 		op := m[1]
 		verStr := m[2]
 		if op == ">=" || op == ">" || op == "=" {
 			v, err := semver.NewVersion(verStr)
 			if err == nil {
-				if min == nil || v.LessThan(min) {
-					min = v
+				if minVersion == nil || v.LessThan(minVersion) {
+					minVersion = v
 				}
 			}
 		}
 	}
-	return min
+	return minVersion
 }
 
 // getDeckhouseModule parse module.yaml file and return DeckhouseModule struct
