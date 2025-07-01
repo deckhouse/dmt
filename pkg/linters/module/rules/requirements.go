@@ -20,8 +20,9 @@ import (
 	errs "errors"
 	"os"
 	"path/filepath"
+	"regexp"
 
-	semver "github.com/blang/semver/v4"
+	"github.com/Masterminds/semver/v3"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"sigs.k8s.io/yaml"
@@ -29,6 +30,8 @@ import (
 
 const (
 	RequirementsRuleName = "requirements"
+	// MinimalDeckhouseVersionForStage defines the minimum required Deckhouse version for stage usage
+	MinimalDeckhouseVersionForStage = "1.68.0"
 )
 
 func NewRequirementsRule(disable bool) *RequirementsRule {
@@ -61,24 +64,48 @@ func checkStage(module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
 	}
 
 	if module.Requirements == nil || module.Requirements.Deckhouse == "" {
-		errorList.Errorf("stage should be used with requirements: deckhouse >= 1.68")
+		errorList.Errorf("stage should be used with requirements: deckhouse >= %s", MinimalDeckhouseVersionForStage)
 
 		return
 	}
 
-	// deckhouse range contains string like `>= 1.68`, we should parse it as semver
-	deckhouseRange, err := semver.ParseRange(module.Requirements.Deckhouse)
+	// Parse the constraint from requirements
+	constraint, err := semver.NewConstraint(module.Requirements.Deckhouse)
 	if err != nil {
-		errorList.Errorf("invalid deckhouse version: %s", module.Requirements.Deckhouse)
+		errorList.Errorf("invalid deckhouse version constraint: %s", module.Requirements.Deckhouse)
 
 		return
 	}
 
-	if !deckhouseRange(semver.MustParse("1.68.0")) {
-		errorList.Errorf("stage should be used with requirements: deckhouse >= 1.68")
+	// Parse the minimal required version
+	minimalVersion := semver.MustParse(MinimalDeckhouseVersionForStage)
 
-		return
+	// Check that the minimum allowed version in the range is not less than MinimalDeckhouseVersionForStage
+	// For this we find the minimum lower bound among all ranges
+	minAllowed := findMinimalAllowedVersion(constraint)
+	if minAllowed != nil && minAllowed.LessThan(minimalVersion) {
+		errorList.Errorf("requirements: deckhouse range should start no lower than %s (currently: %s)", MinimalDeckhouseVersionForStage, minAllowed.String())
 	}
+}
+
+// findMinimalAllowedVersion finds the minimum allowed version among all >=, >, = in the constraint string
+func findMinimalAllowedVersion(constraint *semver.Constraints) *semver.Version {
+	pattern := regexp.MustCompile(`([><=]=?)\s*v?([0-9]+\.[0-9]+\.[0-9]+)`) // finds >= 1.2.3, > 1.2.3, = 1.2.3
+	matches := pattern.FindAllStringSubmatch(constraint.String(), -1)
+	var min *semver.Version
+	for _, m := range matches {
+		op := m[1]
+		verStr := m[2]
+		if op == ">=" || op == ">" || op == "=" {
+			v, err := semver.NewVersion(verStr)
+			if err == nil {
+				if min == nil || v.LessThan(min) {
+					min = v
+				}
+			}
+		}
+	}
+	return min
 }
 
 // getDeckhouseModule parse module.yaml file and return DeckhouseModule struct
@@ -101,14 +128,14 @@ func getDeckhouseModule(modulePath string, errorList *errors.LintRuleErrorsList)
 		return nil, err
 	}
 
-	var yml *DeckhouseModule
+	var yml DeckhouseModule
 
-	err = yaml.Unmarshal(yamlFile, yml)
+	err = yaml.Unmarshal(yamlFile, &yml)
 	if err != nil {
 		errorList.Errorf("Cannot parse file %q: %s", ModuleConfigFilename, err)
 
 		return nil, err
 	}
 
-	return yml, nil
+	return &yml, nil
 }
