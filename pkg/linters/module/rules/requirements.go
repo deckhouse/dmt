@@ -95,8 +95,8 @@ func NewRequirementsRegistry() *RequirementsRegistry {
 			if len(goModFiles) == 0 {
 				return false
 			}
-			// Check that there's no module-sdk >= 0.3
-			return !hasModuleSDK03(modulePath) && !hasReadinessProbes(modulePath)
+			// Check that there's no module-sdk >= 0.3 and there are app.Run calls
+			return !hasModuleSDK03(modulePath) && !hasReadinessProbes(modulePath) && hasAppRunCalls(modulePath)
 		},
 		ErrorMessage: "requirements: for using go_hook, deckhouse version constraint must be specified (minimum: %s)",
 	})
@@ -251,6 +251,28 @@ func hasModuleSDK03(modulePath string) bool {
 			}
 		}
 	}
+	return false
+}
+
+// hasAppRunCalls determines if there are app.Run calls in Go files
+func hasAppRunCalls(modulePath string) bool {
+	hooksDir := filepath.Join(modulePath, "hooks")
+	goFiles := fsutils.GetFiles(hooksDir, true, fsutils.FilterFileByExtensions(".go"))
+
+	for _, goFile := range goFiles {
+		content, err := os.ReadFile(goFile)
+		if err != nil {
+			continue
+		}
+
+		// Pattern to match any variable name followed by .Run()
+		// This will match app.Run(), myApp.Run(), hookApp.Run(), etc.
+		runPattern := regexp.MustCompile(`\w+\.Run\(`)
+		if runPattern.Match(content) {
+			return true
+		}
+	}
+
 	return false
 }
 

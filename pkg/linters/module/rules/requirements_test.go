@@ -506,7 +506,10 @@ namespace: test`), 0600); err != nil {
 				if err := os.MkdirAll(hooksDir, 0755); err != nil {
 					return err
 				}
-				return os.WriteFile(filepath.Join(hooksDir, "go.mod"), []byte(`module test`), 0600)
+				if err := os.WriteFile(filepath.Join(hooksDir, "go.mod"), []byte(`module test`), 0600); err != nil {
+					return err
+				}
+				return os.WriteFile(filepath.Join(hooksDir, "main.go"), []byte("package main\nfunc main() { app.Run() }"), 0600)
 			},
 			expectedErrors: []string{"requirements: for using go_hook, deckhouse version constraint must be specified (minimum: 1.68.0)"},
 		},
@@ -686,4 +689,67 @@ require github.com/deckhouse/module-sdk v0.3.0`), 0600); err != nil {
 	errs := errorList.GetErrors()
 	assert.Len(t, errs, 1, "Expected 1 error, got %d", len(errs))
 	assert.Contains(t, errs[0].Text, "requirements: for using module-sdk >= 0.3, deckhouse version constraint must be specified (minimum: 1.71.0)")
+}
+
+func TestHasAppRunCalls(t *testing.T) {
+	tempDir := t.TempDir()
+	modulePath := filepath.Join(tempDir, "test-app-run")
+	if err := os.MkdirAll(modulePath, 0755); err != nil {
+		t.Fatalf("failed to create module dir: %v", err)
+	}
+
+	hooksDir := filepath.Join(modulePath, "hooks")
+	if err := os.MkdirAll(hooksDir, 0755); err != nil {
+		t.Fatalf("failed to create hooks dir: %v", err)
+	}
+
+	tests := []struct {
+		name     string
+		content  string
+		expected bool
+	}{
+		{
+			name:     "app.Run() call",
+			content:  "package main\nfunc main() { app.Run() }",
+			expected: true,
+		},
+		{
+			name:     "myApp.Run() call",
+			content:  "package main\nfunc main() { myApp.Run() }",
+			expected: true,
+		},
+		{
+			name:     "hookApp.Run() call",
+			content:  "package main\nfunc main() { hookApp.Run() }",
+			expected: true,
+		},
+		{
+			name:     "no Run() call",
+			content:  "package main\nfunc main() { }",
+			expected: false,
+		},
+		{
+			name:     "app.WithReadiness() call",
+			content:  "package main\nfunc main() { app.WithReadiness() }",
+			expected: false,
+		},
+		{
+			name:     "Run() without dot",
+			content:  "package main\nfunc main() { Run() }",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Clean up previous test file
+			testFile := filepath.Join(hooksDir, "main.go")
+			if err := os.WriteFile(testFile, []byte(tt.content), 0600); err != nil {
+				t.Fatalf("failed to create test file: %v", err)
+			}
+
+			result := hasAppRunCalls(modulePath)
+			assert.Equal(t, tt.expected, result, "Expected %v for content: %s", tt.expected, tt.content)
+		})
+	}
 }
