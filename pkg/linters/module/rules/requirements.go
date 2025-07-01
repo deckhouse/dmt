@@ -25,6 +25,7 @@ import (
 	"github.com/Masterminds/semver/v3"
 	"sigs.k8s.io/yaml"
 
+	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
@@ -56,6 +57,7 @@ func (r *RequirementsRule) CheckRequirements(modulePath string, errorList *error
 	}
 
 	checkStage(module, errorList)
+	checkGoHook(modulePath, module, errorList)
 }
 
 // checkStage checks if stage is used with requirements: deckhouse >= 1.68
@@ -85,7 +87,39 @@ func checkStage(module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
 	// For this we find the minimum lower bound among all ranges
 	minAllowed := findMinimalAllowedVersion(constraint)
 	if minAllowed != nil && minAllowed.LessThan(minimalVersion) {
-		errorList.Errorf("requirements: deckhouse version range should start no lower than %s (currently: %s)", MinimalDeckhouseVersionForStage, minAllowed.String())
+		errorList.Errorf("requirements: for using stage, deckhouse version range should start no lower than %s (currently: %s)", MinimalDeckhouseVersionForStage, minAllowed.String())
+	}
+}
+
+// checkGoHook checks if go_hook is used with requirements: deckhouse >= 1.68
+func checkGoHook(modulePath string, module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
+	if module == nil || module.Requirements == nil || module.Requirements.Deckhouse == "" {
+		return
+	}
+
+	// Parse the constraint from requirements
+	constraint, err := semver.NewConstraint(module.Requirements.Deckhouse)
+	if err != nil {
+		errorList.Errorf("invalid deckhouse version constraint: %s", module.Requirements.Deckhouse)
+
+		return
+	}
+
+	// check all files in module for hooks directory
+	// if hooks directory contains go files
+	// if deckhouse < 1.68, then print error
+	hooksDir := filepath.Join(modulePath, "hooks")
+	goFiles := fsutils.GetFiles(hooksDir, true, fsutils.FilterFileByExtensions(".go"))
+
+	if len(goFiles) == 0 {
+		return
+	}
+
+	minAllowed := findMinimalAllowedVersion(constraint)
+	if minAllowed != nil && minAllowed.LessThan(semver.MustParse(MinimalDeckhouseVersionForStage)) {
+		errorList.Errorf("requirements: for using go_hook, deckhouse version range should start no lower than %s (currently: %s)", MinimalDeckhouseVersionForStage, minAllowed.String())
+
+		return
 	}
 }
 
