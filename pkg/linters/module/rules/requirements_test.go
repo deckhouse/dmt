@@ -155,7 +155,7 @@ requirements:
 				return os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(content), 0600)
 			},
 			expectedErrors: []string{
-				"requirements: deckhouse range should start no lower than 1.68.0 (currently: 1.67.0)",
+				"requirements: deckhouse version range should start no lower than 1.68.0 (currently: 1.67.0)",
 			},
 		},
 		{
@@ -316,7 +316,7 @@ func Test_checkStage(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				"requirements: deckhouse range should start no lower than 1.68.0 (currently: 1.67.0)",
+				"requirements: deckhouse version range should start no lower than 1.68.0 (currently: 1.67.0)",
 			},
 		},
 		{
@@ -370,7 +370,7 @@ func Test_checkStage(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				"requirements: deckhouse range should start no lower than 1.68.0 (currently: 1.67.0)",
+				"requirements: deckhouse version range should start no lower than 1.68.0 (currently: 1.67.0)",
 			},
 		},
 		{
@@ -385,7 +385,7 @@ func Test_checkStage(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				"requirements: deckhouse range should start no lower than 1.68.0 (currently: 1.67.0)",
+				"requirements: deckhouse version range should start no lower than 1.68.0 (currently: 1.67.0)",
 			},
 		},
 		{
