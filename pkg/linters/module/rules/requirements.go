@@ -61,7 +61,7 @@ func (r *RequirementsRule) CheckRequirements(modulePath string, errorList *error
 
 	checkStage(moduleDescriptions, errorList)
 	checkGoHook(modulePath, moduleDescriptions, errorList)
-	checkReadnessProbes(modulePath, moduleDescriptions, errorList)
+	checkReadinessProbes(modulePath, moduleDescriptions, errorList)
 }
 
 // checkStage checks if stage is used with requirements: deckhouse >= 1.68
@@ -126,8 +126,8 @@ func checkGoHook(modulePath string, moduleDescriptions *DeckhouseModule, errorLi
 	}
 }
 
-// checkReadnessProbes checks if readiness probes are used with requirements: deckhouse >= 1.71
-func checkReadnessProbes(modulePath string, moduleDescriptions *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
+// checkReadinessProbes checks if readiness probes are used with requirements: deckhouse >= 1.71
+func checkReadinessProbes(modulePath string, moduleDescriptions *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
 	// find all go.mod files in hooks directory
 	goModFiles := fsutils.GetFiles(filepath.Join(modulePath, "hooks"), true, fsutils.FilterFileByNames("go.mod"))
 	if len(goModFiles) == 0 {

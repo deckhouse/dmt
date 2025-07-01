@@ -1051,7 +1051,7 @@ func TestConstants(t *testing.T) {
 	assert.Equal(t, "1.71.0", MinimalDeckhouseVersionForReadinessProbes)
 }
 
-func Test_checkReadnessProbes_Requirements(t *testing.T) {
+func Test_checkReadinessProbes_Requirements(t *testing.T) {
 	tempDir := t.TempDir()
 	tests := []struct {
 		name           string
@@ -1089,7 +1089,7 @@ func Test_checkReadnessProbes_Requirements(t *testing.T) {
 				require.NoError(t, err)
 			}
 			errorList := errors.NewLintRuleErrorsList()
-			checkReadnessProbes(tt.modulePath, tt.module, errorList)
+			checkReadinessProbes(tt.modulePath, tt.module, errorList)
 			if len(tt.expectedErrors) == 0 {
 				assert.False(t, errorList.ContainsErrors(), "Expected no errors but got: %v", errorList.GetErrors())
 			} else {
@@ -1106,7 +1106,7 @@ func Test_checkReadnessProbes_Requirements(t *testing.T) {
 	}
 }
 
-func Test_checkReadnessProbes_GoMod(t *testing.T) {
+func Test_checkReadinessProbes_GoMod(t *testing.T) {
 	tempDir := t.TempDir()
 	tests := []struct {
 		name           string
@@ -1187,7 +1187,7 @@ require (
 				require.NoError(t, err)
 			}
 			errorList := errors.NewLintRuleErrorsList()
-			checkReadnessProbes(tt.modulePath, tt.module, errorList)
+			checkReadinessProbes(tt.modulePath, tt.module, errorList)
 			if len(tt.expectedErrors) == 0 {
 				assert.False(t, errorList.ContainsErrors(), "Expected no errors but got: %v", errorList.GetErrors())
 			} else {
@@ -1204,7 +1204,7 @@ require (
 	}
 }
 
-func Test_checkReadnessProbes_ReadinessProbes(t *testing.T) {
+func Test_checkReadinessProbes_ReadinessProbes(t *testing.T) {
 	tempDir := t.TempDir()
 	tests := []struct {
 		name           string
@@ -1349,7 +1349,7 @@ func main() {
 				require.NoError(t, err)
 			}
 			errorList := errors.NewLintRuleErrorsList()
-			checkReadnessProbes(tt.modulePath, tt.module, errorList)
+			checkReadinessProbes(tt.modulePath, tt.module, errorList)
 			if len(tt.expectedErrors) == 0 {
 				assert.False(t, errorList.ContainsErrors(), "Expected no errors but got: %v", errorList.GetErrors())
 			} else {
