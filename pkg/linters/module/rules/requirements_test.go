@@ -155,7 +155,7 @@ requirements:
 				return os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(content), 0600)
 			},
 			expectedErrors: []string{
-				"requirements: deckhouse version range should start no lower than 1.68.0 (currently: 1.67.0)",
+				"requirements: for using stage, deckhouse version range should start no lower than 1.68.0 (currently: 1.67.0)",
 			},
 		},
 		{
@@ -316,7 +316,7 @@ func Test_checkStage(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				"requirements: deckhouse version range should start no lower than 1.68.0 (currently: 1.67.0)",
+				"requirements: for using stage, deckhouse version range should start no lower than 1.68.0 (currently: 1.67.0)",
 			},
 		},
 		{
@@ -370,7 +370,7 @@ func Test_checkStage(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				"requirements: deckhouse version range should start no lower than 1.68.0 (currently: 1.67.0)",
+				"requirements: for using stage, deckhouse version range should start no lower than 1.68.0 (currently: 1.67.0)",
 			},
 		},
 		{
@@ -385,7 +385,7 @@ func Test_checkStage(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				"requirements: deckhouse version range should start no lower than 1.68.0 (currently: 1.67.0)",
+				"requirements: for using stage, deckhouse version range should start no lower than 1.68.0 (currently: 1.67.0)",
 			},
 		},
 		{
@@ -665,6 +665,369 @@ requirements:
 				if tt.expectedModule.Requirements != nil {
 					assert.NotNil(t, result.Requirements)
 					assert.Equal(t, tt.expectedModule.Requirements.Deckhouse, result.Requirements.Deckhouse)
+				}
+			}
+		})
+	}
+}
+
+func Test_checkGoHook(t *testing.T) {
+	// Create temporary directory for testing
+	tempDir := t.TempDir()
+
+	tests := []struct {
+		name           string
+		modulePath     string
+		module         *DeckhouseModule
+		setupFiles     func(string) error
+		expectedErrors []string
+	}{
+		{
+			name:           "nil module",
+			modulePath:     tempDir,
+			module:         nil,
+			expectedErrors: []string{},
+		},
+		{
+			name:       "module with nil requirements",
+			modulePath: tempDir,
+			module: &DeckhouseModule{
+				Name: "test-module",
+			},
+			expectedErrors: []string{},
+		},
+		{
+			name:       "module with empty deckhouse requirement",
+			modulePath: tempDir,
+			module: &DeckhouseModule{
+				Name: "test-module",
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: "",
+					},
+				},
+			},
+			expectedErrors: []string{},
+		},
+		{
+			name:       "module with valid requirements but no go files in hooks",
+			modulePath: tempDir,
+			module: &DeckhouseModule{
+				Name: "test-module",
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: ">= 1.68.0",
+					},
+				},
+			},
+			setupFiles: func(path string) error {
+				// Create hooks directory but no go files
+				hooksDir := filepath.Join(path, "hooks")
+				return os.MkdirAll(hooksDir, 0755)
+			},
+			expectedErrors: []string{},
+		},
+		{
+			name:       "module with valid requirements and go files in hooks",
+			modulePath: tempDir,
+			module: &DeckhouseModule{
+				Name: "test-module",
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: ">= 1.68.0",
+					},
+				},
+			},
+			setupFiles: func(path string) error {
+				// Create hooks directory with go file
+				hooksDir := filepath.Join(path, "hooks")
+				if err := os.MkdirAll(hooksDir, 0755); err != nil {
+					return err
+				}
+				return os.WriteFile(filepath.Join(hooksDir, "hook.go"), []byte("package hooks"), 0600)
+			},
+			expectedErrors: []string{},
+		},
+		{
+			name:       "module with requirements below minimum and go files in hooks",
+			modulePath: tempDir,
+			module: &DeckhouseModule{
+				Name: "test-module",
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: ">= 1.67.0",
+					},
+				},
+			},
+			setupFiles: func(path string) error {
+				// Create hooks directory with go file
+				hooksDir := filepath.Join(path, "hooks")
+				if err := os.MkdirAll(hooksDir, 0755); err != nil {
+					return err
+				}
+				return os.WriteFile(filepath.Join(hooksDir, "hook.go"), []byte("package hooks"), 0600)
+			},
+			expectedErrors: []string{
+				"requirements: for using go_hook, deckhouse version range should start no lower than 1.68.0 (currently: 1.67.0)",
+			},
+		},
+		{
+			name:       "module with invalid deckhouse constraint and go files in hooks",
+			modulePath: tempDir,
+			module: &DeckhouseModule{
+				Name: "test-module",
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: "invalid-constraint",
+					},
+				},
+			},
+			setupFiles: func(path string) error {
+				// Create hooks directory with go file
+				hooksDir := filepath.Join(path, "hooks")
+				if err := os.MkdirAll(hooksDir, 0755); err != nil {
+					return err
+				}
+				return os.WriteFile(filepath.Join(hooksDir, "hook.go"), []byte("package hooks"), 0600)
+			},
+			expectedErrors: []string{
+				"invalid deckhouse version constraint: invalid-constraint",
+			},
+		},
+		{
+			name:       "module with complex constraint below minimum and go files in hooks",
+			modulePath: tempDir,
+			module: &DeckhouseModule{
+				Name: "test-module",
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: ">= 1.67.0, < 2.0.0",
+					},
+				},
+			},
+			setupFiles: func(path string) error {
+				// Create hooks directory with go file
+				hooksDir := filepath.Join(path, "hooks")
+				if err := os.MkdirAll(hooksDir, 0755); err != nil {
+					return err
+				}
+				return os.WriteFile(filepath.Join(hooksDir, "hook.go"), []byte("package hooks"), 0600)
+			},
+			expectedErrors: []string{
+				"requirements: for using go_hook, deckhouse version range should start no lower than 1.68.0 (currently: 1.67.0)",
+			},
+		},
+		{
+			name:       "module with exact minimum version and go files in hooks",
+			modulePath: tempDir,
+			module: &DeckhouseModule{
+				Name: "test-module",
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: "= 1.68.0",
+					},
+				},
+			},
+			setupFiles: func(path string) error {
+				// Create hooks directory with go file
+				hooksDir := filepath.Join(path, "hooks")
+				if err := os.MkdirAll(hooksDir, 0755); err != nil {
+					return err
+				}
+				return os.WriteFile(filepath.Join(hooksDir, "hook.go"), []byte("package hooks"), 0600)
+			},
+			expectedErrors: []string{},
+		},
+		{
+			name:       "module with greater than minimum and go files in hooks",
+			modulePath: tempDir,
+			module: &DeckhouseModule{
+				Name: "test-module",
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: "> 1.68.0",
+					},
+				},
+			},
+			setupFiles: func(path string) error {
+				// Create hooks directory with go file
+				hooksDir := filepath.Join(path, "hooks")
+				if err := os.MkdirAll(hooksDir, 0755); err != nil {
+					return err
+				}
+				return os.WriteFile(filepath.Join(hooksDir, "hook.go"), []byte("package hooks"), 0600)
+			},
+			expectedErrors: []string{},
+		},
+		{
+			name:       "module with multiple go files in hooks",
+			modulePath: tempDir,
+			module: &DeckhouseModule{
+				Name: "test-module",
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: ">= 1.68.0",
+					},
+				},
+			},
+			setupFiles: func(path string) error {
+				// Create hooks directory with multiple go files
+				hooksDir := filepath.Join(path, "hooks")
+				if err := os.MkdirAll(hooksDir, 0755); err != nil {
+					return err
+				}
+				files := []string{"hook1.go", "hook2.go", "utils.go"}
+				for _, file := range files {
+					if err := os.WriteFile(filepath.Join(hooksDir, file), []byte("package hooks"), 0600); err != nil {
+						return err
+					}
+				}
+				return nil
+			},
+			expectedErrors: []string{},
+		},
+		{
+			name:       "module with go files in subdirectories of hooks",
+			modulePath: tempDir,
+			module: &DeckhouseModule{
+				Name: "test-module",
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: ">= 1.68.0",
+					},
+				},
+			},
+			setupFiles: func(path string) error {
+				// Create hooks directory with subdirectory containing go files
+				hooksDir := filepath.Join(path, "hooks")
+				if err := os.MkdirAll(hooksDir, 0755); err != nil {
+					return err
+				}
+				subDir := filepath.Join(hooksDir, "subdir")
+				if err := os.MkdirAll(subDir, 0755); err != nil {
+					return err
+				}
+				return os.WriteFile(filepath.Join(subDir, "hook.go"), []byte("package hooks"), 0600)
+			},
+			expectedErrors: []string{},
+		},
+		{
+			name:       "module with non-go files in hooks (should not trigger error)",
+			modulePath: tempDir,
+			module: &DeckhouseModule{
+				Name: "test-module",
+				// No stage to avoid checkStage errors
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: ">= 1.67.0", // Below minimum
+					},
+				},
+			},
+			setupFiles: func(path string) error {
+				hooksDir := filepath.Join(path, "hooks")
+				os.RemoveAll(hooksDir) // Clean up before test
+				if err := os.MkdirAll(hooksDir, 0755); err != nil {
+					return err
+				}
+				files := []string{"hook.py", "hook.sh", "README.md"}
+				for _, file := range files {
+					if err := os.WriteFile(filepath.Join(hooksDir, file), []byte("content"), 0600); err != nil {
+						return err
+					}
+				}
+				return nil
+			},
+			expectedErrors: []string{}, // No error because no .go files found
+		},
+		{
+			name:       "module with go files in hooks but no requirements (should trigger error)",
+			modulePath: tempDir,
+			module: &DeckhouseModule{
+				Name: "test-module",
+				// No requirements specified
+			},
+			setupFiles: func(path string) error {
+				// Create hooks directory with go file
+				hooksDir := filepath.Join(path, "hooks")
+				if err := os.MkdirAll(hooksDir, 0755); err != nil {
+					return err
+				}
+				return os.WriteFile(filepath.Join(hooksDir, "hook.go"), []byte("package hooks"), 0600)
+			},
+			expectedErrors: []string{
+				"requirements: for using go_hook, deckhouse version constraint must be specified (minimum: 1.68.0)",
+			},
+		},
+		{
+			name:       "module with go files in hooks but nil requirements (should trigger error)",
+			modulePath: tempDir,
+			module: &DeckhouseModule{
+				Name:         "test-module",
+				Requirements: nil,
+			},
+			setupFiles: func(path string) error {
+				// Create hooks directory with go file
+				hooksDir := filepath.Join(path, "hooks")
+				if err := os.MkdirAll(hooksDir, 0755); err != nil {
+					return err
+				}
+				return os.WriteFile(filepath.Join(hooksDir, "hook.go"), []byte("package hooks"), 0600)
+			},
+			expectedErrors: []string{
+				"requirements: for using go_hook, deckhouse version constraint must be specified (minimum: 1.68.0)",
+			},
+		},
+		{
+			name:       "module with go files in hooks but empty deckhouse requirement (should trigger error)",
+			modulePath: tempDir,
+			module: &DeckhouseModule{
+				Name: "test-module",
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: "",
+					},
+				},
+			},
+			setupFiles: func(path string) error {
+				// Create hooks directory with go file
+				hooksDir := filepath.Join(path, "hooks")
+				if err := os.MkdirAll(hooksDir, 0755); err != nil {
+					return err
+				}
+				return os.WriteFile(filepath.Join(hooksDir, "hook.go"), []byte("package hooks"), 0600)
+			},
+			expectedErrors: []string{
+				"requirements: for using go_hook, deckhouse version constraint must be specified (minimum: 1.68.0)",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup test files
+			if tt.setupFiles != nil {
+				err := tt.setupFiles(tt.modulePath)
+				require.NoError(t, err)
+			}
+
+			// Create error list
+			errorList := errors.NewLintRuleErrorsList()
+
+			// Run the function
+			checkGoHook(tt.modulePath, tt.module, errorList)
+
+			// Verify results
+			if len(tt.expectedErrors) == 0 {
+				assert.False(t, errorList.ContainsErrors(), "Expected no errors but got: %v", errorList.GetErrors())
+			} else {
+				assert.True(t, errorList.ContainsErrors(), "Expected errors but got none")
+				errs := errorList.GetErrors()
+				assert.Len(t, errs, len(tt.expectedErrors), "Expected %d errors, got %d", len(tt.expectedErrors), len(errs))
+
+				for i, expectedError := range tt.expectedErrors {
+					if i < len(errs) {
+						assert.Contains(t, errs[i].Text, expectedError, "Error %d should contain '%s'", i, expectedError)
+					}
 				}
 			}
 		})

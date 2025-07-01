@@ -93,21 +93,8 @@ func checkStage(module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
 
 // checkGoHook checks if go_hook is used with requirements: deckhouse >= 1.68
 func checkGoHook(modulePath string, module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
-	if module == nil || module.Requirements == nil || module.Requirements.Deckhouse == "" {
-		return
-	}
-
-	// Parse the constraint from requirements
-	constraint, err := semver.NewConstraint(module.Requirements.Deckhouse)
-	if err != nil {
-		errorList.Errorf("invalid deckhouse version constraint: %s", module.Requirements.Deckhouse)
-
-		return
-	}
-
 	// check all files in module for hooks directory
 	// if hooks directory contains go files
-	// if deckhouse < 1.68, then print error
 	hooksDir := filepath.Join(modulePath, "hooks")
 	goFiles := fsutils.GetFiles(hooksDir, true, fsutils.FilterFileByExtensions(".go"))
 
@@ -115,10 +102,22 @@ func checkGoHook(modulePath string, module *DeckhouseModule, errorList *errors.L
 		return
 	}
 
+	// If go hooks are present, requirements must be specified
+	if module == nil || module.Requirements == nil || module.Requirements.Deckhouse == "" {
+		errorList.Errorf("requirements: for using go_hook, deckhouse version constraint must be specified (minimum: %s)", MinimalDeckhouseVersionForStage)
+		return
+	}
+
+	// Parse the constraint from requirements
+	constraint, err := semver.NewConstraint(module.Requirements.Deckhouse)
+	if err != nil {
+		errorList.Errorf("invalid deckhouse version constraint: %s", module.Requirements.Deckhouse)
+		return
+	}
+
 	minAllowed := findMinimalAllowedVersion(constraint)
 	if minAllowed != nil && minAllowed.LessThan(semver.MustParse(MinimalDeckhouseVersionForStage)) {
 		errorList.Errorf("requirements: for using go_hook, deckhouse version range should start no lower than %s (currently: %s)", MinimalDeckhouseVersionForStage, minAllowed.String())
-
 		return
 	}
 }
