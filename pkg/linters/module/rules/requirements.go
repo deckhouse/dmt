@@ -37,6 +37,13 @@ const (
 	MinimalDeckhouseVersionForStage = "1.68.0"
 	// MinimalDeckhouseVersionForReadinessProbes defines the minimum required Deckhouse version for readiness probes usage
 	MinimalDeckhouseVersionForReadinessProbes = "1.71.0"
+
+	// ModuleSDKMinVersion defines the minimum module-sdk version for readiness probes
+	ModuleSDKMinVersion = "0.3"
+
+	// Common patterns used in Go files
+	ReadinessProbePattern = `(\w+)\.WithReadiness`
+	AppRunPattern         = `\w+\.Run\(`
 )
 
 func NewRequirementsRule() *RequirementsRule {
@@ -162,46 +169,58 @@ func (r *RequirementsRegistry) validateRequirement(check RequirementCheck, modul
 	}
 }
 
-// hasReadinessProbes determines if readiness probes (app.WithReadiness) and module-sdk >= 0.3 are used
-func hasReadinessProbes(modulePath string) bool {
-	goModFiles := fsutils.GetFiles(filepath.Join(modulePath, "hooks"), true, fsutils.FilterFileByNames("go.mod"))
+// findGoModFilesWithModuleSDK finds go.mod files that contain module-sdk dependency with version >= minVersion
+func findGoModFilesWithModuleSDK(modulePath string, minVersion string) []string {
+	hooksDir := filepath.Join(modulePath, "hooks")
+	goModFiles := fsutils.GetFiles(hooksDir, true, fsutils.FilterFileByNames("go.mod"))
 	if len(goModFiles) == 0 {
-		return false
+		return nil
 	}
+
 	var validGoModDirs []string
 	for _, goModFile := range goModFiles {
-		goModFileContent, err := os.ReadFile(goModFile)
-		if err != nil {
-			continue
+		if hasModuleSDKDependency(goModFile, minVersion) {
+			validGoModDirs = append(validGoModDirs, filepath.Dir(goModFile))
 		}
-		modFile, err := modfile.Parse(goModFile, goModFileContent, nil)
-		if err != nil {
-			continue
-		}
-		for _, req := range modFile.Require {
-			if req.Mod.Path == "github.com/deckhouse/module-sdk" {
-				if req.Mod.Version != "" {
-					sdkVersion, err := semver.NewVersion(req.Mod.Version)
-					if err == nil && !sdkVersion.LessThan(semver.MustParse("0.3")) {
-						validGoModDirs = append(validGoModDirs, filepath.Dir(goModFile))
-						break
-					}
+	}
+	return validGoModDirs
+}
+
+// hasModuleSDKDependency checks if go.mod file contains module-sdk dependency with version >= minVersion
+func hasModuleSDKDependency(goModFile string, minVersion string) bool {
+	goModFileContent, err := os.ReadFile(goModFile)
+	if err != nil {
+		return false
+	}
+
+	modFile, err := modfile.Parse(goModFile, goModFileContent, nil)
+	if err != nil {
+		return false
+	}
+
+	for _, req := range modFile.Require {
+		if req.Mod.Path == "github.com/deckhouse/module-sdk" {
+			if req.Mod.Version != "" {
+				sdkVersion, err := semver.NewVersion(req.Mod.Version)
+				if err == nil && !sdkVersion.LessThan(semver.MustParse(minVersion)) {
+					return true
 				}
 			}
 		}
 	}
-	if len(validGoModDirs) == 0 {
-		return false
-	}
-	for _, goModDir := range validGoModDirs {
-		goFiles := fsutils.GetFiles(goModDir, true, fsutils.FilterFileByExtensions(".go"))
+	return false
+}
+
+// findPatternInGoFiles searches for a regex pattern in Go files within the specified directories
+func findPatternInGoFiles(dirs []string, pattern *regexp.Regexp) bool {
+	for _, dir := range dirs {
+		goFiles := fsutils.GetFiles(dir, true, fsutils.FilterFileByExtensions(".go"))
 		for _, goFile := range goFiles {
 			content, err := os.ReadFile(goFile)
 			if err != nil {
 				continue
 			}
-			readinessPattern := regexp.MustCompile(`(\w+)\.WithReadiness`)
-			if readinessPattern.Match(content) {
+			if pattern.Match(content) {
 				return true
 			}
 		}
@@ -209,71 +228,36 @@ func hasReadinessProbes(modulePath string) bool {
 	return false
 }
 
-// hasModuleSDK03 determines if there's module-sdk >= 0.3 without app.WithReadiness
-func hasModuleSDK03(modulePath string) bool {
-	goModFiles := fsutils.GetFiles(filepath.Join(modulePath, "hooks"), true, fsutils.FilterFileByNames("go.mod"))
-	if len(goModFiles) == 0 {
+// hasReadinessProbes determines if readiness probes (app.WithReadiness) and module-sdk >= 0.3 are used
+func hasReadinessProbes(modulePath string) bool {
+	validGoModDirs := findGoModFilesWithModuleSDK(modulePath, ModuleSDKMinVersion)
+	if len(validGoModDirs) == 0 {
 		return false
 	}
-	for _, goModFile := range goModFiles {
-		goModFileContent, err := os.ReadFile(goModFile)
-		if err != nil {
-			continue
-		}
-		modFile, err := modfile.Parse(goModFile, goModFileContent, nil)
-		if err != nil {
-			continue
-		}
-		for _, req := range modFile.Require {
-			if req.Mod.Path == "github.com/deckhouse/module-sdk" {
-				if req.Mod.Version != "" {
-					sdkVersion, err := semver.NewVersion(req.Mod.Version)
-					if err == nil && !sdkVersion.LessThan(semver.MustParse("0.3")) {
-						// Check that there's no app.WithReadiness
-						goFiles := fsutils.GetFiles(filepath.Dir(goModFile), true, fsutils.FilterFileByExtensions(".go"))
-						readinessPattern := regexp.MustCompile(`(\w+)\.WithReadiness`)
-						found := false
-						for _, goFile := range goFiles {
-							content, err := os.ReadFile(goFile)
-							if err != nil {
-								continue
-							}
-							if readinessPattern.Match(content) {
-								found = true
-								break
-							}
-						}
-						if !found {
-							return true
-						}
-					}
-				}
-			}
-		}
+
+	readinessPattern := regexp.MustCompile(ReadinessProbePattern)
+	return findPatternInGoFiles(validGoModDirs, readinessPattern)
+}
+
+// hasModuleSDK03 determines if there's module-sdk >= 0.3 without app.WithReadiness
+func hasModuleSDK03(modulePath string) bool {
+	validGoModDirs := findGoModFilesWithModuleSDK(modulePath, ModuleSDKMinVersion)
+	if len(validGoModDirs) == 0 {
+		return false
 	}
-	return false
+
+	// Check that there's no app.WithReadiness
+	readinessPattern := regexp.MustCompile(ReadinessProbePattern)
+	return !findPatternInGoFiles(validGoModDirs, readinessPattern)
 }
 
 // hasAppRunCalls determines if there are app.Run calls in Go files
 func hasAppRunCalls(modulePath string) bool {
 	hooksDir := filepath.Join(modulePath, "hooks")
-	goFiles := fsutils.GetFiles(hooksDir, true, fsutils.FilterFileByExtensions(".go"))
-
-	for _, goFile := range goFiles {
-		content, err := os.ReadFile(goFile)
-		if err != nil {
-			continue
-		}
-
-		// Pattern to match any variable name followed by .Run()
-		// This will match app.Run(), myApp.Run(), hookApp.Run(), etc.
-		runPattern := regexp.MustCompile(`\w+\.Run\(`)
-		if runPattern.Match(content) {
-			return true
-		}
-	}
-
-	return false
+	// Pattern to match any variable name followed by .Run()
+	// This will match app.Run(), myApp.Run(), hookApp.Run(), etc.
+	runPattern := regexp.MustCompile(AppRunPattern)
+	return findPatternInGoFiles([]string{hooksDir}, runPattern)
 }
 
 func (r *RequirementsRule) CheckRequirements(modulePath string, errorList *errors.LintRuleErrorsList) {
