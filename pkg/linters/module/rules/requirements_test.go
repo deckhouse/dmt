@@ -907,6 +907,16 @@ func Test_checkGoHook(t *testing.T) {
 				if err := os.MkdirAll(subDir, 0755); err != nil {
 					return err
 				}
+				goModContent := `module example.com/test-hooks
+
+go 1.21
+
+require (
+	github.com/deckhouse/module-sdk v0.3.0
+)`
+				if err := os.WriteFile(filepath.Join(subDir, "go.mod"), []byte(goModContent), 0600); err != nil {
+					return err
+				}
 				return os.WriteFile(filepath.Join(subDir, "hook.go"), []byte("package hooks"), 0600)
 			},
 			expectedErrors: []string{},
@@ -1038,4 +1048,320 @@ func Test_checkGoHook(t *testing.T) {
 func TestConstants(t *testing.T) {
 	assert.Equal(t, "requirements", RequirementsRuleName)
 	assert.Equal(t, "1.68.0", MinimalDeckhouseVersionForStage)
+	assert.Equal(t, "1.71.0", MinimalDeckhouseVersionForReadinessProbes)
+}
+
+func Test_checkReadnessProbes_Requirements(t *testing.T) {
+	tempDir := t.TempDir()
+	tests := []struct {
+		name           string
+		modulePath     string
+		module         *DeckhouseModule
+		setupFiles     func(string) error
+		expectedErrors []string
+	}{
+		{
+			name:           "nil module",
+			modulePath:     tempDir,
+			module:         nil,
+			expectedErrors: []string{},
+		},
+		{
+			name:           "module with nil requirements",
+			modulePath:     tempDir,
+			module:         &DeckhouseModule{Name: "test-module"},
+			expectedErrors: []string{},
+		},
+		{
+			name:       "module with empty deckhouse requirement",
+			modulePath: tempDir,
+			module: &DeckhouseModule{
+				Name:         "test-module",
+				Requirements: &ModuleRequirements{ModulePlatformRequirements: ModulePlatformRequirements{Deckhouse: ""}},
+			},
+			expectedErrors: []string{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.setupFiles != nil {
+				err := tt.setupFiles(tt.modulePath)
+				require.NoError(t, err)
+			}
+			errorList := errors.NewLintRuleErrorsList()
+			checkReadnessProbes(tt.modulePath, tt.module, errorList)
+			if len(tt.expectedErrors) == 0 {
+				assert.False(t, errorList.ContainsErrors(), "Expected no errors but got: %v", errorList.GetErrors())
+			} else {
+				assert.True(t, errorList.ContainsErrors(), "Expected errors but got none")
+				errs := errorList.GetErrors()
+				assert.Len(t, errs, len(tt.expectedErrors), "Expected %d errors, got %d", len(tt.expectedErrors), len(errs))
+				for i, expectedError := range tt.expectedErrors {
+					if i < len(errs) {
+						assert.Contains(t, errs[i].Text, expectedError, "Error %d should contain '%s'", i, expectedError)
+					}
+				}
+			}
+		})
+	}
+}
+
+func Test_checkReadnessProbes_GoMod(t *testing.T) {
+	tempDir := t.TempDir()
+	tests := []struct {
+		name           string
+		modulePath     string
+		module         *DeckhouseModule
+		setupFiles     func(string) error
+		expectedErrors []string
+	}{
+		{
+			name:       "no go.mod files in hooks directory",
+			modulePath: tempDir,
+			module:     &DeckhouseModule{Name: "test-module", Requirements: &ModuleRequirements{ModulePlatformRequirements: ModulePlatformRequirements{Deckhouse: ">= 1.71.0"}}},
+			setupFiles: func(path string) error {
+				hooksDir := filepath.Join(path, "hooks")
+				return os.MkdirAll(hooksDir, 0755)
+			},
+			expectedErrors: []string{},
+		},
+		{
+			name:       "go.mod file exists but no module-sdk dependency",
+			modulePath: tempDir,
+			module:     &DeckhouseModule{Name: "test-module", Requirements: &ModuleRequirements{ModulePlatformRequirements: ModulePlatformRequirements{Deckhouse: ">= 1.71.0"}}},
+			setupFiles: func(path string) error {
+				hooksDir := filepath.Join(path, "hooks")
+				if err := os.MkdirAll(hooksDir, 0755); err != nil {
+					return err
+				}
+				goModContent := `module example.com/test-hooks
+
+go 1.21
+
+require (
+	github.com/deckhouse/module-sdk v0.3.0
+)`
+				return os.WriteFile(filepath.Join(hooksDir, "go.mod"), []byte(goModContent), 0600)
+			},
+			expectedErrors: []string{},
+		},
+		{
+			name:       "go.mod file with module-sdk version below 0.3",
+			modulePath: tempDir,
+			module:     &DeckhouseModule{Name: "test-module", Requirements: &ModuleRequirements{ModulePlatformRequirements: ModulePlatformRequirements{Deckhouse: ">= 1.71.0"}}},
+			setupFiles: func(path string) error {
+				hooksDir := filepath.Join(path, "hooks")
+				if err := os.MkdirAll(hooksDir, 0755); err != nil {
+					return err
+				}
+				goModContent := `module example.com/test-hooks
+
+go 1.21
+
+require (
+	github.com/deckhouse/module-sdk v0.2.0
+)`
+				return os.WriteFile(filepath.Join(hooksDir, "go.mod"), []byte(goModContent), 0600)
+			},
+			expectedErrors: []string{},
+		},
+		{
+			name:       "invalid go.mod file",
+			modulePath: tempDir,
+			module:     &DeckhouseModule{Name: "test-module", Requirements: &ModuleRequirements{ModulePlatformRequirements: ModulePlatformRequirements{Deckhouse: ">= 1.71.0"}}},
+			setupFiles: func(path string) error {
+				hooksDir := filepath.Join(path, "hooks")
+				if err := os.MkdirAll(hooksDir, 0755); err != nil {
+					return err
+				}
+				invalidGoModContent := `invalid go.mod content`
+				return os.WriteFile(filepath.Join(hooksDir, "go.mod"), []byte(invalidGoModContent), 0600)
+			},
+			expectedErrors: []string{"cannot parse go.mod file"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.setupFiles != nil {
+				err := tt.setupFiles(tt.modulePath)
+				require.NoError(t, err)
+			}
+			errorList := errors.NewLintRuleErrorsList()
+			checkReadnessProbes(tt.modulePath, tt.module, errorList)
+			if len(tt.expectedErrors) == 0 {
+				assert.False(t, errorList.ContainsErrors(), "Expected no errors but got: %v", errorList.GetErrors())
+			} else {
+				assert.True(t, errorList.ContainsErrors(), "Expected errors but got none")
+				errs := errorList.GetErrors()
+				assert.Len(t, errs, len(tt.expectedErrors), "Expected %d errors, got %d", len(tt.expectedErrors), len(errs))
+				for i, expectedError := range tt.expectedErrors {
+					if i < len(errs) {
+						assert.Contains(t, errs[i].Text, expectedError, "Error %d should contain '%s'", i, expectedError)
+					}
+				}
+			}
+		})
+	}
+}
+
+func Test_checkReadnessProbes_ReadinessProbes(t *testing.T) {
+	tempDir := t.TempDir()
+	tests := []struct {
+		name           string
+		modulePath     string
+		module         *DeckhouseModule
+		setupFiles     func(string) error
+		expectedErrors []string
+	}{
+		{
+			name:       "go.mod file with module-sdk version 0.3 and readiness probes in go files with valid requirements",
+			modulePath: tempDir,
+			module:     &DeckhouseModule{Name: "test-module", Requirements: &ModuleRequirements{ModulePlatformRequirements: ModulePlatformRequirements{Deckhouse: ">= 1.71.0"}}},
+			setupFiles: func(path string) error {
+				hooksDir := filepath.Join(path, "hooks")
+				if err := os.MkdirAll(hooksDir, 0755); err != nil {
+					return err
+				}
+				goModContent := `module example.com/test-hooks
+
+go 1.21
+
+require (
+	github.com/deckhouse/module-sdk v0.3.0
+)`
+				if err := os.WriteFile(filepath.Join(hooksDir, "go.mod"), []byte(goModContent), 0600); err != nil {
+					return err
+				}
+				goFileContent := `package hooks
+
+import "github.com/deckhouse/module-sdk/pkg/hook"
+
+func main() {
+	app := hook.New()
+	app.WithReadiness()
+	app.Run()
+}`
+				return os.WriteFile(filepath.Join(hooksDir, "hook.go"), []byte(goFileContent), 0600)
+			},
+			expectedErrors: []string{},
+		},
+		{
+			name:       "go.mod file with module-sdk version 0.3 and readiness probes but no requirements",
+			modulePath: tempDir,
+			module:     &DeckhouseModule{Name: "test-module"},
+			setupFiles: func(path string) error {
+				hooksDir := filepath.Join(path, "hooks")
+				if err := os.MkdirAll(hooksDir, 0755); err != nil {
+					return err
+				}
+				goModContent := `module example.com/test-hooks
+
+go 1.21
+
+require (
+	github.com/deckhouse/module-sdk v0.3.0
+)`
+				if err := os.WriteFile(filepath.Join(hooksDir, "go.mod"), []byte(goModContent), 0600); err != nil {
+					return err
+				}
+				goFileContent := `package hooks
+
+import "github.com/deckhouse/module-sdk/pkg/hook"
+
+func main() {
+	app := hook.New()
+	app.WithReadiness()
+	app.Run()
+}`
+				return os.WriteFile(filepath.Join(hooksDir, "hook.go"), []byte(goFileContent), 0600)
+			},
+			expectedErrors: []string{"requirements: for using readiness probes, deckhouse version constraint must be specified (minimum: 1.71.0)"},
+		},
+		{
+			name:       "go.mod file with module-sdk version 0.3 and readiness probes but requirements below minimum",
+			modulePath: tempDir,
+			module:     &DeckhouseModule{Name: "test-module", Requirements: &ModuleRequirements{ModulePlatformRequirements: ModulePlatformRequirements{Deckhouse: ">= 1.70.0"}}},
+			setupFiles: func(path string) error {
+				hooksDir := filepath.Join(path, "hooks")
+				if err := os.MkdirAll(hooksDir, 0755); err != nil {
+					return err
+				}
+				goModContent := `module example.com/test-hooks
+
+go 1.21
+
+require (
+	github.com/deckhouse/module-sdk v0.3.0
+)`
+				if err := os.WriteFile(filepath.Join(hooksDir, "go.mod"), []byte(goModContent), 0600); err != nil {
+					return err
+				}
+				goFileContent := `package hooks
+
+import "github.com/deckhouse/module-sdk/pkg/hook"
+
+func main() {
+	app := hook.New()
+	app.WithReadiness()
+	app.Run()
+}`
+				return os.WriteFile(filepath.Join(hooksDir, "hook.go"), []byte(goFileContent), 0600)
+			},
+			expectedErrors: []string{"requirements: for using readiness probes, deckhouse version range should start no lower than 1.71.0 (currently: 1.70.0)"},
+		},
+		{
+			name:       "go.mod file with module-sdk version 0.3 and readiness probes but invalid deckhouse constraint",
+			modulePath: tempDir,
+			module:     &DeckhouseModule{Name: "test-module", Requirements: &ModuleRequirements{ModulePlatformRequirements: ModulePlatformRequirements{Deckhouse: "invalid-constraint"}}},
+			setupFiles: func(path string) error {
+				hooksDir := filepath.Join(path, "hooks")
+				if err := os.MkdirAll(hooksDir, 0755); err != nil {
+					return err
+				}
+				goModContent := `module example.com/test-hooks
+
+go 1.21
+
+require (
+	github.com/deckhouse/module-sdk v0.3.0
+)`
+				if err := os.WriteFile(filepath.Join(hooksDir, "go.mod"), []byte(goModContent), 0600); err != nil {
+					return err
+				}
+				goFileContent := `package hooks
+
+import "github.com/deckhouse/module-sdk/pkg/hook"
+
+func main() {
+	app := hook.New()
+	app.WithReadiness()
+	app.Run()
+}`
+				return os.WriteFile(filepath.Join(hooksDir, "hook.go"), []byte(goFileContent), 0600)
+			},
+			expectedErrors: []string{"invalid deckhouse version constraint: invalid-constraint"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.setupFiles != nil {
+				err := tt.setupFiles(tt.modulePath)
+				require.NoError(t, err)
+			}
+			errorList := errors.NewLintRuleErrorsList()
+			checkReadnessProbes(tt.modulePath, tt.module, errorList)
+			if len(tt.expectedErrors) == 0 {
+				assert.False(t, errorList.ContainsErrors(), "Expected no errors but got: %v", errorList.GetErrors())
+			} else {
+				assert.True(t, errorList.ContainsErrors(), "Expected errors but got none")
+				errs := errorList.GetErrors()
+				assert.Len(t, errs, len(tt.expectedErrors), "Expected %d errors, got %d", len(tt.expectedErrors), len(errs))
+				for i, expectedError := range tt.expectedErrors {
+					if i < len(errs) {
+						assert.Contains(t, errs[i].Text, expectedError, "Error %d should contain '%s'", i, expectedError)
+					}
+				}
+			}
+		})
+	}
 }

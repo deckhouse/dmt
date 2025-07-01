@@ -180,9 +180,9 @@ func checkReadnessProbes(modulePath string, moduleDescriptions *DeckhouseModule,
 				continue
 			}
 
-			// Check for app.Run(app.WithReadiness pattern
-			// This regex looks for app.Run(app.WithReadiness where app can be any variable name
-			readinessPattern := regexp.MustCompile(`(\w+)\.Run\(\1\.WithReadiness`)
+			// Check for app.WithReadiness pattern
+			// This regex looks for app.WithReadiness where app can be any variable name
+			readinessPattern := regexp.MustCompile(`(\w+)\.WithReadiness`)
 			if readinessPattern.Match(content) {
 				hasReadinessProbes = true
 				break
