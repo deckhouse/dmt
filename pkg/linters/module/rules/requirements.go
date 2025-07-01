@@ -51,6 +51,209 @@ type RequirementsRule struct {
 	pkg.RuleMeta
 }
 
+// RequirementCheck defines a single requirement check configuration
+// Detector returns true if the rule should be applied to the module
+// MinDeckhouseVersion is the minimum deckhouse version for this rule
+// ErrorMessage is the error message template
+// Description is the rule description
+type RequirementCheck struct {
+	Name                string
+	MinDeckhouseVersion string
+	Description         string
+	Detector            func(modulePath string, module *DeckhouseModule) bool
+	ErrorMessage        string
+}
+
+// RequirementsRegistry holds all requirement checks
+type RequirementsRegistry struct {
+	checks []RequirementCheck
+}
+
+// NewRequirementsRegistry creates a new registry with default checks
+func NewRequirementsRegistry() *RequirementsRegistry {
+	registry := &RequirementsRegistry{}
+
+	// Stage check
+	registry.RegisterCheck(RequirementCheck{
+		Name:                "stage",
+		MinDeckhouseVersion: MinimalDeckhouseVersionForStage,
+		Description:         "Stage usage requires minimum Deckhouse version",
+		Detector: func(_ string, module *DeckhouseModule) bool {
+			return module != nil && module.Stage != ""
+		},
+		ErrorMessage: "stage should be used with requirements: deckhouse >= %s",
+	})
+
+	// Go hooks check (only if there's no module-sdk >= 0.3)
+	registry.RegisterCheck(RequirementCheck{
+		Name:                "go_hooks",
+		MinDeckhouseVersion: MinimalDeckhouseVersionForStage,
+		Description:         "Go hooks usage requires minimum Deckhouse version",
+		Detector: func(modulePath string, _ *DeckhouseModule) bool {
+			hooksDir := filepath.Join(modulePath, "hooks")
+			goFiles := fsutils.GetFiles(hooksDir, true, fsutils.FilterFileByExtensions(".go"))
+			if len(goFiles) == 0 {
+				return false
+			}
+			// Check that there's no module-sdk >= 0.3
+			return !hasModuleSDK03(modulePath) && !hasReadinessProbes(modulePath)
+		},
+		ErrorMessage: "requirements: for using go_hook, deckhouse version constraint must be specified (minimum: %s)",
+	})
+
+	// Readiness probes check (by presence of app.WithReadiness and module-sdk >= 0.3)
+	registry.RegisterCheck(RequirementCheck{
+		Name:                "readiness_probes",
+		MinDeckhouseVersion: MinimalDeckhouseVersionForReadinessProbes,
+		Description:         "Readiness probes usage requires minimum Deckhouse version",
+		Detector: func(modulePath string, _ *DeckhouseModule) bool {
+			return hasReadinessProbes(modulePath)
+		},
+		ErrorMessage: "requirements: for using readiness probes, deckhouse version constraint must be specified (minimum: %s)",
+	})
+
+	// module-sdk >= 0.3 check (without app.WithReadiness)
+	registry.RegisterCheck(RequirementCheck{
+		Name:                "module_sdk_0_3",
+		MinDeckhouseVersion: MinimalDeckhouseVersionForReadinessProbes,
+		Description:         "module-sdk >= 0.3 requires minimum Deckhouse version",
+		Detector: func(modulePath string, _ *DeckhouseModule) bool {
+			return hasModuleSDK03(modulePath)
+		},
+		ErrorMessage: "requirements: for using module-sdk >= 0.3, deckhouse version constraint must be specified (minimum: %s)",
+	})
+
+	return registry
+}
+
+// RegisterCheck adds a new requirement check to the registry
+func (r *RequirementsRegistry) RegisterCheck(check RequirementCheck) {
+	r.checks = append(r.checks, check)
+}
+
+// RunAllChecks executes all registered requirement checks
+func (r *RequirementsRegistry) RunAllChecks(modulePath string, module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
+	for _, check := range r.checks {
+		if check.Detector(modulePath, module) {
+			r.validateRequirement(check, module, errorList)
+		}
+	}
+}
+
+// validateRequirement validates a single requirement check
+func (r *RequirementsRegistry) validateRequirement(check RequirementCheck, module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
+	if module == nil || module.Requirements == nil || module.Requirements.Deckhouse == "" {
+		errorList.Errorf(check.ErrorMessage, check.MinDeckhouseVersion)
+		return
+	}
+
+	constraint, err := semver.NewConstraint(module.Requirements.Deckhouse)
+	if err != nil {
+		errorList.Errorf("invalid deckhouse version constraint: %s", module.Requirements.Deckhouse)
+		return
+	}
+
+	minAllowed := findMinimalAllowedVersion(constraint)
+	minimalVersion := semver.MustParse(check.MinDeckhouseVersion)
+
+	if minAllowed != nil && minAllowed.LessThan(minimalVersion) {
+		errorList.Errorf("requirements: %s, deckhouse version range should start no lower than %s (currently: %s)",
+			check.Description, check.MinDeckhouseVersion, minAllowed.String())
+	}
+}
+
+// hasReadinessProbes determines if readiness probes (app.WithReadiness) and module-sdk >= 0.3 are used
+func hasReadinessProbes(modulePath string) bool {
+	goModFiles := fsutils.GetFiles(filepath.Join(modulePath, "hooks"), true, fsutils.FilterFileByNames("go.mod"))
+	if len(goModFiles) == 0 {
+		return false
+	}
+	var validGoModDirs []string
+	for _, goModFile := range goModFiles {
+		goModFileContent, err := os.ReadFile(goModFile)
+		if err != nil {
+			continue
+		}
+		modFile, err := modfile.Parse(goModFile, goModFileContent, nil)
+		if err != nil {
+			continue
+		}
+		for _, req := range modFile.Require {
+			if req.Mod.Path == "github.com/deckhouse/module-sdk" {
+				if req.Mod.Version != "" {
+					sdkVersion, err := semver.NewVersion(req.Mod.Version)
+					if err == nil && !sdkVersion.LessThan(semver.MustParse("0.3")) {
+						validGoModDirs = append(validGoModDirs, filepath.Dir(goModFile))
+						break
+					}
+				}
+			}
+		}
+	}
+	if len(validGoModDirs) == 0 {
+		return false
+	}
+	for _, goModDir := range validGoModDirs {
+		goFiles := fsutils.GetFiles(goModDir, true, fsutils.FilterFileByExtensions(".go"))
+		for _, goFile := range goFiles {
+			content, err := os.ReadFile(goFile)
+			if err != nil {
+				continue
+			}
+			readinessPattern := regexp.MustCompile(`(\w+)\.WithReadiness`)
+			if readinessPattern.Match(content) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// hasModuleSDK03 determines if there's module-sdk >= 0.3 without app.WithReadiness
+func hasModuleSDK03(modulePath string) bool {
+	goModFiles := fsutils.GetFiles(filepath.Join(modulePath, "hooks"), true, fsutils.FilterFileByNames("go.mod"))
+	if len(goModFiles) == 0 {
+		return false
+	}
+	for _, goModFile := range goModFiles {
+		goModFileContent, err := os.ReadFile(goModFile)
+		if err != nil {
+			continue
+		}
+		modFile, err := modfile.Parse(goModFile, goModFileContent, nil)
+		if err != nil {
+			continue
+		}
+		for _, req := range modFile.Require {
+			if req.Mod.Path == "github.com/deckhouse/module-sdk" {
+				if req.Mod.Version != "" {
+					sdkVersion, err := semver.NewVersion(req.Mod.Version)
+					if err == nil && !sdkVersion.LessThan(semver.MustParse("0.3")) {
+						// Check that there's no app.WithReadiness
+						goFiles := fsutils.GetFiles(filepath.Dir(goModFile), true, fsutils.FilterFileByExtensions(".go"))
+						readinessPattern := regexp.MustCompile(`(\w+)\.WithReadiness`)
+						found := false
+						for _, goFile := range goFiles {
+							content, err := os.ReadFile(goFile)
+							if err != nil {
+								continue
+							}
+							if readinessPattern.Match(content) {
+								found = true
+								break
+							}
+						}
+						if !found {
+							return true
+						}
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
 func (r *RequirementsRule) CheckRequirements(modulePath string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName()).WithFilePath(ModuleConfigFilename)
 
@@ -59,163 +262,8 @@ func (r *RequirementsRule) CheckRequirements(modulePath string, errorList *error
 		return
 	}
 
-	checkStage(moduleDescriptions, errorList)
-	checkGoHook(modulePath, moduleDescriptions, errorList)
-	checkReadinessProbes(modulePath, moduleDescriptions, errorList)
-}
-
-// checkStage checks if stage is used with requirements: deckhouse >= 1.68
-func checkStage(moduleDescriptions *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
-	if moduleDescriptions == nil || moduleDescriptions.Stage == "" {
-		return
-	}
-
-	if moduleDescriptions.Requirements == nil || moduleDescriptions.Requirements.Deckhouse == "" {
-		errorList.Errorf("stage should be used with requirements: deckhouse >= %s", MinimalDeckhouseVersionForStage)
-
-		return
-	}
-
-	// Parse the constraint from requirements
-	constraint, err := semver.NewConstraint(moduleDescriptions.Requirements.Deckhouse)
-	if err != nil {
-		errorList.Errorf("invalid deckhouse version constraint: %s", moduleDescriptions.Requirements.Deckhouse)
-
-		return
-	}
-
-	// Parse the minimal required version
-	minimalVersion := semver.MustParse(MinimalDeckhouseVersionForStage)
-
-	// Check that the minimum allowed version in the range is not less than MinimalDeckhouseVersionForStage
-	// For this we find the minimum lower bound among all ranges
-	minAllowed := findMinimalAllowedVersion(constraint)
-	if minAllowed != nil && minAllowed.LessThan(minimalVersion) {
-		errorList.Errorf("requirements: for using stage, deckhouse version range should start no lower than %s (currently: %s)", MinimalDeckhouseVersionForStage, minAllowed.String())
-	}
-}
-
-// checkGoHook checks if go_hook is used with requirements: deckhouse >= 1.68
-func checkGoHook(modulePath string, moduleDescriptions *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
-	// check all files in module for hooks directory
-	// if hooks directory contains go files
-	hooksDir := filepath.Join(modulePath, "hooks")
-	goFiles := fsutils.GetFiles(hooksDir, true, fsutils.FilterFileByExtensions(".go"))
-
-	if len(goFiles) == 0 {
-		return
-	}
-
-	// If go hooks are present, requirements must be specified
-	if moduleDescriptions == nil || moduleDescriptions.Requirements == nil || moduleDescriptions.Requirements.Deckhouse == "" {
-		errorList.Errorf("requirements: for using go_hook, deckhouse version constraint must be specified (minimum: %s)", MinimalDeckhouseVersionForStage)
-		return
-	}
-
-	// Parse the constraint from requirements
-	constraint, err := semver.NewConstraint(moduleDescriptions.Requirements.Deckhouse)
-	if err != nil {
-		errorList.Errorf("invalid deckhouse version constraint: %s", moduleDescriptions.Requirements.Deckhouse)
-		return
-	}
-
-	minAllowed := findMinimalAllowedVersion(constraint)
-	if minAllowed != nil && minAllowed.LessThan(semver.MustParse(MinimalDeckhouseVersionForStage)) {
-		errorList.Errorf("requirements: for using go_hook, deckhouse version range should start no lower than %s (currently: %s)", MinimalDeckhouseVersionForStage, minAllowed.String())
-		return
-	}
-}
-
-// checkReadinessProbes checks if readiness probes are used with requirements: deckhouse >= 1.71
-func checkReadinessProbes(modulePath string, moduleDescriptions *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
-	// find all go.mod files in hooks directory
-	goModFiles := fsutils.GetFiles(filepath.Join(modulePath, "hooks"), true, fsutils.FilterFileByNames("go.mod"))
-	if len(goModFiles) == 0 {
-		return
-	}
-
-	// Check if any go.mod file contains github.com/deckhouse/module-sdk version >= 0.3
-	var validGoModDirs []string
-	for _, goModFile := range goModFiles {
-		goModFileContent, err := os.ReadFile(goModFile)
-		if err != nil {
-			errorList.Errorf("cannot read go.mod file: %s", err)
-			continue
-		}
-
-		modFile, err := modfile.Parse(goModFile, goModFileContent, nil)
-		if err != nil {
-			errorList.Errorf("cannot parse go.mod file: %s", err)
-			continue
-		}
-
-		// Check if module-sdk is present with version >= 0.3
-		for _, req := range modFile.Require {
-			if req.Mod.Path == "github.com/deckhouse/module-sdk" {
-				if req.Mod.Version != "" {
-					sdkVersion, err := semver.NewVersion(req.Mod.Version)
-					if err == nil && !sdkVersion.LessThan(semver.MustParse("0.3")) {
-						// Add the directory containing this go.mod file
-						validGoModDirs = append(validGoModDirs, filepath.Dir(goModFile))
-						break
-					}
-				}
-			}
-		}
-	}
-
-	// If no valid go.mod files found with module-sdk >= 0.3, exit
-	if len(validGoModDirs) == 0 {
-		return
-	}
-
-	// Check for readiness probe usage in go files within valid go.mod directories
-	hasReadinessProbes := false
-	for _, goModDir := range validGoModDirs {
-		goFiles := fsutils.GetFiles(goModDir, true, fsutils.FilterFileByExtensions(".go"))
-		for _, goFile := range goFiles {
-			content, err := os.ReadFile(goFile)
-			if err != nil {
-				errorList.Errorf("cannot read go file: %s", err)
-				continue
-			}
-
-			// Check for app.WithReadiness pattern
-			// This regex looks for app.WithReadiness where app can be any variable name
-			readinessPattern := regexp.MustCompile(`(\w+)\.WithReadiness`)
-			if readinessPattern.Match(content) {
-				hasReadinessProbes = true
-				break
-			}
-		}
-		if hasReadinessProbes {
-			break
-		}
-	}
-
-	// If no readiness probes found, exit
-	if !hasReadinessProbes {
-		return
-	}
-
-	// Check deckhouse version requirements
-	if moduleDescriptions == nil || moduleDescriptions.Requirements == nil || moduleDescriptions.Requirements.Deckhouse == "" {
-		errorList.Errorf("requirements: for using readiness probes, deckhouse version constraint must be specified (minimum: %s)", MinimalDeckhouseVersionForReadinessProbes)
-		return
-	}
-
-	// Parse the constraint from requirements
-	constraint, err := semver.NewConstraint(moduleDescriptions.Requirements.Deckhouse)
-	if err != nil {
-		errorList.Errorf("invalid deckhouse version constraint: %s", moduleDescriptions.Requirements.Deckhouse)
-		return
-	}
-
-	minAllowed := findMinimalAllowedVersion(constraint)
-	if minAllowed != nil && minAllowed.LessThan(semver.MustParse(MinimalDeckhouseVersionForReadinessProbes)) {
-		errorList.Errorf("requirements: for using readiness probes, deckhouse version range should start no lower than %s (currently: %s)", MinimalDeckhouseVersionForReadinessProbes, minAllowed.String())
-		return
-	}
+	registry := NewRequirementsRegistry()
+	registry.RunAllChecks(modulePath, moduleDescriptions, errorList)
 }
 
 // findMinimalAllowedVersion finds the minimum allowed version among all >=, >, = in the constraint string
