@@ -85,7 +85,7 @@ func checkStage(module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
 	// For this we find the minimum lower bound among all ranges
 	minAllowed := findMinimalAllowedVersion(constraint)
 	if minAllowed != nil && minAllowed.LessThan(minimalVersion) {
-		errorList.Errorf("requirements: deckhouse range should start no lower than %s (currently: %s)", MinimalDeckhouseVersionForStage, minAllowed.String())
+		errorList.Errorf("requirements: deckhouse version range should start no lower than %s (currently: %s)", MinimalDeckhouseVersionForStage, minAllowed.String())
 	}
 }
 
