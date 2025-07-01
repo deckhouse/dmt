@@ -148,7 +148,7 @@ func (r *RequirementsRegistry) RunAllChecks(modulePath string, module *Deckhouse
 }
 
 // validateRequirement validates a single requirement check
-func (r *RequirementsRegistry) validateRequirement(check RequirementCheck, module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
+func (*RequirementsRegistry) validateRequirement(check RequirementCheck, module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
 	if module == nil || module.Requirements == nil || module.Requirements.Deckhouse == "" {
 		errorList.Errorf(check.ErrorMessage, check.MinDeckhouseVersion)
 		return
@@ -170,7 +170,7 @@ func (r *RequirementsRegistry) validateRequirement(check RequirementCheck, modul
 }
 
 // findGoModFilesWithModuleSDK finds go.mod files that contain module-sdk dependency with version >= minVersion
-func findGoModFilesWithModuleSDK(modulePath string, minVersion string) []string {
+func findGoModFilesWithModuleSDK(modulePath, minVersion string) []string {
 	hooksDir := filepath.Join(modulePath, "hooks")
 	goModFiles := fsutils.GetFiles(hooksDir, true, fsutils.FilterFileByNames("go.mod"))
 	if len(goModFiles) == 0 {
@@ -187,7 +187,7 @@ func findGoModFilesWithModuleSDK(modulePath string, minVersion string) []string 
 }
 
 // hasModuleSDKDependency checks if go.mod file contains module-sdk dependency with version >= minVersion
-func hasModuleSDKDependency(goModFile string, minVersion string) bool {
+func hasModuleSDKDependency(goModFile, minVersion string) bool {
 	goModFileContent, err := os.ReadFile(goModFile)
 	if err != nil {
 		return false
