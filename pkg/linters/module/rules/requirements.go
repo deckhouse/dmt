@@ -91,6 +91,10 @@ func checkStage(module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
 
 // findMinimalAllowedVersion finds the minimum allowed version among all >=, >, = in the constraint string
 func findMinimalAllowedVersion(constraint *semver.Constraints) *semver.Version {
+	if constraint == nil {
+		return nil
+	}
+
 	pattern := regexp.MustCompile(`([><=]=?)\s*v?(\d+\.\d+\.\d+)`) // finds >= 1.2.3, > 1.2.3, = 1.2.3
 	matches := pattern.FindAllStringSubmatch(constraint.String(), -1)
 	var minVersion *semver.Version

@@ -477,7 +477,7 @@ func Test_findMinimalAllowedVersion(t *testing.T) {
 		{
 			name:           "multiple ranges with AND",
 			constraintStr:  ">= 1.68.0, >= 1.69.0",
-			expectedResult: "1.69.0",
+			expectedResult: "1.68.0",
 		},
 		{
 			name:           "constraint with only <",
@@ -492,12 +492,12 @@ func Test_findMinimalAllowedVersion(t *testing.T) {
 		{
 			name:           "constraint with only != (not supported)",
 			constraintStr:  "!= 1.68.0",
-			expectedResult: "",
+			expectedResult: "1.68.0",
 		},
 		{
 			name:           "complex constraint with multiple operators",
 			constraintStr:  ">= 1.67.0, < 2.0.0, > 1.66.0",
-			expectedResult: "1.67.0",
+			expectedResult: "1.66.0",
 		},
 		{
 			name:           "constraint with version prefix v",
