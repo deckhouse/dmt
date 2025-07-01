@@ -91,8 +91,8 @@ func NewRequirementsRegistry() *RequirementsRegistry {
 		Description:         "Go hooks usage requires minimum Deckhouse version",
 		Detector: func(modulePath string, _ *DeckhouseModule) bool {
 			hooksDir := filepath.Join(modulePath, "hooks")
-			goFiles := fsutils.GetFiles(hooksDir, true, fsutils.FilterFileByExtensions(".go"))
-			if len(goFiles) == 0 {
+			goModFiles := fsutils.GetFiles(hooksDir, true, fsutils.FilterFileByNames("go.mod"))
+			if len(goModFiles) == 0 {
 				return false
 			}
 			// Check that there's no module-sdk >= 0.3

@@ -506,7 +506,7 @@ namespace: test`), 0600); err != nil {
 				if err := os.MkdirAll(hooksDir, 0755); err != nil {
 					return err
 				}
-				return os.WriteFile(filepath.Join(hooksDir, "hook.go"), []byte("package hooks"), 0600)
+				return os.WriteFile(filepath.Join(hooksDir, "go.mod"), []byte(`module test`), 0600)
 			},
 			expectedErrors: []string{"requirements: for using go_hook, deckhouse version constraint must be specified (minimum: 1.68.0)"},
 		},
