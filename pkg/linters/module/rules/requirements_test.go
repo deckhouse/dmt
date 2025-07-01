@@ -19,6 +19,7 @@ package rules
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Masterminds/semver/v3"
@@ -506,7 +507,8 @@ namespace: test`), 0600); err != nil {
 				if err := os.MkdirAll(hooksDir, 0755); err != nil {
 					return err
 				}
-				if err := os.WriteFile(filepath.Join(hooksDir, "go.mod"), []byte(`module test`), 0600); err != nil {
+				if err := os.WriteFile(filepath.Join(hooksDir, "go.mod"), []byte(`module test
+require github.com/deckhouse/module-sdk v0.1.0`), 0600); err != nil {
 					return err
 				}
 				return os.WriteFile(filepath.Join(hooksDir, "main.go"), []byte("package main\nfunc main() { app.Run() }"), 0600)
@@ -533,27 +535,6 @@ require github.com/deckhouse/module-sdk v0.3.0`), 0600); err != nil {
 				return os.WriteFile(filepath.Join(hooksDir, "main.go"), []byte("package main\nfunc main() { app.WithReadiness() }"), 0600)
 			},
 			expectedErrors: []string{"requirements: for using readiness probes, deckhouse version constraint must be specified (minimum: 1.71.0)"},
-		},
-		{
-			name: "module-sdk >= 0.3 without app.WithReadiness and without requirements",
-			moduleContent: `name: test-module
-namespace: test`,
-			setupFiles: func(path string) error {
-				if err := os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(`name: test-module
-namespace: test`), 0600); err != nil {
-					return err
-				}
-				hooksDir := filepath.Join(path, "hooks")
-				if err := os.MkdirAll(hooksDir, 0755); err != nil {
-					return err
-				}
-				if err := os.WriteFile(filepath.Join(hooksDir, "go.mod"), []byte(`module test
-require github.com/deckhouse/module-sdk v0.3.0`), 0600); err != nil {
-					return err
-				}
-				return os.WriteFile(filepath.Join(hooksDir, "main.go"), []byte("package main\nfunc main() { }"), 0600)
-			},
-			expectedErrors: []string{"requirements: for using module-sdk >= 0.3, deckhouse version constraint must be specified (minimum: 1.71.0)"},
 		},
 	}
 
@@ -653,44 +634,6 @@ require github.com/deckhouse/module-sdk v0.3.0`), 0600); err != nil {
 	assert.Contains(t, errs[0].Text, "requirements: for using readiness probes, deckhouse version constraint must be specified (minimum: 1.71.0)")
 }
 
-func TestRequirementsRegistry_ModuleSDKCheck(t *testing.T) {
-	tempDir := t.TempDir()
-	modulePath := filepath.Join(tempDir, "test-module-sdk")
-	if err := os.MkdirAll(modulePath, 0755); err != nil {
-		t.Fatalf("failed to create module dir: %v", err)
-	}
-
-	// Create module.yaml without stage
-	if err := os.WriteFile(filepath.Join(modulePath, ModuleConfigFilename), []byte(`name: test-module
-namespace: test`), 0600); err != nil {
-		t.Fatalf("failed to create module.yaml: %v", err)
-	}
-
-	// Create go.mod with module-sdk >= 0.3, but without app.WithReadiness
-	hooksDir := filepath.Join(modulePath, "hooks")
-	if err := os.MkdirAll(hooksDir, 0755); err != nil {
-		t.Fatalf("failed to create hooks dir: %v", err)
-	}
-
-	if err := os.WriteFile(filepath.Join(hooksDir, "go.mod"), []byte(`module test
-require github.com/deckhouse/module-sdk v0.3.0`), 0600); err != nil {
-		t.Fatalf("failed to create go.mod: %v", err)
-	}
-
-	if err := os.WriteFile(filepath.Join(hooksDir, "main.go"), []byte("package main\nfunc main() { }"), 0600); err != nil {
-		t.Fatalf("failed to create main.go: %v", err)
-	}
-
-	rule := NewRequirementsRule()
-	errorList := errors.NewLintRuleErrorsList()
-	rule.CheckRequirements(modulePath, errorList)
-
-	assert.True(t, errorList.ContainsErrors(), "Expected errors but got none")
-	errs := errorList.GetErrors()
-	assert.Len(t, errs, 1, "Expected 1 error, got %d", len(errs))
-	assert.Contains(t, errs[0].Text, "requirements: for using module-sdk >= 0.3, deckhouse version constraint must be specified (minimum: 1.71.0)")
-}
-
 func TestHasAppRunCalls(t *testing.T) {
 	tempDir := t.TempDir()
 	modulePath := filepath.Join(tempDir, "test-app-run")
@@ -750,6 +693,140 @@ func TestHasAppRunCalls(t *testing.T) {
 
 			result := hasAppRunCalls(modulePath)
 			assert.Equal(t, tt.expected, result, "Expected %v for content: %s", tt.expected, tt.content)
+		})
+	}
+}
+
+func TestRequirementsLogic_UserRequirements(t *testing.T) {
+	tempDir := t.TempDir()
+
+	tests := []struct {
+		name           string
+		setupFiles     func(string) error
+		expectedErrors []string
+		description    string
+	}{
+		{
+			name: "stage without requirements - should fail",
+			setupFiles: func(path string) error {
+				return os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(`name: test-module
+namespace: test
+stage: "General Availability"`), 0600)
+			},
+			expectedErrors: []string{"stage should be used with requirements: deckhouse >= 1.68.0"},
+			description:    "Если в модуле есть stage, то должен быть requirements с версией deckhouse не менее 1.68",
+		},
+		{
+			name: "go_hooks with module-sdk and app.Run - should fail",
+			setupFiles: func(path string) error {
+				if err := os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(`name: test-module
+namespace: test`), 0600); err != nil {
+					return err
+				}
+				hooksDir := filepath.Join(path, "hooks")
+				if err := os.MkdirAll(hooksDir, 0755); err != nil {
+					return err
+				}
+				if err := os.WriteFile(filepath.Join(hooksDir, "go.mod"), []byte(`module test
+require github.com/deckhouse/module-sdk v0.1.0`), 0600); err != nil {
+					return err
+				}
+				return os.WriteFile(filepath.Join(hooksDir, "main.go"), []byte("package main\nfunc main() { app.Run() }"), 0600)
+			},
+			expectedErrors: []string{"requirements: for using go_hook, deckhouse version constraint must be specified (minimum: 1.68.0)"},
+			description:    "Если есть go_hooks (go.mod с module-sdk + app.Run), то должен быть requirements с версией deckhouse не менее 1.68",
+		},
+		{
+			name: "readiness probes with module-sdk >= 0.3 - should fail",
+			setupFiles: func(path string) error {
+				if err := os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(`name: test-module
+namespace: test`), 0600); err != nil {
+					return err
+				}
+				hooksDir := filepath.Join(path, "hooks")
+				if err := os.MkdirAll(hooksDir, 0755); err != nil {
+					return err
+				}
+				if err := os.WriteFile(filepath.Join(hooksDir, "go.mod"), []byte(`module test
+require github.com/deckhouse/module-sdk v0.3.0`), 0600); err != nil {
+					return err
+				}
+				return os.WriteFile(filepath.Join(hooksDir, "main.go"), []byte("package main\nfunc main() { app.WithReadiness() }"), 0600)
+			},
+			expectedErrors: []string{"requirements: for using readiness probes, deckhouse version constraint must be specified (minimum: 1.71.0)"},
+			description:    "Если есть readiness probes (app.WithReadiness + module-sdk >= 0.3), то должен быть requirements с версией deckhouse не менее 1.71",
+		},
+		{
+			name: "module-sdk >= 0.3 without app.WithReadiness - should NOT fail",
+			setupFiles: func(path string) error {
+				if err := os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(`name: test-module
+namespace: test`), 0600); err != nil {
+					return err
+				}
+				hooksDir := filepath.Join(path, "hooks")
+				if err := os.MkdirAll(hooksDir, 0755); err != nil {
+					return err
+				}
+				if err := os.WriteFile(filepath.Join(hooksDir, "go.mod"), []byte(`module test
+require github.com/deckhouse/module-sdk v0.3.0`), 0600); err != nil {
+					return err
+				}
+				return os.WriteFile(filepath.Join(hooksDir, "main.go"), []byte("package main\nfunc main() { }"), 0600)
+			},
+			expectedErrors: []string{},
+			description:    "Если есть только module-sdk >= 0.3 без app.WithReadiness, то НЕ должно быть ошибки (лишняя проверка удалена)",
+		},
+		{
+			name: "go.mod without module-sdk - should NOT fail",
+			setupFiles: func(path string) error {
+				if err := os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(`name: test-module
+namespace: test`), 0600); err != nil {
+					return err
+				}
+				hooksDir := filepath.Join(path, "hooks")
+				if err := os.MkdirAll(hooksDir, 0755); err != nil {
+					return err
+				}
+				if err := os.WriteFile(filepath.Join(hooksDir, "go.mod"), []byte(`module test`), 0600); err != nil {
+					return err
+				}
+				return os.WriteFile(filepath.Join(hooksDir, "main.go"), []byte("package main\nfunc main() { app.Run() }"), 0600)
+			},
+			expectedErrors: []string{},
+			description:    "Если есть go.mod без module-sdk, то НЕ должно быть ошибки",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			modulePath := filepath.Join(tempDir, tt.name)
+			if err := os.MkdirAll(modulePath, 0755); err != nil {
+				t.Fatalf("failed to create module dir: %v", err)
+			}
+			if tt.setupFiles != nil {
+				err := tt.setupFiles(modulePath)
+				require.NoError(t, err)
+			}
+			rule := NewRequirementsRule()
+			errorList := errors.NewLintRuleErrorsList()
+			rule.CheckRequirements(modulePath, errorList)
+
+			if len(tt.expectedErrors) == 0 {
+				assert.False(t, errorList.ContainsErrors(), "Expected no errors but got: %v", errorList.GetErrors())
+			} else {
+				assert.True(t, errorList.ContainsErrors(), "Expected errors but got none")
+				errs := errorList.GetErrors()
+				for _, expectedError := range tt.expectedErrors {
+					found := false
+					for _, err := range errs {
+						if strings.Contains(err.Text, expectedError) {
+							found = true
+							break
+						}
+					}
+					assert.True(t, found, "Expected error containing '%s'", expectedError)
+				}
+			}
 		})
 	}
 }

@@ -91,24 +91,18 @@ func NewRequirementsRegistry() *RequirementsRegistry {
 		ErrorMessage: "stage should be used with requirements: deckhouse >= %s",
 	})
 
-	// Go hooks check (only if there's no module-sdk >= 0.3)
+	// Go hooks check - checks for go.mod with module-sdk dependency and app.Run calls
 	registry.RegisterCheck(RequirementCheck{
 		Name:                "go_hooks",
 		MinDeckhouseVersion: MinimalDeckhouseVersionForStage,
 		Description:         "Go hooks usage requires minimum Deckhouse version",
 		Detector: func(modulePath string, _ *DeckhouseModule) bool {
-			hooksDir := filepath.Join(modulePath, "hooks")
-			goModFiles := fsutils.GetFiles(hooksDir, true, fsutils.FilterFileByNames("go.mod"))
-			if len(goModFiles) == 0 {
-				return false
-			}
-			// Check that there's no module-sdk >= 0.3 and there are app.Run calls
-			return !hasModuleSDK03(modulePath) && !hasReadinessProbes(modulePath) && hasAppRunCalls(modulePath)
+			return hasGoHooks(modulePath)
 		},
 		ErrorMessage: "requirements: for using go_hook, deckhouse version constraint must be specified (minimum: %s)",
 	})
 
-	// Readiness probes check (by presence of app.WithReadiness and module-sdk >= 0.3)
+	// Readiness probes check - checks for app.WithReadiness with module-sdk >= 0.3
 	registry.RegisterCheck(RequirementCheck{
 		Name:                "readiness_probes",
 		MinDeckhouseVersion: MinimalDeckhouseVersionForReadinessProbes,
@@ -117,17 +111,6 @@ func NewRequirementsRegistry() *RequirementsRegistry {
 			return hasReadinessProbes(modulePath)
 		},
 		ErrorMessage: "requirements: for using readiness probes, deckhouse version constraint must be specified (minimum: %s)",
-	})
-
-	// module-sdk >= 0.3 check (without app.WithReadiness)
-	registry.RegisterCheck(RequirementCheck{
-		Name:                "module_sdk_0_3",
-		MinDeckhouseVersion: MinimalDeckhouseVersionForReadinessProbes,
-		Description:         "module-sdk >= 0.3 requires minimum Deckhouse version",
-		Detector: func(modulePath string, _ *DeckhouseModule) bool {
-			return hasModuleSDK03(modulePath)
-		},
-		ErrorMessage: "requirements: for using module-sdk >= 0.3, deckhouse version constraint must be specified (minimum: %s)",
 	})
 
 	return registry
@@ -239,16 +222,29 @@ func hasReadinessProbes(modulePath string) bool {
 	return findPatternInGoFiles(validGoModDirs, readinessPattern)
 }
 
-// hasModuleSDK03 determines if there's module-sdk >= 0.3 without app.WithReadiness
-func hasModuleSDK03(modulePath string) bool {
-	validGoModDirs := findGoModFilesWithModuleSDK(modulePath, ModuleSDKMinVersion)
-	if len(validGoModDirs) == 0 {
+// hasGoHooks determines if there are go hooks with module-sdk dependency and app.Run calls
+func hasGoHooks(modulePath string) bool {
+	hooksDir := filepath.Join(modulePath, "hooks")
+	goModFiles := fsutils.GetFiles(hooksDir, true, fsutils.FilterFileByNames("go.mod"))
+	if len(goModFiles) == 0 {
 		return false
 	}
 
-	// Check that there's no app.WithReadiness
-	readinessPattern := regexp.MustCompile(ReadinessProbePattern)
-	return !findPatternInGoFiles(validGoModDirs, readinessPattern)
+	// Check that there's module-sdk dependency in go.mod files
+	hasModuleSDK := false
+	for _, goModFile := range goModFiles {
+		if hasModuleSDKDependency(goModFile, "0.0") { // Any version of module-sdk
+			hasModuleSDK = true
+			break
+		}
+	}
+
+	if !hasModuleSDK {
+		return false
+	}
+
+	// Check that there are app.Run calls
+	return hasAppRunCalls(modulePath)
 }
 
 // hasAppRunCalls determines if there are app.Run calls in Go files
