@@ -222,22 +222,9 @@ func hasReadinessProbes(modulePath string) bool {
 
 // hasGoHooks determines if there are go hooks with module-sdk dependency and app.Run calls
 func hasGoHooks(modulePath string) bool {
-	hooksDir := filepath.Join(modulePath, "hooks")
-	goModFiles := fsutils.GetFiles(hooksDir, true, fsutils.FilterFileByNames("go.mod"))
-	if len(goModFiles) == 0 {
-		return false
-	}
-
-	// Check that there's module-sdk dependency in go.mod files
-	hasModuleSDK := false
-	for _, goModFile := range goModFiles {
-		if hasModuleSDKDependency(goModFile, "0.0") { // Any version of module-sdk
-			hasModuleSDK = true
-			break
-		}
-	}
-
-	if !hasModuleSDK {
+	// Check that there's module-sdk dependency in go.mod files (any version)
+	validGoModDirs := findGoModFilesWithModuleSDK(modulePath, "0.0")
+	if len(validGoModDirs) == 0 {
 		return false
 	}
 
