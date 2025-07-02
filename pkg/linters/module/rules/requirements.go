@@ -228,17 +228,9 @@ func hasGoHooks(modulePath string) bool {
 		return false
 	}
 
-	// Check that there are app.Run calls
-	return hasAppRunCalls(modulePath)
-}
-
-// hasAppRunCalls determines if there are app.Run calls in Go files
-func hasAppRunCalls(modulePath string) bool {
-	hooksDir := filepath.Join(modulePath, "hooks")
-	// Pattern to match any variable name followed by .Run()
-	// This will match app.Run(), myApp.Run(), hookApp.Run(), etc.
+	// Check that there are app.Run calls only in directories with module-sdk dependency
 	runPattern := regexp.MustCompile(AppRunPattern)
-	return findPatternInGoFiles([]string{hooksDir}, runPattern)
+	return findPatternInGoFiles(validGoModDirs, runPattern)
 }
 
 func (r *RequirementsRule) CheckRequirements(modulePath string, errorList *errors.LintRuleErrorsList) {

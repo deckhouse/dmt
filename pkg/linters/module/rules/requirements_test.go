@@ -634,9 +634,9 @@ require github.com/deckhouse/module-sdk v0.3.0`), 0600); err != nil {
 	assert.Contains(t, errs[0].Text, "requirements: Readiness probes usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.71.0")
 }
 
-func TestHasAppRunCalls(t *testing.T) {
+func TestHasGoHooks(t *testing.T) {
 	tempDir := t.TempDir()
-	modulePath := filepath.Join(tempDir, "test-app-run")
+	modulePath := filepath.Join(tempDir, "test-go-hooks")
 	if err := os.MkdirAll(modulePath, 0755); err != nil {
 		t.Fatalf("failed to create module dir: %v", err)
 	}
@@ -647,52 +647,74 @@ func TestHasAppRunCalls(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		content  string
-		expected bool
+		name          string
+		goModContent  string
+		mainGoContent string
+		expected      bool
+		description   string
 	}{
 		{
-			name:     "app.Run() call",
-			content:  "package main\nfunc main() { app.Run() }",
-			expected: true,
+			name:          "module-sdk with app.Run() call",
+			goModContent:  "module test\nrequire github.com/deckhouse/module-sdk v0.1.0",
+			mainGoContent: "package main\nfunc main() { app.Run() }",
+			expected:      true,
+			description:   "Should detect Go hooks when module-sdk is present and app.Run() is called",
 		},
 		{
-			name:     "myApp.Run() call",
-			content:  "package main\nfunc main() { myApp.Run() }",
-			expected: true,
+			name:          "module-sdk with myApp.Run() call",
+			goModContent:  "module test\nrequire github.com/deckhouse/module-sdk v0.1.0",
+			mainGoContent: "package main\nfunc main() { myApp.Run() }",
+			expected:      true,
+			description:   "Should detect Go hooks when module-sdk is present and myApp.Run() is called",
 		},
 		{
-			name:     "hookApp.Run() call",
-			content:  "package main\nfunc main() { hookApp.Run() }",
-			expected: true,
+			name:          "module-sdk without Run() call",
+			goModContent:  "module test\nrequire github.com/deckhouse/module-sdk v0.1.0",
+			mainGoContent: "package main\nfunc main() { }",
+			expected:      false,
+			description:   "Should NOT detect Go hooks when module-sdk is present but no Run() is called",
 		},
 		{
-			name:     "no Run() call",
-			content:  "package main\nfunc main() { }",
-			expected: false,
+			name:          "no module-sdk with app.Run() call",
+			goModContent:  "module test",
+			mainGoContent: "package main\nfunc main() { app.Run() }",
+			expected:      false,
+			description:   "Should NOT detect Go hooks when no module-sdk is present even if app.Run() is called",
 		},
 		{
-			name:     "app.WithReadiness() call",
-			content:  "package main\nfunc main() { app.WithReadiness() }",
-			expected: false,
+			name:          "no go.mod with app.Run() call",
+			goModContent:  "",
+			mainGoContent: "package main\nfunc main() { app.Run() }",
+			expected:      false,
+			description:   "Should NOT detect Go hooks when no go.mod is present even if app.Run() is called",
 		},
 		{
-			name:     "Run() without dot",
-			content:  "package main\nfunc main() { Run() }",
-			expected: false,
+			name:          "app.WithReadiness() call with module-sdk",
+			goModContent:  "module test\nrequire github.com/deckhouse/module-sdk v0.1.0",
+			mainGoContent: "package main\nfunc main() { app.WithReadiness() }",
+			expected:      false,
+			description:   "Should NOT detect Go hooks when app.WithReadiness() is called instead of Run()",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Clean up previous test file
-			testFile := filepath.Join(hooksDir, "main.go")
-			if err := os.WriteFile(testFile, []byte(tt.content), 0600); err != nil {
-				t.Fatalf("failed to create test file: %v", err)
+			// Clean up previous test files
+			if tt.goModContent != "" {
+				goModFile := filepath.Join(hooksDir, "go.mod")
+				if err := os.WriteFile(goModFile, []byte(tt.goModContent), 0600); err != nil {
+					t.Fatalf("failed to create go.mod file: %v", err)
+				}
 			}
 
-			result := hasAppRunCalls(modulePath)
-			assert.Equal(t, tt.expected, result, "Expected %v for content: %s", tt.expected, tt.content)
+			mainGoFile := filepath.Join(hooksDir, "main.go")
+			if err := os.WriteFile(mainGoFile, []byte(tt.mainGoContent), 0600); err != nil {
+				t.Fatalf("failed to create main.go file: %v", err)
+			}
+
+			result := hasGoHooks(modulePath)
+			assert.Equal(t, tt.expected, result, "Test: %s\nExpected %v for go.mod: %s\nmain.go: %s",
+				tt.description, tt.expected, tt.goModContent, tt.mainGoContent)
 		})
 	}
 }
