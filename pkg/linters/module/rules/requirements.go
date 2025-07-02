@@ -35,6 +35,8 @@ const (
 	RequirementsRuleName = "requirements"
 	// MinimalDeckhouseVersionForStage defines the minimum required Deckhouse version for stage usage
 	MinimalDeckhouseVersionForStage = "1.68.0"
+	// MinimalDeckhouseVersionForGoHooks defines the minimum required Deckhouse version for Go hooks usage
+	MinimalDeckhouseVersionForGoHooks = "1.68.0"
 	// MinimalDeckhouseVersionForReadinessProbes defines the minimum required Deckhouse version for readiness probes usage
 	MinimalDeckhouseVersionForReadinessProbes = "1.71.0"
 
@@ -94,7 +96,7 @@ func NewRequirementsRegistry() *RequirementsRegistry {
 	// Go hooks check - checks for go.mod with module-sdk dependency and app.Run calls
 	registry.RegisterCheck(RequirementCheck{
 		Name:                "go_hooks",
-		MinDeckhouseVersion: MinimalDeckhouseVersionForStage,
+		MinDeckhouseVersion: MinimalDeckhouseVersionForGoHooks,
 		Description:         "Go hooks usage requires minimum Deckhouse version",
 		Detector: func(modulePath string, _ *DeckhouseModule) bool {
 			return hasGoHooks(modulePath)
