@@ -33,7 +33,7 @@ func TestRequirementsRegistryAllChecks(t *testing.T) {
 					return nil
 				},
 			},
-			ExpectedErrors: []string{"requirements: Stage usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.68.0"},
+			ExpectedErrors: []string{"requirements [stage]: Stage usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.68.0"},
 		},
 		{
 			Name: "go hooks without requirements",
@@ -45,7 +45,7 @@ func TestRequirementsRegistryAllChecks(t *testing.T) {
 					return nil
 				},
 			},
-			ExpectedErrors: []string{"requirements: Go hooks usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.68.0"},
+			ExpectedErrors: []string{"requirements [go_hooks]: Go hooks usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.68.0"},
 		},
 		{
 			Name: "readiness probe + module-sdk >= 0.3 without requirements",
@@ -57,7 +57,7 @@ func TestRequirementsRegistryAllChecks(t *testing.T) {
 					return nil
 				},
 			},
-			ExpectedErrors: []string{"requirements: Readiness probes usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.71.0"},
+			ExpectedErrors: []string{"requirements [readiness_probes]: Readiness probes usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.71.0"},
 		},
 	}
 
@@ -81,7 +81,7 @@ func TestRequirementsLogicUserRequirements(t *testing.T) {
 					return nil
 				},
 			},
-			ExpectedErrors: []string{"requirements: Stage usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.68.0"},
+			ExpectedErrors: []string{"requirements [stage]: Stage usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.68.0"},
 			Description:    "Если в модуле есть stage, то должен быть requirements с версией deckhouse не менее 1.68",
 		},
 		{
@@ -94,7 +94,7 @@ func TestRequirementsLogicUserRequirements(t *testing.T) {
 					return nil
 				},
 			},
-			ExpectedErrors: []string{"requirements: Go hooks usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.68.0"},
+			ExpectedErrors: []string{"requirements [go_hooks]: Go hooks usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.68.0"},
 			Description:    "Если есть go_hooks (go.mod с module-sdk + app.Run), то должен быть requirements с версией deckhouse не менее 1.68",
 		},
 		{
@@ -107,7 +107,7 @@ func TestRequirementsLogicUserRequirements(t *testing.T) {
 					return nil
 				},
 			},
-			ExpectedErrors: []string{"requirements: Readiness probes usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.71.0"},
+			ExpectedErrors: []string{"requirements [readiness_probes]: Readiness probes usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.71.0"},
 			Description:    "Если есть readiness probes (app.WithReadiness + module-sdk >= 0.3), то должен быть requirements с версией deckhouse не менее 1.71",
 		},
 		{

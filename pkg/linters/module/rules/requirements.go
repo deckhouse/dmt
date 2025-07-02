@@ -137,14 +137,14 @@ func (r *RequirementsRegistry) RunAllChecks(modulePath string, module *Deckhouse
 // validateRequirement validates a single requirement check
 func (*RequirementsRegistry) validateRequirement(check RequirementCheck, module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
 	if module == nil || module.Requirements == nil || module.Requirements.Deckhouse == "" {
-		errorList.Errorf("requirements: %s, deckhouse version range should start no lower than %s",
-			check.Description, check.MinDeckhouseVersion)
+		errorList.Errorf("requirements [%s]: %s, deckhouse version range should start no lower than %s",
+			check.Name, check.Description, check.MinDeckhouseVersion)
 		return
 	}
 
 	constraint, err := semver.NewConstraint(module.Requirements.Deckhouse)
 	if err != nil {
-		errorList.Errorf("invalid deckhouse version constraint: %s", module.Requirements.Deckhouse)
+		errorList.Errorf("requirements [%s]: invalid deckhouse version constraint: %s", check.Name, module.Requirements.Deckhouse)
 		return
 	}
 
@@ -152,8 +152,8 @@ func (*RequirementsRegistry) validateRequirement(check RequirementCheck, module 
 	minimalVersion := semver.MustParse(check.MinDeckhouseVersion)
 
 	if minAllowed != nil && minAllowed.LessThan(minimalVersion) {
-		errorList.Errorf("requirements: %s, deckhouse version range should start no lower than %s (currently: %s)",
-			check.Description, check.MinDeckhouseVersion, minAllowed.String())
+		errorList.Errorf("requirements [%s]: %s, deckhouse version range should start no lower than %s (currently: %s)",
+			check.Name, check.Description, check.MinDeckhouseVersion, minAllowed.String())
 	}
 }
 

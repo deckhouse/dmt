@@ -36,7 +36,7 @@ func TestReadinessProbesRequirementsCheck(t *testing.T) {
 					return nil
 				},
 			},
-			ExpectedErrors: []string{"requirements: Readiness probes usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.71.0"},
+			ExpectedErrors: []string{"requirements [readiness_probes]: Readiness probes usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.71.0"},
 			Description:    "Если есть readiness probes (app.WithReadiness + module-sdk >= 0.3), то должен быть requirements с версией deckhouse не менее 1.71",
 		},
 		{

@@ -33,7 +33,7 @@ func TestStageRequirementsCheck(t *testing.T) {
 					return nil
 				},
 			},
-			ExpectedErrors: []string{"requirements: Stage usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.68.0"},
+			ExpectedErrors: []string{"requirements [stage]: Stage usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.68.0"},
 			Description:    "Если в модуле есть stage, то должен быть requirements с версией deckhouse не менее 1.68",
 		},
 		{
@@ -65,7 +65,7 @@ requirements:
 					return nil
 				},
 			},
-			ExpectedErrors: []string{"requirements: Stage usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.68.0 (currently: 1.67.0)"},
+			ExpectedErrors: []string{"requirements [stage]: Stage usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.68.0 (currently: 1.67.0)"},
 			Description:    "Если в модуле есть stage с requirements ниже минимальной версии, то должна быть ошибка",
 		},
 		{
@@ -85,7 +85,7 @@ requirements:
 					return nil
 				},
 			},
-			ExpectedErrors: []string{"invalid deckhouse version constraint: invalid-constraint"},
+			ExpectedErrors: []string{"requirements [stage]: invalid deckhouse version constraint: invalid-constraint"},
 			Description:    "Если в модуле есть stage с некорректным constraint, то должна быть ошибка",
 		},
 		{

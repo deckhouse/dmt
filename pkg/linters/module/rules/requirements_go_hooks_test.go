@@ -107,7 +107,7 @@ func TestGoHooksRequirementsCheck(t *testing.T) {
 					return nil
 				},
 			},
-			ExpectedErrors: []string{"requirements: Go hooks usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.68.0"},
+			ExpectedErrors: []string{"requirements [go_hooks]: Go hooks usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.68.0"},
 			Description:    "Если есть go_hooks (go.mod с module-sdk + app.Run), то должен быть requirements с версией deckhouse не менее 1.68",
 		},
 		{
