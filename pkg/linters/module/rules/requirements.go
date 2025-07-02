@@ -63,14 +63,12 @@ type RequirementsRule struct {
 // RequirementCheck defines a single requirement check configuration
 // Detector returns true if the rule should be applied to the module
 // MinDeckhouseVersion is the minimum deckhouse version for this rule
-// ErrorMessage is the error message template
 // Description is the rule description
 type RequirementCheck struct {
 	Name                string
 	MinDeckhouseVersion string
 	Description         string
 	Detector            func(modulePath string, module *DeckhouseModule) bool
-	ErrorMessage        string
 }
 
 // RequirementsRegistry holds all requirement checks
@@ -90,7 +88,6 @@ func NewRequirementsRegistry() *RequirementsRegistry {
 		Detector: func(_ string, module *DeckhouseModule) bool {
 			return module != nil && module.Stage != ""
 		},
-		ErrorMessage: "stage should be used with requirements: deckhouse >= %s",
 	})
 
 	// Go hooks check - checks for go.mod with module-sdk dependency and app.Run calls
@@ -101,7 +98,6 @@ func NewRequirementsRegistry() *RequirementsRegistry {
 		Detector: func(modulePath string, _ *DeckhouseModule) bool {
 			return hasGoHooks(modulePath)
 		},
-		ErrorMessage: "go_hook should be used with requirements: deckhouse >= %s",
 	})
 
 	// Readiness probes check - checks for app.WithReadiness with module-sdk >= 0.3
@@ -112,7 +108,6 @@ func NewRequirementsRegistry() *RequirementsRegistry {
 		Detector: func(modulePath string, _ *DeckhouseModule) bool {
 			return hasReadinessProbes(modulePath)
 		},
-		ErrorMessage: "readiness probes should be used with requirements: deckhouse >= %s",
 	})
 
 	return registry
@@ -135,7 +130,8 @@ func (r *RequirementsRegistry) RunAllChecks(modulePath string, module *Deckhouse
 // validateRequirement validates a single requirement check
 func (*RequirementsRegistry) validateRequirement(check RequirementCheck, module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
 	if module == nil || module.Requirements == nil || module.Requirements.Deckhouse == "" {
-		errorList.Errorf(check.ErrorMessage, check.MinDeckhouseVersion)
+		errorList.Errorf("requirements: %s, deckhouse version range should start no lower than %s",
+			check.Description, check.MinDeckhouseVersion)
 		return
 	}
 

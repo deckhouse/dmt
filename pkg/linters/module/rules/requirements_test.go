@@ -113,7 +113,7 @@ stage: "General Availability"`
 				return os.WriteFile(filepath.Join(path, ModuleConfigFilename), []byte(content), 0600)
 			},
 			expectedErrors: []string{
-				"stage should be used with requirements: deckhouse >= 1.68.0",
+				"requirements: Stage usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.68.0",
 			},
 		},
 		{
@@ -492,7 +492,7 @@ stage: "General Availability"`,
 namespace: test
 stage: "General Availability"`), 0600)
 			},
-			expectedErrors: []string{"stage should be used with requirements: deckhouse >= 1.68.0"},
+			expectedErrors: []string{"requirements: Stage usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.68.0"},
 		},
 		{
 			name: "go hooks without requirements",
@@ -513,7 +513,7 @@ require github.com/deckhouse/module-sdk v0.1.0`), 0600); err != nil {
 				}
 				return os.WriteFile(filepath.Join(hooksDir, "main.go"), []byte("package main\nfunc main() { app.Run() }"), 0600)
 			},
-			expectedErrors: []string{"requirements: for using go_hook, deckhouse version constraint must be specified (minimum: 1.68.0)"},
+			expectedErrors: []string{"requirements: Go hooks usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.68.0"},
 		},
 		{
 			name: "readiness probe + module-sdk >= 0.3 without requirements",
@@ -534,7 +534,7 @@ require github.com/deckhouse/module-sdk v0.3.0`), 0600); err != nil {
 				}
 				return os.WriteFile(filepath.Join(hooksDir, "main.go"), []byte("package main\nfunc main() { app.WithReadiness() }"), 0600)
 			},
-			expectedErrors: []string{"requirements: for using readiness probes, deckhouse version constraint must be specified (minimum: 1.71.0)"},
+			expectedErrors: []string{"requirements: Readiness probes usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.71.0"},
 		},
 	}
 
@@ -593,7 +593,7 @@ stage: "General Availability"`), 0600); err != nil {
 	assert.True(t, errorList.ContainsErrors(), "Expected errors but got none")
 	errs := errorList.GetErrors()
 	assert.Len(t, errs, 1, "Expected 1 error, got %d", len(errs))
-	assert.Contains(t, errs[0].Text, "stage should be used with requirements: deckhouse >= 1.68.0")
+	assert.Contains(t, errs[0].Text, "requirements: Stage usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.68.0")
 }
 
 func TestRequirementsRegistry_ReadinessProbesCheck(t *testing.T) {
@@ -631,7 +631,7 @@ require github.com/deckhouse/module-sdk v0.3.0`), 0600); err != nil {
 	assert.True(t, errorList.ContainsErrors(), "Expected errors but got none")
 	errs := errorList.GetErrors()
 	assert.Len(t, errs, 1, "Expected 1 error, got %d", len(errs))
-	assert.Contains(t, errs[0].Text, "requirements: for using readiness probes, deckhouse version constraint must be specified (minimum: 1.71.0)")
+	assert.Contains(t, errs[0].Text, "requirements: Readiness probes usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.71.0")
 }
 
 func TestHasAppRunCalls(t *testing.T) {
@@ -713,7 +713,7 @@ func TestRequirementsLogic_UserRequirements(t *testing.T) {
 namespace: test
 stage: "General Availability"`), 0600)
 			},
-			expectedErrors: []string{"stage should be used with requirements: deckhouse >= 1.68.0"},
+			expectedErrors: []string{"requirements: Stage usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.68.0"},
 			description:    "Если в модуле есть stage, то должен быть requirements с версией deckhouse не менее 1.68",
 		},
 		{
@@ -733,7 +733,7 @@ require github.com/deckhouse/module-sdk v0.1.0`), 0600); err != nil {
 				}
 				return os.WriteFile(filepath.Join(hooksDir, "main.go"), []byte("package main\nfunc main() { app.Run() }"), 0600)
 			},
-			expectedErrors: []string{"requirements: for using go_hook, deckhouse version constraint must be specified (minimum: 1.68.0)"},
+			expectedErrors: []string{"requirements: Go hooks usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.68.0"},
 			description:    "Если есть go_hooks (go.mod с module-sdk + app.Run), то должен быть requirements с версией deckhouse не менее 1.68",
 		},
 		{
@@ -753,7 +753,7 @@ require github.com/deckhouse/module-sdk v0.3.0`), 0600); err != nil {
 				}
 				return os.WriteFile(filepath.Join(hooksDir, "main.go"), []byte("package main\nfunc main() { app.WithReadiness() }"), 0600)
 			},
-			expectedErrors: []string{"requirements: for using readiness probes, deckhouse version constraint must be specified (minimum: 1.71.0)"},
+			expectedErrors: []string{"requirements: Readiness probes usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.71.0"},
 			description:    "Если есть readiness probes (app.WithReadiness + module-sdk >= 0.3), то должен быть requirements с версией deckhouse не менее 1.71",
 		},
 		{
