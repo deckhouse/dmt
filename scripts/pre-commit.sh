@@ -19,7 +19,7 @@ if ! make -f "$PROJECT_ROOT/Makefile" lint-fast; then
     if make -f "$PROJECT_ROOT/Makefile" lint-fix-fast; then
         echo "✅ Issues auto-fixed! Please review changes and commit again."
         echo "   Modified files:"
-        git diff --name-only --cached
+        git diff --name-only
         exit 1
     else
         echo "❌ Auto-fix failed. Please fix issues manually:"
