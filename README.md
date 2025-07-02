@@ -47,6 +47,32 @@ Generate some automatic rules for you module
 | [rbac](pkg/linters/rbac/README.md)                       | Check rbac rules. |
 | [templates](pkg/linters/templates/README.md)             | Check templates rules, VPA, PDB settings, prometheus, grafana rules, kube-rbac-proxy, service target port. |
 
+## Development Setup
+
+### Pre-commit Hooks
+
+To enable automatic linting before each commit, run:
+
+```shell
+make setup-hooks
+```
+
+This will install a pre-commit hook that:
+
+- Runs fast lint checks before each commit
+- Attempts to auto-fix issues when possible
+- Prevents commits with linting errors
+
+The hook uses `make lint-fast` for quick checks and `make lint-fix-fast` for auto-fixing.
+
+### Available Make Targets
+
+- `make setup-hooks` - Install pre-commit hooks
+- `make lint` - Run full linting
+- `make lint-fast` - Run fast linting (used by pre-commit hook)
+- `make lint-fix` - Run full linting with auto-fix
+- `make lint-fix-fast` - Run fast linting with auto-fix
+
 ## Configuration
 
 You can exclude linters or setup them via the config file `.dmtlint.yaml`
