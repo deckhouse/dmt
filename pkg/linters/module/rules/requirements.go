@@ -245,26 +245,40 @@ func (r *RequirementsRule) CheckRequirements(modulePath string, errorList *error
 	registry.RunAllChecks(modulePath, moduleDescriptions, errorList)
 }
 
-// findMinimalAllowedVersion finds the minimum allowed version among all >=, >, = in the constraint string
+// findMinimalAllowedVersion finds the minimum allowed version among all >=, >, =, != in constraint
+// Uses regex to extract versions and operators, returns the minimal version, or nil if only < or <= are present
 func findMinimalAllowedVersion(constraint *semver.Constraints) *semver.Version {
 	if constraint == nil {
 		return nil
 	}
 
-	pattern := regexp.MustCompile(`([><=]=?)\s*v?(\d+\.\d+\.\d+)`) // finds >= 1.2.3, > 1.2.3, = 1.2.3
+	pattern := regexp.MustCompile(`([><=]=?|!=)\s*v?(\d+\.\d+\.\d+)`)
 	matches := pattern.FindAllStringSubmatch(constraint.String(), -1)
 	var minVersion *semver.Version
+	foundMin := false
+
 	for _, m := range matches {
+		if len(m) < 3 {
+			continue
+		}
 		op := m[1]
 		verStr := m[2]
-		if op == ">=" || op == ">" || op == "=" {
+		if op == ">=" || op == ">" || op == "=" || op == "!=" {
 			v, err := semver.NewVersion(verStr)
 			if err == nil {
 				if minVersion == nil || v.LessThan(minVersion) {
 					minVersion = v
 				}
+				foundMin = true
 			}
 		}
+	}
+
+	if !foundMin {
+		return nil
+	}
+	if minVersion != nil && constraint.Check(minVersion) {
+		return minVersion
 	}
 	return minVersion
 }
