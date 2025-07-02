@@ -24,6 +24,9 @@ fi
 # Create symlink to our pre-commit script
 ln -sf "$SCRIPT_DIR/pre-commit.sh" .git/hooks/pre-commit
 
+# Ensure the pre-commit script is executable
+chmod +x "$SCRIPT_DIR/pre-commit.sh"
+
 echo "✅ Git hooks installed successfully!"
 echo ""
 echo "Available commands:"
