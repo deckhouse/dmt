@@ -19,7 +19,6 @@ package rules
 import (
 	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"sigs.k8s.io/yaml"
@@ -33,10 +32,11 @@ const (
 )
 
 type werfFile struct {
-	Artifact string `json:"artifact" yaml:"artifact"`
-	Image    string `json:"image" yaml:"image"`
-	From     string `json:"from" yaml:"from"`
-	Final    *bool  `json:"final" yaml:"final"`
+	Artifact  string `json:"artifact" yaml:"artifact"`
+	Image     string `json:"image" yaml:"image"`
+	From      string `json:"from" yaml:"from"`
+	Final     *bool  `json:"final" yaml:"final"`
+	FromImage string `json:"fromImage" yaml:"fromImage"`
 }
 
 type WerfRule struct {
@@ -51,77 +51,99 @@ func NewWerfRule() *WerfRule {
 	}
 }
 
-func (r *WerfRule) LintWerfFile(data string, errorList *errors.LintRuleErrorsList) {
+func (r *WerfRule) LintWerfFile(moduleName, data string, errorList *errors.LintRuleErrorsList) {
+	// Set rule name for all errors in this function
 	errorList = errorList.WithRule(r.GetName())
+
+	// Split YAML documents
 	werfDocs := splitManifests(data)
 
-	i := 1
-	for _, doc := range werfDocs {
+	// Process each document
+	for i, doc := range werfDocs {
 		var w werfFile
 		err := yaml.Unmarshal([]byte(doc), &w)
 		if err != nil {
-			// skip invalid yaml documents
+			// Log invalid YAML but continue processing other documents
+			errorList.WithObjectID(fmt.Sprintf("werf.yaml:manifest-%d", i+1)).
+				WithValue("yaml_error").
+				Error(fmt.Sprintf("Invalid YAML document: %v", err))
 			continue
 		}
 
-		w.From = strings.TrimSpace(w.From)
-		if w.From == "" {
+		// Skip if image is not in the module
+		parts := strings.Split(w.Image, "/")
+		if len(parts) < 2 {
 			continue
 		}
 
+		if parts[0] != moduleName {
+			continue
+		}
+
+		// Skip if no 'fromImage' field
+		w.FromImage = strings.TrimSpace(w.FromImage)
+		if w.FromImage == "" {
+			continue
+		}
+
+		// Check for deprecated 'artifact' directive
 		if w.Artifact != "" {
-			errorList.WithObjectID("werf.yaml:manifest-" + strconv.Itoa(i)).
+			errorList.WithObjectID(fmt.Sprintf("werf.yaml:manifest-%d", i+1)).
 				WithValue("artifact: " + w.Artifact).
 				Error("Use `from:` or `fromImage:` and `final: false` directives instead of `artifact:` in the werf file")
 		}
 
+		// Skip non-final images
 		if w.Final != nil && !*w.Final {
-			// skip image, if it's not final
 			continue
 		}
 
 		// TODO: add skips for some images
 
-		if !isWerfImagesCorrect(w.From) {
-			errorList.WithObjectID("werf.yaml:manifest-" + strconv.Itoa(i)).
-				WithValue("from: " + w.From).
-				Error("`from:` parameter should be one of our BASE_DISTROLESS images")
+		// Validate base image
+		if !isWerfImagesCorrect(w.FromImage) {
+			errorList.WithObjectID(fmt.Sprintf("werf.yaml:manifest-%d", i+1)).
+				WithValue("fromImage: " + w.FromImage).
+				Error("`fromImage:` parameter should be one of our `base` images")
 		}
-		i++
 	}
 }
 
-func splitManifests(bigFile string) map[string]string {
+// splitManifests splits YAML documents separated by '---' into a slice
+func splitManifests(bigFile string) []string {
 	var sep = regexp.MustCompile("(?:^|\\s*\n)---\\s*")
 
-	tpl := "manifest-%d"
-	res := map[string]string{}
-	// Making sure that any extra whitespace in YAML stream doesn't interfere in splitting documents correctly.
+	// Trim whitespace to ensure proper document splitting
 	bigFileTmp := strings.TrimSpace(bigFile)
-	docs := sep.Split(bigFileTmp, -1)
-	var count int
-	for _, d := range docs {
-		if d == "" {
-			continue
-		}
-
-		d = strings.TrimSpace(d)
-		res[fmt.Sprintf(tpl, count)] = d
-		count++
+	if bigFileTmp == "" {
+		return []string{}
 	}
 
-	return res
+	docs := sep.Split(bigFileTmp, -1)
+	var result []string
+
+	for _, doc := range docs {
+		doc = strings.TrimSpace(doc)
+		if doc != "" {
+			result = append(result, doc)
+		}
+	}
+
+	return result
 }
 
+// isWerfImagesCorrect validates that the image path contains `base_images`
 func isWerfImagesCorrect(img string) bool {
-	s := strings.Split(img, "/")
-	if len(s) < 2 {
+	if img == "" {
 		return false
 	}
 
-	if s[1] != "base_images" {
+	// Split by '/' to analyze path components
+	parts := strings.Split(img, "/")
+	if len(parts) < 2 {
 		return false
 	}
 
-	return true
+	// Check if the first component is "base"
+	return parts[0] == "base"
 }
