@@ -17,7 +17,7 @@ limitations under the License.
 package rules
 
 import (
-	errs "errors"
+	stderrors "errors"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -296,7 +296,7 @@ func findMinimalAllowedVersion(constraint *semver.Constraints) *semver.Version {
 // getDeckhouseModule parse module.yaml file and return DeckhouseModule struct
 func getDeckhouseModule(modulePath string, errorList *errors.LintRuleErrorsList) (*DeckhouseModule, error) {
 	_, err := os.Stat(filepath.Join(modulePath, ModuleConfigFilename))
-	if errs.Is(err, os.ErrNotExist) {
+	if stderrors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
 
