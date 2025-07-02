@@ -3,8 +3,6 @@
 # Quick lint check and auto-fix script
 # Usage: ./scripts/lint-check.sh [--fix]
 
-set -e
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
@@ -12,15 +10,18 @@ cd "$PROJECT_ROOT"
 
 echo "🔍 Running golangci-lint check..."
 
+# Capture exit code from make command
 if [[ "$1" == "--fix" ]]; then
     echo "🔧 Auto-fixing issues..."
     make lint-fix-fast
+    EXIT_CODE=$?
 else
     echo "⚡ Running fast lint check..."
     make lint-fast
+    EXIT_CODE=$?
 fi
 
-if [ $? -eq 0 ]; then
+if [ $EXIT_CODE -eq 0 ]; then
     echo "✅ Lint check passed!"
     exit 0
 else
