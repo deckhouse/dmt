@@ -48,6 +48,13 @@ const (
 	AppRunPattern         = `\w+\.Run\(`
 )
 
+// Precompiled regex patterns for better performance
+var (
+	readinessProbeRegex    = regexp.MustCompile(ReadinessProbePattern)
+	appRunRegex            = regexp.MustCompile(AppRunPattern)
+	versionConstraintRegex = regexp.MustCompile(`([><=]=?|!=)\s*v?(\d+\.\d+\.\d+)`)
+)
+
 func NewRequirementsRule() *RequirementsRule {
 	return &RequirementsRule{
 		RuleMeta: pkg.RuleMeta{
@@ -216,8 +223,7 @@ func hasReadinessProbes(modulePath string) bool {
 		return false
 	}
 
-	readinessPattern := regexp.MustCompile(ReadinessProbePattern)
-	return findPatternInGoFiles(validGoModDirs, readinessPattern)
+	return findPatternInGoFiles(validGoModDirs, readinessProbeRegex)
 }
 
 // hasGoHooks determines if there are go hooks with module-sdk dependency and app.Run calls
@@ -229,8 +235,7 @@ func hasGoHooks(modulePath string) bool {
 	}
 
 	// Check that there are app.Run calls only in directories with module-sdk dependency
-	runPattern := regexp.MustCompile(AppRunPattern)
-	return findPatternInGoFiles(validGoModDirs, runPattern)
+	return findPatternInGoFiles(validGoModDirs, appRunRegex)
 }
 
 func (r *RequirementsRule) CheckRequirements(modulePath string, errorList *errors.LintRuleErrorsList) {
@@ -252,8 +257,7 @@ func findMinimalAllowedVersion(constraint *semver.Constraints) *semver.Version {
 		return nil
 	}
 
-	pattern := regexp.MustCompile(`([><=]=?|!=)\s*v?(\d+\.\d+\.\d+)`)
-	matches := pattern.FindAllStringSubmatch(constraint.String(), -1)
+	matches := versionConstraintRegex.FindAllStringSubmatch(constraint.String(), -1)
 	var minVersion *semver.Version
 	foundMin := false
 
