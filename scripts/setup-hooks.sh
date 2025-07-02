@@ -22,7 +22,7 @@ if [ -f .git/hooks/pre-commit ]; then
 fi
 
 # Create symlink to our pre-commit script
-ln -sf ../../scripts/pre-commit.sh .git/hooks/pre-commit
+ln -sf "$SCRIPT_DIR/pre-commit.sh" .git/hooks/pre-commit
 
 echo "✅ Git hooks installed successfully!"
 echo ""
