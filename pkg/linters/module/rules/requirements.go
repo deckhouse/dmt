@@ -40,8 +40,8 @@ const (
 	// MinimalDeckhouseVersionForReadinessProbes defines the minimum required Deckhouse version for readiness probes usage
 	MinimalDeckhouseVersionForReadinessProbes = "1.71.0"
 
-	// ModuleSDKMinVersion defines the minimum module-sdk version for readiness probes
-	ModuleSDKMinVersion = "0.3"
+	// MinimalModuleSDKVersionForReadiness defines the minimum module-sdk version for readiness probes
+	MinimalModuleSDKVersionForReadiness = "0.3"
 
 	// Common patterns used in Go files
 	ReadinessProbePattern = `(\w+)\.WithReadiness`
@@ -211,7 +211,7 @@ func findPatternInGoFiles(dirs []string, pattern *regexp.Regexp) bool {
 
 // hasReadinessProbes determines if readiness probes (app.WithReadiness) and module-sdk >= 0.3 are used
 func hasReadinessProbes(modulePath string) bool {
-	validGoModDirs := findGoModFilesWithModuleSDK(modulePath, ModuleSDKMinVersion)
+	validGoModDirs := findGoModFilesWithModuleSDK(modulePath, MinimalModuleSDKVersionForReadiness)
 	if len(validGoModDirs) == 0 {
 		return false
 	}
