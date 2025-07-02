@@ -37,6 +37,11 @@ type werfFile struct {
 	From      string `json:"from" yaml:"from"`
 	Final     *bool  `json:"final" yaml:"final"`
 	FromImage string `json:"fromImage" yaml:"fromImage"`
+	ImageSpec struct {
+		Config struct {
+			User string `json:"user" yaml:"user"`
+		} `json:"config" yaml:"config"`
+	} `json:"imageSpec" yaml:"imageSpec"`
 }
 
 type WerfRule struct {
@@ -106,6 +111,13 @@ func (r *WerfRule) LintWerfFile(moduleName, data string, errorList *errors.LintR
 				WithValue("fromImage: " + w.FromImage).
 				Error("`fromImage:` parameter should be one of our `base` images")
 		}
+
+		// Validate imageSpec.config.user is not overridden
+		if w.ImageSpec.Config.User != "" {
+			errorList.WithObjectID(fmt.Sprintf("werf.yaml:manifest-%d", i+1)).
+				WithValue("imageSpec.config.user: " + w.ImageSpec.Config.User).
+				Error("`imageSpec.config.user:` parameter should be empty")
+		}
 	}
 }
 
@@ -144,6 +156,6 @@ func isWerfImagesCorrect(img string) bool {
 		return false
 	}
 
-	// Check if the first component is "base"
-	return parts[0] == "base"
+	// Check if the first component is "base" or "common"
+	return (parts[0] == "base" || parts[0] == "common")
 }
