@@ -361,11 +361,11 @@ imageSpec:
 	rule.LintWerfFile("test-module", werfDataWithMultipleIssues, errorList)
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for multiple issues")
 
-	errors := errorList.GetErrors()
-	assert.Len(t, errors, 2, "Expected exactly two errors")
+	errs := errorList.GetErrors()
+	assert.Len(t, errs, 2, "Expected exactly two errors")
 
 	// Check that both errors are present
-	errorTexts := []string{errors[0].Text, errors[1].Text}
+	errorTexts := []string{errs[0].Text, errs[1].Text}
 	assert.Contains(t, errorTexts, "`fromImage:` parameter should be one of our `base` images")
 	assert.Contains(t, errorTexts, "`imageSpec.config.user:` parameter should be empty")
 }
