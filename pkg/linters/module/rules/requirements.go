@@ -99,7 +99,7 @@ func NewRequirementsRegistry() *RequirementsRegistry {
 		Detector: func(modulePath string, _ *DeckhouseModule) bool {
 			return hasGoHooks(modulePath)
 		},
-		ErrorMessage: "requirements: for using go_hook, deckhouse version constraint must be specified (minimum: %s)",
+		ErrorMessage: "go_hook should be used with requirements: deckhouse >= %s",
 	})
 
 	// Readiness probes check - checks for app.WithReadiness with module-sdk >= 0.3
@@ -110,7 +110,7 @@ func NewRequirementsRegistry() *RequirementsRegistry {
 		Detector: func(modulePath string, _ *DeckhouseModule) bool {
 			return hasReadinessProbes(modulePath)
 		},
-		ErrorMessage: "requirements: for using readiness probes, deckhouse version constraint must be specified (minimum: %s)",
+		ErrorMessage: "readiness probes should be used with requirements: deckhouse >= %s",
 	})
 
 	return registry
