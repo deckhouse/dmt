@@ -160,6 +160,12 @@ func (*RequirementsRegistry) validateRequirement(check RequirementCheck, module 
 // findGoModFilesWithModuleSDK finds go.mod files that contain module-sdk dependency with version >= minVersion
 func findGoModFilesWithModuleSDK(modulePath, minVersion string) []string {
 	hooksDir := filepath.Join(modulePath, "hooks")
+
+	// Check if hooks directory exists before scanning
+	if _, err := os.Stat(hooksDir); os.IsNotExist(err) {
+		return nil
+	}
+
 	goModFiles := fsutils.GetFiles(hooksDir, true, fsutils.FilterFileByNames("go.mod"))
 	if len(goModFiles) == 0 {
 		return nil
