@@ -17,6 +17,8 @@ limitations under the License.
 package module
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/go-openapi/spec"
@@ -1298,19 +1300,56 @@ func Test_helmFormatModuleImages(t *testing.T) {
 }
 
 func Test_ComposeValuesFromSchemas(t *testing.T) {
+	// Create a temporary directory for the test module
+	tempDir := t.TempDir()
+	modulePath := filepath.Join(tempDir, "testModule")
+	openAPIPath := filepath.Join(modulePath, "openapi")
+
+	// Create the openapi directory
+	err := os.MkdirAll(openAPIPath, 0755)
+	require.NoError(t, err)
+
+	// Create a mock values.yaml file with a simple schema
+	valuesYAML := `type: object
+properties:
+  moduleKey:
+    type: string
+    default: "moduleValue"
+  nestedObject:
+    type: object
+    properties:
+      nestedKey:
+        type: string
+        default: "nestedValue"
+`
+	err = os.WriteFile(filepath.Join(openAPIPath, "values.yaml"), []byte(valuesYAML), 0644)
+	require.NoError(t, err)
+
+	// Create a mock config-values.yaml file
+	configValuesYAML := `type: object
+properties:
+  configKey:
+    type: string
+    default: "configValue"
+`
+	err = os.WriteFile(filepath.Join(openAPIPath, "config-values.yaml"), []byte(configValuesYAML), 0644)
+	require.NoError(t, err)
+
 	// Create a mock module
 	mockModule := &Module{
 		name:      "testModule",
 		namespace: "testNamespace",
-		path:      "/test/path",
+		path:      modulePath,
 	}
 
 	// Create a global schema
 	globalSchema := &spec.Schema{
 		SchemaProps: spec.SchemaProps{
+			Type: spec.StringOrArray{"object"},
 			Properties: map[string]spec.Schema{
 				"globalKey": {
 					SchemaProps: spec.SchemaProps{
+						Type:    spec.StringOrArray{"string"},
 						Default: "globalValue",
 					},
 				},
@@ -1318,28 +1357,139 @@ func Test_ComposeValuesFromSchemas(t *testing.T) {
 		},
 	}
 
-	// Mock the values.GetModuleValues function by creating a temporary test file
-	// Since we can't easily mock this without changing the code structure,
-	// we'll test the error case when module values are not found
-	_, err := ComposeValuesFromSchemas(mockModule, globalSchema)
-	// This should fail because the module path doesn't exist
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "cannot find openapi values schema for module")
+	// Test the happy path
+	result, err := ComposeValuesFromSchemas(mockModule, globalSchema)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// Check the structure of the result
+	require.Contains(t, result, "Chart")
+	require.Contains(t, result, "Capabilities")
+	require.Contains(t, result, "Release")
+	require.Contains(t, result, "Values")
+
+	// Check Release structure
+	release, ok := result["Release"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "testModule", release["Name"])
+	require.Equal(t, "testNamespace", release["Namespace"])
+	require.Equal(t, true, release["IsUpgrade"])
+	require.Equal(t, true, release["IsInstall"])
+	require.Equal(t, 0, release["Revision"])
+	require.Equal(t, "Helm", release["Service"])
+
+	// Check Values structure
+	values, ok := result["Values"].(map[string]any)
+	require.True(t, ok)
+	require.Contains(t, values, "global")
+	require.Contains(t, values, "testModule")
+
+	// Check global values
+	global, ok := values["global"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "globalValue", global["globalKey"])
+
+	// Check module values (camelized name)
+	module, ok := values["testModule"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "moduleValue", module["moduleKey"])
+
+	// Check nested object in module values
+	nestedObject, ok := module["nestedObject"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "nestedValue", nestedObject["nestedKey"])
+
+	// Check global modulesImages structure
+	require.Contains(t, global, "modulesImages")
+	modulesImages, ok := global["modulesImages"].(map[string]any)
+	require.True(t, ok)
+	require.Contains(t, modulesImages, "digests")
+	require.Contains(t, modulesImages, "registry")
+
+	// Check module registry structure
+	require.Contains(t, module, "registry")
+	registry, ok := module["registry"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "ZG9ja2VyY2Zn", registry["dockercfg"])
 }
 
 func Test_ComposeValuesFromSchemas_nil_global_schema(t *testing.T) {
+	// Create a temporary directory for the test module
+	tempDir := t.TempDir()
+	modulePath := filepath.Join(tempDir, "testModule")
+	openAPIPath := filepath.Join(modulePath, "openapi")
+
+	// Create the openapi directory
+	err := os.MkdirAll(openAPIPath, 0755)
+	require.NoError(t, err)
+
+	// Create a mock values.yaml file with a simple schema
+	valuesYAML := `type: object
+properties:
+  moduleKey:
+    type: string
+    default: "moduleValue"
+`
+	err = os.WriteFile(filepath.Join(openAPIPath, "values.yaml"), []byte(valuesYAML), 0644)
+	require.NoError(t, err)
+
+	// Create a mock config-values.yaml file
+	configValuesYAML := `type: object
+properties:
+  configKey:
+    type: string
+    default: "configValue"
+`
+	err = os.WriteFile(filepath.Join(openAPIPath, "config-values.yaml"), []byte(configValuesYAML), 0644)
+	require.NoError(t, err)
+
 	// Create a mock module
 	mockModule := &Module{
 		name:      "testModule",
 		namespace: "testNamespace",
-		path:      "/test/path",
+		path:      modulePath,
 	}
 
 	// Test with nil global schema
-	_, err := ComposeValuesFromSchemas(mockModule, nil)
-	// This should fail because the module path doesn't exist
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "cannot find openapi values schema for module")
+	result, err := ComposeValuesFromSchemas(mockModule, nil)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// Check the structure of the result
+	require.Contains(t, result, "Chart")
+	require.Contains(t, result, "Capabilities")
+	require.Contains(t, result, "Release")
+	require.Contains(t, result, "Values")
+
+	// Check Values structure
+	values, ok := result["Values"].(map[string]any)
+	require.True(t, ok)
+	require.Contains(t, values, "global")
+	require.Contains(t, values, "testModule")
+
+	// Check global values (should be empty when global schema is nil)
+	global, ok := values["global"].(map[string]any)
+	require.True(t, ok)
+	// Global should only contain modulesImages structure, no custom properties
+	require.Contains(t, global, "modulesImages")
+	require.NotContains(t, global, "globalKey")
+
+	// Check module values
+	module, ok := values["testModule"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "moduleValue", module["moduleKey"])
+
+	// Check global modulesImages structure
+	modulesImages, ok := global["modulesImages"].(map[string]any)
+	require.True(t, ok)
+	require.Contains(t, modulesImages, "digests")
+	require.Contains(t, modulesImages, "registry")
+
+	// Check module registry structure
+	require.Contains(t, module, "registry")
+	registry, ok := module["registry"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "ZG9ja2VyY2Zn", registry["dockercfg"])
 }
 
 func Test_parseOneOf(t *testing.T) {
