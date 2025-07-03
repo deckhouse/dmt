@@ -687,6 +687,35 @@ func Test_parseArray(t *testing.T) {
 			wantErr:      false,
 			expectedType: []any{},
 		},
+		{
+			name: "array with nil Items",
+			key:  "testArray",
+			prop: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Type:  spec.StringOrArray{"array"},
+					Items: nil, // Test the fallback when Items is nil
+				},
+			},
+			result:       make(map[string]any),
+			wantErr:      false,
+			expectedType: []any{},
+		},
+		{
+			name: "array with empty Items (both Schema and Schemas are nil/empty)",
+			key:  "testArray",
+			prop: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Type: spec.StringOrArray{"array"},
+					Items: &spec.SchemaOrArray{
+						Schema:  nil,             // Schema is nil
+						Schemas: []spec.Schema{}, // Schemas is empty
+					},
+				},
+			},
+			result:       make(map[string]any),
+			wantErr:      false,
+			expectedType: []any{},
+		},
 	}
 
 	for _, tt := range tests {

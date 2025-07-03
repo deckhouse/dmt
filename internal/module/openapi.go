@@ -281,6 +281,12 @@ func parseObject(key string, prop *spec.Schema, result map[string]any) error {
 }
 
 func parseArray(key string, prop *spec.Schema, result map[string]any) error {
+	// Check if prop is nil to avoid panic
+	if prop == nil {
+		result[key] = []any{}
+		return nil
+	}
+
 	if prop.Items == nil {
 		result[key] = []any{}
 		return nil
@@ -299,23 +305,19 @@ func parseArray(key string, prop *spec.Schema, result map[string]any) error {
 		return nil
 	}
 
-	// Create a temporary result map to parse the array element
+	// Use existing parseProperty logic by creating a temporary map with unique key
 	tempResult := make(map[string]any)
-	// Use a temporary key for parsing the element
-	tempKey := "element"
-	err := parseProperty(tempKey, element, tempResult)
-	if err != nil {
+	if err := parseProperty("_dmt_array_element_", element, tempResult); err != nil {
 		return err
 	}
 
-	// Extract the parsed element value
-	if elementValue, exists := tempResult[tempKey]; exists {
-		result[key] = []any{elementValue}
-	} else {
-		// Fallback to empty array if parsing failed
-		result[key] = []any{}
+	// Extract the parsed value from the temporary map
+	var elementValue any
+	if val, exists := tempResult["_dmt_array_element_"]; exists {
+		elementValue = val
 	}
 
+	result[key] = []any{elementValue}
 	return nil
 }
 
