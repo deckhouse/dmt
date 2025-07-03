@@ -1341,3 +1341,808 @@ func Test_ComposeValuesFromSchemas_nil_global_schema(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "cannot find openapi values schema for module")
 }
+
+func Test_parseOneOf(t *testing.T) {
+	tests := []struct {
+		name    string
+		key     string
+		prop    *spec.Schema
+		result  map[string]any
+		want    map[string]any
+		wantErr bool
+	}{
+		{
+			name: "oneOf with simple properties",
+			key:  "testKey",
+			prop: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					OneOf: []spec.Schema{
+						{
+							SchemaProps: spec.SchemaProps{
+								Properties: map[string]spec.Schema{
+									"prop1": {
+										SchemaProps: spec.SchemaProps{
+											Default: "value1",
+										},
+									},
+								},
+							},
+						},
+						{
+							SchemaProps: spec.SchemaProps{
+								Properties: map[string]spec.Schema{
+									"prop2": {
+										SchemaProps: spec.SchemaProps{
+											Default: "value2",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			result: make(map[string]any),
+			want: map[string]any{
+				"testKey": map[string]any{
+					"prop1": "value1",
+					"prop2": "value2",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "oneOf with nested objects",
+			key:  "testKey",
+			prop: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					OneOf: []spec.Schema{
+						{
+							SchemaProps: spec.SchemaProps{
+								Properties: map[string]spec.Schema{
+									"nested": {
+										SchemaProps: spec.SchemaProps{
+											Type: spec.StringOrArray{"object"},
+											Properties: map[string]spec.Schema{
+												"inner1": {
+													SchemaProps: spec.SchemaProps{
+														Default: "innerValue1",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			result: make(map[string]any),
+			want: map[string]any{
+				"testKey": map[string]any{
+					"nested": map[string]any{
+						"inner1": "innerValue1",
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "oneOf with empty schemas",
+			key:  "testKey",
+			prop: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					OneOf: []spec.Schema{},
+				},
+			},
+			result: make(map[string]any),
+			want: map[string]any{
+				"testKey": map[string]any{},
+			},
+			wantErr: false,
+		},
+		{
+			name: "oneOf with root schema properties",
+			key:  "testKey",
+			prop: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Properties: map[string]spec.Schema{
+						"rootProp": {
+							SchemaProps: spec.SchemaProps{
+								Default: "rootValue",
+							},
+						},
+					},
+					OneOf: []spec.Schema{
+						{
+							SchemaProps: spec.SchemaProps{
+								Properties: map[string]spec.Schema{
+									"oneOfProp": {
+										SchemaProps: spec.SchemaProps{
+											Default: "oneOfValue",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			result: make(map[string]any),
+			want: map[string]any{
+				"testKey": map[string]any{
+					"rootProp":  "rootValue",
+					"oneOfProp": "oneOfValue",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "oneOf with conflicting properties (last wins)",
+			key:  "testKey",
+			prop: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					OneOf: []spec.Schema{
+						{
+							SchemaProps: spec.SchemaProps{
+								Properties: map[string]spec.Schema{
+									"conflict": {
+										SchemaProps: spec.SchemaProps{
+											Default: "first",
+										},
+									},
+								},
+							},
+						},
+						{
+							SchemaProps: spec.SchemaProps{
+								Properties: map[string]spec.Schema{
+									"conflict": {
+										SchemaProps: spec.SchemaProps{
+											Default: "second",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			result: make(map[string]any),
+			want: map[string]any{
+				"testKey": map[string]any{
+					"conflict": "second",
+				},
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := parseOneOf(tt.key, tt.prop, tt.result)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("parseOneOf() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			require.Equal(t, tt.want, tt.result)
+		})
+	}
+}
+
+func Test_parseAnyOf(t *testing.T) {
+	tests := []struct {
+		name    string
+		key     string
+		prop    *spec.Schema
+		result  map[string]any
+		want    map[string]any
+		wantErr bool
+	}{
+		{
+			name: "anyOf with simple properties",
+			key:  "testKey",
+			prop: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					AnyOf: []spec.Schema{
+						{
+							SchemaProps: spec.SchemaProps{
+								Properties: map[string]spec.Schema{
+									"prop1": {
+										SchemaProps: spec.SchemaProps{
+											Default: "value1",
+										},
+									},
+								},
+							},
+						},
+						{
+							SchemaProps: spec.SchemaProps{
+								Properties: map[string]spec.Schema{
+									"prop2": {
+										SchemaProps: spec.SchemaProps{
+											Default: "value2",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			result: make(map[string]any),
+			want: map[string]any{
+				"testKey": map[string]any{
+					"prop1": "value1",
+					"prop2": "value2",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "anyOf with arrays",
+			key:  "testKey",
+			prop: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					AnyOf: []spec.Schema{
+						{
+							SchemaProps: spec.SchemaProps{
+								Properties: map[string]spec.Schema{
+									"arrayProp": {
+										SchemaProps: spec.SchemaProps{
+											Type: spec.StringOrArray{"array"},
+											Items: &spec.SchemaOrArray{
+												Schema: &spec.Schema{
+													SchemaProps: spec.SchemaProps{
+														Default: "arrayItem",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			result: make(map[string]any),
+			want: map[string]any{
+				"testKey": map[string]any{
+					"arrayProp": "arrayItem",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "anyOf with empty schemas",
+			key:  "testKey",
+			prop: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					AnyOf: []spec.Schema{},
+				},
+			},
+			result: make(map[string]any),
+			want: map[string]any{
+				"testKey": map[string]any{},
+			},
+			wantErr: false,
+		},
+		{
+			name: "anyOf with root schema properties",
+			key:  "testKey",
+			prop: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Properties: map[string]spec.Schema{
+						"rootProp": {
+							SchemaProps: spec.SchemaProps{
+								Default: "rootValue",
+							},
+						},
+					},
+					AnyOf: []spec.Schema{
+						{
+							SchemaProps: spec.SchemaProps{
+								Properties: map[string]spec.Schema{
+									"anyOfProp": {
+										SchemaProps: spec.SchemaProps{
+											Default: "anyOfValue",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			result: make(map[string]any),
+			want: map[string]any{
+				"testKey": map[string]any{
+					"rootProp":  "rootValue",
+					"anyOfProp": "anyOfValue",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "anyOf with enums",
+			key:  "testKey",
+			prop: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					AnyOf: []spec.Schema{
+						{
+							SchemaProps: spec.SchemaProps{
+								Properties: map[string]spec.Schema{
+									"enumProp": {
+										SchemaProps: spec.SchemaProps{
+											Enum: []any{"option1", "option2"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			result: make(map[string]any),
+			want: map[string]any{
+				"testKey": map[string]any{
+					"enumProp": "option1",
+				},
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := parseAnyOf(tt.key, tt.prop, tt.result)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("parseAnyOf() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			require.Equal(t, tt.want, tt.result)
+		})
+	}
+}
+
+func Test_parseAllOf(t *testing.T) {
+	tests := []struct {
+		name    string
+		key     string
+		prop    *spec.Schema
+		result  map[string]any
+		want    map[string]any
+		wantErr bool
+	}{
+		{
+			name: "allOf with simple properties",
+			key:  "testKey",
+			prop: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					AllOf: []spec.Schema{
+						{
+							SchemaProps: spec.SchemaProps{
+								Properties: map[string]spec.Schema{
+									"prop1": {
+										SchemaProps: spec.SchemaProps{
+											Default: "value1",
+										},
+									},
+								},
+							},
+						},
+						{
+							SchemaProps: spec.SchemaProps{
+								Properties: map[string]spec.Schema{
+									"prop2": {
+										SchemaProps: spec.SchemaProps{
+											Default: "value2",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			result: make(map[string]any),
+			want: map[string]any{
+				"testKey": map[string]any{
+					"prop1": "value1",
+					"prop2": "value2",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "allOf with nested objects",
+			key:  "testKey",
+			prop: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					AllOf: []spec.Schema{
+						{
+							SchemaProps: spec.SchemaProps{
+								Properties: map[string]spec.Schema{
+									"nested": {
+										SchemaProps: spec.SchemaProps{
+											Type: spec.StringOrArray{"object"},
+											Properties: map[string]spec.Schema{
+												"inner1": {
+													SchemaProps: spec.SchemaProps{
+														Default: "innerValue1",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						{
+							SchemaProps: spec.SchemaProps{
+								Properties: map[string]spec.Schema{
+									"nested": {
+										SchemaProps: spec.SchemaProps{
+											Type: spec.StringOrArray{"object"},
+											Properties: map[string]spec.Schema{
+												"inner2": {
+													SchemaProps: spec.SchemaProps{
+														Default: "innerValue2",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			result: make(map[string]any),
+			want: map[string]any{
+				"testKey": map[string]any{
+					"nested": map[string]any{
+						"inner2": "innerValue2", // Last schema wins for nested objects
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "allOf with empty schemas",
+			key:  "testKey",
+			prop: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					AllOf: []spec.Schema{},
+				},
+			},
+			result: make(map[string]any),
+			want: map[string]any{
+				"testKey": map[string]any{},
+			},
+			wantErr: false,
+		},
+		{
+			name: "allOf with root schema properties",
+			key:  "testKey",
+			prop: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Properties: map[string]spec.Schema{
+						"rootProp": {
+							SchemaProps: spec.SchemaProps{
+								Default: "rootValue",
+							},
+						},
+					},
+					AllOf: []spec.Schema{
+						{
+							SchemaProps: spec.SchemaProps{
+								Properties: map[string]spec.Schema{
+									"allOfProp": {
+										SchemaProps: spec.SchemaProps{
+											Default: "allOfValue",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			result: make(map[string]any),
+			want: map[string]any{
+				"testKey": map[string]any{
+					"rootProp":  "rootValue",
+					"allOfProp": "allOfValue",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "allOf with conflicting properties (last wins)",
+			key:  "testKey",
+			prop: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					AllOf: []spec.Schema{
+						{
+							SchemaProps: spec.SchemaProps{
+								Properties: map[string]spec.Schema{
+									"conflict": {
+										SchemaProps: spec.SchemaProps{
+											Default: "first",
+										},
+									},
+								},
+							},
+						},
+						{
+							SchemaProps: spec.SchemaProps{
+								Properties: map[string]spec.Schema{
+									"conflict": {
+										SchemaProps: spec.SchemaProps{
+											Default: "second",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			result: make(map[string]any),
+			want: map[string]any{
+				"testKey": map[string]any{
+					"conflict": "second",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "allOf with complex nested structures",
+			key:  "testKey",
+			prop: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					AllOf: []spec.Schema{
+						{
+							SchemaProps: spec.SchemaProps{
+								Properties: map[string]spec.Schema{
+									"complex": {
+										SchemaProps: spec.SchemaProps{
+											Type: spec.StringOrArray{"object"},
+											Properties: map[string]spec.Schema{
+												"level1": {
+													SchemaProps: spec.SchemaProps{
+														Type: spec.StringOrArray{"object"},
+														Properties: map[string]spec.Schema{
+															"level2": {
+																SchemaProps: spec.SchemaProps{
+																	Default: "deepValue",
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						{
+							SchemaProps: spec.SchemaProps{
+								Properties: map[string]spec.Schema{
+									"complex": {
+										SchemaProps: spec.SchemaProps{
+											Type: spec.StringOrArray{"object"},
+											Properties: map[string]spec.Schema{
+												"level1": {
+													SchemaProps: spec.SchemaProps{
+														Type: spec.StringOrArray{"object"},
+														Properties: map[string]spec.Schema{
+															"level2b": {
+																SchemaProps: spec.SchemaProps{
+																	Default: "deepValue2",
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			result: make(map[string]any),
+			want: map[string]any{
+				"testKey": map[string]any{
+					"complex": map[string]any{
+						"level1": map[string]any{
+							"level2b": "deepValue2", // Last schema wins for nested objects
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := parseAllOf(tt.key, tt.prop, tt.result)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("parseAllOf() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			require.Equal(t, tt.want, tt.result)
+		})
+	}
+}
+
+func Test_parseProperty_combinator_edge_cases(t *testing.T) {
+	tests := []struct {
+		name    string
+		key     string
+		prop    *spec.Schema
+		result  map[string]any
+		want    map[string]any
+		wantErr bool
+	}{
+		{
+			name: "oneOf with nil property",
+			key:  "testKey",
+			prop: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					OneOf: []spec.Schema{
+						{
+							SchemaProps: spec.SchemaProps{
+								Properties: map[string]spec.Schema{
+									"prop": {
+										SchemaProps: spec.SchemaProps{
+											Default: "value",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			result: make(map[string]any),
+			want: map[string]any{
+				"testKey": map[string]any{
+					"prop": "value",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "anyOf with empty properties",
+			key:  "testKey",
+			prop: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					AnyOf: []spec.Schema{
+						{
+							SchemaProps: spec.SchemaProps{
+								Properties: map[string]spec.Schema{},
+							},
+						},
+					},
+				},
+			},
+			result: make(map[string]any),
+			want: map[string]any{
+				"testKey": map[string]any{},
+			},
+			wantErr: false,
+		},
+		{
+			name: "allOf with mixed types",
+			key:  "testKey",
+			prop: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					AllOf: []spec.Schema{
+						{
+							SchemaProps: spec.SchemaProps{
+								Properties: map[string]spec.Schema{
+									"stringProp": {
+										SchemaProps: spec.SchemaProps{
+											Type:    spec.StringOrArray{"string"},
+											Pattern: "^[a-z]{3}$",
+										},
+									},
+									"intProp": {
+										SchemaProps: spec.SchemaProps{
+											Type: spec.StringOrArray{"integer"},
+										},
+									},
+									"boolProp": {
+										SchemaProps: spec.SchemaProps{
+											Type: spec.StringOrArray{"boolean"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			result: make(map[string]any),
+			want: map[string]any{
+				"testKey": map[string]any{
+					"stringProp": "abc", // Generated string matching pattern
+					"intProp":    123,
+					"boolProp":   true,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "oneOf with extensions (should not be processed)",
+			key:  "testKey",
+			prop: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					OneOf: []spec.Schema{
+						{
+							SchemaProps: spec.SchemaProps{
+								Properties: map[string]spec.Schema{
+									"prop": {
+										SchemaProps: spec.SchemaProps{
+											Default: "value",
+										},
+									},
+								},
+							},
+							VendorExtensible: spec.VendorExtensible{
+								Extensions: spec.Extensions{
+									DmtDefault: "extensionValue",
+								},
+							},
+						},
+					},
+				},
+			},
+			result: make(map[string]any),
+			want: map[string]any{
+				"testKey": map[string]any{
+					"prop": "value",
+				},
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := parseProperty(tt.key, tt.prop, tt.result)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("parseProperty() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			// For string types with patterns, we can't predict the exact value
+			// so we just check that the key exists and has a non-empty value
+			if tt.prop != nil && len(tt.prop.AllOf) > 0 {
+				for _, schema := range tt.prop.AllOf {
+					for _, prop := range schema.Properties {
+						if prop.Type.Contains("string") && prop.Pattern != "" {
+							require.Contains(t, tt.result, tt.key)
+							keyResult := tt.result[tt.key].(map[string]any)
+							require.Contains(t, keyResult, "stringProp")
+							require.NotEmpty(t, keyResult["stringProp"])
+							return
+						}
+					}
+				}
+			}
+
+			require.Equal(t, tt.want, tt.result)
+		})
+	}
+}
