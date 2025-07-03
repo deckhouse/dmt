@@ -321,8 +321,7 @@ func parseArray(key string, prop *spec.Schema, result map[string]any) error {
 }
 
 func parseOneOf(key string, prop *spec.Schema, result map[string]any) error {
-	downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
-	mergedSchema := mergeSchemas(downwardSchema, prop.OneOf...)
+	mergedSchema := mergeSchemas(prop, prop.OneOf...)
 
 	t, err := parseProperties(mergedSchema)
 	if err != nil {
@@ -337,8 +336,7 @@ func parseOneOf(key string, prop *spec.Schema, result map[string]any) error {
 }
 
 func parseAnyOf(key string, prop *spec.Schema, result map[string]any) error {
-	downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
-	mergedSchema := mergeSchemas(downwardSchema, prop.AnyOf...)
+	mergedSchema := mergeSchemas(prop, prop.AnyOf...)
 
 	t, err := parseProperties(mergedSchema)
 	if err != nil {
@@ -353,8 +351,7 @@ func parseAnyOf(key string, prop *spec.Schema, result map[string]any) error {
 }
 
 func parseAllOf(key string, prop *spec.Schema, result map[string]any) error {
-	downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
-	mergedSchema := mergeSchemas(downwardSchema, prop.AllOf...)
+	mergedSchema := mergeSchemas(prop, prop.AllOf...)
 
 	t, err := parseProperties(mergedSchema)
 	if err != nil {
@@ -373,35 +370,38 @@ func mergeSchemas(rootSchema *spec.Schema, schemas ...spec.Schema) *spec.Schema 
 		rootSchema = &spec.Schema{}
 	}
 
-	if rootSchema.Properties == nil {
-		rootSchema.Properties = make(map[string]spec.Schema)
+	// Create a deep copy of the root schema to avoid mutating the original
+	mergedSchema := deepcopy.Copy(rootSchema).(*spec.Schema)
+
+	if mergedSchema.Properties == nil {
+		mergedSchema.Properties = make(map[string]spec.Schema)
 	}
 
 	// Clear the combined fields at the beginning to avoid duplicate entries
 	// Note: This intentionally drops any existing OneOf, AllOf, AnyOf entries
 	// from the root schema. The caller should ensure that rootSchema is a
 	// clean copy if preservation of existing combinator entries is needed.
-	rootSchema.OneOf = nil
-	rootSchema.AllOf = nil
-	rootSchema.AnyOf = nil
+	mergedSchema.OneOf = nil
+	mergedSchema.AllOf = nil
+	mergedSchema.AnyOf = nil
 
 	for i := range schemas {
 		schema := schemas[i]
 		// Merge properties
 		for key := range schema.Properties {
-			rootSchema.Properties[key] = schema.Properties[key]
+			mergedSchema.Properties[key] = schema.Properties[key]
 		}
 		// Append OneOf, AllOf, AnyOf instead of overwriting
 		if len(schema.OneOf) > 0 {
-			rootSchema.OneOf = append(rootSchema.OneOf, schema.OneOf...)
+			mergedSchema.OneOf = append(mergedSchema.OneOf, schema.OneOf...)
 		}
 		if len(schema.AllOf) > 0 {
-			rootSchema.AllOf = append(rootSchema.AllOf, schema.AllOf...)
+			mergedSchema.AllOf = append(mergedSchema.AllOf, schema.AllOf...)
 		}
 		if len(schema.AnyOf) > 0 {
-			rootSchema.AnyOf = append(rootSchema.AnyOf, schema.AnyOf...)
+			mergedSchema.AnyOf = append(mergedSchema.AnyOf, schema.AnyOf...)
 		}
 	}
 
-	return rootSchema
+	return mergedSchema
 }
