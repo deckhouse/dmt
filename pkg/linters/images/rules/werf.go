@@ -46,17 +46,25 @@ type werfFile struct {
 
 type WerfRule struct {
 	pkg.RuleMeta
+	pkg.BoolRule
 }
 
-func NewWerfRule() *WerfRule {
+func NewWerfRule(disable bool) *WerfRule {
 	return &WerfRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: werfRuleName,
+		},
+		BoolRule: pkg.BoolRule{
+			Exclude: disable,
 		},
 	}
 }
 
 func (r *WerfRule) LintWerfFile(moduleName, data string, errorList *errors.LintRuleErrorsList) {
+	if !r.Enabled() {
+		return
+	}
+
 	// Set rule name for all errors in this function
 	errorList = errorList.WithRule(r.GetName())
 
