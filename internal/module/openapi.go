@@ -35,6 +35,7 @@ const (
 	ExampleDefault  = "x-example"
 	ArrayObject     = "array"
 	ObjectKey       = "object"
+	tempArrayKey    = "_dmt_array_element_"
 )
 
 func applyDigests(moduleName string, digests, helmValues map[string]any) {
@@ -155,6 +156,11 @@ func parseProperties(tempNode *spec.Schema) (map[string]any, error) {
 }
 
 func parseProperty(key string, prop *spec.Schema, result map[string]any) error {
+	// Check if prop is nil to avoid panic
+	if prop == nil {
+		return nil
+	}
+
 	switch {
 	case prop.Extensions[DmtDefault] != nil:
 		return parseDefault(key, prop, DmtDefault, result)
@@ -168,7 +174,7 @@ func parseProperty(key string, prop *spec.Schema, result map[string]any) error {
 		return parseObject(key, prop, result)
 	case prop.Default != nil:
 		result[key] = prop.Default
-	case prop.Type.Contains(ArrayObject) && prop.Items != nil && prop.Items.Schema != nil:
+	case prop.Type.Contains(ArrayObject) && prop.Items != nil:
 		return parseArray(key, prop, result)
 	case prop.Type.Contains("integer"):
 		result[key] = 123
@@ -252,6 +258,12 @@ func parseDefault(key string, prop *spec.Schema, extension string, result map[st
 }
 
 func parseEnum(key string, prop *spec.Schema, result map[string]any) {
+	if len(prop.Enum) == 0 {
+		// Return empty value if enum is empty
+		result[key] = nil
+		return
+	}
+
 	t := prop.Enum[0]
 	if prop.Default != nil {
 		t = prop.Default
@@ -270,31 +282,60 @@ func parseObject(key string, prop *spec.Schema, result map[string]any) error {
 }
 
 func parseArray(key string, prop *spec.Schema, result map[string]any) error {
-	if prop.Items.Schema.Default != nil {
-		result[key] = prop.Items.Schema.Default
-
+	if prop == nil || prop.Items == nil {
 		return nil
 	}
 
-	element := prop.Items.Schema
-	if element == nil && len(prop.Items.Schemas) > 0 {
-		element = &prop.Items.Schemas[0]
+	// Handle case where Items has a default value
+	if prop.Items.Schema != nil && prop.Items.Schema.Default != nil {
+		result[key] = prop.Items.Schema.Default
+		return nil
 	}
 
-	t := make(map[string]any)
-	err := parseProperty(key, element, t)
+	element := getArrayElementSchema(prop)
+	if element == nil {
+		result[key] = []any{}
+		return nil
+	}
+
+	elementValue, err := parseArrayElement(element)
 	if err != nil {
 		return err
 	}
 
-	result[key] = []any{t[key]}
+	result[key] = []any{elementValue}
+	return nil
+}
+
+// getArrayElementSchema extracts the schema for array elements
+func getArrayElementSchema(prop *spec.Schema) *spec.Schema {
+	if prop.Items.Schema != nil {
+		return prop.Items.Schema
+	}
+
+	if len(prop.Items.Schemas) > 0 {
+		return &prop.Items.Schemas[0]
+	}
 
 	return nil
 }
 
+// parseArrayElement parses a single array element using existing parseProperty logic
+func parseArrayElement(element *spec.Schema) (any, error) {
+	tempResult := make(map[string]any)
+	if err := parseProperty(tempArrayKey, element, tempResult); err != nil {
+		return nil, err
+	}
+
+	if val, exists := tempResult[tempArrayKey]; exists {
+		return val, nil
+	}
+
+	return nil, nil
+}
+
 func parseOneOf(key string, prop *spec.Schema, result map[string]any) error {
-	downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
-	mergedSchema := mergeSchemas(downwardSchema, prop.OneOf...)
+	mergedSchema := mergeSchemas(prop, prop.OneOf...)
 
 	t, err := parseProperties(mergedSchema)
 	if err != nil {
@@ -309,8 +350,7 @@ func parseOneOf(key string, prop *spec.Schema, result map[string]any) error {
 }
 
 func parseAnyOf(key string, prop *spec.Schema, result map[string]any) error {
-	downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
-	mergedSchema := mergeSchemas(downwardSchema, prop.AnyOf...)
+	mergedSchema := mergeSchemas(prop, prop.AnyOf...)
 
 	t, err := parseProperties(mergedSchema)
 	if err != nil {
@@ -325,8 +365,7 @@ func parseAnyOf(key string, prop *spec.Schema, result map[string]any) error {
 }
 
 func parseAllOf(key string, prop *spec.Schema, result map[string]any) error {
-	downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
-	mergedSchema := mergeSchemas(downwardSchema, prop.AllOf...)
+	mergedSchema := mergeSchemas(prop, prop.AllOf...)
 
 	t, err := parseProperties(mergedSchema)
 	if err != nil {
@@ -345,23 +384,38 @@ func mergeSchemas(rootSchema *spec.Schema, schemas ...spec.Schema) *spec.Schema 
 		rootSchema = &spec.Schema{}
 	}
 
-	if rootSchema.Properties == nil {
-		rootSchema.Properties = make(map[string]spec.Schema)
+	// Create a deep copy of the root schema to avoid mutating the original
+	mergedSchema := deepcopy.Copy(rootSchema).(*spec.Schema)
+
+	if mergedSchema.Properties == nil {
+		mergedSchema.Properties = make(map[string]spec.Schema)
 	}
 
-	rootSchema.OneOf = nil
-	rootSchema.AllOf = nil
-	rootSchema.AnyOf = nil
+	// Clear the combined fields at the beginning to avoid duplicate entries
+	// Note: This intentionally drops any existing OneOf, AllOf, AnyOf entries
+	// from the root schema. The caller should ensure that rootSchema is a
+	// clean copy if preservation of existing combinator entries is needed.
+	mergedSchema.OneOf = nil
+	mergedSchema.AllOf = nil
+	mergedSchema.AnyOf = nil
 
 	for i := range schemas {
 		schema := schemas[i]
+		// Merge properties
 		for key := range schema.Properties {
-			rootSchema.Properties[key] = schema.Properties[key]
+			mergedSchema.Properties[key] = schema.Properties[key]
 		}
-		rootSchema.OneOf = schema.OneOf
-		rootSchema.AllOf = schema.AllOf
-		rootSchema.AnyOf = schema.AnyOf
+		// Append OneOf, AllOf, AnyOf instead of overwriting
+		if len(schema.OneOf) > 0 {
+			mergedSchema.OneOf = append(mergedSchema.OneOf, schema.OneOf...)
+		}
+		if len(schema.AllOf) > 0 {
+			mergedSchema.AllOf = append(mergedSchema.AllOf, schema.AllOf...)
+		}
+		if len(schema.AnyOf) > 0 {
+			mergedSchema.AnyOf = append(mergedSchema.AnyOf, schema.AnyOf...)
+		}
 	}
 
-	return rootSchema
+	return mergedSchema
 }
