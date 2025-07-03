@@ -90,7 +90,7 @@ func checkMapForDeprecated(data any, errorList *errors.LintRuleErrorsList, short
 			errorList.WithObjectID(fmt.Sprintf("kind = %s ; name = %s", kind, name)).
 				WithFilePath(shortPath).
 				WithValue("deprecated: present").
-				Errorf(`CRD contains deprecated key, use "x-doc-deprecated: true" instead`)
+				Errorf(`CRD contains "deprecated" key, use "x-doc-deprecated: true" instead`)
 		}
 
 		// Recursively check all values in the map
