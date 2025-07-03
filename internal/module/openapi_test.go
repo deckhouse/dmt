@@ -698,7 +698,7 @@ func Test_parseArray(t *testing.T) {
 			},
 			result:       make(map[string]any),
 			wantErr:      false,
-			expectedType: []any{},
+			expectedType: nil, // When Items is nil, no value is set for the key
 		},
 		{
 			name: "array with empty Items (both Schema and Schemas are nil/empty)",
@@ -726,12 +726,17 @@ func Test_parseArray(t *testing.T) {
 				return
 			}
 			if !tt.wantErr {
-				require.Contains(t, tt.result, tt.key)
-				// Check the type of the result
-				if expectedStr, ok := tt.expectedType.(string); ok {
-					require.Equal(t, expectedStr, tt.result[tt.key])
+				if tt.expectedType == nil {
+					// When expectedType is nil, the key should not be present in the result
+					require.NotContains(t, tt.result, tt.key)
 				} else {
-					require.IsType(t, tt.expectedType, tt.result[tt.key])
+					require.Contains(t, tt.result, tt.key)
+					// Check the type of the result
+					if expectedStr, ok := tt.expectedType.(string); ok {
+						require.Equal(t, expectedStr, tt.result[tt.key])
+					} else {
+						require.IsType(t, tt.expectedType, tt.result[tt.key])
+					}
 				}
 			}
 		})

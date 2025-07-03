@@ -284,12 +284,10 @@ func parseObject(key string, prop *spec.Schema, result map[string]any) error {
 func parseArray(key string, prop *spec.Schema, result map[string]any) error {
 	// Check if prop is nil to avoid panic
 	if prop == nil {
-		result[key] = []any{}
 		return nil
 	}
 
 	if prop.Items == nil {
-		result[key] = []any{}
 		return nil
 	}
 	if prop.Items.Schema != nil && prop.Items.Schema.Default != nil {
