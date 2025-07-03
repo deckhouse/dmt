@@ -1120,7 +1120,7 @@ func Test_mergeSchemas(t *testing.T) {
 			},
 		},
 		{
-			name: "merge OneOf, AllOf, AnyOf",
+			name: "merge OneOf, AllOf, AnyOf - existing entries are intentionally dropped",
 			root: &spec.Schema{
 				SchemaProps: spec.SchemaProps{
 					OneOf: []spec.Schema{{}},
@@ -1171,6 +1171,56 @@ func Test_mergeSchemas(t *testing.T) {
 							},
 						},
 					},
+				},
+			},
+		},
+		{
+			name: "preserve root schema properties while clearing combinators",
+			root: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Properties: map[string]spec.Schema{
+						"rootProp": {
+							SchemaProps: spec.SchemaProps{
+								Default: "rootValue",
+							},
+						},
+					},
+					OneOf: []spec.Schema{{}},
+					AllOf: []spec.Schema{{}},
+					AnyOf: []spec.Schema{{}},
+				},
+			},
+			schemas: []spec.Schema{
+				{
+					SchemaProps: spec.SchemaProps{
+						Properties: map[string]spec.Schema{
+							"newProp": {
+								SchemaProps: spec.SchemaProps{
+									Default: "newValue",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Properties: map[string]spec.Schema{
+						"rootProp": {
+							SchemaProps: spec.SchemaProps{
+								Default: "rootValue",
+							},
+						},
+						"newProp": {
+							SchemaProps: spec.SchemaProps{
+								Default: "newValue",
+							},
+						},
+					},
+					// Combinators are cleared even though properties are preserved
+					OneOf: []spec.Schema{},
+					AllOf: []spec.Schema{},
+					AnyOf: []spec.Schema{},
 				},
 			},
 		},

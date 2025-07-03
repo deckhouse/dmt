@@ -35,6 +35,7 @@ const (
 	ExampleDefault  = "x-example"
 	ArrayObject     = "array"
 	ObjectKey       = "object"
+	tempArrayKey    = "_dmt_array_element_"
 )
 
 func applyDigests(moduleName string, digests, helmValues map[string]any) {
@@ -173,7 +174,7 @@ func parseProperty(key string, prop *spec.Schema, result map[string]any) error {
 		return parseObject(key, prop, result)
 	case prop.Default != nil:
 		result[key] = prop.Default
-	case prop.Type.Contains(ArrayObject) && prop.Items != nil && prop.Items.Schema != nil:
+	case prop.Type.Contains(ArrayObject) && prop.Items != nil:
 		return parseArray(key, prop, result)
 	case prop.Type.Contains("integer"):
 		result[key] = 123
@@ -307,13 +308,13 @@ func parseArray(key string, prop *spec.Schema, result map[string]any) error {
 
 	// Use existing parseProperty logic by creating a temporary map with unique key
 	tempResult := make(map[string]any)
-	if err := parseProperty("_dmt_array_element_", element, tempResult); err != nil {
+	if err := parseProperty(tempArrayKey, element, tempResult); err != nil {
 		return err
 	}
 
 	// Extract the parsed value from the temporary map
 	var elementValue any
-	if val, exists := tempResult["_dmt_array_element_"]; exists {
+	if val, exists := tempResult[tempArrayKey]; exists {
 		elementValue = val
 	}
 
@@ -378,7 +379,10 @@ func mergeSchemas(rootSchema *spec.Schema, schemas ...spec.Schema) *spec.Schema 
 		rootSchema.Properties = make(map[string]spec.Schema)
 	}
 
-	// Clear the combined fields at the beginning
+	// Clear the combined fields at the beginning to avoid duplicate entries
+	// Note: This intentionally drops any existing OneOf, AllOf, AnyOf entries
+	// from the root schema. The caller should ensure that rootSchema is a
+	// clean copy if preservation of existing combinator entries is needed.
 	rootSchema.OneOf = nil
 	rootSchema.AllOf = nil
 	rootSchema.AnyOf = nil
