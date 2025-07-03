@@ -80,6 +80,7 @@ type ImageSettings struct {
 	ExcludeRules ImageExcludeRules `mapstructure:"exclude-rules"`
 
 	Patches PatchesRuleSettings `mapstructure:"patches"`
+	Werf    WerfRuleSettings    `mapstructure:"werf"`
 
 	Impact *pkg.Level `mapstructure:"impact"`
 }
@@ -120,6 +121,11 @@ type ConversionsRuleSettings struct {
 
 type PatchesRuleSettings struct {
 	// disable conversions rule completely
+	Disable bool `mapstructure:"disable"`
+}
+
+type WerfRuleSettings struct {
+	// disable werf rule completely
 	Disable bool `mapstructure:"disable"`
 }
 
