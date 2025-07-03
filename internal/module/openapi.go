@@ -155,6 +155,11 @@ func parseProperties(tempNode *spec.Schema) (map[string]any, error) {
 }
 
 func parseProperty(key string, prop *spec.Schema, result map[string]any) error {
+	// Check if prop is nil to avoid panic
+	if prop == nil {
+		return nil
+	}
+
 	switch {
 	case prop.Extensions[DmtDefault] != nil:
 		return parseDefault(key, prop, DmtDefault, result)
@@ -252,6 +257,12 @@ func parseDefault(key string, prop *spec.Schema, extension string, result map[st
 }
 
 func parseEnum(key string, prop *spec.Schema, result map[string]any) {
+	if len(prop.Enum) == 0 {
+		// Return empty value if enum is empty
+		result[key] = nil
+		return
+	}
+
 	t := prop.Enum[0]
 	if prop.Default != nil {
 		t = prop.Default
@@ -281,13 +292,22 @@ func parseArray(key string, prop *spec.Schema, result map[string]any) error {
 		element = &prop.Items.Schemas[0]
 	}
 
-	t := make(map[string]any)
-	err := parseProperty(key, element, t)
+	// Create a temporary result map to parse the array element
+	tempResult := make(map[string]any)
+	// Use a temporary key for parsing the element
+	tempKey := "element"
+	err := parseProperty(tempKey, element, tempResult)
 	if err != nil {
 		return err
 	}
 
-	result[key] = []any{t[key]}
+	// Extract the parsed element value
+	if elementValue, exists := tempResult[tempKey]; exists {
+		result[key] = []any{elementValue}
+	} else {
+		// Fallback to empty array if parsing failed
+		result[key] = []any{}
+	}
 
 	return nil
 }
@@ -349,18 +369,27 @@ func mergeSchemas(rootSchema *spec.Schema, schemas ...spec.Schema) *spec.Schema 
 		rootSchema.Properties = make(map[string]spec.Schema)
 	}
 
+	// Clear the combined fields at the beginning
 	rootSchema.OneOf = nil
 	rootSchema.AllOf = nil
 	rootSchema.AnyOf = nil
 
 	for i := range schemas {
 		schema := schemas[i]
+		// Merge properties
 		for key := range schema.Properties {
 			rootSchema.Properties[key] = schema.Properties[key]
 		}
-		rootSchema.OneOf = schema.OneOf
-		rootSchema.AllOf = schema.AllOf
-		rootSchema.AnyOf = schema.AnyOf
+		// Append OneOf, AllOf, AnyOf instead of overwriting
+		if len(schema.OneOf) > 0 {
+			rootSchema.OneOf = append(rootSchema.OneOf, schema.OneOf...)
+		}
+		if len(schema.AllOf) > 0 {
+			rootSchema.AllOf = append(rootSchema.AllOf, schema.AllOf...)
+		}
+		if len(schema.AnyOf) > 0 {
+			rootSchema.AnyOf = append(rootSchema.AnyOf, schema.AnyOf...)
+		}
 	}
 
 	return rootSchema
