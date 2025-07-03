@@ -168,7 +168,7 @@ spec:
               type: string
               deprecated: true
               description: This field is deprecated`,
-			wantErrors: []string{`CRD contains deprecated key, use "x-doc-deprecated: true" instead`},
+			wantErrors: []string{`CRD contains "deprecated" key, use "x-doc-deprecated: true" instead`},
 		},
 		{
 			name:       "CRD with x-doc-deprecated key (should not error)",
@@ -228,7 +228,7 @@ spec:
               type: string
               deprecated: false
               description: This field is active and not deprecated`,
-			wantErrors: []string{`CRD contains deprecated key, use "x-doc-deprecated: true" instead`},
+			wantErrors: []string{`CRD contains "deprecated" key, use "x-doc-deprecated: true" instead`},
 		},
 		{
 			name:       "CRD with deprecated: true (should error)",
@@ -258,7 +258,7 @@ spec:
               type: string
               deprecated: true
               description: This field is deprecated`,
-			wantErrors: []string{`CRD contains deprecated key, use "x-doc-deprecated: true" instead`},
+			wantErrors: []string{`CRD contains "deprecated" key, use "x-doc-deprecated: true" instead`},
 		},
 	}
 
