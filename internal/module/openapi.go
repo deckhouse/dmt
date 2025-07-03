@@ -282,42 +282,56 @@ func parseObject(key string, prop *spec.Schema, result map[string]any) error {
 }
 
 func parseArray(key string, prop *spec.Schema, result map[string]any) error {
-	// Check if prop is nil to avoid panic
-	if prop == nil {
+	if prop == nil || prop.Items == nil {
 		return nil
 	}
 
-	if prop.Items == nil {
-		return nil
-	}
+	// Handle case where Items has a default value
 	if prop.Items.Schema != nil && prop.Items.Schema.Default != nil {
 		result[key] = prop.Items.Schema.Default
 		return nil
 	}
 
-	element := prop.Items.Schema
-	if element == nil && len(prop.Items.Schemas) > 0 {
-		element = &prop.Items.Schemas[0]
-	}
+	element := getArrayElementSchema(prop)
 	if element == nil {
 		result[key] = []any{}
 		return nil
 	}
 
-	// Use existing parseProperty logic by creating a temporary map with unique key
-	tempResult := make(map[string]any)
-	if err := parseProperty(tempArrayKey, element, tempResult); err != nil {
+	elementValue, err := parseArrayElement(element)
+	if err != nil {
 		return err
-	}
-
-	// Extract the parsed value from the temporary map
-	var elementValue any
-	if val, exists := tempResult[tempArrayKey]; exists {
-		elementValue = val
 	}
 
 	result[key] = []any{elementValue}
 	return nil
+}
+
+// getArrayElementSchema extracts the schema for array elements
+func getArrayElementSchema(prop *spec.Schema) *spec.Schema {
+	if prop.Items.Schema != nil {
+		return prop.Items.Schema
+	}
+
+	if len(prop.Items.Schemas) > 0 {
+		return &prop.Items.Schemas[0]
+	}
+
+	return nil
+}
+
+// parseArrayElement parses a single array element using existing parseProperty logic
+func parseArrayElement(element *spec.Schema) (any, error) {
+	tempResult := make(map[string]any)
+	if err := parseProperty(tempArrayKey, element, tempResult); err != nil {
+		return nil, err
+	}
+
+	if val, exists := tempResult[tempArrayKey]; exists {
+		return val, nil
+	}
+
+	return nil, nil
 }
 
 func parseOneOf(key string, prop *spec.Schema, result map[string]any) error {
