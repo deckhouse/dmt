@@ -281,15 +281,22 @@ func parseObject(key string, prop *spec.Schema, result map[string]any) error {
 }
 
 func parseArray(key string, prop *spec.Schema, result map[string]any) error {
-	if prop.Items.Schema.Default != nil {
+	if prop.Items == nil {
+		result[key] = []any{}
+		return nil
+	}
+	if prop.Items.Schema != nil && prop.Items.Schema.Default != nil {
 		result[key] = prop.Items.Schema.Default
-
 		return nil
 	}
 
 	element := prop.Items.Schema
 	if element == nil && len(prop.Items.Schemas) > 0 {
 		element = &prop.Items.Schemas[0]
+	}
+	if element == nil {
+		result[key] = []any{}
+		return nil
 	}
 
 	// Create a temporary result map to parse the array element
