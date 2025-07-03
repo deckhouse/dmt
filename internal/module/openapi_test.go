@@ -1322,7 +1322,7 @@ properties:
         type: string
         default: "nestedValue"
 `
-	err = os.WriteFile(filepath.Join(openAPIPath, "values.yaml"), []byte(valuesYAML), 0644)
+	err = os.WriteFile(filepath.Join(openAPIPath, "values.yaml"), []byte(valuesYAML), 0600)
 	require.NoError(t, err)
 
 	// Create a mock config-values.yaml file
@@ -1332,7 +1332,7 @@ properties:
     type: string
     default: "configValue"
 `
-	err = os.WriteFile(filepath.Join(openAPIPath, "config-values.yaml"), []byte(configValuesYAML), 0644)
+	err = os.WriteFile(filepath.Join(openAPIPath, "config-values.yaml"), []byte(configValuesYAML), 0600)
 	require.NoError(t, err)
 
 	// Create a mock module
@@ -1430,7 +1430,7 @@ properties:
     type: string
     default: "moduleValue"
 `
-	err = os.WriteFile(filepath.Join(openAPIPath, "values.yaml"), []byte(valuesYAML), 0644)
+	err = os.WriteFile(filepath.Join(openAPIPath, "values.yaml"), []byte(valuesYAML), 0600)
 	require.NoError(t, err)
 
 	// Create a mock config-values.yaml file
@@ -1440,7 +1440,7 @@ properties:
     type: string
     default: "configValue"
 `
-	err = os.WriteFile(filepath.Join(openAPIPath, "config-values.yaml"), []byte(configValuesYAML), 0644)
+	err = os.WriteFile(filepath.Join(openAPIPath, "config-values.yaml"), []byte(configValuesYAML), 0600)
 	require.NoError(t, err)
 
 	// Create a mock module
@@ -2281,13 +2281,14 @@ func Test_parseProperty_combinator_edge_cases(t *testing.T) {
 			if tt.prop != nil && len(tt.prop.AllOf) > 0 {
 				for _, schema := range tt.prop.AllOf {
 					for _, prop := range schema.Properties {
-						if prop.Type.Contains("string") && prop.Pattern != "" {
-							require.Contains(t, tt.result, tt.key)
-							keyResult := tt.result[tt.key].(map[string]any)
-							require.Contains(t, keyResult, "stringProp")
-							require.NotEmpty(t, keyResult["stringProp"])
-							return
+						if !prop.Type.Contains("string") || prop.Pattern == "" {
+							continue
 						}
+						require.Contains(t, tt.result, tt.key)
+						keyResult := tt.result[tt.key].(map[string]any)
+						require.Contains(t, keyResult, "stringProp")
+						require.NotEmpty(t, keyResult["stringProp"])
+						return
 					}
 				}
 			}
