@@ -9,13 +9,13 @@ import (
 )
 
 func TestNewWerfRule(t *testing.T) {
-	rule := NewWerfRule()
+	rule := NewWerfRule(false)
 	assert.NotNil(t, rule)
 	assert.Equal(t, "werf", rule.GetName())
 }
 
 func TestWerfRule_LintWerfFile_ValidBaseImage(t *testing.T) {
-	rule := NewWerfRule()
+	rule := NewWerfRule(false)
 	errorList := errors.NewLintRuleErrorsList()
 
 	validWerfData := `
@@ -29,7 +29,7 @@ final: true
 }
 
 func TestWerfRule_LintWerfFile_InvalidBaseImage(t *testing.T) {
-	rule := NewWerfRule()
+	rule := NewWerfRule(false)
 	errorList := errors.NewLintRuleErrorsList()
 
 	invalidWerfData := `
@@ -44,7 +44,7 @@ final: true
 }
 
 func TestWerfRule_LintWerfFile_ArtifactDirective(t *testing.T) {
-	rule := NewWerfRule()
+	rule := NewWerfRule(false)
 	errorList := errors.NewLintRuleErrorsList()
 
 	werfDataWithArtifact := `
@@ -60,7 +60,7 @@ final: true
 }
 
 func TestWerfRule_LintWerfFile_NonFinalImage(t *testing.T) {
-	rule := NewWerfRule()
+	rule := NewWerfRule(false)
 	errorList := errors.NewLintRuleErrorsList()
 
 	nonFinalWerfData := `
@@ -74,7 +74,7 @@ final: false
 }
 
 func TestWerfRule_LintWerfFile_NoFromImageField(t *testing.T) {
-	rule := NewWerfRule()
+	rule := NewWerfRule(false)
 	errorList := errors.NewLintRuleErrorsList()
 
 	werfDataNoFromImage := `
@@ -87,7 +87,7 @@ final: true
 }
 
 func TestWerfRule_LintWerfFile_EmptyFromImageField(t *testing.T) {
-	rule := NewWerfRule()
+	rule := NewWerfRule(false)
 	errorList := errors.NewLintRuleErrorsList()
 
 	werfDataEmptyFromImage := `
@@ -101,7 +101,7 @@ final: true
 }
 
 func TestWerfRule_LintWerfFile_WhitespaceFromImageField(t *testing.T) {
-	rule := NewWerfRule()
+	rule := NewWerfRule(false)
 	errorList := errors.NewLintRuleErrorsList()
 
 	werfDataWhitespaceFromImage := `
@@ -115,7 +115,7 @@ final: true
 }
 
 func TestWerfRule_LintWerfFile_MultipleDocuments(t *testing.T) {
-	rule := NewWerfRule()
+	rule := NewWerfRule(false)
 	errorList := errors.NewLintRuleErrorsList()
 
 	multipleDocsData := `
@@ -142,7 +142,7 @@ final: true
 }
 
 func TestWerfRule_LintWerfFile_InvalidYAML(t *testing.T) {
-	rule := NewWerfRule()
+	rule := NewWerfRule(false)
 	errorList := errors.NewLintRuleErrorsList()
 
 	invalidYAMLData := `
@@ -158,7 +158,7 @@ final: true
 }
 
 func TestWerfRule_LintWerfFile_EmptyFile(t *testing.T) {
-	rule := NewWerfRule()
+	rule := NewWerfRule(false)
 	errorList := errors.NewLintRuleErrorsList()
 
 	emptyData := ""
@@ -168,7 +168,7 @@ func TestWerfRule_LintWerfFile_EmptyFile(t *testing.T) {
 }
 
 func TestWerfRule_LintWerfFile_WhitespaceOnlyFile(t *testing.T) {
-	rule := NewWerfRule()
+	rule := NewWerfRule(false)
 	errorList := errors.NewLintRuleErrorsList()
 
 	whitespaceData := "   \n\t  \n"
@@ -179,7 +179,7 @@ func TestWerfRule_LintWerfFile_WhitespaceOnlyFile(t *testing.T) {
 
 // TestSplitManifests indirectly through LintWerfFile
 func TestWerfRule_LintWerfFile_SplitManifests(t *testing.T) {
-	rule := NewWerfRule()
+	rule := NewWerfRule(false)
 
 	// Test multiple documents
 	multipleDocsData := `
@@ -200,7 +200,7 @@ final: true
 
 // TestIsWerfImagesCorrect indirectly through LintWerfFile
 func TestWerfRule_LintWerfFile_ImageValidation(t *testing.T) {
-	rule := NewWerfRule()
+	rule := NewWerfRule(false)
 
 	// Test various image paths through the public interface
 	testCases := []struct {
@@ -270,7 +270,7 @@ final: true
 }
 
 func TestWerfRule_LintWerfFile_ImageSpecConfigUser(t *testing.T) {
-	rule := NewWerfRule()
+	rule := NewWerfRule(false)
 
 	testCases := []struct {
 		name        string
@@ -345,7 +345,7 @@ imageSpec:
 }
 
 func TestWerfRule_LintWerfFile_MultipleErrors(t *testing.T) {
-	rule := NewWerfRule()
+	rule := NewWerfRule(false)
 	errorList := errors.NewLintRuleErrorsList()
 
 	// Test case with both invalid fromImage and non-empty imageSpec.config.user
