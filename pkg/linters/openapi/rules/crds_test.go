@@ -200,6 +200,66 @@ spec:
               description: This field is deprecated`,
 			wantErrors: nil,
 		},
+		{
+			name:       "CRD with deprecated: false (should error)",
+			moduleName: "test-module",
+			content: `apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: test.deckhouse.io
+  labels:
+    heritage: deckhouse
+    module: test-module
+spec:
+  group: deckhouse.io
+  names:
+    kind: Test
+    plural: tests
+  scope: Cluster
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            activeField:
+              type: string
+              deprecated: false
+              description: This field is active and not deprecated`,
+			wantErrors: []string{`CRD contains deprecated key, use "x-doc-deprecated: true" instead`},
+		},
+		{
+			name:       "CRD with deprecated: true (should error)",
+			moduleName: "test-module",
+			content: `apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: test.deckhouse.io
+  labels:
+    heritage: deckhouse
+    module: test-module
+spec:
+  group: deckhouse.io
+  names:
+    kind: Test
+    plural: tests
+  scope: Cluster
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            deprecatedField:
+              type: string
+              deprecated: true
+              description: This field is deprecated`,
+			wantErrors: []string{`CRD contains deprecated key, use "x-doc-deprecated: true" instead`},
+		},
 	}
 
 	for _, tt := range tests {

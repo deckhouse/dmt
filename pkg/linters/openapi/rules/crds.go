@@ -85,11 +85,11 @@ func (*DeckhouseCRDsRule) validateDeprecatedKeyInYAML(yamlDoc string, crd *v1bet
 func checkMapForDeprecated(data any, errorList *errors.LintRuleErrorsList, shortPath, kind, name string) {
 	switch v := data.(type) {
 	case map[string]any:
-		// Check if current map has deprecated key
+		// Check if current map has deprecated key (regardless of value)
 		if _, hasDeprecated := v["deprecated"]; hasDeprecated {
 			errorList.WithObjectID(fmt.Sprintf("kind = %s ; name = %s", kind, name)).
 				WithFilePath(shortPath).
-				WithValue("deprecated: true").
+				WithValue("deprecated: present").
 				Errorf(`CRD contains deprecated key, use "x-doc-deprecated: true" instead`)
 		}
 
