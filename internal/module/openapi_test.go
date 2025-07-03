@@ -599,7 +599,7 @@ func Test_parseArray(t *testing.T) {
 		prop         *spec.Schema
 		result       map[string]any
 		wantErr      bool
-		expectedType interface{}
+		expectedType any
 	}{
 		{
 			name: "array with default in items",
