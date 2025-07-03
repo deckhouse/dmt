@@ -1110,9 +1110,10 @@ func Test_mergeSchemas(t *testing.T) {
 			},
 			expected: &spec.Schema{
 				SchemaProps: spec.SchemaProps{
-					OneOf: []spec.Schema{{}, {}},
-					AllOf: []spec.Schema{{}, {}},
-					AnyOf: []spec.Schema{{}, {}},
+					Properties: map[string]spec.Schema{},
+					OneOf:      []spec.Schema{{}}, // Only the new one, old ones are cleared
+					AllOf:      []spec.Schema{{}}, // Only the new one, old ones are cleared
+					AnyOf:      []spec.Schema{{}}, // Only the new one, old ones are cleared
 				},
 			},
 		},
@@ -1150,9 +1151,9 @@ func Test_mergeSchemas(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := mergeSchemas(tt.root, tt.schemas...)
 			require.Equal(t, tt.expected.Properties, result.Properties)
-			require.Equal(t, len(tt.expected.OneOf), len(result.OneOf))
-			require.Equal(t, len(tt.expected.AllOf), len(result.AllOf))
-			require.Equal(t, len(tt.expected.AnyOf), len(result.AnyOf))
+			require.Len(t, result.OneOf, len(tt.expected.OneOf))
+			require.Len(t, result.AllOf, len(tt.expected.AllOf))
+			require.Len(t, result.AnyOf, len(tt.expected.AnyOf))
 		})
 	}
 }
