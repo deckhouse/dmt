@@ -86,24 +86,48 @@ func (*DeckhouseCRDsRule) validateDeprecatedKeyInYAML(yamlDoc string, crd *v1bet
 	checkPropertiesForDeprecated(yamlMap, errorList, shortPath, crd.Kind, crd.Name)
 }
 
+// getCRDProperties extracts the properties section from the CRD schema
+func getCRDProperties(data map[string]any) map[string]any {
+	spec, ok := data["spec"].(map[string]any)
+	if !ok {
+		return nil
+	}
+
+	versions, ok := spec["versions"].([]any)
+	if !ok {
+		return nil
+	}
+
+	for _, version := range versions {
+		versionMap, ok := version.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		schema, ok := versionMap["schema"].(map[string]any)
+		if !ok {
+			continue
+		}
+
+		openAPIV3Schema, ok := schema["openAPIV3Schema"].(map[string]any)
+		if !ok {
+			continue
+		}
+
+		props, ok := openAPIV3Schema["properties"].(map[string]any)
+		if ok {
+			return props
+		}
+	}
+
+	return nil
+}
+
 func checkPropertiesForDeprecated(data any, errorList *errors.LintRuleErrorsList, shortPath, kind, name string) {
-	if v, ok := data.(map[string]any); ok {
-		// Navigate to spec.versions[].schema.openAPIV3Schema.properties
-		if spec, ok := v["spec"].(map[string]any); ok {
-			if versions, ok := spec["versions"].([]any); ok {
-				for _, version := range versions {
-					if versionMap, ok := version.(map[string]any); ok {
-						if schema, ok := versionMap["schema"].(map[string]any); ok {
-							if openAPIV3Schema, ok := schema["openAPIV3Schema"].(map[string]any); ok {
-								// Extract and check only the properties section
-								if props, ok := openAPIV3Schema["properties"].(map[string]any); ok {
-									checkDeprecatedInPropertiesRecursively(props, errorList, shortPath, kind, name)
-								}
-							}
-						}
-					}
-				}
-			}
+	if yamlMap, ok := data.(map[string]any); ok {
+		props := getCRDProperties(yamlMap)
+		if props != nil {
+			checkDeprecatedInPropertiesRecursively(props, errorList, shortPath, kind, name)
 		}
 	}
 }
