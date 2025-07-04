@@ -27,6 +27,9 @@ ln -sf "$SCRIPT_DIR/pre-commit.sh" .git/hooks/pre-commit
 # Ensure the pre-commit script is executable
 chmod +x "$SCRIPT_DIR/pre-commit.sh"
 
+# Ensure the hook file itself is executable
+chmod +x .git/hooks/pre-commit
+
 echo "✅ Git hooks installed successfully!"
 echo ""
 echo "Available commands:"
