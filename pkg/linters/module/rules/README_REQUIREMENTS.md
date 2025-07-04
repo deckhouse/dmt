@@ -41,7 +41,7 @@ type RequirementCheck struct {
     Name         string
     Requirements []ComponentRequirement
     Description  string
-    Detector     func(modulePath string, module *DeckhouseModule, errorList *errors.LintRuleErrorsList) bool
+    Detector     func(modulePath string, module *DeckhouseModule) bool
 }
 ```
 
@@ -147,7 +147,7 @@ registry.RegisterCheck(RequirementCheck{
         },
     },
     Description: "New feature usage requires minimum versions of multiple components",
-    Detector: func(modulePath string, module *DeckhouseModule, errorList *errors.LintRuleErrorsList) bool {
+    Detector: func(modulePath string, module *DeckhouseModule) bool {
         return hasNewFeature(modulePath, module)
     },
 })

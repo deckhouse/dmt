@@ -9,11 +9,10 @@ The tests have been refactored to improve maintainability and readability by spl
 ### Test Files
 
 - **`requirements_test_helpers.go`** - Common test utilities and helper functions
-- **`requirements_basic_test.go`** - Basic functionality tests (rule creation, version parsing, module loading)
-- **`requirements_stage_test.go`** - Tests for stage requirements validation
-- **`requirements_go_hooks_test.go`** - Tests for Go hooks detection and requirements
-- **`requirements_readiness_test.go`** - Tests for readiness probes detection and requirements
-- **`requirements_integration_test.go`** - Integration tests covering multiple scenarios
+- **`requirements_edge_cases_test.go`** - Comprehensive tests for requirements validation including edge cases
+- **`module_yaml_test.go`** - Tests for module.yaml parsing and validation
+- **`license_library_test.go`** - Tests for license library validation
+- **`oss_library_test.go`** - Tests for OSS library validation
 
 ### Test Helper Structure
 
@@ -99,7 +98,7 @@ Constants are defined for common test content:
 go test ./pkg/linters/module/rules/... -v
 
 # Run specific test file
-go test ./pkg/linters/module/rules/requirements_stage_test.go -v
+go test ./pkg/linters/module/rules/requirements_edge_cases_test.go -v
 
 # Run with coverage
 go test ./pkg/linters/module/rules/... -cover
