@@ -161,30 +161,43 @@ func checkPropertiesForDeprecated(data any, errorList *errors.LintRuleErrorsList
 	if yamlMap, ok := data.(map[string]any); ok {
 		props := aggregateVersionProperties(yamlMap)
 		if props != nil {
-			checkDeprecatedInPropertiesRecursively(props, errorList, shortPath, kind, name)
+			// Start with the base path for properties
+			basePath := "spec.versions[].schema.openAPIV3Schema.properties"
+			checkDeprecatedInPropertiesRecursively(props, errorList, shortPath, kind, name, basePath)
 		}
 	}
 }
 
-func checkDeprecatedInPropertiesRecursively(data any, errorList *errors.LintRuleErrorsList, shortPath, kind, name string) {
+// checkDeprecatedInPropertiesRecursively recursively checks for deprecated keys in properties
+// and tracks the full path to provide detailed error messages
+func checkDeprecatedInPropertiesRecursively(data any, errorList *errors.LintRuleErrorsList, shortPath, kind, name, currentPath string) {
 	switch v := data.(type) {
 	case map[string]any:
 		// Check if current map has deprecated key (regardless of value)
 		if _, hasDeprecated := v["deprecated"]; hasDeprecated {
 			errorList.WithObjectID(fmt.Sprintf("kind = %s ; name = %s", kind, name)).
 				WithFilePath(shortPath).
-				WithValue("deprecated: present").
-				Errorf(`CRD contains "deprecated" key, use "x-doc-deprecated: true" instead`)
+				WithValue(fmt.Sprintf("deprecated: present at path %s", currentPath)).
+				Errorf(`CRD contains "deprecated" key at path "%s", use "x-doc-deprecated: true" instead`, currentPath)
 		}
 
 		// Recursively check all values in the map
-		for _, value := range v {
-			checkDeprecatedInPropertiesRecursively(value, errorList, shortPath, kind, name)
+		for key, value := range v {
+			// Build the path for this property
+			var newPath string
+			if currentPath == "" {
+				newPath = key
+			} else {
+				newPath = fmt.Sprintf("%s.%s", currentPath, key)
+			}
+			checkDeprecatedInPropertiesRecursively(value, errorList, shortPath, kind, name, newPath)
 		}
 	case []any:
 		// Recursively check all items in the slice
-		for _, item := range v {
-			checkDeprecatedInPropertiesRecursively(item, errorList, shortPath, kind, name)
+		for i, item := range v {
+			// Build the path for array items
+			newPath := fmt.Sprintf("%s[%d]", currentPath, i)
+			checkDeprecatedInPropertiesRecursively(item, errorList, shortPath, kind, name, newPath)
 		}
 	}
 }

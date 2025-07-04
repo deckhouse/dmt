@@ -168,7 +168,7 @@ spec:
               type: string
               deprecated: true
               description: This field is deprecated`,
-			wantErrors: []string{`CRD contains "deprecated" key, use "x-doc-deprecated: true" instead`},
+			wantErrors: []string{`CRD contains "deprecated" key at path "spec.versions[].schema.openAPIV3Schema.properties.deprecatedField", use "x-doc-deprecated: true" instead`},
 		},
 		{
 			name:       "CRD with x-doc-deprecated key (should not error)",
@@ -228,7 +228,7 @@ spec:
               type: string
               deprecated: false
               description: This field is active and not deprecated`,
-			wantErrors: []string{`CRD contains "deprecated" key, use "x-doc-deprecated: true" instead`},
+			wantErrors: []string{`CRD contains "deprecated" key at path "spec.versions[].schema.openAPIV3Schema.properties.activeField", use "x-doc-deprecated: true" instead`},
 		},
 		{
 			name:       "CRD with deprecated: true (should error)",
@@ -258,7 +258,7 @@ spec:
               type: string
               deprecated: true
               description: This field is deprecated`,
-			wantErrors: []string{`CRD contains "deprecated" key, use "x-doc-deprecated: true" instead`},
+			wantErrors: []string{`CRD contains "deprecated" key at path "spec.versions[].schema.openAPIV3Schema.properties.deprecatedField", use "x-doc-deprecated: true" instead`},
 		},
 		{
 			name:       "CRD with deprecated in version (should not error)",
@@ -351,7 +351,7 @@ spec:
                   type: string
                   deprecated: true
                   description: This nested field is deprecated`,
-			wantErrors: []string{`CRD contains "deprecated" key, use "x-doc-deprecated: true" instead`},
+			wantErrors: []string{`CRD contains "deprecated" key at path "spec.versions[].schema.openAPIV3Schema.properties.nestedObject.properties.nestedField", use "x-doc-deprecated: true" instead`},
 		},
 		{
 			name:       "CRD with deprecated in array item schema (should error)",
@@ -386,7 +386,7 @@ spec:
                     type: string
                     deprecated: true
                     description: This field in array item is deprecated`,
-			wantErrors: []string{`CRD contains "deprecated" key, use "x-doc-deprecated: true" instead`},
+			wantErrors: []string{`CRD contains "deprecated" key at path "spec.versions[].schema.openAPIV3Schema.properties.listField.items.properties.arrayItemField", use "x-doc-deprecated: true" instead`},
 		},
 		{
 			name:       "CRD with multiple versions - deprecated in later version (should error)",
@@ -426,7 +426,7 @@ spec:
               type: string
               deprecated: true
               description: This field is deprecated in v1`,
-			wantErrors: []string{`CRD contains "deprecated" key, use "x-doc-deprecated: true" instead`},
+			wantErrors: []string{`CRD contains "deprecated" key at path "spec.versions[].schema.openAPIV3Schema.properties.deprecatedField", use "x-doc-deprecated: true" instead`},
 		},
 		{
 			name:       "CRD with multiple versions - deprecated in first version only (should error)",
@@ -466,7 +466,7 @@ spec:
             activeField:
               type: string
               description: This field is active in v1`,
-			wantErrors: []string{`CRD contains "deprecated" key, use "x-doc-deprecated: true" instead`},
+			wantErrors: []string{`CRD contains "deprecated" key at path "spec.versions[].schema.openAPIV3Schema.properties.deprecatedField", use "x-doc-deprecated: true" instead`},
 		},
 		{
 			name:       "CRD with multiple versions - deprecated in both versions (should error)",
@@ -508,8 +508,8 @@ spec:
               deprecated: true
               description: This field is deprecated in v1`,
 			wantErrors: []string{
-				`CRD contains "deprecated" key, use "x-doc-deprecated: true" instead`,
-				`CRD contains "deprecated" key, use "x-doc-deprecated: true" instead`,
+				`CRD contains "deprecated" key at path "spec.versions[].schema.openAPIV3Schema.properties.deprecatedField1", use "x-doc-deprecated: true" instead`,
+				`CRD contains "deprecated" key at path "spec.versions[].schema.openAPIV3Schema.properties.deprecatedField2", use "x-doc-deprecated: true" instead`,
 			},
 		},
 	}
