@@ -86,8 +86,9 @@ func (*DeckhouseCRDsRule) validateDeprecatedKeyInYAML(yamlDoc string, crd *v1bet
 	checkPropertiesForDeprecated(yamlMap, errorList, shortPath, crd.Kind, crd.Name)
 }
 
-// getCRDProperties extracts the properties section from the CRD schema
-func getCRDProperties(data map[string]any) map[string]any {
+// aggregateVersionProperties extracts and aggregates the properties section from all CRD versions
+// It merges properties from all versions to ensure comprehensive validation
+func aggregateVersionProperties(data map[string]any) map[string]any {
 	spec, ok := data["spec"].(map[string]any)
 	if !ok {
 		return nil
@@ -97,6 +98,9 @@ func getCRDProperties(data map[string]any) map[string]any {
 	if !ok {
 		return nil
 	}
+
+	// Aggregate properties from all versions
+	allProperties := make(map[string]any)
 
 	for _, version := range versions {
 		versionMap, ok := version.(map[string]any)
@@ -116,16 +120,46 @@ func getCRDProperties(data map[string]any) map[string]any {
 
 		props, ok := openAPIV3Schema["properties"].(map[string]any)
 		if ok {
-			return props
+			// Deep merge properties from this version into the aggregated map
+			// This ensures all nested schemas from every version are validated
+			deepMergeProperties(allProperties, props)
 		}
+	}
+
+	// Return aggregated properties if any were found
+	if len(allProperties) > 0 {
+		return allProperties
 	}
 
 	return nil
 }
 
+// deepMergeProperties performs a deep merge of property maps, ensuring all nested schemas
+// from every version are included in the validation. This handles cases where the same
+// property key is redefined across versions with different nested structures.
+func deepMergeProperties(target, source map[string]any) {
+	for key, sourceValue := range source {
+		if existingValue, exists := target[key]; exists {
+			// If both values are maps, recursively merge them
+			if targetMap, ok := existingValue.(map[string]any); ok {
+				if sourceMap, ok := sourceValue.(map[string]any); ok {
+					deepMergeProperties(targetMap, sourceMap)
+					continue
+				}
+			}
+			// If values are different types or not maps, prefer the source value
+			// This ensures we capture all variations across versions
+			target[key] = sourceValue
+		} else {
+			// New key, add it directly
+			target[key] = sourceValue
+		}
+	}
+}
+
 func checkPropertiesForDeprecated(data any, errorList *errors.LintRuleErrorsList, shortPath, kind, name string) {
 	if yamlMap, ok := data.(map[string]any); ok {
-		props := getCRDProperties(yamlMap)
+		props := aggregateVersionProperties(yamlMap)
 		if props != nil {
 			checkDeprecatedInPropertiesRecursively(props, errorList, shortPath, kind, name)
 		}
