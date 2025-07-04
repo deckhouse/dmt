@@ -260,6 +260,99 @@ spec:
               description: This field is deprecated`,
 			wantErrors: []string{`CRD contains "deprecated" key, use "x-doc-deprecated: true" instead`},
 		},
+		{
+			name:       "CRD with deprecated in version (should not error)",
+			moduleName: "test-module",
+			content: `apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: test.deckhouse.io
+  labels:
+    heritage: deckhouse
+    module: test-module
+spec:
+  group: deckhouse.io
+  names:
+    kind: Test
+    plural: tests
+  scope: Cluster
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      deprecated: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            activeField:
+              type: string
+              description: This field is active`,
+			wantErrors: nil,
+		},
+		{
+			name:       "CRD with deprecated in metadata (should not error)",
+			moduleName: "test-module",
+			content: `apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: test.deckhouse.io
+  labels:
+    heritage: deckhouse
+    module: test-module
+  deprecated: true
+spec:
+  group: deckhouse.io
+  names:
+    kind: Test
+    plural: tests
+  scope: Cluster
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            activeField:
+              type: string
+              description: This field is active`,
+			wantErrors: nil,
+		},
+		{
+			name:       "CRD with deprecated in nested properties (should error)",
+			moduleName: "test-module",
+			content: `apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: test.deckhouse.io
+  labels:
+    heritage: deckhouse
+    module: test-module
+spec:
+  group: deckhouse.io
+  names:
+    kind: Test
+    plural: tests
+  scope: Cluster
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            nestedObject:
+              type: object
+              properties:
+                nestedField:
+                  type: string
+                  deprecated: true
+                  description: This nested field is deprecated`,
+			wantErrors: []string{`CRD contains "deprecated" key, use "x-doc-deprecated: true" instead`},
+		},
 	}
 
 	for _, tt := range tests {
