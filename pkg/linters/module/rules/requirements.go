@@ -181,7 +181,7 @@ func (r *RequirementsRegistry) validateRequirement(check RequirementCheck, modul
 }
 
 // validateComponentRequirement validates a single component requirement
-func (r *RequirementsRegistry) validateComponentRequirement(checkName string, req ComponentRequirement, module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
+func (*RequirementsRegistry) validateComponentRequirement(checkName string, req ComponentRequirement, module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
 	var constraintStr string
 	var constraintName string
 
