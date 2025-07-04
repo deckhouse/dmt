@@ -71,6 +71,40 @@ func (*DeckhouseCRDsRule) validateLabel(crd *v1beta1.CustomResourceDefinition, l
 	}
 }
 
+func (*DeckhouseCRDsRule) validateDeprecatedKeyInYAML(yamlDoc string, crd *v1beta1.CustomResourceDefinition, errorList *errors.LintRuleErrorsList, shortPath string) {
+	// Parse YAML as map to search for deprecated key
+	var yamlMap map[string]any
+	if err := yaml.Unmarshal([]byte(yamlDoc), &yamlMap); err != nil {
+		return
+	}
+
+	// Search for deprecated key in the YAML structure
+	checkMapForDeprecated(yamlMap, errorList, shortPath, crd.Kind, crd.Name)
+}
+
+func checkMapForDeprecated(data any, errorList *errors.LintRuleErrorsList, shortPath, kind, name string) {
+	switch v := data.(type) {
+	case map[string]any:
+		// Check if current map has deprecated key (regardless of value)
+		if _, hasDeprecated := v["deprecated"]; hasDeprecated {
+			errorList.WithObjectID(fmt.Sprintf("kind = %s ; name = %s", kind, name)).
+				WithFilePath(shortPath).
+				WithValue("deprecated: present").
+				Errorf(`CRD contains "deprecated" key, use "x-doc-deprecated: true" instead`)
+		}
+
+		// Recursively check all values in the map
+		for _, value := range v {
+			checkMapForDeprecated(value, errorList, shortPath, kind, name)
+		}
+	case []any:
+		// Recursively check all items in the slice
+		for _, item := range v {
+			checkMapForDeprecated(item, errorList, shortPath, kind, name)
+		}
+	}
+}
+
 func (r *DeckhouseCRDsRule) Run(moduleName, path string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
@@ -106,6 +140,7 @@ func (r *DeckhouseCRDsRule) Run(moduleName, path string, errorList *errors.LintR
 		}
 
 		r.validateLabel(&crd, "module", moduleName, errorList, shortPath)
+		r.validateDeprecatedKeyInYAML(d, &crd, errorList, shortPath)
 	}
 }
 
