@@ -217,7 +217,11 @@ func (*RequirementsRegistry) validateComponentRequirement(checkName string, req 
 	}
 
 	minAllowed := findMinimalAllowedVersion(constraint)
-	minimalVersion := semver.MustParse(req.MinVersion)
+	minimalVersion, err := semver.NewVersion(req.MinVersion)
+	if err != nil {
+		errorList.Errorf("requirements [%s]: invalid minimum version format %s: %s", checkName, req.MinVersion, err)
+		return
+	}
 
 	if minAllowed != nil && minAllowed.LessThan(minimalVersion) {
 		errorList.Errorf("requirements [%s]: %s, %s version range should start no lower than %s (currently: %s)",
@@ -264,7 +268,14 @@ func hasModuleSDKDependency(goModFile, minVersion string) bool {
 		if req.Mod.Path == "github.com/deckhouse/module-sdk" {
 			if req.Mod.Version != "" {
 				sdkVersion, err := semver.NewVersion(req.Mod.Version)
-				if err == nil && !sdkVersion.LessThan(semver.MustParse(minVersion)) {
+				if err != nil {
+					continue
+				}
+				minVersionParsed, err := semver.NewVersion(minVersion)
+				if err != nil {
+					continue
+				}
+				if !sdkVersion.LessThan(minVersionParsed) {
 					return true
 				}
 			}
