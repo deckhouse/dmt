@@ -193,10 +193,11 @@ func checkDeprecatedInPropertiesRecursively(data any, errorList *errors.LintRule
 			checkDeprecatedInPropertiesRecursively(value, errorList, shortPath, kind, name, newPath)
 		}
 	case []any:
-		// Recursively check all items in the slice
-		for i, item := range v {
-			// Build the path for array items
-			newPath := fmt.Sprintf("%s[%d]", currentPath, i)
+		// For arrays in OpenAPI schema, use .items instead of numeric indices
+		// This aligns with the expected error message format in tests
+		newPath := fmt.Sprintf("%s.items", currentPath)
+		// Check all items in the array, but use the same path for all
+		for _, item := range v {
 			checkDeprecatedInPropertiesRecursively(item, errorList, shortPath, kind, name, newPath)
 		}
 	}
