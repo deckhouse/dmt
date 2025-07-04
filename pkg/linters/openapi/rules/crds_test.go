@@ -353,6 +353,41 @@ spec:
                   description: This nested field is deprecated`,
 			wantErrors: []string{`CRD contains "deprecated" key, use "x-doc-deprecated: true" instead`},
 		},
+		{
+			name:       "CRD with deprecated in array item schema (should error)",
+			moduleName: "test-module",
+			content: `apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: test.deckhouse.io
+  labels:
+    heritage: deckhouse
+    module: test-module
+spec:
+  group: deckhouse.io
+  names:
+    kind: Test
+    plural: tests
+  scope: Cluster
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            listField:
+              type: array
+              items:
+                type: object
+                properties:
+                  arrayItemField:
+                    type: string
+                    deprecated: true
+                    description: This field in array item is deprecated`,
+			wantErrors: []string{`CRD contains "deprecated" key, use "x-doc-deprecated: true" instead`},
+		},
 	}
 
 	for _, tt := range tests {
