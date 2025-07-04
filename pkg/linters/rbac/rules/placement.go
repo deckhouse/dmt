@@ -196,7 +196,7 @@ func objectRBACPlacementClusterRole(m *module.Module, object storage.StoreObject
 		}
 
 	default:
-		errorList.Errorf("%s should be in %q or \"*/rbac-for-us.yaml\"", objectKind, RootRBACForUsPath)
+		errorList.Errorf("%s should be in %q or %q or \"*/rbac-for-us.yaml\"", objectKind, UserAuthzClusterRolePath, RootRBACForUsPath)
 	}
 }
 
