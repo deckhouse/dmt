@@ -67,15 +67,31 @@ type RequirementsRule struct {
 	pkg.RuleMeta
 }
 
+// ComponentType represents the type of component for requirements validation
+type ComponentType string
+
+const (
+	ComponentDeckhouse ComponentType = "deckhouse"
+	ComponentK8s       ComponentType = "kubernetes"
+	ComponentModule    ComponentType = "module"
+)
+
+// ComponentRequirement defines a requirement for a specific component
+type ComponentRequirement struct {
+	ComponentType ComponentType
+	MinVersion    string
+	Description   string
+}
+
 // RequirementCheck defines a single requirement check configuration
 // Detector returns true if the rule should be applied to the module
-// MinDeckhouseVersion is the minimum deckhouse version for this rule
+// Requirements defines the minimum versions required for this rule
 // Description is the rule description
 type RequirementCheck struct {
-	Name                string
-	MinDeckhouseVersion string
-	Description         string
-	Detector            func(modulePath string, module *DeckhouseModule) bool
+	Name         string
+	Requirements []ComponentRequirement
+	Description  string
+	Detector     func(modulePath string, module *DeckhouseModule) bool
 }
 
 // RequirementsRegistry holds all requirement checks
@@ -89,9 +105,15 @@ func NewRequirementsRegistry() *RequirementsRegistry {
 
 	// Stage check
 	registry.RegisterCheck(RequirementCheck{
-		Name:                "stage",
-		MinDeckhouseVersion: MinimalDeckhouseVersionForStage,
-		Description:         "Stage usage requires minimum Deckhouse version",
+		Name: "stage",
+		Requirements: []ComponentRequirement{
+			{
+				ComponentType: ComponentDeckhouse,
+				MinVersion:    MinimalDeckhouseVersionForStage,
+				Description:   "Stage usage requires minimum Deckhouse version",
+			},
+		},
+		Description: "Stage usage requires minimum Deckhouse version",
 		Detector: func(_ string, module *DeckhouseModule) bool {
 			return module != nil && module.Stage != ""
 		},
@@ -99,9 +121,15 @@ func NewRequirementsRegistry() *RequirementsRegistry {
 
 	// Go hooks check - checks for go.mod with module-sdk dependency and app.Run calls
 	registry.RegisterCheck(RequirementCheck{
-		Name:                "go_hooks",
-		MinDeckhouseVersion: MinimalDeckhouseVersionForGoHooks,
-		Description:         "Go hooks usage requires minimum Deckhouse version",
+		Name: "go_hooks",
+		Requirements: []ComponentRequirement{
+			{
+				ComponentType: ComponentDeckhouse,
+				MinVersion:    MinimalDeckhouseVersionForGoHooks,
+				Description:   "Go hooks usage requires minimum Deckhouse version",
+			},
+		},
+		Description: "Go hooks usage requires minimum Deckhouse version",
 		Detector: func(modulePath string, _ *DeckhouseModule) bool {
 			return hasGoHooks(modulePath)
 		},
@@ -109,9 +137,15 @@ func NewRequirementsRegistry() *RequirementsRegistry {
 
 	// Readiness probes check - checks for app.WithReadiness with module-sdk >= 0.3
 	registry.RegisterCheck(RequirementCheck{
-		Name:                "readiness_probes",
-		MinDeckhouseVersion: MinimalDeckhouseVersionForReadinessProbes,
-		Description:         "Readiness probes usage requires minimum Deckhouse version",
+		Name: "readiness_probes",
+		Requirements: []ComponentRequirement{
+			{
+				ComponentType: ComponentDeckhouse,
+				MinVersion:    MinimalDeckhouseVersionForReadinessProbes,
+				Description:   "Readiness probes usage requires minimum Deckhouse version",
+			},
+		},
+		Description: "Readiness probes usage requires minimum Deckhouse version",
 		Detector: func(modulePath string, _ *DeckhouseModule) bool {
 			return hasReadinessProbes(modulePath)
 		},
@@ -135,25 +169,59 @@ func (r *RequirementsRegistry) RunAllChecks(modulePath string, module *Deckhouse
 }
 
 // validateRequirement validates a single requirement check
-func (*RequirementsRegistry) validateRequirement(check RequirementCheck, module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
-	if module == nil || module.Requirements == nil || module.Requirements.Deckhouse == "" {
-		errorList.Errorf("requirements [%s]: %s, deckhouse version range should start no lower than %s",
-			check.Name, check.Description, check.MinDeckhouseVersion)
+func (r *RequirementsRegistry) validateRequirement(check RequirementCheck, module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
+	if module == nil {
+		errorList.Errorf("requirements [%s]: %s, module is not defined", check.Name, check.Description)
 		return
 	}
 
-	constraint, err := semver.NewConstraint(module.Requirements.Deckhouse)
+	for _, req := range check.Requirements {
+		r.validateComponentRequirement(check.Name, req, module, errorList)
+	}
+}
+
+// validateComponentRequirement validates a single component requirement
+func (r *RequirementsRegistry) validateComponentRequirement(checkName string, req ComponentRequirement, module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
+	var constraintStr string
+	var constraintName string
+
+	switch req.ComponentType {
+	case ComponentDeckhouse:
+		if module.Requirements == nil || module.Requirements.Deckhouse == "" {
+			errorList.Errorf("requirements [%s]: %s, deckhouse version range should start no lower than %s",
+				checkName, req.Description, req.MinVersion)
+			return
+		}
+		constraintStr = module.Requirements.Deckhouse
+		constraintName = "deckhouse"
+	case ComponentK8s:
+		if module.Requirements == nil || module.Requirements.Kubernetes == "" {
+			errorList.Errorf("requirements [%s]: %s, kubernetes version constraint is required", checkName, req.Description)
+			return
+		}
+		constraintStr = module.Requirements.Kubernetes
+		constraintName = "kubernetes"
+	case ComponentModule:
+		// For module requirements, we would need to check specific modules
+		// This is a placeholder for future implementation
+		return
+	default:
+		errorList.Errorf("requirements [%s]: unknown component type %s", checkName, req.ComponentType)
+		return
+	}
+
+	constraint, err := semver.NewConstraint(constraintStr)
 	if err != nil {
-		errorList.Errorf("requirements [%s]: invalid deckhouse version constraint: %s", check.Name, module.Requirements.Deckhouse)
+		errorList.Errorf("requirements [%s]: invalid %s version constraint: %s", checkName, constraintName, constraintStr)
 		return
 	}
 
 	minAllowed := findMinimalAllowedVersion(constraint)
-	minimalVersion := semver.MustParse(check.MinDeckhouseVersion)
+	minimalVersion := semver.MustParse(req.MinVersion)
 
 	if minAllowed != nil && minAllowed.LessThan(minimalVersion) {
-		errorList.Errorf("requirements [%s]: %s, deckhouse version range should start no lower than %s (currently: %s)",
-			check.Name, check.Description, check.MinDeckhouseVersion, minAllowed.String())
+		errorList.Errorf("requirements [%s]: %s, %s version range should start no lower than %s (currently: %s)",
+			checkName, req.Description, constraintName, req.MinVersion, minAllowed.String())
 	}
 }
 
