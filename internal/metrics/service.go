@@ -51,6 +51,12 @@ func newPrometheusMetricsService(url, token, dir string) *PrometheusMetricsServi
 }
 
 func (p *PrometheusMetricsService) Send(ctx context.Context) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.ErrorF("Panic recovered in metrics Send: %v", r)
+		}
+	}()
+
 	if p == nil || p.client == nil {
 		return
 	}

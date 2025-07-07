@@ -20,6 +20,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -69,6 +70,12 @@ func isPriorityClassSupportedKind(kind string) bool {
 }
 
 func getPriorityClass(object storage.StoreObject) (string, error) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.ErrorF("Panic recovered in getPriorityClass: %v", r)
+		}
+	}()
+
 	converter := runtime.DefaultUnstructuredConverter
 
 	var priorityClass string

@@ -26,6 +26,8 @@ import (
 	"os"
 	"regexp/syntax"
 	"time"
+
+	"github.com/deckhouse/dmt/internal/logger"
 )
 
 const runeRangeEnd = 0x10ffff
@@ -233,10 +235,22 @@ func (g *Generator) handleAlternate(s *state, re *syntax.Regexp) string {
 }
 
 func (g *Generator) Generate(limit int) string {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.ErrorF("Panic recovered in regex generator: %v", r)
+		}
+	}()
+
 	return g.generate(&state{limit: limit}, g.re)
 }
 
 func NewGenerator(regex string) (*Generator, error) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.ErrorF("Panic recovered in NewGenerator for regex %s: %v", regex, r)
+		}
+	}()
+
 	re, err := syntax.Parse(regex, syntax.Perl)
 	if err != nil {
 		return nil, err

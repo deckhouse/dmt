@@ -26,6 +26,8 @@ import (
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/ignore"
+
+	"github.com/deckhouse/dmt/internal/logger"
 )
 
 // kind of fork from helmv3: pkg/chart/loader/directory.go
@@ -37,6 +39,12 @@ var utf8bom = []byte{0xEF, 0xBB, 0xBF}
 // default helm loader couldn't be used without Chart.yaml, but deckhouse module
 // could exist without this file, deckhouse will create it automatically
 func LoadModuleAsChart(moduleName, dir string) (*chart.Chart, error) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.ErrorF("Panic recovered in LoadModuleAsChart for module %s: %v", moduleName, r)
+		}
+	}()
+
 	topdir, err := filepath.Abs(dir)
 	if err != nil {
 		return nil, err
@@ -62,6 +70,12 @@ func LoadModuleAsChart(moduleName, dir string) (*chart.Chart, error) {
 	chartFileExists := false
 
 	walk := func(name string, fi os.FileInfo, err error) error {
+		defer func() {
+			if r := recover(); r != nil {
+				logger.ErrorF("Panic recovered in file walk for %s: %v", name, r)
+			}
+		}()
+
 		n := strings.TrimPrefix(name, topdir)
 		if n == "" {
 			// No need to process top level. Avoid bug with helmignore .* matching

@@ -24,6 +24,8 @@ import (
 	"strings"
 
 	"sigs.k8s.io/yaml"
+
+	"github.com/deckhouse/dmt/internal/logger"
 )
 
 func IsCRD(data map[string]any) bool {
@@ -69,6 +71,12 @@ func IsDeckhouseCRD(data map[string]any) bool {
 type parser func(string, any) error
 
 func Parse(parser parser, path string) error {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.ErrorF("Panic recovered in OpenAPI Parse for path %s: %v", path, r)
+		}
+	}()
+
 	data, err := getFileYAMLContent(path)
 	if err != nil {
 		return fmt.Errorf("failed to get content of `%s`: %w", path, err)
@@ -91,6 +99,12 @@ func Parse(parser parser, path string) error {
 }
 
 func getFileYAMLContent(path string) (map[string]any, error) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.ErrorF("Panic recovered in getFileYAMLContent for path %s: %v", path, r)
+		}
+	}()
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err

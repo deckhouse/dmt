@@ -26,6 +26,8 @@ import (
 	"sync"
 
 	"github.com/mitchellh/go-homedir"
+
+	"github.com/deckhouse/dmt/internal/logger"
 )
 
 // evalSymlinkCache is a cache for evaluated symlinks to avoid multiple evaluations
@@ -46,6 +48,12 @@ func IsFile(path string) bool {
 
 // Getwd returns the current working directory.
 func Getwd() (string, error) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.ErrorF("Panic recovered in Getwd: %v", r)
+		}
+	}()
+
 	var (
 		cachedWd      string
 		cachedWdError error
@@ -71,23 +79,25 @@ func Getwd() (string, error) {
 }
 
 // EvalSymlinks returns the path name after the evaluation of any symbolic links.
+// It caches results to avoid multiple evaluations of the same symlink.
 func EvalSymlinks(path string) (string, error) {
-	type evalSymlinkRes struct {
-		path string
-		err  error
+	defer func() {
+		if r := recover(); r != nil {
+			logger.ErrorF("Panic recovered in EvalSymlinks for path %s: %v", path, r)
+		}
+	}()
+
+	if cached, ok := evalSymlinkCache.Load(path); ok {
+		return cached.(string), nil
 	}
 
-	r, ok := evalSymlinkCache.Load(path)
-	if ok {
-		er := r.(evalSymlinkRes)
-		return er.path, er.err
+	evaled, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", err
 	}
 
-	var er evalSymlinkRes
-	er.path, er.err = filepath.EvalSymlinks(path)
-	evalSymlinkCache.Store(path, er)
-
-	return er.path, er.err
+	evalSymlinkCache.Store(path, evaled)
+	return evaled, nil
 }
 
 // Rel returns a relative path from basepath to targpath.

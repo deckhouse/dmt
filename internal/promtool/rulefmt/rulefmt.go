@@ -26,6 +26,8 @@ import (
 	"github.com/prometheus/common/model"
 	"gopkg.in/yaml.v3"
 
+	"github.com/deckhouse/dmt/internal/logger"
+
 	"github.com/prometheus/prometheus/model/timestamp"
 	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/promql/parser"
@@ -340,6 +342,12 @@ func testTemplateParsing(rl *Rule) (errs []error) {
 
 // Parse parses and validates a set of rules.
 func Parse(content []byte, ignoreUnknownFields bool) (*RuleGroups, []error) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.ErrorF("Panic recovered in Prometheus rules Parse: %v", r)
+		}
+	}()
+
 	var (
 		groups RuleGroups
 		node   ruleGroups
@@ -369,6 +377,12 @@ func Parse(content []byte, ignoreUnknownFields bool) (*RuleGroups, []error) {
 
 // ParseFile reads and parses rules from a file.
 func ParseFile(file string, ignoreUnknownFields bool) (*RuleGroups, []error) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.ErrorF("Panic recovered in Prometheus rules ParseFile for %s: %v", file, r)
+		}
+	}()
+
 	b, err := os.ReadFile(file)
 	if err != nil {
 		return nil, []error{fmt.Errorf("%s: %w", file, err)}

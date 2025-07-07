@@ -87,9 +87,13 @@ func (r *ImageRule) CheckImageNamesInDockerFiles(modulePath string, errorList *e
 		return
 	}
 
-	filePaths := fsutils.GetFiles(imagesPath, false, func(_, path string) bool {
+	filePaths, err := fsutils.GetFiles(imagesPath, false, func(_, path string) bool {
 		return filepath.Base(path) == "Dockerfile"
 	})
+	if err != nil {
+		errorList.Error("Failed to scan Dockerfiles: " + err.Error())
+		return
+	}
 
 	for _, path := range filePaths {
 		if !r.Enabled(fsutils.Rel(imagesPath, path)) {
