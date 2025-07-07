@@ -19,7 +19,10 @@ package openapi
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/deckhouse/dmt/internal/fsutils"
 )
 
 func TestFilterCRDsfiles(t *testing.T) {
@@ -394,6 +397,71 @@ func TestFilterOpenAPIfilesRegexPattern(t *testing.T) {
 			result := openapiYamlRegex.MatchString(tt.path)
 			if result != tt.expected {
 				t.Errorf("openapiYamlRegex.MatchString(%q) = %v, want %v", tt.path, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestFilterFunctions(t *testing.T) {
+	rootPath := "/deckhouse/modules/040-node-manager"
+
+	// Test OpenAPI files
+	testCases := []struct {
+		path     string
+		expected bool
+		desc     string
+	}{
+		{
+			path:     "/deckhouse/modules/040-node-manager/openapi/values.yaml",
+			expected: true,
+			desc:     "OpenAPI values.yaml should match",
+		},
+		{
+			path:     "/deckhouse/modules/040-node-manager/openapi/config-values.yaml",
+			expected: true,
+			desc:     "OpenAPI config-values.yaml should match",
+		},
+		{
+			path:     "/deckhouse/modules/040-node-manager/openapi/doc-ru-config-values.yaml",
+			expected: false,
+			desc:     "OpenAPI doc-ru file should not match",
+		},
+		{
+			path:     "/deckhouse/modules/040-node-manager/openapi/openapi-case-tests.yaml",
+			expected: false,
+			desc:     "OpenAPI test file should not match",
+		},
+		{
+			path:     "/deckhouse/modules/040-node-manager/crds/cluster.yaml",
+			expected: true,
+			desc:     "CRD cluster.yaml should match",
+		},
+		{
+			path:     "/deckhouse/modules/040-node-manager/crds/doc-ru-instance.yaml",
+			expected: false,
+			desc:     "CRD doc-ru file should not match",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			// Debug: show what fsutils.Rel returns
+			relPath := fsutils.Rel(rootPath, tc.path)
+			t.Logf("fsutils.Rel(%s, %s) = %s", rootPath, tc.path, relPath)
+
+			openapiResult := filterOpenAPIfiles(rootPath, tc.path)
+			crdResult := filterCRDsfiles(rootPath, tc.path)
+
+			if tc.path[0] == '/' && strings.Contains(tc.path, "/openapi/") {
+				if openapiResult != tc.expected {
+					t.Errorf("filterOpenAPIfiles(%s) = %v, want %v", tc.path, openapiResult, tc.expected)
+				}
+			}
+
+			if tc.path[0] == '/' && strings.Contains(tc.path, "/crds/") {
+				if crdResult != tc.expected {
+					t.Errorf("filterCRDsfiles(%s) = %v, want %v", tc.path, crdResult, tc.expected)
+				}
 			}
 		})
 	}
