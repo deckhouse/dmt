@@ -53,7 +53,11 @@ type LicenseRule struct {
 func (r *LicenseRule) CheckFiles(mod *module.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
-	files := fsutils.GetFiles(mod.GetPath(), false, filterFiles)
+	files, err := fsutils.GetFiles(mod.GetPath(), false, filterFiles)
+	if err != nil {
+		errorList.Error("Failed to scan module files: " + err.Error())
+		return
+	}
 	for _, fileName := range files {
 		name := fsutils.Rel(mod.GetPath(), fileName)
 

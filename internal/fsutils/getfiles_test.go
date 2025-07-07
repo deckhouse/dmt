@@ -32,7 +32,10 @@ func TestGetFiles(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(rootDir, ".git", "config"), []byte("test"), 0600)
 	_ = os.Symlink(filepath.Join(rootDir, "file2.txt"), filepath.Join(rootDir, "symlink.txt"))
 
-	files := GetFiles(rootDir, false)
+	files, err := GetFiles(rootDir, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	expectedFiles := []string{
 		filepath.Join(rootDir, "dir1", "file1.txt"),
 		filepath.Join(rootDir, "file2.txt"),
@@ -40,7 +43,10 @@ func TestGetFiles(t *testing.T) {
 	}
 	assertEqualFiles(t, files, expectedFiles)
 
-	files = GetFiles(rootDir, true)
+	files, err = GetFiles(rootDir, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	expectedFiles = []string{
 		filepath.Join(rootDir, "dir1", "file1.txt"),
 		filepath.Join(rootDir, "file2.txt"),
@@ -50,7 +56,10 @@ func TestGetFiles(t *testing.T) {
 	filter := func(_, path string) bool {
 		return filepath.Ext(path) == ".txt"
 	}
-	files = GetFiles(rootDir, false, filter)
+	files, err = GetFiles(rootDir, false, filter)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	expectedFiles = []string{
 		filepath.Join(rootDir, "dir1", "file1.txt"),
 		filepath.Join(rootDir, "file2.txt"),
@@ -59,10 +68,50 @@ func TestGetFiles(t *testing.T) {
 	assertEqualFiles(t, files, expectedFiles)
 
 	nonExistentPath := filepath.Join(rootDir, "does_not_exist")
-	files = GetFiles(nonExistentPath, false)
+	files, err = GetFiles(nonExistentPath, false)
+	if err == nil {
+		t.Error("expected error for nonexistent path, got nil")
+	}
 	if len(files) != 0 {
 		t.Errorf("expected no files for nonexistent path, got %d files", len(files))
 	}
+}
+
+func TestGetFilesWithMultipleFilters(t *testing.T) {
+	rootDir := t.TempDir()
+
+	_ = os.Mkdir(filepath.Join(rootDir, "dir1"), 0755)
+	_ = os.WriteFile(filepath.Join(rootDir, "dir1", "file1.txt"), []byte("test"), 0600)
+	_ = os.WriteFile(filepath.Join(rootDir, "file2.txt"), []byte("test"), 0600)
+	_ = os.WriteFile(filepath.Join(rootDir, "file3.yaml"), []byte("test"), 0600)
+
+	// Test with multiple filters (logical AND)
+	txtFilter := func(_, path string) bool {
+		return filepath.Ext(path) == ".txt"
+	}
+	yamlFilter := func(_, path string) bool {
+		return filepath.Ext(path) == ".yaml"
+	}
+
+	// Should return no files since no file has both .txt and .yaml extensions
+	files, err := GetFiles(rootDir, false, txtFilter, yamlFilter)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(files) != 0 {
+		t.Errorf("expected no files with conflicting filters, got %d files", len(files))
+	}
+
+	// Test with single filter
+	files, err = GetFiles(rootDir, false, txtFilter)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	expectedFiles := []string{
+		filepath.Join(rootDir, "dir1", "file1.txt"),
+		filepath.Join(rootDir, "file2.txt"),
+	}
+	assertEqualFiles(t, files, expectedFiles)
 }
 
 func assertEqualFiles(t *testing.T, actual, expected []string) {

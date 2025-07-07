@@ -48,7 +48,11 @@ func (o *OpenAPI) Run(m *module.Module) {
 	errorLists := o.ErrorList.WithModule(m.GetName())
 
 	// check openAPI files
-	openAPIFiles := fsutils.GetFiles(m.GetPath(), true, filterOpenAPIfiles)
+	openAPIFiles, err := fsutils.GetFiles(m.GetPath(), true, filterOpenAPIfiles)
+	if err != nil {
+		errorLists.Error("Failed to scan OpenAPI files: " + err.Error())
+		return
+	}
 
 	enumValidator := rules.NewEnumRule(o.cfg, m.GetPath())
 	haValidator := rules.NewHARule(o.cfg, m.GetPath())
@@ -59,7 +63,11 @@ func (o *OpenAPI) Run(m *module.Module) {
 	}
 
 	// check only CRDs files
-	crdFiles := fsutils.GetFiles(m.GetPath(), true, filterCRDsfiles)
+	crdFiles, err := fsutils.GetFiles(m.GetPath(), true, filterCRDsfiles)
+	if err != nil {
+		errorLists.Error("Failed to scan CRD files: " + err.Error())
+		return
+	}
 	crdValidator := rules.NewDeckhouseCRDsRule(o.cfg, m.GetPath())
 	keyValidator := rules.NewKeysRule(o.cfg, m.GetPath())
 	for _, file := range crdFiles {

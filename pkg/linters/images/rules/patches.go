@@ -62,7 +62,11 @@ func (r *PatchesRule) CheckPatches(moduleDir string, errorList *errors.LintRuleE
 
 	errorList = errorList.WithRule(r.Name)
 
-	files := fsutils.GetFiles(moduleDir, false, fsutils.FilterFileByExtensions(".patch"))
+	files, err := fsutils.GetFiles(moduleDir, false, fsutils.FilterFileByExtensions(".patch"))
+	if err != nil {
+		errorList.Error("Failed to scan patch files: " + err.Error())
+		return
+	}
 	patchDirs := set.New()
 	for _, file := range files {
 		patchDirs.Add(filepath.Dir(file))

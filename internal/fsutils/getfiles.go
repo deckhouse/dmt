@@ -17,31 +17,59 @@ limitations under the License.
 package fsutils
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 )
 
+// filterFn is a function type that filters files based on root path and file path.
+// Returns true if the file should be included, false otherwise.
 type filterFn func(string, string) bool
 
-func GetFiles(rootPath string, skipSymlink bool, filters ...filterFn) []string {
+// GetFiles walks through the directory tree starting from rootPath and returns
+// a slice of file paths that pass the provided filters.
+//
+// Parameters:
+//   - rootPath: the root directory to start walking from
+//   - skipSymlink: if true, symlinks will be skipped
+//   - filters: optional filter functions to apply to files
+//
+// Returns:
+//   - []string: slice of file paths that passed the filters
+//   - error: any error encountered during the walk operation
+func GetFiles(rootPath string, skipSymlink bool, filters ...filterFn) ([]string, error) {
 	var result []string
+
 	// Check if rootPath exists
 	if _, err := os.Stat(rootPath); os.IsNotExist(err) {
-		return result
+		return result, fmt.Errorf("root path does not exist: %w", err)
 	}
-	_ = filepath.Walk(rootPath, func(path string, info os.FileInfo, _ error) error {
+
+	err := filepath.Walk(rootPath, func(path string, info os.FileInfo, err error) error {
+		// Handle errors from filepath.Walk
+		if err != nil {
+			return fmt.Errorf("error accessing path %s: %w", path, err)
+		}
+
+		// Skip if info is nil (should not happen with proper error handling above)
+		if info == nil {
+			return nil
+		}
+
+		// Skip symlinks if requested
 		if skipSymlink && info.Mode()&os.ModeSymlink != 0 {
 			return filepath.SkipDir
 		}
 
+		// Handle directories
 		if info.IsDir() {
 			if info.Name() == ".git" {
 				return filepath.SkipDir
 			}
-
 			return nil
 		}
 
+		// Apply filters to files
 		if filterPass(rootPath, path, filters...) {
 			result = append(result, path)
 		}
@@ -49,19 +77,26 @@ func GetFiles(rootPath string, skipSymlink bool, filters ...filterFn) []string {
 		return nil
 	})
 
-	return result
+	if err != nil {
+		return nil, fmt.Errorf("error walking directory %s: %w", rootPath, err)
+	}
+
+	return result, nil
 }
 
+// filterPass applies all provided filters to a file path.
+// A file passes if ALL filters return true (logical AND).
+// If no filters are provided, all files pass.
 func filterPass(rootPath, path string, filters ...filterFn) bool {
 	if len(filters) == 0 {
 		return true
 	}
 
 	for _, filter := range filters {
-		if filter(rootPath, path) {
-			return true
+		if !filter(rootPath, path) {
+			return false
 		}
 	}
 
-	return false
+	return true
 }

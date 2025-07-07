@@ -64,9 +64,13 @@ func (r *DistrolessRule) CheckImageNamesInDockerFiles(modulePath string, errorLi
 		return
 	}
 
-	filePaths := fsutils.GetFiles(imagesPath, false, func(_, path string) bool {
+	filePaths, err := fsutils.GetFiles(imagesPath, false, func(_, path string) bool {
 		return filepath.Base(path) == "Dockerfile"
 	})
+	if err != nil {
+		errorList.Error("Failed to scan Dockerfiles: " + err.Error())
+		return
+	}
 
 	for _, path := range filePaths {
 		r.lintOneDockerfile(path, imagesPath, errorList)

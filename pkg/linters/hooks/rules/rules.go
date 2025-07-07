@@ -63,13 +63,22 @@ func (l *HookRule) CheckIngressCopyCustomCertificateRule(m *module.Module, objec
 	}
 
 	hooksDir := filepath.Join(m.GetPath(), "hooks")
-	files := fsutils.GetFiles(hooksDir, false, filterCopyCustomCertificateHook)
+	files, err := fsutils.GetFiles(hooksDir, false, filterCopyCustomCertificateHook)
+	if err != nil {
+		errorList.Error("Failed to scan hooks directory: " + err.Error())
+		return
+	}
 	if len(files) > 0 {
 		return
 	}
 
 	var imports = make(map[string]struct{})
-	for _, hookPath := range fsutils.GetFiles(hooksDir, false, filterGoHooks) {
+	goHookFiles, err := fsutils.GetFiles(hooksDir, false, filterGoHooks)
+	if err != nil {
+		errorList.Error("Failed to scan hooks directory: " + err.Error())
+		return
+	}
+	for _, hookPath := range goHookFiles {
 		p, err := getImports(hookPath)
 		if err != nil {
 			continue

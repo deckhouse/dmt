@@ -59,7 +59,11 @@ func (l *NoCyrillic) Run(m *module.Module) {
 		l.cfg.NoCyrillicExcludeRules.Files.Get(),
 		l.cfg.NoCyrillicExcludeRules.Directories.Get())
 
-	files := fsutils.GetFiles(m.GetPath(), false, fsutils.FilterFileByExtensions(fileExtensions...))
+	files, err := fsutils.GetFiles(m.GetPath(), false, fsutils.FilterFileByExtensions(fileExtensions...))
+	if err != nil {
+		errorList.Error("Failed to scan files: " + err.Error())
+		return
+	}
 	for _, fileName := range files {
 		filesRule.CheckFile(m, fileName, errorList)
 	}
