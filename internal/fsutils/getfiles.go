@@ -58,7 +58,13 @@ func GetFiles(rootPath string, skipSymlink bool, filters ...filterFn) ([]string,
 
 		// Skip symlinks if requested
 		if skipSymlink && info.Mode()&os.ModeSymlink != 0 {
-			return filepath.SkipDir
+			// Correct symlink handling: skip symlink directory, just skip symlink file
+			if info.IsDir() {
+				// Skip symlink directory only
+				return filepath.SkipDir
+			}
+			// Skip symlink file
+			return nil
 		}
 
 		// Handle directories
