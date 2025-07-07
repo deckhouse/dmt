@@ -101,12 +101,10 @@ func TestGet(t *testing.T) {
 	content = f.Get("base_images.yml")
 	require.Empty(t, content, "file content not matches: expected '', got '%s'", content)
 
-	defer func() {
-		if r := recover(); r == nil {
-			t.Errorf("Get not called panic when reading non-existent file")
-		}
-	}()
-	_ = f.Get("non-existent.txt")
+	// Test that non-existent file doesn't cause panic but returns empty string
+	// The panic is now recovered and logged, but the function should still return empty string
+	content = f.Get("non-existent.txt")
+	require.Empty(t, content, "non-existent file should return empty string")
 }
 
 func TestDoGlob(t *testing.T) {
@@ -147,12 +145,10 @@ func TestGlob(t *testing.T) {
 	result := f.Glob("**/*.txt")
 	require.Len(t, result, 4, "incorrect number of found files: expected 4, got %d", len(result))
 
-	defer func() {
-		if r := recover(); r == nil {
-			t.Errorf("glob did not call panic with incorrect pattern")
-		}
-	}()
-	_ = f.Glob("[")
+	// Test that invalid pattern doesn't cause panic but returns empty result
+	// The panic is now recovered and logged, but the function should return empty map
+	result = f.Glob("[")
+	require.Empty(t, result, "invalid pattern should return empty result")
 }
 
 func TestGlobWithWerfIncYaml(t *testing.T) {

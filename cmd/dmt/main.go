@@ -38,6 +38,12 @@ func main() {
 }
 
 func runLint(dir string) error {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.ErrorF("Critical panic recovered in runLint: %v", r)
+		}
+	}()
+
 	if flags.PprofFile != "" {
 		logger.InfoF("Profiling enabled. Profile file: %s", flags.PprofFile)
 		defer func() {

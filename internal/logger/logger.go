@@ -79,3 +79,25 @@ func CheckErr(msg any) {
 		os.Exit(1)
 	}
 }
+
+// SafeExecute executes a function with panic recovery and logs any panics
+func SafeExecute(operationName string, fn func() error) error {
+	defer func() {
+		if r := recover(); r != nil {
+			ErrorF("Panic recovered in %s: %v", operationName, r)
+		}
+	}()
+
+	return fn()
+}
+
+// SafeExecuteWithResult executes a function with panic recovery and returns result with error
+func SafeExecuteWithResult[T any](operationName string, fn func() (T, error)) (T, error) {
+	defer func() {
+		if r := recover(); r != nil {
+			ErrorF("Panic recovered in %s: %v", operationName, r)
+		}
+	}()
+
+	return fn()
+}

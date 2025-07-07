@@ -21,6 +21,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/pkg"
 )
 
@@ -49,6 +50,12 @@ type errStorage struct {
 }
 
 func (s *errStorage) GetErrors() []lintRuleError {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.ErrorF("Panic recovered in GetErrors: %v", r)
+		}
+	}()
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -59,6 +66,12 @@ func (s *errStorage) GetErrors() []lintRuleError {
 }
 
 func (s *errStorage) add(err *lintRuleError) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.ErrorF("Panic recovered in add error: %v", r)
+		}
+	}()
+
 	s.mu.Lock()
 	s.errList = append(s.errList, *err)
 	s.mu.Unlock()

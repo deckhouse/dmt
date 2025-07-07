@@ -111,6 +111,12 @@ func GetGlobalValues(rootDir string) (*spec.Schema, error) {
 }
 
 func readConfigFiles(rootDir string) ([]byte, []byte, error) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.ErrorF("Panic recovered in readConfigFiles for rootDir %s: %v", rootDir, r)
+		}
+	}()
+
 	configValuesFile := filepath.Join(rootDir, "global-hooks", "openapi", "config-values.yaml")
 	valuesFile := filepath.Join(rootDir, "global-hooks", "openapi", "values.yaml")
 
@@ -128,6 +134,12 @@ func readConfigFiles(rootDir string) ([]byte, []byte, error) {
 }
 
 func GetModuleValues(modulePath string) (*spec.Schema, error) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.ErrorF("Panic recovered in GetModuleValues for modulePath %s: %v", modulePath, r)
+		}
+	}()
+
 	openAPIPath := filepath.Join(modulePath, "openapi")
 	configBytes, valuesBytes, err := utils.ReadOpenAPIFiles(openAPIPath)
 	if err != nil {

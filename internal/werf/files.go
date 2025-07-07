@@ -24,6 +24,7 @@ import (
 	"github.com/bmatcuk/doublestar"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
+	"github.com/deckhouse/dmt/internal/logger"
 )
 
 type files struct {
@@ -45,6 +46,12 @@ func NewFiles(rootDir, moduleDir string) files {
 }
 
 func (f files) Get(relPath string) string {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.ErrorF("Panic recovered in files.Get for path %s: %v", relPath, r)
+		}
+	}()
+
 	var res []byte
 	if relPath == "base_images.yml" || relPath == "base_images.yaml" {
 		// Special case for base_images.yaml, which is a file in the root directory
@@ -54,13 +61,20 @@ func (f files) Get(relPath string) string {
 
 	res, err := os.ReadFile(filepath.Join(f.rootDir, relPath))
 	if err != nil {
-		panic(err.Error())
+		logger.ErrorF("Failed to read file %s: %v", relPath, err)
+		return "" // Return empty string instead of panic
 	}
 
 	return string(res)
 }
 
 func (f files) doGlob(pattern string) (map[string]any, error) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.ErrorF("Panic recovered in files.doGlob for pattern %s: %v", pattern, r)
+		}
+	}()
+
 	res := make(map[string]any)
 	dir := f.rootDir
 	// Check if we are looking for werf.inc.yaml in the module directory
@@ -83,7 +97,8 @@ func (f files) doGlob(pattern string) (map[string]any, error) {
 		}
 		data, err := os.ReadFile(path)
 		if err != nil {
-			return nil, err
+			logger.ErrorF("Failed to read file during glob %s: %v", path, err)
+			continue // Skip files that can't be read instead of failing completely
 		}
 		rel, _ := filepath.Rel(f.rootDir, path)
 		res[rel] = string(data)
@@ -93,9 +108,16 @@ func (f files) doGlob(pattern string) (map[string]any, error) {
 }
 
 func (f files) Glob(pattern string) map[string]any {
-	if res, err := f.doGlob(pattern); err != nil {
-		panic(err.Error())
-	} else {
-		return res
+	defer func() {
+		if r := recover(); r != nil {
+			logger.ErrorF("Panic recovered in files.Glob for pattern %s: %v", pattern, r)
+		}
+	}()
+
+	res, err := f.doGlob(pattern)
+	if err != nil {
+		logger.ErrorF("Glob operation failed for pattern %s: %v", pattern, err)
+		return make(map[string]any) // Return empty map instead of panic
 	}
+	return res
 }

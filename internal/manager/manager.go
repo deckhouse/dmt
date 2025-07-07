@@ -139,28 +139,44 @@ func (m *Manager) Run() {
 	wg := new(sync.WaitGroup)
 	processingCh := make(chan struct{}, flags.LintersLimit)
 
-	for _, module := range m.Modules {
+	for _, mod := range m.Modules {
 		processingCh <- struct{}{}
 		wg.Add(1)
 
-		go func() {
+		go func(mod *module.Module) {
 			defer func() {
+				if r := recover(); r != nil {
+					logger.ErrorF("Panic recovered in module %s: %v", mod.GetName(), r)
+					// Add error to the error list to ensure it's reported
+					errorList := m.errors.WithLinterID("manager").WithModule(mod.GetName())
+					errorList.Errorf("Critical error during linting: %v", r)
+				}
 				<-processingCh
 				wg.Done()
 			}()
 
-			logger.InfoF("Run linters for `%s` module", module.GetName())
+			logger.InfoF("Run linters for `%s` module", mod.GetName())
 
-			for _, linter := range getLintersForModule(module.GetModuleConfig(), m.errors) {
+			for _, linter := range getLintersForModule(mod.GetModuleConfig(), m.errors) {
 				if flags.LinterName != "" && linter.Name() != flags.LinterName {
 					continue
 				}
 
-				logger.DebugF("Running linter `%s` on module `%s`", linter.Name(), module.GetName())
+				logger.DebugF("Running linter `%s` on module `%s`", linter.Name(), mod.GetName())
 
-				linter.Run(module)
+				// Add panic recovery for individual linter execution
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							logger.ErrorF("Panic recovered in linter %s for module %s: %v", linter.Name(), mod.GetName(), r)
+							errorList := m.errors.WithLinterID(linter.Name()).WithModule(mod.GetName())
+							errorList.Errorf("Critical error in linter execution: %v", r)
+						}
+					}()
+					linter.Run(mod)
+				}()
 			}
-		}()
+		}(mod)
 	}
 
 	wg.Wait()
