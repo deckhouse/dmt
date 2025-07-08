@@ -56,7 +56,7 @@ func NewTrackedStringRule(excludeRules []pkg.StringRuleExclude, tracker *Exclusi
 // Enabled checks if the rule is enabled for the given string and tracks usage
 func (r *TrackedStringRule) Enabled(str string) bool {
 	for _, rule := range r.ExcludeRules {
-		if !rule.Enabled(str) {
+		if rule.Enabled(str) {
 			// Mark this exclusion as used
 			r.tracker.MarkExclusionUsed(r.linterID, r.ruleID, string(rule))
 			return false
@@ -95,7 +95,7 @@ func NewTrackedPrefixRule(excludeRules []pkg.PrefixRuleExclude, tracker *Exclusi
 // Enabled checks if the rule is enabled for the given string and tracks usage
 func (r *TrackedPrefixRule) Enabled(str string) bool {
 	for _, rule := range r.ExcludeRules {
-		if !rule.Enabled(str) {
+		if rule.Enabled(str) {
 			// Mark this exclusion as used
 			r.tracker.MarkExclusionUsed(r.linterID, r.ruleID, string(rule))
 			return false
@@ -134,7 +134,7 @@ func NewTrackedKindRule(excludeRules []pkg.KindRuleExclude, tracker *ExclusionTr
 // Enabled checks if the rule is enabled for the given kind and name and tracks usage
 func (r *TrackedKindRule) Enabled(kind, name string) bool {
 	for _, rule := range r.ExcludeRules {
-		if !rule.Enabled(kind, name) {
+		if rule.Enabled(kind, name) {
 			// Mark this exclusion as used
 			exclusionKey := fmt.Sprintf("%s/%s", rule.Kind, rule.Name)
 			r.tracker.MarkExclusionUsed(r.linterID, r.ruleID, exclusionKey)
@@ -178,7 +178,7 @@ func NewTrackedContainerRule(excludeRules []pkg.ContainerRuleExclude, tracker *E
 // Enabled checks if the rule is enabled for the given object and container and tracks usage
 func (r *TrackedContainerRule) Enabled(object storage.StoreObject, container *corev1.Container) bool {
 	for _, rule := range r.ExcludeRules {
-		if !rule.Enabled(object, container) {
+		if rule.Enabled(object, container) {
 			// Mark this exclusion as used
 			var exclusionKey string
 			if rule.Container == "" {
@@ -223,7 +223,7 @@ func NewTrackedServicePortRule(excludeRules []pkg.ServicePortExclude, tracker *E
 // Enabled checks if the rule is enabled for the given name and port and tracks usage
 func (r *TrackedServicePortRule) Enabled(name, port string) bool {
 	for _, rule := range r.ExcludeRules {
-		if !rule.Enabled(name, port) {
+		if rule.Enabled(name, port) {
 			// Mark this exclusion as used
 			exclusionKey := fmt.Sprintf("%s:%s", rule.Name, rule.Port)
 			r.tracker.MarkExclusionUsed(r.linterID, r.ruleID, exclusionKey)
@@ -269,7 +269,7 @@ func NewTrackedPathRule(excludeStringRules []pkg.StringRuleExclude, excludePrefi
 // Enabled checks if the rule is enabled for the given name and tracks usage
 func (r *TrackedPathRule) Enabled(name string) bool {
 	for _, rule := range r.ExcludeStringRules {
-		if !rule.Enabled(name) {
+		if rule.Enabled(name) {
 			// Mark this exclusion as used
 			r.tracker.MarkExclusionUsed(r.linterID, r.ruleID, string(rule))
 			return false
@@ -277,7 +277,7 @@ func (r *TrackedPathRule) Enabled(name string) bool {
 	}
 
 	for _, rule := range r.ExcludePrefixRules {
-		if !rule.Enabled(name) {
+		if rule.Enabled(name) {
 			// Mark this exclusion as used
 			r.tracker.MarkExclusionUsed(r.linterID, r.ruleID, string(rule))
 			return false

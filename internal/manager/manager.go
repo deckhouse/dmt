@@ -138,32 +138,235 @@ func decodeValuesFile(path string) (chartutil.Values, error) {
 	return chartutil.ReadValuesFile(valuesFile)
 }
 
+func (m *Manager) registerAllExclusions() {
+	for _, mod := range m.Modules {
+		cfg := mod.GetModuleConfig()
+		if cfg == nil {
+			continue
+		}
+		m.registerOpenAPIExclusions(cfg)
+		m.registerNoCyrillicExclusions(cfg)
+		m.registerContainerExclusions(cfg)
+		m.registerTemplatesExclusions(cfg)
+		m.registerRBACExclusions(cfg)
+		m.registerImagesExclusions(cfg)
+		m.registerHooksExclusions(cfg)
+		m.registerModuleExclusions(cfg)
+	}
+}
+
+func (m *Manager) registerOpenAPIExclusions(cfg *config.ModuleConfig) {
+	openapiCfg := &cfg.LintersSettings.OpenAPI
+	// CRD names
+	crdEx := openapiCfg.OpenAPIExcludeRules.CRDNamesExcludes.Get()
+	crdStr := make([]string, len(crdEx))
+	for i, v := range crdEx {
+		crdStr[i] = string(v)
+	}
+	m.tracker.RegisterExclusions("openapi", "crd-names", crdStr)
+	// HA keys
+	haEx := openapiCfg.OpenAPIExcludeRules.HAAbsoluteKeysExcludes.Get()
+	haStr := make([]string, len(haEx))
+	for i, v := range haEx {
+		haStr[i] = string(v)
+	}
+	m.tracker.RegisterExclusions("openapi", "ha-absolute-keys", haStr)
+	// Key banned names
+	keyBanned := make([]string, len(openapiCfg.OpenAPIExcludeRules.KeyBannedNames))
+	copy(keyBanned, openapiCfg.OpenAPIExcludeRules.KeyBannedNames)
+	m.tracker.RegisterExclusions("openapi", "key-banned-names", keyBanned)
+	// Enum file excludes
+	enumEx := make([]string, len(openapiCfg.OpenAPIExcludeRules.EnumFileExcludes))
+	copy(enumEx, openapiCfg.OpenAPIExcludeRules.EnumFileExcludes)
+	m.tracker.RegisterExclusions("openapi", "enum-file-excludes", enumEx)
+}
+
+// helper for registering StringRuleExcludeList
+func registerStringRuleExcludeList(tracker *exclusions.ExclusionTracker, linter, rule string, list []pkg.StringRuleExclude) {
+	s := make([]string, len(list))
+	for i, v := range list {
+		s[i] = string(v)
+	}
+	tracker.RegisterExclusions(linter, rule, s)
+}
+
+// helper for registering PrefixRuleExcludeList
+func registerPrefixRuleExcludeList(tracker *exclusions.ExclusionTracker, linter, rule string, list []pkg.PrefixRuleExclude) {
+	s := make([]string, len(list))
+	for i, v := range list {
+		s[i] = string(v)
+	}
+	tracker.RegisterExclusions(linter, rule, s)
+}
+
+func (m *Manager) registerContainerExclusions(cfg *config.ModuleConfig) {
+	containerCfg := &cfg.LintersSettings.Container
+	registerContainerRule(m.tracker, "read-only-root-filesystem", containerCfg.ExcludeRules.ReadOnlyRootFilesystem.Get())
+	registerContainerRule(m.tracker, "resources", containerCfg.ExcludeRules.Resources.Get())
+	registerContainerRule(m.tracker, "ports", containerCfg.ExcludeRules.Ports.Get())
+	registerContainerRule(m.tracker, "security-context", containerCfg.ExcludeRules.SecurityContext.Get())
+	registerKindRule(m.tracker, "container", "controller-security-context", containerCfg.ExcludeRules.ControllerSecurityContext.Get())
+	registerContainerRule(m.tracker, "host-network-ports", containerCfg.ExcludeRules.HostNetworkPorts.Get())
+	registerContainerRule(m.tracker, "image-digest", containerCfg.ExcludeRules.ImageDigest.Get())
+	registerKindRule(m.tracker, "container", "dns-policy", containerCfg.ExcludeRules.DNSPolicy.Get())
+	registerContainerRule(m.tracker, "liveness-probe", containerCfg.ExcludeRules.Liveness.Get())
+	registerContainerRule(m.tracker, "readiness-probe", containerCfg.ExcludeRules.Readiness.Get())
+}
+
+func registerContainerRule(tracker *exclusions.ExclusionTracker, rule string, list []pkg.ContainerRuleExclude) {
+	s := make([]string, len(list))
+	for i, v := range list {
+		if v.Container != "" {
+			s[i] = v.Kind + "/" + v.Name + "/" + v.Container
+		} else {
+			s[i] = v.Kind + "/" + v.Name
+		}
+	}
+	tracker.RegisterExclusions("container", rule, s)
+}
+
+func registerKindRule(tracker *exclusions.ExclusionTracker, linter, rule string, list []pkg.KindRuleExclude) {
+	s := make([]string, len(list))
+	for i, v := range list {
+		s[i] = v.Kind + "/" + v.Name
+	}
+	tracker.RegisterExclusions(linter, rule, s)
+}
+
+func (m *Manager) registerNoCyrillicExclusions(cfg *config.ModuleConfig) {
+	nc := &cfg.LintersSettings.NoCyrillic
+	registerStringRuleExcludeList(m.tracker, "no-cyrillic", "files", nc.NoCyrillicExcludeRules.Files.Get())
+	registerPrefixRuleExcludeList(m.tracker, "no-cyrillic", "directories", nc.NoCyrillicExcludeRules.Directories.Get())
+}
+
+func (m *Manager) registerTemplatesExclusions(cfg *config.ModuleConfig) {
+	templatesCfg := &cfg.LintersSettings.Templates
+	// PDB absent
+	pdb := templatesCfg.ExcludeRules.PDBAbsent.Get()
+	pdbStr := make([]string, len(pdb))
+	for i, v := range pdb {
+		pdbStr[i] = v.Kind + "/" + v.Name
+	}
+	m.tracker.RegisterExclusions("templates", "pdb", pdbStr)
+
+	// VPA absent
+	vpa := templatesCfg.ExcludeRules.VPAAbsent.Get()
+	vpaStr := make([]string, len(vpa))
+	for i, v := range vpa {
+		vpaStr[i] = v.Kind + "/" + v.Name
+	}
+	m.tracker.RegisterExclusions("templates", "vpa", vpaStr)
+
+	// Service port
+	servicePort := templatesCfg.ExcludeRules.ServicePort.Get()
+	servicePortStr := make([]string, len(servicePort))
+	for i, v := range servicePort {
+		servicePortStr[i] = v.Name + "/" + v.Port
+	}
+	m.tracker.RegisterExclusions("templates", "service-port", servicePortStr)
+
+	// Kube RBAC proxy
+	kubeRbacProxy := templatesCfg.ExcludeRules.KubeRBACProxy.Get()
+	kubeRbacProxyStr := make([]string, len(kubeRbacProxy))
+	for i, v := range kubeRbacProxy {
+		kubeRbacProxyStr[i] = string(v)
+	}
+	m.tracker.RegisterExclusions("templates", "kube-rbac-proxy", kubeRbacProxyStr)
+}
+
+func (m *Manager) registerRBACExclusions(cfg *config.ModuleConfig) {
+	rbacCfg := &cfg.LintersSettings.Rbac
+	// Binding subject
+	bs := rbacCfg.ExcludeRules.BindingSubject.Get()
+	bsStr := make([]string, len(bs))
+	for i, v := range bs {
+		bsStr[i] = string(v)
+	}
+	m.tracker.RegisterExclusions("rbac", "binding-subject", bsStr)
+
+	// Placement
+	placement := rbacCfg.ExcludeRules.Placement.Get()
+	placementStr := make([]string, len(placement))
+	for i, v := range placement {
+		placementStr[i] = v.Kind + "/" + v.Name
+	}
+	m.tracker.RegisterExclusions("rbac", "placement", placementStr)
+
+	// Wildcards
+	wildcards := rbacCfg.ExcludeRules.Wildcards.Get()
+	wildcardsStr := make([]string, len(wildcards))
+	for i, v := range wildcards {
+		wildcardsStr[i] = v.Kind + "/" + v.Name
+	}
+	m.tracker.RegisterExclusions("rbac", "wildcards", wildcardsStr)
+}
+
+func (m *Manager) registerImagesExclusions(cfg *config.ModuleConfig) {
+	img := &cfg.LintersSettings.Images
+	registerPrefixRuleExcludeList(m.tracker, "images", "image-file-path-prefix", img.ExcludeRules.SkipImageFilePathPrefix.Get())
+	registerPrefixRuleExcludeList(m.tracker, "images", "distroless-file-path-prefix", img.ExcludeRules.SkipDistrolessFilePathPrefix.Get())
+}
+
+func (m *Manager) registerHooksExclusions(_ *config.ModuleConfig) {
+	// Hooks linter doesn't have exclusion rules in current configuration
+	// Register empty exclusions to track usage
+	m.tracker.RegisterExclusions("hooks", "ingress", []string{})
+}
+
+func (m *Manager) registerModuleExclusions(cfg *config.ModuleConfig) {
+	moduleCfg := &cfg.LintersSettings.Module
+	// License files
+	lic := moduleCfg.ExcludeRules.License.Files.Get()
+	licStr := make([]string, len(lic))
+	for i, v := range lic {
+		licStr[i] = string(v)
+	}
+	m.tracker.RegisterExclusions("module", "license", licStr)
+
+	// License directories
+	licDirs := moduleCfg.ExcludeRules.License.Directories.Get()
+	licDirsStr := make([]string, len(licDirs))
+	for i, v := range licDirs {
+		licDirsStr[i] = string(v)
+	}
+	m.tracker.RegisterExclusions("module", "license-directories", licDirsStr)
+
+	// Conversions description
+	conversionsDesc := moduleCfg.ExcludeRules.Conversions.Description.Get()
+	conversionsDescStr := make([]string, len(conversionsDesc))
+	for i, v := range conversionsDesc {
+		conversionsDescStr[i] = string(v)
+	}
+	m.tracker.RegisterExclusions("module", "conversions-description", conversionsDescStr)
+}
+
 func (m *Manager) Run() {
+	m.registerAllExclusions()
 	wg := new(sync.WaitGroup)
 	processingCh := make(chan struct{}, flags.LintersLimit)
 
-	for _, module := range m.Modules {
+	for _, mod := range m.Modules {
 		processingCh <- struct{}{}
 		wg.Add(1)
 
-		go func() {
+		go func(mod *module.Module) {
 			defer func() {
 				<-processingCh
 				wg.Done()
 			}()
 
-			logger.InfoF("Run linters for `%s` module", module.GetName())
+			logger.InfoF("Run linters for `%s` module", mod.GetName())
 
-			for _, linter := range getLintersForModule(module.GetModuleConfig(), m.errors, m.tracker) {
+			for _, linter := range getLintersForModule(mod.GetModuleConfig(), m.errors, m.tracker) {
 				if flags.LinterName != "" && linter.Name() != flags.LinterName {
 					continue
 				}
 
-				logger.DebugF("Running linter `%s` on module `%s`", linter.Name(), module.GetName())
+				logger.DebugF("Running linter `%s` on module `%s`", linter.Name(), mod.GetName())
 
-				linter.Run(module)
+				linter.Run(mod)
 			}
-		}()
+		}(mod)
 	}
 
 	wg.Wait()
