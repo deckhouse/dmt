@@ -86,7 +86,7 @@ func (r *ServicePortRuleTracked) ObjectServiceTargetPort(object storage.StoreObj
 		// Use tracked rule to check if service/port should be excluded and mark exclusions as used
 		if !r.trackedRule.Enabled(service.GetName(), port.Name) {
 			// TODO: add metrics
-			return
+			continue
 		}
 
 		if port.TargetPort.Type == intstr.Int {
@@ -125,7 +125,7 @@ func (r *ServicePortRule) ObjectServiceTargetPort(object storage.StoreObject, er
 	for _, port := range service.Spec.Ports {
 		if !r.Enabled(service.GetName(), port.Name) {
 			// TODO: add metrics
-			return
+			continue
 		}
 
 		if port.TargetPort.Type == intstr.Int {
