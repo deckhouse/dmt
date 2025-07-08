@@ -42,6 +42,7 @@ func NewConversionsRule(disable bool) *ConversionsRule {
 		RuleMeta: pkg.RuleMeta{
 			Name: ConversionsRuleName,
 		},
+		disabled: disable,
 	}
 }
 
@@ -51,12 +52,14 @@ func NewConversionsRuleTracked(trackedRule *exclusions.TrackedStringRule) *Conve
 			Name: ConversionsRuleName,
 		},
 		trackedRule: trackedRule,
+		disabled:    false, // не отключаем при использовании трекинга
 	}
 }
 
 type ConversionsRule struct {
 	pkg.RuleMeta
 	trackedRule *exclusions.TrackedStringRule
+	disabled    bool
 }
 
 const (
@@ -82,6 +85,11 @@ type configValues struct {
 
 func (r *ConversionsRule) CheckConversions(modulePath string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
+
+	// Если правило отключено, не выполняем проверки
+	if r.disabled {
+		return
+	}
 
 	if r.trackedRule == nil {
 		// fallback: всегда разрешено
