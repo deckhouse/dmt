@@ -112,7 +112,7 @@ func TestPlacementRuleTracked_Constructor(t *testing.T) {
 	rule := NewPlacementRuleTracked(trackedRule)
 
 	assert.Equal(t, "placement", rule.GetName())
-	assert.Equal(t, trackedRule.KindRule.ExcludeRules, rule.ExcludeRules)
+	assert.Equal(t, trackedRule.ExcludeRules, rule.ExcludeRules)
 	assert.Equal(t, trackedRule, rule.trackedRule)
 }
 
