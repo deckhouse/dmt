@@ -85,7 +85,7 @@ func (l *Module) runWithTracking(m *module.Module, errorList *errors.LintRuleErr
 
 	// --- Трекинг для conversions ---
 	trackedConversionsRule := exclusions.NewTrackedStringRuleForModule(
-		l.cfg.ExcludeRules.Conversions.Description.Get(),
+		l.cfg.ExcludeRules.Conversions.Files.Get(),
 		l.tracker,
 		ID,
 		"conversions",

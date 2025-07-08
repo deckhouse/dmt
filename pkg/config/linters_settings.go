@@ -105,7 +105,7 @@ type ModuleExcludeRules struct {
 }
 
 type ConversionsExcludeRules struct {
-	Description StringRuleExcludeList `mapstructure:"description"`
+	Files StringRuleExcludeList `mapstructure:"files"`
 }
 
 type ModuleOSSRuleSettings struct {
