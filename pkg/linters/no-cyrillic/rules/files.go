@@ -48,8 +48,8 @@ func NewFilesRule(excludeFileRules []pkg.StringRuleExclude,
 			ExcludePrefixRules: excludeDirectoryRules,
 		},
 		skipDocRe:  regexp.MustCompile(skipDocRe),
-		skipI18NRe: regexp.MustCompile(skipSelfRe),
-		skipSelfRe: regexp.MustCompile(skipI18NRe),
+		skipI18NRe: regexp.MustCompile(skipI18NRe),
+		skipSelfRe: regexp.MustCompile(skipSelfRe),
 	}
 }
 
@@ -60,8 +60,8 @@ func NewFilesRuleTracked(trackedRule *exclusions.TrackedPathRule) *FilesRule {
 		},
 		PathRule:   trackedRule.PathRule,
 		skipDocRe:  regexp.MustCompile(skipDocRe),
-		skipI18NRe: regexp.MustCompile(skipSelfRe),
-		skipSelfRe: regexp.MustCompile(skipI18NRe),
+		skipI18NRe: regexp.MustCompile(skipI18NRe),
+		skipSelfRe: regexp.MustCompile(skipSelfRe),
 	}
 }
 
