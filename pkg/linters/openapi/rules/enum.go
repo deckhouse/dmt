@@ -28,12 +28,14 @@ import (
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/exclusions"
 )
 
 type EnumRule struct {
 	cfg      *config.OpenAPISettings
 	rootPath string
 	pkg.RuleMeta
+	trackedRule *exclusions.TrackedStringRule
 }
 
 var (
@@ -50,10 +52,26 @@ func NewEnumRule(cfg *config.OpenAPISettings, rootPath string) *EnumRule {
 	}
 }
 
+func NewEnumRuleTracked(cfg *config.OpenAPISettings, rootPath string, trackedRule *exclusions.TrackedStringRule) *EnumRule {
+	return &EnumRule{
+		cfg: cfg,
+		RuleMeta: pkg.RuleMeta{
+			Name: "enum",
+		},
+		rootPath:    rootPath,
+		trackedRule: trackedRule,
+	}
+}
+
 func (e *EnumRule) Run(path string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(e.GetName())
 
-	validator := newEnumValidator(e.cfg)
+	var validator enumValidator
+	if e.trackedRule != nil {
+		validator = newEnumValidatorTracked(e.cfg, e.trackedRule)
+	} else {
+		validator = newEnumValidator(e.cfg)
+	}
 
 	shortPath, _ := filepath.Rel(e.rootPath, path)
 	if err := openapi.Parse(validator.run, path); err != nil {
@@ -72,6 +90,27 @@ func newEnumValidator(cfg *config.OpenAPISettings) enumValidator {
 	for _, exc := range cfg.OpenAPIExcludeRules.EnumFileExcludes {
 		excludes[exc+".enum"] = struct{}{}
 	}
+	return enumValidator{
+		cfg:      cfg,
+		excludes: excludes,
+	}
+}
+
+func newEnumValidatorTracked(cfg *config.OpenAPISettings, trackedRule *exclusions.TrackedStringRule) enumValidator {
+	excludes := make(map[string]struct{})
+
+	// Add original excludes
+	for _, exc := range cfg.OpenAPIExcludeRules.EnumFileExcludes {
+		excludes[exc+".enum"] = struct{}{}
+	}
+
+	// Add tracked excludes
+	if trackedRule != nil {
+		for _, exclusion := range trackedRule.ExcludeRules {
+			excludes[string(exclusion)+".enum"] = struct{}{}
+		}
+	}
+
 	return enumValidator{
 		cfg:      cfg,
 		excludes: excludes,

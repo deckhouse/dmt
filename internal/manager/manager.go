@@ -185,6 +185,13 @@ func getLintersForModule(cfg *config.ModuleConfig, errList *errors.LintRuleError
 func (m *Manager) PrintResult() {
 	errs := m.errors.GetErrors()
 
+	// Print unused exclusions as warnings (always, regardless of errors)
+	unusedExclusions := m.tracker.FormatUnusedExclusions()
+	if unusedExclusions != "" {
+		fmt.Println(color.New(color.FgHiYellow).SprintFunc()("⚠️  WARNING: "))
+		fmt.Println(color.New(color.FgHiYellow).SprintFunc()(unusedExclusions))
+	}
+
 	if len(errs) == 0 {
 		return
 	}
@@ -254,13 +261,6 @@ func (m *Manager) PrintResult() {
 	}
 
 	fmt.Println(buf.String())
-
-	// Print unused exclusions as warnings
-	unusedExclusions := m.tracker.FormatUnusedExclusions()
-	if unusedExclusions != "" {
-		fmt.Println(color.New(color.FgHiYellow).SprintFunc()("⚠️  WARNING: "))
-		fmt.Println(color.New(color.FgHiYellow).SprintFunc()(unusedExclusions))
-	}
 }
 
 func (m *Manager) HasCriticalErrors() bool {

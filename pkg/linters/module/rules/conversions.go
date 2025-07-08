@@ -30,6 +30,7 @@ import (
 
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/exclusions"
 )
 
 const (
@@ -41,15 +42,21 @@ func NewConversionsRule(disable bool) *ConversionsRule {
 		RuleMeta: pkg.RuleMeta{
 			Name: ConversionsRuleName,
 		},
-		BoolRule: pkg.BoolRule{
-			Exclude: disable,
+	}
+}
+
+func NewConversionsRuleTracked(trackedRule *exclusions.TrackedStringRule) *ConversionsRule {
+	return &ConversionsRule{
+		RuleMeta: pkg.RuleMeta{
+			Name: ConversionsRuleName,
 		},
+		trackedRule: trackedRule,
 	}
 }
 
 type ConversionsRule struct {
 	pkg.RuleMeta
-	pkg.BoolRule
+	trackedRule *exclusions.TrackedStringRule
 }
 
 const (
@@ -76,9 +83,8 @@ type configValues struct {
 func (r *ConversionsRule) CheckConversions(modulePath string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
-	if !r.Enabled() {
-		// TODO: add metrics
-		return
+	if r.trackedRule == nil {
+		// fallback: всегда разрешено
 	}
 
 	configFilePath := filepath.Join(modulePath, configValuesFile)
@@ -138,7 +144,9 @@ func (r *ConversionsRule) CheckConversions(modulePath string, errorList *errors.
 			return nil
 		}
 
-		// TODO: return error that name is matched and is dir
+		if r.trackedRule != nil && !r.trackedRule.Enabled(path) {
+			return nil
+		}
 
 		conv, err := parseConversion(path)
 		if err != nil {

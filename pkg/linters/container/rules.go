@@ -176,6 +176,16 @@ func (l *Container) applyContainerRulesWithTracking(object storage.StoreObject, 
 		"readiness-probe",
 	)
 
+	// Register rules without exclusions in tracker
+	l.tracker.RegisterExclusions(ID, "recommended-labels", []string{})
+	l.tracker.RegisterExclusions(ID, "namespace-labels", []string{})
+	l.tracker.RegisterExclusions(ID, "api-version", []string{})
+	l.tracker.RegisterExclusions(ID, "priority-class", []string{})
+	l.tracker.RegisterExclusions(ID, "revision-history-limit", []string{})
+	l.tracker.RegisterExclusions(ID, "name-duplicates", []string{})
+	l.tracker.RegisterExclusions(ID, "env-variables-duplicates", []string{})
+	l.tracker.RegisterExclusions(ID, "image-pull-policy", []string{})
+
 	// Apply object rules with tracking
 	objectRules := []func(storage.StoreObject, *errors.LintRuleErrorsList){
 		rules.NewRecommendedLabelsRule().ObjectRecommendedLabels,
@@ -216,15 +226,14 @@ func (l *Container) applyContainerRulesWithTracking(object storage.StoreObject, 
 		func(obj storage.StoreObject, containers []corev1.Container, errList *errors.LintRuleErrorsList) {
 			for _, container := range containers {
 				if readOnlyRootFilesystemRule.Enabled(obj, &container) {
-					// Apply the rule logic here - for now just check if rule is enabled
-					// In a full implementation, you would call the actual rule logic
+					rules.NewCheckReadOnlyRootFilesystemRule([]pkg.ContainerRuleExclude{}).ObjectReadOnlyRootFilesystem(obj, containers, errList)
 				}
 			}
 		},
 		func(obj storage.StoreObject, containers []corev1.Container, errList *errors.LintRuleErrorsList) {
 			for _, container := range containers {
 				if hostNetworkPortsRule.Enabled(obj, &container) {
-					// Apply the rule logic here
+					rules.NewHostNetworkPortsRule([]pkg.ContainerRuleExclude{}).ObjectHostNetworkPorts(obj, containers, errList)
 				}
 			}
 		},
@@ -232,7 +241,7 @@ func (l *Container) applyContainerRulesWithTracking(object storage.StoreObject, 
 		func(obj storage.StoreObject, containers []corev1.Container, errList *errors.LintRuleErrorsList) {
 			for _, container := range containers {
 				if imageDigestRule.Enabled(obj, &container) {
-					// Apply the rule logic here
+					rules.NewImageDigestRule([]pkg.ContainerRuleExclude{}).ContainerImageDigestCheck(obj, containers, errList)
 				}
 			}
 		},
@@ -240,21 +249,21 @@ func (l *Container) applyContainerRulesWithTracking(object storage.StoreObject, 
 		func(obj storage.StoreObject, containers []corev1.Container, errList *errors.LintRuleErrorsList) {
 			for _, container := range containers {
 				if resourcesRule.Enabled(obj, &container) {
-					// Apply the rule logic here
+					rules.NewResourcesRule([]pkg.ContainerRuleExclude{}).ContainerStorageEphemeral(obj, containers, errList)
 				}
 			}
 		},
 		func(obj storage.StoreObject, containers []corev1.Container, errList *errors.LintRuleErrorsList) {
 			for _, container := range containers {
 				if securityContextRule.Enabled(obj, &container) {
-					// Apply the rule logic here
+					rules.NewContainerSecurityContextRule([]pkg.ContainerRuleExclude{}).ContainerSecurityContext(obj, containers, errList)
 				}
 			}
 		},
 		func(obj storage.StoreObject, containers []corev1.Container, errList *errors.LintRuleErrorsList) {
 			for _, container := range containers {
 				if portsRule.Enabled(obj, &container) {
-					// Apply the rule logic here
+					rules.NewPortsRule([]pkg.ContainerRuleExclude{}).ContainerPorts(obj, containers, errList)
 				}
 			}
 		},
@@ -280,14 +289,14 @@ func (l *Container) applyContainerRulesWithTracking(object storage.StoreObject, 
 		func(obj storage.StoreObject, containers []corev1.Container, errList *errors.LintRuleErrorsList) {
 			for _, container := range containers {
 				if livenessRule.Enabled(obj, &container) {
-					// Apply the rule logic here
+					rules.NewLivenessRule([]pkg.ContainerRuleExclude{}).CheckProbe(obj, containers, errList)
 				}
 			}
 		},
 		func(obj storage.StoreObject, containers []corev1.Container, errList *errors.LintRuleErrorsList) {
 			for _, container := range containers {
 				if readinessRule.Enabled(obj, &container) {
-					// Apply the rule logic here
+					rules.NewReadinessRule([]pkg.ContainerRuleExclude{}).CheckProbe(obj, containers, errList)
 				}
 			}
 		},

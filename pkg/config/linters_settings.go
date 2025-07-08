@@ -100,7 +100,12 @@ type ModuleSettings struct {
 }
 
 type ModuleExcludeRules struct {
-	License LicenseExcludeRule `mapstructure:"license"`
+	License     LicenseExcludeRule      `mapstructure:"license"`
+	Conversions ConversionsExcludeRules `mapstructure:"conversions"`
+}
+
+type ConversionsExcludeRules struct {
+	Description StringRuleExcludeList `mapstructure:"description"`
 }
 
 type ModuleOSSRuleSettings struct {

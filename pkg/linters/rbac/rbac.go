@@ -81,6 +81,9 @@ func (l *Rbac) runWithoutTracking(m *module.Module, errorList *errors.LintRuleEr
 }
 
 func (l *Rbac) runWithTracking(m *module.Module, errorList *errors.LintRuleErrorsList) {
+	// Register rules without exclusions in tracker
+	l.tracker.RegisterExclusions(ID, "user-authz", []string{})
+
 	rules.NewUzerAuthZRule().
 		ObjectUserAuthzClusterRolePath(m, errorList)
 

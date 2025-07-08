@@ -26,12 +26,14 @@ import (
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/exclusions"
 )
 
 type KeysRule struct {
 	cfg *config.OpenAPISettings
 	pkg.RuleMeta
-	rootPath string
+	rootPath    string
+	trackedRule *exclusions.TrackedStringRule
 }
 
 func NewKeysRule(cfg *config.OpenAPISettings, rootPath string) *KeysRule {
@@ -44,11 +46,28 @@ func NewKeysRule(cfg *config.OpenAPISettings, rootPath string) *KeysRule {
 	}
 }
 
+func NewKeysRuleTracked(cfg *config.OpenAPISettings, rootPath string, trackedRule *exclusions.TrackedStringRule) *KeysRule {
+	return &KeysRule{
+		cfg: cfg,
+		RuleMeta: pkg.RuleMeta{
+			Name: "keys",
+		},
+		rootPath:    rootPath,
+		trackedRule: trackedRule,
+	}
+}
+
 func (e *KeysRule) Run(path string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(e.GetName())
 
 	shortPath, _ := filepath.Rel(e.rootPath, path)
-	haValidator := newKeyValidator(e.cfg)
+
+	var haValidator keyValidator
+	if e.trackedRule != nil {
+		haValidator = newKeyValidatorTracked(e.cfg, e.trackedRule)
+	} else {
+		haValidator = newKeyValidator(e.cfg)
+	}
 
 	if err := openapi.Parse(haValidator.run, path); err != nil {
 		errorList.WithFilePath(shortPath).Errorf("openAPI file is not valid:\n%s", err)
@@ -62,6 +81,19 @@ type keyValidator struct {
 func newKeyValidator(cfg *config.OpenAPISettings) keyValidator {
 	return keyValidator{
 		bannedNames: cfg.OpenAPIExcludeRules.KeyBannedNames,
+	}
+}
+
+func newKeyValidatorTracked(cfg *config.OpenAPISettings, trackedRule *exclusions.TrackedStringRule) keyValidator {
+	bannedNames := cfg.OpenAPIExcludeRules.KeyBannedNames
+	if trackedRule != nil {
+		// Convert tracked exclusions to banned names
+		for _, exclusion := range trackedRule.ExcludeRules {
+			bannedNames = append(bannedNames, string(exclusion))
+		}
+	}
+	return keyValidator{
+		bannedNames: bannedNames,
 	}
 }
 

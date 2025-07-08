@@ -77,6 +77,10 @@ func (l *Images) runWithoutTracking(m *module.Module, errorList *errors.LintRule
 }
 
 func (l *Images) runWithTracking(m *module.Module, errorList *errors.LintRuleErrorsList) {
+	// Register rules without exclusions in tracker
+	l.tracker.RegisterExclusions(ID, "werf-file", []string{})
+	l.tracker.RegisterExclusions(ID, "patches", []string{})
+
 	trackedImageRule := exclusions.NewTrackedPrefixRule(
 		l.cfg.ExcludeRules.SkipImageFilePathPrefix.Get(),
 		l.tracker,

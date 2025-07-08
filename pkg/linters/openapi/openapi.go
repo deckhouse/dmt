@@ -23,6 +23,7 @@ import (
 
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/exclusions"
@@ -110,10 +111,30 @@ func (o *OpenAPI) runWithTracking(m *module.Module, errorList *errors.LintRuleEr
 	haRule := rules.NewHARuleTracked(o.cfg, m.GetPath(), trackedHARule)
 
 	// Keys
-	keysRule := rules.NewKeysRule(o.cfg, m.GetPath())
+	keyBannedNames := make([]pkg.StringRuleExclude, len(o.cfg.OpenAPIExcludeRules.KeyBannedNames))
+	for i, name := range o.cfg.OpenAPIExcludeRules.KeyBannedNames {
+		keyBannedNames[i] = pkg.StringRuleExclude(name)
+	}
+	trackedKeysRule := exclusions.NewTrackedStringRule(
+		keyBannedNames,
+		o.tracker,
+		"openapi",
+		"key-banned-names",
+	)
+	keysRule := rules.NewKeysRuleTracked(o.cfg, m.GetPath(), trackedKeysRule)
 
 	// Enum
-	enumRule := rules.NewEnumRule(o.cfg, m.GetPath())
+	enumFileExcludes := make([]pkg.StringRuleExclude, len(o.cfg.OpenAPIExcludeRules.EnumFileExcludes))
+	for i, exclude := range o.cfg.OpenAPIExcludeRules.EnumFileExcludes {
+		enumFileExcludes[i] = pkg.StringRuleExclude(exclude)
+	}
+	trackedEnumRule := exclusions.NewTrackedStringRule(
+		enumFileExcludes,
+		o.tracker,
+		"openapi",
+		"enum-file-excludes",
+	)
+	enumRule := rules.NewEnumRuleTracked(o.cfg, m.GetPath(), trackedEnumRule)
 
 	// Run rules
 	openAPIFiles := fsutils.GetFiles(m.GetPath(), true, filterOpenAPIfiles)
