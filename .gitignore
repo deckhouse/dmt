@@ -2,5 +2,7 @@
 release-build
 dist
 /dmt
+# Ignore Cursor files
+/.cursor
 # Ignore Go coverage output
 coverage.out
