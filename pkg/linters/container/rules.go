@@ -102,89 +102,99 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 	}
 }
 
-func (l *Container) applyContainerRulesWithTracking(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+func (l *Container) applyContainerRulesWithTracking(object storage.StoreObject, errorList *errors.LintRuleErrorsList, moduleName string) {
 	errorList = errorList.WithFilePath(object.ShortPath())
 
 	// Create tracked rules for exclusions
-	dnsPolicyRule := exclusions.NewTrackedKindRule(
+	dnsPolicyRule := exclusions.NewTrackedKindRuleForModule(
 		l.cfg.ExcludeRules.DNSPolicy.Get(),
 		l.tracker,
 		ID,
 		"dns-policy",
+		moduleName,
 	)
 
-	controllerSecurityContextRule := exclusions.NewTrackedKindRule(
+	controllerSecurityContextRule := exclusions.NewTrackedKindRuleForModule(
 		l.cfg.ExcludeRules.ControllerSecurityContext.Get(),
 		l.tracker,
 		ID,
 		"controller-security-context",
+		moduleName,
 	)
 
-	readOnlyRootFilesystemRule := exclusions.NewTrackedContainerRule(
+	readOnlyRootFilesystemRule := exclusions.NewTrackedContainerRuleForModule(
 		l.cfg.ExcludeRules.ReadOnlyRootFilesystem.Get(),
 		l.tracker,
 		ID,
 		"read-only-root-filesystem",
+		moduleName,
 	)
 
-	hostNetworkPortsRule := exclusions.NewTrackedContainerRule(
+	hostNetworkPortsRule := exclusions.NewTrackedContainerRuleForModule(
 		l.cfg.ExcludeRules.HostNetworkPorts.Get(),
 		l.tracker,
 		ID,
 		"host-network-ports",
+		moduleName,
 	)
 
-	imageDigestRule := exclusions.NewTrackedContainerRule(
+	imageDigestRule := exclusions.NewTrackedContainerRuleForModule(
 		l.cfg.ExcludeRules.ImageDigest.Get(),
 		l.tracker,
 		ID,
 		"image-digest",
+		moduleName,
 	)
 
-	resourcesRule := exclusions.NewTrackedContainerRule(
+	resourcesRule := exclusions.NewTrackedContainerRuleForModule(
 		l.cfg.ExcludeRules.Resources.Get(),
 		l.tracker,
 		ID,
 		"resources",
+		moduleName,
 	)
 
-	securityContextRule := exclusions.NewTrackedContainerRule(
+	securityContextRule := exclusions.NewTrackedContainerRuleForModule(
 		l.cfg.ExcludeRules.SecurityContext.Get(),
 		l.tracker,
 		ID,
 		"security-context",
+		moduleName,
 	)
 
-	portsRule := exclusions.NewTrackedContainerRule(
+	portsRule := exclusions.NewTrackedContainerRuleForModule(
 		l.cfg.ExcludeRules.Ports.Get(),
 		l.tracker,
 		ID,
 		"ports",
+		moduleName,
 	)
 
-	livenessRule := exclusions.NewTrackedContainerRule(
+	livenessRule := exclusions.NewTrackedContainerRuleForModule(
 		l.cfg.ExcludeRules.Liveness.Get(),
 		l.tracker,
 		ID,
 		"liveness-probe",
+		moduleName,
 	)
 
-	readinessRule := exclusions.NewTrackedContainerRule(
+	readinessRule := exclusions.NewTrackedContainerRuleForModule(
 		l.cfg.ExcludeRules.Readiness.Get(),
 		l.tracker,
 		ID,
 		"readiness-probe",
+		moduleName,
 	)
 
 	// Register rules without exclusions in tracker
-	l.tracker.RegisterExclusions(ID, "recommended-labels", []string{})
-	l.tracker.RegisterExclusions(ID, "namespace-labels", []string{})
-	l.tracker.RegisterExclusions(ID, "api-version", []string{})
-	l.tracker.RegisterExclusions(ID, "priority-class", []string{})
-	l.tracker.RegisterExclusions(ID, "revision-history-limit", []string{})
-	l.tracker.RegisterExclusions(ID, "name-duplicates", []string{})
-	l.tracker.RegisterExclusions(ID, "env-variables-duplicates", []string{})
-	l.tracker.RegisterExclusions(ID, "image-pull-policy", []string{})
+	l.tracker.RegisterExclusionsForModule(ID, "recommended-labels", []string{}, moduleName)
+	l.tracker.RegisterExclusionsForModule(ID, "namespace-labels", []string{}, moduleName)
+	l.tracker.RegisterExclusionsForModule(ID, "api-version", []string{}, moduleName)
+	l.tracker.RegisterExclusionsForModule(ID, "priority-class", []string{}, moduleName)
+	l.tracker.RegisterExclusionsForModule(ID, "revision-history-limit", []string{}, moduleName)
+	l.tracker.RegisterExclusionsForModule(ID, "name-duplicates", []string{}, moduleName)
+	l.tracker.RegisterExclusionsForModule(ID, "env-variables-duplicates", []string{}, moduleName)
+	l.tracker.RegisterExclusionsForModule(ID, "image-pull-policy", []string{}, moduleName)
 
 	// Apply object rules with tracking
 	objectRules := []func(storage.StoreObject, *errors.LintRuleErrorsList){

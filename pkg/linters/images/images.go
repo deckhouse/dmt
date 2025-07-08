@@ -63,7 +63,7 @@ func (l *Images) Run(m *module.Module) {
 	errorList := l.ErrorList.WithModule(m.GetName())
 
 	if l.tracker != nil {
-		l.runWithTracking(m, errorList)
+		l.runWithTracking(m, errorList, m.GetName())
 	} else {
 		l.runWithoutTracking(m, errorList)
 	}
@@ -76,24 +76,26 @@ func (l *Images) runWithoutTracking(m *module.Module, errorList *errors.LintRule
 	rules.NewPatchesRule(l.cfg.Patches.Disable).CheckPatches(m.GetPath(), errorList)
 }
 
-func (l *Images) runWithTracking(m *module.Module, errorList *errors.LintRuleErrorsList) {
+func (l *Images) runWithTracking(m *module.Module, errorList *errors.LintRuleErrorsList, moduleName string) {
 	// Register rules without exclusions in tracker
-	l.tracker.RegisterExclusions(ID, "werf-file", []string{})
-	l.tracker.RegisterExclusions(ID, "patches", []string{})
+	l.tracker.RegisterExclusionsForModule(ID, "werf-file", []string{}, moduleName)
+	l.tracker.RegisterExclusionsForModule(ID, "patches", []string{}, moduleName)
 
-	trackedImageRule := exclusions.NewTrackedPrefixRule(
+	trackedImageRule := exclusions.NewTrackedPrefixRuleForModule(
 		l.cfg.ExcludeRules.SkipImageFilePathPrefix.Get(),
 		l.tracker,
 		ID,
 		"image-file-path-prefix",
+		moduleName,
 	)
 	rules.NewImageRuleTracked(trackedImageRule).CheckImageNamesInDockerFiles(m.GetPath(), errorList)
 
-	trackedDistrolessRule := exclusions.NewTrackedPrefixRule(
+	trackedDistrolessRule := exclusions.NewTrackedPrefixRuleForModule(
 		l.cfg.ExcludeRules.SkipDistrolessFilePathPrefix.Get(),
 		l.tracker,
 		ID,
 		"distroless-file-path-prefix",
+		moduleName,
 	)
 	rules.NewDistrolessRuleTracked(trackedDistrolessRule).CheckImageNamesInDockerFiles(m.GetPath(), errorList)
 

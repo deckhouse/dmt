@@ -18,6 +18,7 @@ package exclusions
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 )
 
@@ -28,6 +29,8 @@ type ExclusionTracker struct {
 	usedExclusions map[string]map[string]map[string]int
 	// Map of linter -> rule -> all configured exclusions
 	configuredExclusions map[string]map[string][]string
+	// Map of linter -> rule -> exclusion -> module names
+	exclusionModules map[string]map[string]map[string][]string
 }
 
 // NewExclusionTracker creates a new exclusion tracker
@@ -35,18 +38,63 @@ func NewExclusionTracker() *ExclusionTracker {
 	return &ExclusionTracker{
 		usedExclusions:       make(map[string]map[string]map[string]int),
 		configuredExclusions: make(map[string]map[string][]string),
+		exclusionModules:     make(map[string]map[string]map[string][]string),
 	}
 }
 
 // RegisterExclusions registers all exclusions for a specific linter and rule
 func (t *ExclusionTracker) RegisterExclusions(linterID, ruleID string, exclusions []string) {
+	t.RegisterExclusionsForModule(linterID, ruleID, exclusions, "")
+}
+
+// RegisterExclusionsForModule registers all exclusions for a specific linter, rule and module
+func (t *ExclusionTracker) RegisterExclusionsForModule(linterID, ruleID string, exclusions []string, moduleName string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	if t.configuredExclusions[linterID] == nil {
 		t.configuredExclusions[linterID] = make(map[string][]string)
 	}
-	t.configuredExclusions[linterID][ruleID] = exclusions
+	if t.exclusionModules[linterID] == nil {
+		t.exclusionModules[linterID] = make(map[string]map[string][]string)
+	}
+
+	// Append exclusions instead of overwriting them
+	if t.configuredExclusions[linterID][ruleID] == nil {
+		t.configuredExclusions[linterID][ruleID] = make([]string, 0)
+	}
+	if t.exclusionModules[linterID][ruleID] == nil {
+		t.exclusionModules[linterID][ruleID] = make(map[string][]string)
+	}
+
+	// Add new exclusions to existing ones, avoiding duplicates
+	existing := make(map[string]bool)
+	for _, excl := range t.configuredExclusions[linterID][ruleID] {
+		existing[excl] = true
+	}
+
+	for _, excl := range exclusions {
+		if !existing[excl] {
+			t.configuredExclusions[linterID][ruleID] = append(t.configuredExclusions[linterID][ruleID], excl)
+		}
+		// Always track module association
+		if moduleName != "" {
+			if t.exclusionModules[linterID][ruleID][excl] == nil {
+				t.exclusionModules[linterID][ruleID][excl] = make([]string, 0)
+			}
+			// Check if module is already in the list
+			found := false
+			for _, existingModule := range t.exclusionModules[linterID][ruleID][excl] {
+				if existingModule == moduleName {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.exclusionModules[linterID][ruleID][excl] = append(t.exclusionModules[linterID][ruleID][excl], moduleName)
+			}
+		}
+	}
 }
 
 // MarkExclusionUsed marks an exclusion as used for a specific linter and rule
@@ -130,7 +178,16 @@ func (t *ExclusionTracker) FormatUnusedExclusions() string {
 		for ruleID, exclusions := range rules {
 			result += fmt.Sprintf("    %s:\n", ruleID)
 			for _, exclusion := range exclusions {
-				result += fmt.Sprintf("      - %s\n", exclusion)
+				moduleInfo := ""
+				if t.exclusionModules[linterID] != nil &&
+					t.exclusionModules[linterID][ruleID] != nil &&
+					t.exclusionModules[linterID][ruleID][exclusion] != nil {
+					modules := t.exclusionModules[linterID][ruleID][exclusion]
+					if len(modules) > 0 {
+						moduleInfo = fmt.Sprintf(" (from modules: %s)", strings.Join(modules, ", "))
+					}
+				}
+				result += fmt.Sprintf("      - %s%s\n", exclusion, moduleInfo)
 			}
 		}
 	}

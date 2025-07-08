@@ -69,7 +69,7 @@ func (l *NoCyrillic) Run(m *module.Module) {
 	}
 
 	if l.tracker != nil {
-		l.runWithTracking(m, errorList)
+		l.runWithTracking(m, errorList, m.GetName())
 	} else {
 		l.runWithoutTracking(m, errorList)
 	}
@@ -86,13 +86,14 @@ func (l *NoCyrillic) runWithoutTracking(m *module.Module, errorList *errors.Lint
 	}
 }
 
-func (l *NoCyrillic) runWithTracking(m *module.Module, errorList *errors.LintRuleErrorsList) {
-	trackedFilesRule := exclusions.NewTrackedPathRule(
+func (l *NoCyrillic) runWithTracking(m *module.Module, errorList *errors.LintRuleErrorsList, moduleName string) {
+	trackedFilesRule := exclusions.NewTrackedPathRuleForModule(
 		l.cfg.NoCyrillicExcludeRules.Files.Get(),
 		l.cfg.NoCyrillicExcludeRules.Directories.Get(),
 		l.tracker,
 		ID,
 		"files",
+		moduleName,
 	)
 	filesRule := rules.NewFilesRuleTracked(trackedFilesRule)
 

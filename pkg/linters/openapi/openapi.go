@@ -61,7 +61,7 @@ func (o *OpenAPI) Run(m *module.Module) {
 	errorLists := o.ErrorList.WithModule(m.GetName())
 
 	if o.tracker != nil {
-		o.runWithTracking(m, errorLists)
+		o.runWithTracking(m, errorLists, m.GetName())
 	} else {
 		o.runWithoutTracking(m, errorLists)
 	}
@@ -91,22 +91,24 @@ func (o *OpenAPI) runWithoutTracking(m *module.Module, errorLists *errors.LintRu
 	}
 }
 
-func (o *OpenAPI) runWithTracking(m *module.Module, errorList *errors.LintRuleErrorsList) {
+func (o *OpenAPI) runWithTracking(m *module.Module, errorList *errors.LintRuleErrorsList, moduleName string) {
 	// CRDs
-	trackedCRDsRule := exclusions.NewTrackedStringRule(
+	trackedCRDsRule := exclusions.NewTrackedStringRuleForModule(
 		o.cfg.OpenAPIExcludeRules.CRDNamesExcludes.Get(),
 		o.tracker,
 		"openapi",
 		"crd-names",
+		moduleName,
 	)
 	crdsRule := rules.NewDeckhouseCRDsRuleTracked(o.cfg, m.GetPath(), trackedCRDsRule)
 
 	// HA
-	trackedHARule := exclusions.NewTrackedStringRule(
+	trackedHARule := exclusions.NewTrackedStringRuleForModule(
 		o.cfg.OpenAPIExcludeRules.HAAbsoluteKeysExcludes.Get(),
 		o.tracker,
 		"openapi",
 		"ha-absolute-keys",
+		moduleName,
 	)
 	haRule := rules.NewHARuleTracked(o.cfg, m.GetPath(), trackedHARule)
 
@@ -115,11 +117,12 @@ func (o *OpenAPI) runWithTracking(m *module.Module, errorList *errors.LintRuleEr
 	for i, name := range o.cfg.OpenAPIExcludeRules.KeyBannedNames {
 		keyBannedNames[i] = pkg.StringRuleExclude(name)
 	}
-	trackedKeysRule := exclusions.NewTrackedStringRule(
+	trackedKeysRule := exclusions.NewTrackedStringRuleForModule(
 		keyBannedNames,
 		o.tracker,
 		"openapi",
 		"key-banned-names",
+		moduleName,
 	)
 	keysRule := rules.NewKeysRuleTracked(o.cfg, m.GetPath(), trackedKeysRule)
 
@@ -128,11 +131,12 @@ func (o *OpenAPI) runWithTracking(m *module.Module, errorList *errors.LintRuleEr
 	for i, exclude := range o.cfg.OpenAPIExcludeRules.EnumFileExcludes {
 		enumFileExcludes[i] = pkg.StringRuleExclude(exclude)
 	}
-	trackedEnumRule := exclusions.NewTrackedStringRule(
+	trackedEnumRule := exclusions.NewTrackedStringRuleForModule(
 		enumFileExcludes,
 		o.tracker,
 		"openapi",
 		"enum-file-excludes",
+		moduleName,
 	)
 	enumRule := rules.NewEnumRuleTracked(o.cfg, m.GetPath(), trackedEnumRule)
 
@@ -149,7 +153,7 @@ func (o *OpenAPI) runWithTracking(m *module.Module, errorList *errors.LintRuleEr
 		enumRule.Run(file, errorList)
 		haRule.Run(file, errorList)
 		keysRule.Run(file, errorList)
-		crdsRule.Run(m.GetName(), file, errorList)
+		crdsRule.Run(moduleName, file, errorList)
 	}
 }
 

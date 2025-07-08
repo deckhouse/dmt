@@ -61,7 +61,7 @@ func (l *Module) Run(m *module.Module) {
 	errorList := l.ErrorList.WithModule(m.GetName())
 
 	if l.tracker != nil {
-		l.runWithTracking(m, errorList)
+		l.runWithTracking(m, errorList, m.GetName())
 	} else {
 		l.runWithoutTracking(m, errorList)
 	}
@@ -75,30 +75,32 @@ func (l *Module) runWithoutTracking(m *module.Module, errorList *errors.LintRule
 		CheckFiles(m, errorList)
 }
 
-func (l *Module) runWithTracking(m *module.Module, errorList *errors.LintRuleErrorsList) {
+func (l *Module) runWithTracking(m *module.Module, errorList *errors.LintRuleErrorsList, moduleName string) {
 	// Register rules without exclusions in tracker
-	l.tracker.RegisterExclusions(ID, "definition-file", []string{})
-	l.tracker.RegisterExclusions(ID, "oss", []string{})
+	l.tracker.RegisterExclusionsForModule(ID, "definition-file", []string{}, moduleName)
+	l.tracker.RegisterExclusionsForModule(ID, "oss", []string{}, moduleName)
 
 	rules.NewDefinitionFileRule(l.cfg.DefinitionFile.Disable).CheckDefinitionFile(m.GetPath(), errorList)
 	rules.NewOSSRule(l.cfg.OSS.Disable).OssModuleRule(m.GetPath(), errorList)
 
 	// --- Трекинг для conversions ---
-	trackedConversionsRule := exclusions.NewTrackedStringRule(
+	trackedConversionsRule := exclusions.NewTrackedStringRuleForModule(
 		l.cfg.ExcludeRules.Conversions.Description.Get(),
 		l.tracker,
 		ID,
 		"conversions",
+		moduleName,
 	)
 	rules.NewConversionsRuleTracked(trackedConversionsRule).CheckConversions(m.GetPath(), errorList)
 	// --- конец ---
 
-	trackedLicenseRule := exclusions.NewTrackedPathRule(
+	trackedLicenseRule := exclusions.NewTrackedPathRuleForModule(
 		l.cfg.ExcludeRules.License.Files.Get(),
 		l.cfg.ExcludeRules.License.Directories.Get(),
 		l.tracker,
 		ID,
 		"license",
+		moduleName,
 	)
 	rules.NewLicenseRuleTracked(trackedLicenseRule).CheckFiles(m, errorList)
 }

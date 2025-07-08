@@ -36,12 +36,17 @@ type TrackedStringRule struct {
 
 // NewTrackedStringRule creates a new tracked string rule
 func NewTrackedStringRule(excludeRules []pkg.StringRuleExclude, tracker *ExclusionTracker, linterID, ruleID string) *TrackedStringRule {
+	return NewTrackedStringRuleForModule(excludeRules, tracker, linterID, ruleID, "")
+}
+
+// NewTrackedStringRuleForModule creates a new tracked string rule for a specific module
+func NewTrackedStringRuleForModule(excludeRules []pkg.StringRuleExclude, tracker *ExclusionTracker, linterID, ruleID, moduleName string) *TrackedStringRule {
 	// Register all exclusions with the tracker
 	exclusions := make([]string, len(excludeRules))
 	for i, rule := range excludeRules {
 		exclusions[i] = string(rule)
 	}
-	tracker.RegisterExclusions(linterID, ruleID, exclusions)
+	tracker.RegisterExclusionsForModule(linterID, ruleID, exclusions, moduleName)
 
 	return &TrackedStringRule{
 		StringRule: pkg.StringRule{
@@ -56,7 +61,7 @@ func NewTrackedStringRule(excludeRules []pkg.StringRuleExclude, tracker *Exclusi
 // Enabled checks if the rule is enabled for the given string and tracks usage
 func (r *TrackedStringRule) Enabled(str string) bool {
 	for _, rule := range r.ExcludeRules {
-		if rule.Enabled(str) {
+		if !rule.Enabled(str) { // If rule.Enabled returns false, exclusion matched
 			// Mark this exclusion as used
 			r.tracker.MarkExclusionUsed(r.linterID, r.ruleID, string(rule))
 			return false
@@ -75,12 +80,17 @@ type TrackedPrefixRule struct {
 
 // NewTrackedPrefixRule creates a new tracked prefix rule
 func NewTrackedPrefixRule(excludeRules []pkg.PrefixRuleExclude, tracker *ExclusionTracker, linterID, ruleID string) *TrackedPrefixRule {
+	return NewTrackedPrefixRuleForModule(excludeRules, tracker, linterID, ruleID, "")
+}
+
+// NewTrackedPrefixRuleForModule creates a new tracked prefix rule for a specific module
+func NewTrackedPrefixRuleForModule(excludeRules []pkg.PrefixRuleExclude, tracker *ExclusionTracker, linterID, ruleID, moduleName string) *TrackedPrefixRule {
 	// Register all exclusions with the tracker
 	exclusions := make([]string, len(excludeRules))
 	for i, rule := range excludeRules {
 		exclusions[i] = string(rule)
 	}
-	tracker.RegisterExclusions(linterID, ruleID, exclusions)
+	tracker.RegisterExclusionsForModule(linterID, ruleID, exclusions, moduleName)
 
 	return &TrackedPrefixRule{
 		PrefixRule: pkg.PrefixRule{
@@ -95,7 +105,7 @@ func NewTrackedPrefixRule(excludeRules []pkg.PrefixRuleExclude, tracker *Exclusi
 // Enabled checks if the rule is enabled for the given string and tracks usage
 func (r *TrackedPrefixRule) Enabled(str string) bool {
 	for _, rule := range r.ExcludeRules {
-		if rule.Enabled(str) {
+		if !rule.Enabled(str) { // If rule.Enabled returns false, exclusion matched
 			// Mark this exclusion as used
 			r.tracker.MarkExclusionUsed(r.linterID, r.ruleID, string(rule))
 			return false
@@ -114,12 +124,17 @@ type TrackedKindRule struct {
 
 // NewTrackedKindRule creates a new tracked kind rule
 func NewTrackedKindRule(excludeRules []pkg.KindRuleExclude, tracker *ExclusionTracker, linterID, ruleID string) *TrackedKindRule {
+	return NewTrackedKindRuleForModule(excludeRules, tracker, linterID, ruleID, "")
+}
+
+// NewTrackedKindRuleForModule creates a new tracked kind rule for a specific module
+func NewTrackedKindRuleForModule(excludeRules []pkg.KindRuleExclude, tracker *ExclusionTracker, linterID, ruleID, moduleName string) *TrackedKindRule {
 	// Register all exclusions with the tracker
 	exclusions := make([]string, len(excludeRules))
 	for i, rule := range excludeRules {
 		exclusions[i] = fmt.Sprintf("%s/%s", rule.Kind, rule.Name)
 	}
-	tracker.RegisterExclusions(linterID, ruleID, exclusions)
+	tracker.RegisterExclusionsForModule(linterID, ruleID, exclusions, moduleName)
 
 	return &TrackedKindRule{
 		KindRule: pkg.KindRule{
@@ -134,7 +149,7 @@ func NewTrackedKindRule(excludeRules []pkg.KindRuleExclude, tracker *ExclusionTr
 // Enabled checks if the rule is enabled for the given kind and name and tracks usage
 func (r *TrackedKindRule) Enabled(kind, name string) bool {
 	for _, rule := range r.ExcludeRules {
-		if rule.Enabled(kind, name) {
+		if !rule.Enabled(kind, name) { // If rule.Enabled returns false, exclusion matched
 			// Mark this exclusion as used
 			exclusionKey := fmt.Sprintf("%s/%s", rule.Kind, rule.Name)
 			r.tracker.MarkExclusionUsed(r.linterID, r.ruleID, exclusionKey)
@@ -154,6 +169,11 @@ type TrackedContainerRule struct {
 
 // NewTrackedContainerRule creates a new tracked container rule
 func NewTrackedContainerRule(excludeRules []pkg.ContainerRuleExclude, tracker *ExclusionTracker, linterID, ruleID string) *TrackedContainerRule {
+	return NewTrackedContainerRuleForModule(excludeRules, tracker, linterID, ruleID, "")
+}
+
+// NewTrackedContainerRuleForModule creates a new tracked container rule for a specific module
+func NewTrackedContainerRuleForModule(excludeRules []pkg.ContainerRuleExclude, tracker *ExclusionTracker, linterID, ruleID, moduleName string) *TrackedContainerRule {
 	// Register all exclusions with the tracker
 	exclusions := make([]string, len(excludeRules))
 	for i, rule := range excludeRules {
@@ -163,7 +183,7 @@ func NewTrackedContainerRule(excludeRules []pkg.ContainerRuleExclude, tracker *E
 			exclusions[i] = fmt.Sprintf("%s/%s/%s", rule.Kind, rule.Name, rule.Container)
 		}
 	}
-	tracker.RegisterExclusions(linterID, ruleID, exclusions)
+	tracker.RegisterExclusionsForModule(linterID, ruleID, exclusions, moduleName)
 
 	return &TrackedContainerRule{
 		ContainerRule: pkg.ContainerRule{
@@ -178,7 +198,7 @@ func NewTrackedContainerRule(excludeRules []pkg.ContainerRuleExclude, tracker *E
 // Enabled checks if the rule is enabled for the given object and container and tracks usage
 func (r *TrackedContainerRule) Enabled(object storage.StoreObject, container *corev1.Container) bool {
 	for _, rule := range r.ExcludeRules {
-		if rule.Enabled(object, container) {
+		if !rule.Enabled(object, container) { // If rule.Enabled returns false, exclusion matched
 			// Mark this exclusion as used
 			var exclusionKey string
 			if rule.Container == "" {
@@ -203,12 +223,17 @@ type TrackedServicePortRule struct {
 
 // NewTrackedServicePortRule creates a new tracked service port rule
 func NewTrackedServicePortRule(excludeRules []pkg.ServicePortExclude, tracker *ExclusionTracker, linterID, ruleID string) *TrackedServicePortRule {
+	return NewTrackedServicePortRuleForModule(excludeRules, tracker, linterID, ruleID, "")
+}
+
+// NewTrackedServicePortRuleForModule creates a new tracked service port rule for a specific module
+func NewTrackedServicePortRuleForModule(excludeRules []pkg.ServicePortExclude, tracker *ExclusionTracker, linterID, ruleID, moduleName string) *TrackedServicePortRule {
 	// Register all exclusions with the tracker
 	exclusions := make([]string, len(excludeRules))
 	for i, rule := range excludeRules {
 		exclusions[i] = fmt.Sprintf("%s:%s", rule.Name, rule.Port)
 	}
-	tracker.RegisterExclusions(linterID, ruleID, exclusions)
+	tracker.RegisterExclusionsForModule(linterID, ruleID, exclusions, moduleName)
 
 	return &TrackedServicePortRule{
 		ServicePortRule: pkg.ServicePortRule{
@@ -223,7 +248,7 @@ func NewTrackedServicePortRule(excludeRules []pkg.ServicePortExclude, tracker *E
 // Enabled checks if the rule is enabled for the given name and port and tracks usage
 func (r *TrackedServicePortRule) Enabled(name, port string) bool {
 	for _, rule := range r.ExcludeRules {
-		if rule.Enabled(name, port) {
+		if !rule.Enabled(name, port) { // If rule.Enabled returns false, exclusion matched
 			// Mark this exclusion as used
 			exclusionKey := fmt.Sprintf("%s:%s", rule.Name, rule.Port)
 			r.tracker.MarkExclusionUsed(r.linterID, r.ruleID, exclusionKey)
@@ -243,17 +268,20 @@ type TrackedPathRule struct {
 
 // NewTrackedPathRule creates a new tracked path rule
 func NewTrackedPathRule(excludeStringRules []pkg.StringRuleExclude, excludePrefixRules []pkg.PrefixRuleExclude, tracker *ExclusionTracker, linterID, ruleID string) *TrackedPathRule {
+	return NewTrackedPathRuleForModule(excludeStringRules, excludePrefixRules, tracker, linterID, ruleID, "")
+}
+
+// NewTrackedPathRuleForModule creates a new tracked path rule for a specific module
+func NewTrackedPathRuleForModule(excludeStringRules []pkg.StringRuleExclude, excludePrefixRules []pkg.PrefixRuleExclude, tracker *ExclusionTracker, linterID, ruleID, moduleName string) *TrackedPathRule {
 	// Register all exclusions with the tracker
 	exclusions := make([]string, 0, len(excludeStringRules)+len(excludePrefixRules))
-
 	for _, rule := range excludeStringRules {
 		exclusions = append(exclusions, string(rule))
 	}
 	for _, rule := range excludePrefixRules {
 		exclusions = append(exclusions, string(rule))
 	}
-
-	tracker.RegisterExclusions(linterID, ruleID, exclusions)
+	tracker.RegisterExclusionsForModule(linterID, ruleID, exclusions, moduleName)
 
 	return &TrackedPathRule{
 		PathRule: pkg.PathRule{
@@ -269,7 +297,7 @@ func NewTrackedPathRule(excludeStringRules []pkg.StringRuleExclude, excludePrefi
 // Enabled checks if the rule is enabled for the given name and tracks usage
 func (r *TrackedPathRule) Enabled(name string) bool {
 	for _, rule := range r.ExcludeStringRules {
-		if rule.Enabled(name) {
+		if !rule.Enabled(name) { // If rule.Enabled returns false, exclusion matched
 			// Mark this exclusion as used
 			r.tracker.MarkExclusionUsed(r.linterID, r.ruleID, string(rule))
 			return false
@@ -277,7 +305,7 @@ func (r *TrackedPathRule) Enabled(name string) bool {
 	}
 
 	for _, rule := range r.ExcludePrefixRules {
-		if rule.Enabled(name) {
+		if !rule.Enabled(name) { // If rule.Enabled returns false, exclusion matched
 			// Mark this exclusion as used
 			r.tracker.MarkExclusionUsed(r.linterID, r.ruleID, string(rule))
 			return false
@@ -296,17 +324,18 @@ type TrackedBoolRule struct {
 }
 
 // NewTrackedBoolRule creates a new tracked bool rule
-func NewTrackedBoolRule(exclude bool, tracker *ExclusionTracker, linterID, ruleID string) *TrackedBoolRule {
-	// Register the exclusion with the tracker
-	exclusions := []string{}
-	if exclude {
-		exclusions = append(exclusions, "disabled")
-	}
-	tracker.RegisterExclusions(linterID, ruleID, exclusions)
+func NewTrackedBoolRule(disable bool, tracker *ExclusionTracker, linterID, ruleID string) *TrackedBoolRule {
+	return NewTrackedBoolRuleForModule(disable, tracker, linterID, ruleID, "")
+}
+
+// NewTrackedBoolRuleForModule creates a new tracked bool rule for a specific module
+func NewTrackedBoolRuleForModule(disable bool, tracker *ExclusionTracker, linterID, ruleID, moduleName string) *TrackedBoolRule {
+	// Register the rule in tracker (bool rules don't have exclusions, but we track them)
+	tracker.RegisterExclusionsForModule(linterID, ruleID, []string{}, moduleName)
 
 	return &TrackedBoolRule{
 		BoolRule: pkg.BoolRule{
-			Exclude: exclude,
+			Exclude: disable,
 		},
 		tracker:  tracker,
 		linterID: linterID,

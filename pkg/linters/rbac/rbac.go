@@ -63,7 +63,7 @@ func (l *Rbac) Run(m *module.Module) {
 	errorList := l.ErrorList.WithModule(m.GetName())
 
 	if l.tracker != nil {
-		l.runWithTracking(m, errorList)
+		l.runWithTracking(m, errorList, m.GetName())
 	} else {
 		l.runWithoutTracking(m, errorList)
 	}
@@ -80,36 +80,39 @@ func (l *Rbac) runWithoutTracking(m *module.Module, errorList *errors.LintRuleEr
 		ObjectRolesWildcard(m, errorList)
 }
 
-func (l *Rbac) runWithTracking(m *module.Module, errorList *errors.LintRuleErrorsList) {
+func (l *Rbac) runWithTracking(m *module.Module, errorList *errors.LintRuleErrorsList, moduleName string) {
 	// Register rules without exclusions in tracker
-	l.tracker.RegisterExclusions(ID, "user-authz", []string{})
+	l.tracker.RegisterExclusionsForModule(ID, "user-authz", []string{}, moduleName)
 
 	rules.NewUzerAuthZRule().
 		ObjectUserAuthzClusterRolePath(m, errorList)
 
-	trackedBindingSubject := exclusions.NewTrackedStringRule(
+	trackedBindingSubject := exclusions.NewTrackedStringRuleForModule(
 		l.cfg.ExcludeRules.BindingSubject.Get(),
 		l.tracker,
 		ID,
 		"binding-subject",
+		moduleName,
 	)
 	rules.NewBindingSubjectRuleTracked(trackedBindingSubject).
 		ObjectBindingSubjectServiceAccountCheck(m, errorList)
 
-	trackedPlacement := exclusions.NewTrackedKindRule(
+	trackedPlacement := exclusions.NewTrackedKindRuleForModule(
 		l.cfg.ExcludeRules.Placement.Get(),
 		l.tracker,
 		ID,
 		"placement",
+		moduleName,
 	)
 	rules.NewPlacementRuleTracked(trackedPlacement).
 		ObjectRBACPlacement(m, errorList)
 
-	trackedWildcards := exclusions.NewTrackedKindRule(
+	trackedWildcards := exclusions.NewTrackedKindRuleForModule(
 		l.cfg.ExcludeRules.Wildcards.Get(),
 		l.tracker,
 		ID,
 		"wildcards",
+		moduleName,
 	)
 	rules.NewWildcardsRuleTracked(trackedWildcards).
 		ObjectRolesWildcard(m, errorList)

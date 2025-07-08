@@ -43,7 +43,7 @@ func TestIntegrationWithLinters(t *testing.T) {
 	// Mark one exclusion as used
 	dnsPolicyRule.Enabled("Deployment", "test-deployment")
 
-	// Container linter - Security Context rule
+	// Container linter - Security Context rule (different rule, so different registration)
 	securityContextRule := NewTrackedKindRule(
 		[]pkg.KindRuleExclude{
 			{Kind: "Deployment", Name: "secure-deployment"},
@@ -83,7 +83,7 @@ func TestIntegrationWithLinters(t *testing.T) {
 
 	// Check container unused exclusions
 	assert.Contains(t, unused, "container")
-	assert.Len(t, unused["container"], 1)
+	assert.Len(t, unused["container"], 1) // только dns-policy, security-context все исключения использованы
 	assert.Contains(t, unused["container"], "dns-policy")
 	assert.Equal(t, []string{"DaemonSet/unused-daemonset"}, unused["container"]["dns-policy"])
 

@@ -126,3 +126,28 @@ func TestExclusionTrackerUsageStats(t *testing.T) {
 	assert.Equal(t, 2, stats["container"]["dns-policy"]["Deployment/test-deployment"])
 	assert.Equal(t, 1, stats["container"]["dns-policy"]["DaemonSet/test-daemonset"])
 }
+
+func TestExclusionTrackerWithModules(t *testing.T) {
+	tracker := NewExclusionTracker()
+
+	// Register exclusions for different modules
+	tracker.RegisterExclusionsForModule("container", "dns-policy", []string{"Deployment/test-deployment"}, "module1")
+	tracker.RegisterExclusionsForModule("container", "dns-policy", []string{"DaemonSet/test-daemonset"}, "module2")
+
+	// Mark one exclusion as used
+	tracker.MarkExclusionUsed("container", "dns-policy", "Deployment/test-deployment")
+
+	// Get unused exclusions
+	unused := tracker.GetUnusedExclusions()
+
+	// Should have one unused exclusion from module2
+	assert.Len(t, unused, 1)
+	assert.Contains(t, unused, "container")
+	assert.Len(t, unused["container"], 1)
+	assert.Contains(t, unused["container"], "dns-policy")
+	assert.Equal(t, []string{"DaemonSet/test-daemonset"}, unused["container"]["dns-policy"])
+
+	// Check that the unused exclusion shows module information
+	unusedFormatted := tracker.FormatUnusedExclusions()
+	assert.Contains(t, unusedFormatted, "(from modules: module2)")
+}

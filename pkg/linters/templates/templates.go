@@ -66,7 +66,7 @@ func (l *Templates) Run(m *module.Module) {
 	errorList := l.ErrorList.WithModule(m.GetName())
 
 	if l.tracker != nil {
-		l.runWithTracking(m, errorList)
+		l.runWithTracking(m, errorList, m.GetName())
 	} else {
 		l.runWithoutTracking(m, errorList)
 	}
@@ -103,27 +103,29 @@ func (l *Templates) runWithoutTracking(m *module.Module, errorList *errors.LintR
 	// rules.NewWerfRule().ValidateWerfTemplates(m, errorList)
 }
 
-func (l *Templates) runWithTracking(m *module.Module, errorList *errors.LintRuleErrorsList) {
+func (l *Templates) runWithTracking(m *module.Module, errorList *errors.LintRuleErrorsList, moduleName string) {
 	// Register rules without exclusions in tracker
-	l.tracker.RegisterExclusions(ID, "prometheus-rules", []string{})
-	l.tracker.RegisterExclusions(ID, "grafana-dashboards", []string{})
-	l.tracker.RegisterExclusions(ID, "werf-templates", []string{})
+	l.tracker.RegisterExclusionsForModule(ID, "prometheus-rules", []string{}, moduleName)
+	l.tracker.RegisterExclusionsForModule(ID, "grafana-dashboards", []string{}, moduleName)
+	l.tracker.RegisterExclusionsForModule(ID, "werf-templates", []string{}, moduleName)
 
 	// VPA
-	trackedVPARule := exclusions.NewTrackedKindRule(
+	trackedVPARule := exclusions.NewTrackedKindRuleForModule(
 		l.cfg.ExcludeRules.VPAAbsent.Get(),
 		l.tracker,
 		ID,
 		"vpa",
+		moduleName,
 	)
 	rules.NewVPARuleTracked(trackedVPARule).ControllerMustHaveVPA(m, errorList)
 
 	// PDB
-	trackedPDBRule := exclusions.NewTrackedKindRule(
+	trackedPDBRule := exclusions.NewTrackedKindRuleForModule(
 		l.cfg.ExcludeRules.PDBAbsent.Get(),
 		l.tracker,
 		ID,
 		"pdb",
+		moduleName,
 	)
 	rules.NewPDBRuleTracked(trackedPDBRule).ControllerMustHavePDB(m, errorList)
 
@@ -138,20 +140,22 @@ func (l *Templates) runWithTracking(m *module.Module, errorList *errors.LintRule
 		errorList.Errorf("reading the 'monitoring' folder failed: %s", err)
 	}
 
-	trackedKubeRBACProxyRule := exclusions.NewTrackedStringRule(
+	trackedKubeRBACProxyRule := exclusions.NewTrackedStringRuleForModule(
 		l.cfg.ExcludeRules.KubeRBACProxy.Get(),
 		l.tracker,
 		ID,
 		"kube-rbac-proxy",
+		moduleName,
 	)
 	rules.NewKubeRbacProxyRuleTracked(trackedKubeRBACProxyRule).
 		NamespaceMustContainKubeRBACProxyCA(m.GetObjectStore(), errorList)
 
-	trackedServicePortRule := exclusions.NewTrackedServicePortRule(
+	trackedServicePortRule := exclusions.NewTrackedServicePortRuleForModule(
 		l.cfg.ExcludeRules.ServicePort.Get(),
 		l.tracker,
 		ID,
 		"service-port",
+		moduleName,
 	)
 	servicePortRule := rules.NewServicePortRuleTracked(trackedServicePortRule)
 
