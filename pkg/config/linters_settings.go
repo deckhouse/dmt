@@ -95,6 +95,7 @@ type ModuleSettings struct {
 	OSS            ModuleOSSRuleSettings            `mapstructure:"oss"`
 	DefinitionFile ModuleDefinitionFileRuleSettings `mapstructure:"definition-file"`
 	Conversions    ConversionsRuleSettings          `mapstructure:"conversions"`
+	Helmignore     HelmignoreRuleSettings           `mapstructure:"helmignore"`
 
 	Impact *pkg.Level `mapstructure:"impact"`
 }
@@ -115,6 +116,11 @@ type ModuleDefinitionFileRuleSettings struct {
 
 type ConversionsRuleSettings struct {
 	// disable conversions rule completely
+	Disable bool `mapstructure:"disable"`
+}
+
+type HelmignoreRuleSettings struct {
+	// disable helmignore rule completely
 	Disable bool `mapstructure:"disable"`
 }
 
