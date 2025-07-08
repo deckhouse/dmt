@@ -10,6 +10,7 @@ import (
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/exclusions"
 )
 
 func TestApplyContainerRules_NoContainers(t *testing.T) {
@@ -148,4 +149,72 @@ func TestApplyContainerRules_AllRules(t *testing.T) {
 	assert.True(t, foundSecCtx, "Should report missing SecurityContext")
 	assert.True(t, foundLiveness, "Should report missing liveness probe")
 	assert.True(t, foundReadiness, "Should report missing readiness probe")
+}
+
+func TestApplyContainerRulesWithTracking_LivenessProbeExclusion(t *testing.T) {
+	cfg := &config.ContainerSettings{
+		ExcludeRules: config.ContainerExcludeRules{
+			Liveness: config.ContainerRuleExcludeList{
+				config.ContainerRuleExclude{
+					Kind:      "DaemonSet",
+					Name:      "d8-control-plane-manager",
+					Container: "image-holder-kube-scheduler",
+				},
+			},
+		},
+	}
+	errList := errors.NewLintRuleErrorsList()
+	tracker := exclusions.NewExclusionTracker()
+	linter := &Container{
+		cfg:     cfg,
+		tracker: tracker,
+	}
+
+	obj := storage.StoreObject{
+		Path: "templates/daemonset.yaml",
+		Unstructured: unstructured.Unstructured{
+			Object: map[string]any{
+				"kind":       "DaemonSet",
+				"apiVersion": "apps/v1",
+				"metadata": map[string]any{
+					"name":      "d8-control-plane-manager",
+					"namespace": "kube-system",
+				},
+				"spec": map[string]any{
+					"template": map[string]any{
+						"spec": map[string]any{
+							"containers": []any{
+								map[string]any{
+									"name":  "image-holder-kube-scheduler",
+									"image": "nginx:latest",
+									// No liveness probe to trigger the rule
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Run the tracking version
+	linter.applyContainerRulesWithTracking(obj, errList, "control-plane-manager")
+
+	// Check that no liveness-probe error was generated (due to exclusion)
+	errs := errList.GetErrors()
+	var foundLivenessError bool
+	for _, e := range errs {
+		if e.Text == "Container does not contain liveness-probe" {
+			foundLivenessError = true
+			break
+		}
+	}
+
+	assert.False(t, foundLivenessError, "Liveness-probe error should be excluded")
+
+	// Check that the exclusion was marked as used
+	usageStats := tracker.GetUsageStats()
+	assert.Contains(t, usageStats, "container")
+	assert.Contains(t, usageStats["container"], "liveness-probe")
+	assert.Equal(t, 1, usageStats["container"]["liveness-probe"]["DaemonSet/d8-control-plane-manager/image-holder-kube-scheduler"])
 }
