@@ -60,7 +60,6 @@ func TestHelmignoreRule_CheckHelmignore(t *testing.T) {
 		createFile     bool
 		fileContent    string
 		expectedErrors []string
-		expectedWarns  []string
 	}{
 		{
 			name:       "missing .helmignore file",
@@ -90,7 +89,6 @@ func TestHelmignoreRule_CheckHelmignore(t *testing.T) {
 			createFile:     true,
 			fileContent:    "# Git\n.git/\n.gitignore\n# Documentation\nREADME.md\ndocs/\n# Development files\n*.md\n*.txt",
 			expectedErrors: []string{},
-			expectedWarns:  []string{},
 		},
 		{
 			name:        "pattern with spaces without quotes",
@@ -168,8 +166,6 @@ func TestHelmignoreRule_CheckHelmignore(t *testing.T) {
 					assert.Contains(t, errs[i].Text, expectedError)
 				}
 			}
-
-			// Check warnings - for now just check if there are any warnings
 		})
 	}
 }
