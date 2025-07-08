@@ -153,6 +153,7 @@ func (r *ConversionsRule) CheckConversions(modulePath string, errorList *errors.
 			return nil
 		}
 
+		// Check if this file is excluded via tracked rule
 		if r.trackedRule != nil && !r.trackedRule.Enabled(path) {
 			return nil
 		}
