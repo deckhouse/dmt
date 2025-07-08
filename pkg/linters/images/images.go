@@ -79,7 +79,6 @@ func (l *Images) runWithoutTracking(m *module.Module, errorList *errors.LintRule
 func (l *Images) runWithTracking(m *module.Module, errorList *errors.LintRuleErrorsList, moduleName string) {
 	// Register rules without exclusions in tracker
 	l.tracker.RegisterExclusionsForModule(ID, "werf-file", []string{}, moduleName)
-	l.tracker.RegisterExclusionsForModule(ID, "patches", []string{}, moduleName)
 
 	trackedImageRule := exclusions.NewTrackedPrefixRuleForModule(
 		l.cfg.ExcludeRules.SkipImageFilePathPrefix.Get(),
@@ -100,7 +99,16 @@ func (l *Images) runWithTracking(m *module.Module, errorList *errors.LintRuleErr
 	rules.NewDistrolessRuleTracked(trackedDistrolessRule).CheckImageNamesInDockerFiles(m.GetPath(), errorList)
 
 	rules.NewWerfRule().LintWerfFile(m.GetWerfFile(), errorList)
-	rules.NewPatchesRule(l.cfg.Patches.Disable).CheckPatches(m.GetPath(), errorList)
+	
+	// --- Трекинг для patches ---
+	// Если правило отключено, регистрируем это как использованное исключение
+	if l.cfg.Patches.Disable {
+		l.tracker.RegisterExclusionsForModule(ID, "patches", []string{}, moduleName)
+	} else {
+		// Если правило включено, выполняем проверку
+		rules.NewPatchesRule(false).CheckPatches(m.GetPath(), errorList)
+	}
+	// --- конец ---
 }
 
 func (l *Images) Name() string {

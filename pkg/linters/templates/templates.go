@@ -106,7 +106,6 @@ func (l *Templates) runWithoutTracking(m *module.Module, errorList *errors.LintR
 func (l *Templates) runWithTracking(m *module.Module, errorList *errors.LintRuleErrorsList, moduleName string) {
 	// Register rules without exclusions in tracker
 	l.tracker.RegisterExclusionsForModule(ID, "prometheus-rules", []string{}, moduleName)
-	l.tracker.RegisterExclusionsForModule(ID, "grafana-dashboards", []string{}, moduleName)
 	l.tracker.RegisterExclusionsForModule(ID, "werf-templates", []string{}, moduleName)
 
 	// VPA
@@ -131,10 +130,21 @@ func (l *Templates) runWithTracking(m *module.Module, errorList *errors.LintRule
 
 	// monitoring
 	prometheusRule := rules.NewPrometheusRule()
-	grafanaRule := rules.NewGrafanaRule(l.cfg)
+	
+	// --- Трекинг для grafana-dashboards ---
+	// Если правило отключено, регистрируем это как использованное исключение
+	if l.cfg.GrafanaDashboards.Disable {
+		l.tracker.RegisterExclusionsForModule(ID, "grafana-dashboards", []string{}, moduleName)
+	} else {
+		// Если правило включено, выполняем проверку
+		grafanaRule := rules.NewGrafanaRule(l.cfg)
+		if err := dirExists(m.GetPath(), "monitoring"); err == nil {
+			grafanaRule.ValidateGrafanaDashboards(m, errorList)
+		}
+	}
+	// --- конец ---
 
 	if err := dirExists(m.GetPath(), "monitoring"); err == nil {
-		grafanaRule.ValidateGrafanaDashboards(m, errorList)
 		prometheusRule.ValidatePrometheusRules(m, errorList)
 	} else if !os.IsNotExist(err) {
 		errorList.Errorf("reading the 'monitoring' folder failed: %s", err)
