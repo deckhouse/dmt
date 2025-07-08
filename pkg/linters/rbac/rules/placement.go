@@ -46,18 +46,40 @@ func NewPlacementRule(excludeRules []pkg.KindRuleExclude) *PlacementRule {
 	}
 }
 
-func NewPlacementRuleTracked(trackedRule *exclusions.TrackedKindRule) *PlacementRule {
-	return &PlacementRule{
+func NewPlacementRuleTracked(trackedRule *exclusions.TrackedKindRule) *PlacementRuleTracked {
+	return &PlacementRuleTracked{
 		RuleMeta: pkg.RuleMeta{
 			Name: PlacementRuleName,
 		},
-		KindRule: trackedRule.KindRule,
+		KindRule:    trackedRule.KindRule,
+		trackedRule: trackedRule,
 	}
 }
 
 type PlacementRule struct {
 	pkg.RuleMeta
 	pkg.KindRule
+}
+
+type PlacementRuleTracked struct {
+	pkg.RuleMeta
+	pkg.KindRule
+	trackedRule *exclusions.TrackedKindRule
+}
+
+// Enabled overrides the base Enabled method to use the tracked rule for proper exclusion tracking
+func (r *PlacementRuleTracked) Enabled(kind, name string) bool {
+	return r.trackedRule.Enabled(kind, name)
+}
+
+// ObjectRBACPlacement delegates to the base PlacementRule method
+func (r *PlacementRuleTracked) ObjectRBACPlacement(m *module.Module, errorList *errors.LintRuleErrorsList) {
+	// Create a temporary PlacementRule to delegate the call
+	tempRule := &PlacementRule{
+		RuleMeta: r.RuleMeta,
+		KindRule: r.KindRule,
+	}
+	tempRule.ObjectRBACPlacement(m, errorList)
 }
 
 const (
