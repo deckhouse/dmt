@@ -139,9 +139,7 @@ func TestHelmignoreRule_CheckHelmignore(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create temporary directory
-			tempDir, err := os.MkdirTemp("", "helmignore_test")
-			require.NoError(t, err)
-			defer os.RemoveAll(tempDir)
+			tempDir := t.TempDir()
 
 			// Create .helmignore file if needed
 			if tt.createFile {
