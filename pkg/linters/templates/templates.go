@@ -106,7 +106,6 @@ func (l *Templates) runWithoutTracking(m *module.Module, errorList *errors.LintR
 func (l *Templates) runWithTracking(m *module.Module, moduleName string, errorList *errors.LintRuleErrorsList) {
 	// Register rules without exclusions in tracker
 	l.tracker.RegisterExclusionsForModule(ID, "prometheus-rules", []string{}, moduleName)
-	l.tracker.RegisterExclusionsForModule(ID, "werf-templates", []string{}, moduleName)
 
 	// VPA
 	trackedVPARule := exclusions.NewTrackedKindRuleForModule(
