@@ -52,7 +52,7 @@ func NewConversionsRuleTracked(trackedRule *exclusions.TrackedStringRule) *Conve
 			Name: ConversionsRuleName,
 		},
 		trackedRule: trackedRule,
-		disabled:    false, // не отключаем при использовании трекинга
+		disabled:    false, // don't disable when using tracking
 	}
 }
 
@@ -86,13 +86,13 @@ type configValues struct {
 func (r *ConversionsRule) CheckConversions(modulePath string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
-	// Если правило отключено, не выполняем проверки
+	// If the rule is disabled, don't perform checks
 	if r.disabled {
 		return
 	}
 
 	if r.trackedRule == nil {
-		// fallback: всегда разрешено
+		// fallback: always allowed
 	}
 
 	configFilePath := filepath.Join(modulePath, configValuesFile)

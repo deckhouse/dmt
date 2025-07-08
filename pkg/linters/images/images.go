@@ -100,15 +100,15 @@ func (l *Images) runWithTracking(m *module.Module, errorList *errors.LintRuleErr
 
 	rules.NewWerfRule().LintWerfFile(m.GetWerfFile(), errorList)
 	
-	// --- Трекинг для patches ---
-	// Если правило отключено, регистрируем это как использованное исключение
-	if l.cfg.Patches.Disable {
-		l.tracker.RegisterExclusionsForModule(ID, "patches", []string{}, moduleName)
-	} else {
-		// Если правило включено, выполняем проверку
-		rules.NewPatchesRule(false).CheckPatches(m.GetPath(), errorList)
-	}
-	// --- конец ---
+	       // --- Tracking for patches ---
+       // If the rule is disabled, register this as a used exclusion
+       if l.cfg.Patches.Disable {
+               l.tracker.RegisterExclusionsForModule(ID, "patches", []string{}, moduleName)
+       } else {
+               // If the rule is enabled, perform the check
+               rules.NewPatchesRule(false).CheckPatches(m.GetPath(), errorList)
+       }
+       // --- end ---
 }
 
 func (l *Images) Name() string {

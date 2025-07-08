@@ -71,7 +71,7 @@ func (l *Module) runWithoutTracking(m *module.Module, errorList *errors.LintRule
 	rules.NewDefinitionFileRule(l.cfg.DefinitionFile.Disable).CheckDefinitionFile(m.GetPath(), errorList)
 	rules.NewOSSRule(l.cfg.OSS.Disable).OssModuleRule(m.GetPath(), errorList)
 	
-	// Для conversions используем отключение
+	       // For conversions we use disable flag
 	rules.NewConversionsRule(l.cfg.Conversions.Disable).CheckConversions(m.GetPath(), errorList)
 	
 	rules.NewLicenseRule(l.cfg.ExcludeRules.License.Files.Get(), l.cfg.ExcludeRules.License.Directories.Get()).
@@ -86,22 +86,22 @@ func (l *Module) runWithTracking(m *module.Module, errorList *errors.LintRuleErr
 	rules.NewDefinitionFileRule(l.cfg.DefinitionFile.Disable).CheckDefinitionFile(m.GetPath(), errorList)
 	rules.NewOSSRule(l.cfg.OSS.Disable).OssModuleRule(m.GetPath(), errorList)
 
-	// --- Трекинг для conversions ---
-	// Если правило отключено, регистрируем это как использованное исключение
-	if l.cfg.Conversions.Disable {
-		l.tracker.RegisterExclusionsForModule(ID, "conversions", []string{}, moduleName)
-	} else {
-		// Если правило включено, используем исключения для конкретных файлов
-		trackedConversionsRule := exclusions.NewTrackedStringRuleForModule(
-			l.cfg.ExcludeRules.Conversions.Files.Get(),
-			l.tracker,
-			ID,
-			"conversions",
-			moduleName,
-		)
-		rules.NewConversionsRuleTracked(trackedConversionsRule).CheckConversions(m.GetPath(), errorList)
-	}
-	// --- конец ---
+	       // --- Tracking for conversions ---
+       // If the rule is disabled, register this as a used exclusion
+       if l.cfg.Conversions.Disable {
+               l.tracker.RegisterExclusionsForModule(ID, "conversions", []string{}, moduleName)
+       } else {
+               // If the rule is enabled, use exclusions for specific files
+               trackedConversionsRule := exclusions.NewTrackedStringRuleForModule(
+                       l.cfg.ExcludeRules.Conversions.Files.Get(),
+                       l.tracker,
+                       ID,
+                       "conversions",
+                       moduleName,
+               )
+               rules.NewConversionsRuleTracked(trackedConversionsRule).CheckConversions(m.GetPath(), errorList)
+       }
+       // --- end ---
 
 	trackedLicenseRule := exclusions.NewTrackedPathRuleForModule(
 		l.cfg.ExcludeRules.License.Files.Get(),

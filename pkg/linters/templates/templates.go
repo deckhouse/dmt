@@ -131,18 +131,18 @@ func (l *Templates) runWithTracking(m *module.Module, errorList *errors.LintRule
 	// monitoring
 	prometheusRule := rules.NewPrometheusRule()
 	
-	// --- Трекинг для grafana-dashboards ---
-	// Если правило отключено, регистрируем это как использованное исключение
-	if l.cfg.GrafanaDashboards.Disable {
-		l.tracker.RegisterExclusionsForModule(ID, "grafana-dashboards", []string{}, moduleName)
-	} else {
-		// Если правило включено, выполняем проверку
-		grafanaRule := rules.NewGrafanaRule(l.cfg)
-		if err := dirExists(m.GetPath(), "monitoring"); err == nil {
-			grafanaRule.ValidateGrafanaDashboards(m, errorList)
-		}
-	}
-	// --- конец ---
+	       // --- Tracking for grafana-dashboards ---
+       // If the rule is disabled, register this as a used exclusion
+       if l.cfg.GrafanaDashboards.Disable {
+               l.tracker.RegisterExclusionsForModule(ID, "grafana-dashboards", []string{}, moduleName)
+       } else {
+               // If the rule is enabled, perform the check
+               grafanaRule := rules.NewGrafanaRule(l.cfg)
+               if err := dirExists(m.GetPath(), "monitoring"); err == nil {
+                       grafanaRule.ValidateGrafanaDashboards(m, errorList)
+               }
+       }
+       // --- end ---
 
 	if err := dirExists(m.GetPath(), "monitoring"); err == nil {
 		prometheusRule.ValidatePrometheusRules(m, errorList)

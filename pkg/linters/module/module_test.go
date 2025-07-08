@@ -44,7 +44,7 @@ func TestModule_ConversionsDisableConfiguration(t *testing.T) {
 		LintersSettings: config.LintersSettings{
 			Module: config.ModuleSettings{
 				Conversions: config.ConversionsRuleSettings{
-					Disable: true, // отключаем правило полностью
+					               Disable: true, // disable the rule completely
 				},
 			},
 		},
