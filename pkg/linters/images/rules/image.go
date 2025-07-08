@@ -61,6 +61,11 @@ type ImageRule struct {
 	pkg.PrefixRule
 }
 
+type ImageRuleTracked struct {
+	pkg.RuleMeta
+	exclusions.TrackedPrefixRule
+}
+
 func NewImageRule(cfg *config.ImageSettings) *ImageRule {
 	return &ImageRule{
 		RuleMeta: pkg.RuleMeta{
@@ -72,12 +77,12 @@ func NewImageRule(cfg *config.ImageSettings) *ImageRule {
 	}
 }
 
-func NewImageRuleTracked(trackedRule *exclusions.TrackedPrefixRule) *ImageRule {
-	return &ImageRule{
+func NewImageRuleTracked(trackedRule *exclusions.TrackedPrefixRule) *ImageRuleTracked {
+	return &ImageRuleTracked{
 		RuleMeta: pkg.RuleMeta{
 			Name: dockerfileRuleName,
 		},
-		PrefixRule: trackedRule.PrefixRule,
+		TrackedPrefixRule: *trackedRule,
 	}
 }
 
@@ -91,9 +96,9 @@ func isImageNameUnacceptable(imageName string) (bool, string) {
 	return false, ""
 }
 
-func (r *ImageRule) CheckImageNamesInDockerFiles(modulePath string, errorList *errors.LintRuleErrorsList) {
+func (r *ImageRuleTracked) CheckImageNamesInDockerFiles(modulePath string, errorList *errors.LintRuleErrorsList) {
 	imagesPath := filepath.Join(modulePath, ImagesDir)
-	if !fsutils.IsFile(imagesPath) {
+	if !fsutils.IsDir(imagesPath) {
 		return
 	}
 
@@ -106,6 +111,50 @@ func (r *ImageRule) CheckImageNamesInDockerFiles(modulePath string, errorList *e
 			continue
 		}
 		r.lintOneDockerfile(path, imagesPath, errorList)
+	}
+}
+
+func (r *ImageRule) CheckImageNamesInDockerFiles(modulePath string, errorList *errors.LintRuleErrorsList) {
+	imagesPath := filepath.Join(modulePath, ImagesDir)
+	if !fsutils.IsDir(imagesPath) {
+		return
+	}
+
+	filePaths := fsutils.GetFiles(imagesPath, false, func(_, path string) bool {
+		return filepath.Base(path) == "Dockerfile"
+	})
+
+	for _, path := range filePaths {
+		if !r.Enabled(fsutils.Rel(imagesPath, path)) {
+			continue
+		}
+		r.lintOneDockerfile(path, imagesPath, errorList)
+	}
+}
+
+func (r *ImageRuleTracked) lintOneDockerfile(path, imagesPath string, errorList *errors.LintRuleErrorsList) {
+	relativeFilePath := fsutils.Rel(imagesPath, path)
+	errorList = errorList.WithFilePath(relativeFilePath).WithRule(dockerfileRuleName)
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		errorList.WithFilePath(path).
+			Errorf("Error reading file: %s", err)
+
+		return
+	}
+
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	linePos := 0
+	for scanner.Scan() {
+		line := scanner.Text()
+		linePos++
+		ers, ciVariable := isImageNameUnacceptable(line)
+		if ers {
+			errorList.WithObjectID(fmt.Sprintf("image = %s", relativeFilePath)).
+				WithLineNumber(linePos).
+				Errorf("Please use %s as an image name", ciVariable)
+		}
 	}
 }
 

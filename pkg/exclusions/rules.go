@@ -106,7 +106,8 @@ func (r *TrackedPrefixRule) Enabled(str string) bool {
 	for _, rule := range r.ExcludeRules {
 		if !rule.Enabled(str) { // If rule.Enabled returns false, exclusion matched
 			// Mark this exclusion as used
-			r.tracker.MarkExclusionUsed(r.linterID, r.ruleID, string(rule))
+			exclusionKey := string(rule)
+			r.tracker.MarkExclusionUsed(r.linterID, r.ruleID, exclusionKey)
 			return false
 		}
 	}
