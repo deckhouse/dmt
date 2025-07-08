@@ -47,8 +47,6 @@ type HelmignoreRule struct {
 	pkg.BoolRule
 }
 
-
-
 func (r *HelmignoreRule) CheckHelmignore(modulePath string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
@@ -104,10 +102,10 @@ func (r *HelmignoreRule) CheckHelmignore(modulePath string, errorList *errors.Li
 	}
 
 	// Validate patterns
-	r.validatePatterns(lines, errorList)
+	validatePatterns(lines, errorList)
 }
 
-func (r *HelmignoreRule) validatePatterns(patterns []string, errorList *errors.LintRuleErrorsList) {
+func validatePatterns(patterns []string, errorList *errors.LintRuleErrorsList) {
 	for _, pattern := range patterns {
 		if pattern == "" {
 			continue
@@ -138,5 +136,3 @@ func (r *HelmignoreRule) validatePatterns(patterns []string, errorList *errors.L
 		}
 	}
 }
-
-

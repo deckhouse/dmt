@@ -21,9 +21,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 func TestNewHelmignoreRule(t *testing.T) {
@@ -147,7 +148,7 @@ func TestHelmignoreRule_CheckHelmignore(t *testing.T) {
 			// Create .helmignore file if needed
 			if tt.createFile {
 				helmignorePath := filepath.Join(tempDir, ".helmignore")
-				err := os.WriteFile(helmignorePath, []byte(tt.fileContent), 0644)
+				err := os.WriteFile(helmignorePath, []byte(tt.fileContent), 0600)
 				require.NoError(t, err)
 			}
 
@@ -159,27 +160,21 @@ func TestHelmignoreRule_CheckHelmignore(t *testing.T) {
 			rule.CheckHelmignore(tempDir, errorList)
 
 			// Check errors
-			errors := errorList.GetErrors()
-			assert.Len(t, errors, len(tt.expectedErrors), "Expected %d errors, got %d", len(tt.expectedErrors), len(errors))
+			errs := errorList.GetErrors()
+			assert.Len(t, errs, len(tt.expectedErrors), "Expected %d errors, got %d", len(tt.expectedErrors), len(errs))
 
 			for i, expectedError := range tt.expectedErrors {
-				if i < len(errors) {
-					assert.Contains(t, errors[i].Text, expectedError)
+				if i < len(errs) {
+					assert.Contains(t, errs[i].Text, expectedError)
 				}
 			}
 
 			// Check warnings - for now just check if there are any warnings
-			if len(tt.expectedWarns) > 0 {
-				// TODO: implement proper warning checking when available
-				// assert.True(t, errorList.ContainsWarnings(), "Expected warnings but none found")
-			}
 		})
 	}
 }
 
 func TestHelmignoreRule_validatePatterns(t *testing.T) {
-	rule := NewHelmignoreRule(false)
-
 	tests := []struct {
 		name           string
 		patterns       []string
@@ -228,14 +223,14 @@ func TestHelmignoreRule_validatePatterns(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			errorList := errors.NewLintRuleErrorsList()
-			rule.validatePatterns(tt.patterns, errorList)
+			validatePatterns(tt.patterns, errorList)
 
-			errors := errorList.GetErrors()
-			assert.Len(t, errors, len(tt.expectedErrors), "Expected %d errors, got %d", len(tt.expectedErrors), len(errors))
+			errs := errorList.GetErrors()
+			assert.Len(t, errs, len(tt.expectedErrors), "Expected %d errors, got %d", len(tt.expectedErrors), len(errs))
 
 			for i, expectedError := range tt.expectedErrors {
-				if i < len(errors) {
-					assert.Contains(t, errors[i].Text, expectedError)
+				if i < len(errs) {
+					assert.Contains(t, errs[i].Text, expectedError)
 				}
 			}
 		})
