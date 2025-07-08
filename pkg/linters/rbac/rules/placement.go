@@ -72,14 +72,38 @@ func (r *PlacementRuleTracked) Enabled(kind, name string) bool {
 	return r.trackedRule.Enabled(kind, name)
 }
 
-// ObjectRBACPlacement delegates to the base PlacementRule method
+// ObjectRBACPlacement implements tracking-aware RBAC placement validation
 func (r *PlacementRuleTracked) ObjectRBACPlacement(m *module.Module, errorList *errors.LintRuleErrorsList) {
-	// Create a temporary PlacementRule to delegate the call
-	tempRule := &PlacementRule{
-		RuleMeta: r.RuleMeta,
-		KindRule: r.KindRule,
+	errorList = errorList.WithRule(r.GetName())
+
+	for _, object := range m.GetStorage() {
+		errorListObj := errorList.WithObjectID(object.Identity())
+
+		// Use tracked rule for exclusion checking and recording
+		if !r.trackedRule.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {
+			continue
+		}
+
+		shortPath := object.ShortPath()
+		if shortPath == UserAuthzClusterRolePath || strings.HasPrefix(shortPath, RBACv2Path) {
+			continue
+		}
+
+		objectKind := object.Unstructured.GetKind()
+		switch objectKind {
+		case "ServiceAccount":
+			objectRBACPlacementServiceAccount(m, object, errorListObj)
+		case "ClusterRole", "ClusterRoleBinding":
+			objectRBACPlacementClusterRole(m, object, errorListObj)
+		case "Role", "RoleBinding":
+			objectRBACPlacementRole(m, object, errorListObj)
+		default:
+			if strings.HasSuffix(shortPath, "rbac-for-us.yaml") || strings.HasSuffix(shortPath, "rbac-to-us.yaml") {
+				errorListObj.WithFilePath(shortPath).
+					Errorf("kind %s not allowed", objectKind)
+			}
+		}
 	}
-	tempRule.ObjectRBACPlacement(m, errorList)
 }
 
 const (
