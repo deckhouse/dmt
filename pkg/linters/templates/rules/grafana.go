@@ -21,6 +21,7 @@ import (
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/exclusions"
 
 	"os"
 	"path/filepath"
@@ -46,13 +47,76 @@ func NewGrafanaRule(cfg *config.TemplatesSettings) *GrafanaRule {
 	}
 }
 
+func NewGrafanaRuleTracked(trackedRule *exclusions.TrackedBoolRule) *GrafanaRuleTracked {
+	return &GrafanaRuleTracked{
+		RuleMeta: pkg.RuleMeta{
+			Name: GrafanaRuleName,
+		},
+		BoolRule:    trackedRule.BoolRule,
+		trackedRule: trackedRule,
+	}
+}
+
 type GrafanaRule struct {
 	pkg.RuleMeta
 	pkg.BoolRule
 }
 
+type GrafanaRuleTracked struct {
+	pkg.RuleMeta
+	pkg.BoolRule
+	trackedRule *exclusions.TrackedBoolRule
+}
+
 func (r *GrafanaRule) ValidateGrafanaDashboards(m *module.Module, errorList *errors.LintRuleErrorsList) {
 	if !r.Enabled() {
+		return
+	}
+
+	errorList = errorList.WithFilePath(m.GetPath()).WithRule(r.GetName())
+
+	monitoringFilePath := filepath.Join(m.GetPath(), "templates", "monitoring.yaml")
+	if info, _ := os.Stat(monitoringFilePath); info == nil {
+		errorList.WithFilePath(monitoringFilePath).
+			Error("Module with the 'monitoring' folder should have the 'templates/monitoring.yaml' file")
+		return
+	}
+
+	content, err := os.ReadFile(monitoringFilePath)
+	if err != nil {
+		errorList.WithFilePath(monitoringFilePath).
+			Errorf("Cannot read 'templates/monitoring.yaml' file: %s", err)
+		return
+	}
+
+	searchPath := filepath.Join(m.GetPath(), "monitoring", "grafana-dashboards")
+	_, err = os.Stat(searchPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return
+		}
+
+		errorList.Errorf("reading the 'monitoring/grafana-dashboards' folder failed: %s", err)
+
+		return
+	}
+
+	desiredContent := `include "helm_lib_grafana_dashboard_definitions`
+
+	if isContentMatching(content, desiredContent) {
+		return
+	}
+	if strings.Contains(string(content), `include "helm_lib_grafana_dashboard_definitions_recursion" (list .`) {
+		return
+	}
+
+	desiredContent = `{{- include "helm_lib_grafana_dashboard_definitions" . }}`
+	errorList.WithFilePath(monitoringFilePath).
+		Errorf("The content of the 'templates/monitoring.yaml' should be equal to:\n%s\nGot:\n%s", desiredContent, string(content))
+}
+
+func (r *GrafanaRuleTracked) ValidateGrafanaDashboards(m *module.Module, errorList *errors.LintRuleErrorsList) {
+	if !r.trackedRule.Enabled() {
 		return
 	}
 

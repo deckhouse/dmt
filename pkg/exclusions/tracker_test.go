@@ -221,7 +221,7 @@ func TestExclusionTrackerWithTemplatesLinter(t *testing.T) {
 		t.Errorf("Expected 1 unused exclusion, got %d", len(unused["templates"]["vpa"]))
 	}
 	
-	expectedUnused := "kind = Deployment ; name = non-existent-deployment"
+	expectedUnused := "Deployment/non-existent-deployment"
 	if unused["templates"]["vpa"][0] != expectedUnused {
 		t.Errorf("Expected unused exclusion '%s', got '%s'", expectedUnused, unused["templates"]["vpa"][0])
 	}
