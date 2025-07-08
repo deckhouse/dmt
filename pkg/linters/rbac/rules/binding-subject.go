@@ -68,15 +68,15 @@ func (r *BindingSubjectRuleTracked) Enabled(value string) bool {
 }
 
 func (r *BindingSubjectRuleTracked) ObjectBindingSubjectServiceAccountCheck(m *module.Module, errorList *errors.LintRuleErrorsList) {
-	objectBindingSubjectServiceAccountCheck(m, errorList, r.Enabled, r.GetName())
+	objectBindingSubjectServiceAccountCheck(m, r.Enabled, r.GetName(), errorList)
 }
 
 func (r *BindingSubjectRule) ObjectBindingSubjectServiceAccountCheck(m *module.Module, errorList *errors.LintRuleErrorsList) {
-	objectBindingSubjectServiceAccountCheck(m, errorList, r.Enabled, r.GetName())
+	objectBindingSubjectServiceAccountCheck(m, r.Enabled, r.GetName(), errorList)
 }
 
 // objectBindingSubjectServiceAccountCheck contains the common logic for checking binding subjects
-func objectBindingSubjectServiceAccountCheck(m *module.Module, errorList *errors.LintRuleErrorsList, enabledFunc func(string) bool, ruleName string) {
+func objectBindingSubjectServiceAccountCheck(m *module.Module, enabledFunc func(string) bool, ruleName string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(ruleName)
 	converter := runtime.DefaultUnstructuredConverter
 

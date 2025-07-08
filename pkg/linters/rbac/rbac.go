@@ -45,7 +45,7 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Rbac {
 	}
 }
 
-func NewWithTracker(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList, tracker *exclusions.ExclusionTracker) *Rbac {
+func NewWithTracker(cfg *config.ModuleConfig, tracker *exclusions.ExclusionTracker, errorList *errors.LintRuleErrorsList) *Rbac {
 	return &Rbac{
 		name:      ID,
 		desc:      "Lint rbac objects (with exclusion tracking)",

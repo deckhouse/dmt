@@ -154,7 +154,7 @@ func (m *Manager) Run() {
 
 			logger.InfoF("Run linters for `%s` module", mod.GetName())
 
-			for _, linter := range getLintersForModule(mod.GetModuleConfig(), m.errors, m.tracker) {
+			for _, linter := range getLintersForModule(mod.GetModuleConfig(), m.tracker, m.errors) {
 				if flags.LinterName != "" && linter.Name() != flags.LinterName {
 					continue
 				}
@@ -169,16 +169,16 @@ func (m *Manager) Run() {
 	wg.Wait()
 }
 
-func getLintersForModule(cfg *config.ModuleConfig, errList *errors.LintRuleErrorsList, tracker *exclusions.ExclusionTracker) []Linter {
+func getLintersForModule(cfg *config.ModuleConfig, tracker *exclusions.ExclusionTracker, errList *errors.LintRuleErrorsList) []Linter {
 	return []Linter{
-		openapi.NewWithTracker(cfg, errList, tracker),
-		no_cyrillic.NewWithTracker(cfg, errList, tracker),
-		container.NewWithTracker(cfg, errList, tracker),
-		templates.NewWithTracker(cfg, errList, tracker),
-		images.NewWithTracker(cfg, errList, tracker),
-		rbac.NewWithTracker(cfg, errList, tracker),
-		hooks.NewWithTracker(cfg, errList, tracker),
-		moduleLinter.NewWithTracker(cfg, errList, tracker),
+		openapi.NewWithTracker(cfg, tracker, errList),
+		no_cyrillic.NewWithTracker(cfg, tracker, errList),
+		container.NewWithTracker(cfg, tracker, errList),
+		templates.NewWithTracker(cfg, tracker, errList),
+		images.NewWithTracker(cfg, tracker, errList),
+		rbac.NewWithTracker(cfg, tracker, errList),
+		hooks.NewWithTracker(cfg, tracker, errList),
+		moduleLinter.NewWithTracker(cfg, tracker, errList),
 	}
 }
 

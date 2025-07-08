@@ -51,7 +51,7 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *NoCyri
 }
 
 // NewWithTracker creates a new no-cyrillic linter with exclusion tracking
-func NewWithTracker(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList, tracker *exclusions.ExclusionTracker) *NoCyrillic {
+func NewWithTracker(cfg *config.ModuleConfig, tracker *exclusions.ExclusionTracker, errorList *errors.LintRuleErrorsList) *NoCyrillic {
 	return &NoCyrillic{
 		name:      ID,
 		desc:      "NoCyrillic will check all files in the modules for contains cyrillic symbols with exclusion tracking",

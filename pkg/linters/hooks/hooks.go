@@ -43,7 +43,7 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Hooks 
 	}
 }
 
-func NewWithTracker(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList, tracker *exclusions.ExclusionTracker) *Hooks {
+func NewWithTracker(cfg *config.ModuleConfig, tracker *exclusions.ExclusionTracker, errorList *errors.LintRuleErrorsList) *Hooks {
 	return &Hooks{
 		name:      ID,
 		desc:      "Lint hooks (with exclusion tracking)",
@@ -61,7 +61,7 @@ func (h *Hooks) Run(m *module.Module) {
 	errorList := h.ErrorList.WithModule(m.GetName())
 
 	if h.tracker != nil {
-		h.runWithTracking(m, errorList, m.GetName())
+		h.runWithTracking(m, m.GetName(), errorList)
 	} else {
 		h.runWithoutTracking(m, errorList)
 	}
@@ -74,7 +74,7 @@ func (h *Hooks) runWithoutTracking(m *module.Module, errorList *errors.LintRuleE
 	}
 }
 
-func (h *Hooks) runWithTracking(m *module.Module, errorList *errors.LintRuleErrorsList, moduleName string) {
+func (h *Hooks) runWithTracking(m *module.Module, moduleName string, errorList *errors.LintRuleErrorsList) {
 	trackedHookRule := exclusions.NewTrackedBoolRuleForModule(
 		h.cfg.Ingress.Disable,
 		h.tracker,

@@ -101,7 +101,7 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 	}
 }
 
-func (l *Container) applyContainerRulesWithTracking(object storage.StoreObject, errorList *errors.LintRuleErrorsList, moduleName string) {
+func (l *Container) applyContainerRulesWithTracking(object storage.StoreObject, moduleName string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithFilePath(object.ShortPath())
 
 	// Create tracked rules for exclusions

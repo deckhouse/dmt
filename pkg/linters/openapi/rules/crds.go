@@ -66,7 +66,7 @@ func NewDeckhouseCRDsRuleTracked(_ *config.OpenAPISettings, rootPath string, tra
 	}
 }
 
-func (*DeckhouseCRDsRule) validateLabel(crd *v1beta1.CustomResourceDefinition, labelName, expectedValue string, errorList *errors.LintRuleErrorsList, shortPath string) {
+func (*DeckhouseCRDsRule) validateLabel(crd *v1beta1.CustomResourceDefinition, labelName, expectedValue, shortPath string, errorList *errors.LintRuleErrorsList) {
 	if value, ok := crd.Labels[labelName]; ok {
 		if value != expectedValue {
 			errorList.WithObjectID(fmt.Sprintf("kind = %s ; name = %s", crd.Kind, crd.Name)).
@@ -82,7 +82,7 @@ func (*DeckhouseCRDsRule) validateLabel(crd *v1beta1.CustomResourceDefinition, l
 	}
 }
 
-func (*DeckhouseCRDsRule) validateDeprecatedKeyInYAML(yamlDoc string, crd *v1beta1.CustomResourceDefinition, errorList *errors.LintRuleErrorsList, shortPath string) {
+func (*DeckhouseCRDsRule) validateDeprecatedKeyInYAML(yamlDoc string, crd *v1beta1.CustomResourceDefinition, shortPath string, errorList *errors.LintRuleErrorsList) {
 	// Parse YAML as map to search for deprecated key
 	var yamlMap map[string]any
 	if err := yaml.Unmarshal([]byte(yamlDoc), &yamlMap); err != nil {
@@ -90,10 +90,10 @@ func (*DeckhouseCRDsRule) validateDeprecatedKeyInYAML(yamlDoc string, crd *v1bet
 	}
 
 	// Search for deprecated key in the YAML structure
-	checkMapForDeprecated(yamlMap, errorList, shortPath, crd.Kind, crd.Name)
+	checkMapForDeprecated(yamlMap, shortPath, crd.Kind, crd.Name, errorList)
 }
 
-func checkMapForDeprecated(data any, errorList *errors.LintRuleErrorsList, shortPath, kind, name string) {
+func checkMapForDeprecated(data any, shortPath, kind, name string, errorList *errors.LintRuleErrorsList) {
 	switch v := data.(type) {
 	case map[string]any:
 		// Check if current map has deprecated key (regardless of value)
@@ -106,12 +106,12 @@ func checkMapForDeprecated(data any, errorList *errors.LintRuleErrorsList, short
 
 		// Recursively check all values in the map
 		for _, value := range v {
-			checkMapForDeprecated(value, errorList, shortPath, kind, name)
+			checkMapForDeprecated(value, shortPath, kind, name, errorList)
 		}
 	case []any:
 		// Recursively check all items in the slice
 		for _, item := range v {
-			checkMapForDeprecated(item, errorList, shortPath, kind, name)
+			checkMapForDeprecated(item, shortPath, kind, name, errorList)
 		}
 	}
 }
@@ -150,8 +150,8 @@ func (r *DeckhouseCRDsRule) Run(moduleName, path string, errorList *errors.LintR
 			continue
 		}
 
-		r.validateLabel(&crd, "module", moduleName, errorList, shortPath)
-		r.validateDeprecatedKeyInYAML(d, &crd, errorList, shortPath)
+		r.validateLabel(&crd, "module", moduleName, shortPath, errorList)
+		r.validateDeprecatedKeyInYAML(d, &crd, shortPath, errorList)
 	}
 }
 

@@ -48,7 +48,7 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Templa
 	}
 }
 
-func NewWithTracker(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList, tracker *exclusions.ExclusionTracker) *Templates {
+func NewWithTracker(cfg *config.ModuleConfig, tracker *exclusions.ExclusionTracker, errorList *errors.LintRuleErrorsList) *Templates {
 	return &Templates{
 		name:      ID,
 		desc:      "Lint templates (with exclusion tracking)",
@@ -66,7 +66,7 @@ func (l *Templates) Run(m *module.Module) {
 	errorList := l.ErrorList.WithModule(m.GetName())
 
 	if l.tracker != nil {
-		l.runWithTracking(m, errorList, m.GetName())
+		l.runWithTracking(m, m.GetName(), errorList)
 	} else {
 		l.runWithoutTracking(m, errorList)
 	}
@@ -103,7 +103,7 @@ func (l *Templates) runWithoutTracking(m *module.Module, errorList *errors.LintR
 	// rules.NewWerfRule().ValidateWerfTemplates(m, errorList)
 }
 
-func (l *Templates) runWithTracking(m *module.Module, errorList *errors.LintRuleErrorsList, moduleName string) {
+func (l *Templates) runWithTracking(m *module.Module, moduleName string, errorList *errors.LintRuleErrorsList) {
 	// Register rules without exclusions in tracker
 	l.tracker.RegisterExclusionsForModule(ID, "prometheus-rules", []string{}, moduleName)
 	l.tracker.RegisterExclusionsForModule(ID, "werf-templates", []string{}, moduleName)

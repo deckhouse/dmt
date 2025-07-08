@@ -46,7 +46,7 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Contai
 }
 
 // NewWithTracker creates a new container linter with exclusion tracking
-func NewWithTracker(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList, tracker *exclusions.ExclusionTracker) *Container {
+func NewWithTracker(cfg *config.ModuleConfig, tracker *exclusions.ExclusionTracker, errorList *errors.LintRuleErrorsList) *Container {
 	return &Container{
 		name:      ID,
 		desc:      "Lint container objects with exclusion tracking",
@@ -64,7 +64,7 @@ func (l *Container) Run(m *module.Module) {
 	errorList := l.ErrorList.WithModule(m.GetName())
 	for _, object := range m.GetStorage() {
 		if l.tracker != nil {
-			l.applyContainerRulesWithTracking(object, errorList, m.GetName())
+			l.applyContainerRulesWithTracking(object, m.GetName(), errorList)
 		} else {
 			l.applyContainerRules(object, errorList)
 		}

@@ -198,7 +198,7 @@ func TestApplyContainerRulesWithTracking_LivenessProbeExclusion(t *testing.T) {
 	}
 
 	// Run the tracking version
-	linter.applyContainerRulesWithTracking(obj, errList, "control-plane-manager")
+	linter.applyContainerRulesWithTracking(obj, "control-plane-manager", errList)
 
 	// Check that no liveness-probe error was generated (due to exclusion)
 	errs := errList.GetErrors()

@@ -47,7 +47,7 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *OpenAP
 	}
 }
 
-func NewWithTracker(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList, tracker *exclusions.ExclusionTracker) *OpenAPI {
+func NewWithTracker(cfg *config.ModuleConfig, tracker *exclusions.ExclusionTracker, errorList *errors.LintRuleErrorsList) *OpenAPI {
 	return &OpenAPI{
 		name:      "openapi",
 		desc:      "Linter will check openapi values is correct (with exclusion tracking)",
