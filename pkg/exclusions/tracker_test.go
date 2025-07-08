@@ -151,3 +151,30 @@ func TestExclusionTrackerWithModules(t *testing.T) {
 	unusedFormatted := tracker.FormatUnusedExclusions()
 	assert.Contains(t, unusedFormatted, "(from modules: module2)")
 }
+
+func TestExclusionTrackerWithUnprocessedFiles(t *testing.T) {
+	tracker := NewExclusionTracker()
+
+	// Register exclusions for license rule
+	exclusions := []string{
+		"images/simple-bridge/src/rootfs/bin/simple-bridge",
+		"some/other/file.go",
+	}
+	tracker.RegisterExclusionsForModule("module", "license", exclusions, "test-module")
+
+	// Simulate that only one file is processed by the linter
+	// (the .go file would be processed, but the binary file would not)
+	tracker.MarkExclusionUsed("module", "license", "some/other/file.go")
+
+	// Get unused exclusions
+	unused := tracker.GetUnusedExclusions()
+
+	// The binary file should be marked as unused because it was never processed
+	if len(unused["module"]["license"]) != 1 {
+		t.Errorf("Expected 1 unused exclusion, got %d", len(unused["module"]["license"]))
+	}
+
+	if unused["module"]["license"][0] != "images/simple-bridge/src/rootfs/bin/simple-bridge" {
+		t.Errorf("Expected unused exclusion to be 'images/simple-bridge/src/rootfs/bin/simple-bridge', got '%s'", unused["module"]["license"][0])
+	}
+}

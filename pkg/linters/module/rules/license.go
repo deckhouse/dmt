@@ -46,18 +46,49 @@ func NewLicenseRule(excludeFilesRules []pkg.StringRuleExclude,
 	}
 }
 
-func NewLicenseRuleTracked(trackedRule *exclusions.TrackedPathRule) *LicenseRule {
-	return &LicenseRule{
+func NewLicenseRuleTracked(trackedRule *exclusions.TrackedPathRule) *LicenseRuleTracked {
+	return &LicenseRuleTracked{
 		RuleMeta: pkg.RuleMeta{
 			Name: LicenseRuleName,
 		},
-		PathRule: trackedRule.PathRule,
+		PathRule:    trackedRule.PathRule,
+		trackedRule: trackedRule,
 	}
 }
 
 type LicenseRule struct {
 	pkg.RuleMeta
 	pkg.PathRule
+}
+
+type LicenseRuleTracked struct {
+	pkg.RuleMeta
+	pkg.PathRule
+	trackedRule *exclusions.TrackedPathRule
+}
+
+func (r *LicenseRuleTracked) CheckFiles(mod *module.Module, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(r.GetName())
+
+	files := fsutils.GetFiles(mod.GetPath(), false, filterFiles)
+	for _, fileName := range files {
+		name := fsutils.Rel(mod.GetPath(), fileName)
+
+		// Use tracked rule to check if file should be excluded and mark exclusions as used
+		if !r.trackedRule.Enabled(name) {
+			// TODO: add metrics
+			continue
+		}
+
+		ok, err := checkFileCopyright(fileName)
+		if !ok {
+			if errs.Is(err, io.EOF) {
+				// skip totally empty file
+				continue
+			}
+			errorList.WithFilePath(name).Error(err.Error())
+		}
+	}
 }
 
 func (r *LicenseRule) CheckFiles(mod *module.Module, errorList *errors.LintRuleErrorsList) {
