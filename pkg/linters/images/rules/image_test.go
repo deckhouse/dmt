@@ -163,7 +163,7 @@ func TestImageRuleTracked_Integration_WithDockerfile(t *testing.T) {
 	dockerfileContent := `FROM alpine:3.18
 RUN echo "test"
 `
-	if err := os.WriteFile(dockerfilePath, []byte(dockerfileContent), 0644); err != nil {
+	if err := os.WriteFile(dockerfilePath, []byte(dockerfileContent), 0600); err != nil {
 		t.Fatalf("Failed to write test Dockerfile: %v", err)
 	}
 
@@ -217,9 +217,9 @@ RUN echo "test"
 			rule.CheckImageNamesInDockerFiles(tempDir, errorList)
 
 			// Verify error count
-			errors := errorList.GetErrors()
-			if len(errors) != tt.expectedErrors {
-				t.Errorf("Expected %d errors, got %d", tt.expectedErrors, len(errors))
+			errs := errorList.GetErrors()
+			if len(errs) != tt.expectedErrors {
+				t.Errorf("Expected %d errors, got %d", tt.expectedErrors, len(errs))
 			}
 		})
 	}
