@@ -45,18 +45,25 @@ func NewWildcardsRule(excludeRules []pkg.KindRuleExclude) *WildcardsRule {
 	}
 }
 
-func NewWildcardsRuleTracked(trackedRule *exclusions.TrackedKindRule) *WildcardsRule {
-	return &WildcardsRule{
+func NewWildcardsRuleTracked(trackedRule *exclusions.TrackedKindRule) *WildcardsRuleTracked {
+	return &WildcardsRuleTracked{
 		RuleMeta: pkg.RuleMeta{
 			Name: WildcardsRuleName,
 		},
-		KindRule: trackedRule.KindRule,
+		KindRule:    trackedRule.KindRule,
+		trackedRule: trackedRule,
 	}
 }
 
 type WildcardsRule struct {
 	pkg.RuleMeta
 	pkg.KindRule
+}
+
+type WildcardsRuleTracked struct {
+	pkg.RuleMeta
+	pkg.KindRule
+	trackedRule *exclusions.TrackedKindRule
 }
 
 // objectRolesWildcard is a linter for checking the presence
@@ -84,7 +91,66 @@ func (r *WildcardsRule) ObjectRolesWildcard(m *module.Module, errorList *errors.
 	}
 }
 
+// ObjectRolesWildcard is a linter for checking the presence
+// of a wildcard in a Role and ClusterRole with exclusion tracking
+func (r *WildcardsRuleTracked) ObjectRolesWildcard(m *module.Module, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(r.Name)
+	for _, object := range m.GetStorage() {
+		// check only `rbac-for-us.yaml` files
+		if !strings.HasSuffix(object.ShortPath(), "rbac-for-us.yaml") {
+			continue
+		}
+
+		// Use tracked rule to check if object should be excluded and mark exclusions as used
+		if !r.trackedRule.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {
+			continue
+		}
+
+		errorListObj := errorList.WithObjectID(object.Identity()).WithFilePath(object.ShortPath())
+
+		// check Role and ClusterRole for wildcards
+		objectKind := object.Unstructured.GetKind()
+		switch objectKind {
+		case "Role", "ClusterRole":
+			r.checkRoles(object, errorListObj)
+		}
+	}
+}
+
 func (*WildcardsRule) checkRoles(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+	converter := runtime.DefaultUnstructuredConverter
+
+	role := new(k8SRbac.Role)
+
+	if err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), role); err != nil {
+		errorList.Errorf("Cannot convert object to %s: %v", object.Unstructured.GetKind(), err)
+
+		return
+	}
+
+	for _, rule := range role.Rules {
+		var objs []string
+		if slices.Contains(rule.APIGroups, "*") {
+			objs = append(objs, "apiGroups")
+		}
+
+		if slices.Contains(rule.Resources, "*") {
+			objs = append(objs, "resources")
+		}
+
+		if slices.Contains(rule.Verbs, "*") {
+			objs = append(objs, "verbs")
+		}
+
+		if len(objs) > 0 {
+			errorList.Errorf("%s contains a wildcards. Replace them with an explicit list of resources", strings.Join(objs, ", "))
+
+			return
+		}
+	}
+}
+
+func (*WildcardsRuleTracked) checkRoles(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	converter := runtime.DefaultUnstructuredConverter
 
 	role := new(k8SRbac.Role)
