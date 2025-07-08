@@ -189,17 +189,21 @@ func parseProperty(key string, prop *spec.Schema, result map[string]any) error {
 	return nil
 }
 
-func parseString(key, pattern string, result map[string]any) error {
+// generateStringValue generates a string value based on pattern
+func generateStringValue(pattern string) (string, error) {
 	if pattern == "" {
 		pattern = `^[a-zA-Z0-9]{8}$`
 	}
 	const limit = 8
-	r, err := reggen.Generate(pattern, limit)
+	return reggen.Generate(pattern, limit)
+}
+
+func parseString(key, pattern string, result map[string]any) error {
+	value, err := generateStringValue(pattern)
 	if err != nil {
 		return err
 	}
-	result[key] = r
-
+	result[key] = value
 	return nil
 }
 
@@ -293,40 +297,21 @@ func parseArray(key string, prop *spec.Schema, result map[string]any) error {
 }
 
 func parseOneOf(key string, prop *spec.Schema, result map[string]any) error {
-	downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
-	mergedSchema := mergeSchemas(downwardSchema, prop.OneOf...)
-
-	t, err := parseProperties(mergedSchema)
-	if err != nil {
-		return err
-	}
-
-	if t != nil {
-		result[key] = t
-	}
-
-	return nil
+	return parseSchemaCombination(key, prop, prop.OneOf, result)
 }
 
 func parseAnyOf(key string, prop *spec.Schema, result map[string]any) error {
-	downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
-	mergedSchema := mergeSchemas(downwardSchema, prop.AnyOf...)
-
-	t, err := parseProperties(mergedSchema)
-	if err != nil {
-		return err
-	}
-
-	if t != nil {
-		result[key] = t
-	}
-
-	return nil
+	return parseSchemaCombination(key, prop, prop.AnyOf, result)
 }
 
 func parseAllOf(key string, prop *spec.Schema, result map[string]any) error {
+	return parseSchemaCombination(key, prop, prop.AllOf, result)
+}
+
+// parseSchemaCombination is a generic function to parse schema combinations (OneOf, AnyOf, AllOf)
+func parseSchemaCombination(key string, prop *spec.Schema, schemas []spec.Schema, result map[string]any) error {
 	downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
-	mergedSchema := mergeSchemas(downwardSchema, prop.AllOf...)
+	mergedSchema := mergeSchemas(downwardSchema, schemas...)
 
 	t, err := parseProperties(mergedSchema)
 	if err != nil {

@@ -22,12 +22,20 @@ import (
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters/utils"
 )
 
 const (
 	LivenessRuleName  = "liveness-probe"
 	ReadinessRuleName = "readiness-probe"
 )
+
+// ProbeRule defines interface for probe rules
+type ProbeRule interface {
+	GetName() string
+	Enabled(object storage.StoreObject, container *v1.Container) bool
+	GetProbe(container *v1.Container) *v1.Probe
+}
 
 func NewLivenessRule(excludeRules []pkg.ContainerRuleExclude) *LivenessRule {
 	return &LivenessRule{
@@ -61,6 +69,16 @@ type ReadinessRuleNameRule struct {
 	pkg.ContainerRule
 }
 
+// GetProbe returns the liveness probe for the container
+func (*LivenessRule) GetProbe(container *v1.Container) *v1.Probe {
+	return container.LivenessProbe
+}
+
+// GetProbe returns the readiness probe for the container
+func (*ReadinessRuleNameRule) GetProbe(container *v1.Container) *v1.Probe {
+	return container.ReadinessProbe
+}
+
 func probeHandlerIsNotValid(probe v1.ProbeHandler) bool {
 	var count int8
 	if probe.Exec != nil {
@@ -83,65 +101,41 @@ func probeHandlerIsNotValid(probe v1.ProbeHandler) bool {
 }
 
 // check livenessProbe exist and correct
-func (r *LivenessRule) CheckProbe(object storage.StoreObject, containers []v1.Container, errorList *errors.LintRuleErrorsList) { //nolint: dupl // we have doubled code in probes because it's separate rules and we need to edit them separate
-	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.ShortPath())
-
-	if !isPodController(object.Unstructured.GetKind()) {
-		return
-	}
-
-	for idx := range containers {
-		c := &containers[idx]
-
-		if !r.Enabled(object, c) {
-			// TODO: add metrics
-			continue
-		}
-
-		errorList = errorList.WithObjectID(object.Identity() + " ; container = " + c.Name).WithFilePath(object.ShortPath())
-
-		livenessProbe := c.LivenessProbe
-		if livenessProbe == nil {
-			errorList.Error("Container does not contain liveness-probe")
-			continue
-		}
-
-		if probeHandlerIsNotValid(livenessProbe.ProbeHandler) {
-			errorList.Error("Container does not use correct liveness-probe")
-		}
-	}
+func (r *LivenessRule) CheckProbe(object storage.StoreObject, containers []v1.Container, errorList *errors.LintRuleErrorsList) {
+	checkProbeGeneric(r, object, containers, errorList, "liveness-probe")
 }
 
 // check readinessProbe exist and correct
-func (r *ReadinessRuleNameRule) CheckProbe(object storage.StoreObject, containers []v1.Container, errorList *errors.LintRuleErrorsList) { //nolint: dupl // we have doubled code in probes because it's separate rules and we need to edit them separate
-	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.ShortPath())
+func (r *ReadinessRuleNameRule) CheckProbe(object storage.StoreObject, containers []v1.Container, errorList *errors.LintRuleErrorsList) {
+	checkProbeGeneric(r, object, containers, errorList, "readiness-probe")
+}
 
-	if !isPodController(object.Unstructured.GetKind()) {
+// checkProbeGeneric is a generic function to check probe existence and validity
+func checkProbeGeneric(rule ProbeRule, object storage.StoreObject, containers []v1.Container, errorList *errors.LintRuleErrorsList, probeType string) {
+	errorList = errorList.WithRule(rule.GetName()).WithFilePath(object.ShortPath())
+
+	if !utils.IsPodController(object.Unstructured.GetKind()) {
 		return
 	}
 
 	for idx := range containers {
 		c := &containers[idx]
 
-		if !r.Enabled(object, c) {
+		if !rule.Enabled(object, c) {
 			// TODO: add metrics
 			continue
 		}
 
 		errorList = errorList.WithObjectID(object.Identity() + " ; container = " + c.Name).WithFilePath(object.ShortPath())
 
-		readinessProbe := c.ReadinessProbe
-		if readinessProbe == nil {
-			errorList.Error("Container does not contain readiness-probe")
+		probe := rule.GetProbe(c)
+		if probe == nil {
+			errorList.Errorf("Container does not contain %s", probeType)
 			continue
 		}
 
-		if probeHandlerIsNotValid(readinessProbe.ProbeHandler) {
-			errorList.Error("Container does not use correct readiness-probe")
+		if probeHandlerIsNotValid(probe.ProbeHandler) {
+			errorList.Errorf("Container does not use correct %s", probeType)
 		}
 	}
-}
-
-func isPodController(kind string) bool {
-	return kind == "Deployment" || kind == "DaemonSet" || kind == "StatefulSet"
 }

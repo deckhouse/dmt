@@ -375,6 +375,14 @@ func NewUnstructuredObjectStore() *UnstructuredObjectStore {
 	return &UnstructuredObjectStore{Storage: make(map[ResourceIndex]StoreObject)}
 }
 
+// isDuplicateAllowed checks if a duplicate object is allowed based on specific conditions
+func isDuplicateAllowed(index ResourceIndex) bool {
+	indexStr := index.AsString()
+	// for cert-manager migration we have duplicated resources for legacy version
+	// it's ok for cluster but is not expected by tests. Remove it after legacy version will be removed
+	return strings.Contains(indexStr, "ClusterIssuer") || strings.HasPrefix(indexStr, "d8-cert-manager")
+}
+
 func (s *UnstructuredObjectStore) Put(path string, object map[string]any, raw []byte) error {
 	var u unstructured.Unstructured
 	u.SetUnstructuredContent(object)
@@ -384,9 +392,7 @@ func (s *UnstructuredObjectStore) Put(path string, object map[string]any, raw []
 	var err error
 	index := GetResourceIndex(storeObject)
 	if _, ok := s.Storage[index]; ok {
-		// for cert-manager migration we have duplicated resources for legacy version
-		// it's ok for cluster but is not expected by tests. Remove it after legacy version will be removed
-		if strings.Contains(index.AsString(), "ClusterIssuer") || strings.HasPrefix(index.AsString(), "d8-cert-manager") {
+		if isDuplicateAllowed(index) {
 			return nil
 		}
 		err = fmt.Errorf("object %q already exists", index.AsString())

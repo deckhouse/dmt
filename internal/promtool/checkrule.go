@@ -48,23 +48,30 @@ var ls = rulesLintConfig{
 	ignoreUnknownFields: false,
 }
 
+// formatErrors formats a slice of errors into a single error message
+func formatErrors(errs []error) error {
+	if len(errs) == 0 {
+		return nil
+	}
+
+	errStr := make([]string, len(errs))
+	for i, e := range errs {
+		errStr[i] = e.Error()
+	}
+	return fmt.Errorf("%s", strings.Join(errStr, "\n"))
+}
+
 // CheckRules validates rule files.
 func CheckRules(data []byte) error {
 	rgs, errs := rulefmt.Parse(data, ls.ignoreUnknownFields)
 	var ruleErrors, checkGroupErrors error
+
 	if errs != nil {
-		errStr := make([]string, len(errs))
-		for _, e := range errs {
-			errStr = append(errStr, e.Error())
-		}
-		ruleErrors = fmt.Errorf("%s", strings.Join(errStr, "\n"))
+		ruleErrors = formatErrors(errs)
 	}
+
 	if errs := checkRuleGroups(rgs, ls); errs != nil {
-		errStr := make([]string, len(errs))
-		for _, e := range errs {
-			errStr = append(errStr, e.Error())
-		}
-		checkGroupErrors = fmt.Errorf("%s", strings.Join(errStr, "\n"))
+		checkGroupErrors = formatErrors(errs)
 	}
 
 	return errors.Join(ruleErrors, checkGroupErrors)

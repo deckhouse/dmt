@@ -107,13 +107,7 @@ func (f files) AsConfig() string {
 		return ""
 	}
 
-	m := make(map[string]string)
-
-	// Explicitly convert to strings, and file names
-	for k, v := range f {
-		m[path.Base(k)] = string(v)
-	}
-
+	m := f.toFileMap(func(data []byte) string { return string(data) })
 	return toYAML(m)
 }
 
@@ -137,13 +131,17 @@ func (f files) AsSecrets() string {
 		return ""
 	}
 
-	m := make(map[string]string)
-
-	for k, v := range f {
-		m[path.Base(k)] = base64.StdEncoding.EncodeToString(v)
-	}
-
+	m := f.toFileMap(func(data []byte) string { return base64.StdEncoding.EncodeToString(data) })
 	return toYAML(m)
+}
+
+// toFileMap converts files to a map with transformed values
+func (f files) toFileMap(transform func([]byte) string) map[string]string {
+	m := make(map[string]string)
+	for k, v := range f {
+		m[path.Base(k)] = transform(v)
+	}
+	return m
 }
 
 // Lines returns each line of a named file (split by "\n") as a slice, so it can

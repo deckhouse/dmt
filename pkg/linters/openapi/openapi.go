@@ -61,7 +61,7 @@ func (o *OpenAPI) Run(m *module.Module) {
 	errorLists := o.ErrorList.WithModule(m.GetName())
 
 	if o.tracker != nil {
-		o.runWithTracking(m, errorLists, m.GetName())
+		o.runWithTracking(m, m.GetName(), errorLists)
 	} else {
 		o.runWithoutTracking(m, errorLists)
 	}
@@ -91,7 +91,7 @@ func (o *OpenAPI) runWithoutTracking(m *module.Module, errorLists *errors.LintRu
 	}
 }
 
-func (o *OpenAPI) runWithTracking(m *module.Module, errorList *errors.LintRuleErrorsList, moduleName string) {
+func (o *OpenAPI) runWithTracking(m *module.Module, moduleName string, errorList *errors.LintRuleErrorsList) {
 	// CRDs
 	trackedCRDsRule := exclusions.NewTrackedStringRuleForModule(
 		o.cfg.OpenAPIExcludeRules.CRDNamesExcludes.Get(),

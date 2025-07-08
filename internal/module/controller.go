@@ -29,6 +29,26 @@ import (
 	dmtErrors "github.com/deckhouse/dmt/pkg/errors"
 )
 
+// processDocument processes a single YAML document and adds it to the object store
+func processDocument(doc, path, moduleName string, objectStore *storage.UnstructuredObjectStore, _ *dmtErrors.LintRuleErrorsList) error {
+	docBytes := []byte(doc)
+	if len(docBytes) == 0 {
+		return nil
+	}
+
+	node := make(map[string]any)
+	err := yaml.UnmarshalStrict(docBytes, &node)
+	if err != nil {
+		return fmt.Errorf(manifestErrorMessage, strings.TrimPrefix(path, moduleName+"/"), err)
+	}
+
+	if len(node) == 0 {
+		return nil
+	}
+
+	return objectStore.Put(path, node, docBytes)
+}
+
 func RunRender(m *Module, values chartutil.Values, objectStore *storage.UnstructuredObjectStore, errorList *dmtErrors.LintRuleErrorsList) error {
 	var renderer helm.Renderer
 	renderer.Name = m.GetName()
@@ -43,24 +63,8 @@ func RunRender(m *Module, values chartutil.Values, objectStore *storage.Unstruct
 	var resultErr error
 	for path, bigFile := range files {
 		for _, doc := range strings.Split(bigFile, "---") {
-			docBytes := []byte(doc)
-			if len(docBytes) == 0 {
-				continue
-			}
-			node := make(map[string]any)
-			err = yaml.UnmarshalStrict(docBytes, &node)
-			if err != nil {
-				return fmt.Errorf(manifestErrorMessage, strings.TrimPrefix(path, m.GetName()+"/"), err)
-			}
-
-			if len(node) == 0 {
-				continue
-			}
-
-			err = objectStore.Put(path, node, docBytes)
-			if err != nil {
+			if err := processDocument(doc, path, m.GetName(), objectStore, errorList); err != nil {
 				resultErr = errors.Join(resultErr, err)
-				continue
 			}
 		}
 	}

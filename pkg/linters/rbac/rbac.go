@@ -63,7 +63,7 @@ func (l *Rbac) Run(m *module.Module) {
 	errorList := l.ErrorList.WithModule(m.GetName())
 
 	if l.tracker != nil {
-		l.runWithTracking(m, errorList, m.GetName())
+		l.runWithTracking(m, m.GetName(), errorList)
 	} else {
 		l.runWithoutTracking(m, errorList)
 	}
@@ -80,7 +80,7 @@ func (l *Rbac) runWithoutTracking(m *module.Module, errorList *errors.LintRuleEr
 		ObjectRolesWildcard(m, errorList)
 }
 
-func (l *Rbac) runWithTracking(m *module.Module, errorList *errors.LintRuleErrorsList, moduleName string) {
+func (l *Rbac) runWithTracking(m *module.Module, moduleName string, errorList *errors.LintRuleErrorsList) {
 	// Register rules without exclusions in tracker
 	l.tracker.RegisterExclusionsForModule(ID, "user-authz", []string{}, moduleName)
 

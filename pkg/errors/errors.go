@@ -99,60 +99,59 @@ func (l *LintRuleErrorsList) copy() *LintRuleErrorsList {
 	return &t
 }
 
-func (l *LintRuleErrorsList) WithMaxLevel(level *pkg.Level) *LintRuleErrorsList {
+// withField sets a specific field and returns a new error list
+func (l *LintRuleErrorsList) withField(fieldSetter func(*LintRuleErrorsList)) *LintRuleErrorsList {
 	list := l.copy()
-	list.maxLevel = level
-
+	fieldSetter(list)
 	return list
+}
+
+func (l *LintRuleErrorsList) WithMaxLevel(level *pkg.Level) *LintRuleErrorsList {
+	return l.withField(func(list *LintRuleErrorsList) {
+		list.maxLevel = level
+	})
 }
 
 func (l *LintRuleErrorsList) WithLinterID(linterID string) *LintRuleErrorsList {
-	list := l.copy()
-	list.linterID = linterID
-
-	return list
+	return l.withField(func(list *LintRuleErrorsList) {
+		list.linterID = linterID
+	})
 }
 
 func (l *LintRuleErrorsList) WithModule(moduleID string) *LintRuleErrorsList {
-	list := l.copy()
-	list.moduleID = moduleID
-
-	return list
+	return l.withField(func(list *LintRuleErrorsList) {
+		list.moduleID = moduleID
+	})
 }
 
 func (l *LintRuleErrorsList) WithRule(ruleID string) *LintRuleErrorsList {
-	list := l.copy()
-	list.ruleID = ruleID
-
-	return list
+	return l.withField(func(list *LintRuleErrorsList) {
+		list.ruleID = ruleID
+	})
 }
 
 func (l *LintRuleErrorsList) WithObjectID(objectID string) *LintRuleErrorsList {
-	list := l.copy()
-	list.objectID = objectID
-
-	return list
+	return l.withField(func(list *LintRuleErrorsList) {
+		list.objectID = objectID
+	})
 }
 
 func (l *LintRuleErrorsList) WithValue(value any) *LintRuleErrorsList {
-	list := l.copy()
-	list.value = value
-
-	return list
+	return l.withField(func(list *LintRuleErrorsList) {
+		list.value = value
+	})
 }
 
 func (l *LintRuleErrorsList) WithFilePath(filePath string) *LintRuleErrorsList {
-	list := l.copy()
-	list.filePath = filePath
-
-	return list
+	return l.withField(func(list *LintRuleErrorsList) {
+		list.filePath = filePath
+	})
 }
 
 func (l *LintRuleErrorsList) WithLineNumber(lineNumber int) *LintRuleErrorsList {
-	list := l.copy()
-	list.lineNumber = lineNumber
-
-	return list
+	return l.withField(func(list *LintRuleErrorsList) {
+		list.lineNumber = lineNumber
+	})
 }
 
 func (l *LintRuleErrorsList) Warn(str string) *LintRuleErrorsList {

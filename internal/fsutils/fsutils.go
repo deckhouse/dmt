@@ -31,16 +31,20 @@ import (
 // evalSymlinkCache is a cache for evaluated symlinks to avoid multiple evaluations
 var evalSymlinkCache sync.Map
 
+// getFileInfo gets file info and returns error if any
+func getFileInfo(path string) (os.FileInfo, error) {
+	return os.Stat(path)
+}
+
 // IsDir checks if the given path is a directory
 func IsDir(path string) bool {
-	fi, err := os.Stat(path)
+	fi, err := getFileInfo(path)
 	return err == nil && fi.IsDir()
 }
 
 // IsFile checks if the given path is a file
 func IsFile(path string) bool {
-	fi, err := os.Stat(path)
-
+	fi, err := getFileInfo(path)
 	return err == nil && !fi.IsDir()
 }
 

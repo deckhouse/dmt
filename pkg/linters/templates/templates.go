@@ -73,108 +73,141 @@ func (l *Templates) Run(m *module.Module) {
 }
 
 func (l *Templates) runWithoutTracking(m *module.Module, errorList *errors.LintRuleErrorsList) {
-	// VPA
-	rules.NewVPARule(l.cfg.ExcludeRules.VPAAbsent.Get()).ControllerMustHaveVPA(m, errorList)
-	// PDB
-	rules.NewPDBRule(l.cfg.ExcludeRules.PDBAbsent.Get()).ControllerMustHavePDB(m, errorList)
+	// Apply VPA and PDB rules
+	l.applyVPAPDBRules(m, nil, errorList)
 
-	// monitoring
-	prometheusRule := rules.NewPrometheusRule()
-	grafanaRule := rules.NewGrafanaRule(l.cfg)
+	// Apply monitoring rules
+	l.applyMonitoringRules(m, nil, errorList)
 
-	if err := dirExists(m.GetPath(), "monitoring"); err == nil {
-		grafanaRule.ValidateGrafanaDashboards(m, errorList)
-		prometheusRule.ValidatePrometheusRules(m, errorList)
-	} else if !os.IsNotExist(err) {
-		errorList.Errorf("reading the 'monitoring' folder failed: %s", err)
-	}
+	// Apply KubeRBACProxy rule
+	l.applyKubeRBACProxyRule(m, nil, errorList)
 
-	rules.NewKubeRbacProxyRule(l.cfg.ExcludeRules.KubeRBACProxy.Get()).
-		NamespaceMustContainKubeRBACProxyCA(m.GetObjectStore(), errorList)
-
-	servicePortRule := rules.NewServicePortRule(l.cfg.ExcludeRules.ServicePort.Get())
-
-	for _, object := range m.GetStorage() {
-		servicePortRule.ObjectServiceTargetPort(object, errorList)
-		prometheusRule.PromtoolRuleCheck(m, object, errorList)
-	}
-
-	// werf file
-	// rules.NewWerfRule().ValidateWerfTemplates(m, errorList)
+	// Apply service port and prometheus rules
+	l.applyServicePortAndPrometheusRules(m, nil, errorList)
 }
 
 func (l *Templates) runWithTracking(m *module.Module, moduleName string, errorList *errors.LintRuleErrorsList) {
 	// Register rules without exclusions in tracker
 	l.tracker.RegisterExclusionsForModule(ID, "prometheus-rules", []string{}, moduleName)
 
-	// VPA
-	trackedVPARule := exclusions.NewTrackedKindRuleForModule(
-		l.cfg.ExcludeRules.VPAAbsent.Get(),
-		l.tracker,
-		ID,
-		"vpa",
-		moduleName,
-	)
-	rules.NewVPARuleTracked(trackedVPARule).ControllerMustHaveVPA(m, errorList)
+	// Apply VPA and PDB rules with tracking
+	l.applyVPAPDBRules(m, &moduleName, errorList)
 
-	// PDB
-	trackedPDBRule := exclusions.NewTrackedKindRuleForModule(
-		l.cfg.ExcludeRules.PDBAbsent.Get(),
-		l.tracker,
-		ID,
-		"pdb",
-		moduleName,
-	)
-	rules.NewPDBRuleTracked(trackedPDBRule).ControllerMustHavePDB(m, errorList)
+	// Apply monitoring rules with tracking
+	l.applyMonitoringRules(m, &moduleName, errorList)
 
-	// monitoring
+	// Apply KubeRBACProxy rule with tracking
+	l.applyKubeRBACProxyRule(m, &moduleName, errorList)
+
+	// Apply service port and prometheus rules with tracking
+	l.applyServicePortAndPrometheusRules(m, &moduleName, errorList)
+}
+
+// applyVPAPDBRules applies VPA and PDB rules with optional tracking
+func (l *Templates) applyVPAPDBRules(m *module.Module, moduleName *string, errorList *errors.LintRuleErrorsList) {
+	if moduleName != nil {
+		// With tracking
+		trackedVPARule := exclusions.NewTrackedKindRuleForModule(
+			l.cfg.ExcludeRules.VPAAbsent.Get(),
+			l.tracker,
+			ID,
+			"vpa",
+			*moduleName,
+		)
+		rules.NewVPARuleTracked(trackedVPARule).ControllerMustHaveVPA(m, errorList)
+
+		trackedPDBRule := exclusions.NewTrackedKindRuleForModule(
+			l.cfg.ExcludeRules.PDBAbsent.Get(),
+			l.tracker,
+			ID,
+			"pdb",
+			*moduleName,
+		)
+		rules.NewPDBRuleTracked(trackedPDBRule).ControllerMustHavePDB(m, errorList)
+	} else {
+		// Without tracking
+		rules.NewVPARule(l.cfg.ExcludeRules.VPAAbsent.Get()).ControllerMustHaveVPA(m, errorList)
+		rules.NewPDBRule(l.cfg.ExcludeRules.PDBAbsent.Get()).ControllerMustHavePDB(m, errorList)
+	}
+}
+
+// applyMonitoringRules applies monitoring rules with optional tracking
+func (l *Templates) applyMonitoringRules(m *module.Module, moduleName *string, errorList *errors.LintRuleErrorsList) {
 	prometheusRule := rules.NewPrometheusRule()
 
-	// Grafana dashboards with tracking
-	trackedGrafanaRule := exclusions.NewTrackedBoolRuleForModule(
-		l.cfg.GrafanaDashboards.Disable,
-		l.tracker,
-		ID,
-		"grafana-dashboards",
-		moduleName,
-	)
-	grafanaRule := rules.NewGrafanaRuleTracked(trackedGrafanaRule)
 	if err := dirExists(m.GetPath(), "monitoring"); err == nil {
-		grafanaRule.ValidateGrafanaDashboards(m, errorList)
-	}
+		if moduleName != nil {
+			// Grafana dashboards with tracking
+			trackedGrafanaRule := exclusions.NewTrackedBoolRuleForModule(
+				l.cfg.GrafanaDashboards.Disable,
+				l.tracker,
+				ID,
+				"grafana-dashboards",
+				*moduleName,
+			)
+			grafanaRule := rules.NewGrafanaRuleTracked(trackedGrafanaRule)
+			grafanaRule.ValidateGrafanaDashboards(m, errorList)
+		} else {
+			// Without tracking
+			grafanaRule := rules.NewGrafanaRule(l.cfg)
+			grafanaRule.ValidateGrafanaDashboards(m, errorList)
+		}
 
-	if err := dirExists(m.GetPath(), "monitoring"); err == nil {
 		prometheusRule.ValidatePrometheusRules(m, errorList)
 	} else if !os.IsNotExist(err) {
 		errorList.Errorf("reading the 'monitoring' folder failed: %s", err)
 	}
+}
 
-	trackedKubeRBACProxyRule := exclusions.NewTrackedStringRuleForModule(
-		l.cfg.ExcludeRules.KubeRBACProxy.Get(),
-		l.tracker,
-		ID,
-		"kube-rbac-proxy",
-		moduleName,
-	)
-	rules.NewKubeRbacProxyRuleTracked(trackedKubeRBACProxyRule).
-		NamespaceMustContainKubeRBACProxyCA(m.GetObjectStore(), errorList)
+// applyKubeRBACProxyRule applies KubeRBACProxy rule with optional tracking
+func (l *Templates) applyKubeRBACProxyRule(m *module.Module, moduleName *string, errorList *errors.LintRuleErrorsList) {
+	if moduleName != nil {
+		// With tracking
+		trackedKubeRBACProxyRule := exclusions.NewTrackedStringRuleForModule(
+			l.cfg.ExcludeRules.KubeRBACProxy.Get(),
+			l.tracker,
+			ID,
+			"kube-rbac-proxy",
+			*moduleName,
+		)
+		rules.NewKubeRbacProxyRuleTracked(trackedKubeRBACProxyRule).
+			NamespaceMustContainKubeRBACProxyCA(m.GetObjectStore(), errorList)
+	} else {
+		// Without tracking
+		rules.NewKubeRbacProxyRule(l.cfg.ExcludeRules.KubeRBACProxy.Get()).
+			NamespaceMustContainKubeRBACProxyCA(m.GetObjectStore(), errorList)
+	}
+}
 
-	trackedServicePortRule := exclusions.NewTrackedServicePortRuleForModule(
-		l.cfg.ExcludeRules.ServicePort.Get(),
-		l.tracker,
-		ID,
-		"service-port",
-		moduleName,
-	)
-	servicePortRule := rules.NewServicePortRuleTracked(trackedServicePortRule)
+// applyServicePortAndPrometheusRules applies service port and prometheus rules with optional tracking
+func (l *Templates) applyServicePortAndPrometheusRules(m *module.Module, moduleName *string, errorList *errors.LintRuleErrorsList) {
+	var servicePortRule any
+	prometheusRule := rules.NewPrometheusRule()
 
-	for _, object := range m.GetStorage() {
-		servicePortRule.ObjectServiceTargetPort(object, errorList)
-		prometheusRule.PromtoolRuleCheck(m, object, errorList)
+	if moduleName != nil {
+		// With tracking
+		trackedServicePortRule := exclusions.NewTrackedServicePortRuleForModule(
+			l.cfg.ExcludeRules.ServicePort.Get(),
+			l.tracker,
+			ID,
+			"service-port",
+			*moduleName,
+		)
+		servicePortRule = rules.NewServicePortRuleTracked(trackedServicePortRule)
+	} else {
+		// Without tracking
+		servicePortRule = rules.NewServicePortRule(l.cfg.ExcludeRules.ServicePort.Get())
 	}
 
-	// werf file
-	// rules.NewWerfRule().ValidateWerfTemplates(m, errorList)
+	for _, object := range m.GetStorage() {
+		switch rule := servicePortRule.(type) {
+		case *rules.ServicePortRuleTracked:
+			rule.ObjectServiceTargetPort(object, errorList)
+		case *rules.ServicePortRule:
+			rule.ObjectServiceTargetPort(object, errorList)
+		}
+		prometheusRule.PromtoolRuleCheck(m, object, errorList)
+	}
 }
 
 func (l *Templates) Name() string {

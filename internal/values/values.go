@@ -110,16 +110,25 @@ func GetGlobalValues(rootDir string) (*spec.Schema, error) {
 	return schemas[ValuesSchema], nil
 }
 
+// readConfigFile reads a single config file and returns its content
+func readConfigFile(filePath string) ([]byte, error) {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("reading config file %s: %w", filePath, err)
+	}
+	return data, nil
+}
+
 func readConfigFiles(rootDir string) ([]byte, []byte, error) {
 	configValuesFile := filepath.Join(rootDir, "global-hooks", "openapi", "config-values.yaml")
 	valuesFile := filepath.Join(rootDir, "global-hooks", "openapi", "values.yaml")
 
-	configBytes, err := os.ReadFile(configValuesFile)
+	configBytes, err := readConfigFile(configValuesFile)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot read config values file: %w", err)
 	}
 
-	valuesBytes, err := os.ReadFile(valuesFile)
+	valuesBytes, err := readConfigFile(valuesFile)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot read values file: %w", err)
 	}

@@ -22,6 +22,7 @@ import (
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters/utils"
 )
 
 const (
@@ -46,7 +47,7 @@ func (r *EnvVariablesDuplicatesRule) ContainerEnvVariablesDuplicates(object stor
 	for i := range containers {
 		c := &containers[i]
 
-		if hasDuplicates(c.Env, func(e corev1.EnvVar) string { return e.Name }) {
+		if utils.HasDuplicates(c.Env, func(e corev1.EnvVar) string { return e.Name }) {
 			errorList.WithObjectID(object.Identity() + "; container = " + c.Name).
 				Error("Container has two env variables with same name")
 

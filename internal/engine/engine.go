@@ -99,21 +99,38 @@ func warnWrap(warn string) string {
 	return warnStartDelim + warn + warnEndDelim
 }
 
+// manageRecursion manages template recursion to prevent infinite loops
+func manageRecursion(includedNames map[string]int, name string, maxRecursion int) error {
+	if v, ok := includedNames[name]; ok {
+		if v > maxRecursion {
+			return fmt.Errorf("rendering template has a nested reference name: %s", name)
+		}
+		includedNames[name]++
+	} else {
+		includedNames[name] = 1
+	}
+	return nil
+}
+
+// decrementRecursion decrements the recursion counter for a template name
+func decrementRecursion(includedNames map[string]int, name string) {
+	if v, ok := includedNames[name]; ok && v > 0 {
+		includedNames[name]--
+	}
+}
+
 // 'include' needs to be defined in the scope of a 'tpl' template as
 // well as regular file-loaded templates.
 func includeFun(t *template.Template, includedNames map[string]int) func(string, any) (string, error) {
 	return func(name string, data any) (string, error) {
 		var buf strings.Builder
-		if v, ok := includedNames[name]; ok {
-			if v > recursionMaxNums {
-				return "", fmt.Errorf("rendering template has a nested reference name: %s", name)
-			}
-			includedNames[name]++
-		} else {
-			includedNames[name] = 1
+
+		if err := manageRecursion(includedNames, name, recursionMaxNums); err != nil {
+			return "", err
 		}
+		defer decrementRecursion(includedNames, name)
+
 		err := t.ExecuteTemplate(&buf, name, data)
-		includedNames[name]--
 		return buf.String(), err
 	}
 }

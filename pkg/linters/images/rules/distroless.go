@@ -143,15 +143,25 @@ func isDockerfileInstructionUnacceptable(from string, final bool) (bool, string)
 	return false, ""
 }
 
-func checkDistrolessPrefix(str string, in []string) bool {
+// removeImagePrefixes removes common image prefixes from a string
+func removeImagePrefixes(str string) string {
 	str = strings.TrimPrefix(str, "$.Images.")
 	str = strings.TrimPrefix(str, ".Images.")
+	return str
+}
 
-	for _, pattern := range in {
+// hasPrefix checks if a string has any of the given prefixes after removing image prefixes
+func hasPrefix(str string, prefixes []string) bool {
+	str = removeImagePrefixes(str)
+
+	for _, pattern := range prefixes {
 		if strings.HasPrefix(str, pattern) {
 			return true
 		}
 	}
-
 	return false
+}
+
+func checkDistrolessPrefix(str string, in []string) bool {
+	return hasPrefix(str, in)
 }

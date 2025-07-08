@@ -34,6 +34,27 @@ func checkCyrillicLetters(in string) (string, bool) {
 
 // checkCyrillicLettersInString returns a fancy message if input string contains Cyrillic letters.
 func checkCyrillicLettersInString(line string) (string, bool) {
+	return processCyrillicLine(line)
+}
+
+// checkCyrillicLettersInArray returns a fancy message for each string in array that contains Cyrillic letters.
+func checkCyrillicLettersInArray(lines []string) (string, bool) {
+	res := make([]string, 0)
+	hasCyr := false
+
+	for _, line := range lines {
+		msg, has := processCyrillicLine(line)
+		if has {
+			hasCyr = true
+			res = append(res, msg)
+		}
+	}
+
+	return strings.Join(res, "\n"), hasCyr
+}
+
+// processCyrillicLine processes a single line for Cyrillic letters
+func processCyrillicLine(line string) (string, bool) {
 	if !cyrRe.MatchString(line) {
 		return "", false
 	}
@@ -47,20 +68,4 @@ func checkCyrillicLettersInString(line string) (string, bool) {
 	cursor = strings.TrimRight(cursor, "-")
 
 	return line + "\n" + cursor, true
-}
-
-// checkCyrillicLettersInArray returns a fancy message for each string in array that contains Cyrillic letters.
-func checkCyrillicLettersInArray(lines []string) (string, bool) {
-	res := make([]string, 0)
-
-	hasCyr := false
-	for _, line := range lines {
-		msg, has := checkCyrillicLettersInString(line)
-		if has {
-			hasCyr = true
-			res = append(res, msg)
-		}
-	}
-
-	return strings.Join(res, "\n"), hasCyr
 }

@@ -30,7 +30,7 @@ func addWordBoundariesToNumbers(s string) string {
 	return string(b)
 }
 
-// Converts a string to CamelCase
+// toCamelInitCase converts a string to CamelCase with specified initial case
 func toCamelInitCase(s string, initCase bool) string {
 	s = addWordBoundariesToNumbers(s)
 	s = strings.Trim(s, " ")
@@ -59,16 +59,31 @@ func toCamelInitCase(s string, initCase bool) string {
 	return n
 }
 
+// processCamelCase processes a string for camel case conversion with acronym handling
+func processCamelCase(s string, initCase bool) string {
+	if uppercaseAcronym[s] {
+		s = strings.ToLower(s)
+	}
+
+	if !initCase && s != "" {
+		if uppercaseAcronym[s] {
+			s = strings.ToLower(s)
+		}
+		if r := rune(s[0]); r >= 'A' && r <= 'Z' {
+			s = strings.ToLower(string(r)) + s[1:]
+		}
+	}
+
+	return toCamelInitCase(s, initCase)
+}
+
 var uppercaseAcronym = map[string]bool{
 	"ID": true,
 }
 
 // ToCamel converts a string to CamelCase
 func ToCamel(s string) string {
-	if uppercaseAcronym[s] {
-		s = strings.ToLower(s)
-	}
-	return toCamelInitCase(s, true)
+	return processCamelCase(s, true)
 }
 
 // ToLowerCamel converts a string to lowerCamelCase
@@ -76,11 +91,5 @@ func ToLowerCamel(s string) string {
 	if s == "" {
 		return s
 	}
-	if uppercaseAcronym[s] {
-		s = strings.ToLower(s)
-	}
-	if r := rune(s[0]); r >= 'A' && r <= 'Z' {
-		s = strings.ToLower(string(r)) + s[1:]
-	}
-	return toCamelInitCase(s, false)
+	return processCamelCase(s, false)
 }

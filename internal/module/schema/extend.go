@@ -82,30 +82,26 @@ func mergeRequired(s, parent *spec.Schema) []string {
 	return res
 }
 
-func mergeProperties(s, parent *spec.Schema) map[string]spec.Schema {
+// mergeSchemaMaps merges two map[string]spec.Schema maps, with child values overriding parent values
+func mergeSchemaMaps(parent, child map[string]spec.Schema) map[string]spec.Schema {
 	res := make(map[string]spec.Schema)
-
-	maps.Copy(res, parent.Properties)
-	maps.Copy(res, s.Properties)
-
+	maps.Copy(res, parent)
+	maps.Copy(res, child)
 	return res
 }
 
+func mergeProperties(s, parent *spec.Schema) map[string]spec.Schema {
+	return mergeSchemaMaps(parent.Properties, s.Properties)
+}
+
 func mergePatternProperties(s, parent *spec.Schema) map[string]spec.Schema {
-	res := make(map[string]spec.Schema)
-
-	maps.Copy(res, parent.PatternProperties)
-	maps.Copy(res, s.PatternProperties)
-
-	return res
+	return mergeSchemaMaps(parent.PatternProperties, s.PatternProperties)
 }
 
 func mergeDefinitions(s, parent *spec.Schema) spec.Definitions {
 	res := make(spec.Definitions)
-
 	maps.Copy(res, parent.Definitions)
 	maps.Copy(res, s.Definitions)
-
 	return res
 }
 

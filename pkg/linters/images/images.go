@@ -63,7 +63,7 @@ func (l *Images) Run(m *module.Module) {
 	errorList := l.ErrorList.WithModule(m.GetName())
 
 	if l.tracker != nil {
-		l.runWithTracking(m, errorList, m.GetName())
+		l.runWithTracking(m, m.GetName(), errorList)
 	} else {
 		l.runWithoutTracking(m, errorList)
 	}
@@ -76,7 +76,7 @@ func (l *Images) runWithoutTracking(m *module.Module, errorList *errors.LintRule
 	rules.NewPatchesRule(l.cfg.Patches.Disable).CheckPatches(m.GetPath(), errorList)
 }
 
-func (l *Images) runWithTracking(m *module.Module, errorList *errors.LintRuleErrorsList, moduleName string) {
+func (l *Images) runWithTracking(m *module.Module, moduleName string, errorList *errors.LintRuleErrorsList) {
 	// Register rules without exclusions in tracker
 	l.tracker.RegisterExclusionsForModule(ID, "werf-file", []string{}, moduleName)
 

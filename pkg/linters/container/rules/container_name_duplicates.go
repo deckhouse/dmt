@@ -22,6 +22,7 @@ import (
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters/utils"
 )
 
 const (
@@ -43,20 +44,8 @@ type NameDuplicatesRule struct {
 func (r *NameDuplicatesRule) ContainerNameDuplicates(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
-	if hasDuplicates(containers, func(c corev1.Container) string { return c.Name }) {
+	if utils.HasDuplicates(containers, func(c corev1.Container) string { return c.Name }) {
 		errorList.WithObjectID(object.Identity()).
 			Error("Duplicate container name")
 	}
-}
-
-func hasDuplicates[T any](items []T, keyFunc func(T) string) bool {
-	seen := make(map[string]struct{})
-	for _, item := range items {
-		key := keyFunc(item)
-		if _, ok := seen[key]; ok {
-			return true
-		}
-		seen[key] = struct{}{}
-	}
-	return false
 }

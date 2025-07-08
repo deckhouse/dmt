@@ -60,9 +60,11 @@ func (f files) Get(relPath string) string {
 	return string(res)
 }
 
-func (f files) doGlob(pattern string) (map[string]any, error) {
-	res := make(map[string]any)
+// getSearchPath determines the search path and pattern for werf file processing
+func (f files) getSearchPath(pattern string) (string, string) {
 	dir := f.rootDir
+	searchPattern := pattern
+
 	// Check if we are looking for werf.inc.yaml in the module directory
 	// If so, we need to change the directory to the module directory
 	// and remove the modules/* prefix from the pattern
@@ -71,12 +73,21 @@ func (f files) doGlob(pattern string) (map[string]any, error) {
 	// Specific for Deckhouse project
 	if strings.Contains(pattern, "werf.inc.yaml") {
 		dir = f.moduleDir
-		pattern = strings.TrimPrefix(pattern, "modules/*")
+		searchPattern = strings.TrimPrefix(pattern, "modules/*")
 	}
-	matches, err := doublestar.Glob(filepath.Join(dir, pattern))
+
+	return dir, searchPattern
+}
+
+func (f files) doGlob(pattern string) (map[string]any, error) {
+	res := make(map[string]any)
+	dir, searchPattern := f.getSearchPath(pattern)
+
+	matches, err := doublestar.Glob(filepath.Join(dir, searchPattern))
 	if err != nil {
 		return nil, err
 	}
+
 	for _, path := range matches {
 		if !fsutils.IsFile(path) {
 			continue
