@@ -52,7 +52,7 @@ func NewPDBRuleTracked(trackedRule *exclusions.TrackedKindRule) *PDBRuleTracked 
 		RuleMeta: pkg.RuleMeta{
 			Name: PDBRuleName,
 		},
-		KindRule: trackedRule.KindRule,
+		KindRule:    trackedRule.KindRule,
 		trackedRule: trackedRule,
 	}
 }

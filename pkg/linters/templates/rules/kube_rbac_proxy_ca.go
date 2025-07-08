@@ -47,7 +47,7 @@ func NewKubeRbacProxyRuleTracked(trackedRule *exclusions.TrackedStringRule) *Kub
 		RuleMeta: pkg.RuleMeta{
 			Name: KubeRbacProxyRuleName,
 		},
-		StringRule: trackedRule.StringRule,
+		StringRule:  trackedRule.StringRule,
 		trackedRule: trackedRule,
 	}
 }
@@ -79,12 +79,12 @@ func (r *KubeRbacProxyRuleTracked) NamespaceMustContainKubeRBACProxyCA(objectSto
 			// skip non-deckhouse namespaces
 			continue
 		}
-		
+
 		// Use tracked rule to check if namespace should be excluded and mark exclusions as used
 		if !r.trackedRule.Enabled(index.Name) {
 			continue
 		}
-		
+
 		errorList = errorList.WithFilePath(object.ShortPath())
 		if index.Kind == "Namespace" {
 			if !proxyInNamespaces.Has(index.Name) {

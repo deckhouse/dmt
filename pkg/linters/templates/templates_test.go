@@ -13,7 +13,7 @@ func TestTemplates_GrafanaDisableConfiguration(t *testing.T) {
 		LintersSettings: config.LintersSettings{
 			Templates: config.TemplatesSettings{
 				GrafanaDashboards: config.GrafanaDashboardsExcludeList{
-					               Disable: true, // disable the rule completely
+					Disable: true, // disable the rule completely
 				},
 			},
 		},

@@ -118,39 +118,15 @@ func (r *WildcardsRuleTracked) ObjectRolesWildcard(m *module.Module, errorList *
 }
 
 func (*WildcardsRule) checkRoles(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	converter := runtime.DefaultUnstructuredConverter
-
-	role := new(k8SRbac.Role)
-
-	if err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), role); err != nil {
-		errorList.Errorf("Cannot convert object to %s: %v", object.Unstructured.GetKind(), err)
-
-		return
-	}
-
-	for _, rule := range role.Rules {
-		var objs []string
-		if slices.Contains(rule.APIGroups, "*") {
-			objs = append(objs, "apiGroups")
-		}
-
-		if slices.Contains(rule.Resources, "*") {
-			objs = append(objs, "resources")
-		}
-
-		if slices.Contains(rule.Verbs, "*") {
-			objs = append(objs, "verbs")
-		}
-
-		if len(objs) > 0 {
-			errorList.Errorf("%s contains a wildcards. Replace them with an explicit list of resources", strings.Join(objs, ", "))
-
-			return
-		}
-	}
+	checkRoles(object, errorList)
 }
 
 func (*WildcardsRuleTracked) checkRoles(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+	checkRoles(object, errorList)
+}
+
+// checkRoles contains the common logic for checking roles
+func checkRoles(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	converter := runtime.DefaultUnstructuredConverter
 
 	role := new(k8SRbac.Role)

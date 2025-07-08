@@ -68,73 +68,16 @@ func (r *BindingSubjectRuleTracked) Enabled(value string) bool {
 }
 
 func (r *BindingSubjectRuleTracked) ObjectBindingSubjectServiceAccountCheck(m *module.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
-	converter := runtime.DefaultUnstructuredConverter
-
-	for _, object := range m.GetStorage() {
-		errorListObj := errorList.WithObjectID(object.Identity()).WithFilePath(object.ShortPath())
-
-		var subjects []v1.Subject
-
-		// deckhouse module should contain only global cluster roles
-		objectKind := object.Unstructured.GetKind()
-		switch objectKind {
-		case "ClusterRoleBinding":
-			clusterRoleBinding := new(v1.ClusterRoleBinding)
-			if err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), clusterRoleBinding); err != nil {
-				errorListObj.Errorf("Cannot convert object to %s: %v", object.Unstructured.GetKind(), err)
-				continue
-			}
-			subjects = clusterRoleBinding.Subjects
-
-		case "RoleBinding":
-			roleBinding := new(v1.RoleBinding)
-			if err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), roleBinding); err != nil {
-				errorListObj.Errorf("Cannot convert object to %s: %v", object.Unstructured.GetKind(), err)
-				continue
-			}
-			subjects = roleBinding.Subjects
-
-		default:
-			continue
-		}
-
-		for _, subject := range subjects {
-			if subject.Kind != "ServiceAccount" {
-				continue
-			}
-
-			if !r.Enabled(subject.Name) {
-				continue
-			}
-
-			// Prometheus service account has bindings across helm to scrape metrics.
-			if subject.Name == "prometheus" && subject.Namespace == "d8-monitoring" {
-				continue
-			}
-
-			// Grafana service account has binding in loki module.
-			if m.GetName() == "loki" && subject.Name == "grafana" && subject.Namespace == "d8-monitoring" {
-				continue
-			}
-
-			// Log-shipper service account has binding in loki module.
-			if m.GetPath() == "loki" && subject.Name == "log-shipper" && subject.Namespace == "d8-log-shipper" {
-				continue
-			}
-
-			if subject.Namespace == m.GetNamespace() && !m.GetObjectStore().Exists(storage.ResourceIndex{
-				Name: subject.Name, Kind: subject.Kind, Namespace: subject.Namespace,
-			}) {
-				errorListObj.Errorf("%s bind to the wrong ServiceAccount (doesn't exist in the store)", objectKind)
-				return
-			}
-		}
-	}
+	objectBindingSubjectServiceAccountCheck(m, errorList, r.Enabled, r.GetName())
 }
 
 func (r *BindingSubjectRule) ObjectBindingSubjectServiceAccountCheck(m *module.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+	objectBindingSubjectServiceAccountCheck(m, errorList, r.Enabled, r.GetName())
+}
+
+// objectBindingSubjectServiceAccountCheck contains the common logic for checking binding subjects
+func objectBindingSubjectServiceAccountCheck(m *module.Module, errorList *errors.LintRuleErrorsList, enabledFunc func(string) bool, ruleName string) {
+	errorList = errorList.WithRule(ruleName)
 	converter := runtime.DefaultUnstructuredConverter
 
 	for _, object := range m.GetStorage() {
@@ -170,7 +113,7 @@ func (r *BindingSubjectRule) ObjectBindingSubjectServiceAccountCheck(m *module.M
 				continue
 			}
 
-			if !r.Enabled(subject.Name) {
+			if !enabledFunc(subject.Name) {
 				continue
 			}
 

@@ -56,7 +56,7 @@ func NewDeckhouseCRDsRule(cfg *config.OpenAPISettings, rootPath string) *Deckhou
 	}
 }
 
-func NewDeckhouseCRDsRuleTracked(cfg *config.OpenAPISettings, rootPath string, trackedRule *exclusions.TrackedStringRule) *DeckhouseCRDsRule {
+func NewDeckhouseCRDsRuleTracked(_ *config.OpenAPISettings, rootPath string, trackedRule *exclusions.TrackedStringRule) *DeckhouseCRDsRule {
 	return &DeckhouseCRDsRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: "deckhouse-crds",

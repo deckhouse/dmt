@@ -123,7 +123,7 @@ func TestIntegrationWithBoolRules(t *testing.T) {
 
 	// When a bool rule is disabled, it should be marked as used and not appear in unused list
 	// So the unused list should be empty
-	assert.Len(t, unused, 0)
+	assert.Empty(t, unused)
 
 	// Test with enabled rule
 	tracker2 := NewExclusionTracker()
@@ -142,7 +142,7 @@ func TestIntegrationWithBoolRules(t *testing.T) {
 	unused2 := tracker2.GetUnusedExclusions()
 
 	// When a bool rule is enabled, there are no exclusions to track
-	assert.Len(t, unused2, 0)
+	assert.Empty(t, unused2)
 }
 
 func TestIntegrationWithStringRules(t *testing.T) {

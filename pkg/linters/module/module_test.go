@@ -5,11 +5,12 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/exclusions"
-	"github.com/stretchr/testify/require"
 )
 
 func TestModule_ConversionsExclusionConfiguration(t *testing.T) {
@@ -80,12 +81,12 @@ func TestModule_LicenseExclusionTracking(t *testing.T) {
 	moduleYaml := `name: test-module
 namespace: test
 version: 1.0.0`
-	err = os.WriteFile(filepath.Join(moduleDir, "module.yaml"), []byte(moduleYaml), 0644)
+	err = os.WriteFile(filepath.Join(moduleDir, "module.yaml"), []byte(moduleYaml), 0600)
 	require.NoError(t, err)
 
 	// Create a .go file (will be processed by license linter)
 	goFile := filepath.Join(moduleDir, "main.go")
-	err = os.WriteFile(goFile, []byte("package main\n\nfunc main() {}\n"), 0644)
+	err = os.WriteFile(goFile, []byte("package main\n\nfunc main() {}\n"), 0600)
 	require.NoError(t, err)
 
 	// Create a binary file (will NOT be processed by license linter)
@@ -93,7 +94,7 @@ version: 1.0.0`
 	err = os.MkdirAll(binaryDir, 0755)
 	require.NoError(t, err)
 	binaryFile := filepath.Join(binaryDir, "simple-bridge")
-	err = os.WriteFile(binaryFile, []byte("binary content"), 0755)
+	err = os.WriteFile(binaryFile, []byte("binary content"), 0600)
 	require.NoError(t, err)
 
 	// Create config with exclusions

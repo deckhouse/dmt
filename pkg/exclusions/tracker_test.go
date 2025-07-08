@@ -19,8 +19,9 @@ package exclusions
 import (
 	"testing"
 
-	"github.com/deckhouse/dmt/pkg"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/deckhouse/dmt/pkg"
 )
 
 func TestExclusionTracker(t *testing.T) {
@@ -95,11 +96,11 @@ func TestExclusionTrackerNoUnused(t *testing.T) {
 	unused := tracker.GetUnusedExclusions()
 
 	// Should have no unused exclusions
-	assert.Len(t, unused, 0)
+	assert.Empty(t, unused)
 
 	// Test formatting
 	formatted := tracker.FormatUnusedExclusions()
-	assert.Equal(t, "", formatted)
+	assert.Empty(t, formatted)
 }
 
 func TestExclusionTrackerUsageStats(t *testing.T) {
@@ -182,7 +183,7 @@ func TestExclusionTrackerWithUnprocessedFiles(t *testing.T) {
 
 func TestExclusionTrackerWithTemplatesLinter(t *testing.T) {
 	tracker := NewExclusionTracker()
-	
+
 	// Register VPA exclusions for templates linter
 	exclusions := []pkg.KindRuleExclude{
 		{
@@ -190,14 +191,14 @@ func TestExclusionTrackerWithTemplatesLinter(t *testing.T) {
 			Name: "standby-holder-name",
 		},
 		{
-			Kind: "Deployment", 
+			Kind: "Deployment",
 			Name: "non-existent-deployment",
 		},
 	}
-	
+
 	// Register exclusions in tracker
 	tracker.RegisterExclusionsForModule("templates", "vpa", []string{}, "test-module")
-	
+
 	// Create tracked rule with exclusions
 	trackedRule := NewTrackedKindRuleForModule(
 		exclusions,
@@ -206,21 +207,21 @@ func TestExclusionTrackerWithTemplatesLinter(t *testing.T) {
 		"vpa",
 		"test-module",
 	)
-	
+
 	// Simulate processing of objects
 	// Only the first deployment exists and is processed
 	trackedRule.Enabled("Deployment", "standby-holder-name") // This should mark the exclusion as used
-	
+
 	// The second deployment doesn't exist, so its exclusion should remain unused
-	
+
 	// Get unused exclusions
 	unused := tracker.GetUnusedExclusions()
-	
+
 	// The second exclusion should be marked as unused because it was never applied to a real object
 	if len(unused["templates"]["vpa"]) != 1 {
 		t.Errorf("Expected 1 unused exclusion, got %d", len(unused["templates"]["vpa"]))
 	}
-	
+
 	expectedUnused := "Deployment/non-existent-deployment"
 	if unused["templates"]["vpa"][0] != expectedUnused {
 		t.Errorf("Expected unused exclusion '%s', got '%s'", expectedUnused, unused["templates"]["vpa"][0])

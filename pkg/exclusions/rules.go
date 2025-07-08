@@ -18,7 +18,6 @@ package exclusions
 
 import (
 	"fmt"
-	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 
@@ -351,16 +350,4 @@ func (r *TrackedBoolRule) Enabled() bool {
 		return false
 	}
 	return true
-}
-
-// Helper function to convert string slice to exclusion strings
-func stringSliceToExclusions(items []string) []string {
-	result := make([]string, len(items))
-	copy(result, items)
-	return result
-}
-
-// Helper function to format complex exclusions
-func formatComplexExclusion(parts ...string) string {
-	return strings.Join(parts, "/")
 }

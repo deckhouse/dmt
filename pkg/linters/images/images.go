@@ -99,16 +99,16 @@ func (l *Images) runWithTracking(m *module.Module, errorList *errors.LintRuleErr
 	rules.NewDistrolessRuleTracked(trackedDistrolessRule).CheckImageNamesInDockerFiles(m.GetPath(), errorList)
 
 	rules.NewWerfRule().LintWerfFile(m.GetWerfFile(), errorList)
-	
-	       // --- Tracking for patches ---
-       // If the rule is disabled, register this as a used exclusion
-       if l.cfg.Patches.Disable {
-               l.tracker.RegisterExclusionsForModule(ID, "patches", []string{}, moduleName)
-       } else {
-               // If the rule is enabled, perform the check
-               rules.NewPatchesRule(false).CheckPatches(m.GetPath(), errorList)
-       }
-       // --- end ---
+
+	// --- Tracking for patches ---
+	// If the rule is disabled, register this as a used exclusion
+	if l.cfg.Patches.Disable {
+		l.tracker.RegisterExclusionsForModule(ID, "patches", []string{}, moduleName)
+	} else {
+		// If the rule is enabled, perform the check
+		rules.NewPatchesRule(false).CheckPatches(m.GetPath(), errorList)
+	}
+	// --- end ---
 }
 
 func (l *Images) Name() string {

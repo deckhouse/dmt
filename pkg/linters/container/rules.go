@@ -237,64 +237,58 @@ func (l *Container) applyContainerRulesWithTracking(object storage.StoreObject, 
 	containerRules := []func(storage.StoreObject, []corev1.Container, *errors.LintRuleErrorsList){
 		rules.NewNameDuplicatesRule().ContainerNameDuplicates,
 		func(obj storage.StoreObject, containers []corev1.Container, errList *errors.LintRuleErrorsList) {
-			// Create a rule with original exclusions for proper tracking
 			readOnlyRootFilesystemRuleWithExclusions := rules.NewCheckReadOnlyRootFilesystemRule(l.cfg.ExcludeRules.ReadOnlyRootFilesystem.Get())
-			for _, container := range containers {
-				if readOnlyRootFilesystemRule.Enabled(obj, &container) {
-					// Check only this specific container
-					readOnlyRootFilesystemRuleWithExclusions.ObjectReadOnlyRootFilesystem(obj, []corev1.Container{container}, errList)
+			for i := range containers {
+				container := &containers[i]
+				if readOnlyRootFilesystemRule.Enabled(obj, container) {
+					readOnlyRootFilesystemRuleWithExclusions.ObjectReadOnlyRootFilesystem(obj, []corev1.Container{*container}, errList)
 				}
 			}
 		},
 		func(obj storage.StoreObject, containers []corev1.Container, errList *errors.LintRuleErrorsList) {
-			// Create a rule with original exclusions for proper tracking
 			hostNetworkPortsRuleWithExclusions := rules.NewHostNetworkPortsRule(l.cfg.ExcludeRules.HostNetworkPorts.Get())
-			for _, container := range containers {
-				if hostNetworkPortsRule.Enabled(obj, &container) {
-					// Check only this specific container
-					hostNetworkPortsRuleWithExclusions.ObjectHostNetworkPorts(obj, []corev1.Container{container}, errList)
+			for i := range containers {
+				container := &containers[i]
+				if hostNetworkPortsRule.Enabled(obj, container) {
+					hostNetworkPortsRuleWithExclusions.ObjectHostNetworkPorts(obj, []corev1.Container{*container}, errList)
 				}
 			}
 		},
 		rules.NewEnvVariablesDuplicatesRule().ContainerEnvVariablesDuplicates,
 		func(obj storage.StoreObject, containers []corev1.Container, errList *errors.LintRuleErrorsList) {
-			// Create a rule with original exclusions for proper tracking
 			imageDigestRuleWithExclusions := rules.NewImageDigestRule(l.cfg.ExcludeRules.ImageDigest.Get())
-			for _, container := range containers {
-				if imageDigestRule.Enabled(obj, &container) {
-					// Check only this specific container
-					imageDigestRuleWithExclusions.ContainerImageDigestCheck(obj, []corev1.Container{container}, errList)
+			for i := range containers {
+				container := &containers[i]
+				if imageDigestRule.Enabled(obj, container) {
+					imageDigestRuleWithExclusions.ContainerImageDigestCheck(obj, []corev1.Container{*container}, errList)
 				}
 			}
 		},
 		rules.NewImagePullPolicyRule().ContainersImagePullPolicy,
 		func(obj storage.StoreObject, containers []corev1.Container, errList *errors.LintRuleErrorsList) {
-			// Create a rule with original exclusions for proper tracking
 			resourcesRuleWithExclusions := rules.NewResourcesRule(l.cfg.ExcludeRules.Resources.Get())
-			for _, container := range containers {
-				if resourcesRule.Enabled(obj, &container) {
-					// Check only this specific container
-					resourcesRuleWithExclusions.ContainerStorageEphemeral(obj, []corev1.Container{container}, errList)
+			for i := range containers {
+				container := &containers[i]
+				if resourcesRule.Enabled(obj, container) {
+					resourcesRuleWithExclusions.ContainerStorageEphemeral(obj, []corev1.Container{*container}, errList)
 				}
 			}
 		},
 		func(obj storage.StoreObject, containers []corev1.Container, errList *errors.LintRuleErrorsList) {
-			// Create a rule with original exclusions for proper tracking
 			securityContextRuleWithExclusions := rules.NewContainerSecurityContextRule(l.cfg.ExcludeRules.SecurityContext.Get())
-			for _, container := range containers {
-				if securityContextRule.Enabled(obj, &container) {
-					// Check only this specific container
-					securityContextRuleWithExclusions.ContainerSecurityContext(obj, []corev1.Container{container}, errList)
+			for i := range containers {
+				container := &containers[i]
+				if securityContextRule.Enabled(obj, container) {
+					securityContextRuleWithExclusions.ContainerSecurityContext(obj, []corev1.Container{*container}, errList)
 				}
 			}
 		},
 		func(obj storage.StoreObject, containers []corev1.Container, errList *errors.LintRuleErrorsList) {
-			// Create a rule with original exclusions for proper tracking
 			portsRuleWithExclusions := rules.NewPortsRule(l.cfg.ExcludeRules.Ports.Get())
-			for _, container := range containers {
-				if portsRule.Enabled(obj, &container) {
-					// Check only this specific container
-					portsRuleWithExclusions.ContainerPorts(obj, []corev1.Container{container}, errList)
+			for i := range containers {
+				container := &containers[i]
+				if portsRule.Enabled(obj, container) {
+					portsRuleWithExclusions.ContainerPorts(obj, []corev1.Container{*container}, errList)
 				}
 			}
 		},
@@ -318,22 +312,20 @@ func (l *Container) applyContainerRulesWithTracking(object storage.StoreObject, 
 	// Apply probe rules with tracking
 	notInitContainerRules := []func(storage.StoreObject, []corev1.Container, *errors.LintRuleErrorsList){
 		func(obj storage.StoreObject, containers []corev1.Container, errList *errors.LintRuleErrorsList) {
-			// Create a rule with original exclusions for proper tracking
 			livenessRuleWithExclusions := rules.NewLivenessRule(l.cfg.ExcludeRules.Liveness.Get())
-			for _, container := range containers {
-				if livenessRule.Enabled(obj, &container) {
-					// Check only this specific container
-					livenessRuleWithExclusions.CheckProbe(obj, []corev1.Container{container}, errList)
+			for i := range containers {
+				container := &containers[i]
+				if livenessRule.Enabled(obj, container) {
+					livenessRuleWithExclusions.CheckProbe(obj, []corev1.Container{*container}, errList)
 				}
 			}
 		},
 		func(obj storage.StoreObject, containers []corev1.Container, errList *errors.LintRuleErrorsList) {
-			// Create a rule with original exclusions for proper tracking
 			readinessRuleWithExclusions := rules.NewReadinessRule(l.cfg.ExcludeRules.Readiness.Get())
-			for _, container := range containers {
-				if readinessRule.Enabled(obj, &container) {
-					// Check only this specific container
-					readinessRuleWithExclusions.CheckProbe(obj, []corev1.Container{container}, errList)
+			for i := range containers {
+				container := &containers[i]
+				if readinessRule.Enabled(obj, container) {
+					readinessRuleWithExclusions.CheckProbe(obj, []corev1.Container{*container}, errList)
 				}
 			}
 		},

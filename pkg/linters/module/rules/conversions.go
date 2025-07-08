@@ -93,6 +93,7 @@ func (r *ConversionsRule) CheckConversions(modulePath string, errorList *errors.
 
 	if r.trackedRule == nil {
 		// fallback: always allowed
+		return
 	}
 
 	configFilePath := filepath.Join(modulePath, configValuesFile)

@@ -49,7 +49,7 @@ func NewVPARuleTracked(trackedRule *exclusions.TrackedKindRule) *VPARuleTracked 
 		RuleMeta: pkg.RuleMeta{
 			Name: VPARuleName,
 		},
-		KindRule: trackedRule.KindRule,
+		KindRule:    trackedRule.KindRule,
 		trackedRule: trackedRule,
 	}
 }
@@ -267,13 +267,13 @@ func ensureVPAContainersMatchControllerContainers(
 	index storage.ResourceIndex,
 	vpaContainerNamesMap map[storage.ResourceIndex]set.Set,
 	errorList *errors.LintRuleErrorsList,
-) bool {
+) {
 	vpaContainerNames, ok := vpaContainerNamesMap[index]
 	if !ok {
 		errorList.WithObjectID(object.Identity()).
 			Errorf("Getting vpa containers name list for the object failed: %v", index)
 
-		return false
+		return
 	}
 
 	containers, err := object.GetContainers()
@@ -281,7 +281,7 @@ func ensureVPAContainersMatchControllerContainers(
 		errorList.WithObjectID(object.Identity()).
 			Errorf("Getting containers list for the object failed: %s", err)
 
-		return false
+		return
 	}
 
 	containerNames := set.New()
@@ -302,8 +302,6 @@ func ensureVPAContainersMatchControllerContainers(
 				Errorf("VPA has resourcePolicy for container %s, but the controller does not have corresponding container resource entry", k)
 		}
 	}
-
-	return true
 }
 
 // returns true if linting passed, otherwise returns false

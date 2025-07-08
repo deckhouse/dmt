@@ -48,7 +48,7 @@ func NewServicePortRuleTracked(trackedRule *exclusions.TrackedServicePortRule) *
 			Name: ServicePortRuleName,
 		},
 		ServicePortRule: trackedRule.ServicePortRule,
-		trackedRule: trackedRule,
+		trackedRule:     trackedRule,
 	}
 }
 

@@ -13,7 +13,7 @@ func TestImages_PatchesDisableConfiguration(t *testing.T) {
 		LintersSettings: config.LintersSettings{
 			Images: config.ImageSettings{
 				Patches: config.PatchesRuleSettings{
-					               Disable: true, // disable the rule completely
+					Disable: true, // disable the rule completely
 				},
 			},
 		},
