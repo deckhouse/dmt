@@ -29,6 +29,11 @@ import (
 const (
 	HelmignoreRuleName = "helmignore"
 	helmignoreFile     = ".helmignore"
+
+	// Helm template directory that should not be excluded
+	helmTemplatesDir = "templates/"
+	// Helm chart metadata file that should not be excluded
+	helmChartYaml = "Chart.yaml"
 )
 
 func NewHelmignoreRule(disable bool) *HelmignoreRule {
@@ -124,13 +129,13 @@ func validatePatterns(patterns []string, errorList *errors.LintRuleErrorsList) {
 		}
 
 		// Check for patterns that might exclude Helm templates
-		if strings.Contains(pattern, "templates/") && !strings.HasPrefix(pattern, "!") {
+		if strings.Contains(pattern, helmTemplatesDir) && !strings.HasPrefix(pattern, "!") {
 			errorList.WithFilePath(helmignoreFile).
 				Errorf("Pattern might exclude Helm templates: %q", pattern)
 		}
 
 		// Check for patterns that might exclude Chart.yaml
-		if strings.Contains(pattern, "Chart.yaml") && !strings.HasPrefix(pattern, "!") {
+		if strings.Contains(pattern, helmChartYaml) && !strings.HasPrefix(pattern, "!") {
 			errorList.WithFilePath(helmignoreFile).
 				Errorf("Pattern might exclude Chart.yaml: %q", pattern)
 		}
