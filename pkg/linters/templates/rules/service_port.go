@@ -42,18 +42,65 @@ func NewServicePortRule(excludeRules []pkg.ServicePortExclude) *ServicePortRule 
 	}
 }
 
-func NewServicePortRuleTracked(trackedRule *exclusions.TrackedServicePortRule) *ServicePortRule {
-	return &ServicePortRule{
+func NewServicePortRuleTracked(trackedRule *exclusions.TrackedServicePortRule) *ServicePortRuleTracked {
+	return &ServicePortRuleTracked{
 		RuleMeta: pkg.RuleMeta{
 			Name: ServicePortRuleName,
 		},
 		ServicePortRule: trackedRule.ServicePortRule,
+		trackedRule: trackedRule,
 	}
 }
 
 type ServicePortRule struct {
 	pkg.RuleMeta
 	pkg.ServicePortRule
+}
+
+type ServicePortRuleTracked struct {
+	pkg.RuleMeta
+	pkg.ServicePortRule
+	trackedRule *exclusions.TrackedServicePortRule
+}
+
+func (r *ServicePortRuleTracked) ObjectServiceTargetPort(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.ShortPath())
+
+	switch object.Unstructured.GetKind() {
+	case "Service":
+	default:
+		return
+	}
+
+	converter := runtime.DefaultUnstructuredConverter
+
+	service := new(corev1.Service)
+	if err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), service); err != nil {
+		errorList.WithObjectID(object.Unstructured.GetName()).
+			Errorf("Cannot convert object to %s: %v", object.Unstructured.GetKind(), err)
+
+		return
+	}
+
+	for _, port := range service.Spec.Ports {
+		// Use tracked rule to check if service/port should be excluded and mark exclusions as used
+		if !r.trackedRule.Enabled(service.GetName(), port.Name) {
+			// TODO: add metrics
+			return
+		}
+
+		if port.TargetPort.Type == intstr.Int {
+			if port.TargetPort.IntVal == 0 {
+				errorList.WithObjectID(object.Identity() + " ; port = " + port.Name).
+					Error("Service port must use an explicit named (non-numeric) target port")
+
+				continue
+			}
+
+			errorList.WithObjectID(object.Identity() + " ; port = " + port.Name).WithValue(port.TargetPort.IntVal).
+				Error("Service port must use a named (non-numeric) target port")
+		}
+	}
 }
 
 func (r *ServicePortRule) ObjectServiceTargetPort(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {

@@ -19,6 +19,7 @@ package exclusions
 import (
 	"testing"
 
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -176,5 +177,52 @@ func TestExclusionTrackerWithUnprocessedFiles(t *testing.T) {
 
 	if unused["module"]["license"][0] != "images/simple-bridge/src/rootfs/bin/simple-bridge" {
 		t.Errorf("Expected unused exclusion to be 'images/simple-bridge/src/rootfs/bin/simple-bridge', got '%s'", unused["module"]["license"][0])
+	}
+}
+
+func TestExclusionTrackerWithTemplatesLinter(t *testing.T) {
+	tracker := NewExclusionTracker()
+	
+	// Register VPA exclusions for templates linter
+	exclusions := []pkg.KindRuleExclude{
+		{
+			Kind: "Deployment",
+			Name: "standby-holder-name",
+		},
+		{
+			Kind: "Deployment", 
+			Name: "non-existent-deployment",
+		},
+	}
+	
+	// Register exclusions in tracker
+	tracker.RegisterExclusionsForModule("templates", "vpa", []string{}, "test-module")
+	
+	// Create tracked rule with exclusions
+	trackedRule := NewTrackedKindRuleForModule(
+		exclusions,
+		tracker,
+		"templates",
+		"vpa",
+		"test-module",
+	)
+	
+	// Simulate processing of objects
+	// Only the first deployment exists and is processed
+	trackedRule.Enabled("Deployment", "standby-holder-name") // This should mark the exclusion as used
+	
+	// The second deployment doesn't exist, so its exclusion should remain unused
+	
+	// Get unused exclusions
+	unused := tracker.GetUnusedExclusions()
+	
+	// The second exclusion should be marked as unused because it was never applied to a real object
+	if len(unused["templates"]["vpa"]) != 1 {
+		t.Errorf("Expected 1 unused exclusion, got %d", len(unused["templates"]["vpa"]))
+	}
+	
+	expectedUnused := "kind = Deployment ; name = non-existent-deployment"
+	if unused["templates"]["vpa"][0] != expectedUnused {
+		t.Errorf("Expected unused exclusion '%s', got '%s'", expectedUnused, unused["templates"]["vpa"][0])
 	}
 }

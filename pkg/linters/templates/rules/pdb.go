@@ -47,18 +47,54 @@ func NewPDBRule(excludeRules []pkg.KindRuleExclude) *PDBRule {
 	}
 }
 
-func NewPDBRuleTracked(trackedRule *exclusions.TrackedKindRule) *PDBRule {
-	return &PDBRule{
+func NewPDBRuleTracked(trackedRule *exclusions.TrackedKindRule) *PDBRuleTracked {
+	return &PDBRuleTracked{
 		RuleMeta: pkg.RuleMeta{
 			Name: PDBRuleName,
 		},
 		KindRule: trackedRule.KindRule,
+		trackedRule: trackedRule,
 	}
 }
 
 type PDBRule struct {
 	pkg.RuleMeta
 	pkg.KindRule
+}
+
+type PDBRuleTracked struct {
+	pkg.RuleMeta
+	pkg.KindRule
+	trackedRule *exclusions.TrackedKindRule
+}
+
+// controllerMustHavePDB adds linting errors if there are pods from controllers which are not covered (except DaemonSets)
+// by a PodDisruptionBudget
+func (r *PDBRuleTracked) ControllerMustHavePDB(md *module.Module, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(r.GetName())
+
+	pdbSelectors := collectPDBSelectors(md, errorList)
+
+	for _, object := range md.GetStorage() {
+		if !isPodController(object.Unstructured.GetKind()) {
+			continue
+		}
+
+		// Use tracked rule to check if object should be excluded and mark exclusions as used
+		if !r.trackedRule.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {
+			// TODO: add metrics
+			continue
+		}
+
+		if len(pdbSelectors) == 0 {
+			errorList.WithObjectID(object.Identity()).
+				WithFilePath(object.ShortPath()).
+				Error("No PodDisruptionBudget found for controller")
+			return
+		}
+
+		ensurePDBIsPresent(pdbSelectors, object, errorList)
+	}
 }
 
 type nsLabelSelector struct {
