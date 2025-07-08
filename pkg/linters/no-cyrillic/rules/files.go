@@ -24,6 +24,7 @@ import (
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/exclusions"
 )
 
 const (
@@ -46,6 +47,18 @@ func NewFilesRule(excludeFileRules []pkg.StringRuleExclude,
 			ExcludeStringRules: excludeFileRules,
 			ExcludePrefixRules: excludeDirectoryRules,
 		},
+		skipDocRe:  regexp.MustCompile(skipDocRe),
+		skipI18NRe: regexp.MustCompile(skipSelfRe),
+		skipSelfRe: regexp.MustCompile(skipI18NRe),
+	}
+}
+
+func NewFilesRuleTracked(trackedRule *exclusions.TrackedPathRule) *FilesRule {
+	return &FilesRule{
+		RuleMeta: pkg.RuleMeta{
+			Name: FilesRuleName,
+		},
+		PathRule:   trackedRule.PathRule,
 		skipDocRe:  regexp.MustCompile(skipDocRe),
 		skipI18NRe: regexp.MustCompile(skipSelfRe),
 		skipSelfRe: regexp.MustCompile(skipI18NRe),

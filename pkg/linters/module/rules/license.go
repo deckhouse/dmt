@@ -26,6 +26,7 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/exclusions"
 )
 
 const (
@@ -42,6 +43,15 @@ func NewLicenseRule(excludeFilesRules []pkg.StringRuleExclude,
 			ExcludeStringRules: excludeFilesRules,
 			ExcludePrefixRules: excludeDirectoryRules,
 		},
+	}
+}
+
+func NewLicenseRuleTracked(trackedRule *exclusions.TrackedPathRule) *LicenseRule {
+	return &LicenseRule{
+		RuleMeta: pkg.RuleMeta{
+			Name: LicenseRuleName,
+		},
+		PathRule: trackedRule.PathRule,
 	}
 }
 

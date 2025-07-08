@@ -29,6 +29,7 @@ import (
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/exclusions"
 )
 
 const (
@@ -55,6 +56,15 @@ func NewDistrolessRule(cfg *config.ImageSettings) *DistrolessRule {
 		PrefixRule: pkg.PrefixRule{
 			ExcludeRules: cfg.ExcludeRules.SkipDistrolessFilePathPrefix.Get(),
 		},
+	}
+}
+
+func NewDistrolessRuleTracked(trackedRule *exclusions.TrackedPrefixRule) *DistrolessRule {
+	return &DistrolessRule{
+		RuleMeta: pkg.RuleMeta{
+			Name: distrolessRuleName,
+		},
+		PrefixRule: trackedRule.PrefixRule,
 	}
 }
 

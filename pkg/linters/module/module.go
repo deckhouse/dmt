@@ -20,6 +20,7 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/exclusions"
 	"github.com/deckhouse/dmt/pkg/linters/module/rules"
 )
 
@@ -28,6 +29,7 @@ type Module struct {
 	name, desc string
 	cfg        *config.ModuleSettings
 	ErrorList  *errors.LintRuleErrorsList
+	tracker    *exclusions.ExclusionTracker
 }
 
 const ID = "module"
@@ -41,6 +43,16 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Module
 	}
 }
 
+func NewWithTracker(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList, tracker *exclusions.ExclusionTracker) *Module {
+	return &Module{
+		name:      ID,
+		desc:      "Lint module rules (with exclusion tracking)",
+		cfg:       &cfg.LintersSettings.Module,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Module.Impact),
+		tracker:   tracker,
+	}
+}
+
 func (l *Module) Run(m *module.Module) {
 	if m == nil {
 		return
@@ -48,11 +60,34 @@ func (l *Module) Run(m *module.Module) {
 
 	errorList := l.ErrorList.WithModule(m.GetName())
 
+	if l.tracker != nil {
+		l.runWithTracking(m, errorList)
+	} else {
+		l.runWithoutTracking(m, errorList)
+	}
+}
+
+func (l *Module) runWithoutTracking(m *module.Module, errorList *errors.LintRuleErrorsList) {
 	rules.NewDefinitionFileRule(l.cfg.DefinitionFile.Disable).CheckDefinitionFile(m.GetPath(), errorList)
 	rules.NewOSSRule(l.cfg.OSS.Disable).OssModuleRule(m.GetPath(), errorList)
 	rules.NewConversionsRule(l.cfg.Conversions.Disable).CheckConversions(m.GetPath(), errorList)
 	rules.NewLicenseRule(l.cfg.ExcludeRules.License.Files.Get(), l.cfg.ExcludeRules.License.Directories.Get()).
 		CheckFiles(m, errorList)
+}
+
+func (l *Module) runWithTracking(m *module.Module, errorList *errors.LintRuleErrorsList) {
+	rules.NewDefinitionFileRule(l.cfg.DefinitionFile.Disable).CheckDefinitionFile(m.GetPath(), errorList)
+	rules.NewOSSRule(l.cfg.OSS.Disable).OssModuleRule(m.GetPath(), errorList)
+	rules.NewConversionsRule(l.cfg.Conversions.Disable).CheckConversions(m.GetPath(), errorList)
+
+	trackedLicenseRule := exclusions.NewTrackedPathRule(
+		l.cfg.ExcludeRules.License.Files.Get(),
+		l.cfg.ExcludeRules.License.Directories.Get(),
+		l.tracker,
+		ID,
+		"license",
+	)
+	rules.NewLicenseRuleTracked(trackedLicenseRule).CheckFiles(m, errorList)
 }
 
 func (l *Module) Name() string {

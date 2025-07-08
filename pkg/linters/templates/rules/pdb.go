@@ -29,6 +29,7 @@ import (
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/exclusions"
 )
 
 const (
@@ -43,6 +44,15 @@ func NewPDBRule(excludeRules []pkg.KindRuleExclude) *PDBRule {
 		KindRule: pkg.KindRule{
 			ExcludeRules: excludeRules,
 		},
+	}
+}
+
+func NewPDBRuleTracked(trackedRule *exclusions.TrackedKindRule) *PDBRule {
+	return &PDBRule{
+		RuleMeta: pkg.RuleMeta{
+			Name: PDBRuleName,
+		},
+		KindRule: trackedRule.KindRule,
 	}
 }
 

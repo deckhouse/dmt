@@ -24,6 +24,7 @@ import (
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/exclusions"
 )
 
 const (
@@ -38,6 +39,15 @@ func NewServicePortRule(excludeRules []pkg.ServicePortExclude) *ServicePortRule 
 		ServicePortRule: pkg.ServicePortRule{
 			ExcludeRules: excludeRules,
 		},
+	}
+}
+
+func NewServicePortRuleTracked(trackedRule *exclusions.TrackedServicePortRule) *ServicePortRule {
+	return &ServicePortRule{
+		RuleMeta: pkg.RuleMeta{
+			Name: ServicePortRuleName,
+		},
+		ServicePortRule: trackedRule.ServicePortRule,
 	}
 }
 

@@ -25,6 +25,7 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/exclusions"
 	"github.com/deckhouse/dmt/pkg/linters/openapi/rules"
 )
 
@@ -33,6 +34,7 @@ type OpenAPI struct {
 	name, desc string
 	cfg        *config.OpenAPISettings
 	ErrorList  *errors.LintRuleErrorsList
+	tracker    *exclusions.ExclusionTracker
 }
 
 func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *OpenAPI {
@@ -44,9 +46,27 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *OpenAP
 	}
 }
 
+func NewWithTracker(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList, tracker *exclusions.ExclusionTracker) *OpenAPI {
+	return &OpenAPI{
+		name:      "openapi",
+		desc:      "Linter will check openapi values is correct (with exclusion tracking)",
+		cfg:       &cfg.LintersSettings.OpenAPI,
+		ErrorList: errorList.WithLinterID("openapi").WithMaxLevel(cfg.LintersSettings.OpenAPI.Impact),
+		tracker:   tracker,
+	}
+}
+
 func (o *OpenAPI) Run(m *module.Module) {
 	errorLists := o.ErrorList.WithModule(m.GetName())
 
+	if o.tracker != nil {
+		o.runWithTracking(m, errorLists)
+	} else {
+		o.runWithoutTracking(m, errorLists)
+	}
+}
+
+func (o *OpenAPI) runWithoutTracking(m *module.Module, errorLists *errors.LintRuleErrorsList) {
 	// check openAPI files
 	openAPIFiles := fsutils.GetFiles(m.GetPath(), true, filterOpenAPIfiles)
 
@@ -67,6 +87,48 @@ func (o *OpenAPI) Run(m *module.Module) {
 		haValidator.Run(file, errorLists)
 		keyValidator.Run(file, errorLists)
 		crdValidator.Run(m.GetName(), file, errorLists)
+	}
+}
+
+func (o *OpenAPI) runWithTracking(m *module.Module, errorList *errors.LintRuleErrorsList) {
+	// CRDs
+	trackedCRDsRule := exclusions.NewTrackedStringRule(
+		o.cfg.OpenAPIExcludeRules.CRDNamesExcludes.Get(),
+		o.tracker,
+		"openapi",
+		"crd-names",
+	)
+	crdsRule := rules.NewDeckhouseCRDsRuleTracked(o.cfg, m.GetPath(), trackedCRDsRule)
+
+	// HA
+	trackedHARule := exclusions.NewTrackedStringRule(
+		o.cfg.OpenAPIExcludeRules.HAAbsoluteKeysExcludes.Get(),
+		o.tracker,
+		"openapi",
+		"ha-absolute-keys",
+	)
+	haRule := rules.NewHARuleTracked(o.cfg, m.GetPath(), trackedHARule)
+
+	// Keys
+	keysRule := rules.NewKeysRule(o.cfg, m.GetPath())
+
+	// Enum
+	enumRule := rules.NewEnumRule(o.cfg, m.GetPath())
+
+	// Run rules
+	openAPIFiles := fsutils.GetFiles(m.GetPath(), true, filterOpenAPIfiles)
+	for _, file := range openAPIFiles {
+		enumRule.Run(file, errorList)
+		haRule.Run(file, errorList)
+	}
+
+	// check only CRDs files
+	crdFiles := fsutils.GetFiles(m.GetPath(), true, filterCRDsfiles)
+	for _, file := range crdFiles {
+		enumRule.Run(file, errorList)
+		haRule.Run(file, errorList)
+		keysRule.Run(file, errorList)
+		crdsRule.Run(m.GetName(), file, errorList)
 	}
 }
 

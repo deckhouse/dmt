@@ -26,6 +26,7 @@ import (
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/exclusions"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -42,6 +43,15 @@ func NewPlacementRule(excludeRules []pkg.KindRuleExclude) *PlacementRule {
 		KindRule: pkg.KindRule{
 			ExcludeRules: excludeRules,
 		},
+	}
+}
+
+func NewPlacementRuleTracked(trackedRule *exclusions.TrackedKindRule) *PlacementRule {
+	return &PlacementRule{
+		RuleMeta: pkg.RuleMeta{
+			Name: PlacementRuleName,
+		},
+		KindRule: trackedRule.KindRule,
 	}
 }
 

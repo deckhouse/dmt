@@ -24,6 +24,7 @@ import (
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/exclusions"
 )
 
 const (
@@ -38,6 +39,15 @@ func NewBindingSubjectRule(excludeRules []pkg.StringRuleExclude) *BindingSubject
 		StringRule: pkg.StringRule{
 			ExcludeRules: excludeRules,
 		},
+	}
+}
+
+func NewBindingSubjectRuleTracked(trackedRule *exclusions.TrackedStringRule) *BindingSubjectRule {
+	return &BindingSubjectRule{
+		RuleMeta: pkg.RuleMeta{
+			Name: BindingSubjectRuleName,
+		},
+		StringRule: trackedRule.StringRule,
 	}
 }
 

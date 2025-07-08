@@ -26,6 +26,7 @@ import (
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/exclusions"
 
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"sigs.k8s.io/yaml"
@@ -52,6 +53,16 @@ func NewDeckhouseCRDsRule(cfg *config.OpenAPISettings, rootPath string) *Deckhou
 			ExcludeRules: cfg.OpenAPIExcludeRules.CRDNamesExcludes.Get(),
 		},
 		rootPath: rootPath,
+	}
+}
+
+func NewDeckhouseCRDsRuleTracked(cfg *config.OpenAPISettings, rootPath string, trackedRule *exclusions.TrackedStringRule) *DeckhouseCRDsRule {
+	return &DeckhouseCRDsRule{
+		RuleMeta: pkg.RuleMeta{
+			Name: "deckhouse-crds",
+		},
+		StringRule: trackedRule.StringRule,
+		rootPath:   rootPath,
 	}
 }
 

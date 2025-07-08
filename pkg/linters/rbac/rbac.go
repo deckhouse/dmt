@@ -20,6 +20,7 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/exclusions"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules"
 )
 
@@ -32,6 +33,7 @@ type Rbac struct {
 	name, desc string
 	cfg        *config.RbacSettings
 	ErrorList  *errors.LintRuleErrorsList
+	tracker    *exclusions.ExclusionTracker
 }
 
 func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Rbac {
@@ -43,6 +45,16 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Rbac {
 	}
 }
 
+func NewWithTracker(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList, tracker *exclusions.ExclusionTracker) *Rbac {
+	return &Rbac{
+		name:      ID,
+		desc:      "Lint rbac objects (with exclusion tracking)",
+		cfg:       &cfg.LintersSettings.Rbac,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Rbac.Impact),
+		tracker:   tracker,
+	}
+}
+
 func (l *Rbac) Run(m *module.Module) {
 	if m == nil {
 		return
@@ -50,6 +62,14 @@ func (l *Rbac) Run(m *module.Module) {
 
 	errorList := l.ErrorList.WithModule(m.GetName())
 
+	if l.tracker != nil {
+		l.runWithTracking(m, errorList)
+	} else {
+		l.runWithoutTracking(m, errorList)
+	}
+}
+
+func (l *Rbac) runWithoutTracking(m *module.Module, errorList *errors.LintRuleErrorsList) {
 	rules.NewUzerAuthZRule().
 		ObjectUserAuthzClusterRolePath(m, errorList)
 	rules.NewBindingSubjectRule(l.cfg.ExcludeRules.BindingSubject.Get()).
@@ -57,6 +77,38 @@ func (l *Rbac) Run(m *module.Module) {
 	rules.NewPlacementRule(l.cfg.ExcludeRules.Placement.Get()).
 		ObjectRBACPlacement(m, errorList)
 	rules.NewWildcardsRule(l.cfg.ExcludeRules.Wildcards.Get()).
+		ObjectRolesWildcard(m, errorList)
+}
+
+func (l *Rbac) runWithTracking(m *module.Module, errorList *errors.LintRuleErrorsList) {
+	rules.NewUzerAuthZRule().
+		ObjectUserAuthzClusterRolePath(m, errorList)
+
+	trackedBindingSubject := exclusions.NewTrackedStringRule(
+		l.cfg.ExcludeRules.BindingSubject.Get(),
+		l.tracker,
+		ID,
+		"binding-subject",
+	)
+	rules.NewBindingSubjectRuleTracked(trackedBindingSubject).
+		ObjectBindingSubjectServiceAccountCheck(m, errorList)
+
+	trackedPlacement := exclusions.NewTrackedKindRule(
+		l.cfg.ExcludeRules.Placement.Get(),
+		l.tracker,
+		ID,
+		"placement",
+	)
+	rules.NewPlacementRuleTracked(trackedPlacement).
+		ObjectRBACPlacement(m, errorList)
+
+	trackedWildcards := exclusions.NewTrackedKindRule(
+		l.cfg.ExcludeRules.Wildcards.Get(),
+		l.tracker,
+		ID,
+		"wildcards",
+	)
+	rules.NewWildcardsRuleTracked(trackedWildcards).
 		ObjectRolesWildcard(m, errorList)
 }
 

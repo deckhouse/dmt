@@ -20,6 +20,7 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/exclusions"
 	"github.com/deckhouse/dmt/pkg/linters/images/rules"
 )
 
@@ -32,6 +33,7 @@ type Images struct {
 	name, desc string
 	cfg        *config.ImageSettings
 	ErrorList  *errors.LintRuleErrorsList
+	tracker    *exclusions.ExclusionTracker
 }
 
 func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Images {
@@ -43,6 +45,16 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Images
 	}
 }
 
+func NewWithTracker(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList, tracker *exclusions.ExclusionTracker) *Images {
+	return &Images{
+		name:      ID,
+		desc:      "Lint docker images (with exclusion tracking)",
+		cfg:       &cfg.LintersSettings.Images,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Images.Impact),
+		tracker:   tracker,
+	}
+}
+
 func (l *Images) Run(m *module.Module) {
 	if m == nil {
 		return
@@ -50,8 +62,37 @@ func (l *Images) Run(m *module.Module) {
 
 	errorList := l.ErrorList.WithModule(m.GetName())
 
+	if l.tracker != nil {
+		l.runWithTracking(m, errorList)
+	} else {
+		l.runWithoutTracking(m, errorList)
+	}
+}
+
+func (l *Images) runWithoutTracking(m *module.Module, errorList *errors.LintRuleErrorsList) {
 	rules.NewImageRule(l.cfg).CheckImageNamesInDockerFiles(m.GetPath(), errorList)
 	rules.NewDistrolessRule(l.cfg).CheckImageNamesInDockerFiles(m.GetPath(), errorList)
+	rules.NewWerfRule().LintWerfFile(m.GetWerfFile(), errorList)
+	rules.NewPatchesRule(l.cfg.Patches.Disable).CheckPatches(m.GetPath(), errorList)
+}
+
+func (l *Images) runWithTracking(m *module.Module, errorList *errors.LintRuleErrorsList) {
+	trackedImageRule := exclusions.NewTrackedPrefixRule(
+		l.cfg.ExcludeRules.SkipImageFilePathPrefix.Get(),
+		l.tracker,
+		ID,
+		"image-file-path-prefix",
+	)
+	rules.NewImageRuleTracked(trackedImageRule).CheckImageNamesInDockerFiles(m.GetPath(), errorList)
+
+	trackedDistrolessRule := exclusions.NewTrackedPrefixRule(
+		l.cfg.ExcludeRules.SkipDistrolessFilePathPrefix.Get(),
+		l.tracker,
+		ID,
+		"distroless-file-path-prefix",
+	)
+	rules.NewDistrolessRuleTracked(trackedDistrolessRule).CheckImageNamesInDockerFiles(m.GetPath(), errorList)
+
 	rules.NewWerfRule().LintWerfFile(m.GetWerfFile(), errorList)
 	rules.NewPatchesRule(l.cfg.Patches.Disable).CheckPatches(m.GetPath(), errorList)
 }

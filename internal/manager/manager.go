@@ -41,6 +41,7 @@ import (
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/exclusions"
 	"github.com/deckhouse/dmt/pkg/linters/container"
 	"github.com/deckhouse/dmt/pkg/linters/hooks"
 	"github.com/deckhouse/dmt/pkg/linters/images"
@@ -68,7 +69,8 @@ type Manager struct {
 	cfg     *config.RootConfig
 	Modules []*module.Module
 
-	errors *errors.LintRuleErrorsList
+	errors  *errors.LintRuleErrorsList
+	tracker *exclusions.ExclusionTracker
 }
 
 func NewManager(dir string, rootConfig *config.RootConfig) *Manager {
@@ -76,7 +78,8 @@ func NewManager(dir string, rootConfig *config.RootConfig) *Manager {
 	m := &Manager{
 		cfg: rootConfig,
 
-		errors: errors.NewLintRuleErrorsList().WithMaxLevel(&managerLevel),
+		errors:  errors.NewLintRuleErrorsList().WithMaxLevel(&managerLevel),
+		tracker: exclusions.NewExclusionTracker(),
 	}
 
 	paths, err := getModulePaths(dir)
@@ -151,7 +154,7 @@ func (m *Manager) Run() {
 
 			logger.InfoF("Run linters for `%s` module", module.GetName())
 
-			for _, linter := range getLintersForModule(module.GetModuleConfig(), m.errors) {
+			for _, linter := range getLintersForModule(module.GetModuleConfig(), m.errors, m.tracker) {
 				if flags.LinterName != "" && linter.Name() != flags.LinterName {
 					continue
 				}
@@ -166,16 +169,16 @@ func (m *Manager) Run() {
 	wg.Wait()
 }
 
-func getLintersForModule(cfg *config.ModuleConfig, errList *errors.LintRuleErrorsList) []Linter {
+func getLintersForModule(cfg *config.ModuleConfig, errList *errors.LintRuleErrorsList, tracker *exclusions.ExclusionTracker) []Linter {
 	return []Linter{
-		openapi.New(cfg, errList),
-		no_cyrillic.New(cfg, errList),
-		container.New(cfg, errList),
-		templates.New(cfg, errList),
-		images.New(cfg, errList),
-		rbac.New(cfg, errList),
-		hooks.New(cfg, errList),
-		moduleLinter.New(cfg, errList),
+		openapi.NewWithTracker(cfg, errList, tracker),
+		no_cyrillic.NewWithTracker(cfg, errList, tracker),
+		container.NewWithTracker(cfg, errList, tracker),
+		templates.NewWithTracker(cfg, errList, tracker),
+		images.NewWithTracker(cfg, errList, tracker),
+		rbac.NewWithTracker(cfg, errList, tracker),
+		hooks.NewWithTracker(cfg, errList, tracker),
+		moduleLinter.NewWithTracker(cfg, errList, tracker),
 	}
 }
 
@@ -251,6 +254,13 @@ func (m *Manager) PrintResult() {
 	}
 
 	fmt.Println(buf.String())
+
+	// Print unused exclusions as warnings
+	unusedExclusions := m.tracker.FormatUnusedExclusions()
+	if unusedExclusions != "" {
+		fmt.Println(color.New(color.FgHiYellow).SprintFunc()("⚠️  WARNING: "))
+		fmt.Println(color.New(color.FgHiYellow).SprintFunc()(unusedExclusions))
+	}
 }
 
 func (m *Manager) HasCriticalErrors() bool {

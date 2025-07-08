@@ -26,6 +26,7 @@ import (
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/exclusions"
 )
 
 type HARule struct {
@@ -45,6 +46,17 @@ func NewHARule(cfg *config.OpenAPISettings, rootPath string) *HARule {
 			ExcludeRules: cfg.OpenAPIExcludeRules.HAAbsoluteKeysExcludes.Get(),
 		},
 		rootPath: rootPath,
+	}
+}
+
+func NewHARuleTracked(cfg *config.OpenAPISettings, rootPath string, trackedRule *exclusions.TrackedStringRule) *HARule {
+	return &HARule{
+		cfg: cfg,
+		RuleMeta: pkg.RuleMeta{
+			Name: "high-availability",
+		},
+		StringRule: trackedRule.StringRule,
+		rootPath:   rootPath,
 	}
 }
 

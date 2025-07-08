@@ -26,6 +26,7 @@ import (
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/exclusions"
 )
 
 const (
@@ -40,6 +41,15 @@ func NewVPARule(excludeRules []pkg.KindRuleExclude) *VPARule {
 		KindRule: pkg.KindRule{
 			ExcludeRules: excludeRules,
 		},
+	}
+}
+
+func NewVPARuleTracked(trackedRule *exclusions.TrackedKindRule) *VPARule {
+	return &VPARule{
+		RuleMeta: pkg.RuleMeta{
+			Name: VPARuleName,
+		},
+		KindRule: trackedRule.KindRule,
 	}
 }
 

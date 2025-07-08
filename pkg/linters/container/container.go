@@ -20,6 +20,7 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/exclusions"
 )
 
 const (
@@ -31,14 +32,27 @@ type Container struct {
 	name, desc string
 	cfg        *config.ContainerSettings
 	ErrorList  *errors.LintRuleErrorsList
+	tracker    *exclusions.ExclusionTracker
 }
 
+// New creates a new container linter
 func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Container {
 	return &Container{
 		name:      ID,
 		desc:      "Lint container objects",
 		cfg:       &cfg.LintersSettings.Container,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Container.Impact),
+	}
+}
+
+// NewWithTracker creates a new container linter with exclusion tracking
+func NewWithTracker(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList, tracker *exclusions.ExclusionTracker) *Container {
+	return &Container{
+		name:      ID,
+		desc:      "Lint container objects with exclusion tracking",
+		cfg:       &cfg.LintersSettings.Container,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Container.Impact),
+		tracker:   tracker,
 	}
 }
 
@@ -49,7 +63,11 @@ func (l *Container) Run(m *module.Module) {
 
 	errorList := l.ErrorList.WithModule(m.GetName())
 	for _, object := range m.GetStorage() {
-		l.applyContainerRules(object, errorList)
+		if l.tracker != nil {
+			l.applyContainerRulesWithTracking(object, errorList)
+		} else {
+			l.applyContainerRules(object, errorList)
+		}
 	}
 }
 

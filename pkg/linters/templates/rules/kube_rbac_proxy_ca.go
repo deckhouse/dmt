@@ -24,6 +24,7 @@ import (
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/exclusions"
 )
 
 const (
@@ -38,6 +39,15 @@ func NewKubeRbacProxyRule(excludeRules []pkg.StringRuleExclude) *KubeRbacProxyRu
 		StringRule: pkg.StringRule{
 			ExcludeRules: excludeRules,
 		},
+	}
+}
+
+func NewKubeRbacProxyRuleTracked(trackedRule *exclusions.TrackedStringRule) *KubeRbacProxyRule {
+	return &KubeRbacProxyRule{
+		RuleMeta: pkg.RuleMeta{
+			Name: KubeRbacProxyRuleName,
+		},
+		StringRule: trackedRule.StringRule,
 	}
 }
 

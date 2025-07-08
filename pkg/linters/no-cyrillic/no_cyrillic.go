@@ -21,6 +21,7 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/exclusions"
 	"github.com/deckhouse/dmt/pkg/linters/no-cyrillic/rules"
 )
 
@@ -37,6 +38,7 @@ type NoCyrillic struct {
 	name, desc string
 	cfg        *config.NoCyrillicSettings
 	ErrorList  *errors.LintRuleErrorsList
+	tracker    *exclusions.ExclusionTracker
 }
 
 func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *NoCyrillic {
@@ -48,6 +50,17 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *NoCyri
 	}
 }
 
+// NewWithTracker creates a new no-cyrillic linter with exclusion tracking
+func NewWithTracker(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList, tracker *exclusions.ExclusionTracker) *NoCyrillic {
+	return &NoCyrillic{
+		name:      ID,
+		desc:      "NoCyrillic will check all files in the modules for contains cyrillic symbols with exclusion tracking",
+		cfg:       &cfg.LintersSettings.NoCyrillic,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.NoCyrillic.Impact),
+		tracker:   tracker,
+	}
+}
+
 func (l *NoCyrillic) Run(m *module.Module) {
 	errorList := l.ErrorList.WithModule(m.GetName())
 
@@ -55,9 +68,33 @@ func (l *NoCyrillic) Run(m *module.Module) {
 		return
 	}
 
+	if l.tracker != nil {
+		l.runWithTracking(m, errorList)
+	} else {
+		l.runWithoutTracking(m, errorList)
+	}
+}
+
+func (l *NoCyrillic) runWithoutTracking(m *module.Module, errorList *errors.LintRuleErrorsList) {
 	filesRule := rules.NewFilesRule(
 		l.cfg.NoCyrillicExcludeRules.Files.Get(),
 		l.cfg.NoCyrillicExcludeRules.Directories.Get())
+
+	files := fsutils.GetFiles(m.GetPath(), false, fsutils.FilterFileByExtensions(fileExtensions...))
+	for _, fileName := range files {
+		filesRule.CheckFile(m, fileName, errorList)
+	}
+}
+
+func (l *NoCyrillic) runWithTracking(m *module.Module, errorList *errors.LintRuleErrorsList) {
+	trackedFilesRule := exclusions.NewTrackedPathRule(
+		l.cfg.NoCyrillicExcludeRules.Files.Get(),
+		l.cfg.NoCyrillicExcludeRules.Directories.Get(),
+		l.tracker,
+		ID,
+		"files",
+	)
+	filesRule := rules.NewFilesRuleTracked(trackedFilesRule)
 
 	files := fsutils.GetFiles(m.GetPath(), false, fsutils.FilterFileByExtensions(fileExtensions...))
 	for _, fileName := range files {

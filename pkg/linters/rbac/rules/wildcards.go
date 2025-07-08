@@ -27,6 +27,7 @@ import (
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/exclusions"
 )
 
 const (
@@ -41,6 +42,15 @@ func NewWildcardsRule(excludeRules []pkg.KindRuleExclude) *WildcardsRule {
 		KindRule: pkg.KindRule{
 			ExcludeRules: excludeRules,
 		},
+	}
+}
+
+func NewWildcardsRuleTracked(trackedRule *exclusions.TrackedKindRule) *WildcardsRule {
+	return &WildcardsRule{
+		RuleMeta: pkg.RuleMeta{
+			Name: WildcardsRuleName,
+		},
+		KindRule: trackedRule.KindRule,
 	}
 }
 
