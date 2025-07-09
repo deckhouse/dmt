@@ -509,7 +509,7 @@ func main() {
     fmt.Println("Wrong license in EE directory!")
 }
 `
-	if err := os.WriteFile(wrongLicenseFile, []byte(wrongLicenseContent), 0644); err != nil {
+	if err := os.WriteFile(wrongLicenseFile, []byte(wrongLicenseContent), 0600); err != nil {
 		t.Fatalf("Failed to create wrong license test file: %v", err)
 	}
 
