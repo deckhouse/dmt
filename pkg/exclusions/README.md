@@ -9,7 +9,8 @@ In the DMT project, a configuration is implemented that presents exclusions for 
 The new functionality allows:
 - Tracking the usage of each exclusion during linter operation
 - Determining which exclusions were not used
-- Outputting a list of unused exclusions in the final log as warnings
+- Associating exclusions with specific modules for better tracking
+- Outputting a list of unused exclusions in the final log as warnings with module information
 
 ## Architecture
 
@@ -18,7 +19,8 @@ The new functionality allows:
 The main component of the system is `ExclusionTracker`, which:
 - Registers all configured exclusions for each linter and rule
 - Tracks exclusion usage during execution
-- Provides methods for getting usage statistics
+- Associates exclusions with specific modules
+- Provides methods for getting usage statistics and unused exclusions
 
 ### Tracked Rules
 
@@ -30,6 +32,10 @@ Extended versions of rules have been created that inherit from base rules and ad
 - `TrackedServicePortRule` - for service port exclusions
 - `TrackedPathRule` - for path-based exclusions
 - `TrackedBoolRule` - for boolean exclusions
+
+Each tracked rule type has both regular and module-specific constructors:
+- `NewTracked*Rule()` - for general use
+- `NewTracked*RuleForModule()` - for module-specific tracking
 
 ## Usage
 
@@ -58,22 +64,58 @@ func NewManager(dir string, rootConfig *config.RootConfig) *Manager {
 
 ### In Linters
 
-Linters use the tracker to create tracked rules:
+Linters use the tracker to create tracked rules with module information:
 
 ```go
 func (l *ContainerTracked) applyContainerRulesTracked(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-    // Create tracked rule for DNS Policy
-    dnsPolicyRule := exclusions.NewTrackedKindRule(
+    moduleName := object.GetModuleName()
+    
+    // Create tracked rule for DNS Policy with module tracking
+    dnsPolicyRule := exclusions.NewTrackedKindRuleForModule(
         l.cfg.ExcludeRules.DNSPolicy.Get(),
         l.tracker,
         ID,
         "dns-policy",
+        moduleName,
     )
 
     // Apply rule with tracking
     if dnsPolicyRule.Enabled(obj.Unstructured.GetKind(), obj.Unstructured.GetName()) {
         // Perform check
     }
+}
+```
+
+### Registering Rules Without Exclusions
+
+For rules that don't have exclusions but should be tracked:
+
+```go
+// Register rules without exclusions in tracker
+if l.tracker != nil {
+    l.tracker.RegisterExclusionsForModule(ID, "recommended-labels", []string{}, moduleName)
+    l.tracker.RegisterExclusionsForModule(ID, "namespace-labels", []string{}, moduleName)
+}
+```
+
+### Handling Disabled Rules
+
+For rules that can be completely disabled:
+
+```go
+// If the rule is disabled, register this as a used exclusion
+if l.cfg.Conversions.Disable {
+    l.tracker.RegisterExclusionsForModule(ID, "conversions", []string{}, moduleName)
+} else {
+    // If the rule is enabled, use exclusions for specific files
+    trackedConversionsRule := exclusions.NewTrackedStringRuleForModule(
+        l.cfg.ExcludeRules.Conversions.Files.Get(),
+        l.tracker,
+        ID,
+        "conversions",
+        moduleName,
+    )
+    rules.NewConversionsRuleTracked(trackedConversionsRule).CheckConversions(m.GetPath(), errorList)
 }
 ```
 
@@ -102,13 +144,13 @@ func (m *Manager) PrintResult() {
 Unused exclusions found:
   container:
     dns-policy:
-      - StatefulSet/unused-statefulset
-      - Deployment/old-deployment
+      - StatefulSet/unused-statefulset (from modules: module1, module2)
+      - Deployment/old-deployment (from modules: module1)
     security-context:
-      - DaemonSet/legacy-daemonset
+      - DaemonSet/legacy-daemonset (from modules: module3)
   openapi:
     enum:
-      - old-schema.yaml
+      - old-schema.yaml (from modules: module4)
 ```
 
 ## API
@@ -119,8 +161,11 @@ Unused exclusions found:
 // Create new tracker
 tracker := exclusions.NewExclusionTracker()
 
-// Register exclusions
+// Register exclusions (general)
 tracker.RegisterExclusions(linterID, ruleID, exclusions)
+
+// Register exclusions for specific module
+tracker.RegisterExclusionsForModule(linterID, ruleID, exclusions, moduleName)
 
 // Mark exclusion as used
 tracker.MarkExclusionUsed(linterID, ruleID, exclusion)
@@ -138,10 +183,15 @@ formatted := tracker.FormatUnusedExclusions()
 ### Tracked Rules
 
 ```go
-// Create tracked rules
+// Create tracked rules (general)
 stringRule := exclusions.NewTrackedStringRule(excludeRules, tracker, linterID, ruleID)
 kindRule := exclusions.NewTrackedKindRule(excludeRules, tracker, linterID, ruleID)
 containerRule := exclusions.NewTrackedContainerRule(excludeRules, tracker, linterID, ruleID)
+
+// Create tracked rules for specific modules
+stringRule := exclusions.NewTrackedStringRuleForModule(excludeRules, tracker, linterID, ruleID, moduleName)
+kindRule := exclusions.NewTrackedKindRuleForModule(excludeRules, tracker, linterID, ruleID, moduleName)
+containerRule := exclusions.NewTrackedContainerRuleForModule(excludeRules, tracker, linterID, ruleID, moduleName)
 
 // Use rules
 if stringRule.Enabled("test-string") {
@@ -151,6 +201,93 @@ if stringRule.Enabled("test-string") {
 if kindRule.Enabled("Deployment", "test-deployment") {
     // Perform check
 }
+```
+
+## Available Tracked Rule Types
+
+### String Rules
+```go
+// For string-based exclusions
+trackedRule := exclusions.NewTrackedStringRuleForModule(
+    excludeRules,
+    tracker,
+    linterID,
+    ruleID,
+    moduleName,
+)
+```
+
+### Prefix Rules
+```go
+// For prefix-based exclusions
+trackedRule := exclusions.NewTrackedPrefixRuleForModule(
+    excludeRules,
+    tracker,
+    linterID,
+    ruleID,
+    moduleName,
+)
+```
+
+### Kind Rules
+```go
+// For object type and name exclusions
+trackedRule := exclusions.NewTrackedKindRuleForModule(
+    excludeRules,
+    tracker,
+    linterID,
+    ruleID,
+    moduleName,
+)
+```
+
+### Container Rules
+```go
+// For container-specific exclusions
+trackedRule := exclusions.NewTrackedContainerRuleForModule(
+    excludeRules,
+    tracker,
+    linterID,
+    ruleID,
+    moduleName,
+)
+```
+
+### Service Port Rules
+```go
+// For service port exclusions
+trackedRule := exclusions.NewTrackedServicePortRuleForModule(
+    excludeRules,
+    tracker,
+    linterID,
+    ruleID,
+    moduleName,
+)
+```
+
+### Path Rules
+```go
+// For path-based exclusions (combines string and prefix rules)
+trackedRule := exclusions.NewTrackedPathRuleForModule(
+    excludeStringRules,
+    excludePrefixRules,
+    tracker,
+    linterID,
+    ruleID,
+    moduleName,
+)
+```
+
+### Bool Rules
+```go
+// For boolean flags (disabled rules)
+trackedRule := exclusions.NewTrackedBoolRuleForModule(
+    disable,
+    tracker,
+    linterID,
+    ruleID,
+    moduleName,
+)
 ```
 
 ## Testing
@@ -164,15 +301,23 @@ go test ./pkg/exclusions -v
 Tests cover:
 - Basic exclusion tracking
 - Working with multiple rules
+- Module-specific tracking
 - Cases without unused exclusions
 - Usage statistics
+- Integration with different rule types
 
 ## Migrating Existing Linters
 
 To migrate existing linters to the new system:
 
 1. Add tracker to linter constructor
-2. Replace regular rules with tracked versions
+2. Replace regular rules with tracked versions using `ForModule` constructors
 3. Update rule application logic to use `Enabled()` methods
+4. Register rules without exclusions using `RegisterExclusionsForModule()`
+5. Handle disabled rules by registering them as used exclusions
 
-See example migration for container linter in file `pkg/linters/container/container_tracked.go`. 
+See example migrations in:
+- `pkg/linters/container/container.go`
+- `pkg/linters/module/module.go`
+- `pkg/linters/rbac/rbac.go`
+- `pkg/linters/templates/templates.go` 
