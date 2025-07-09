@@ -30,7 +30,6 @@ import (
 
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/exclusions"
 )
 
 const (
@@ -46,7 +45,7 @@ func NewConversionsRule(disable bool) *ConversionsRule {
 	}
 }
 
-func NewConversionsRuleTracked(trackedRule *exclusions.TrackedStringRule) *ConversionsRule {
+func NewConversionsRuleTracked(trackedRule *pkg.StringRule) *ConversionsRule {
 	return &ConversionsRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: ConversionsRuleName,
@@ -58,7 +57,7 @@ func NewConversionsRuleTracked(trackedRule *exclusions.TrackedStringRule) *Conve
 
 type ConversionsRule struct {
 	pkg.RuleMeta
-	trackedRule *exclusions.TrackedStringRule
+	trackedRule *pkg.StringRule
 	disabled    bool
 }
 

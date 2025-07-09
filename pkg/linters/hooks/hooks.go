@@ -18,6 +18,7 @@ package hooks
 
 import (
 	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/exclusions"
@@ -56,12 +57,10 @@ func (h *Hooks) Run(m *module.Module) {
 func (h *Hooks) run(m *module.Module, moduleName string, errorList *errors.LintRuleErrorsList) {
 	if h.tracker != nil {
 		// With tracking
-		trackedHookRule := exclusions.NewTrackedBoolRuleForModule(
-			h.cfg.Ingress.Disable,
-			h.tracker,
-			ID,
-			"ingress",
-			moduleName,
+		trackedHookRule := exclusions.NewTrackedRule(
+			pkg.NewBoolRuleWithTracker(h.cfg.Ingress.Disable, h.tracker, ID, "ingress"),
+			[]string{},
+			h.tracker, ID, "ingress", moduleName,
 		)
 		hookRule := rules.NewHookRuleTracked(trackedHookRule)
 

@@ -27,7 +27,6 @@ import (
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/exclusions"
 )
 
 const (
@@ -45,12 +44,12 @@ func NewWildcardsRule(excludeRules []pkg.KindRuleExclude) *WildcardsRule {
 	}
 }
 
-func NewWildcardsRuleTracked(trackedRule *exclusions.TrackedKindRule) *WildcardsRuleTracked {
+func NewWildcardsRuleTracked(trackedRule *pkg.KindRule) *WildcardsRuleTracked {
 	return &WildcardsRuleTracked{
 		RuleMeta: pkg.RuleMeta{
 			Name: WildcardsRuleName,
 		},
-		KindRule:    trackedRule.KindRule,
+		KindRule:    *trackedRule,
 		trackedRule: trackedRule,
 	}
 }
@@ -63,7 +62,7 @@ type WildcardsRule struct {
 type WildcardsRuleTracked struct {
 	pkg.RuleMeta
 	pkg.KindRule
-	trackedRule *exclusions.TrackedKindRule
+	trackedRule *pkg.KindRule
 }
 
 // objectRolesWildcard is a linter for checking the presence

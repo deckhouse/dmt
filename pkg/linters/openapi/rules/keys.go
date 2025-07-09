@@ -26,14 +26,13 @@ import (
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/exclusions"
 )
 
 type KeysRule struct {
 	cfg *config.OpenAPISettings
 	pkg.RuleMeta
 	rootPath    string
-	trackedRule *exclusions.TrackedStringRule
+	trackedRule *pkg.StringRule
 }
 
 func NewKeysRule(cfg *config.OpenAPISettings, rootPath string) *KeysRule {
@@ -46,7 +45,7 @@ func NewKeysRule(cfg *config.OpenAPISettings, rootPath string) *KeysRule {
 	}
 }
 
-func NewKeysRuleTracked(cfg *config.OpenAPISettings, rootPath string, trackedRule *exclusions.TrackedStringRule) *KeysRule {
+func NewKeysRuleTracked(cfg *config.OpenAPISettings, rootPath string, trackedRule *pkg.StringRule) *KeysRule {
 	return &KeysRule{
 		cfg: cfg,
 		RuleMeta: pkg.RuleMeta{
@@ -84,7 +83,7 @@ func newKeyValidator(cfg *config.OpenAPISettings) keyValidator {
 	}
 }
 
-func newKeyValidatorTracked(cfg *config.OpenAPISettings, trackedRule *exclusions.TrackedStringRule) keyValidator {
+func newKeyValidatorTracked(cfg *config.OpenAPISettings, trackedRule *pkg.StringRule) keyValidator {
 	bannedNames := cfg.OpenAPIExcludeRules.KeyBannedNames
 	if trackedRule != nil {
 		// Convert tracked exclusions to banned names

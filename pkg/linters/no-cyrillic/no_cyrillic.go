@@ -64,15 +64,14 @@ func (l *NoCyrillic) Run(m *module.Module) {
 func (l *NoCyrillic) run(m *module.Module, errorList *errors.LintRuleErrorsList, moduleName string) {
 	if l.tracker != nil {
 		// With tracking
-		trackedFilesRule := exclusions.NewTrackedPathRuleForModule(
-			l.cfg.NoCyrillicExcludeRules.Files.Get(),
-			l.cfg.NoCyrillicExcludeRules.Directories.Get(),
+		filesRule := exclusions.NewTrackedRule(
+			rules.NewFilesRule(l.cfg.NoCyrillicExcludeRules.Files.Get(), l.cfg.NoCyrillicExcludeRules.Directories.Get()),
+			exclusions.PathRuleKeys(l.cfg.NoCyrillicExcludeRules.Files.Get(), l.cfg.NoCyrillicExcludeRules.Directories.Get()),
 			l.tracker,
 			ID,
 			"files",
 			moduleName,
 		)
-		filesRule := rules.NewFilesRuleTracked(trackedFilesRule)
 
 		files := fsutils.GetFiles(m.GetPath(), false, fsutils.FilterFileByExtensions(fileExtensions...))
 		for _, fileName := range files {

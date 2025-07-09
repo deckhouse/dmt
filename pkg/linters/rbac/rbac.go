@@ -66,35 +66,32 @@ func (l *Rbac) run(m *module.Module, moduleName string, errorList *errors.LintRu
 
 	if l.tracker != nil {
 		// With tracking
-		trackedBindingSubject := exclusions.NewTrackedStringRuleForModule(
-			l.cfg.ExcludeRules.BindingSubject.Get(),
+		exclusions.NewTrackedRule(
+			rules.NewBindingSubjectRule(l.cfg.ExcludeRules.BindingSubject.Get()),
+			exclusions.StringRuleKeys(l.cfg.ExcludeRules.BindingSubject.Get()),
 			l.tracker,
 			ID,
 			"binding-subject",
 			moduleName,
-		)
-		rules.NewBindingSubjectRuleTracked(trackedBindingSubject).
-			ObjectBindingSubjectServiceAccountCheck(m, errorList)
+		).ObjectBindingSubjectServiceAccountCheck(m, errorList)
 
-		trackedPlacement := exclusions.NewTrackedKindRuleForModule(
-			l.cfg.ExcludeRules.Placement.Get(),
+		exclusions.NewTrackedRule(
+			rules.NewPlacementRule(l.cfg.ExcludeRules.Placement.Get()),
+			exclusions.KindRuleKeys(l.cfg.ExcludeRules.Placement.Get()),
 			l.tracker,
 			ID,
 			"placement",
 			moduleName,
-		)
-		rules.NewPlacementRuleTracked(trackedPlacement).
-			ObjectRBACPlacement(m, errorList)
+		).ObjectRBACPlacement(m, errorList)
 
-		trackedWildcards := exclusions.NewTrackedKindRuleForModule(
-			l.cfg.ExcludeRules.Wildcards.Get(),
+		exclusions.NewTrackedRule(
+			rules.NewWildcardsRule(l.cfg.ExcludeRules.Wildcards.Get()),
+			exclusions.KindRuleKeys(l.cfg.ExcludeRules.Wildcards.Get()),
 			l.tracker,
 			ID,
 			"wildcards",
 			moduleName,
-		)
-		rules.NewWildcardsRuleTracked(trackedWildcards).
-			ObjectRolesWildcard(m, errorList)
+		).ObjectRolesWildcard(m, errorList)
 	} else {
 		// Without tracking
 		rules.NewBindingSubjectRule(l.cfg.ExcludeRules.BindingSubject.Get()).

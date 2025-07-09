@@ -26,7 +26,6 @@ import (
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/exclusions"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -46,12 +45,12 @@ func NewPlacementRule(excludeRules []pkg.KindRuleExclude) *PlacementRule {
 	}
 }
 
-func NewPlacementRuleTracked(trackedRule *exclusions.TrackedKindRule) *PlacementRuleTracked {
+func NewPlacementRuleTracked(trackedRule *pkg.KindRule) *PlacementRuleTracked {
 	return &PlacementRuleTracked{
 		RuleMeta: pkg.RuleMeta{
 			Name: PlacementRuleName,
 		},
-		KindRule:    trackedRule.KindRule,
+		KindRule:    *trackedRule,
 		trackedRule: trackedRule,
 	}
 }
@@ -64,7 +63,7 @@ type PlacementRule struct {
 type PlacementRuleTracked struct {
 	pkg.RuleMeta
 	pkg.KindRule
-	trackedRule *exclusions.TrackedKindRule
+	trackedRule *pkg.KindRule
 }
 
 // Enabled overrides the base Enabled method to use the tracked rule for proper exclusion tracking

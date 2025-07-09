@@ -63,23 +63,23 @@ func (l *Images) run(m *module.Module, moduleName string, errorList *errors.Lint
 
 	if l.tracker != nil {
 		// With tracking
-		trackedImageRule := exclusions.NewTrackedPrefixRuleForModule(
-			l.cfg.ExcludeRules.SkipImageFilePathPrefix.Get(),
+		exclusions.NewTrackedRule(
+			rules.NewImageRule(l.cfg),
+			exclusions.PrefixRuleKeys(l.cfg.ExcludeRules.SkipImageFilePathPrefix.Get()),
 			l.tracker,
 			ID,
 			"image-file-path-prefix",
 			moduleName,
-		)
-		rules.NewImageRuleTracked(trackedImageRule).CheckImageNamesInDockerFiles(m.GetPath(), errorList)
+		).CheckImageNamesInDockerFiles(m.GetPath(), errorList)
 
-		trackedDistrolessRule := exclusions.NewTrackedPrefixRuleForModule(
-			l.cfg.ExcludeRules.SkipDistrolessFilePathPrefix.Get(),
+		exclusions.NewTrackedRule(
+			rules.NewDistrolessRule(l.cfg),
+			exclusions.PrefixRuleKeys(l.cfg.ExcludeRules.SkipDistrolessFilePathPrefix.Get()),
 			l.tracker,
 			ID,
 			"distroless-file-path-prefix",
 			moduleName,
-		)
-		rules.NewDistrolessRuleTracked(trackedDistrolessRule).CheckImageNamesInDockerFiles(m.GetPath(), errorList)
+		).CheckImageNamesInDockerFiles(m.GetPath(), errorList)
 
 		rules.NewWerfRule().LintWerfFile(m.GetWerfFile(), errorList)
 

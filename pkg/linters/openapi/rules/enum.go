@@ -28,14 +28,13 @@ import (
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/exclusions"
 )
 
 type EnumRule struct {
 	cfg      *config.OpenAPISettings
 	rootPath string
 	pkg.RuleMeta
-	trackedRule *exclusions.TrackedStringRule
+	trackedRule *pkg.StringRule
 }
 
 var (
@@ -52,7 +51,7 @@ func NewEnumRule(cfg *config.OpenAPISettings, rootPath string) *EnumRule {
 	}
 }
 
-func NewEnumRuleTracked(cfg *config.OpenAPISettings, rootPath string, trackedRule *exclusions.TrackedStringRule) *EnumRule {
+func NewEnumRuleTracked(cfg *config.OpenAPISettings, rootPath string, trackedRule *pkg.StringRule) *EnumRule {
 	return &EnumRule{
 		cfg: cfg,
 		RuleMeta: pkg.RuleMeta{
@@ -96,7 +95,7 @@ func newEnumValidator(cfg *config.OpenAPISettings) enumValidator {
 	}
 }
 
-func newEnumValidatorTracked(cfg *config.OpenAPISettings, trackedRule *exclusions.TrackedStringRule) enumValidator {
+func newEnumValidatorTracked(cfg *config.OpenAPISettings, trackedRule *pkg.StringRule) enumValidator {
 	excludes := make(map[string]struct{})
 
 	// Add original excludes

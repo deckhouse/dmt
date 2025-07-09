@@ -146,8 +146,9 @@ func TestImageRuleTracked_Enabled_Behavior(t *testing.T) {
 				excludeRules[i] = pkg.PrefixRuleExclude(rule)
 			}
 
-			trackedRule := exclusions.NewTrackedPrefixRuleForModule(
-				excludeRules,
+			trackedRule := exclusions.NewTrackedRule(
+				pkg.NewPrefixRule(excludeRules),
+				exclusions.PrefixRuleKeys(excludeRules),
 				tracker,
 				linterID,
 				ruleID,

@@ -20,7 +20,12 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+
+	"github.com/deckhouse/dmt/pkg"
 )
+
+// Ensure ExclusionTracker implements pkg.ExclusionTracker interface
+var _ pkg.ExclusionTracker = (*ExclusionTracker)(nil)
 
 // ExclusionTracker tracks which exclusions are used during linting
 type ExclusionTracker struct {

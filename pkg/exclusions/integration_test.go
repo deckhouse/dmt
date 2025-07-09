@@ -30,45 +30,68 @@ func TestIntegrationWithLinters(t *testing.T) {
 
 	// Simulate linter usage
 	// Container linter - DNS Policy rule
-	dnsPolicyRule := NewTrackedKindRule(
-		[]pkg.KindRuleExclude{
+	dnsPolicyRule := NewTrackedRule(
+		pkg.NewKindRuleWithTracker([]pkg.KindRuleExclude{
 			{Kind: "Deployment", Name: "test-deployment"},
 			{Kind: "DaemonSet", Name: "unused-daemonset"},
-		},
+		}, tracker, "container", "dns-policy"),
+		KindRuleKeys([]pkg.KindRuleExclude{
+			{Kind: "Deployment", Name: "test-deployment"},
+			{Kind: "DaemonSet", Name: "unused-daemonset"},
+		}),
 		tracker,
 		"container",
 		"dns-policy",
+		"",
 	)
 
 	// Mark one exclusion as used
 	dnsPolicyRule.Enabled("Deployment", "test-deployment")
 
 	// Container linter - Security Context rule (different rule, so different registration)
-	securityContextRule := NewTrackedKindRule(
-		[]pkg.KindRuleExclude{
+	securityContextRule := NewTrackedRule(
+		pkg.NewKindRuleWithTracker([]pkg.KindRuleExclude{
 			{Kind: "Deployment", Name: "secure-deployment"},
-		},
+		}, tracker, "container", "security-context"),
+		KindRuleKeys([]pkg.KindRuleExclude{
+			{Kind: "Deployment", Name: "secure-deployment"},
+		}),
 		tracker,
 		"container",
 		"security-context",
+		"",
 	)
 
 	// Mark this exclusion as used
 	securityContextRule.Enabled("Deployment", "secure-deployment")
 
 	// NoCyrillic linter - Files rule
-	filesRule := NewTrackedPathRule(
-		[]pkg.StringRuleExclude{
-			"docs/README_ru.md",
-			"docs/unused_file_ru.md",
-		},
-		[]pkg.PrefixRuleExclude{
-			"docs/ru/",
-			"legacy/docs/ru/",
-		},
+	filesRule := NewTrackedRule(
+		pkg.NewPathRuleWithTracker(
+			[]pkg.StringRuleExclude{
+				"docs/README_ru.md",
+				"docs/unused_file_ru.md",
+			},
+			[]pkg.PrefixRuleExclude{
+				"docs/ru/",
+				"legacy/docs/ru/",
+			},
+			tracker, "no-cyrillic", "files",
+		),
+		PathRuleKeys(
+			[]pkg.StringRuleExclude{
+				"docs/README_ru.md",
+				"docs/unused_file_ru.md",
+			},
+			[]pkg.PrefixRuleExclude{
+				"docs/ru/",
+				"legacy/docs/ru/",
+			},
+		),
 		tracker,
 		"no-cyrillic",
 		"files",
+		"",
 	)
 
 	// Mark some exclusions as used
@@ -107,11 +130,13 @@ func TestIntegrationWithBoolRules(t *testing.T) {
 	tracker := NewExclusionTracker()
 
 	// Test bool rule (like disabled rules)
-	boolRule := NewTrackedBoolRule(
-		true, // disabled
+	boolRule := NewTrackedRule(
+		pkg.NewBoolRuleWithTracker(true, tracker, "templates", "grafana-dashboards"), // disabled
+		[]string{},
 		tracker,
 		"templates",
 		"grafana-dashboards",
+		"",
 	)
 
 	// Check if rule is enabled (should be false since it's disabled)
@@ -127,11 +152,13 @@ func TestIntegrationWithBoolRules(t *testing.T) {
 
 	// Test with enabled rule
 	tracker2 := NewExclusionTracker()
-	boolRule2 := NewTrackedBoolRule(
-		false, // enabled
+	boolRule2 := NewTrackedRule(
+		pkg.NewBoolRuleWithTracker(false, tracker2, "templates", "grafana-dashboards"), // enabled
+		[]string{},
 		tracker2,
 		"templates",
 		"grafana-dashboards",
+		"",
 	)
 
 	// Check if rule is enabled (should be true since it's enabled)
@@ -149,14 +176,19 @@ func TestIntegrationWithStringRules(t *testing.T) {
 	tracker := NewExclusionTracker()
 
 	// Test string rule
-	stringRule := NewTrackedStringRule(
-		[]pkg.StringRuleExclude{
+	stringRule := NewTrackedRule(
+		pkg.NewStringRuleWithTracker([]pkg.StringRuleExclude{
 			"active-service-account",
 			"unused-service-account",
-		},
+		}, tracker, "rbac", "binding-subject"),
+		StringRuleKeys([]pkg.StringRuleExclude{
+			"active-service-account",
+			"unused-service-account",
+		}),
 		tracker,
 		"rbac",
 		"binding-subject",
+		"",
 	)
 
 	// Mark one exclusion as used

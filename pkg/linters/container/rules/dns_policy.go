@@ -37,9 +37,7 @@ func NewDNSPolicyRule(excludeRules []pkg.KindRuleExclude) *DNSPolicyRule {
 		RuleMeta: pkg.RuleMeta{
 			Name: DNSPolicyRuleName,
 		},
-		KindRule: pkg.KindRule{
-			ExcludeRules: excludeRules,
-		},
+		KindRule: *pkg.NewKindRuleWithTracker(excludeRules, nil, "", ""),
 	}
 }
 
@@ -57,33 +55,20 @@ func NewDNSPolicyRuleWithTracker(excludeRules []pkg.KindRuleExclude, tracker *ex
 		RuleMeta: pkg.RuleMeta{
 			Name: DNSPolicyRuleName,
 		},
-		KindRule: pkg.KindRule{
-			ExcludeRules: excludeRules,
-		},
-		tracker:  tracker,
-		linterID: linterID,
-		ruleID:   ruleID,
+		KindRule: *pkg.NewKindRuleWithTracker(excludeRules, tracker, linterID, ruleID),
 	}
 }
 
 type DNSPolicyRule struct {
 	pkg.RuleMeta
 	pkg.KindRule
-	tracker  *exclusions.ExclusionTracker
-	linterID string
-	ruleID   string
 }
 
 func (r *DNSPolicyRule) ObjectDNSPolicy(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.ShortPath())
 
-	// Check if object should be excluded and track usage if tracker is available
+	// Check if object should be excluded (tracking is handled automatically by KindRule)
 	if !r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {
-		// Mark exclusion as used if tracker is available
-		if r.tracker != nil {
-			exclusionKey := fmt.Sprintf("%s/%s", object.Unstructured.GetKind(), object.Unstructured.GetName())
-			r.tracker.MarkExclusionUsed(r.linterID, r.ruleID, exclusionKey)
-		}
 		// TODO: add metrics
 		return
 	}

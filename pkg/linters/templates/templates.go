@@ -67,23 +67,23 @@ func (l *Templates) run(m *module.Module, moduleName string, errorList *errors.L
 	// Apply VPA and PDB rules
 	if l.tracker != nil {
 		// With tracking
-		exclusions.NewTrackedKindRuleForModule(
-			l.cfg.ExcludeRules.VPAAbsent.Get(),
+		exclusions.NewTrackedRule(
+			rules.NewVPARule(l.cfg.ExcludeRules.VPAAbsent.Get()),
+			exclusions.KindRuleKeys(l.cfg.ExcludeRules.VPAAbsent.Get()),
 			l.tracker,
 			ID,
 			"vpa",
 			moduleName,
-		)
-		rules.NewVPARule(l.cfg.ExcludeRules.VPAAbsent.Get()).ControllerMustHaveVPA(m, errorList)
+		).ControllerMustHaveVPA(m, errorList)
 
-		exclusions.NewTrackedKindRuleForModule(
-			l.cfg.ExcludeRules.PDBAbsent.Get(),
+		exclusions.NewTrackedRule(
+			rules.NewPDBRule(l.cfg.ExcludeRules.PDBAbsent.Get()),
+			exclusions.KindRuleKeys(l.cfg.ExcludeRules.PDBAbsent.Get()),
 			l.tracker,
 			ID,
 			"pdb",
 			moduleName,
-		)
-		rules.NewPDBRule(l.cfg.ExcludeRules.PDBAbsent.Get()).ControllerMustHavePDB(m, errorList)
+		).ControllerMustHavePDB(m, errorList)
 	} else {
 		// Without tracking
 		rules.NewVPARule(l.cfg.ExcludeRules.VPAAbsent.Get()).ControllerMustHaveVPA(m, errorList)
@@ -96,15 +96,14 @@ func (l *Templates) run(m *module.Module, moduleName string, errorList *errors.L
 	if err := dirExists(m.GetPath(), "monitoring"); err == nil {
 		if l.tracker != nil {
 			// Grafana dashboards with tracking
-			exclusions.NewTrackedBoolRuleForModule(
-				l.cfg.GrafanaDashboards.Disable,
+			exclusions.NewTrackedRule(
+				rules.NewGrafanaRule(l.cfg),
+				[]string{},
 				l.tracker,
 				ID,
 				"grafana-dashboards",
 				moduleName,
-			)
-			grafanaRule := rules.NewGrafanaRule(l.cfg)
-			grafanaRule.ValidateGrafanaDashboards(m, errorList)
+			).ValidateGrafanaDashboards(m, errorList)
 		} else {
 			// Without tracking
 			grafanaRule := rules.NewGrafanaRule(l.cfg)
@@ -119,15 +118,14 @@ func (l *Templates) run(m *module.Module, moduleName string, errorList *errors.L
 	// Apply KubeRBACProxy rule
 	if l.tracker != nil {
 		// With tracking
-		trackedKubeRBACProxyRule := exclusions.NewTrackedStringRuleForModule(
-			l.cfg.ExcludeRules.KubeRBACProxy.Get(),
+		exclusions.NewTrackedRule(
+			rules.NewKubeRbacProxyRule(l.cfg.ExcludeRules.KubeRBACProxy.Get()),
+			exclusions.StringRuleKeys(l.cfg.ExcludeRules.KubeRBACProxy.Get()),
 			l.tracker,
 			ID,
 			"kube-rbac-proxy",
 			moduleName,
-		)
-		rules.NewKubeRbacProxyRuleTracked(trackedKubeRBACProxyRule).
-			NamespaceMustContainKubeRBACProxyCA(m.GetObjectStore(), errorList)
+		).NamespaceMustContainKubeRBACProxyCA(m.GetObjectStore(), errorList)
 	} else {
 		// Without tracking
 		rules.NewKubeRbacProxyRule(l.cfg.ExcludeRules.KubeRBACProxy.Get()).
@@ -137,14 +135,14 @@ func (l *Templates) run(m *module.Module, moduleName string, errorList *errors.L
 	// Apply service port and prometheus rules
 	if l.tracker != nil {
 		// With tracking
-		exclusions.NewTrackedServicePortRuleForModule(
-			l.cfg.ExcludeRules.ServicePort.Get(),
+		servicePortRule := exclusions.NewTrackedRule(
+			rules.NewServicePortRule(l.cfg.ExcludeRules.ServicePort.Get()),
+			exclusions.ServicePortRuleKeys(l.cfg.ExcludeRules.ServicePort.Get()),
 			l.tracker,
 			ID,
 			"service-port",
 			moduleName,
 		)
-		servicePortRule := rules.NewServicePortRule(l.cfg.ExcludeRules.ServicePort.Get())
 
 		for _, object := range m.GetStorage() {
 			servicePortRule.ObjectServiceTargetPort(object, errorList)

@@ -29,7 +29,6 @@ import (
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/exclusions"
 )
 
 type HookRule struct {
@@ -48,12 +47,12 @@ func NewHookRule(cfg *config.HooksSettings) *HookRule {
 	}
 }
 
-func NewHookRuleTracked(trackedRule *exclusions.TrackedBoolRule) *HookRule {
+func NewHookRuleTracked(trackedRule *pkg.BoolRule) *HookRule {
 	return &HookRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: "ingress",
 		},
-		BoolRule: trackedRule.BoolRule,
+		BoolRule: *trackedRule,
 	}
 }
 

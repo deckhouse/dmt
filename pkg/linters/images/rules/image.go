@@ -28,7 +28,6 @@ import (
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/exclusions"
 )
 
 const (
@@ -63,7 +62,7 @@ type ImageRule struct {
 
 type ImageRuleTracked struct {
 	pkg.RuleMeta
-	exclusions.TrackedPrefixRule
+	pkg.PrefixRule
 }
 
 func NewImageRule(cfg *config.ImageSettings) *ImageRule {
@@ -77,12 +76,12 @@ func NewImageRule(cfg *config.ImageSettings) *ImageRule {
 	}
 }
 
-func NewImageRuleTracked(trackedRule *exclusions.TrackedPrefixRule) *ImageRuleTracked {
+func NewImageRuleTracked(trackedRule *pkg.PrefixRule) *ImageRuleTracked {
 	return &ImageRuleTracked{
 		RuleMeta: pkg.RuleMeta{
 			Name: dockerfileRuleName,
 		},
-		TrackedPrefixRule: *trackedRule,
+		PrefixRule: *trackedRule,
 	}
 }
 

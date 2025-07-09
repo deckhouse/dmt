@@ -200,8 +200,9 @@ func TestExclusionTrackerWithTemplatesLinter(t *testing.T) {
 	tracker.RegisterExclusionsForModule("templates", "vpa", []string{}, "test-module")
 
 	// Create tracked rule with exclusions
-	trackedRule := NewTrackedKindRuleForModule(
-		exclusions,
+	trackedRule := NewTrackedRule(
+		pkg.NewKindRuleWithTracker(exclusions, tracker, "templates", "vpa"),
+		KindRuleKeys(exclusions),
 		tracker,
 		"templates",
 		"vpa",

@@ -71,26 +71,25 @@ func (l *Module) run(m *module.Module, moduleName string, errorList *errors.Lint
 			l.tracker.RegisterExclusionsForModule(ID, "conversions", []string{}, moduleName)
 		} else {
 			// If the rule is enabled, use exclusions for specific files
-			trackedConversionsRule := exclusions.NewTrackedStringRuleForModule(
-				l.cfg.ExcludeRules.Conversions.Files.Get(),
+			exclusions.NewTrackedRule(
+				rules.NewConversionsRule(l.cfg.Conversions.Disable),
+				exclusions.StringRuleKeys(l.cfg.ExcludeRules.Conversions.Files.Get()),
 				l.tracker,
 				ID,
 				"conversions",
 				moduleName,
-			)
-			rules.NewConversionsRuleTracked(trackedConversionsRule).CheckConversions(m.GetPath(), errorList)
+			).CheckConversions(m.GetPath(), errorList)
 		}
 		// --- end ---
 
-		trackedLicenseRule := exclusions.NewTrackedPathRuleForModule(
-			l.cfg.ExcludeRules.License.Files.Get(),
-			l.cfg.ExcludeRules.License.Directories.Get(),
+		exclusions.NewTrackedRule(
+			rules.NewLicenseRuleWithTracker(l.cfg.ExcludeRules.License.Files.Get(), l.cfg.ExcludeRules.License.Directories.Get(), l.tracker, ID, "license"),
+			exclusions.PathRuleKeys(l.cfg.ExcludeRules.License.Files.Get(), l.cfg.ExcludeRules.License.Directories.Get()),
 			l.tracker,
 			ID,
 			"license",
 			moduleName,
-		)
-		rules.NewLicenseRuleTracked(trackedLicenseRule).CheckFiles(m, errorList)
+		).CheckFiles(m, errorList)
 	} else {
 		// Without tracking
 		// For conversions we use disable flag

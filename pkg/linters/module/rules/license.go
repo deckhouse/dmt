@@ -46,12 +46,26 @@ func NewLicenseRule(excludeFilesRules []pkg.StringRuleExclude,
 	}
 }
 
-func NewLicenseRuleTracked(trackedRule *exclusions.TrackedPathRule) *LicenseRuleTracked {
+func NewLicenseRuleWithTracker(excludeFilesRules []pkg.StringRuleExclude,
+	excludeDirectoryRules []pkg.PrefixRuleExclude, tracker *exclusions.ExclusionTracker, linterID, ruleID string) *LicenseRuleTracked {
 	return &LicenseRuleTracked{
 		RuleMeta: pkg.RuleMeta{
 			Name: LicenseRuleName,
 		},
-		PathRule:    trackedRule.PathRule,
+		PathRule: pkg.PathRule{
+			ExcludeStringRules: excludeFilesRules,
+			ExcludePrefixRules: excludeDirectoryRules,
+		},
+		trackedRule: pkg.NewPathRuleWithTracker(excludeFilesRules, excludeDirectoryRules, tracker, linterID, ruleID),
+	}
+}
+
+func NewLicenseRuleTracked(trackedRule *pkg.PathRule) *LicenseRuleTracked {
+	return &LicenseRuleTracked{
+		RuleMeta: pkg.RuleMeta{
+			Name: LicenseRuleName,
+		},
+		PathRule:    *trackedRule,
 		trackedRule: trackedRule,
 	}
 }
@@ -64,7 +78,7 @@ type LicenseRule struct {
 type LicenseRuleTracked struct {
 	pkg.RuleMeta
 	pkg.PathRule
-	trackedRule *exclusions.TrackedPathRule
+	trackedRule *pkg.PathRule
 }
 
 func (r *LicenseRuleTracked) CheckFiles(mod *module.Module, errorList *errors.LintRuleErrorsList) {

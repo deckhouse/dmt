@@ -24,7 +24,6 @@ import (
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/exclusions"
 )
 
 const (
@@ -42,12 +41,12 @@ func NewBindingSubjectRule(excludeRules []pkg.StringRuleExclude) *BindingSubject
 	}
 }
 
-func NewBindingSubjectRuleTracked(trackedRule *exclusions.TrackedStringRule) *BindingSubjectRuleTracked {
+func NewBindingSubjectRuleTracked(trackedRule *pkg.StringRule) *BindingSubjectRuleTracked {
 	return &BindingSubjectRuleTracked{
 		RuleMeta: pkg.RuleMeta{
 			Name: BindingSubjectRuleName,
 		},
-		StringRule:  trackedRule.StringRule,
+		StringRule:  *trackedRule,
 		trackedRule: trackedRule,
 	}
 }
@@ -60,7 +59,7 @@ type BindingSubjectRule struct {
 type BindingSubjectRuleTracked struct {
 	pkg.RuleMeta
 	pkg.StringRule
-	trackedRule *exclusions.TrackedStringRule
+	trackedRule *pkg.StringRule
 }
 
 func (r *BindingSubjectRuleTracked) Enabled(value string) bool {
