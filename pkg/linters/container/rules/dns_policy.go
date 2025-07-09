@@ -46,11 +46,11 @@ func NewDNSPolicyRule(excludeRules []pkg.KindRuleExclude) *DNSPolicyRule {
 func NewDNSPolicyRuleWithTracker(excludeRules []pkg.KindRuleExclude, tracker *exclusions.ExclusionTracker, linterID, ruleID, moduleName string) *DNSPolicyRule {
 	// Register exclusions with tracker if provided
 	if tracker != nil {
-		exclusions := make([]string, len(excludeRules))
+		exclusionKeys := make([]string, len(excludeRules))
 		for i, rule := range excludeRules {
-			exclusions[i] = fmt.Sprintf("%s/%s", rule.Kind, rule.Name)
+			exclusionKeys[i] = fmt.Sprintf("%s/%s", rule.Kind, rule.Name)
 		}
-		tracker.RegisterExclusionsForModule(linterID, ruleID, exclusions, moduleName)
+		tracker.RegisterExclusionsForModule(linterID, ruleID, exclusionKeys, moduleName)
 	}
 
 	return &DNSPolicyRule{
