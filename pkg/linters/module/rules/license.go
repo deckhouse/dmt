@@ -19,10 +19,8 @@ package rules
 import (
 	errs "errors"
 	"io"
-	"os"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
-	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -74,14 +72,6 @@ func (r *LicenseRule) CheckFiles(mod *module.Module, errorList *errors.LintRuleE
 }
 
 func filterFiles(rootPath, path string) bool {
-	f, err := os.Stat(path)
-	if err != nil {
-		logger.DebugF("Error getting file info: %v", err)
-		return false
-	}
-	if f.IsDir() {
-		return false
-	}
 	path = fsutils.Rel(rootPath, path)
 	if fileToCheckRe.MatchString(path) && !fileToSkipRe.MatchString(path) {
 		return true
