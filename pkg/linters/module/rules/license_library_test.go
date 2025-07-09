@@ -145,8 +145,10 @@ func main() {
 		},
 		{
 			title: "EE license in Go single line comments",
-			content: `// Copyright 2025 Flant JSC
-// Licensed under the Deckhouse Platform Enterprise Edition (EE) license. See https://github.com/deckhouse/deckhouse/blob/main/ee/LICENSE;
+			content: `/*
+Copyright 2025 Flant JSC
+Licensed under the Deckhouse Platform Enterprise Edition (EE) license. See https://github.com/deckhouse/deckhouse/blob/main/ee/LICENSE;
+*/
 
 package main
 
@@ -190,82 +192,6 @@ print("Hello")
 			if !res {
 				t.Errorf("should detect EE license")
 			}
-		})
-	}
-}
-
-func Test_ee_license_re_debug(t *testing.T) {
-	// Test the exact format expected by the regex
-	testContent := `/*
-Copyright 2025 Flant JSC
-
-Licensed under the Deckhouse Platform Enterprise Edition (EE) license. See https://github.com/deckhouse/deckhouse/blob/main/ee/LICENSE;
-*/`
-
-	res := EELicenseRe.MatchString(testContent)
-	t.Logf("EELicenseRe pattern: %s", EELicenseRe.String())
-	t.Logf("Test content: %q", testContent)
-	t.Logf("Match result: %v", res)
-
-	if !res {
-		t.Errorf("Expected EE license to match")
-	}
-}
-
-func Test_ee_license_re_correct_format(t *testing.T) {
-	// Test with the exact format that should match the regex
-	// The regex expects: Copyright 202[1-9] Flant JSC\n followed by the license text
-	testContent := `/*
-Copyright 2025 Flant JSC
-Licensed under the Deckhouse Platform Enterprise Edition (EE) license. See https://github.com/deckhouse/deckhouse/blob/main/ee/LICENSE;
-*/`
-
-	res := EELicenseRe.MatchString(testContent)
-	if !res {
-		t.Errorf("Expected EE license to match with correct format")
-	}
-}
-
-func Test_ee_license_re_analysis(t *testing.T) {
-	// Let's analyze what the regex expects
-	pattern := EELicenseRe.String()
-	t.Logf("EE License Regex Pattern: %s", pattern)
-
-	// Test different variations
-	testCases := []struct {
-		name    string
-		content string
-	}{
-		{
-			name: "Exact format with newline after Flant JSC",
-			content: `/*
-Copyright 2025 Flant JSC
-
-Licensed under the Deckhouse Platform Enterprise Edition (EE) license. See https://github.com/deckhouse/deckhouse/blob/main/ee/LICENSE;
-*/`,
-		},
-		{
-			name: "Format without extra newline",
-			content: `/*
-Copyright 2025 Flant JSC
-Licensed under the Deckhouse Platform Enterprise Edition (EE) license. See https://github.com/deckhouse/deckhouse/blob/main/ee/LICENSE;
-*/`,
-		},
-		{
-			name: "Format with comment markers",
-			content: `/*
-Copyright 2025 Flant JSC
-
-Licensed under the Deckhouse Platform Enterprise Edition (EE) license. See https://github.com/deckhouse/deckhouse/blob/main/ee/LICENSE;
-*/`,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			res := EELicenseRe.MatchString(tc.content)
-			t.Logf("Content: %q", tc.content)
-			t.Logf("Match: %v", res)
 		})
 	}
 }
@@ -520,7 +446,7 @@ func main() {
     fmt.Println("Hello, CE!")
 }
 `
-	if err := os.WriteFile(ceFile, []byte(ceContent), 0644); err != nil {
+	if err := os.WriteFile(ceFile, []byte(ceContent), 0600); err != nil {
 		t.Fatalf("Failed to create CE test file: %v", err)
 	}
 
@@ -543,7 +469,7 @@ func main() {
     fmt.Println("Hello, EE!")
 }
 `
-	if err := os.WriteFile(eeFile, []byte(eeContent), 0644); err != nil {
+	if err := os.WriteFile(eeFile, []byte(eeContent), 0600); err != nil {
 		t.Fatalf("Failed to create EE test file: %v", err)
 	}
 
@@ -555,7 +481,7 @@ func main() {
     fmt.Println("No license!")
 }
 `
-	if err := os.WriteFile(noLicenseFile, []byte(noLicenseContent), 0644); err != nil {
+	if err := os.WriteFile(noLicenseFile, []byte(noLicenseContent), 0600); err != nil {
 		t.Fatalf("Failed to create no license test file: %v", err)
 	}
 

@@ -36,7 +36,7 @@ var CELicenseRe = regexp.MustCompile(`(?s)[/#{!-]*(\s)*Copyright 202[1-9] Flant 
 [/#{!-]*(\s)*See the License for the specific language governing permissions and[-!}\n]*
 [/#{!-]*(\s)*limitations under the License\.[-!}\n]*`)
 
-var EELicenseRe = regexp.MustCompile(`(?s)[/#{!-]*(\s)*Copyright 202[1-9] Flant JSC[\t ]*\n([\t ]*\n)*[#{!-/]*(\s)*Licensed under the Deckhouse Platform Enterprise Edition \(EE\) license\. See https://github\.com/deckhouse/deckhouse/blob/main/ee/LICENSE;[-!}\n]*`)
+var EELicenseRe = regexp.MustCompile(`(?s)[/#{!-]*(\s)*Copyright 202[1-9] Flant JSC[\t ]*\n([\t ]*\n)*[#{!-]*(\s)*Licensed under the Deckhouse Platform Enterprise Edition \(EE\) license\. See https://github\.com/deckhouse/deckhouse/blob/main/ee/LICENSE;[-!}\n]*`)
 
 var fileToCheckRe = regexp.MustCompile(
 	`\.go$|/[^.]+$|\.sh$|\.lua$|\.py$`,
@@ -68,7 +68,7 @@ func getLicenseType(filePath string) LicenseType {
 
 	// Check if any directory in the path starts with "ee"
 	for _, component := range pathComponents {
-		if strings.ToLower(component) == "ee" {
+		if strings.EqualFold(component, "ee") {
 			return LicenseTypeEE
 		}
 	}
