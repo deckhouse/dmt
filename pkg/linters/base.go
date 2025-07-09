@@ -32,16 +32,7 @@ type BaseLinter struct {
 }
 
 // NewBaseLinter creates a new base linter with common initialization
-func NewBaseLinter(id, desc string, _ *config.ModuleConfig, impact *pkg.Level, errorList *errors.LintRuleErrorsList) *BaseLinter {
-	return &BaseLinter{
-		name:      id,
-		desc:      desc,
-		ErrorList: errorList.WithLinterID(id).WithMaxLevel(impact),
-	}
-}
-
-// NewBaseLinterWithTracker creates a new base linter with tracking support
-func NewBaseLinterWithTracker(id, desc string, _ *config.ModuleConfig, tracker *exclusions.ExclusionTracker, impact *pkg.Level, errorList *errors.LintRuleErrorsList) *BaseLinter {
+func NewBaseLinter(id, desc string, _ *config.ModuleConfig, impact *pkg.Level, errorList *errors.LintRuleErrorsList, tracker *exclusions.ExclusionTracker) *BaseLinter {
 	return &BaseLinter{
 		name:      id,
 		desc:      desc,

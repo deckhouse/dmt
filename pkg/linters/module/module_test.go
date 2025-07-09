@@ -46,7 +46,7 @@ func TestModule_ConversionsExclusionConfiguration(t *testing.T) {
 
 	errList := errors.NewLintRuleErrorsList()
 	tracker := exclusions.NewExclusionTracker()
-	linter := NewWithTracker(cfg, tracker, errList)
+	linter := New(cfg, errList, tracker)
 
 	// Test that the linter was created with the correct configuration
 	if linter.cfg.ExcludeRules.Conversions.Files[0] != "openapi/conversions/v2.yaml" {
@@ -73,7 +73,7 @@ func TestModule_ConversionsDisableConfiguration(t *testing.T) {
 
 	errList := errors.NewLintRuleErrorsList()
 	tracker := exclusions.NewExclusionTracker()
-	linter := NewWithTracker(cfg, tracker, errList)
+	linter := New(cfg, errList, tracker)
 
 	// Test that the linter was created with the correct configuration
 	if !linter.cfg.Conversions.Disable {
@@ -157,7 +157,7 @@ properties: {}`
 	tracker := exclusions.NewExclusionTracker()
 
 	// Create module linter with tracking
-	linter := NewWithTracker(cfg, tracker, errorList)
+	linter := New(cfg, errorList, tracker)
 
 	// Create module using NewModule function
 	mod, err := module.NewModule(moduleDir, nil, nil, errorList)

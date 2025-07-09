@@ -34,19 +34,10 @@ type Module struct {
 
 const ID = "module"
 
-func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Module {
+func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList, tracker *exclusions.ExclusionTracker) *Module {
 	return &Module{
 		name:      ID,
 		desc:      "Lint module rules",
-		cfg:       &cfg.LintersSettings.Module,
-		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Module.Impact),
-	}
-}
-
-func NewWithTracker(cfg *config.ModuleConfig, tracker *exclusions.ExclusionTracker, errorList *errors.LintRuleErrorsList) *Module {
-	return &Module{
-		name:      ID,
-		desc:      "Lint module rules (with exclusion tracking)",
 		cfg:       &cfg.LintersSettings.Module,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Module.Impact),
 		tracker:   tracker,

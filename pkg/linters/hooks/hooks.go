@@ -34,19 +34,10 @@ type Hooks struct {
 
 const ID = "hooks"
 
-func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Hooks {
+func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList, tracker *exclusions.ExclusionTracker) *Hooks {
 	return &Hooks{
 		name:      ID,
 		desc:      "Lint hooks",
-		cfg:       &cfg.LintersSettings.Hooks,
-		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Hooks.Impact),
-	}
-}
-
-func NewWithTracker(cfg *config.ModuleConfig, tracker *exclusions.ExclusionTracker, errorList *errors.LintRuleErrorsList) *Hooks {
-	return &Hooks{
-		name:      ID,
-		desc:      "Lint hooks (with exclusion tracking)",
 		cfg:       &cfg.LintersSettings.Hooks,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Hooks.Impact),
 		tracker:   tracker,

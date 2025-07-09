@@ -39,19 +39,10 @@ type Templates struct {
 	tracker    *exclusions.ExclusionTracker
 }
 
-func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Templates {
+func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList, tracker *exclusions.ExclusionTracker) *Templates {
 	return &Templates{
 		name:      ID,
 		desc:      "Lint templates",
-		cfg:       &cfg.LintersSettings.Templates,
-		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Templates.Impact),
-	}
-}
-
-func NewWithTracker(cfg *config.ModuleConfig, tracker *exclusions.ExclusionTracker, errorList *errors.LintRuleErrorsList) *Templates {
-	return &Templates{
-		name:      ID,
-		desc:      "Lint templates (with exclusion tracking)",
 		cfg:       &cfg.LintersSettings.Templates,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Templates.Impact),
 		tracker:   tracker,

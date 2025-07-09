@@ -36,19 +36,10 @@ type Images struct {
 	tracker    *exclusions.ExclusionTracker
 }
 
-func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Images {
+func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList, tracker *exclusions.ExclusionTracker) *Images {
 	return &Images{
 		name:      ID,
 		desc:      "Lint docker images",
-		cfg:       &cfg.LintersSettings.Images,
-		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Images.Impact),
-	}
-}
-
-func NewWithTracker(cfg *config.ModuleConfig, tracker *exclusions.ExclusionTracker, errorList *errors.LintRuleErrorsList) *Images {
-	return &Images{
-		name:      ID,
-		desc:      "Lint docker images (with exclusion tracking)",
 		cfg:       &cfg.LintersSettings.Images,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Images.Impact),
 		tracker:   tracker,

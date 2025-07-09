@@ -36,20 +36,10 @@ type Container struct {
 }
 
 // New creates a new container linter
-func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Container {
+func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList, tracker *exclusions.ExclusionTracker) *Container {
 	return &Container{
 		name:      ID,
 		desc:      "Lint container objects",
-		cfg:       &cfg.LintersSettings.Container,
-		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Container.Impact),
-	}
-}
-
-// NewWithTracker creates a new container linter with exclusion tracking
-func NewWithTracker(cfg *config.ModuleConfig, tracker *exclusions.ExclusionTracker, errorList *errors.LintRuleErrorsList) *Container {
-	return &Container{
-		name:      ID,
-		desc:      "Lint container objects with exclusion tracking",
 		cfg:       &cfg.LintersSettings.Container,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Container.Impact),
 		tracker:   tracker,

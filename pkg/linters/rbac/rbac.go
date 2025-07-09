@@ -36,19 +36,10 @@ type Rbac struct {
 	tracker    *exclusions.ExclusionTracker
 }
 
-func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Rbac {
+func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList, tracker *exclusions.ExclusionTracker) *Rbac {
 	return &Rbac{
 		name:      ID,
 		desc:      "Lint rbac objects",
-		cfg:       &cfg.LintersSettings.Rbac,
-		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Rbac.Impact),
-	}
-}
-
-func NewWithTracker(cfg *config.ModuleConfig, tracker *exclusions.ExclusionTracker, errorList *errors.LintRuleErrorsList) *Rbac {
-	return &Rbac{
-		name:      ID,
-		desc:      "Lint rbac objects (with exclusion tracking)",
 		cfg:       &cfg.LintersSettings.Rbac,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Rbac.Impact),
 		tracker:   tracker,
