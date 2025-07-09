@@ -25,7 +25,7 @@ import (
 	"strings"
 )
 
-var CELicenseRe = regexp.MustCompile(`(?s)[/#{!-]*(\s)*Copyright 202[1-9] Flant JSC[-!}\n#/]*
+var CELicenseRe = regexp.MustCompile(`(?s)[/#{!-]*(\s)*Copyright 202[1-9] Flant C?JSC[-!}\n#/]*
 [/#{!-]*(\s)*Licensed under the Apache License, Version 2\.0 \(the "License"\);[-!}\n]*
 [/#{!-]*(\s)*you may not use this file except in compliance with the License\.[-!}\n]*
 [/#{!-]*(\s)*You may obtain a copy of the License at[-!}\n#/]*
@@ -36,8 +36,7 @@ var CELicenseRe = regexp.MustCompile(`(?s)[/#{!-]*(\s)*Copyright 202[1-9] Flant 
 [/#{!-]*(\s)*See the License for the specific language governing permissions and[-!}\n]*
 [/#{!-]*(\s)*limitations under the License\.[-!}\n]*`)
 
-var EELicenseRe = regexp.MustCompile(`(?s)[/#{!-]*(\s)*Copyright 202[1-9] Elasticsearch B\.V\.[-!}\n#/]*
-[/#{!-]*(\s)*Licensed under the Deckhouse Platform Enterprise Edition \(EE\) license\. See https://github\.com/deckhouse/deckhouse/blob/main/ee/LICENSE;[-!}\n]*`)
+var EELicenseRe = regexp.MustCompile(`(?s)[/#{!-]*(\s)*Copyright 202[1-9] Flant JSC[\t ]*\n([\t ]*\n)*[#{!-/]*(\s)*Licensed under the Deckhouse Platform Enterprise Edition \(EE\) license\. See https://github\.com/deckhouse/deckhouse/blob/main/ee/LICENSE;[-!}\n]*`)
 
 var fileToCheckRe = regexp.MustCompile(
 	`\.go$|/[^.]+$|\.sh$|\.lua$|\.py$`,

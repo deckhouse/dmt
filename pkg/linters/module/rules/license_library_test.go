@@ -90,7 +90,7 @@ no license
 		{
 			title: "CE license instead of EE",
 			content: `/*
-Copyright 2021 Flant JSC
+Copyright 2025 Flant JSC
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -126,8 +126,7 @@ package main
 		{
 			title: "EE license in Go multiline comment",
 			content: `/*
-Copyright 2021 Elasticsearch B.V.
-
+Copyright 2025 Flant JSC
 Licensed under the Deckhouse Platform Enterprise Edition (EE) license. See https://github.com/deckhouse/deckhouse/blob/main/ee/LICENSE;
 */
 
@@ -146,8 +145,7 @@ func main() {
 		},
 		{
 			title: "EE license in Go single line comments",
-			content: `// Copyright 2021 Elasticsearch B.V.
-//
+			content: `// Copyright 2025 Flant JSC
 // Licensed under the Deckhouse Platform Enterprise Edition (EE) license. See https://github.com/deckhouse/deckhouse/blob/main/ee/LICENSE;
 
 package main
@@ -166,8 +164,7 @@ func main() {
 		{
 			title: "EE license in Bash comments",
 			content: `#!/bin/bash
-# Copyright 2021 Elasticsearch B.V.
-#
+# Copyright 2025 Flant JSC
 # Licensed under the Deckhouse Platform Enterprise Edition (EE) license. See https://github.com/deckhouse/deckhouse/blob/main/ee/LICENSE;
 
 set -Eeo pipefail
@@ -176,8 +173,7 @@ set -Eeo pipefail
 		{
 			title: "EE license in Lua comments",
 			content: `--[[
-Copyright 2021 Elasticsearch B.V.
-
+Copyright 2025 Flant JSC
 Licensed under the Deckhouse Platform Enterprise Edition (EE) license. See https://github.com/deckhouse/deckhouse/blob/main/ee/LICENSE;
 --]]
 
@@ -194,6 +190,82 @@ print("Hello")
 			if !res {
 				t.Errorf("should detect EE license")
 			}
+		})
+	}
+}
+
+func Test_ee_license_re_debug(t *testing.T) {
+	// Test the exact format expected by the regex
+	testContent := `/*
+Copyright 2025 Flant JSC
+
+Licensed under the Deckhouse Platform Enterprise Edition (EE) license. See https://github.com/deckhouse/deckhouse/blob/main/ee/LICENSE;
+*/`
+
+	res := EELicenseRe.MatchString(testContent)
+	t.Logf("EELicenseRe pattern: %s", EELicenseRe.String())
+	t.Logf("Test content: %q", testContent)
+	t.Logf("Match result: %v", res)
+
+	if !res {
+		t.Errorf("Expected EE license to match")
+	}
+}
+
+func Test_ee_license_re_correct_format(t *testing.T) {
+	// Test with the exact format that should match the regex
+	// The regex expects: Copyright 202[1-9] Flant JSC\n followed by the license text
+	testContent := `/*
+Copyright 2025 Flant JSC
+Licensed under the Deckhouse Platform Enterprise Edition (EE) license. See https://github.com/deckhouse/deckhouse/blob/main/ee/LICENSE;
+*/`
+
+	res := EELicenseRe.MatchString(testContent)
+	if !res {
+		t.Errorf("Expected EE license to match with correct format")
+	}
+}
+
+func Test_ee_license_re_analysis(t *testing.T) {
+	// Let's analyze what the regex expects
+	pattern := EELicenseRe.String()
+	t.Logf("EE License Regex Pattern: %s", pattern)
+
+	// Test different variations
+	testCases := []struct {
+		name    string
+		content string
+	}{
+		{
+			name: "Exact format with newline after Flant JSC",
+			content: `/*
+Copyright 2025 Flant JSC
+
+Licensed under the Deckhouse Platform Enterprise Edition (EE) license. See https://github.com/deckhouse/deckhouse/blob/main/ee/LICENSE;
+*/`,
+		},
+		{
+			name: "Format without extra newline",
+			content: `/*
+Copyright 2025 Flant JSC
+Licensed under the Deckhouse Platform Enterprise Edition (EE) license. See https://github.com/deckhouse/deckhouse/blob/main/ee/LICENSE;
+*/`,
+		},
+		{
+			name: "Format with comment markers",
+			content: `/*
+Copyright 2025 Flant JSC
+
+Licensed under the Deckhouse Platform Enterprise Edition (EE) license. See https://github.com/deckhouse/deckhouse/blob/main/ee/LICENSE;
+*/`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			res := EELicenseRe.MatchString(tc.content)
+			t.Logf("Content: %q", tc.content)
+			t.Logf("Match: %v", res)
 		})
 	}
 }
@@ -219,7 +291,7 @@ no license
 			content: `
 #!/bin/bash
 
-# Copyright 2021 Flant JSC
+# Copyright 2025 Flant JSC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -241,7 +313,7 @@ set -Eeo pipefail
 		{
 			title: "Bash comment without previous spaces",
 			content: `#!/bin/bash
-# Copyright 2021 Flant JSC
+# Copyright 2025 Flant JSC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -263,7 +335,7 @@ set -Eeo pipefail
 		{
 			title: "Golang multiline comment without previous spaces",
 			content: `/*
-Copyright 2021 Flant JSC
+Copyright 2025 Flant JSC
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -296,7 +368,7 @@ func main() {
 			title: "Golang multiline comment with previous spaces",
 			content: `
 /*
-Copyright 2021 Flant JSC
+Copyright 2025 Flant JSC
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -326,7 +398,7 @@ func main() {
 
 		{
 			title: "Golang multiple one line comments without previous spaces",
-			content: `// Copyright 2021 Flant JSC
+			content: `// Copyright 2025 Flant JSC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -357,7 +429,7 @@ func main() {
 		{
 			title: "Golang multiple one line comments with previous spaces",
 			content: `
-// Copyright 2021 Flant JSC
+// Copyright 2025 Flant JSC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -387,7 +459,7 @@ func main() {
 		{
 			title: "Lua multiple one line comments without previous spaces",
 			content: `--[[
-Copyright 2021 Flant JSC
+Copyright 2025 Flant JSC
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -427,7 +499,7 @@ func Test_checkFileCopyright_Integration(t *testing.T) {
 	// Test CE license file
 	ceFile := filepath.Join(tmpDir, "ce_file.go")
 	ceContent := `/*
-Copyright 2021 Flant JSC
+Copyright 2025 Flant JSC
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -460,7 +532,7 @@ func main() {
 
 	eeFile := filepath.Join(eeDir, "ee_file.go")
 	eeContent := `/*
-Copyright 2021 Elasticsearch B.V.
+Copyright 2025 Flant JSC
 
 Licensed under the Deckhouse Platform Enterprise Edition (EE) license. See https://github.com/deckhouse/deckhouse/blob/main/ee/LICENSE;
 */
@@ -490,7 +562,7 @@ func main() {
 	// Test file with wrong license type
 	wrongLicenseFile := filepath.Join(eeDir, "wrong_license.go")
 	wrongLicenseContent := `/*
-Copyright 2021 Flant JSC
+Copyright 2025 Flant JSC
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
