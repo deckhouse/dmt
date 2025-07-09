@@ -29,7 +29,7 @@ import (
 func TestContainer_NameAndDesc(t *testing.T) {
 	cfg := &config.ModuleConfig{}
 	errList := errors.NewLintRuleErrorsList()
-	linter := New(cfg, errList, nil)
+	linter := New(cfg, nil, errList)
 
 	assert.Equal(t, ID, linter.Name(), "Name() should return linter ID")
 	assert.Equal(t, "Lint container objects", linter.Desc(), "Desc() should return linter description")
@@ -38,7 +38,7 @@ func TestContainer_NameAndDesc(t *testing.T) {
 func TestContainer_Run_NilModule(_ *testing.T) {
 	cfg := &config.ModuleConfig{}
 	errList := errors.NewLintRuleErrorsList()
-	linter := New(cfg, errList, nil)
+	linter := New(cfg, nil, errList)
 
 	// Should not panic or fail if module is nil
 	linter.Run(nil)
@@ -47,7 +47,7 @@ func TestContainer_Run_NilModule(_ *testing.T) {
 func TestContainer_Run_EmptyModule(t *testing.T) {
 	cfg := &config.ModuleConfig{}
 	errList := errors.NewLintRuleErrorsList()
-	linter := New(cfg, errList, nil)
+	linter := New(cfg, nil, errList)
 
 	mod := &module.Module{} // Module with nil objectStore
 	linter.Run(mod)

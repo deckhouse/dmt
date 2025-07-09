@@ -32,7 +32,7 @@ type BaseLinter struct {
 }
 
 // NewBaseLinter creates a new base linter with common initialization
-func NewBaseLinter(id, desc string, _ *config.ModuleConfig, impact *pkg.Level, errorList *errors.LintRuleErrorsList, tracker *exclusions.ExclusionTracker) *BaseLinter {
+func NewBaseLinter(id, desc string, _ *config.ModuleConfig, impact *pkg.Level, tracker *exclusions.ExclusionTracker, errorList *errors.LintRuleErrorsList) *BaseLinter {
 	return &BaseLinter{
 		name:      id,
 		desc:      desc,

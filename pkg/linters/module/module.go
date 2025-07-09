@@ -34,7 +34,7 @@ type Module struct {
 
 const ID = "module"
 
-func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList, tracker *exclusions.ExclusionTracker) *Module {
+func New(cfg *config.ModuleConfig, tracker *exclusions.ExclusionTracker, errorList *errors.LintRuleErrorsList) *Module {
 	return &Module{
 		name:      ID,
 		desc:      "Lint module rules",

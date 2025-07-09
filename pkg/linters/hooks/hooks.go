@@ -34,7 +34,7 @@ type Hooks struct {
 
 const ID = "hooks"
 
-func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList, tracker *exclusions.ExclusionTracker) *Hooks {
+func New(cfg *config.ModuleConfig, tracker *exclusions.ExclusionTracker, errorList *errors.LintRuleErrorsList) *Hooks {
 	return &Hooks{
 		name:      ID,
 		desc:      "Lint hooks",

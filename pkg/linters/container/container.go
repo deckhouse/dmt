@@ -36,7 +36,7 @@ type Container struct {
 }
 
 // New creates a new container linter
-func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList, tracker *exclusions.ExclusionTracker) *Container {
+func New(cfg *config.ModuleConfig, tracker *exclusions.ExclusionTracker, errorList *errors.LintRuleErrorsList) *Container {
 	return &Container{
 		name:      ID,
 		desc:      "Lint container objects",

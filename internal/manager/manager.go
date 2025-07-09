@@ -171,14 +171,14 @@ func (m *Manager) Run() {
 
 func getLintersForModule(cfg *config.ModuleConfig, tracker *exclusions.ExclusionTracker, errList *errors.LintRuleErrorsList) []Linter {
 	return []Linter{
-		openapi.New(cfg, errList, tracker),
-		no_cyrillic.New(cfg, errList, tracker),
-		container.New(cfg, errList, tracker),
-		templates.New(cfg, errList, tracker),
-		images.New(cfg, errList, tracker),
-		rbac.New(cfg, errList, tracker),
-		hooks.New(cfg, errList, tracker),
-		moduleLinter.New(cfg, errList, tracker),
+		openapi.New(cfg, tracker, errList),
+		no_cyrillic.New(cfg, tracker, errList),
+		container.New(cfg, tracker, errList),
+		templates.New(cfg, tracker, errList),
+		images.New(cfg, tracker, errList),
+		rbac.New(cfg, tracker, errList),
+		hooks.New(cfg, tracker, errList),
+		moduleLinter.New(cfg, tracker, errList),
 	}
 }
 

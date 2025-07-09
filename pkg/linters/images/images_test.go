@@ -37,7 +37,7 @@ func TestImages_PatchesDisableConfiguration(t *testing.T) {
 
 	errList := errors.NewLintRuleErrorsList()
 	tracker := exclusions.NewExclusionTracker()
-	linter := New(cfg, errList, tracker)
+	linter := New(cfg, tracker, errList)
 
 	// Test that the linter was created with the correct configuration
 	if !linter.cfg.Patches.Disable {

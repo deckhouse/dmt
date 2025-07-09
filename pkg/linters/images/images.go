@@ -36,7 +36,7 @@ type Images struct {
 	tracker    *exclusions.ExclusionTracker
 }
 
-func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList, tracker *exclusions.ExclusionTracker) *Images {
+func New(cfg *config.ModuleConfig, tracker *exclusions.ExclusionTracker, errorList *errors.LintRuleErrorsList) *Images {
 	return &Images{
 		name:      ID,
 		desc:      "Lint docker images",

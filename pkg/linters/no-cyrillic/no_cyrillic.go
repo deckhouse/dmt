@@ -41,7 +41,7 @@ type NoCyrillic struct {
 	tracker    *exclusions.ExclusionTracker
 }
 
-func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList, tracker *exclusions.ExclusionTracker) *NoCyrillic {
+func New(cfg *config.ModuleConfig, tracker *exclusions.ExclusionTracker, errorList *errors.LintRuleErrorsList) *NoCyrillic {
 	return &NoCyrillic{
 		name:      ID,
 		desc:      "NoCyrillic will check all files in the modules for contains cyrillic symbols",

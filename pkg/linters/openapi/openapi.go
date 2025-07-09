@@ -38,7 +38,7 @@ type OpenAPI struct {
 	tracker    *exclusions.ExclusionTracker
 }
 
-func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList, tracker *exclusions.ExclusionTracker) *OpenAPI {
+func New(cfg *config.ModuleConfig, tracker *exclusions.ExclusionTracker, errorList *errors.LintRuleErrorsList) *OpenAPI {
 	return &OpenAPI{
 		name:      "openapi",
 		desc:      "Linter will check openapi values is correct",
