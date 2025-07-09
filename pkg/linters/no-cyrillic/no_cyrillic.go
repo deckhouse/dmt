@@ -68,38 +68,36 @@ func (l *NoCyrillic) Run(m *module.Module) {
 		return
 	}
 
+	l.run(m, errorList, m.GetName())
+}
+
+func (l *NoCyrillic) run(m *module.Module, errorList *errors.LintRuleErrorsList, moduleName string) {
 	if l.tracker != nil {
-		l.runWithTracking(m, errorList, m.GetName())
+		// With tracking
+		trackedFilesRule := exclusions.NewTrackedPathRuleForModule(
+			l.cfg.NoCyrillicExcludeRules.Files.Get(),
+			l.cfg.NoCyrillicExcludeRules.Directories.Get(),
+			l.tracker,
+			ID,
+			"files",
+			moduleName,
+		)
+		filesRule := rules.NewFilesRuleTracked(trackedFilesRule)
+
+		files := fsutils.GetFiles(m.GetPath(), false, fsutils.FilterFileByExtensions(fileExtensions...))
+		for _, fileName := range files {
+			filesRule.CheckFile(m, fileName, errorList)
+		}
 	} else {
-		l.runWithoutTracking(m, errorList)
-	}
-}
+		// Without tracking
+		filesRule := rules.NewFilesRule(
+			l.cfg.NoCyrillicExcludeRules.Files.Get(),
+			l.cfg.NoCyrillicExcludeRules.Directories.Get())
 
-func (l *NoCyrillic) runWithoutTracking(m *module.Module, errorList *errors.LintRuleErrorsList) {
-	filesRule := rules.NewFilesRule(
-		l.cfg.NoCyrillicExcludeRules.Files.Get(),
-		l.cfg.NoCyrillicExcludeRules.Directories.Get())
-
-	files := fsutils.GetFiles(m.GetPath(), false, fsutils.FilterFileByExtensions(fileExtensions...))
-	for _, fileName := range files {
-		filesRule.CheckFile(m, fileName, errorList)
-	}
-}
-
-func (l *NoCyrillic) runWithTracking(m *module.Module, errorList *errors.LintRuleErrorsList, moduleName string) {
-	trackedFilesRule := exclusions.NewTrackedPathRuleForModule(
-		l.cfg.NoCyrillicExcludeRules.Files.Get(),
-		l.cfg.NoCyrillicExcludeRules.Directories.Get(),
-		l.tracker,
-		ID,
-		"files",
-		moduleName,
-	)
-	filesRule := rules.NewFilesRuleTracked(trackedFilesRule)
-
-	files := fsutils.GetFiles(m.GetPath(), false, fsutils.FilterFileByExtensions(fileExtensions...))
-	for _, fileName := range files {
-		filesRule.CheckFile(m, fileName, errorList)
+		files := fsutils.GetFiles(m.GetPath(), false, fsutils.FilterFileByExtensions(fileExtensions...))
+		for _, fileName := range files {
+			filesRule.CheckFile(m, fileName, errorList)
+		}
 	}
 }
 

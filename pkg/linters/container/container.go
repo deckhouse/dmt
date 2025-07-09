@@ -63,11 +63,7 @@ func (l *Container) Run(m *module.Module) {
 
 	errorList := l.ErrorList.WithModule(m.GetName())
 	for _, object := range m.GetStorage() {
-		if l.tracker != nil {
-			l.applyContainerRulesWithTracking(object, m.GetName(), errorList)
-		} else {
-			l.applyContainerRules(object, errorList)
-		}
+		l.applyContainerRules(object, m.GetName(), errorList)
 	}
 }
 

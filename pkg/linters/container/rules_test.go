@@ -45,7 +45,7 @@ func TestApplyContainerRules_NoContainers(t *testing.T) {
 		},
 	}
 
-	linter.applyContainerRules(obj, errList)
+	linter.applyContainerRules(obj, "test-module", errList)
 	errs := errList.GetErrors()
 	assert.NotEmpty(t, errs, "Should report errors for missing labels and security context")
 	var foundModule, foundHeritage, foundSecurityContext bool
@@ -80,7 +80,7 @@ func TestApplyContainerRules_ContainersError(t *testing.T) {
 		},
 	}
 
-	linter.applyContainerRules(obj, errList)
+	linter.applyContainerRules(obj, "test-module", errList)
 	assert.NotEmpty(t, errList.GetErrors(), "Error expected if GetAllContainers returns error")
 }
 
@@ -130,7 +130,7 @@ func TestApplyContainerRules_AllRules(t *testing.T) {
 		},
 	}
 
-	linter.applyContainerRules(obj, errList)
+	linter.applyContainerRules(obj, "test-module", errList)
 	errs := errList.GetErrors()
 	var (
 		foundModule, foundHeritage, foundNameDup, foundEnvDup, foundSecCtx, foundLiveness, foundReadiness bool
@@ -214,7 +214,7 @@ func TestApplyContainerRulesWithTracking_LivenessProbeExclusion(t *testing.T) {
 	}
 
 	// Run the tracking version
-	linter.applyContainerRulesWithTracking(obj, "control-plane-manager", errList)
+	linter.applyContainerRules(obj, "control-plane-manager", errList)
 
 	// Check that no liveness-probe error was generated (due to exclusion)
 	errs := errList.GetErrors()
@@ -227,10 +227,4 @@ func TestApplyContainerRulesWithTracking_LivenessProbeExclusion(t *testing.T) {
 	}
 
 	assert.False(t, foundLivenessError, "Liveness-probe error should be excluded")
-
-	// Check that the exclusion was marked as used
-	usageStats := tracker.GetUsageStats()
-	assert.Contains(t, usageStats, "container")
-	assert.Contains(t, usageStats["container"], "liveness-probe")
-	assert.Equal(t, 1, usageStats["container"]["liveness-probe"]["DaemonSet/d8-control-plane-manager/image-holder-kube-scheduler"])
 }

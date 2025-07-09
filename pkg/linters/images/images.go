@@ -61,54 +61,53 @@ func (l *Images) Run(m *module.Module) {
 	}
 
 	errorList := l.ErrorList.WithModule(m.GetName())
+	l.run(m, m.GetName(), errorList)
+}
+
+func (l *Images) run(m *module.Module, moduleName string, errorList *errors.LintRuleErrorsList) {
+	// Register rules without exclusions in tracker if available
+	if l.tracker != nil {
+		l.tracker.RegisterExclusionsForModule(ID, "werf-file", []string{}, moduleName)
+	}
 
 	if l.tracker != nil {
-		l.runWithTracking(m, m.GetName(), errorList)
+		// With tracking
+		trackedImageRule := exclusions.NewTrackedPrefixRuleForModule(
+			l.cfg.ExcludeRules.SkipImageFilePathPrefix.Get(),
+			l.tracker,
+			ID,
+			"image-file-path-prefix",
+			moduleName,
+		)
+		rules.NewImageRuleTracked(trackedImageRule).CheckImageNamesInDockerFiles(m.GetPath(), errorList)
+
+		trackedDistrolessRule := exclusions.NewTrackedPrefixRuleForModule(
+			l.cfg.ExcludeRules.SkipDistrolessFilePathPrefix.Get(),
+			l.tracker,
+			ID,
+			"distroless-file-path-prefix",
+			moduleName,
+		)
+		rules.NewDistrolessRuleTracked(trackedDistrolessRule).CheckImageNamesInDockerFiles(m.GetPath(), errorList)
+
+		rules.NewWerfRule().LintWerfFile(m.GetWerfFile(), errorList)
+
+		// --- Tracking for patches ---
+		// If the rule is disabled, register this as a used exclusion
+		if l.cfg.Patches.Disable {
+			l.tracker.RegisterExclusionsForModule(ID, "patches", []string{}, moduleName)
+		} else {
+			// If the rule is enabled, perform the check
+			rules.NewPatchesRule(false).CheckPatches(m.GetPath(), errorList)
+		}
+		// --- end ---
 	} else {
-		l.runWithoutTracking(m, errorList)
+		// Without tracking
+		rules.NewImageRule(l.cfg).CheckImageNamesInDockerFiles(m.GetPath(), errorList)
+		rules.NewDistrolessRule(l.cfg).CheckImageNamesInDockerFiles(m.GetPath(), errorList)
+		rules.NewWerfRule().LintWerfFile(m.GetWerfFile(), errorList)
+		rules.NewPatchesRule(l.cfg.Patches.Disable).CheckPatches(m.GetPath(), errorList)
 	}
-}
-
-func (l *Images) runWithoutTracking(m *module.Module, errorList *errors.LintRuleErrorsList) {
-	rules.NewImageRule(l.cfg).CheckImageNamesInDockerFiles(m.GetPath(), errorList)
-	rules.NewDistrolessRule(l.cfg).CheckImageNamesInDockerFiles(m.GetPath(), errorList)
-	rules.NewWerfRule().LintWerfFile(m.GetWerfFile(), errorList)
-	rules.NewPatchesRule(l.cfg.Patches.Disable).CheckPatches(m.GetPath(), errorList)
-}
-
-func (l *Images) runWithTracking(m *module.Module, moduleName string, errorList *errors.LintRuleErrorsList) {
-	// Register rules without exclusions in tracker
-	l.tracker.RegisterExclusionsForModule(ID, "werf-file", []string{}, moduleName)
-
-	trackedImageRule := exclusions.NewTrackedPrefixRuleForModule(
-		l.cfg.ExcludeRules.SkipImageFilePathPrefix.Get(),
-		l.tracker,
-		ID,
-		"image-file-path-prefix",
-		moduleName,
-	)
-	rules.NewImageRuleTracked(trackedImageRule).CheckImageNamesInDockerFiles(m.GetPath(), errorList)
-
-	trackedDistrolessRule := exclusions.NewTrackedPrefixRuleForModule(
-		l.cfg.ExcludeRules.SkipDistrolessFilePathPrefix.Get(),
-		l.tracker,
-		ID,
-		"distroless-file-path-prefix",
-		moduleName,
-	)
-	rules.NewDistrolessRuleTracked(trackedDistrolessRule).CheckImageNamesInDockerFiles(m.GetPath(), errorList)
-
-	rules.NewWerfRule().LintWerfFile(m.GetWerfFile(), errorList)
-
-	// --- Tracking for patches ---
-	// If the rule is disabled, register this as a used exclusion
-	if l.cfg.Patches.Disable {
-		l.tracker.RegisterExclusionsForModule(ID, "patches", []string{}, moduleName)
-	} else {
-		// If the rule is enabled, perform the check
-		rules.NewPatchesRule(false).CheckPatches(m.GetPath(), errorList)
-	}
-	// --- end ---
 }
 
 func (l *Images) Name() string {

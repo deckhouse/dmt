@@ -26,7 +26,6 @@ import (
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/exclusions"
 )
 
 const (
@@ -44,57 +43,9 @@ func NewVPARule(excludeRules []pkg.KindRuleExclude) *VPARule {
 	}
 }
 
-func NewVPARuleTracked(trackedRule *exclusions.TrackedKindRule) *VPARuleTracked {
-	return &VPARuleTracked{
-		RuleMeta: pkg.RuleMeta{
-			Name: VPARuleName,
-		},
-		KindRule:    trackedRule.KindRule,
-		trackedRule: trackedRule,
-	}
-}
-
 type VPARule struct {
 	pkg.RuleMeta
 	pkg.KindRule
-}
-
-type VPARuleTracked struct {
-	pkg.RuleMeta
-	pkg.KindRule
-	trackedRule *exclusions.TrackedKindRule
-}
-
-// controllerMustHaveVPA fills linting error regarding VPA
-func (r *VPARuleTracked) ControllerMustHaveVPA(md *module.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
-
-	vpaTargets, vpaContainerNamesMap, vpaUpdateModes := parseTargetsGroups(md, errorList)
-
-	for index, object := range md.GetStorage() {
-		// Skip non-pod controllers
-		if !IsPodController(object.Unstructured.GetKind()) {
-			continue
-		}
-
-		// Use tracked rule to check if object should be excluded and mark exclusions as used
-		if !r.trackedRule.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {
-			// TODO: add metrics
-			continue
-		}
-
-		ok := ensureVPAIsPresent(vpaTargets, index, errorList.WithObjectID(object.Identity()))
-		if !ok {
-			continue
-		}
-
-		// for vpa UpdateMode Off we cannot have container resource policies in vpa object
-		if vpaUpdateModes[index] == UpdateModeOff {
-			continue
-		}
-
-		ensureVPAContainersMatchControllerContainers(object, index, vpaContainerNamesMap, errorList)
-	}
 }
 
 // controllerMustHaveVPA fills linting error regarding VPA

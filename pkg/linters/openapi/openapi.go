@@ -59,101 +59,98 @@ func NewWithTracker(cfg *config.ModuleConfig, tracker *exclusions.ExclusionTrack
 
 func (o *OpenAPI) Run(m *module.Module) {
 	errorLists := o.ErrorList.WithModule(m.GetName())
+	o.run(m, m.GetName(), errorLists)
+}
 
+func (o *OpenAPI) run(m *module.Module, moduleName string, errorList *errors.LintRuleErrorsList) {
 	if o.tracker != nil {
-		o.runWithTracking(m, m.GetName(), errorLists)
+		// With tracking
+		// CRDs
+		trackedCRDsRule := exclusions.NewTrackedStringRuleForModule(
+			o.cfg.OpenAPIExcludeRules.CRDNamesExcludes.Get(),
+			o.tracker,
+			"openapi",
+			"crd-names",
+			moduleName,
+		)
+		crdsRule := rules.NewDeckhouseCRDsRuleTracked(o.cfg, m.GetPath(), trackedCRDsRule)
+
+		// HA
+		trackedHARule := exclusions.NewTrackedStringRuleForModule(
+			o.cfg.OpenAPIExcludeRules.HAAbsoluteKeysExcludes.Get(),
+			o.tracker,
+			"openapi",
+			"ha-absolute-keys",
+			moduleName,
+		)
+		haRule := rules.NewHARuleTracked(o.cfg, m.GetPath(), trackedHARule)
+
+		// Keys
+		keyBannedNames := make([]pkg.StringRuleExclude, len(o.cfg.OpenAPIExcludeRules.KeyBannedNames))
+		for i, name := range o.cfg.OpenAPIExcludeRules.KeyBannedNames {
+			keyBannedNames[i] = pkg.StringRuleExclude(name)
+		}
+		trackedKeysRule := exclusions.NewTrackedStringRuleForModule(
+			keyBannedNames,
+			o.tracker,
+			"openapi",
+			"key-banned-names",
+			moduleName,
+		)
+		keysRule := rules.NewKeysRuleTracked(o.cfg, m.GetPath(), trackedKeysRule)
+
+		// Enum
+		enumFileExcludes := make([]pkg.StringRuleExclude, len(o.cfg.OpenAPIExcludeRules.EnumFileExcludes))
+		for i, exclude := range o.cfg.OpenAPIExcludeRules.EnumFileExcludes {
+			enumFileExcludes[i] = pkg.StringRuleExclude(exclude)
+		}
+		trackedEnumRule := exclusions.NewTrackedStringRuleForModule(
+			enumFileExcludes,
+			o.tracker,
+			"openapi",
+			"enum-file-excludes",
+			moduleName,
+		)
+		enumRule := rules.NewEnumRuleTracked(o.cfg, m.GetPath(), trackedEnumRule)
+
+		// Run rules
+		openAPIFiles := fsutils.GetFiles(m.GetPath(), true, filterOpenAPIfiles)
+		for _, file := range openAPIFiles {
+			enumRule.Run(file, errorList)
+			haRule.Run(file, errorList)
+		}
+
+		// check only CRDs files
+		crdFiles := fsutils.GetFiles(m.GetPath(), true, filterCRDsfiles)
+		for _, file := range crdFiles {
+			enumRule.Run(file, errorList)
+			haRule.Run(file, errorList)
+			keysRule.Run(file, errorList)
+			crdsRule.Run(moduleName, file, errorList)
+		}
 	} else {
-		o.runWithoutTracking(m, errorLists)
-	}
-}
+		// Without tracking
+		// check openAPI files
+		openAPIFiles := fsutils.GetFiles(m.GetPath(), true, filterOpenAPIfiles)
 
-func (o *OpenAPI) runWithoutTracking(m *module.Module, errorLists *errors.LintRuleErrorsList) {
-	// check openAPI files
-	openAPIFiles := fsutils.GetFiles(m.GetPath(), true, filterOpenAPIfiles)
+		enumValidator := rules.NewEnumRule(o.cfg, m.GetPath())
+		haValidator := rules.NewHARule(o.cfg, m.GetPath())
 
-	enumValidator := rules.NewEnumRule(o.cfg, m.GetPath())
-	haValidator := rules.NewHARule(o.cfg, m.GetPath())
+		for _, file := range openAPIFiles {
+			enumValidator.Run(file, errorList)
+			haValidator.Run(file, errorList)
+		}
 
-	for _, file := range openAPIFiles {
-		enumValidator.Run(file, errorLists)
-		haValidator.Run(file, errorLists)
-	}
-
-	// check only CRDs files
-	crdFiles := fsutils.GetFiles(m.GetPath(), true, filterCRDsfiles)
-	crdValidator := rules.NewDeckhouseCRDsRule(o.cfg, m.GetPath())
-	keyValidator := rules.NewKeysRule(o.cfg, m.GetPath())
-	for _, file := range crdFiles {
-		enumValidator.Run(file, errorLists)
-		haValidator.Run(file, errorLists)
-		keyValidator.Run(file, errorLists)
-		crdValidator.Run(m.GetName(), file, errorLists)
-	}
-}
-
-func (o *OpenAPI) runWithTracking(m *module.Module, moduleName string, errorList *errors.LintRuleErrorsList) {
-	// CRDs
-	trackedCRDsRule := exclusions.NewTrackedStringRuleForModule(
-		o.cfg.OpenAPIExcludeRules.CRDNamesExcludes.Get(),
-		o.tracker,
-		"openapi",
-		"crd-names",
-		moduleName,
-	)
-	crdsRule := rules.NewDeckhouseCRDsRuleTracked(o.cfg, m.GetPath(), trackedCRDsRule)
-
-	// HA
-	trackedHARule := exclusions.NewTrackedStringRuleForModule(
-		o.cfg.OpenAPIExcludeRules.HAAbsoluteKeysExcludes.Get(),
-		o.tracker,
-		"openapi",
-		"ha-absolute-keys",
-		moduleName,
-	)
-	haRule := rules.NewHARuleTracked(o.cfg, m.GetPath(), trackedHARule)
-
-	// Keys
-	keyBannedNames := make([]pkg.StringRuleExclude, len(o.cfg.OpenAPIExcludeRules.KeyBannedNames))
-	for i, name := range o.cfg.OpenAPIExcludeRules.KeyBannedNames {
-		keyBannedNames[i] = pkg.StringRuleExclude(name)
-	}
-	trackedKeysRule := exclusions.NewTrackedStringRuleForModule(
-		keyBannedNames,
-		o.tracker,
-		"openapi",
-		"key-banned-names",
-		moduleName,
-	)
-	keysRule := rules.NewKeysRuleTracked(o.cfg, m.GetPath(), trackedKeysRule)
-
-	// Enum
-	enumFileExcludes := make([]pkg.StringRuleExclude, len(o.cfg.OpenAPIExcludeRules.EnumFileExcludes))
-	for i, exclude := range o.cfg.OpenAPIExcludeRules.EnumFileExcludes {
-		enumFileExcludes[i] = pkg.StringRuleExclude(exclude)
-	}
-	trackedEnumRule := exclusions.NewTrackedStringRuleForModule(
-		enumFileExcludes,
-		o.tracker,
-		"openapi",
-		"enum-file-excludes",
-		moduleName,
-	)
-	enumRule := rules.NewEnumRuleTracked(o.cfg, m.GetPath(), trackedEnumRule)
-
-	// Run rules
-	openAPIFiles := fsutils.GetFiles(m.GetPath(), true, filterOpenAPIfiles)
-	for _, file := range openAPIFiles {
-		enumRule.Run(file, errorList)
-		haRule.Run(file, errorList)
-	}
-
-	// check only CRDs files
-	crdFiles := fsutils.GetFiles(m.GetPath(), true, filterCRDsfiles)
-	for _, file := range crdFiles {
-		enumRule.Run(file, errorList)
-		haRule.Run(file, errorList)
-		keysRule.Run(file, errorList)
-		crdsRule.Run(moduleName, file, errorList)
+		// check only CRDs files
+		crdFiles := fsutils.GetFiles(m.GetPath(), true, filterCRDsfiles)
+		crdValidator := rules.NewDeckhouseCRDsRule(o.cfg, m.GetPath())
+		keyValidator := rules.NewKeysRule(o.cfg, m.GetPath())
+		for _, file := range crdFiles {
+			enumValidator.Run(file, errorList)
+			haValidator.Run(file, errorList)
+			keyValidator.Run(file, errorList)
+			crdValidator.Run(m.GetName(), file, errorList)
+		}
 	}
 }
 

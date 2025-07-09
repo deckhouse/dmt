@@ -17,12 +17,15 @@ limitations under the License.
 package rules
 
 import (
+	"fmt"
+
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/exclusions"
 )
 
 const (
@@ -40,15 +43,47 @@ func NewDNSPolicyRule(excludeRules []pkg.KindRuleExclude) *DNSPolicyRule {
 	}
 }
 
+func NewDNSPolicyRuleWithTracker(excludeRules []pkg.KindRuleExclude, tracker *exclusions.ExclusionTracker, linterID, ruleID, moduleName string) *DNSPolicyRule {
+	// Register exclusions with tracker if provided
+	if tracker != nil {
+		exclusions := make([]string, len(excludeRules))
+		for i, rule := range excludeRules {
+			exclusions[i] = fmt.Sprintf("%s/%s", rule.Kind, rule.Name)
+		}
+		tracker.RegisterExclusionsForModule(linterID, ruleID, exclusions, moduleName)
+	}
+
+	return &DNSPolicyRule{
+		RuleMeta: pkg.RuleMeta{
+			Name: DNSPolicyRuleName,
+		},
+		KindRule: pkg.KindRule{
+			ExcludeRules: excludeRules,
+		},
+		tracker:  tracker,
+		linterID: linterID,
+		ruleID:   ruleID,
+	}
+}
+
 type DNSPolicyRule struct {
 	pkg.RuleMeta
 	pkg.KindRule
+	tracker  *exclusions.ExclusionTracker
+	linterID string
+	ruleID   string
 }
 
 func (r *DNSPolicyRule) ObjectDNSPolicy(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.ShortPath())
 
+	// Check if object should be excluded and track usage if tracker is available
 	if !r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {
+		// Mark exclusion as used if tracker is available
+		if r.tracker != nil {
+			exclusionKey := fmt.Sprintf("%s/%s", object.Unstructured.GetKind(), object.Unstructured.GetName())
+			r.tracker.MarkExclusionUsed(r.linterID, r.ruleID, exclusionKey)
+		}
 		// TODO: add metrics
 		return
 	}

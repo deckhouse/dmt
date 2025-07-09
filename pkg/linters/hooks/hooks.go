@@ -59,33 +59,30 @@ func (h *Hooks) Run(m *module.Module) {
 	}
 
 	errorList := h.ErrorList.WithModule(m.GetName())
+	h.run(m, m.GetName(), errorList)
+}
 
+func (h *Hooks) run(m *module.Module, moduleName string, errorList *errors.LintRuleErrorsList) {
 	if h.tracker != nil {
-		h.runWithTracking(m, m.GetName(), errorList)
+		// With tracking
+		trackedHookRule := exclusions.NewTrackedBoolRuleForModule(
+			h.cfg.Ingress.Disable,
+			h.tracker,
+			ID,
+			"ingress",
+			moduleName,
+		)
+		hookRule := rules.NewHookRuleTracked(trackedHookRule)
+
+		for _, object := range m.GetStorage() {
+			hookRule.CheckIngressCopyCustomCertificateRule(m, object, errorList)
+		}
 	} else {
-		h.runWithoutTracking(m, errorList)
-	}
-}
-
-func (h *Hooks) runWithoutTracking(m *module.Module, errorList *errors.LintRuleErrorsList) {
-	r := rules.NewHookRule(h.cfg)
-	for _, object := range m.GetStorage() {
-		r.CheckIngressCopyCustomCertificateRule(m, object, errorList)
-	}
-}
-
-func (h *Hooks) runWithTracking(m *module.Module, moduleName string, errorList *errors.LintRuleErrorsList) {
-	trackedHookRule := exclusions.NewTrackedBoolRuleForModule(
-		h.cfg.Ingress.Disable,
-		h.tracker,
-		ID,
-		"ingress",
-		moduleName,
-	)
-	hookRule := rules.NewHookRuleTracked(trackedHookRule)
-
-	for _, object := range m.GetStorage() {
-		hookRule.CheckIngressCopyCustomCertificateRule(m, object, errorList)
+		// Without tracking
+		r := rules.NewHookRule(h.cfg)
+		for _, object := range m.GetStorage() {
+			r.CheckIngressCopyCustomCertificateRule(m, object, errorList)
+		}
 	}
 }
 
