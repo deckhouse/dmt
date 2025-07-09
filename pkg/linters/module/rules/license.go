@@ -51,7 +51,7 @@ type LicenseRule struct {
 func (r *LicenseRule) CheckFiles(mod *module.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
-	files := fsutils.GetFiles(mod.GetPath(), false, filterFiles)
+	files := fsutils.GetFiles(mod.GetPath(), true, filterFiles)
 	for _, fileName := range files {
 		name := fsutils.Rel(mod.GetPath(), fileName)
 
