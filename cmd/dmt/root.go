@@ -22,6 +22,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/deckhouse/dmt/internal/bootstap"
 	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/logger"
@@ -58,20 +59,18 @@ func execute() {
 		Run:   lintCmdFunc,
 	}
 
-	genCmd := &cobra.Command{
-		Use:   "gen",
-		Short: "generator for Deckhouse modules",
-		Long:  `A lot of useful generators`,
-		Run: func(_ *cobra.Command, _ []string) {
-			fmt.Println("under development")
-		},
-		Hidden: true,
+	bootstrapCmd := &cobra.Command{
+		Use:   "bootstrap",
+		Short: "bootstrap for Deckhouse modules",
+		Long:  `A lot of useful bootstraps`,
+		Run:   bootstrapCmdFunc,
 	}
 
 	lintCmd.Flags().AddFlagSet(flags.InitLintFlagSet())
+	bootstrapCmd.Flags().AddFlagSet(flags.InitBootstrapFlagSet())
 
 	rootCmd.AddCommand(lintCmd)
-	rootCmd.AddCommand(genCmd)
+	rootCmd.AddCommand(bootstrapCmd)
 	rootCmd.Flags().AddFlagSet(flags.InitDefaultFlagSet())
 
 	err := rootCmd.Execute()
@@ -94,6 +93,12 @@ func lintCmdFunc(_ *cobra.Command, args []string) {
 	}
 
 	if err := runLint(dir); err != nil {
+		os.Exit(1)
+	}
+}
+
+func bootstrapCmdFunc(_ *cobra.Command, args []string) {
+	if err := bootstap.RunBootstrap(flags.BootstrapRepositoryType, flags.BootstrapRepositoryURL, flags.BootstrapDirectory); err != nil {
 		os.Exit(1)
 	}
 }

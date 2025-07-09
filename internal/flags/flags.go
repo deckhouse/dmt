@@ -37,6 +37,12 @@ var (
 	PprofFile    string
 )
 
+var (
+	BootstrapRepositoryType string
+	BootstrapRepositoryURL  string
+	BootstrapDirectory      string
+)
+
 func InitDefaultFlagSet() *pflag.FlagSet {
 	defaults := pflag.NewFlagSet("defaults for all commands", pflag.ExitOnError)
 
@@ -58,8 +64,12 @@ func InitLintFlagSet() *pflag.FlagSet {
 	return lint
 }
 
-func InitGenFlagSet() *pflag.FlagSet {
-	gen := pflag.NewFlagSet("gen", pflag.ContinueOnError)
+func InitBootstrapFlagSet() *pflag.FlagSet {
+	bootstrap := pflag.NewFlagSet("bootstrap", pflag.ContinueOnError)
 
-	return gen
+	bootstrap.StringVar(&BootstrapRepositoryType, "repository-type", "github", "repository type [github | gitlab]")
+	bootstrap.StringVar(&BootstrapRepositoryURL, "repository-url", "", "repository URL")
+	bootstrap.StringVar(&BootstrapDirectory, "directory", "", "directory to bootstrap")
+
+	return bootstrap
 }
