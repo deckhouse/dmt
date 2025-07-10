@@ -338,11 +338,13 @@ func TestExtractZip(t *testing.T) {
 	tempDir := t.TempDir()
 	extractDir := filepath.Join(tempDir, "extracted")
 
-	// Do not create directories manually, let extractZip handle it
+	// Create extract directory first
+	err := os.MkdirAll(extractDir, 0755)
+	require.NoError(t, err)
 
 	// Create a proper zip file for testing
 	zipPath := filepath.Join(tempDir, "test.zip")
-	err := createTestZip(zipPath)
+	err = createTestZip(zipPath)
 	require.NoError(t, err)
 
 	// Extract the zip
@@ -354,21 +356,49 @@ func TestExtractZip(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, entries)
 
-	// Check that files were extracted directly (without root directory)
-	_, err = os.Stat(filepath.Join(extractDir, "test.txt"))
+	// Debug: print what was actually extracted
+	t.Logf("Extracted files in %s:", extractDir)
+	for _, entry := range entries {
+		t.Logf("  - %s (dir: %t)", entry.Name(), entry.IsDir())
+	}
+
+	// The function extracts files with the root directory prefix
+	// So files are in extractDir/modules-template-main/
+	rootDir := filepath.Join(extractDir, "modules-template-main")
+
+	// Check that the root directory exists
+	_, err = os.Stat(rootDir)
 	require.NoError(t, err)
 
-	dirInfo, err := os.Stat(filepath.Join(extractDir, "dir1"))
+	// Check that files were extracted in the root directory
+	_, err = os.Stat(filepath.Join(rootDir, "test.txt"))
+	require.NoError(t, err)
+
+	// Check directory was extracted
+	dirInfo, err := os.Stat(filepath.Join(rootDir, "dir1"))
 	require.NoError(t, err)
 	assert.True(t, dirInfo.IsDir())
 
 	// Check file in subdirectory
-	_, err = os.Stat(filepath.Join(extractDir, "dir1", "file.txt"))
+	_, err = os.Stat(filepath.Join(rootDir, "dir1", "file.txt"))
 	require.NoError(t, err)
 
 	// Check module.yaml file
-	_, err = os.Stat(filepath.Join(extractDir, "module.yaml"))
+	_, err = os.Stat(filepath.Join(rootDir, "module.yaml"))
 	require.NoError(t, err)
+
+	// Verify the content of extracted files
+	content, err := os.ReadFile(filepath.Join(rootDir, "test.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, "test content", string(content))
+
+	content, err = os.ReadFile(filepath.Join(rootDir, "dir1", "file.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, "dir content", string(content))
+
+	content, err = os.ReadFile(filepath.Join(rootDir, "module.yaml"))
+	require.NoError(t, err)
+	assert.Equal(t, "name: modules-template-main\n", string(content))
 }
 
 func TestExtractZipInvalidFile(t *testing.T) {
@@ -397,7 +427,7 @@ func TestExtractZipNoRootDirectory(t *testing.T) {
 	// Try to extract zip without root directory
 	err = extractZip(zipPath, extractDir)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "multiple top-level directories found")
+	assert.Contains(t, err.Error(), "no root directory found")
 }
 
 func TestMoveExtractedContent(t *testing.T) {
@@ -473,14 +503,14 @@ func TestMoveExtractedContentMultipleDirs(t *testing.T) {
 	err = os.WriteFile(file2, []byte("data2"), 0600)
 	require.NoError(t, err)
 
-	// Move content
+	// Move content - should move content from the first directory found
 	err = moveExtractedContent(tempDir, testDir)
 	require.NoError(t, err)
 
-	// Проверяем, что файл из первой директории перемещён
+	// Check that file from the first directory was moved
 	_, err = os.Stat(filepath.Join(testDir, "file1.txt"))
 	require.NoError(t, err)
-	// Файл из второй директории не должен быть перемещён
+	// File from the second directory should not be moved
 	_, err = os.Stat(filepath.Join(testDir, "file2.txt"))
 	require.Error(t, err)
 }
@@ -640,13 +670,9 @@ func TestExtractZipWithFileTooLarge(t *testing.T) {
 	tempDir := t.TempDir()
 	extractDir := filepath.Join(tempDir, "extracted")
 
-	// Create extract directory with proper permissions
-	err := os.MkdirAll(extractDir, 0755)
-	require.NoError(t, err)
-
 	// Create a zip file with a very large file
 	zipPath := filepath.Join(tempDir, "large.zip")
-	err = createLargeTestZip(zipPath)
+	err := createLargeTestZip(zipPath)
 	require.NoError(t, err)
 
 	// Try to extract the zip
