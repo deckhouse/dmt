@@ -122,7 +122,7 @@ func (c *Client) WriteProto(
 	encoded := snappy.Encode(nil, data)
 
 	body := bytes.NewReader(encoded)
-	req, err := http.NewRequest("POST", c.writeURL, body)
+	req, err := http.NewRequestWithContext(ctx, "POST", c.writeURL, body)
 	if err != nil {
 		return result, writeError{err: err}
 	}
@@ -139,7 +139,7 @@ func (c *Client) WriteProto(
 		}
 	}
 
-	resp, err := c.httpClient.Do(req.WithContext(ctx))
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return result, writeError{err: err}
 	}

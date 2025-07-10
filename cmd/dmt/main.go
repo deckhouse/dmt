@@ -66,7 +66,6 @@ func runLint(dir string) error {
 	// enable color output for Github actions, do not remove it
 	color.NoColor = false
 	logger.InfoF("DMT version: %s", version)
-	logger.InfoF("Dir: %v", dir)
 
 	cfg, err := config.NewDefaultRootConfig(dir)
 	logger.CheckErr(err)

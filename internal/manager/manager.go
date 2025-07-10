@@ -79,6 +79,10 @@ func NewManager(dir string, rootConfig *config.RootConfig) *Manager {
 		errors: errors.NewLintRuleErrorsList().WithMaxLevel(&managerLevel),
 	}
 
+	return m.initManager(dir)
+}
+
+func (m *Manager) initManager(dir string) *Manager {
 	paths, err := getModulePaths(dir)
 	if err != nil {
 		logger.ErrorF("Error getting module paths: %v", err)
@@ -112,7 +116,7 @@ func NewManager(dir string, rootConfig *config.RootConfig) *Manager {
 			continue
 		}
 
-		mdl.MergeRootConfig(rootConfig)
+		mdl.MergeRootConfig(m.cfg)
 
 		m.Modules = append(m.Modules, mdl)
 	}
