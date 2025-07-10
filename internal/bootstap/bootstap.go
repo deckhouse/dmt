@@ -11,6 +11,7 @@ import (
 
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/logger"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -20,7 +21,7 @@ const (
 	ModuleTemplateURL = "https://github.com/deckhouse/modules-template/archive/refs/heads/main.zip"
 )
 
-func RunBootstrap(repositoryType string, repositoryURL string, directory string) error {
+func RunBootstrap(moduleName string, repositoryType string, repositoryURL string, directory string) error {
 	logger.InfoF("Bootstrap type: %s", repositoryType)
 
 	// Check if current directory is empty
@@ -30,6 +31,12 @@ func RunBootstrap(repositoryType string, repositoryURL string, directory string)
 
 	// Download and extract template
 	if err := downloadAndExtractTemplate(directory); err != nil {
+		return err
+	}
+
+	// Get current moduleName from module.yaml file
+	moduleName, err := getModuleName(directory)
+	if err != nil {
 		return err
 	}
 
@@ -62,6 +69,23 @@ func checkDirectoryEmpty(directory string) error {
 
 	logger.InfoF("Directory is empty, proceeding with bootstrap")
 	return nil
+}
+
+func getModuleName(directory string) (string, error) {
+	moduleYamlPath := filepath.Join(directory, "module.yaml")
+	moduleYaml, err := os.ReadFile(moduleYamlPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read module.yaml: %w", err)
+	}
+
+	var module struct {
+		Name string `yaml:"name"`
+	}
+
+	if err := yaml.Unmarshal(moduleYaml, &module); err != nil {
+		return "", fmt.Errorf("failed to unmarshal module.yaml: %w", err)
+	}
+	return module.Name, nil
 }
 
 // downloadAndExtractTemplate downloads the template zip file and extracts it to current directory

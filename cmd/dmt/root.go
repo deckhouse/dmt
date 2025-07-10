@@ -98,7 +98,19 @@ func lintCmdFunc(_ *cobra.Command, args []string) {
 }
 
 func bootstrapCmdFunc(_ *cobra.Command, args []string) {
-	if err := bootstap.RunBootstrap(flags.BootstrapRepositoryType, flags.BootstrapRepositoryURL, flags.BootstrapDirectory); err != nil {
+	if len(args) == 0 {
+		logger.ErrorF("Module name is required")
+		os.Exit(1)
+	}
+
+	moduleName := args[0]
+
+	if err := bootstap.RunBootstrap(
+		moduleName,
+		flags.BootstrapRepositoryType,
+		flags.BootstrapRepositoryURL,
+		flags.BootstrapDirectory,
+	); err != nil {
 		os.Exit(1)
 	}
 }
