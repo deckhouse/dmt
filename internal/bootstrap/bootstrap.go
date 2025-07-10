@@ -334,7 +334,7 @@ func extractZip(zipPath, extractDir string) error {
 		filePath := filepath.Join(extractDir, relativePath)
 
 		if file.FileInfo().IsDir() {
-			if err := os.MkdirAll(filePath, file.Mode()); err != nil {
+			if err := os.MkdirAll(filePath, dirPermissions); err != nil {
 				return fmt.Errorf("failed to create directory %s: %w", filePath, err)
 			}
 			continue
