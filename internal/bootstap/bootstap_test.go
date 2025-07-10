@@ -38,7 +38,7 @@ func TestCheckCurrentDirectoryEmpty(t *testing.T) {
 	err = os.Chdir(tempDir)
 	require.NoError(t, err)
 
-	err = checkDirectoryEmpty()
+	err = checkDirectoryEmpty(tempDir)
 	assert.NoError(t, err)
 }
 
@@ -116,10 +116,15 @@ func TestExtractZip(t *testing.T) {
 func TestMoveExtractedContent(t *testing.T) {
 	tempDir := t.TempDir()
 
-	// Create some test files in temp directory
+	// Create a template directory inside tempDir (simulating extracted zip structure)
+	templateDir := filepath.Join(tempDir, "modules-template-main")
+	err := os.MkdirAll(templateDir, 0755)
+	require.NoError(t, err)
+
+	// Create some test files in template directory
 	testFiles := []string{"file1.txt", "file2.txt", "dir1/file3.txt"}
 	for _, file := range testFiles {
-		filePath := filepath.Join(tempDir, file)
+		filePath := filepath.Join(templateDir, file)
 		err := os.MkdirAll(filepath.Dir(filePath), 0755)
 		require.NoError(t, err)
 		err = os.WriteFile(filePath, []byte("test"), 0600)
@@ -136,13 +141,14 @@ func TestMoveExtractedContent(t *testing.T) {
 	require.NoError(t, err)
 
 	// Move content
-	err = moveExtractedContent(tempDir)
+	err = moveExtractedContent(tempDir, testDir)
 	assert.NoError(t, err)
 
 	// Check if files were moved
 	for _, file := range testFiles {
-		_, err := os.Stat(filepath.Join(testDir, filepath.Base(file)))
-		assert.NoError(t, err)
+		// Check if the file exists in the test directory
+		_, err := os.Stat(filepath.Join(testDir, file))
+		assert.NoError(t, err, "File %s should be moved to test directory", file)
 	}
 }
 

@@ -29,7 +29,7 @@ func RunBootstrap(repositoryType string, repositoryURL string, directory string)
 	}
 
 	// Download and extract template
-	if err := downloadAndExtractTemplate(); err != nil {
+	if err := downloadAndExtractTemplate(directory); err != nil {
 		return err
 	}
 
@@ -65,7 +65,7 @@ func checkDirectoryEmpty(directory string) error {
 }
 
 // downloadAndExtractTemplate downloads the template zip file and extracts it to current directory
-func downloadAndExtractTemplate() error {
+func downloadAndExtractTemplate(directory string) error {
 	// Create temporary directory
 	tempDir, err := os.MkdirTemp("", "dmt-bootstrap-*")
 	if err != nil {
@@ -85,7 +85,7 @@ func downloadAndExtractTemplate() error {
 	}
 
 	// Move extracted content to current directory
-	if err := moveExtractedContent(tempDir); err != nil {
+	if err := moveExtractedContent(tempDir, directory); err != nil {
 		return fmt.Errorf("failed to move extracted content: %w", err)
 	}
 
@@ -197,12 +197,8 @@ func extractZip(zipPath, extractDir string) error {
 	return nil
 }
 
-// moveExtractedContent moves extracted content from temp directory to current directory
-func moveExtractedContent(tempDir string) error {
-	currentDir, err := fsutils.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to get current directory: %w", err)
-	}
+// moveExtractedContent moves extracted content from temp directory to directory
+func moveExtractedContent(tempDir, directory string) error {
 
 	// Find the single directory (template) inside tempDir
 	entries, err := os.ReadDir(tempDir)
@@ -229,7 +225,7 @@ func moveExtractedContent(tempDir string) error {
 
 	for _, entry := range templateEntries {
 		srcPath := filepath.Join(templateDir, entry.Name())
-		dstPath := filepath.Join(currentDir, entry.Name())
+		dstPath := filepath.Join(directory, entry.Name())
 
 		if err := os.Rename(srcPath, dstPath); err != nil {
 			return fmt.Errorf("failed to move %s to current directory: %w", entry.Name(), err)
