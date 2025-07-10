@@ -67,9 +67,9 @@ func InitLintFlagSet() *pflag.FlagSet {
 func InitBootstrapFlagSet() *pflag.FlagSet {
 	bootstrap := pflag.NewFlagSet("bootstrap", pflag.ContinueOnError)
 
-	bootstrap.StringVar(&BootstrapRepositoryType, "repository-type", "github", "repository type [github | gitlab]")
-	bootstrap.StringVar(&BootstrapRepositoryURL, "repository-url", "", "repository URL")
-	bootstrap.StringVar(&BootstrapDirectory, "directory", "", "directory to bootstrap")
+	bootstrap.StringVarP(&BootstrapRepositoryType, "repository-type", "t", "github", "repository type [github | gitlab]")
+	bootstrap.StringVarP(&BootstrapRepositoryURL, "repository-url", "r", "", "repository URL")
+	bootstrap.StringVarP(&BootstrapDirectory, "directory", "d", "", "directory to bootstrap")
 
 	return bootstrap
 }
