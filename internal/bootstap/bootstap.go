@@ -11,6 +11,7 @@ import (
 
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/logger"
+	"github.com/iancoleman/strcase"
 	"gopkg.in/yaml.v3"
 )
 
@@ -35,8 +36,18 @@ func RunBootstrap(moduleName string, repositoryType string, repositoryURL string
 	}
 
 	// Get current moduleName from module.yaml file
-	moduleName, err := getModuleName(directory)
+	currentModuleName, err := getModuleName(directory)
 	if err != nil {
+		return err
+	}
+
+	// Replace all strings like `.Values.currentModuleName` with `.Values.moduleName`
+	if err := replaceValuesModuleName(currentModuleName, moduleName, directory); err != nil {
+		return err
+	}
+
+	// Replace all strings like `currentModuleName` with `moduleName`
+	if err := replaceModuleName(currentModuleName, moduleName, directory); err != nil {
 		return err
 	}
 
@@ -68,6 +79,57 @@ func checkDirectoryEmpty(directory string) error {
 	}
 
 	logger.InfoF("Directory is empty, proceeding with bootstrap")
+	return nil
+}
+
+// Replace all strings like `currentModuleName` with `newModuleName`
+func replaceModuleName(currentModuleName, newModuleName, directory string) error {
+	files := fsutils.GetFiles(directory, true, func(_, _ string) bool {
+		return true
+	})
+
+	for _, file := range files {
+		content, err := os.ReadFile(file)
+		if err != nil {
+			return fmt.Errorf("failed to read file: %w", err)
+		}
+
+		newContent := strings.ReplaceAll(string(content), currentModuleName, newModuleName)
+		if err := os.WriteFile(file, []byte(newContent), 0644); err != nil {
+			return fmt.Errorf("failed to write file: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// Find all strings like `.Values.currentModuleName` in files and replace them with `.Values.newModuleName`
+// find all strings like `.currentModuleName.internal` in files and replace them with `.newModuleName.internal`
+// newModuleName is currentModuleName but lowerCamelCase
+func replaceValuesModuleName(currentModuleName, newModuleName, directory string) error {
+	files := fsutils.GetFiles(directory, true, func(_, _ string) bool {
+		return true
+	})
+
+	for _, file := range files {
+		content, err := os.ReadFile(file)
+		if err != nil {
+			return fmt.Errorf("failed to read file: %w", err)
+		}
+
+		oldPattern := fmt.Sprintf(".Values.%s", currentModuleName)
+		newPattern := fmt.Sprintf(".Values.%s", strcase.ToLowerCamel(newModuleName))
+		newContent := strings.ReplaceAll(string(content), oldPattern, newPattern)
+
+		oldPattern = fmt.Sprintf("%s.internal", currentModuleName)
+		newPattern = fmt.Sprintf("%s.internal", strcase.ToLowerCamel(newModuleName))
+		newContent = strings.ReplaceAll(newContent, oldPattern, newPattern)
+
+		if err := os.WriteFile(file, []byte(newContent), 0644); err != nil {
+			return fmt.Errorf("failed to write file: %w", err)
+		}
+	}
+
 	return nil
 }
 
