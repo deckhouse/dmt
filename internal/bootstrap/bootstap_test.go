@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package bootstap
+package bootstrap
 
 import (
 	"archive/zip"
@@ -33,7 +33,13 @@ func TestRunBootstrap(t *testing.T) {
 	// Test successful bootstrap
 	tempDir := t.TempDir()
 
-	err := RunBootstrap("test-module", RepositoryTypeGitHub, "https://github.com/test/repo", tempDir)
+	config := BootstrapConfig{
+		ModuleName:     "test-module",
+		RepositoryType: RepositoryTypeGitHub,
+		RepositoryURL:  "https://github.com/test/repo",
+		Directory:      tempDir,
+	}
+	err := RunBootstrap(config)
 	assert.NoError(t, err)
 
 	// Check if module.yaml was created

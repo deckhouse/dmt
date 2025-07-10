@@ -22,7 +22,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/deckhouse/dmt/internal/bootstap"
+	"github.com/deckhouse/dmt/internal/bootstrap"
 	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/logger"
@@ -105,12 +105,14 @@ func bootstrapCmdFunc(_ *cobra.Command, args []string) {
 
 	moduleName := args[0]
 
-	if err := bootstap.RunBootstrap(
-		moduleName,
-		flags.BootstrapRepositoryType,
-		flags.BootstrapRepositoryURL,
-		flags.BootstrapDirectory,
-	); err != nil {
+	config := bootstrap.BootstrapConfig{
+		ModuleName:     moduleName,
+		RepositoryType: flags.BootstrapRepositoryType,
+		RepositoryURL:  flags.BootstrapRepositoryURL,
+		Directory:      flags.BootstrapDirectory,
+	}
+
+	if err := bootstrap.RunBootstrap(config); err != nil {
 		os.Exit(1)
 	}
 }

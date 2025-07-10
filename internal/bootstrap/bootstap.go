@@ -1,13 +1,15 @@
-package bootstap
+package bootstrap
 
 import (
 	"archive/zip"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/logger"
@@ -20,35 +22,47 @@ const (
 	RepositoryTypeGitLab = "gitlab"
 
 	ModuleTemplateURL = "https://github.com/deckhouse/modules-template/archive/refs/heads/main.zip"
+
+	// HTTP timeout for downloads
+	downloadTimeout = 30 * time.Second
 )
 
-func RunBootstrap(moduleName string, repositoryType string, repositoryURL string, directory string) error {
-	logger.InfoF("Bootstrap type: %s", repositoryType)
+// BootstrapConfig holds configuration for bootstrap process
+type BootstrapConfig struct {
+	ModuleName     string
+	RepositoryType string
+	RepositoryURL  string
+	Directory      string
+}
+
+// RunBootstrap initializes a new module with the given configuration
+func RunBootstrap(config BootstrapConfig) error {
+	logger.InfoF("Bootstrap type: %s", config.RepositoryType)
 
 	// Check if current directory is empty
-	if err := checkDirectoryEmpty(directory); err != nil {
-		return err
+	if err := checkDirectoryEmpty(config.Directory); err != nil {
+		return fmt.Errorf("directory validation failed: %w", err)
 	}
 
 	// Download and extract template
-	if err := downloadAndExtractTemplate(directory); err != nil {
-		return err
+	if err := downloadAndExtractTemplate(config.Directory); err != nil {
+		return fmt.Errorf("template download/extraction failed: %w", err)
 	}
 
 	// Get current moduleName from module.yaml file
-	currentModuleName, err := getModuleName(directory)
+	currentModuleName, err := getModuleName(config.Directory)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get module name: %w", err)
 	}
 
 	// Replace all strings like `.Values.currentModuleName` with `.Values.moduleName`
-	if err := replaceValuesModuleName(currentModuleName, moduleName, directory); err != nil {
-		return err
+	if err := replaceValuesModuleName(currentModuleName, config.ModuleName, config.Directory); err != nil {
+		return fmt.Errorf("failed to replace values module name: %w", err)
 	}
 
 	// Replace all strings like `currentModuleName` with `moduleName`
-	if err := replaceModuleName(currentModuleName, moduleName, directory); err != nil {
-		return err
+	if err := replaceModuleName(currentModuleName, config.ModuleName, config.Directory); err != nil {
+		return fmt.Errorf("failed to replace module name: %w", err)
 	}
 
 	logger.InfoF("Bootstrap completed successfully")
@@ -56,7 +70,7 @@ func RunBootstrap(moduleName string, repositoryType string, repositoryURL string
 }
 
 // checkDirectoryEmpty checks if the directory is empty
-// and exits with error if it's not empty
+// and returns an error if it's not empty
 func checkDirectoryEmpty(directory string) error {
 	if directory != "" {
 		currentDir, err := fsutils.ExpandDir(directory)
@@ -74,65 +88,77 @@ func checkDirectoryEmpty(directory string) error {
 
 	files := fsutils.GetFiles(directory, false)
 	if len(files) > 0 {
-		logger.ErrorF("Directory is not empty. Please run bootstrap in an empty directory.")
-		os.Exit(1)
+		return fmt.Errorf("directory is not empty. Please run bootstrap in an empty directory")
 	}
 
 	logger.InfoF("Directory is empty, proceeding with bootstrap")
 	return nil
 }
 
-// Replace all strings like `currentModuleName` with `newModuleName`
+// replaceModuleName replaces all occurrences of currentModuleName with newModuleName in files
 func replaceModuleName(currentModuleName, newModuleName, directory string) error {
 	files := fsutils.GetFiles(directory, true, func(_, _ string) bool {
 		return true
 	})
 
 	for _, file := range files {
-		content, err := os.ReadFile(file)
-		if err != nil {
-			return fmt.Errorf("failed to read file: %w", err)
-		}
-
-		newContent := strings.ReplaceAll(string(content), currentModuleName, newModuleName)
-		if err := os.WriteFile(file, []byte(newContent), 0644); err != nil {
-			return fmt.Errorf("failed to write file: %w", err)
+		if err := replaceInFile(file, currentModuleName, newModuleName); err != nil {
+			return fmt.Errorf("failed to replace in file %s: %w", file, err)
 		}
 	}
 
 	return nil
 }
 
-// Find all strings like `.Values.currentModuleName` in files and replace them with `.Values.newModuleName`
-// find all strings like `.currentModuleName.internal` in files and replace them with `.newModuleName.internal`
-// newModuleName is currentModuleName but lowerCamelCase
+// replaceValuesModuleName replaces .Values.currentModuleName patterns with .Values.newModuleName
+// and currentModuleName.internal patterns with newModuleName.internal (in camelCase)
 func replaceValuesModuleName(currentModuleName, newModuleName, directory string) error {
 	files := fsutils.GetFiles(directory, true, func(_, _ string) bool {
 		return true
 	})
 
+	camelCaseNewName := strcase.ToLowerCamel(newModuleName)
+
 	for _, file := range files {
 		content, err := os.ReadFile(file)
 		if err != nil {
-			return fmt.Errorf("failed to read file: %w", err)
+			return fmt.Errorf("failed to read file %s: %w", file, err)
 		}
 
+		// Replace .Values.currentModuleName with .Values.newModuleName (camelCase)
 		oldPattern := fmt.Sprintf(".Values.%s", currentModuleName)
-		newPattern := fmt.Sprintf(".Values.%s", strcase.ToLowerCamel(newModuleName))
+		newPattern := fmt.Sprintf(".Values.%s", camelCaseNewName)
 		newContent := strings.ReplaceAll(string(content), oldPattern, newPattern)
 
+		// Replace currentModuleName.internal with newModuleName.internal (camelCase)
 		oldPattern = fmt.Sprintf("%s.internal", currentModuleName)
-		newPattern = fmt.Sprintf("%s.internal", strcase.ToLowerCamel(newModuleName))
+		newPattern = fmt.Sprintf("%s.internal", camelCaseNewName)
 		newContent = strings.ReplaceAll(newContent, oldPattern, newPattern)
 
 		if err := os.WriteFile(file, []byte(newContent), 0644); err != nil {
-			return fmt.Errorf("failed to write file: %w", err)
+			return fmt.Errorf("failed to write file %s: %w", file, err)
 		}
 	}
 
 	return nil
 }
 
+// replaceInFile replaces oldString with newString in a single file
+func replaceInFile(filePath, oldString, newString string) error {
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to read file: %w", err)
+	}
+
+	newContent := strings.ReplaceAll(string(content), oldString, newString)
+	if err := os.WriteFile(filePath, []byte(newContent), 0644); err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
+	}
+
+	return nil
+}
+
+// getModuleName extracts the module name from module.yaml file
 func getModuleName(directory string) (string, error) {
 	moduleYamlPath := filepath.Join(directory, "module.yaml")
 	moduleYaml, err := os.ReadFile(moduleYamlPath)
@@ -178,11 +204,19 @@ func downloadAndExtractTemplate(directory string) error {
 	return nil
 }
 
-// downloadFile downloads a file from URL to local path
+// downloadFile downloads a file from URL to local path with timeout
 func downloadFile(url, filepath string) error {
 	logger.InfoF("Downloading template from: %s", url)
 
-	resp, err := http.Get(url)
+	ctx, cancel := context.WithTimeout(context.Background(), downloadTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to download file: %w", err)
 	}
@@ -285,7 +319,6 @@ func extractZip(zipPath, extractDir string) error {
 
 // moveExtractedContent moves extracted content from temp directory to directory
 func moveExtractedContent(tempDir, directory string) error {
-
 	// Find the single directory (template) inside tempDir
 	entries, err := os.ReadDir(tempDir)
 	if err != nil {
