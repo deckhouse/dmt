@@ -25,8 +25,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/deckhouse/dmt/internal/fsutils"
 )
 
 func TestRunBootstrap(t *testing.T) {
@@ -61,10 +59,10 @@ func TestRunBootstrapWithNonEmptyDirectory(t *testing.T) {
 	err := os.WriteFile(filepath.Join(tempDir, "existing.txt"), []byte("existing"), 0600)
 	require.NoError(t, err)
 
-	// Since checkDirectoryEmpty calls os.Exit(1), we can't test it directly
-	// Instead, we'll test the logic by checking if files exist
-	files := fsutils.GetFiles(tempDir, false)
-	assert.NotEmpty(t, files, "Directory should not be empty")
+	// Test that checkDirectoryEmpty returns an error for non-empty directory
+	err = checkDirectoryEmpty(tempDir)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "directory is not empty")
 }
 
 func TestCheckDirectoryEmpty(t *testing.T) {
@@ -83,10 +81,10 @@ func TestCheckDirectoryEmptyWithFiles(t *testing.T) {
 	err := os.WriteFile(filepath.Join(tempDir, "test.txt"), []byte("test"), 0600)
 	require.NoError(t, err)
 
-	// Since checkDirectoryEmpty calls os.Exit(1), we can't test it directly
-	// Instead, we'll test the logic by checking if files exist
-	files := fsutils.GetFiles(tempDir, false)
-	assert.NotEmpty(t, files, "Directory should not be empty")
+	// Test that checkDirectoryEmpty returns an error for non-empty directory
+	err = checkDirectoryEmpty(tempDir)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "directory is not empty")
 }
 
 func TestCheckDirectoryEmptyWithEmptyString(t *testing.T) {

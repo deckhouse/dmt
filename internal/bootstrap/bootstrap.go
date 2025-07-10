@@ -362,9 +362,13 @@ func extractZip(zipPath, extractDir string) error {
 		limitedReader := io.LimitReader(zipFile, maxFileSize)
 		_, err = io.Copy(outFile, limitedReader)
 		zipFile.Close()
-		outFile.Close()
 		if err != nil {
+			outFile.Close()
 			return fmt.Errorf("failed to copy file content %s: %w", filePath, err)
+		}
+
+		if err := outFile.Close(); err != nil {
+			return fmt.Errorf("failed to close file %s: %w", filePath, err)
 		}
 	}
 
