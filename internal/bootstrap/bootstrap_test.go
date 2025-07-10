@@ -239,23 +239,32 @@ func TestGetModuleNameInvalidYaml(t *testing.T) {
 
 func TestDownloadFile(t *testing.T) {
 	// Create a test server that serves a mock zip file
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		// Create a simple zip file in memory
 		buf := new(bytes.Buffer)
 		zipWriter := zip.NewWriter(buf)
 
 		// Add a test file to the zip
 		testFile, err := zipWriter.Create("modules-template-main/test.txt")
-		require.NoError(t, err)
+		if err != nil {
+			http.Error(w, "failed to create zip file", http.StatusInternalServerError)
+			return
+		}
 		_, err = testFile.Write([]byte("test content"))
-		require.NoError(t, err)
+		if err != nil {
+			http.Error(w, "failed to write to zip file", http.StatusInternalServerError)
+			return
+		}
 
 		zipWriter.Close()
 
 		// Serve the zip file
 		w.Header().Set("Content-Type", "application/zip")
 		w.WriteHeader(http.StatusOK)
-		w.Write(buf.Bytes())
+		if _, err := w.Write(buf.Bytes()); err != nil {
+			// Log error but can't return it from handler
+			return
+		}
 	}))
 	defer server.Close()
 
@@ -273,7 +282,7 @@ func TestDownloadFile(t *testing.T) {
 	// Verify the file contains the expected content
 	fileInfo, err := os.Stat(zipPath)
 	require.NoError(t, err)
-	assert.Greater(t, fileInfo.Size(), int64(0), "Downloaded file should not be empty")
+	assert.Positive(t, fileInfo.Size(), "Downloaded file should not be empty")
 }
 
 func TestDownloadFileInvalidURL(t *testing.T) {
@@ -288,10 +297,13 @@ func TestDownloadFileInvalidURL(t *testing.T) {
 
 func TestDownloadFileInvalidPath(t *testing.T) {
 	// Create a test server that returns a successful response
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/zip")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("test zip content"))
+		if _, err := w.Write([]byte("test zip content")); err != nil {
+			// Log error but can't return it from handler
+			return
+		}
 	}))
 	defer server.Close()
 
@@ -303,9 +315,12 @@ func TestDownloadFileInvalidPath(t *testing.T) {
 
 func TestDownloadFileServerError(t *testing.T) {
 	// Create a test server that returns an error status
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Internal Server Error"))
+		if _, err := w.Write([]byte("Internal Server Error")); err != nil {
+			// Log error but can't return it from handler
+			return
+		}
 	}))
 	defer server.Close()
 
