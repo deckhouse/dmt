@@ -1,3 +1,19 @@
+/*
+Copyright 2025 Flant JSC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package bootstrap
 
 import (
@@ -11,10 +27,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/deckhouse/dmt/internal/fsutils"
-	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/iancoleman/strcase"
 	"gopkg.in/yaml.v3"
+
+	"github.com/deckhouse/dmt/internal/fsutils"
+	"github.com/deckhouse/dmt/internal/logger"
 )
 
 const (
@@ -25,6 +42,13 @@ const (
 
 	// HTTP timeout for downloads
 	downloadTimeout = 30 * time.Second
+
+	// File permissions
+	filePermissions = 0600
+	dirPermissions  = 0755
+
+	// Maximum file size to prevent DoS attacks (10MB)
+	maxFileSize = 10 * 1024 * 1024
 )
 
 // BootstrapConfig holds configuration for bootstrap process
@@ -135,7 +159,7 @@ func replaceValuesModuleName(currentModuleName, newModuleName, directory string)
 		newPattern = fmt.Sprintf("%s.internal", camelCaseNewName)
 		newContent = strings.ReplaceAll(newContent, oldPattern, newPattern)
 
-		if err := os.WriteFile(file, []byte(newContent), 0644); err != nil {
+		if err := os.WriteFile(file, []byte(newContent), filePermissions); err != nil {
 			return fmt.Errorf("failed to write file %s: %w", file, err)
 		}
 	}
@@ -151,7 +175,7 @@ func replaceInFile(filePath, oldString, newString string) error {
 	}
 
 	newContent := strings.ReplaceAll(string(content), oldString, newString)
-	if err := os.WriteFile(filePath, []byte(newContent), 0644); err != nil {
+	if err := os.WriteFile(filePath, []byte(newContent), filePermissions); err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 
@@ -205,13 +229,13 @@ func downloadAndExtractTemplate(directory string) error {
 }
 
 // downloadFile downloads a file from URL to local path with timeout
-func downloadFile(url, filepath string) error {
+func downloadFile(url, targetPath string) error {
 	logger.InfoF("Downloading template from: %s", url)
 
 	ctx, cancel := context.WithTimeout(context.Background(), downloadTimeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, http.NoBody)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
@@ -226,13 +250,15 @@ func downloadFile(url, filepath string) error {
 		return fmt.Errorf("failed to download file, status: %d", resp.StatusCode)
 	}
 
-	file, err := os.Create(filepath)
+	file, err := os.Create(targetPath)
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
 	defer file.Close()
 
-	_, err = io.Copy(file, resp.Body)
+	// Limit the size of the downloaded file to prevent DoS attacks
+	limitedReader := io.LimitReader(resp.Body, maxFileSize)
+	_, err = io.Copy(file, limitedReader)
 	if err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
@@ -287,7 +313,7 @@ func extractZip(zipPath, extractDir string) error {
 		}
 
 		// Create parent directories
-		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(filePath), dirPermissions); err != nil {
 			return fmt.Errorf("failed to create parent directories for %s: %w", filePath, err)
 		}
 
@@ -304,8 +330,9 @@ func extractZip(zipPath, extractDir string) error {
 			return fmt.Errorf("failed to open zip file entry %s: %w", file.Name, err)
 		}
 
-		// Copy content
-		_, err = io.Copy(outFile, zipFile)
+		// Copy content with size limit to prevent DoS attacks
+		limitedReader := io.LimitReader(zipFile, maxFileSize)
+		_, err = io.Copy(outFile, limitedReader)
 		zipFile.Close()
 		outFile.Close()
 		if err != nil {

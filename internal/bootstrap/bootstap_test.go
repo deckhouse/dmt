@@ -23,10 +23,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
+
+	"github.com/deckhouse/dmt/internal/fsutils"
 )
 
 func TestRunBootstrap(t *testing.T) {
@@ -40,12 +40,12 @@ func TestRunBootstrap(t *testing.T) {
 		Directory:      tempDir,
 	}
 	err := RunBootstrap(config)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Check if module.yaml was created
 	moduleYamlPath := filepath.Join(tempDir, "module.yaml")
 	_, err = os.Stat(moduleYamlPath)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Check if module name was replaced
 	content, err := os.ReadFile(moduleYamlPath)
@@ -64,7 +64,7 @@ func TestRunBootstrapWithNonEmptyDirectory(t *testing.T) {
 	// Since checkDirectoryEmpty calls os.Exit(1), we can't test it directly
 	// Instead, we'll test the logic by checking if files exist
 	files := fsutils.GetFiles(tempDir, false)
-	assert.Greater(t, len(files), 0, "Directory should not be empty")
+	assert.NotEmpty(t, files, "Directory should not be empty")
 }
 
 func TestCheckDirectoryEmpty(t *testing.T) {
@@ -72,7 +72,7 @@ func TestCheckDirectoryEmpty(t *testing.T) {
 	tempDir := t.TempDir()
 
 	err := checkDirectoryEmpty(tempDir)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestCheckDirectoryEmptyWithFiles(t *testing.T) {
@@ -86,7 +86,7 @@ func TestCheckDirectoryEmptyWithFiles(t *testing.T) {
 	// Since checkDirectoryEmpty calls os.Exit(1), we can't test it directly
 	// Instead, we'll test the logic by checking if files exist
 	files := fsutils.GetFiles(tempDir, false)
-	assert.Greater(t, len(files), 0, "Directory should not be empty")
+	assert.NotEmpty(t, files, "Directory should not be empty")
 }
 
 func TestCheckDirectoryEmptyWithEmptyString(t *testing.T) {
@@ -98,10 +98,14 @@ func TestCheckDirectoryEmptyWithEmptyString(t *testing.T) {
 	tempDir := t.TempDir()
 	err = os.Chdir(tempDir)
 	require.NoError(t, err)
-	defer os.Chdir(originalDir)
+	defer func() {
+		if chdirErr := os.Chdir(originalDir); chdirErr != nil {
+			t.Logf("Failed to restore original directory: %v", chdirErr)
+		}
+	}()
 
 	err = checkDirectoryEmpty("")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestReplaceModuleName(t *testing.T) {
@@ -124,7 +128,7 @@ func TestReplaceModuleName(t *testing.T) {
 
 	// Replace module name
 	err := replaceModuleName("old-module-name", "new-module-name", tempDir)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Check if replacements were made
 	for fileName, originalContent := range testFiles {
@@ -155,7 +159,7 @@ func TestReplaceValuesModuleName(t *testing.T) {
 
 	// Replace values module name
 	err := replaceValuesModuleName("oldModuleName", "newModuleName", tempDir)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Check if replacements were made correctly
 	expectedFiles := map[string]string{
@@ -183,7 +187,7 @@ func TestReplaceValuesModuleNameWithCamelCase(t *testing.T) {
 
 	// Replace values module name (should convert to camelCase)
 	err = replaceValuesModuleName("old_module_name", "new_module_name", tempDir)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Check if replacement was made with camelCase
 	expectedContent := ".Values.newModuleName.internal"
@@ -205,7 +209,7 @@ version: 1.0.0`
 
 	// Get module name
 	moduleName, err := getModuleName(tempDir)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "test-module", moduleName)
 }
 
@@ -214,7 +218,7 @@ func TestGetModuleNameFileNotFound(t *testing.T) {
 
 	// Try to get module name from directory without module.yaml
 	_, err := getModuleName(tempDir)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to read module.yaml")
 }
 
@@ -228,7 +232,7 @@ func TestGetModuleNameInvalidYaml(t *testing.T) {
 
 	// Try to get module name
 	_, err = getModuleName(tempDir)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to unmarshal module.yaml")
 }
 
@@ -238,11 +242,11 @@ func TestDownloadFile(t *testing.T) {
 
 	// Test with a real URL (this will actually download)
 	err := downloadFile(ModuleTemplateURL, zipPath)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Check if file was created
 	_, err = os.Stat(zipPath)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestDownloadFileInvalidURL(t *testing.T) {
@@ -251,13 +255,13 @@ func TestDownloadFileInvalidURL(t *testing.T) {
 
 	// Test with invalid URL
 	err := downloadFile("https://invalid-url-that-does-not-exist.com/file.zip", zipPath)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestDownloadFileInvalidPath(t *testing.T) {
 	// Test with invalid file path
 	err := downloadFile(ModuleTemplateURL, "/invalid/path/test.zip")
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestExtractZip(t *testing.T) {
@@ -271,29 +275,29 @@ func TestExtractZip(t *testing.T) {
 
 	// Extract the zip
 	err = extractZip(zipPath, extractDir)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Check if files were extracted
 	entries, err := os.ReadDir(extractDir)
-	assert.NoError(t, err)
-	assert.Greater(t, len(entries), 0)
+	require.NoError(t, err)
+	assert.NotEmpty(t, entries)
 
 	// Check that the root directory was extracted
 	rootDirInfo, err := os.Stat(filepath.Join(extractDir, "modules-template-main"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, rootDirInfo.IsDir())
 
 	// Check files inside the root directory
 	_, err = os.Stat(filepath.Join(extractDir, "modules-template-main", "test.txt"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	dirInfo, err := os.Stat(filepath.Join(extractDir, "modules-template-main", "dir1"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, dirInfo.IsDir())
 
 	// Check file in subdirectory
 	_, err = os.Stat(filepath.Join(extractDir, "modules-template-main", "dir1", "file.txt"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestExtractZipInvalidFile(t *testing.T) {
@@ -307,7 +311,7 @@ func TestExtractZipInvalidFile(t *testing.T) {
 
 	// Try to extract invalid zip
 	err = extractZip(zipPath, extractDir)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestExtractZipNoRootDirectory(t *testing.T) {
@@ -321,7 +325,7 @@ func TestExtractZipNoRootDirectory(t *testing.T) {
 
 	// Try to extract zip without root directory
 	err = extractZip(zipPath, extractDir)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no root directory found")
 }
 
@@ -337,30 +341,34 @@ func TestMoveExtractedContent(t *testing.T) {
 	testFiles := []string{"file1.txt", "file2.txt", "dir1/file3.txt"}
 	for _, file := range testFiles {
 		filePath := filepath.Join(templateDir, file)
-		err := os.MkdirAll(filepath.Dir(filePath), 0755)
-		require.NoError(t, err)
-		err = os.WriteFile(filePath, []byte("test"), 0600)
-		require.NoError(t, err)
+		mkdirErr := os.MkdirAll(filepath.Dir(filePath), 0755)
+		require.NoError(t, mkdirErr)
+		writeErr := os.WriteFile(filePath, []byte("test"), 0600)
+		require.NoError(t, writeErr)
 	}
 
 	// Change to a new directory for testing
 	testDir := t.TempDir()
 	originalDir, err := os.Getwd()
 	require.NoError(t, err)
-	defer os.Chdir(originalDir)
+	defer func() {
+		if chdirErr := os.Chdir(originalDir); chdirErr != nil {
+			t.Logf("Failed to restore original directory: %v", chdirErr)
+		}
+	}()
 
 	err = os.Chdir(testDir)
 	require.NoError(t, err)
 
 	// Move content
 	err = moveExtractedContent(tempDir, testDir)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Check if files were moved
 	for _, file := range testFiles {
 		// Check if the file exists in the test directory
 		_, err := os.Stat(filepath.Join(testDir, file))
-		assert.NoError(t, err, "File %s should be moved to test directory", file)
+		require.NoError(t, err, "File %s should be moved to test directory", file)
 	}
 }
 
@@ -370,7 +378,7 @@ func TestMoveExtractedContentNoTemplateDir(t *testing.T) {
 
 	// Try to move content when no template directory exists
 	err := moveExtractedContent(tempDir, testDir)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "template directory not found")
 }
 
@@ -396,17 +404,17 @@ func TestMoveExtractedContentMultipleDirs(t *testing.T) {
 
 	// Move content
 	err = moveExtractedContent(tempDir, testDir)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Проверяем, что файл из первой директории перемещён
 	_, err = os.Stat(filepath.Join(testDir, "file1.txt"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	// Файл из второй директории не должен быть перемещён
 	_, err = os.Stat(filepath.Join(testDir, "file2.txt"))
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
-func TestDownloadAndExtractTemplate(t *testing.T) {
+func TestDownloadAndExtractTemplate(_ *testing.T) {
 	// This test would require mocking HTTP requests
 	// For now, we'll test the function structure
 	// In a real implementation, you might want to use httptest.Server
@@ -418,22 +426,6 @@ func TestDownloadAndExtractTemplate(t *testing.T) {
 }
 
 // Helper functions for testing
-
-func getFilesInCurrentDir() []string {
-	// This is a simplified version for testing
-	entries, err := os.ReadDir(".")
-	if err != nil {
-		return nil
-	}
-
-	var files []string
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			files = append(files, entry.Name())
-		}
-	}
-	return files
-}
 
 func createTestZip(zipPath string) error {
 	// Create a proper zip file for testing
@@ -497,21 +489,4 @@ func createZipWithoutRoot(zipPath string) error {
 	}
 
 	return nil
-}
-
-// Test helper for creating module.yaml files
-func createModuleYaml(dir, name string) error {
-	module := struct {
-		Name string `yaml:"name"`
-	}{
-		Name: name,
-	}
-
-	data, err := yaml.Marshal(module)
-	if err != nil {
-		return err
-	}
-
-	moduleYamlPath := filepath.Join(dir, "module.yaml")
-	return os.WriteFile(moduleYamlPath, data, 0600)
 }
