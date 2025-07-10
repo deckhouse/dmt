@@ -18,6 +18,9 @@ package bootstrap
 
 import (
 	"archive/zip"
+	"bytes"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -235,16 +238,42 @@ func TestGetModuleNameInvalidYaml(t *testing.T) {
 }
 
 func TestDownloadFile(t *testing.T) {
+	// Create a test server that serves a mock zip file
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Create a simple zip file in memory
+		buf := new(bytes.Buffer)
+		zipWriter := zip.NewWriter(buf)
+
+		// Add a test file to the zip
+		testFile, err := zipWriter.Create("modules-template-main/test.txt")
+		require.NoError(t, err)
+		_, err = testFile.Write([]byte("test content"))
+		require.NoError(t, err)
+
+		zipWriter.Close()
+
+		// Serve the zip file
+		w.Header().Set("Content-Type", "application/zip")
+		w.WriteHeader(http.StatusOK)
+		w.Write(buf.Bytes())
+	}))
+	defer server.Close()
+
 	tempDir := t.TempDir()
 	zipPath := filepath.Join(tempDir, "test.zip")
 
-	// Test with a real URL (this will actually download)
-	err := downloadFile(ModuleTemplateURL, zipPath)
+	// Test with the mock server URL
+	err := downloadFile(server.URL, zipPath)
 	require.NoError(t, err)
 
 	// Check if file was created
 	_, err = os.Stat(zipPath)
 	require.NoError(t, err)
+
+	// Verify the file contains the expected content
+	fileInfo, err := os.Stat(zipPath)
+	require.NoError(t, err)
+	assert.Greater(t, fileInfo.Size(), int64(0), "Downloaded file should not be empty")
 }
 
 func TestDownloadFileInvalidURL(t *testing.T) {
@@ -254,12 +283,39 @@ func TestDownloadFileInvalidURL(t *testing.T) {
 	// Test with invalid URL
 	err := downloadFile("https://invalid-url-that-does-not-exist.com/file.zip", zipPath)
 	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to download file")
 }
 
 func TestDownloadFileInvalidPath(t *testing.T) {
+	// Create a test server that returns a successful response
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/zip")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("test zip content"))
+	}))
+	defer server.Close()
+
 	// Test with invalid file path
-	err := downloadFile(ModuleTemplateURL, "/invalid/path/test.zip")
+	err := downloadFile(server.URL, "/invalid/path/test.zip")
 	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create file")
+}
+
+func TestDownloadFileServerError(t *testing.T) {
+	// Create a test server that returns an error status
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Internal Server Error"))
+	}))
+	defer server.Close()
+
+	tempDir := t.TempDir()
+	zipPath := filepath.Join(tempDir, "test.zip")
+
+	// Test with server error
+	err := downloadFile(server.URL, zipPath)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to download file, status: 500")
 }
 
 func TestExtractZip(t *testing.T) {

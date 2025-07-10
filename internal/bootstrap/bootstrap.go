@@ -108,7 +108,7 @@ func RunBootstrap(config BootstrapConfig) error {
 		}
 	case RepositoryTypeGitHub:
 		if err := os.RemoveAll(filepath.Join(config.Directory, ".gitlab-ci.yml")); err != nil {
-			return fmt.Errorf("failed to remove .gitlabci.yml file: %w", err)
+			return fmt.Errorf("failed to remove .gitlab-ci.yml file: %w", err)
 		}
 	}
 
