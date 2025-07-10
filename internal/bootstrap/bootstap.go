@@ -81,7 +81,7 @@ func RunBootstrap(config BootstrapConfig) error {
 	}
 
 	// Download and extract template
-	if err := downloadAndExtractTemplate(config.Directory); err != nil {
+	if err := downloadAndExtractTemplate(config); err != nil {
 		return fmt.Errorf("template download/extraction failed: %w", err)
 	}
 
@@ -224,7 +224,12 @@ func getModuleName(directory string) (string, error) {
 }
 
 // downloadAndExtractTemplate downloads the template zip file and extracts it to current directory
-func downloadAndExtractTemplate(directory string) error {
+func downloadAndExtractTemplate(config BootstrapConfig) error {
+	repositoryURL := ModuleTemplateURL
+	if config.RepositoryURL != "" {
+		repositoryURL = config.RepositoryURL
+	}
+
 	// Create temporary directory
 	tempDir, err := os.MkdirTemp("", "dmt-bootstrap-*")
 	if err != nil {
@@ -234,7 +239,7 @@ func downloadAndExtractTemplate(directory string) error {
 
 	// Download zip file
 	zipPath := filepath.Join(tempDir, "template.zip")
-	if err := downloadFile(ModuleTemplateURL, zipPath); err != nil {
+	if err := downloadFile(repositoryURL, zipPath); err != nil {
 		return fmt.Errorf("failed to download template: %w", err)
 	}
 
@@ -244,7 +249,7 @@ func downloadAndExtractTemplate(directory string) error {
 	}
 
 	// Move extracted content to current directory
-	if err := moveExtractedContent(tempDir, directory); err != nil {
+	if err := moveExtractedContent(tempDir, config.Directory); err != nil {
 		return fmt.Errorf("failed to move extracted content: %w", err)
 	}
 
