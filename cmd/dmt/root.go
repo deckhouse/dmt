@@ -113,6 +113,7 @@ func bootstrapCmdFunc(_ *cobra.Command, args []string) {
 	}
 
 	if err := bootstrap.RunBootstrap(config); err != nil {
+		logger.ErrorF("Error running bootstrap: %v", err)
 		os.Exit(1)
 	}
 }

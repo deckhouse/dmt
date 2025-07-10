@@ -63,7 +63,19 @@ type BootstrapConfig struct {
 func RunBootstrap(config BootstrapConfig) error {
 	logger.InfoF("Bootstrap type: %s", config.RepositoryType)
 
-	// Check if current directory is empty
+	// Check config.RepositoryType
+	if config.RepositoryType != RepositoryTypeGitHub && config.RepositoryType != RepositoryTypeGitLab {
+		return fmt.Errorf("invalid repository type: %s", config.RepositoryType)
+	}
+
+	// if config.Directory does not exist, create it
+	if _, err := os.Stat(config.Directory); os.IsNotExist(err) {
+		if err := os.MkdirAll(config.Directory, dirPermissions); err != nil {
+			return fmt.Errorf("failed to create directory: %w", err)
+		}
+	}
+
+	// Check if directory is empty
 	if err := checkDirectoryEmpty(config.Directory); err != nil {
 		return fmt.Errorf("directory validation failed: %w", err)
 	}
@@ -87,6 +99,17 @@ func RunBootstrap(config BootstrapConfig) error {
 	// Replace all strings like `currentModuleName` with `moduleName`
 	if err := replaceModuleName(currentModuleName, config.ModuleName, config.Directory); err != nil {
 		return fmt.Errorf("failed to replace module name: %w", err)
+	}
+
+	switch config.RepositoryType {
+	case RepositoryTypeGitLab:
+		if err := os.RemoveAll(filepath.Join(config.Directory, ".github")); err != nil {
+			return fmt.Errorf("failed to remove .github directory: %w", err)
+		}
+	case RepositoryTypeGitHub:
+		if err := os.RemoveAll(filepath.Join(config.Directory, ".gitlab-ci.yml")); err != nil {
+			return fmt.Errorf("failed to remove .gitlabci.yml file: %w", err)
+		}
 	}
 
 	logger.InfoF("Bootstrap completed successfully")
