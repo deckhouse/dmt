@@ -36,7 +36,7 @@ func TestRunBootstrap(t *testing.T) {
 	config := BootstrapConfig{
 		ModuleName:     "test-module",
 		RepositoryType: RepositoryTypeGitHub,
-		RepositoryURL:  "https://github.com/test/repo",
+		RepositoryURL:  ModuleTemplateURL, // Use the correct template URL
 		Directory:      tempDir,
 	}
 	err := RunBootstrap(config)
@@ -425,6 +425,182 @@ func TestDownloadAndExtractTemplate(_ *testing.T) {
 	// This test is commented out because it requires network access
 }
 
+func TestRunBootstrapWithGitLab(t *testing.T) {
+	// Test successful bootstrap with GitLab repository type
+	tempDir := t.TempDir()
+
+	config := BootstrapConfig{
+		ModuleName:     "test-module",
+		RepositoryType: RepositoryTypeGitLab,
+		RepositoryURL:  ModuleTemplateURL,
+		Directory:      tempDir,
+	}
+	err := RunBootstrap(config)
+	require.NoError(t, err)
+
+	// Check if module.yaml was created
+	moduleYamlPath := filepath.Join(tempDir, "module.yaml")
+	_, err = os.Stat(moduleYamlPath)
+	require.NoError(t, err)
+
+	// Check if .github directory was removed (GitLab case)
+	githubDir := filepath.Join(tempDir, ".github")
+	_, err = os.Stat(githubDir)
+	require.Error(t, err) // Should not exist
+}
+
+func TestRunBootstrapWithInvalidRepositoryType(t *testing.T) {
+	// Test bootstrap with invalid repository type
+	tempDir := t.TempDir()
+
+	config := BootstrapConfig{
+		ModuleName:     "test-module",
+		RepositoryType: "invalid",
+		RepositoryURL:  ModuleTemplateURL,
+		Directory:      tempDir,
+	}
+	err := RunBootstrap(config)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid repository type")
+}
+
+func TestRunBootstrapWithNonExistentDirectory(t *testing.T) {
+	// Test bootstrap with non-existent directory (should create it)
+	nonExistentDir := filepath.Join(t.TempDir(), "non-existent")
+
+	config := BootstrapConfig{
+		ModuleName:     "test-module",
+		RepositoryType: RepositoryTypeGitHub,
+		RepositoryURL:  ModuleTemplateURL,
+		Directory:      nonExistentDir,
+	}
+	err := RunBootstrap(config)
+	require.NoError(t, err)
+
+	// Check if directory was created
+	_, err = os.Stat(nonExistentDir)
+	require.NoError(t, err)
+}
+
+func TestReplaceInFileWithNonExistentFile(t *testing.T) {
+	// Test replaceInFile with non-existent file
+	err := replaceInFile("/non/existent/file.txt", "old", "new")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to read file")
+}
+
+func TestReplaceInFileWithWriteError(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create a file
+	filePath := filepath.Join(tempDir, "test.txt")
+	err := os.WriteFile(filePath, []byte("old content"), 0600)
+	require.NoError(t, err)
+
+	// Make the file read-only to cause write error
+	err = os.Chmod(filePath, 0400)
+	require.NoError(t, err)
+
+	// Try to replace content
+	err = replaceInFile(filePath, "old", "new")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to write file")
+}
+
+func TestReplaceValuesModuleNameWithReadError(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create a directory with a file that can't be read
+	filePath := filepath.Join(tempDir, "test.txt")
+	err := os.WriteFile(filePath, []byte("test content"), 0600)
+	require.NoError(t, err)
+
+	// Make the file unreadable
+	err = os.Chmod(filePath, 0000)
+	require.NoError(t, err)
+
+	// Try to replace values module name
+	err = replaceValuesModuleName("old", "new", tempDir)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to read file")
+}
+
+func TestReplaceValuesModuleNameWithWriteError(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create a file
+	filePath := filepath.Join(tempDir, "test.txt")
+	err := os.WriteFile(filePath, []byte(".Values.oldModule.internal"), 0600)
+	require.NoError(t, err)
+
+	// Make the file read-only to cause write error
+	err = os.Chmod(filePath, 0400)
+	require.NoError(t, err)
+
+	// Try to replace values module name
+	err = replaceValuesModuleName("oldModule", "newModule", tempDir)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to write file")
+}
+
+func TestDownloadFileWithInvalidPath(t *testing.T) {
+	// Test download with invalid target path
+	err := downloadFile(ModuleTemplateURL, "/invalid/path/test.zip")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create file")
+}
+
+func TestExtractZipWithInvalidExtractDir(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create a proper zip file for testing
+	zipPath := filepath.Join(tempDir, "test.zip")
+	err := createTestZip(zipPath)
+	require.NoError(t, err)
+
+	// Try to extract to invalid directory
+	err = extractZip(zipPath, "/invalid/extract/dir")
+	require.Error(t, err)
+}
+
+func TestExtractZipWithFileTooLarge(t *testing.T) {
+	tempDir := t.TempDir()
+	extractDir := filepath.Join(tempDir, "extracted")
+
+	// Create a zip file with a very large file
+	zipPath := filepath.Join(tempDir, "large.zip")
+	err := createLargeTestZip(zipPath)
+	require.NoError(t, err)
+
+	// Try to extract the zip
+	err = extractZip(zipPath, extractDir)
+	require.Error(t, err)
+}
+
+func TestMoveExtractedContentWithMoveError(t *testing.T) {
+	tempDir := t.TempDir()
+	testDir := t.TempDir()
+
+	// Create a template directory
+	templateDir := filepath.Join(tempDir, "modules-template-main")
+	err := os.MkdirAll(templateDir, 0755)
+	require.NoError(t, err)
+
+	// Create a file in template directory
+	filePath := filepath.Join(templateDir, "test.txt")
+	err = os.WriteFile(filePath, []byte("test"), 0600)
+	require.NoError(t, err)
+
+	// Make the destination directory read-only to cause move error
+	err = os.Chmod(testDir, 0400)
+	require.NoError(t, err)
+
+	// Try to move content
+	err = moveExtractedContent(tempDir, testDir)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to move")
+}
+
 // Helper functions for testing
 
 func createTestZip(zipPath string) error {
@@ -484,6 +660,33 @@ func createZipWithoutRoot(zipPath string) error {
 		return err
 	}
 	_, err = testFile.Write([]byte("test content"))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Helper function to create a large test zip file
+func createLargeTestZip(zipPath string) error {
+	file, err := os.Create(zipPath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	writer := zip.NewWriter(file)
+	defer writer.Close()
+
+	// Add a large file
+	largeFile, err := writer.Create("modules-template-main/large.txt")
+	if err != nil {
+		return err
+	}
+
+	// Write more than maxFileSize bytes
+	largeData := make([]byte, 11*1024*1024) // 11MB
+	_, err = largeFile.Write(largeData)
 	if err != nil {
 		return err
 	}
