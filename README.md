@@ -29,6 +29,14 @@ drwxrwxr-x 1 deckhouse deckhouse  4096 Nov 12 21:45 002-module-two
 drwxrwxr-x 1 deckhouse deckhouse  4096 Nov 10 21:46 003-module-three
 ```
 
+You can also run linter checks for multiple directories at once:
+
+```shell
+dmt lint /path/to/module1 /path/to/module2 /path/to/module3
+```
+
+Each directory is processed as a separate execution, and results are displayed for each directory individually.
+
 ### Gen
 
 Generate some automatic rules for you module
