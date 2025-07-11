@@ -109,15 +109,17 @@ func RunBootstrap(config BootstrapConfig) error {
 
 	logger.InfoF("Bootstrap completed successfully")
 
-	fmt.Println()
-	fmt.Println("Don't forget to add variables to your CI/CD pipeline:")
-	fmt.Println("  - EXTERNAL_MODULES_MODULE_NAME")
-	fmt.Println("  - EXTERNAL_MODULES_REGISTRY")
-	fmt.Println("  - EXTERNAL_MODULES_REGISTRY_LOGIN")
-	fmt.Println("  - EXTERNAL_MODULES_REGISTRY_PASSWORD")
-	fmt.Println("  - EXTERNAL_MODULES_REGISTRY_PATH")
-	fmt.Println("  - MODULES_REGISTRY_LOGIN")
-	fmt.Println("  - MODULES_REGISTRY_PASSWORD")
+	if config.RepositoryType == RepositoryTypeGitLab {
+		fmt.Println()
+		fmt.Println("Don't forget to add variables to your CI/CD pipeline:")
+		fmt.Println("  - EXTERNAL_MODULES_MODULE_NAME")
+		fmt.Println("  - EXTERNAL_MODULES_REGISTRY")
+		fmt.Println("  - EXTERNAL_MODULES_REGISTRY_LOGIN")
+		fmt.Println("  - EXTERNAL_MODULES_REGISTRY_PASSWORD")
+		fmt.Println("  - EXTERNAL_MODULES_REGISTRY_PATH")
+		fmt.Println("  - MODULES_REGISTRY_LOGIN")
+		fmt.Println("  - MODULES_REGISTRY_PASSWORD")
+	}
 
 	return nil
 }
