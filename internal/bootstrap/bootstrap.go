@@ -63,11 +63,6 @@ type BootstrapConfig struct {
 func RunBootstrap(config BootstrapConfig) error {
 	logger.InfoF("Bootstrap type: %s", config.RepositoryType)
 
-	// Check config.RepositoryType
-	if config.RepositoryType != RepositoryTypeGitHub && config.RepositoryType != RepositoryTypeGitLab {
-		return fmt.Errorf("invalid repository type: %s", config.RepositoryType)
-	}
-
 	// if config.Directory does not exist, create it
 	if _, err := os.Stat(config.Directory); os.IsNotExist(err) {
 		if err := os.MkdirAll(config.Directory, dirPermissions); err != nil {

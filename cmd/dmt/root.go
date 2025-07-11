@@ -19,6 +19,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -97,17 +98,25 @@ func lintCmdFunc(_ *cobra.Command, args []string) {
 	}
 }
 
-func bootstrapCmdFunc(_ *cobra.Command, args []string) {
-	if len(args) == 0 {
-		logger.ErrorF("Module name is required")
+func bootstrapCmdFunc(_ *cobra.Command, _ []string) {
+	// Check flags.BootstrapRepositoryType
+	repositoryType := strings.ToLower(flags.BootstrapRepositoryType)
+	if repositoryType != "github" && repositoryType != "gitlab" {
+		logger.ErrorF("invalid repository type: %s", repositoryType)
 		os.Exit(1)
 	}
 
-	moduleName := args[0]
+	// Check flags.BootstrapModule
+	if flags.BootstrapModule == "" {
+		logger.ErrorF("module name is required")
+		os.Exit(1)
+	}
+
+	moduleName := flags.BootstrapModule
 
 	config := bootstrap.BootstrapConfig{
 		ModuleName:     moduleName,
-		RepositoryType: flags.BootstrapRepositoryType,
+		RepositoryType: repositoryType,
 		RepositoryURL:  flags.BootstrapRepositoryURL,
 		Directory:      flags.BootstrapDirectory,
 	}
