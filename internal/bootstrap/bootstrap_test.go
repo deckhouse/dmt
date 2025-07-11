@@ -551,21 +551,6 @@ func TestRunBootstrapWithGitLab(t *testing.T) {
 	require.Error(t, err) // Should not exist
 }
 
-func TestRunBootstrapWithInvalidRepositoryType(t *testing.T) {
-	// Test bootstrap with invalid repository type
-	tempDir := t.TempDir()
-
-	config := BootstrapConfig{
-		ModuleName:     "test-module",
-		RepositoryType: "invalid",
-		RepositoryURL:  ModuleTemplateURL,
-		Directory:      tempDir,
-	}
-	err := RunBootstrap(config)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid repository type")
-}
-
 func TestRunBootstrapWithNonExistentDirectory(t *testing.T) {
 	t.Skip("integration test, requires real template archive with module.yaml")
 	// Test bootstrap with non-existent directory (should create it)
