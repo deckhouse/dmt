@@ -411,11 +411,113 @@ func moveExtractedContent(tempDir, directory string) error {
 		srcPath := filepath.Join(templateDir, entry.Name())
 		dstPath := filepath.Join(directory, entry.Name())
 
-		if err := os.Rename(srcPath, dstPath); err != nil {
+		if err := moveFileOrDirectory(srcPath, dstPath); err != nil {
 			return fmt.Errorf("failed to move %s to current directory: %w", entry.Name(), err)
 		}
 	}
 
 	logger.InfoF("Template files moved to current directory")
+	return nil
+}
+
+// moveFileOrDirectory moves a file or directory with fallback to copy-and-remove
+// when os.Rename fails (e.g., across different filesystems)
+func moveFileOrDirectory(src, dst string) error {
+	// Try direct rename first
+	if err := os.Rename(src, dst); err == nil {
+		return nil
+	}
+
+	// If rename fails, fall back to copy-and-remove approach
+	return copyAndRemove(src, dst)
+}
+
+// copyAndRemove copies a file or directory and then removes the original
+func copyAndRemove(src, dst string) error {
+	info, err := os.Stat(src)
+	if err != nil {
+		return fmt.Errorf("failed to stat source: %w", err)
+	}
+
+	if info.IsDir() {
+		return copyDirectoryAndRemove(src, dst)
+	}
+	return copyFileAndRemove(src, dst)
+}
+
+// copyDirectoryAndRemove recursively copies a directory and removes the original
+func copyDirectoryAndRemove(src, dst string) error {
+	// Create destination directory
+	if err := os.MkdirAll(dst, dirPermissions); err != nil {
+		return fmt.Errorf("failed to create destination directory: %w", err)
+	}
+
+	// Read source directory
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return fmt.Errorf("failed to read source directory: %w", err)
+	}
+
+	// Copy each entry
+	for _, entry := range entries {
+		srcPath := filepath.Join(src, entry.Name())
+		dstPath := filepath.Join(dst, entry.Name())
+
+		if entry.IsDir() {
+			if err := copyDirectoryAndRemove(srcPath, dstPath); err != nil {
+				return fmt.Errorf("failed to copy subdirectory %s: %w", entry.Name(), err)
+			}
+		} else {
+			if err := copyFileAndRemove(srcPath, dstPath); err != nil {
+				return fmt.Errorf("failed to copy file %s: %w", entry.Name(), err)
+			}
+		}
+	}
+
+	// Remove the original directory
+	if err := os.RemoveAll(src); err != nil {
+		return fmt.Errorf("failed to remove original directory: %w", err)
+	}
+
+	return nil
+}
+
+// copyFileAndRemove copies a file and removes the original
+func copyFileAndRemove(src, dst string) error {
+	// Create parent directories if needed
+	if err := os.MkdirAll(filepath.Dir(dst), dirPermissions); err != nil {
+		return fmt.Errorf("failed to create parent directories: %w", err)
+	}
+
+	// Open source file
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("failed to open source file: %w", err)
+	}
+	defer srcFile.Close()
+
+	// Create destination file
+	dstFile, err := os.Create(dst)
+	if err != nil {
+		return fmt.Errorf("failed to create destination file: %w", err)
+	}
+	defer dstFile.Close()
+
+	// Copy content with size limit to prevent DoS attacks
+	limitedReader := io.LimitReader(srcFile, maxFileSize)
+	if _, err := io.Copy(dstFile, limitedReader); err != nil {
+		return fmt.Errorf("failed to copy file content: %w", err)
+	}
+
+	// Preserve file permissions
+	if err := dstFile.Chmod(filePermissions); err != nil {
+		return fmt.Errorf("failed to set file permissions: %w", err)
+	}
+
+	// Remove the original file
+	if err := os.Remove(src); err != nil {
+		return fmt.Errorf("failed to remove original file: %w", err)
+	}
+
 	return nil
 }
