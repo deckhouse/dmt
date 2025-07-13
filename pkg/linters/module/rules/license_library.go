@@ -20,10 +20,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
+	"strings"
 )
 
-var CELicenseRe = regexp.MustCompile(`(?s)[/#{!-]*(\s)*Copyright 202[1-9] Flant JSC[-!}\n#/]*
+var CELicenseRe = regexp.MustCompile(`(?s)[/#{!-]*(\s)*Copyright 202[1-9] Flant C?JSC[-!}\n#/]*
 [/#{!-]*(\s)*Licensed under the Apache License, Version 2\.0 \(the "License"\);[-!}\n]*
 [/#{!-]*(\s)*you may not use this file except in compliance with the License\.[-!}\n]*
 [/#{!-]*(\s)*You may obtain a copy of the License at[-!}\n#/]*
@@ -33,6 +35,8 @@ var CELicenseRe = regexp.MustCompile(`(?s)[/#{!-]*(\s)*Copyright 202[1-9] Flant 
 [/#{!-]*(\s)*WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied\.[-!}\n]*
 [/#{!-]*(\s)*See the License for the specific language governing permissions and[-!}\n]*
 [/#{!-]*(\s)*limitations under the License\.[-!}\n]*`)
+
+var EELicenseRe = regexp.MustCompile(`(?s)[/#{!-]*(\s)*Copyright 202[1-9] Flant JSC[\t ]*\n([\t ]*\n)*[#{!-]*(\s)*Licensed under the Deckhouse Platform Enterprise Edition \(EE\) license\. See https://github\.com/deckhouse/deckhouse/blob/main/ee/LICENSE;[-!}\n]*`)
 
 var fileToCheckRe = regexp.MustCompile(
 	`\.go$|/[^.]+$|\.sh$|\.lua$|\.py$`,
@@ -48,7 +52,32 @@ var flantRe = regexp.MustCompile(`Flant|Deckhouse`)
 
 const bufSize int = 1024
 
-// checkFileCopyright returns true if file is readable and has no copyright information in it.
+// LicenseType represents the type of license expected for a file
+type LicenseType int
+
+const (
+	LicenseTypeCE LicenseType = iota
+	LicenseTypeEE
+)
+
+// getLicenseType determines the expected license type based on the file path
+// Files in directories starting with "ee" should have EE license, others should have CE license
+func getLicenseType(filePath string) LicenseType {
+	// Split the path into components
+	pathComponents := strings.Split(filePath, string(filepath.Separator))
+
+	// Check if any directory in the path starts with "ee"
+	for _, component := range pathComponents {
+		if strings.EqualFold(component, "ee") {
+			return LicenseTypeEE
+		}
+	}
+
+	return LicenseTypeCE
+}
+
+// checkFileCopyright returns true if file is readable and has the correct copyright information.
+// It now checks for the appropriate license type based on the file path.
 func checkFileCopyright(fName string) (bool, error) {
 	// Original script 'validate_copyright.sh' used 'head -n 10'.
 	// Here we just read first 1024 bytes.
@@ -62,9 +91,29 @@ func checkFileCopyright(fName string) (bool, error) {
 		return true, errors.New("generated code or other license")
 	}
 
-	// Check Flant license if file contains keywords.
-	if flantRe.Match(headBuf) {
-		return true, nil
+	// Determine expected license type based on file path
+	licenseType := getLicenseType(fName)
+
+	// Check for the appropriate license type
+	switch licenseType {
+	case LicenseTypeCE:
+		// Check for CE license (Apache 2.0)
+		if CELicenseRe.Match(headBuf) {
+			return true, nil
+		}
+		// Check if file contains Flant keywords but no proper license
+		if flantRe.Match(headBuf) {
+			return false, errors.New("file contains Flant references but missing proper CE license header")
+		}
+	case LicenseTypeEE:
+		// Check for EE license
+		if EELicenseRe.Match(headBuf) {
+			return true, nil
+		}
+		// Check if file contains Flant keywords but no proper license
+		if flantRe.Match(headBuf) {
+			return false, errors.New("file contains Flant references but missing proper EE license header")
+		}
 	}
 
 	// Skip file with some other copyright
@@ -72,7 +121,8 @@ func checkFileCopyright(fName string) (bool, error) {
 		return true, errors.New("contains other license")
 	}
 
-	return false, errors.New("no copyright or license information")
+	return false, fmt.Errorf("no copyright or license information found (expected %s license)",
+		map[LicenseType]string{LicenseTypeCE: "CE", LicenseTypeEE: "EE"}[licenseType])
 }
 
 func readFileHead(fName string, size int) ([]byte, error) {
