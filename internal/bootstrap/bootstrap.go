@@ -109,16 +109,28 @@ func RunBootstrap(config BootstrapConfig) error {
 
 	logger.InfoF("Bootstrap completed successfully")
 
-	if config.RepositoryType == RepositoryTypeGitLab {
+	switch config.RepositoryType {
+	case RepositoryTypeGitHub:
+		fmt.Println()
+		fmt.Println("Don't forget to add secrets to your GitHub repository:")
+		fmt.Println("  - DECKHOUSE_PRIVATE_REPO")
+		fmt.Println("  - DEFECTDOJO_API_TOKEN")
+		fmt.Println("  - DEFECTDOJO_HOST")
+		fmt.Println("  - DEV_MODULES_REGISTRY_PASSWORD")
+		fmt.Println("  - GOPROXY")
+		fmt.Println("  - PROD_MODULES_READ_REGISTRY_PASSWORD")
+		fmt.Println("  - PROD_MODULES_REGISTRY_PASSWORD")
+		fmt.Println("  - SOURCE_REPO")
+		fmt.Println("  - SOURCE_REPO_SSH_KEY")
+	case RepositoryTypeGitLab:
 		fmt.Println()
 		fmt.Println("Don't forget to add variables to your CI/CD pipeline:")
-		fmt.Println("  - EXTERNAL_MODULES_MODULE_NAME")
-		fmt.Println("  - EXTERNAL_MODULES_REGISTRY")
-		fmt.Println("  - EXTERNAL_MODULES_REGISTRY_LOGIN")
-		fmt.Println("  - EXTERNAL_MODULES_REGISTRY_PASSWORD")
-		fmt.Println("  - EXTERNAL_MODULES_REGISTRY_PATH")
-		fmt.Println("  - MODULES_REGISTRY_LOGIN")
-		fmt.Println("  - MODULES_REGISTRY_PASSWORD")
+		fmt.Println("  - MODULES_MODULE_NAME")
+		fmt.Println("  - MODULES_REGISTRY")
+		fmt.Println("  - MODULES_MODULE_SOURCE")
+		fmt.Println("  - MODULES_MODULE_TAG")
+		fmt.Println("  - WERF_VERSION")
+		fmt.Println("  - BASE_IMAGES_VERSION")
 	}
 
 	return nil
