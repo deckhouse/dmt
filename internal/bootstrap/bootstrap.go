@@ -124,7 +124,7 @@ func RunBootstrap(config BootstrapConfig) error {
 		fmt.Println("  - SOURCE_REPO_SSH_KEY")
 	case RepositoryTypeGitLab:
 		fmt.Println()
-		fmt.Println("Don't forget to add variables to your CI/CD pipeline:")
+		fmt.Println("Don't forget to modify variables to your .gitlab-ci.yml file:")
 		fmt.Println("  - MODULES_MODULE_NAME")
 		fmt.Println("  - MODULES_REGISTRY")
 		fmt.Println("  - MODULES_MODULE_SOURCE")
