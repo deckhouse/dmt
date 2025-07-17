@@ -44,7 +44,6 @@ func NewRegistryRule() *RegistryRule {
 
 type RegistryRule struct {
 	pkg.RuleMeta
-	pkg.KindRule
 }
 
 // CheckRegistrySecret checks module registry secret for the module.
