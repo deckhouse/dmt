@@ -6,43 +6,29 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/deckhouse/dmt/pkg"
 )
 
 func TestNewRegistryRule(t *testing.T) {
 	tests := []struct {
-		name         string
-		excludeRules []pkg.KindRuleExclude
-		expected     *RegistryRule
+		name     string
+		expected *RegistryRule
 	}{
 		{
-			name:         "empty exclude rules",
-			excludeRules: []pkg.KindRuleExclude{},
+			name: "empty exclude rules",
 			expected: &RegistryRule{
 				RuleMeta: pkg.RuleMeta{
 					Name: RegistryRuleName,
-				},
-				KindRule: pkg.KindRule{
-					ExcludeRules: []pkg.KindRuleExclude{},
 				},
 			},
 		},
 		{
 			name: "with exclude rules",
-			excludeRules: []pkg.KindRuleExclude{
-				{Kind: "Pod", Name: "default"},
-			},
 			expected: &RegistryRule{
 				RuleMeta: pkg.RuleMeta{
 					Name: RegistryRuleName,
-				},
-				KindRule: pkg.KindRule{
-					ExcludeRules: []pkg.KindRuleExclude{
-						{Kind: "Pod", Name: "default"},
-					},
 				},
 			},
 		},
@@ -52,7 +38,6 @@ func TestNewRegistryRule(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := NewRegistryRule()
 			assert.Equal(t, tt.expected.Name, result.Name)
-			assert.Equal(t, tt.expected.ExcludeRules, result.ExcludeRules)
 		})
 	}
 }
