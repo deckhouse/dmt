@@ -28,6 +28,10 @@ linters-settings:
       pdb:
         - kind: Deployment
           name: standby-holder-name
+          # exclude if target ref equals one of
+      ingress-rules:
+        - kind: Ingress
+          name: dashboard
       # exclude if service name equals one of
       service-port:
         - d8-control-plane-apiserver
