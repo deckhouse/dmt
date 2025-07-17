@@ -50,7 +50,7 @@ func TestNewRegistryRule(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := NewRegistryRule(tt.excludeRules)
+			result := NewRegistryRule()
 			assert.Equal(t, tt.expected.Name, result.Name)
 			assert.Equal(t, tt.expected.ExcludeRules, result.ExcludeRules)
 		})

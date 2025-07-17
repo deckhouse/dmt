@@ -34,13 +34,10 @@ const (
 	RegistryRuleName = "registry"
 )
 
-func NewRegistryRule(excludeRules []pkg.KindRuleExclude) *RegistryRule {
+func NewRegistryRule() *RegistryRule {
 	return &RegistryRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: RegistryRuleName,
-		},
-		KindRule: pkg.KindRule{
-			ExcludeRules: excludeRules,
 		},
 	}
 }
