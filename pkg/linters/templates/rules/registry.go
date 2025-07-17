@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -69,7 +70,7 @@ func (r *RegistryRule) CheckRegistrySecret(md *module.Module, errorList *errors.
 	}
 
 	// Check if file contains forbidden string
-	if strings.Contains(string(fileContent), ".Values.global.modulesImages") {
+	if bytes.Contains(fileContent, []byte(".Values.global.modulesImages")) {
 		errorList.Error("registry-secret.yaml file should not contain .Values.global.modulesImages")
 	}
 }
