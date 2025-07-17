@@ -57,6 +57,7 @@ const (
 
 type DeckhouseModule struct {
 	Name         string              `json:"name"`
+	Critical     bool                `json:"critical,omitempty"`
 	Namespace    string              `json:"namespace"`
 	Weight       uint32              `json:"weight,omitempty"`
 	Tags         []string            `json:"tags"`
@@ -145,6 +146,10 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 	// ru description is not required
 	if yml.Descriptions.English == "" {
 		errorList.Warn("Module `descriptions.en` field is required")
+	}
+
+	if yml.Critical && yml.Weight == 0 {
+		errorList.Error("Field 'weight' must be zero for critical modules")
 	}
 }
 
