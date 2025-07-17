@@ -70,7 +70,7 @@ func (r *IngressRule) CheckSnippetsRule(object storage.StoreObject, errorList *e
 		return
 	}
 
-	for key, value := range ingress.ObjectMeta.GetAnnotations() {
+	for key, value := range ingress.GetAnnotations() {
 		if key == "nginx.ingress.kubernetes.io/configuration-snippet" {
 			if !strings.Contains(value, "add_header Strict-Transport-Security") {
 				errorList.WithObjectID(object.Unstructured.GetName()).
