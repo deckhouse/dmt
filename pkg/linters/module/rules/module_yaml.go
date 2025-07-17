@@ -149,7 +149,7 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 	}
 
 	if yml.Critical && yml.Weight == 0 {
-		errorList.Error("Field 'weight' must be zero for critical modules")
+		errorList.Error("Field 'weight' must not be zero for critical modules")
 	}
 }
 

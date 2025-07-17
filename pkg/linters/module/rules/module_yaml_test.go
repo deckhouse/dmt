@@ -133,7 +133,7 @@ descriptions:
 	errorList := errors.NewLintRuleErrorsList()
 	rule.CheckDefinitionFile(tempDir, errorList)
 	assert.True(t, errorList.ContainsErrors(), "Expected error for critical module with zero weight")
-	assert.Contains(t, errorList.GetErrors()[0].Text, "Field 'weight' must be zero for critical modules")
+	assert.Contains(t, errorList.GetErrors()[0].Text, "Field 'weight' must not be zero for critical modules")
 
 	// 2. Critical: true, Weight: 10 (should not produce error)
 	err = os.WriteFile(moduleFilePath, []byte(`
