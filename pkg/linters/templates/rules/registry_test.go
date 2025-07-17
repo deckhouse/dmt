@@ -23,7 +23,7 @@ func TestNewRegistryRule(t *testing.T) {
 			excludeRules: []pkg.KindRuleExclude{},
 			expected: &RegistryRule{
 				RuleMeta: pkg.RuleMeta{
-					Name: PDBRuleName,
+					Name: RegistryRuleName,
 				},
 				KindRule: pkg.KindRule{
 					ExcludeRules: []pkg.KindRuleExclude{},
@@ -37,7 +37,7 @@ func TestNewRegistryRule(t *testing.T) {
 			},
 			expected: &RegistryRule{
 				RuleMeta: pkg.RuleMeta{
-					Name: PDBRuleName,
+					Name: RegistryRuleName,
 				},
 				KindRule: pkg.KindRule{
 					ExcludeRules: []pkg.KindRuleExclude{

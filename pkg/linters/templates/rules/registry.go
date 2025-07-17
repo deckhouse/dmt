@@ -37,7 +37,7 @@ const (
 func NewRegistryRule(excludeRules []pkg.KindRuleExclude) *RegistryRule {
 	return &RegistryRule{
 		RuleMeta: pkg.RuleMeta{
-			Name: PDBRuleName,
+			Name: RegistryRuleName,
 		},
 		KindRule: pkg.KindRule{
 			ExcludeRules: excludeRules,
@@ -96,8 +96,8 @@ func getModuleNameFromRepository(dir string) string {
 		return ""
 	}
 
-	repositoryULR := sec.Key("url").String()
-	return convertURLToModuleName(repositoryULR)
+	repositoryURL := sec.Key("url").String()
+	return convertURLToModuleName(repositoryURL)
 }
 
 func getGitConfigFile(dir string) string {
