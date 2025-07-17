@@ -107,6 +107,7 @@ linters:
     staticcheck:
       checks:
         - all
+        - '-SA1019'
         - '-ST1003' # waiting for package name will be fixed (underscores)
         - '-QF1008' # not need to fix; we understand how to call nested structs
   exclusions:
