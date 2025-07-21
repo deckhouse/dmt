@@ -534,13 +534,13 @@ spec:
 				assert.Empty(t, errs)
 			} else {
 				assert.Len(t, errs, len(tt.wantErrors))
-				
+
 				// Convert errors to text slice for easier comparison
 				actualErrors := make([]string, len(errs))
 				for i, err := range errs {
 					actualErrors[i] = err.Text
 				}
-				
+
 				// Check that each expected error is present (order independent)
 				for _, expectedError := range tt.wantErrors {
 					found := false
