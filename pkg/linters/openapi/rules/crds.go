@@ -71,36 +71,133 @@ func (*DeckhouseCRDsRule) validateLabel(crd *v1beta1.CustomResourceDefinition, l
 	}
 }
 
+// validateDeprecatedKeyInYAML checks for deprecated keys specifically within the properties section
+// of the CRD schema. It parses the YAML document and searches for deprecated keys only in the
+// spec.versions[].schema.openAPIV3Schema.properties path, ignoring deprecated keys in other
+// parts of the CRD structure.
 func (*DeckhouseCRDsRule) validateDeprecatedKeyInYAML(yamlDoc string, crd *v1beta1.CustomResourceDefinition, errorList *errors.LintRuleErrorsList, shortPath string) {
-	// Parse YAML as map to search for deprecated key
+	// Parse YAML as map to search for deprecated key in properties only
 	var yamlMap map[string]any
 	if err := yaml.Unmarshal([]byte(yamlDoc), &yamlMap); err != nil {
 		return
 	}
 
-	// Search for deprecated key in the YAML structure
-	checkMapForDeprecated(yamlMap, errorList, shortPath, crd.Kind, crd.Name)
+	// Check for deprecated key only in properties section
+	checkPropertiesForDeprecated(yamlMap, errorList, shortPath, crd.Kind, crd.Name)
 }
 
-func checkMapForDeprecated(data any, errorList *errors.LintRuleErrorsList, shortPath, kind, name string) {
+// aggregateVersionProperties extracts and aggregates the properties section from all CRD versions
+// It merges properties from all versions to ensure comprehensive validation
+func aggregateVersionProperties(data map[string]any) map[string]any {
+	spec, ok := data["spec"].(map[string]any)
+	if !ok {
+		return nil
+	}
+
+	versions, ok := spec["versions"].([]any)
+	if !ok {
+		return nil
+	}
+
+	// Aggregate properties from all versions
+	allProperties := make(map[string]any)
+
+	for _, version := range versions {
+		versionMap, ok := version.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		schema, ok := versionMap["schema"].(map[string]any)
+		if !ok {
+			continue
+		}
+
+		openAPIV3Schema, ok := schema["openAPIV3Schema"].(map[string]any)
+		if !ok {
+			continue
+		}
+
+		props, ok := openAPIV3Schema["properties"].(map[string]any)
+		if ok {
+			// Deep merge properties from this version into the aggregated map
+			// This ensures all nested schemas from every version are validated
+			deepMergeProperties(allProperties, props)
+		}
+	}
+
+	// Return aggregated properties if any were found
+	if len(allProperties) > 0 {
+		return allProperties
+	}
+
+	return nil
+}
+
+// deepMergeProperties performs a deep merge of property maps, ensuring all nested schemas
+// from every version are included in the validation. This handles cases where the same
+// property key is redefined across versions with different nested structures.
+func deepMergeProperties(target, source map[string]any) {
+	for key, sourceValue := range source {
+		if existingValue, exists := target[key]; exists {
+			// If both values are maps, recursively merge them
+			if targetMap, ok := existingValue.(map[string]any); ok {
+				if sourceMap, ok := sourceValue.(map[string]any); ok {
+					deepMergeProperties(targetMap, sourceMap)
+					continue
+				}
+			}
+			// If values are different types or not maps, prefer the source value
+			// This ensures we capture all variations across versions
+			target[key] = sourceValue
+		} else {
+			// New key, add it directly
+			target[key] = sourceValue
+		}
+	}
+}
+
+func checkPropertiesForDeprecated(data any, errorList *errors.LintRuleErrorsList, shortPath, kind, name string) {
+	if yamlMap, ok := data.(map[string]any); ok {
+		props := aggregateVersionProperties(yamlMap)
+		if props != nil {
+			// Start with the base path for properties
+			basePath := "spec.versions[].schema.openAPIV3Schema.properties"
+			checkDeprecatedInPropertiesRecursively(props, errorList, shortPath, kind, name, basePath)
+		}
+	}
+}
+
+// checkDeprecatedInPropertiesRecursively recursively checks for deprecated keys in properties
+// and tracks the full path to provide detailed error messages
+func checkDeprecatedInPropertiesRecursively(data any, errorList *errors.LintRuleErrorsList, shortPath, kind, name, currentPath string) {
 	switch v := data.(type) {
 	case map[string]any:
 		// Check if current map has deprecated key (regardless of value)
 		if _, hasDeprecated := v["deprecated"]; hasDeprecated {
 			errorList.WithObjectID(fmt.Sprintf("kind = %s ; name = %s", kind, name)).
 				WithFilePath(shortPath).
-				WithValue("deprecated: present").
-				Errorf(`CRD contains "deprecated" key, use "x-doc-deprecated: true" instead`)
+				WithValue(fmt.Sprintf("deprecated: present at path %s", currentPath)).
+				Errorf(`CRD contains "deprecated" key at path "%s", use "x-doc-deprecated: true" instead`, currentPath)
 		}
 
 		// Recursively check all values in the map
-		for _, value := range v {
-			checkMapForDeprecated(value, errorList, shortPath, kind, name)
+		for key, value := range v {
+			// Build the path for this property
+			var newPath string
+			if currentPath == "" {
+				newPath = key
+			} else {
+				newPath = fmt.Sprintf("%s.%s", currentPath, key)
+			}
+			checkDeprecatedInPropertiesRecursively(value, errorList, shortPath, kind, name, newPath)
 		}
 	case []any:
 		// Recursively check all items in the slice
-		for _, item := range v {
-			checkMapForDeprecated(item, errorList, shortPath, kind, name)
+		for i, item := range v {
+			// Build the path for array items
+			newPath := fmt.Sprintf("%s[%d]", currentPath, i)
+			checkDeprecatedInPropertiesRecursively(item, errorList, shortPath, kind, name, newPath)
 		}
 	}
 }
