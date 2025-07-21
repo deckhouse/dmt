@@ -52,20 +52,20 @@ func (m *Manager) validateModule(path string) error {
 		chartYamlFile.Name != moduleYamlFile.Name {
 		err := fmt.Errorf("module.yaml name (%s) does not match Chart.yaml name (%s)", moduleYamlFile.Name, chartYamlFile.Name)
 		errs = errors.Join(errs, err)
-		errorList.Errorf(err.Error())
+		errorList.Errorf("%s", err.Error())
 	}
 
 	moduleName := module.GetModuleName(moduleYamlFile, chartYamlFile)
 	if moduleName == "" && chartYamlFile == nil {
 		err := fmt.Errorf("module `name` property is empty")
 		errs = errors.Join(errs, err)
-		errorList.Errorf(err.Error())
+		errorList.Errorf("%s", err.Error())
 	}
 
 	if moduleYamlFile == nil && chartYamlFile != nil && getNamespace(path) == "" {
 		err := fmt.Errorf("file Chart.yaml is present, but .namespace file is missing")
 		errs = errors.Join(errs, err)
-		errorList.Errorf(err.Error())
+		errorList.Errorf("%s", err.Error())
 	}
 
 	if err := validateOpenAPIDir(path); err != nil {
