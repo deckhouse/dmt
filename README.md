@@ -1,7 +1,5 @@
 # dmt
 
-![Coverage](./coverage.svg)
-
 Deckhouse Module Tool - the swiss knife for your Deckhouse modules
 
 ## How to use
