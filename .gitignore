@@ -4,3 +4,4 @@ dist
 /dmt
 # Ignore Go coverage output
 coverage.out
+coverage.svg
