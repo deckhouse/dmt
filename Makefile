@@ -24,8 +24,7 @@ clean:
 
 # Test
 test:
-	rm -f coverage.out
-	go test -v ./... -coverprofile=coverage.out
+	go test -v -race ./...
 .PHONY: test
 
 # Linting
