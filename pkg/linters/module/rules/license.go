@@ -37,7 +37,8 @@ var fileToCheckRe = regexp.MustCompile(
 
 var fileToSkipRe = regexp.MustCompile(
 	`geohash.lua$|\.github/.*|Dockerfile$|Makefile$|/docs/documentation/|/docs/site/|bashrc$|inputrc$` +
-		`|modules_menu_skip$|LICENSE$|tools/spelling/.+|/lib/python/|charts/helm_lib`,
+		`|modules_menu_skip$|LICENSE$|tools/spelling/.+|/lib/python/|charts/helm_lib|PROJECT|pb.go$` +
+		`|zz_generated.go$|zz_generated.*\.go$|zz_generated.*\.yaml$`,
 )
 
 func NewLicenseRule(excludeFilesRules []pkg.StringRuleExclude,
