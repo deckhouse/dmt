@@ -173,5 +173,6 @@ func isWerfImagesCorrect(img string) bool {
 	}
 
 	// Check if the first component is "base" or "common"
+	// TODO: remove "common" from this check
 	return (parts[0] == "base" || parts[0] == "common")
 }
