@@ -17,9 +17,8 @@ limitations under the License.
 package rules
 
 import (
-	errs "errors"
-	"io"
 	"os"
+	"regexp"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/logger"
@@ -30,6 +29,15 @@ import (
 
 const (
 	LicenseRuleName = "license"
+)
+
+var fileToCheckRe = regexp.MustCompile(
+	`\.go$|/[^.]+$|\.sh$|\.lua$|\.py$`,
+)
+
+var fileToSkipRe = regexp.MustCompile(
+	`geohash.lua$|\.github/.*|Dockerfile$|Makefile$|/docs/documentation/|/docs/site/|bashrc$|inputrc$` +
+		`|modules_menu_skip$|LICENSE$|tools/spelling/.+|/lib/python/|charts/helm_lib`,
 )
 
 func NewLicenseRule(excludeFilesRules []pkg.StringRuleExclude,
@@ -53,6 +61,9 @@ type LicenseRule struct {
 func (r *LicenseRule) CheckFiles(mod *module.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
+	// Use new parser if available
+	parser := NewLicenseParser()
+
 	files := fsutils.GetFiles(mod.GetPath(), false, filterFiles)
 	for _, fileName := range files {
 		name := fsutils.Rel(mod.GetPath(), fileName)
@@ -62,13 +73,15 @@ func (r *LicenseRule) CheckFiles(mod *module.Module, errorList *errors.LintRuleE
 			continue
 		}
 
-		ok, err := checkFileCopyright(fileName)
-		if !ok {
-			if errs.Is(err, io.EOF) {
-				// skip totally empty file
-				continue
-			}
-			errorList.WithFilePath(name).Error(err.Error())
+		licenseInfo, parseErr := parser.ParseFile(fileName)
+		if parseErr != nil {
+			errorList.WithFilePath(name).Error(parseErr.Error())
+			continue
+		}
+
+		// Handle parsed license info
+		if !licenseInfo.Valid {
+			errorList.WithFilePath(name).Error(licenseInfo.Error)
 		}
 	}
 }
