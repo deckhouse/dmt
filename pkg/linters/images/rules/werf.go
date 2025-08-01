@@ -113,8 +113,9 @@ func (r *WerfRule) LintWerfFile(moduleName, data string, errorList *errors.LintR
 
 		// TODO: add skips for some images
 
-		// Validate base image
-		if !isWerfImagesCorrect(w.FromImage) {
+		// Validate base image; exclude terraform-manager
+		// terraform-manager uses its own base images
+		if !isWerfImagesCorrect(w.FromImage) && moduleName != "terraform-manager" {
 			errorList.WithObjectID(fmt.Sprintf("werf.yaml:manifest-%d", i+1)).
 				WithValue("fromImage: " + w.FromImage).
 				Error("`fromImage:` parameter should be one of our `base` images")
@@ -122,9 +123,16 @@ func (r *WerfRule) LintWerfFile(moduleName, data string, errorList *errors.LintR
 
 		// Validate imageSpec.config.user is not overridden
 		if w.ImageSpec.Config.User != "" {
-			errorList.WithObjectID(fmt.Sprintf("werf.yaml:manifest-%d", i+1)).
-				WithValue("imageSpec.config.user: " + w.ImageSpec.Config.User).
-				Error("`imageSpec.config.user:` parameter should be empty")
+			// TODO: remove this check for istio and ingress-nginx modules
+			if moduleName != "istio" && moduleName != "ingress-nginx" {
+				errorList.WithObjectID(fmt.Sprintf("werf.yaml:manifest-%d", i+1)).
+					WithValue("imageSpec.config.user: " + w.ImageSpec.Config.User).
+					Error("`imageSpec.config.user:` parameter should be empty")
+			} else {
+				errorList.WithObjectID(fmt.Sprintf("werf.yaml:manifest-%d", i+1)).
+					WithValue("imageSpec.config.user: " + w.ImageSpec.Config.User).
+					Warn("`imageSpec.config.user:` parameter should be empty")
+			}
 		}
 	}
 }
