@@ -18,6 +18,7 @@ package rules
 
 import (
 	"os"
+	"path/filepath"
 
 	"sigs.k8s.io/yaml"
 
@@ -43,9 +44,16 @@ type YamlRule struct {
 }
 
 func (r *YamlRule) YamlModuleRule(moduleRoot string, errorList *errors.LintRuleErrorsList) {
+	docsPath := filepath.Join(moduleRoot, "docs")
+	if _, err := os.Stat(docsPath); err != nil {
+		if os.IsNotExist(err) {
+			return
+		}
+	}
+
 	errorList = errorList.WithRule(r.GetName())
 
-	files := fsutils.GetFiles(moduleRoot, false, fsutils.FilterFileByExtensions(".yaml", ".yml"))
+	files := fsutils.GetFiles(docsPath, false, fsutils.FilterFileByExtensions(".yaml", ".yml"))
 	for _, file := range files {
 		content, err := os.ReadFile(file)
 		if err != nil {

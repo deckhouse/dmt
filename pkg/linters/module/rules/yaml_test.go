@@ -116,9 +116,12 @@ name: second-doc`,
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tempDir := t.TempDir()
-			filePath := filepath.Join(tempDir, tt.filename)
+			docsDir := filepath.Join(tempDir, "docs")
+			err := os.MkdirAll(docsDir, 0755)
+			require.NoError(t, err)
+			filePath := filepath.Join(docsDir, tt.filename)
 
-			err := os.WriteFile(filePath, []byte(tt.content), 0600)
+			err = os.WriteFile(filePath, []byte(tt.content), 0600)
 			require.NoError(t, err)
 
 			rule := NewYamlRule()
@@ -210,9 +213,12 @@ name: second`,
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tempDir := t.TempDir()
-			filePath := filepath.Join(tempDir, tt.filename)
+			docsDir := filepath.Join(tempDir, "docs")
+			err := os.MkdirAll(docsDir, 0755)
+			require.NoError(t, err)
+			filePath := filepath.Join(docsDir, tt.filename)
 
-			err := os.WriteFile(filePath, []byte(tt.content), 0600)
+			err = os.WriteFile(filePath, []byte(tt.content), 0600)
 			require.NoError(t, err)
 
 			rule := NewYamlRule()
@@ -281,9 +287,12 @@ func TestYamlRule_IndentationErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tempDir := t.TempDir()
-			filePath := filepath.Join(tempDir, tt.filename)
+			docsDir := filepath.Join(tempDir, "docs")
+			err := os.MkdirAll(docsDir, 0755)
+			require.NoError(t, err)
+			filePath := filepath.Join(docsDir, tt.filename)
 
-			err := os.WriteFile(filePath, []byte(tt.content), 0600)
+			err = os.WriteFile(filePath, []byte(tt.content), 0600)
 			require.NoError(t, err)
 
 			rule := NewYamlRule()
@@ -308,10 +317,13 @@ func TestYamlRule_IndentationErrors(t *testing.T) {
 func TestYamlRule_FileSystemErrors(t *testing.T) {
 	t.Run("unreadable file", func(t *testing.T) {
 		tempDir := t.TempDir()
-		filePath := filepath.Join(tempDir, "unreadable.yaml")
+		docsDir := filepath.Join(tempDir, "docs")
+		err := os.MkdirAll(docsDir, 0755)
+		require.NoError(t, err)
+		filePath := filepath.Join(docsDir, "unreadable.yaml")
 
 		// Create file and remove read permissions
-		err := os.WriteFile(filePath, []byte("name: test"), 0000) // no permissions
+		err = os.WriteFile(filePath, []byte("name: test"), 0000) // no permissions
 		require.NoError(t, err)
 
 		defer func() {
@@ -348,11 +360,14 @@ func TestYamlRule_FileSystemErrors(t *testing.T) {
 
 	t.Run("directory with no yaml files", func(t *testing.T) {
 		tempDir := t.TempDir()
-
-		// Create non-YAML files
-		err := os.WriteFile(filepath.Join(tempDir, "test.txt"), []byte("content"), 0600)
+		docsDir := filepath.Join(tempDir, "docs")
+		err := os.MkdirAll(docsDir, 0755)
 		require.NoError(t, err)
-		err = os.WriteFile(filepath.Join(tempDir, "test.json"), []byte(`{"key": "value"}`), 0600)
+
+		// Create non-YAML files in docs/
+		err = os.WriteFile(filepath.Join(docsDir, "test.txt"), []byte("content"), 0600)
+		require.NoError(t, err)
+		err = os.WriteFile(filepath.Join(docsDir, "test.json"), []byte(`{"key": "value"}`), 0600)
 		require.NoError(t, err)
 
 		rule := NewYamlRule()
@@ -419,9 +434,12 @@ func TestYamlRule_EdgeCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tempDir := t.TempDir()
-			filePath := filepath.Join(tempDir, tt.filename)
+			docsDir := filepath.Join(tempDir, "docs")
+			err := os.MkdirAll(docsDir, 0755)
+			require.NoError(t, err)
+			filePath := filepath.Join(docsDir, tt.filename)
 
-			err := os.WriteFile(filePath, tt.content, 0600)
+			err = os.WriteFile(filePath, tt.content, 0600)
 			require.NoError(t, err)
 
 			rule := NewYamlRule()
@@ -443,6 +461,9 @@ func TestYamlRule_EdgeCases(t *testing.T) {
 
 func TestYamlRule_MultipleFiles(t *testing.T) {
 	tempDir := t.TempDir()
+	docsDir := filepath.Join(tempDir, "docs")
+	err := os.MkdirAll(docsDir, 0755)
+	require.NoError(t, err)
 
 	// Create multiple YAML files - some valid, some with errors that the parser will catch
 	files := map[string]string{
@@ -454,7 +475,7 @@ func TestYamlRule_MultipleFiles(t *testing.T) {
 	}
 
 	for filename, content := range files {
-		filePath := filepath.Join(tempDir, filename)
+		filePath := filepath.Join(docsDir, filename)
 		err := os.WriteFile(filePath, []byte(content), 0600)
 		require.NoError(t, err)
 	}
@@ -483,10 +504,13 @@ func TestYamlRule_MultipleFiles(t *testing.T) {
 
 func TestYamlRule_ErrorReporting(t *testing.T) {
 	tempDir := t.TempDir()
-	filePath := filepath.Join(tempDir, "test.yaml")
+	docsDir := filepath.Join(tempDir, "docs")
+	err := os.MkdirAll(docsDir, 0755)
+	require.NoError(t, err)
+	filePath := filepath.Join(docsDir, "test.yaml")
 
 	// Use a YAML syntax that we know will cause an error
-	err := os.WriteFile(filePath, []byte("key:\n\tvalue"), 0600) // tab character
+	err = os.WriteFile(filePath, []byte("key:\n\tvalue"), 0600) // tab character
 	require.NoError(t, err)
 
 	rule := NewYamlRule()
@@ -501,7 +525,7 @@ func TestYamlRule_ErrorReporting(t *testing.T) {
 
 		// Verify error structure
 		err1 := errs[0]
-		assert.YAMLEq(t, YamlRuleName, err1.RuleID)
+		assert.Equal(t, YamlRuleName, err1.RuleID)
 		assert.Equal(t, filePath, err1.FilePath)
 		assert.NotEmpty(t, err1.Text)
 	} else {
@@ -512,13 +536,14 @@ func TestYamlRule_ErrorReporting(t *testing.T) {
 
 func TestYamlRule_NestedDirectories(t *testing.T) {
 	tempDir := t.TempDir()
+	docsDir := filepath.Join(tempDir, "docs")
 
-	// Create nested directory structure
-	nestedDir := filepath.Join(tempDir, "subdir", "deeper")
+	// Create nested directory structure under docs/
+	nestedDir := filepath.Join(docsDir, "subdir", "deeper")
 	err := os.MkdirAll(nestedDir, 0755)
 	require.NoError(t, err)
 
-	// Create YAML files in different directories
+	// Create YAML files in different directories under docs/
 	files := map[string]string{
 		"root.yaml":                 "name: root",
 		"subdir/sub.yml":            "name: sub",
@@ -527,7 +552,7 @@ func TestYamlRule_NestedDirectories(t *testing.T) {
 	}
 
 	for relPath, content := range files {
-		fullPath := filepath.Join(tempDir, relPath)
+		fullPath := filepath.Join(docsDir, relPath)
 		err := os.WriteFile(fullPath, []byte(content), 0600)
 		require.NoError(t, err)
 	}
@@ -559,7 +584,7 @@ func TestYamlRule_NestedDirectories(t *testing.T) {
 
 func TestYamlRule_RuleName(t *testing.T) {
 	rule := NewYamlRule()
-	assert.YAMLEq(t, YamlRuleName, rule.GetName())
+	assert.Equal(t, YamlRuleName, rule.GetName())
 	assert.Equal(t, "yaml", rule.GetName())
 }
 
@@ -576,14 +601,17 @@ func TestYamlRule_EmptyDirectory(t *testing.T) {
 
 func TestYamlRule_SymlinkHandling(t *testing.T) {
 	tempDir := t.TempDir()
+	docsDir := filepath.Join(tempDir, "docs")
+	err := os.MkdirAll(docsDir, 0755)
+	require.NoError(t, err)
 
-	// Create a source file
-	sourceFile := filepath.Join(tempDir, "source.yaml")
-	err := os.WriteFile(sourceFile, []byte("name: source"), 0600)
+	// Create a source file in docs/
+	sourceFile := filepath.Join(docsDir, "source.yaml")
+	err = os.WriteFile(sourceFile, []byte("name: source"), 0600)
 	require.NoError(t, err)
 
 	// Create a symlink (skip if symlinks are not supported on this platform)
-	symlinkFile := filepath.Join(tempDir, "symlink.yaml")
+	symlinkFile := filepath.Join(docsDir, "symlink.yaml")
 	err = os.Symlink(sourceFile, symlinkFile)
 	if err != nil {
 		t.Skipf("Symlinks not supported: %v", err)
