@@ -525,7 +525,7 @@ func TestYamlRule_ErrorReporting(t *testing.T) {
 
 		// Verify error structure
 		err1 := errs[0]
-		assert.Equal(t, YamlRuleName, err1.RuleID)
+		assert.YAMLEq(t, YamlRuleName, err1.RuleID)
 		assert.Equal(t, filePath, err1.FilePath)
 		assert.NotEmpty(t, err1.Text)
 	} else {
@@ -584,7 +584,7 @@ func TestYamlRule_NestedDirectories(t *testing.T) {
 
 func TestYamlRule_RuleName(t *testing.T) {
 	rule := NewYamlRule()
-	assert.Equal(t, YamlRuleName, rule.GetName())
+	assert.YAMLEq(t, YamlRuleName, rule.GetName())
 	assert.Equal(t, "yaml", rule.GetName())
 }
 
