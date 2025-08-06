@@ -55,6 +55,7 @@ func (l *Module) Run(m *module.Module) {
 	rules.NewLicenseRule(l.cfg.ExcludeRules.License.Files.Get(), l.cfg.ExcludeRules.License.Directories.Get()).
 		CheckFiles(m, errorList)
 	rules.NewRequirementsRule().CheckRequirements(m.GetPath(), errorList)
+	rules.NewYamlRule().YamlModuleRule(m.GetPath(), errorList)
 }
 
 func (l *Module) Name() string {
