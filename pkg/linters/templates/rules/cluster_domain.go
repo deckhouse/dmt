@@ -60,14 +60,9 @@ func (r *ClusterDomainRule) ValidateClusterDomainInTemplates(m iModuleWithPath, 
 	}
 
 	// Get all files in templates directory
-	files := fsutils.GetFiles(templatesPath, true)
+	files := fsutils.GetFiles(templatesPath, true, fsutils.FilterFileByExtensions(".yaml", ".yml", ".tpl", ".tpl.yaml", ".tpl.yml"))
 
 	for _, filePath := range files {
-		// Skip non-template files
-		if !isTemplateFile(filePath) {
-			continue
-		}
-
 		// Get relative path for error reporting
 		relPath, err := filepath.Rel(m.GetPath(), filePath)
 		if err != nil {
@@ -88,9 +83,4 @@ func (r *ClusterDomainRule) ValidateClusterDomainInTemplates(m iModuleWithPath, 
 				Errorf("File contains hardcoded 'cluster.local' substring. Use '%s' instead for dynamic cluster domain configuration.", recommendedReplacement)
 		}
 	}
-}
-
-func isTemplateFile(filePath string) bool {
-	ext := strings.ToLower(filepath.Ext(filePath))
-	return ext == ".yaml" || ext == ".yml" || ext == ".tpl" || ext == ".tpl.yaml" || ext == ".tpl.yml"
 }
