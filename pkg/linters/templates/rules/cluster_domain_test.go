@@ -110,7 +110,7 @@ spec:
 				if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
 					t.Fatalf("Failed to create template dir: %v", err)
 				}
-				if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
+				if err := os.WriteFile(fullPath, []byte(content), 0600); err != nil {
 					t.Fatalf("Failed to write template file: %v", err)
 				}
 			}
@@ -131,18 +131,18 @@ spec:
 			rule.ValidateClusterDomainInTemplates(mockModule, errorList)
 
 			// Check results
-			errors := errorList.GetErrors()
-			if len(errors) != len(tt.expectedErrors) {
-				t.Errorf("Expected %d errors, got %d", len(tt.expectedErrors), len(errors))
+			errs := errorList.GetErrors()
+			if len(errs) != len(tt.expectedErrors) {
+				t.Errorf("Expected %d errors, got %d", len(tt.expectedErrors), len(errs))
 			}
 
 			for i, expectedError := range tt.expectedErrors {
-				if i >= len(errors) {
+				if i >= len(errs) {
 					t.Errorf("Expected error at index %d: %s", i, expectedError)
 					continue
 				}
-				if !contains(errors[i].Text, expectedError) {
-					t.Errorf("Expected error to contain '%s', got: %s", expectedError, errors[i].Text)
+				if !contains(errs[i].Text, expectedError) {
+					t.Errorf("Expected error to contain '%s', got: %s", expectedError, errs[i].Text)
 				}
 			}
 		})
