@@ -59,6 +59,10 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 		rules.NewNameDuplicatesRule().ContainerNameDuplicates,
 		rules.NewCheckReadOnlyRootFilesystemRule(l.cfg.ExcludeRules.ReadOnlyRootFilesystem.Get()).
 			ObjectReadOnlyRootFilesystem,
+		rules.NewNoNewPrivilegesRule(l.cfg.ExcludeRules.NoNewPrivileges.Get()).
+			ContainerNoNewPrivileges,
+		rules.NewSeccompProfileRule(l.cfg.ExcludeRules.SeccompProfile.Get()).
+			ContainerSeccompProfile,
 		rules.NewHostNetworkPortsRule(l.cfg.ExcludeRules.HostNetworkPorts.Get()).ObjectHostNetworkPorts,
 
 		// old with module names skipping
