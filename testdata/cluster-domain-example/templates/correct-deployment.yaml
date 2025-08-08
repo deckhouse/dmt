@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: correct-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: correct
+  template:
+    metadata:
+      labels:
+        app: correct
+    spec:
+      containers:
+        - name: correct
+          image: nginx:latest
+          env:
+            - name: CLUSTER_DOMAIN
+              value: "{{ .Values.global.clusterConfiguration.clusterDomain }}" # This is correct
+            - name: API_ENDPOINT
+              value: "https://api.{{ .Values.global.clusterConfiguration.clusterDomain }}" # This is also correct

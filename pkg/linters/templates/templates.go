@@ -82,6 +82,10 @@ func (l *Templates) Run(m *module.Module) {
 		ingressRule.CheckSnippetsRule(object, errorList)
 	}
 
+	// Cluster domain rule
+	clusterDomainRule := rules.NewClusterDomainRule()
+	clusterDomainRule.ValidateClusterDomainInTemplates(m, errorList)
+
 	// werf file
 	// rules.NewWerfRule().ValidateWerfTemplates(m, errorList)
 }
