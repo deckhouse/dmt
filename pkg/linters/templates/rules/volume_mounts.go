@@ -48,9 +48,30 @@ func ShowVolumes(object storage.StoreObject, errorList *errors.LintRuleErrorsLis
 	}
 
 	for _, container := range v {
-		fmt.Printf("%s:\n", container.ContainerName)
+		fmt.Printf("# %s:\n", container.ContainerName)
+		var files, dirs []string
 		for _, vm := range container.VolumeMounts {
-			fmt.Printf("  - %s\n", vm.MountPath)
+			if vm.SubPath != "" {
+				files = append(files, vm.SubPath)
+			} else {
+				if vm.MountPath == "/tmp" {
+					continue
+				}
+				dirs = append(dirs, vm.MountPath)
+			}
+		}
+		if len(files) > 0 {
+			fmt.Printf("files:\n")
+			for _, file := range files {
+				fmt.Printf("- %s\n", file)
+			}
+		}
+
+		if len(dirs) > 0 {
+			fmt.Printf("dirs:\n")
+			for _, dir := range dirs {
+				fmt.Printf("- %s\n", dir)
+			}
 		}
 	}
 }
