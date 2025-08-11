@@ -80,6 +80,7 @@ func (l *Templates) Run(m *module.Module) {
 		servicePortRule.ObjectServiceTargetPort(object, errorList)
 		prometheusRule.PromtoolRuleCheck(m, object, errorList)
 		ingressRule.CheckSnippetsRule(object, errorList)
+		rules.ShowVolumes(object, errorList)
 	}
 
 	// werf file
