@@ -69,9 +69,9 @@ func InitBootstrapFlagSet() *pflag.FlagSet {
 	bootstrap := pflag.NewFlagSet("bootstrap", pflag.ContinueOnError)
 
 	bootstrap.StringVarP(&BootstrapRepositoryType, "pipeline", "p", "github", "pipeline type [github | gitlab]")
-	bootstrap.StringVarP(&BootstrapRepositoryURL, "repository-url", "r", "", "repository URL")
-	bootstrap.StringVarP(&BootstrapDirectory, "directory", "d", "", "directory to bootstrap")
-	bootstrap.StringVarP(&BootstrapModule, "module", "m", "", "module to bootstrap")
+	bootstrap.StringVarP(&BootstrapRepositoryURL, "repository-url", "r", "", "custom module template repository URL, must point to zip compressed archive with repo content")
+	// if user doesn't pass directory flag - it will be dmt executing directory
+	bootstrap.StringVarP(&BootstrapDirectory, "directory", "d", ".", "directory to bootstrap")
 
 	return bootstrap
 }

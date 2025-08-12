@@ -17,8 +17,10 @@ limitations under the License.
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -30,6 +32,8 @@ import (
 )
 
 var version = "devel"
+
+var kebabCaseRegex = regexp.MustCompile(`^([a-z][a-z0-9]*)(-[a-z0-9]+)*$`)
 
 func execute() {
 	rootCmd := &cobra.Command{
@@ -46,7 +50,6 @@ func execute() {
 
 			if flags.PrintVersion {
 				fmt.Println("dmt version: ", flags.Version)
-				os.Exit(0)
 			}
 		},
 	}
@@ -59,10 +62,43 @@ func execute() {
 	}
 
 	bootstrapCmd := &cobra.Command{
-		Use:   "bootstrap",
+		Use:   "bootstrap [module-name]",
 		Short: "bootstrap for Deckhouse modules",
-		Long:  `A lot of useful bootstraps`,
-		Run:   bootstrapCmdFunc,
+		Long:  `Bootstrap functionality for module development process`,
+		Args:  cobra.ExactArgs(1),
+		// in persistent pre run we must check all args and flags
+		PersistentPreRunE: func(_ *cobra.Command, args []string) error {
+			// check module name in kebab case
+			moduleName := args[0]
+			if !kebabCaseRegex.MatchString(moduleName) {
+				return errors.New("module name must be in kebab case")
+			}
+
+			// Check flags.BootstrapRepositoryType
+			repositoryType := strings.ToLower(flags.BootstrapRepositoryType)
+			if repositoryType != "github" && repositoryType != "gitlab" {
+				return fmt.Errorf("invalid repository type: %s", repositoryType)
+			}
+
+			return nil
+		},
+		RunE: func(_ *cobra.Command, args []string) error {
+			moduleName := args[0]
+			repositoryType := strings.ToLower(flags.BootstrapRepositoryType)
+
+			config := bootstrap.BootstrapConfig{
+				ModuleName:     moduleName,
+				RepositoryType: repositoryType,
+				RepositoryURL:  flags.BootstrapRepositoryURL,
+				Directory:      flags.BootstrapDirectory,
+			}
+
+			if err := bootstrap.RunBootstrap(config); err != nil {
+				return fmt.Errorf("running bootstrap: %w", err)
+			}
+
+			return nil
+		},
 	}
 
 	lintCmd.Flags().AddFlagSet(flags.InitLintFlagSet())
@@ -87,35 +123,6 @@ func lintCmdFunc(_ *cobra.Command, args []string) {
 
 	// Process all directories and combine results
 	if err := runLintMultiple(dirs); err != nil {
-		os.Exit(1)
-	}
-}
-
-func bootstrapCmdFunc(_ *cobra.Command, _ []string) {
-	// Check flags.BootstrapRepositoryType
-	repositoryType := strings.ToLower(flags.BootstrapRepositoryType)
-	if repositoryType != "github" && repositoryType != "gitlab" {
-		logger.ErrorF("invalid repository type: %s", repositoryType)
-		os.Exit(1)
-	}
-
-	// Check flags.BootstrapModule
-	if flags.BootstrapModule == "" {
-		logger.ErrorF("module name is required")
-		os.Exit(1)
-	}
-
-	moduleName := flags.BootstrapModule
-
-	config := bootstrap.BootstrapConfig{
-		ModuleName:     moduleName,
-		RepositoryType: repositoryType,
-		RepositoryURL:  flags.BootstrapRepositoryURL,
-		Directory:      flags.BootstrapDirectory,
-	}
-
-	if err := bootstrap.RunBootstrap(config); err != nil {
-		logger.ErrorF("Error running bootstrap: %v", err)
 		os.Exit(1)
 	}
 }

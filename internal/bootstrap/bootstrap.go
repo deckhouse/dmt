@@ -70,39 +70,46 @@ func RunBootstrap(config BootstrapConfig) error {
 		}
 	}
 
+	absDirectory, err := absPathFromRawDirectory(config.Directory)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute directory path: %w", err)
+	}
+
+	logger.InfoF("Using directory: %s", absDirectory)
+
 	// Check if directory is empty
-	if err := checkDirectoryEmpty(config.Directory); err != nil {
+	if err := checkDirectoryEmpty(absDirectory); err != nil {
 		return fmt.Errorf("directory validation failed: %w", err)
 	}
 
 	// Download and extract template
-	if err := downloadAndExtractTemplate(config); err != nil {
+	if err := downloadAndExtractTemplate(config.RepositoryURL, absDirectory); err != nil {
 		return fmt.Errorf("template download/extraction failed: %w", err)
 	}
 
 	// Get current moduleName from module.yaml file
-	currentModuleName, err := getModuleName(config.Directory)
+	currentModuleName, err := getModuleName(absDirectory)
 	if err != nil {
 		return fmt.Errorf("failed to get module name: %w", err)
 	}
 
 	// Replace all strings like `.Values.currentModuleName` with `.Values.moduleName`
-	if err := replaceValuesModuleName(currentModuleName, config.ModuleName, config.Directory); err != nil {
+	if err := replaceValuesModuleName(currentModuleName, config.ModuleName, absDirectory); err != nil {
 		return fmt.Errorf("failed to replace values module name: %w", err)
 	}
 
 	// Replace all strings like `currentModuleName` with `moduleName`
-	if err := replaceModuleName(currentModuleName, config.ModuleName, config.Directory); err != nil {
+	if err := replaceModuleName(currentModuleName, config.ModuleName, absDirectory); err != nil {
 		return fmt.Errorf("failed to replace module name: %w", err)
 	}
 
 	switch config.RepositoryType {
 	case RepositoryTypeGitLab:
-		if err := os.RemoveAll(filepath.Join(config.Directory, ".github")); err != nil {
+		if err := os.RemoveAll(filepath.Join(absDirectory, ".github")); err != nil {
 			return fmt.Errorf("failed to remove .github directory: %w", err)
 		}
 	case RepositoryTypeGitHub:
-		if err := os.RemoveAll(filepath.Join(config.Directory, ".gitlab-ci.yml")); err != nil {
+		if err := os.RemoveAll(filepath.Join(absDirectory, ".gitlab-ci.yml")); err != nil {
 			return fmt.Errorf("failed to remove .gitlab-ci.yml file: %w", err)
 		}
 	}
@@ -136,29 +143,34 @@ func RunBootstrap(config BootstrapConfig) error {
 	return nil
 }
 
-// checkDirectoryEmpty checks if the directory is empty
-// and returns an error if it's not empty
-func checkDirectoryEmpty(directory string) error {
+func absPathFromRawDirectory(directory string) (string, error) {
 	if directory != "" {
 		currentDir, err := fsutils.ExpandDir(directory)
 		if err != nil {
-			return fmt.Errorf("failed to expand directory: %w", err)
+			return "", fmt.Errorf("failed to expand directory: %w", err)
 		}
-		directory = currentDir
-	} else {
-		currentDir, err := fsutils.Getwd()
-		if err != nil {
-			return fmt.Errorf("failed to get current directory: %w", err)
-		}
-		directory = currentDir
+
+		return currentDir, nil
 	}
 
-	files := fsutils.GetFiles(directory, false)
+	currentDir, err := fsutils.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("failed to get current directory: %w", err)
+	}
+
+	return currentDir, nil
+}
+
+// checkDirectoryEmpty checks if the directory is empty
+// and returns an error if it's not empty
+func checkDirectoryEmpty(absDirectory string) error {
+	files := fsutils.GetFiles(absDirectory, false)
 	if len(files) > 0 {
 		return fmt.Errorf("directory is not empty. Please run bootstrap in an empty directory")
 	}
 
 	logger.InfoF("Directory is empty, proceeding with bootstrap")
+
 	return nil
 }
 
@@ -244,10 +256,10 @@ func getModuleName(directory string) (string, error) {
 }
 
 // downloadAndExtractTemplate downloads the template zip file and extracts it to current directory
-func downloadAndExtractTemplate(config BootstrapConfig) error {
-	repositoryURL := ModuleTemplateURL
-	if config.RepositoryURL != "" {
-		repositoryURL = config.RepositoryURL
+func downloadAndExtractTemplate(repositoryURL, directory string) error {
+	repoURL := ModuleTemplateURL
+	if repositoryURL != "" {
+		repoURL = repositoryURL
 	}
 
 	// Create temporary directory
@@ -259,7 +271,7 @@ func downloadAndExtractTemplate(config BootstrapConfig) error {
 
 	// Download zip file
 	zipPath := filepath.Join(tempDir, "template.zip")
-	if err := downloadFile(repositoryURL, zipPath); err != nil {
+	if err := downloadFile(repoURL, zipPath); err != nil {
 		return fmt.Errorf("failed to download template: %w", err)
 	}
 
@@ -269,7 +281,7 @@ func downloadAndExtractTemplate(config BootstrapConfig) error {
 	}
 
 	// Move extracted content to current directory
-	if err := moveExtractedContent(tempDir, config.Directory); err != nil {
+	if err := moveExtractedContent(tempDir, directory); err != nil {
 		return fmt.Errorf("failed to move extracted content: %w", err)
 	}
 
