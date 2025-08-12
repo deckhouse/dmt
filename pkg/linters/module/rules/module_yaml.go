@@ -57,6 +57,7 @@ const (
 
 type DeckhouseModule struct {
 	Name         string              `json:"name"`
+	Critical     bool                `json:"critical,omitempty"`
 	Namespace    string              `json:"namespace"`
 	Weight       uint32              `json:"weight,omitempty"`
 	Tags         []string            `json:"tags"`
@@ -134,6 +135,10 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 		"Deprecated",
 	}
 
+	if yml.Stage == "" {
+		errorList.Error("Field 'stage' is required")
+	}
+
 	if yml.Stage != "" && !slices.Contains(stages, yml.Stage) {
 		errorList.Errorf("Field 'stage' is not one of the following values: %q", strings.Join(stages, ", "))
 	}
@@ -145,6 +150,10 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 	// ru description is not required
 	if yml.Descriptions.English == "" {
 		errorList.Warn("Module `descriptions.en` field is required")
+	}
+
+	if yml.Critical && yml.Weight == 0 {
+		errorList.Error("Field 'weight' must not be zero for critical modules")
 	}
 }
 

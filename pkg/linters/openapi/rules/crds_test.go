@@ -534,22 +534,23 @@ spec:
 				assert.Empty(t, errs)
 			} else {
 				assert.Len(t, errs, len(tt.wantErrors))
-				// Create a map of expected error messages for easier comparison
-				expectedErrors := make(map[string]bool)
-				for _, expectedErr := range tt.wantErrors {
-					expectedErrors[expectedErr] = true
+
+				// Convert errors to text slice for easier comparison
+				actualErrors := make([]string, len(errs))
+				for i, err := range errs {
+					actualErrors[i] = err.Text
 				}
 
-				// Check that all actual errors match expected errors (order doesn't matter)
-				for _, err := range errs {
+				// Check that each expected error is present (order independent)
+				for _, expectedError := range tt.wantErrors {
 					found := false
-					for expectedErr := range expectedErrors {
-						if strings.Contains(err.Text, expectedErr) {
+					for _, actualError := range actualErrors {
+						if strings.Contains(actualError, expectedError) {
 							found = true
 							break
 						}
 					}
-					assert.True(t, found, "Unexpected error: %s", err.Text)
+					assert.True(t, found, "Expected error not found: %s\nActual errors: %v", expectedError, actualErrors)
 				}
 			}
 		})

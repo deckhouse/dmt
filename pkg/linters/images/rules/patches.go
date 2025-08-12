@@ -84,7 +84,7 @@ func (r *PatchesRule) CheckPatches(moduleDir string, errorList *errors.LintRuleE
 			errorList.WithFilePath(path).Errorf("Patch file name should match pattern `XXX-<patch-name>.patch`")
 		}
 		if err := checkReadmeFile(file); err != nil {
-			errorList.WithFilePath(path).Errorf(err.Error())
+			errorList.WithFilePath(path).Errorf("%s", err.Error())
 		}
 	}
 }
