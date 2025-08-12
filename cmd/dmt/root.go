@@ -107,7 +107,7 @@ func execute() {
 			buf := bytes.NewBuffer([]byte{})
 			w.Init(buf, minWidth, 0, 0, ' ', 0)
 
-			switch config.RepositoryType {
+			switch repositoryType {
 			case bootstrap.RepositoryTypeGitHub:
 				fmt.Fprintln(w)
 				color.New(color.FgHiYellow).Fprintln(w, "Don't forget to add secrets to your GitHub repository:")
