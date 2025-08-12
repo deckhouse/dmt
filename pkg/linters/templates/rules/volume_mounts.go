@@ -67,7 +67,7 @@ func ShowVolumes(object storage.StoreObject, errorList *errors.LintRuleErrorsLis
 						hostPathFileOrCreate := v2.HostPathFileOrCreate
 						hostPathFile := v2.HostPathFile
 
-						if *volume.VolumeSource.HostPath.Type == hostPathFileOrCreate || *volume.VolumeSource.HostPath.Type == hostPathFile {
+						if (volume.VolumeSource.HostPath.Type != nil && *volume.VolumeSource.HostPath.Type == hostPathFileOrCreate) || (volume.VolumeSource.HostPath.Type != nil && *volume.VolumeSource.HostPath.Type == hostPathFile) {
 							files = append(files, vm.MountPath)
 							found = true
 							continue
