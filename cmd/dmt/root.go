@@ -49,8 +49,6 @@ func execute() {
 				os.Exit(0)
 			}
 		},
-		Run: func(_ *cobra.Command, _ []string) {
-		},
 	}
 
 	lintCmd := &cobra.Command{
