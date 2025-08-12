@@ -56,7 +56,7 @@ func ShowVolumes(object storage.StoreObject, errorList *errors.LintRuleErrorsLis
 			}
 
 			if vm.SubPath != "" {
-				files = append(files, vm.SubPath)
+				files = append(files, vm.MountPath)
 				continue
 			}
 
