@@ -21,5 +21,7 @@ linters-settings:
         - "updater"
     patches:
       disable: false
+    werf:
+      disable: false
     impact: error
 ```

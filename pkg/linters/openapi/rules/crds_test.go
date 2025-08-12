@@ -1,6 +1,7 @@
 package rules
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -533,8 +534,23 @@ spec:
 				assert.Empty(t, errs)
 			} else {
 				assert.Len(t, errs, len(tt.wantErrors))
+
+				// Convert errors to text slice for easier comparison
+				actualErrors := make([]string, len(errs))
 				for i, err := range errs {
-					assert.Contains(t, err.Text, tt.wantErrors[i])
+					actualErrors[i] = err.Text
+				}
+
+				// Check that each expected error is present (order independent)
+				for _, expectedError := range tt.wantErrors {
+					found := false
+					for _, actualError := range actualErrors {
+						if strings.Contains(actualError, expectedError) {
+							found = true
+							break
+						}
+					}
+					assert.True(t, found, "Expected error not found: %s\nActual errors: %v", expectedError, actualErrors)
 				}
 			}
 		})

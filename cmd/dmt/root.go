@@ -87,13 +87,36 @@ func lintCmdFunc(_ *cobra.Command, args []string) {
 		dirs = []string{"."}
 	}
 
-	dir, err := fsutils.ExpandDir(dirs[0])
-	if err != nil {
-		logger.ErrorF("Error expanding directory: %v", err)
-		return
-	}
-
-	if err := runLint(dir); err != nil {
+	// Process all directories and combine results
+	if err := runLintMultiple(dirs); err != nil {
 		os.Exit(1)
 	}
+}
+
+func runLintMultiple(dirs []string) error {
+	var hasErrors bool
+
+	// Process each directory separately
+	for _, dir := range dirs {
+		expandedDir, err := fsutils.ExpandDir(dir)
+		if err != nil {
+			logger.ErrorF("Error expanding directory %s: %v", dir, err)
+			continue
+		}
+
+		logger.InfoF("Processing directory: %s", expandedDir)
+
+		// Run lint for this directory as a separate execution
+		if err := runLint(expandedDir); err != nil {
+			logger.ErrorF("Error processing directory %s: %v", expandedDir, err)
+			hasErrors = true
+			// Continue processing other directories even if one fails
+		}
+	}
+
+	if hasErrors {
+		return fmt.Errorf("critical errors found")
+	}
+
+	return nil
 }

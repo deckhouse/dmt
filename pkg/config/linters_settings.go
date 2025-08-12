@@ -80,6 +80,7 @@ type ImageSettings struct {
 	ExcludeRules ImageExcludeRules `mapstructure:"exclude-rules"`
 
 	Patches PatchesRuleSettings `mapstructure:"patches"`
+	Werf    WerfRuleSettings    `mapstructure:"werf"`
 
 	Impact *pkg.Level `mapstructure:"impact"`
 }
@@ -95,6 +96,7 @@ type ModuleSettings struct {
 	OSS            ModuleOSSRuleSettings            `mapstructure:"oss"`
 	DefinitionFile ModuleDefinitionFileRuleSettings `mapstructure:"definition-file"`
 	Conversions    ConversionsRuleSettings          `mapstructure:"conversions"`
+	Helmignore     HelmignoreRuleSettings           `mapstructure:"helmignore"`
 
 	Impact *pkg.Level `mapstructure:"impact"`
 }
@@ -118,8 +120,18 @@ type ConversionsRuleSettings struct {
 	Disable bool `mapstructure:"disable"`
 }
 
+type HelmignoreRuleSettings struct {
+	// disable helmignore rule completely
+	Disable bool `mapstructure:"disable"`
+}
+
 type PatchesRuleSettings struct {
 	// disable conversions rule completely
+	Disable bool `mapstructure:"disable"`
+}
+
+type WerfRuleSettings struct {
+	// disable werf rule completely
 	Disable bool `mapstructure:"disable"`
 }
 

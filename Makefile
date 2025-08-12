@@ -24,9 +24,30 @@ clean:
 
 # Test
 test:
-	rm -f coverage.out
-	go test -v ./... -coverprofile=coverage.out
+	go test -v -race ./...
 .PHONY: test
+
+# Linting
+lint:
+	golangci-lint run
+.PHONY: lint
+
+lint-fast:
+	golangci-lint run --fast-only
+.PHONY: lint-fast
+
+lint-fix:
+	golangci-lint run --fix
+.PHONY: lint-fix
+
+lint-fix-fast:
+	golangci-lint run --fast-only --fix
+.PHONY: lint-fix-fast
+
+# Git hooks setup
+setup-hooks:
+	./scripts/setup-hooks.sh
+.PHONY: setup-hooks
 
 # Non-PHONY targets (real files)
 
