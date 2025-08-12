@@ -35,10 +35,42 @@ dmt lint /path/to/module1 /path/to/module2 /path/to/module3
 
 Each directory is processed as a separate execution, and results are displayed for each directory individually.
 
-### Gen
+### Bootstrap
 
-Generate some automatic rules for you module
-\<Coming soon\>
+Bootstrap a new Deckhouse module from template:
+
+```shell
+dmt bootstrap my-module-name
+```
+
+This command will:
+- Download the official Deckhouse module template
+- Extract it to the current directory (or specified directory)
+- Replace template placeholders with your module name
+- Configure CI/CD files based on your chosen platform
+
+#### Options
+
+- `--pipeline, -p`: Choose CI/CD platform (`github` or `gitlab`, default: `github`)
+- `--directory, -d`: Specify target directory (default: current directory)
+- `--repository-url, -r`: Use custom module template repository URL
+
+#### Examples
+
+Bootstrap a GitHub module:
+```shell
+dmt bootstrap my-awesome-module --pipeline github
+```
+
+Bootstrap a GitLab module in specific directory:
+```shell
+dmt bootstrap my-module --pipeline gitlab --directory ./modules/my-module
+```
+
+Use custom template repository:
+```shell
+dmt bootstrap my-module --repository-url https://github.com/myorg/custom-template/archive/main.zip
+```
 
 ## Linters list
 
