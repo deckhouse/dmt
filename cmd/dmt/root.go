@@ -17,12 +17,15 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
 	"regexp"
 	"strings"
+	"text/tabwriter"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"github.com/deckhouse/dmt/internal/bootstrap"
@@ -96,6 +99,41 @@ func execute() {
 			if err := bootstrap.RunBootstrap(config); err != nil {
 				return fmt.Errorf("running bootstrap: %w", err)
 			}
+
+			w := new(tabwriter.Writer)
+
+			const minWidth = 5
+
+			buf := bytes.NewBuffer([]byte{})
+			w.Init(buf, minWidth, 0, 0, ' ', 0)
+
+			switch config.RepositoryType {
+			case bootstrap.RepositoryTypeGitHub:
+				fmt.Fprintln(w)
+				color.New(color.FgHiYellow).Fprintln(w, "Don't forget to add secrets to your GitHub repository:")
+				fmt.Fprintf(w, "\t%s\n", "- DECKHOUSE_PRIVATE_REPO")
+				fmt.Fprintf(w, "\t%s\n", "- DEFECTDOJO_API_TOKEN")
+				fmt.Fprintf(w, "\t%s\n", "- DEFECTDOJO_HOST")
+				fmt.Fprintf(w, "\t%s\n", "- DEV_MODULES_REGISTRY_PASSWORD")
+				fmt.Fprintf(w, "\t%s\n", "- GOPROXY")
+				fmt.Fprintf(w, "\t%s\n", "- PROD_MODULES_READ_REGISTRY_PASSWORD")
+				fmt.Fprintf(w, "\t%s\n", "- PROD_MODULES_REGISTRY_PASSWORD")
+				fmt.Fprintf(w, "\t%s\n", "- SOURCE_REPO")
+				fmt.Fprintf(w, "\t%s\n", "- SOURCE_REPO_SSH_KEY")
+			case bootstrap.RepositoryTypeGitLab:
+				fmt.Fprintln(w)
+				color.New(color.FgHiYellow).Fprintln(w, "Don't forget to modify variables to your .gitlab-ci.yml file:")
+				fmt.Fprintf(w, "\t%s\n", "- MODULES_MODULE_NAME")
+				fmt.Fprintf(w, "\t%s\n", "- MODULES_REGISTRY")
+				fmt.Fprintf(w, "\t%s\n", "- MODULES_MODULE_SOURCE")
+				fmt.Fprintf(w, "\t%s\n", "- MODULES_MODULE_TAG")
+				fmt.Fprintf(w, "\t%s\n", "- WERF_VERSION")
+				fmt.Fprintf(w, "\t%s\n", "- BASE_IMAGES_VERSION")
+			}
+
+			w.Flush()
+
+			fmt.Print(buf.String())
 
 			return nil
 		},

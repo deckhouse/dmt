@@ -116,30 +116,6 @@ func RunBootstrap(config BootstrapConfig) error {
 
 	logger.InfoF("Bootstrap completed successfully")
 
-	switch config.RepositoryType {
-	case RepositoryTypeGitHub:
-		fmt.Println()
-		fmt.Println("Don't forget to add secrets to your GitHub repository:")
-		fmt.Println("  - DECKHOUSE_PRIVATE_REPO")
-		fmt.Println("  - DEFECTDOJO_API_TOKEN")
-		fmt.Println("  - DEFECTDOJO_HOST")
-		fmt.Println("  - DEV_MODULES_REGISTRY_PASSWORD")
-		fmt.Println("  - GOPROXY")
-		fmt.Println("  - PROD_MODULES_READ_REGISTRY_PASSWORD")
-		fmt.Println("  - PROD_MODULES_REGISTRY_PASSWORD")
-		fmt.Println("  - SOURCE_REPO")
-		fmt.Println("  - SOURCE_REPO_SSH_KEY")
-	case RepositoryTypeGitLab:
-		fmt.Println()
-		fmt.Println("Don't forget to modify variables to your .gitlab-ci.yml file:")
-		fmt.Println("  - MODULES_MODULE_NAME")
-		fmt.Println("  - MODULES_REGISTRY")
-		fmt.Println("  - MODULES_MODULE_SOURCE")
-		fmt.Println("  - MODULES_MODULE_TAG")
-		fmt.Println("  - WERF_VERSION")
-		fmt.Println("  - BASE_IMAGES_VERSION")
-	}
-
 	return nil
 }
 
@@ -169,7 +145,7 @@ func checkDirectoryEmpty(absDirectory string) error {
 		return fmt.Errorf("directory is not empty. Please run bootstrap in an empty directory")
 	}
 
-	logger.InfoF("Directory is empty, proceeding with bootstrap")
+	logger.DebugF("Directory is empty, proceeding with bootstrap")
 
 	return nil
 }
@@ -329,7 +305,7 @@ func downloadFile(url, targetPath string) error {
 
 // extractZip extracts a zip file to the specified directory
 func extractZip(zipPath, extractDir string) error {
-	logger.InfoF("Extracting template archive")
+	logger.DebugF("Extracting template archive")
 
 	reader, err := zip.OpenReader(zipPath)
 	if err != nil {
@@ -404,7 +380,7 @@ func extractZip(zipPath, extractDir string) error {
 		}
 	}
 
-	logger.InfoF("Template extracted successfully")
+	logger.DebugF("Template extracted successfully")
 	return nil
 }
 
@@ -442,7 +418,7 @@ func moveExtractedContent(tempDir, directory string) error {
 		}
 	}
 
-	logger.InfoF("Template files moved to current directory")
+	logger.DebugF("Template files moved to current directory")
 	return nil
 }
 
