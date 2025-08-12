@@ -48,7 +48,7 @@ func LoadModuleAsChart(moduleName, dir string) (*chart.Chart, error) {
 	rules := ignore.Empty()
 	ifile := filepath.Join(topdir, ignore.HelmIgnore)
 	if _, err = os.Stat(ifile); err == nil {
-		r, err := ignore.ParseFile(ifile) //nolint:govet // copypaste from helmv3
+		r, err := ignore.ParseFile(ifile)
 		if err != nil {
 			return c, err
 		}

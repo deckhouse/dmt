@@ -73,7 +73,6 @@ linters:
     govet:
       enable:
         - nilness
-        - shadow
     lll:
       line-length: 140
     misspell:

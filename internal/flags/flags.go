@@ -37,6 +37,13 @@ var (
 	PprofFile    string
 )
 
+var (
+	BootstrapRepositoryType string
+	BootstrapRepositoryURL  string
+	BootstrapDirectory      string
+	BootstrapModule         string
+)
+
 func InitDefaultFlagSet() *pflag.FlagSet {
 	defaults := pflag.NewFlagSet("defaults for all commands", pflag.ExitOnError)
 
@@ -58,8 +65,13 @@ func InitLintFlagSet() *pflag.FlagSet {
 	return lint
 }
 
-func InitGenFlagSet() *pflag.FlagSet {
-	gen := pflag.NewFlagSet("gen", pflag.ContinueOnError)
+func InitBootstrapFlagSet() *pflag.FlagSet {
+	bootstrap := pflag.NewFlagSet("bootstrap", pflag.ContinueOnError)
 
-	return gen
+	bootstrap.StringVarP(&BootstrapRepositoryType, "pipeline", "p", "github", "pipeline type [github | gitlab]")
+	bootstrap.StringVarP(&BootstrapRepositoryURL, "repository-url", "r", "", "custom module template repository URL, must point to zip compressed archive with repo content")
+	// if user doesn't pass directory flag - it will be dmt executing directory
+	bootstrap.StringVarP(&BootstrapDirectory, "directory", "d", ".", "directory to bootstrap")
+
+	return bootstrap
 }
