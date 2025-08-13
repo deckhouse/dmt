@@ -29,6 +29,8 @@ import (
 
 type ContainerVolumeMounts struct {
 	ContainerName string
+	ControllerKind string
+	ControllerName string
 	VolumeMounts  []v2.VolumeMount
 }
 
@@ -48,7 +50,7 @@ func ShowVolumes(object storage.StoreObject, errorList *errors.LintRuleErrorsLis
 	}
 
 	for _, container := range volumeMounts {
-		fmt.Printf("# %s:\n", container.ContainerName)
+		fmt.Printf("# %s/%s - %s:\n", container.ControllerKind, container.ControllerName, container.ContainerName)
 		var files, dirs []string
 		for _, vm := range container.VolumeMounts {
 			if vm.MountPath == "/tmp" {
@@ -99,6 +101,7 @@ func parsePodControllerVolumeMounts(object storage.StoreObject) ([]ContainerVolu
 	content := object.Unstructured.UnstructuredContent()
 	converter := runtime.DefaultUnstructuredConverter
 	kind := object.Unstructured.GetKind()
+	controllerName := object.Unstructured.GetName()
 
 	var (
 		containerVolumes []ContainerVolumeMounts
@@ -113,16 +116,15 @@ func parsePodControllerVolumeMounts(object storage.StoreObject) ([]ContainerVolu
 		if err != nil {
 			return nil, nil, err
 		}
-
 		for _, container := range deployment.Spec.Template.Spec.Containers {
 			if container.VolumeMounts != nil {
-				containerVolumes = append(containerVolumes, ContainerVolumeMounts{ContainerName: container.Name, VolumeMounts: container.VolumeMounts})
+				containerVolumes = append(containerVolumes, ContainerVolumeMounts{ContainerName: container.Name, VolumeMounts: container.VolumeMounts, ControllerName: controllerName, ControllerKind: kind})
 			}
 		}
 
 		for _, container := range deployment.Spec.Template.Spec.InitContainers {
 			if container.VolumeMounts != nil {
-				containerVolumes = append(containerVolumes, ContainerVolumeMounts{ContainerName: container.Name, VolumeMounts: container.VolumeMounts})
+				containerVolumes = append(containerVolumes, ContainerVolumeMounts{ContainerName: container.Name, VolumeMounts: container.VolumeMounts, ControllerName: controllerName, ControllerKind: kind})
 			}
 		}
 
@@ -138,13 +140,13 @@ func parsePodControllerVolumeMounts(object storage.StoreObject) ([]ContainerVolu
 
 		for _, container := range daemonSet.Spec.Template.Spec.Containers {
 			if container.VolumeMounts != nil {
-				containerVolumes = append(containerVolumes, ContainerVolumeMounts{ContainerName: container.Name, VolumeMounts: container.VolumeMounts})
+				containerVolumes = append(containerVolumes, ContainerVolumeMounts{ContainerName: container.Name, VolumeMounts: container.VolumeMounts, ControllerName: controllerName, ControllerKind: kind})
 			}
 		}
 
 		for _, container := range daemonSet.Spec.Template.Spec.InitContainers {
 			if container.VolumeMounts != nil {
-				containerVolumes = append(containerVolumes, ContainerVolumeMounts{ContainerName: container.Name, VolumeMounts: container.VolumeMounts})
+				containerVolumes = append(containerVolumes, ContainerVolumeMounts{ContainerName: container.Name, VolumeMounts: container.VolumeMounts, ControllerName: controllerName, ControllerKind: kind})
 			}
 		}
 
@@ -157,16 +159,15 @@ func parsePodControllerVolumeMounts(object storage.StoreObject) ([]ContainerVolu
 		if err != nil {
 			return nil, nil, err
 		}
-
 		for _, container := range statefulSet.Spec.Template.Spec.Containers {
 			if container.VolumeMounts != nil {
-				containerVolumes = append(containerVolumes, ContainerVolumeMounts{ContainerName: container.Name, VolumeMounts: container.VolumeMounts})
+				containerVolumes = append(containerVolumes, ContainerVolumeMounts{ContainerName: container.Name, VolumeMounts: container.VolumeMounts, ControllerName: controllerName, ControllerKind: kind})
 			}
 		}
 
 		for _, container := range statefulSet.Spec.Template.Spec.InitContainers {
 			if container.VolumeMounts != nil {
-				containerVolumes = append(containerVolumes, ContainerVolumeMounts{ContainerName: container.Name, VolumeMounts: container.VolumeMounts})
+				containerVolumes = append(containerVolumes, ContainerVolumeMounts{ContainerName: container.Name, VolumeMounts: container.VolumeMounts, ControllerName: controllerName, ControllerKind: kind})
 			}
 		}
 		volumes = append(volumes, statefulSet.Spec.Template.Spec.Volumes...)
