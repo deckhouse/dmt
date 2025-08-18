@@ -372,3 +372,129 @@ descriptions:
 	rule.CheckDefinitionFile(tempDir, errorList)
 	assert.False(t, errorList.ContainsErrors(), "Expected no errors when rule is disabled")
 }
+
+func TestCheckDefinitionFile_Accessibility(t *testing.T) {
+	tempDir := t.TempDir()
+	moduleFilePath := filepath.Join(tempDir, ModuleConfigFilename)
+
+	// Test valid accessibility configuration
+	err := os.WriteFile(moduleFilePath, []byte(`
+name: test-module
+stage: Experimental
+descriptions:
+  en: "Test description"
+accessibility:
+  editions:
+    _default:
+      available: true
+      enabledInBundle:
+        - Minimal
+        - Managed
+        - Default
+    ee:
+      available: true
+      enabledInBundle:
+        - Minimal
+        - Managed
+        - Default
+`), 0600)
+	require.NoError(t, err)
+
+	rule := NewDefinitionFileRule(false)
+	errorList := errors.NewLintRuleErrorsList()
+
+	rule.CheckDefinitionFile(tempDir, errorList)
+	assert.False(t, errorList.ContainsErrors(), "Expected no errors for valid accessibility configuration")
+
+	// Test missing editions field
+	err = os.WriteFile(moduleFilePath, []byte(`
+name: test-module
+stage: Experimental
+descriptions:
+  en: "Test description"
+accessibility: {}
+`), 0600)
+	require.NoError(t, err)
+
+	errorList = errors.NewLintRuleErrorsList()
+	rule.CheckDefinitionFile(tempDir, errorList)
+	assert.True(t, errorList.ContainsErrors(), "Expected errors for missing editions field")
+	assert.Contains(t, errorList.GetErrors()[0].Text, "Field 'accessibility.editions' is required")
+
+	// Test invalid edition name
+	err = os.WriteFile(moduleFilePath, []byte(`
+name: test-module
+stage: Experimental
+descriptions:
+  en: "Test description"
+accessibility:
+  editions:
+    invalid-edition:
+      available: true
+      enabledInBundle:
+        - Minimal
+`), 0600)
+	require.NoError(t, err)
+
+	errorList = errors.NewLintRuleErrorsList()
+	rule.CheckDefinitionFile(tempDir, errorList)
+	assert.True(t, errorList.ContainsErrors(), "Expected errors for invalid edition name")
+	assert.Contains(t, errorList.GetErrors()[0].Text, "Invalid edition name")
+
+	// Test invalid bundle name
+	err = os.WriteFile(moduleFilePath, []byte(`
+name: test-module
+stage: Experimental
+descriptions:
+  en: "Test description"
+accessibility:
+  editions:
+    _default:
+      available: true
+      enabledInBundle:
+        - InvalidBundle
+`), 0600)
+	require.NoError(t, err)
+
+	errorList = errors.NewLintRuleErrorsList()
+	rule.CheckDefinitionFile(tempDir, errorList)
+	assert.True(t, errorList.ContainsErrors(), "Expected errors for invalid bundle name")
+	assert.Contains(t, errorList.GetErrors()[0].Text, "Invalid bundle")
+
+	// Test missing enabledInBundle field
+	err = os.WriteFile(moduleFilePath, []byte(`
+name: test-module
+stage: Experimental
+descriptions:
+  en: "Test description"
+accessibility:
+  editions:
+    _default:
+      available: true
+`), 0600)
+	require.NoError(t, err)
+
+	errorList = errors.NewLintRuleErrorsList()
+	rule.CheckDefinitionFile(tempDir, errorList)
+	assert.True(t, errorList.ContainsErrors(), "Expected errors for missing enabledInBundle field")
+	assert.Contains(t, errorList.GetErrors()[0].Text, "Field 'enabledInBundle' is required")
+
+	// Test empty enabledInBundle array
+	err = os.WriteFile(moduleFilePath, []byte(`
+name: test-module
+stage: Experimental
+descriptions:
+  en: "Test description"
+accessibility:
+  editions:
+    _default:
+      available: true
+      enabledInBundle: []
+`), 0600)
+	require.NoError(t, err)
+
+	errorList = errors.NewLintRuleErrorsList()
+	rule.CheckDefinitionFile(tempDir, errorList)
+	assert.True(t, errorList.ContainsErrors(), "Expected errors for empty enabledInBundle array")
+	assert.Contains(t, errorList.GetErrors()[0].Text, "Field 'enabledInBundle' is required")
+}
