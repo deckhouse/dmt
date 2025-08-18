@@ -29,7 +29,7 @@ require (
 	github.com/spf13/pflag v1.0.6
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.10.0
-	github.com/tidwall/gjson v1.14.4
+	github.com/tidwall/gjson v1.18.0
 	golang.org/x/mod v0.25.0
 	gopkg.in/ini.v1 v1.67.0
 	gopkg.in/yaml.v3 v3.0.1
