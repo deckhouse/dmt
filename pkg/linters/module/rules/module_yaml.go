@@ -35,6 +35,24 @@ const (
 	DefinitionFileRuleName = "definition-file"
 )
 
+// Valid edition values
+var ValidEditions = []string{
+	"ce",
+	"fe",
+	"ee",
+	"se",
+	"se-plus",
+	"be",
+	"_default",
+}
+
+// Valid bundle values
+var ValidBundles = []string{
+	"Minimal",
+	"Managed",
+	"Default",
+}
+
 func NewDefinitionFileRule(disable bool) *DefinitionFileRule {
 	return &DefinitionFileRule{
 		RuleMeta: pkg.RuleMeta{
@@ -56,16 +74,17 @@ const (
 )
 
 type DeckhouseModule struct {
-	Name         string              `json:"name"`
-	Critical     bool                `json:"critical,omitempty"`
-	Namespace    string              `json:"namespace"`
-	Weight       uint32              `json:"weight,omitempty"`
-	Tags         []string            `json:"tags"`
-	Subsystems   []string            `json:"subsystems,omitempty"`
-	Stage        string              `json:"stage"`
-	Description  string              `json:"description,omitempty"`
-	Descriptions ModuleDescriptions  `json:"descriptions,omitempty"`
-	Requirements *ModuleRequirements `json:"requirements,omitempty"`
+	Name          string               `json:"name"`
+	Critical      bool                 `json:"critical,omitempty"`
+	Namespace     string               `json:"namespace"`
+	Weight        uint32               `json:"weight,omitempty"`
+	Tags          []string             `json:"tags"`
+	Subsystems    []string             `json:"subsystems,omitempty"`
+	Stage         string               `json:"stage"`
+	Description   string               `json:"description,omitempty"`
+	Descriptions  ModuleDescriptions   `json:"descriptions,omitempty"`
+	Requirements  *ModuleRequirements  `json:"requirements,omitempty"`
+	Accessibility *ModuleAccessibility `json:"accessibility,omitempty"`
 }
 
 type ModuleDescriptions struct {
@@ -82,6 +101,15 @@ type ModulePlatformRequirements struct {
 	Deckhouse    string `json:"deckhouse,omitempty"`
 	Kubernetes   string `json:"kubernetes,omitempty"`
 	Bootstrapped bool   `json:"bootstrapped,omitempty"`
+}
+
+type ModuleAccessibility struct {
+	Editions map[string]ModuleEdition `json:"editions"`
+}
+
+type ModuleEdition struct {
+	Available       bool     `json:"available"`
+	EnabledInBundle []string `json:"enabledInBundle"`
 }
 
 func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *errors.LintRuleErrorsList) {
@@ -147,6 +175,10 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 		yml.Requirements.validateRequirements(errorList)
 	}
 
+	if yml.Accessibility != nil {
+		yml.Accessibility.validateAccessibility(errorList)
+	}
+
 	// ru description is not required
 	if yml.Descriptions.English == "" {
 		errorList.Warn("Module `descriptions.en` field is required")
@@ -173,6 +205,31 @@ func (m ModuleRequirements) validateRequirements(errorList *errors.LintRuleError
 	for parentModuleName, parentModuleVersion := range m.ParentModules {
 		if _, err := semver.NewConstraint(parentModuleVersion); err != nil {
 			errorList.Errorf("Invalid module %q version requirement: %s", parentModuleName, err)
+		}
+	}
+}
+
+func (a *ModuleAccessibility) validateAccessibility(errorList *errors.LintRuleErrorsList) {
+	if len(a.Editions) == 0 {
+		errorList.Error("Field 'accessibility.editions' is required when 'accessibility' is specified")
+		return
+	}
+
+	for editionName, edition := range a.Editions {
+		// Validate edition name
+		if !slices.Contains(ValidEditions, editionName) {
+			errorList.Errorf("Invalid edition name %q. Must be one of: %s", editionName, strings.Join(ValidEditions, ", "))
+		}
+
+		// Validate enabledInBundle values
+		if len(edition.EnabledInBundle) == 0 {
+			errorList.Errorf("Field 'enabledInBundle' is required for edition %q", editionName)
+		} else {
+			for _, bundle := range edition.EnabledInBundle {
+				if !slices.Contains(ValidBundles, bundle) {
+					errorList.Errorf("Invalid bundle %q for edition %q. Must be one of: %s", bundle, editionName, strings.Join(ValidBundles, ", "))
+				}
+			}
 		}
 	}
 }
