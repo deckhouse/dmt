@@ -61,7 +61,7 @@ func (l *Templates) Run(m *module.Module) {
 	ingressRule := rules.NewIngressRule(l.cfg.ExcludeRules.Ingress.Get())
 
 	// monitoring
-	prometheusRule := rules.NewPrometheusRule()
+	prometheusRule := rules.NewPrometheusRule(l.cfg)
 	grafanaRule := rules.NewGrafanaRule(l.cfg)
 
 	if err := dirExists(m.GetPath(), "monitoring"); err == nil {
