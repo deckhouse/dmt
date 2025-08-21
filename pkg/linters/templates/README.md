@@ -19,6 +19,9 @@ linters-settings:
     # disable grafana-dashboards rule
     grafana-dashboards:
       disable: true
+    # disable prometheus-rules rule
+    prometheus-rules:
+      disable: true
     exclude-rules:
       # exclude if target ref equals one of
       vpa:

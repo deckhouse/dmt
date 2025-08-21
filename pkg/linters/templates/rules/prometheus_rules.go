@@ -30,6 +30,7 @@ import (
 	"github.com/deckhouse/dmt/internal/promtool"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
+	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
@@ -37,16 +38,24 @@ const (
 	PrometheusRuleName = "prometheus-rules"
 )
 
-func NewPrometheusRule() *PrometheusRule {
+func NewPrometheusRule(cfg *config.TemplatesSettings) *PrometheusRule {
+	var exclude bool
+	if cfg != nil {
+		exclude = cfg.PrometheusRules.Disable
+	}
 	return &PrometheusRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: PrometheusRuleName,
+		},
+		BoolRule: pkg.BoolRule{
+			Exclude: exclude,
 		},
 	}
 }
 
 type PrometheusRule struct {
 	pkg.RuleMeta
+	pkg.BoolRule
 }
 
 type checkResult struct {
@@ -84,6 +93,10 @@ type ModuleInterface interface {
 }
 
 func (r *PrometheusRule) ValidatePrometheusRules(m ModuleInterface, errorList *errors.LintRuleErrorsList) {
+	if !r.Enabled() {
+		return
+	}
+
 	modulePath := m.GetPath()
 	errorList = errorList.WithFilePath(modulePath).WithRule(r.GetName())
 
@@ -151,6 +164,10 @@ func isContentMatching(content []byte, desiredContent string) bool {
 }
 
 func (r *PrometheusRule) PromtoolRuleCheck(m ModuleInterface, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+	if !r.Enabled() {
+		return
+	}
+
 	errorList = errorList.WithFilePath(m.GetPath()).WithRule(r.GetName())
 
 	if object.Unstructured.GetKind() != "PrometheusRule" {

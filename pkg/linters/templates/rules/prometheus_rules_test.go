@@ -192,7 +192,7 @@ func TestValidatePrometheusRules(t *testing.T) {
 			mockModuleProm := &mockModuleProm{path: modulePath}
 
 			// Run validation
-			rule := NewPrometheusRule()
+			rule := NewPrometheusRule(nil)
 			errorList := errors.NewLintRuleErrorsList()
 			rule.ValidatePrometheusRules(mockModuleProm, errorList)
 

@@ -179,6 +179,7 @@ type RBACExcludeRules struct {
 type TemplatesSettings struct {
 	ExcludeRules      TemplatesExcludeRules        `mapstructure:"exclude-rules"`
 	GrafanaDashboards GrafanaDashboardsExcludeList `mapstructure:"grafana-dashboards"`
+	PrometheusRules   PrometheusRulesExcludeList   `mapstructure:"prometheus-rules"`
 
 	Impact *pkg.Level `mapstructure:"impact"`
 }
@@ -192,6 +193,10 @@ type TemplatesExcludeRules struct {
 }
 
 type GrafanaDashboardsExcludeList struct {
+	Disable bool `mapstructure:"disable"`
+}
+
+type PrometheusRulesExcludeList struct {
 	Disable bool `mapstructure:"disable"`
 }
 
