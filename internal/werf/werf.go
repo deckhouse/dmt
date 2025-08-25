@@ -18,6 +18,7 @@ package werf
 
 import (
 	"bytes"
+	"cmp"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -68,7 +69,7 @@ func GetWerfConfig(dir string) (string, error) {
 
 	templateData := make(map[string]any)
 	templateData["Files"] = NewFiles(werfFile, dir)
-	templateData["Env"] = "EE"
+	templateData["Env"] = cmp.Or(os.Getenv("WERF_ENV"), "EE")
 
 	templateData["Commit"] = map[string]any{
 		"Hash": "hash",
