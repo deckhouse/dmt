@@ -18,6 +18,7 @@ package rules
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -54,11 +55,12 @@ func (r *RegistryRule) CheckRegistrySecret(md *module.Module, errorList *errors.
 		return
 	}
 
-	moduleName := getModuleNameFromRepository(md.GetPath())
-	if moduleName == "deckhouse" {
-		// Skip registry secret check for deckhouse module
+	if getModuleNameFromRepository(md.GetPath()) == "deckhouse" {
+		// Skip registry secret check for deckhouse repository
 		return
 	}
+
+	moduleName := md.GetName()
 
 	errorList = errorList.WithRule(r.GetName())
 
@@ -69,9 +71,16 @@ func (r *RegistryRule) CheckRegistrySecret(md *module.Module, errorList *errors.
 		return
 	}
 
-	// Check if file contains forbidden string
-	if bytes.Contains(fileContent, []byte(".Values.global.modulesImages")) {
-		errorList.Error("registry-secret.yaml file should not contain .Values.global.modulesImages")
+	// Check if file contains global modulesImages registry.dockercfg
+	globalPattern := []byte(".Values.global.modulesImages.registry.dockercfg")
+	if bytes.Contains(fileContent, globalPattern) {
+		// Check if module has its own registry.dockercfg configuration
+		// Convert module name to camelCase for Kubernetes values
+		camelCaseModuleName := module.ToLowerCamel(moduleName)
+		modulePattern := fmt.Appendf(nil, ".Values.%s.registry.dockercfg", camelCaseModuleName)
+		if !bytes.Contains(fileContent, modulePattern) {
+			errorList.Errorf("registry-secret.yaml file contains .Values.global.modulesImages.registry.dockercfg but missing %s", modulePattern)
+		}
 	}
 }
 
