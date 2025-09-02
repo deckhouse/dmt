@@ -211,6 +211,11 @@ func (m *Manager) PrintResult() {
 		msgColor := color.FgRed
 
 		if err.Level == pkg.Warn {
+			// TODO: make it not global
+			if flags.HideWarnings {
+				continue
+			}
+
 			msgColor = color.FgHiYellow
 		}
 

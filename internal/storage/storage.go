@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/deckhouse/dmt/internal/flags"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
@@ -345,6 +346,14 @@ func (s *StoreObject) IsHostNetwork() (bool, error) {
 		return cronJob.Spec.JobTemplate.Spec.Template.Spec.HostNetwork, nil
 	}
 	return false, nil
+}
+
+func (s *StoreObject) GetPath() string {
+	if flags.AbsPath {
+		return s.AbsPath
+	}
+
+	return s.shortPath
 }
 
 func (s *StoreObject) ShortPath() string {

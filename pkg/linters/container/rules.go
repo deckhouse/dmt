@@ -25,7 +25,7 @@ import (
 )
 
 func (l *Container) applyContainerRules(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithFilePath(object.ShortPath())
+	errorList = errorList.WithFilePath(object.GetPath())
 
 	objectRules := []func(storage.StoreObject, *errors.LintRuleErrorsList){
 		rules.NewRecommendedLabelsRule().ObjectRecommendedLabels,

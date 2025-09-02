@@ -62,7 +62,7 @@ func (r *KubeRbacProxyRule) NamespaceMustContainKubeRBACProxyCA(objectStore *sto
 			// skip non-deckhouse namespaces
 			continue
 		}
-		errorList = errorList.WithFilePath(object.ShortPath())
+		errorList = errorList.WithFilePath(object.GetPath())
 		if index.Kind == "Namespace" {
 			if !proxyInNamespaces.Has(index.Name) {
 				errorList.WithObjectID(fmt.Sprintf("namespace = %s", index.Name)).

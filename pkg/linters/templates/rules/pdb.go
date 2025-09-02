@@ -79,7 +79,7 @@ func (r *PDBRule) ControllerMustHavePDB(md *module.Module, errorList *errors.Lin
 
 		if len(pdbSelectors) == 0 {
 			errorList.WithObjectID(object.Identity()).
-				WithFilePath(object.ShortPath()).
+				WithFilePath(object.GetPath()).
 				Error("No PodDisruptionBudget found for controller")
 			return
 		}

@@ -84,7 +84,7 @@ func probeHandlerIsNotValid(probe v1.ProbeHandler) bool {
 
 // check livenessProbe exist and correct
 func (r *LivenessRule) CheckProbe(object storage.StoreObject, containers []v1.Container, errorList *errors.LintRuleErrorsList) { //nolint: dupl // we have doubled code in probes because it's separate rules and we need to edit them separate
-	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.ShortPath())
+	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.GetPath())
 
 	if !isPodController(object.Unstructured.GetKind()) {
 		return
@@ -98,7 +98,7 @@ func (r *LivenessRule) CheckProbe(object storage.StoreObject, containers []v1.Co
 			continue
 		}
 
-		errorList = errorList.WithObjectID(object.Identity() + " ; container = " + c.Name).WithFilePath(object.ShortPath())
+		errorList = errorList.WithObjectID(object.Identity() + " ; container = " + c.Name).WithFilePath(object.GetPath())
 
 		livenessProbe := c.LivenessProbe
 		if livenessProbe == nil {
@@ -114,7 +114,7 @@ func (r *LivenessRule) CheckProbe(object storage.StoreObject, containers []v1.Co
 
 // check readinessProbe exist and correct
 func (r *ReadinessRuleNameRule) CheckProbe(object storage.StoreObject, containers []v1.Container, errorList *errors.LintRuleErrorsList) { //nolint: dupl // we have doubled code in probes because it's separate rules and we need to edit them separate
-	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.ShortPath())
+	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.GetPath())
 
 	if !isPodController(object.Unstructured.GetKind()) {
 		return
@@ -128,7 +128,7 @@ func (r *ReadinessRuleNameRule) CheckProbe(object storage.StoreObject, container
 			continue
 		}
 
-		errorList = errorList.WithObjectID(object.Identity() + " ; container = " + c.Name).WithFilePath(object.ShortPath())
+		errorList = errorList.WithObjectID(object.Identity() + " ; container = " + c.Name).WithFilePath(object.GetPath())
 
 		readinessProbe := c.ReadinessProbe
 		if readinessProbe == nil {

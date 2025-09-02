@@ -35,6 +35,8 @@ var (
 	Version      string
 	ValuesFile   string
 	PprofFile    string
+	HideWarnings bool
+	AbsPath      bool
 )
 
 var (
@@ -61,6 +63,14 @@ func InitLintFlagSet() *pflag.FlagSet {
 	lint.StringVarP(&LogLevel, "log-level", "l", "INFO", "log-level [DEBUG | INFO | WARN | ERROR]")
 	lint.StringVarP(&ValuesFile, "values-file", "f", "", "path to values.yaml file with override values")
 	lint.StringVarP(&PprofFile, "pprof-file", "", "", "path to pprof file")
+
+	// hide warnings in output
+	lint.BoolVarP(&HideWarnings, "hide-warnings", "", false, "hide warnings")
+	lint.MarkHidden("hide-warnings")
+
+	// make path absolute
+	lint.BoolVarP(&AbsPath, "abs-path", "", false, "make paths absolute")
+	lint.MarkHidden("abs-path")
 
 	return lint
 }
