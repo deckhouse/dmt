@@ -18,7 +18,7 @@ func TestApplyContainerRules_NoContainers(t *testing.T) {
 	linter := &Container{cfg: cfg}
 
 	obj := storage.StoreObject{
-		Path: "test.yaml",
+		AbsPath: "test.yaml",
 		Unstructured: unstructured.Unstructured{
 			Object: map[string]any{
 				"kind":     "Pod",
@@ -54,7 +54,7 @@ func TestApplyContainerRules_ContainersError(t *testing.T) {
 	linter := &Container{cfg: cfg}
 
 	obj := storage.StoreObject{
-		Path: "test.yaml",
+		AbsPath: "test.yaml",
 		Unstructured: unstructured.Unstructured{
 			Object: map[string]any{
 				"kind":     "UnknownKind",
@@ -73,7 +73,7 @@ func TestApplyContainerRules_AllRules(t *testing.T) {
 	linter := &Container{cfg: cfg}
 
 	obj := storage.StoreObject{
-		Path: "test.yaml",
+		AbsPath: "test.yaml",
 		Unstructured: unstructured.Unstructured{
 			Object: map[string]any{
 				"kind":       "Deployment",
