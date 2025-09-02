@@ -28,6 +28,7 @@ import (
 	"github.com/deckhouse/dmt/internal/set"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"k8s.io/utils/ptr"
 )
 
 const (
@@ -57,7 +58,7 @@ func NewPatchesRule(disable bool) *PatchesRule {
 
 func (r *PatchesRule) CheckPatches(moduleDir string, errorList *errors.LintRuleErrorsList) {
 	if !r.Enabled() {
-		return
+		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
 	}
 
 	errorList = errorList.WithRule(r.Name)

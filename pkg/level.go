@@ -19,18 +19,21 @@ package pkg
 type Level int
 
 const (
-	Warn Level = iota
+	Ignored Level = iota
+	Warn
 	Error
 	Critical
 )
 
 var stringLevelMappings = map[Level]string{
+	Ignored:  "ignored",
 	Warn:     "warn",
 	Error:    "error",
 	Critical: "critical",
 }
 
 var levelStringMappings = map[string]Level{
+	"ignored":  Ignored,
 	"warn":     Warn,
 	"error":    Error,
 	"critical": Critical,

@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 
 	"github.com/deckhouse/dmt/pkg"
@@ -77,8 +78,7 @@ func (r *ConversionsRule) CheckConversions(modulePath string, errorList *errors.
 	errorList = errorList.WithRule(r.GetName())
 
 	if !r.Enabled() {
-		// TODO: add metrics
-		return
+		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
 	}
 
 	configFilePath := filepath.Join(modulePath, configValuesFile)

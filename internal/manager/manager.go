@@ -210,6 +210,17 @@ func (m *Manager) PrintResult() {
 
 		msgColor := color.FgRed
 
+		metrics.IncDmtLinterErrorsCount(err.LinterID, err.RuleID, err.Level.String())
+
+		if err.Level == pkg.Ignored {
+			// TODO: make it not global
+			if !flags.ShowIgnored {
+				continue
+			}
+
+			msgColor = color.FgWhite
+		}
+
 		if err.Level == pkg.Warn {
 			// TODO: make it not global
 			if flags.HideWarnings {
@@ -218,8 +229,6 @@ func (m *Manager) PrintResult() {
 
 			msgColor = color.FgHiYellow
 		}
-
-		metrics.IncDmtLinterErrorsCount(err.LinterID, err.RuleID, err.Level.String())
 
 		// header
 		fmt.Fprint(w, emoji.Sprintf(":monkey:"))

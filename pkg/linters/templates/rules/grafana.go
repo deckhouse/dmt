@@ -21,6 +21,7 @@ import (
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"k8s.io/utils/ptr"
 
 	"os"
 	"path/filepath"
@@ -53,7 +54,7 @@ type GrafanaRule struct {
 
 func (r *GrafanaRule) ValidateGrafanaDashboards(m *module.Module, errorList *errors.LintRuleErrorsList) {
 	if !r.Enabled() {
-		return
+		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
 	}
 
 	errorList = errorList.WithFilePath(m.GetPath()).WithRule(r.GetName())

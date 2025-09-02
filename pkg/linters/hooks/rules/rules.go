@@ -29,6 +29,7 @@ import (
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"k8s.io/utils/ptr"
 )
 
 type HookRule struct {
@@ -55,7 +56,7 @@ func (l *HookRule) CheckIngressCopyCustomCertificateRule(m *module.Module, objec
 	)
 
 	if !l.Enabled() {
-		return
+		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
 	}
 
 	if object.Unstructured.GetKind() != "Ingress" {

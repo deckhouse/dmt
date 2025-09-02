@@ -37,6 +37,7 @@ var (
 	PprofFile    string
 	HideWarnings bool
 	AbsPath      bool
+	ShowIgnored  bool
 )
 
 var (
@@ -71,6 +72,10 @@ func InitLintFlagSet() *pflag.FlagSet {
 	// make path absolute
 	lint.BoolVarP(&AbsPath, "abs-path", "", false, "make paths absolute")
 	lint.MarkHidden("abs-path")
+
+	// show ignored errors
+	lint.BoolVarP(&ShowIgnored, "show-ignored", "", false, "show ignored errors")
+	lint.MarkHidden("show-ignored")
 
 	return lint
 }
