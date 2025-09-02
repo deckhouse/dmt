@@ -61,10 +61,6 @@ func (r *CheckReadOnlyRootFilesystemRule) ObjectReadOnlyRootFilesystem(object st
 			continue
 		}
 
-		if c.VolumeMounts == nil {
-			continue
-		}
-
 		if c.SecurityContext == nil {
 			errorList.WithObjectID(object.Identity()).
 				Error("Container's SecurityContext is missing")
