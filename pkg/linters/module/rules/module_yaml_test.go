@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
@@ -231,7 +232,7 @@ stage: Experimental
 
 	warnings := []string{}
 	for _, e := range errorList.GetErrors() {
-		if e.Level == 0 { // pkg.Warn
+		if e.Level == pkg.Warn {
 			warnings = append(warnings, e.Text)
 		}
 	}

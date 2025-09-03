@@ -47,7 +47,7 @@ type ServicePortRule struct {
 }
 
 func (r *ServicePortRule) ObjectServiceTargetPort(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.ShortPath())
+	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.GetPath())
 
 	switch object.Unstructured.GetKind() {
 	case "Service":

@@ -25,6 +25,7 @@ import (
 	"strings"
 	"sync"
 
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 
 	"github.com/deckhouse/dmt/internal/promtool"
@@ -94,7 +95,7 @@ type ModuleInterface interface {
 
 func (r *PrometheusRule) ValidatePrometheusRules(m ModuleInterface, errorList *errors.LintRuleErrorsList) {
 	if !r.Enabled() {
-		return
+		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
 	}
 
 	modulePath := m.GetPath()
@@ -165,7 +166,7 @@ func isContentMatching(content []byte, desiredContent string) bool {
 
 func (r *PrometheusRule) PromtoolRuleCheck(m ModuleInterface, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	if !r.Enabled() {
-		return
+		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
 	}
 
 	errorList = errorList.WithFilePath(m.GetPath()).WithRule(r.GetName())

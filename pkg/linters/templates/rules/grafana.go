@@ -17,6 +17,8 @@ limitations under the License.
 package rules
 
 import (
+	"k8s.io/utils/ptr"
+
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
@@ -53,7 +55,7 @@ type GrafanaRule struct {
 
 func (r *GrafanaRule) ValidateGrafanaDashboards(m *module.Module, errorList *errors.LintRuleErrorsList) {
 	if !r.Enabled() {
-		return
+		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
 	}
 
 	errorList = errorList.WithFilePath(m.GetPath()).WithRule(r.GetName())

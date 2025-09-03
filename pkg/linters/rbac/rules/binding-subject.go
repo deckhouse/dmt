@@ -51,7 +51,7 @@ func (r *BindingSubjectRule) ObjectBindingSubjectServiceAccountCheck(m *module.M
 	converter := runtime.DefaultUnstructuredConverter
 
 	for _, object := range m.GetStorage() {
-		errorListObj := errorList.WithObjectID(object.Identity()).WithFilePath(object.ShortPath())
+		errorListObj := errorList.WithObjectID(object.Identity()).WithFilePath(object.GetPath())
 
 		var subjects []v1.Subject
 

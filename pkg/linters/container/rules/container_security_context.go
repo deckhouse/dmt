@@ -45,7 +45,7 @@ type ContainerSecurityContextRule struct {
 }
 
 func (r *ContainerSecurityContextRule) ContainerSecurityContext(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.ShortPath())
+	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.GetPath())
 
 	for i := range containers {
 		c := &containers[i]

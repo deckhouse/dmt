@@ -50,7 +50,7 @@ func NewIngressRule(excludeRules []pkg.KindRuleExclude) *IngressRule {
 }
 
 func (r *IngressRule) CheckSnippetsRule(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.ShortPath())
+	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.GetPath())
 
 	if object.Unstructured.GetKind() != "Ingress" {
 		return

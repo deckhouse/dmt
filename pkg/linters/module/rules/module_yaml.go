@@ -23,6 +23,7 @@ import (
 	"slices"
 	"strings"
 
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 
 	"github.com/Masterminds/semver/v3"
@@ -116,8 +117,7 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 	errorList = errorList.WithRule(r.GetName()).WithFilePath(ModuleConfigFilename)
 
 	if !r.Enabled() {
-		// TODO: add metrics
-		return
+		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
 	}
 
 	_, err := os.Stat(filepath.Join(modulePath, ModuleConfigFilename))
