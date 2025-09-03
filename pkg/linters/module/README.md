@@ -29,8 +29,8 @@ The linter validates the optional `accessibility` section in `module.yaml` files
 #### Validation Rules
 
 - `accessibility.editions` is required when `accessibility` is specified
-- Each edition must have valid `available` (boolean) and `enabledInBundle` (array) fields
-- `enabledInBundle` must contain only valid bundle names
+- Each edition must have valid `available` (boolean) and `enabledInBundles` (array) fields
+- `enabledInBundles` must contain only valid bundle names
 - Edition names must be from the valid editions list
 
 #### Example
@@ -40,13 +40,13 @@ accessibility:
   editions:
     _default:
       available: true
-      enabledInBundle:
+      enabledInBundles:
         - Minimal
         - Managed
         - Default
     ee:
       available: true
-      enabledInBundle:
+      enabledInBundles:
         - Minimal
         - Managed
         - Default
