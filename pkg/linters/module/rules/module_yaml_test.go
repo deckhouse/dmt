@@ -388,13 +388,13 @@ accessibility:
   editions:
     _default:
       available: true
-      enabledInBundle:
+      enabledInBundles:
         - Minimal
         - Managed
         - Default
     ee:
       available: true
-      enabledInBundle:
+      enabledInBundles:
         - Minimal
         - Managed
         - Default
@@ -432,7 +432,7 @@ accessibility:
   editions:
     invalid-edition:
       available: true
-      enabledInBundle:
+      enabledInBundles:
         - Minimal
 `), 0600)
 	require.NoError(t, err)
@@ -452,7 +452,7 @@ accessibility:
   editions:
     _default:
       available: true
-      enabledInBundle:
+      enabledInBundles:
         - InvalidBundle
 `), 0600)
 	require.NoError(t, err)
@@ -462,7 +462,7 @@ accessibility:
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for invalid bundle name")
 	assert.Contains(t, errorList.GetErrors()[0].Text, "Invalid bundle")
 
-	// Test missing enabledInBundle field
+	// Test missing enabledInBundles field
 	err = os.WriteFile(moduleFilePath, []byte(`
 name: test-module
 stage: Experimental
@@ -477,10 +477,10 @@ accessibility:
 
 	errorList = errors.NewLintRuleErrorsList()
 	rule.CheckDefinitionFile(tempDir, errorList)
-	assert.True(t, errorList.ContainsErrors(), "Expected errors for missing enabledInBundle field")
-	assert.Contains(t, errorList.GetErrors()[0].Text, "Field 'enabledInBundle' is required")
+	assert.True(t, errorList.ContainsErrors(), "Expected errors for missing enabledInBundles field")
+	assert.Contains(t, errorList.GetErrors()[0].Text, "Field 'enabledInBundles' is required")
 
-	// Test empty enabledInBundle array
+	// Test empty enabledInBundles array
 	err = os.WriteFile(moduleFilePath, []byte(`
 name: test-module
 stage: Experimental
@@ -490,12 +490,12 @@ accessibility:
   editions:
     _default:
       available: true
-      enabledInBundle: []
+      enabledInBundles: []
 `), 0600)
 	require.NoError(t, err)
 
 	errorList = errors.NewLintRuleErrorsList()
 	rule.CheckDefinitionFile(tempDir, errorList)
-	assert.True(t, errorList.ContainsErrors(), "Expected errors for empty enabledInBundle array")
-	assert.Contains(t, errorList.GetErrors()[0].Text, "Field 'enabledInBundle' is required")
+	assert.True(t, errorList.ContainsErrors(), "Expected errors for empty enabledInBundles array")
+	assert.Contains(t, errorList.GetErrors()[0].Text, "Field 'enabledInBundles' is required")
 }

@@ -109,8 +109,8 @@ type ModuleAccessibility struct {
 }
 
 type ModuleEdition struct {
-	Available       bool     `json:"available"`
-	EnabledInBundle []string `json:"enabledInBundle"`
+	Available        bool     `json:"available"`
+	EnabledInBundles []string `json:"enabledInBundles"`
 }
 
 func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *errors.LintRuleErrorsList) {
@@ -221,11 +221,11 @@ func (a *ModuleAccessibility) validateAccessibility(errorList *errors.LintRuleEr
 			errorList.Errorf("Invalid edition name %q. Must be one of: %s", editionName, strings.Join(ValidEditions, ", "))
 		}
 
-		// Validate enabledInBundle values
-		if len(edition.EnabledInBundle) == 0 {
-			errorList.Errorf("Field 'enabledInBundle' is required for edition %q", editionName)
+		// Validate enabledInBundles values
+		if len(edition.EnabledInBundles) == 0 {
+			errorList.Errorf("Field 'enabledInBundles' is required for edition %q", editionName)
 		} else {
-			for _, bundle := range edition.EnabledInBundle {
+			for _, bundle := range edition.EnabledInBundles {
 				if !slices.Contains(ValidBundles, bundle) {
 					errorList.Errorf("Invalid bundle %q for edition %q. Must be one of: %s", bundle, editionName, strings.Join(ValidBundles, ", "))
 				}
