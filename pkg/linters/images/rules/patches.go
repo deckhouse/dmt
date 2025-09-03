@@ -24,11 +24,12 @@ import (
 	"slices"
 	"strings"
 
+	"k8s.io/utils/ptr"
+
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/set"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"k8s.io/utils/ptr"
 )
 
 const (

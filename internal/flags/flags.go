@@ -18,6 +18,8 @@ package flags
 
 import (
 	"github.com/spf13/pflag"
+
+	"github.com/deckhouse/dmt/internal/logger"
 )
 
 const (
@@ -67,15 +69,24 @@ func InitLintFlagSet() *pflag.FlagSet {
 
 	// hide warnings in output
 	lint.BoolVarP(&HideWarnings, "hide-warnings", "", false, "hide warnings")
-	lint.MarkHidden("hide-warnings")
+	err := lint.MarkHidden("hide-warnings")
+	if err != nil {
+		logger.ErrorF("mark hidden flag 'hide-warnings' is failed")
+	}
 
 	// make path absolute
 	lint.BoolVarP(&AbsPath, "abs-path", "", false, "make paths absolute")
-	lint.MarkHidden("abs-path")
+	err = lint.MarkHidden("abs-path")
+	if err != nil {
+		logger.ErrorF("mark hidden flag 'abs-path' is failed")
+	}
 
 	// show ignored errors
 	lint.BoolVarP(&ShowIgnored, "show-ignored", "", false, "show ignored errors")
-	lint.MarkHidden("show-ignored")
+	err = lint.MarkHidden("show-ignored")
+	if err != nil {
+		logger.ErrorF("mark hidden flag 'show-ignored' is failed")
+	}
 
 	return lint
 }

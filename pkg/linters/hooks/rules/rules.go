@@ -23,13 +23,14 @@ import (
 	"path/filepath"
 	"strings"
 
+	"k8s.io/utils/ptr"
+
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"k8s.io/utils/ptr"
 )
 
 type HookRule struct {

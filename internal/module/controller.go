@@ -52,7 +52,7 @@ func RunRender(m *Module, values chartutil.Values, objectStore *storage.Unstruct
 			shortPath = strings.Join(elements[1:], string(os.PathSeparator))
 		}
 
-		absPath, err := filepath.Abs(strings.Join([]string{m.path, shortPath}, string(os.PathSeparator)))
+		absPath, err := filepath.Abs(filepath.Join(m.path, shortPath))
 		if err != nil {
 			// TODO: handle error
 			_ = err
