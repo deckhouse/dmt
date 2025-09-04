@@ -5,6 +5,7 @@
 - Check oss info in the `oss.yaml` file.
 - Check license header in files.
 - Validates `accessibility` section in `module.yaml` files.
+- Validates `update` section in `module.yaml` files.
 
 ### Accessibility Validation
 
@@ -50,6 +51,31 @@ accessibility:
         - Minimal
         - Managed
         - Default
+```
+
+### Update Validation
+
+The linter validates the optional `update` section in `module.yaml` files:
+
+#### Validation Rules
+
+- Each version entry must have both `from` and `to` fields populated
+- The `to` version must be greater than the `from` version 
+- Versions must be in `major.minor` format (patch versions are not allowed)
+- Version entries must be sorted by `from` version ascending, then by `to` version ascending
+- For the same `to` version, there must not be duplicate `from` versions
+
+#### Example
+
+```yaml
+update:
+  versions:
+    - from: "1.16"
+      to: "1.20"
+    - from: "1.16"
+      to: "1.25"
+    - from: "1.17"
+      to: "1.20"
 ```
 
 ## Settings example
