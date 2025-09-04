@@ -255,7 +255,7 @@ func (u *ModuleUpdate) validateUpdate(errorList *errors.LintRuleErrorsList) {
 		return
 	}
 
-	versionPattern := regexp.MustCompile(`^[0-9]+\.[0-9]+$`)
+	versionPattern := regexp.MustCompile(`^\d+\.\d+$`)
 
 	for i, version := range u.Versions {
 		if version.From == "" {
