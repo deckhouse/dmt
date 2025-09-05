@@ -3,6 +3,7 @@ package rules
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -498,4 +499,205 @@ accessibility:
 	rule.CheckDefinitionFile(tempDir, errorList)
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for empty enabledInBundles array")
 	assert.Contains(t, errorList.GetErrors()[0].Text, "Field 'enabledInBundles' is required")
+}
+
+func TestCheckDefinitionFile_Update_Valid(t *testing.T) {
+	tempDir := t.TempDir()
+	moduleFilePath := filepath.Join(tempDir, ModuleConfigFilename)
+
+	err := os.WriteFile(moduleFilePath, []byte(`
+name: test-module
+stage: Experimental
+descriptions:
+  en: "Test description"
+update:
+  versions:
+    - from: "1.10"
+      to: "1.20"
+    - from: "1.20"
+      to: "2.0"
+`), 0600)
+	require.NoError(t, err)
+
+	rule := NewDefinitionFileRule(false)
+	errorList := errors.NewLintRuleErrorsList()
+	rule.CheckDefinitionFile(tempDir, errorList)
+	assert.False(t, errorList.ContainsErrors(), "Expected no errors for valid update configuration")
+}
+
+func TestCheckDefinitionFile_Update_MissingFields(t *testing.T) {
+	tempDir := t.TempDir()
+	moduleFilePath := filepath.Join(tempDir, ModuleConfigFilename)
+
+	err := os.WriteFile(moduleFilePath, []byte(`
+name: test-module
+stage: Experimental
+descriptions:
+  en: "Test description"
+update:
+  versions:
+    - from: "1.10"
+    - to: "1.20"
+`), 0600)
+	require.NoError(t, err)
+
+	rule := NewDefinitionFileRule(false)
+	errorList := errors.NewLintRuleErrorsList()
+	rule.CheckDefinitionFile(tempDir, errorList)
+	assert.True(t, errorList.ContainsErrors(), "Expected errors for missing from/to fields")
+
+	errorTexts := []string{}
+	for _, e := range errorList.GetErrors() {
+		errorTexts = append(errorTexts, e.Text)
+	}
+	assert.Contains(t, strings.Join(errorTexts, " "), "field 'to' is required")
+	assert.Contains(t, strings.Join(errorTexts, " "), "field 'from' is required")
+}
+
+func TestCheckDefinitionFile_Update_FromGreaterThanTo(t *testing.T) {
+	tempDir := t.TempDir()
+	moduleFilePath := filepath.Join(tempDir, ModuleConfigFilename)
+
+	err := os.WriteFile(moduleFilePath, []byte(`
+name: test-module
+stage: Experimental
+descriptions:
+  en: "Test description"
+update:
+  versions:
+    - from: "2.0"
+      to: "1.20"
+`), 0600)
+	require.NoError(t, err)
+
+	rule := NewDefinitionFileRule(false)
+	errorList := errors.NewLintRuleErrorsList()
+	rule.CheckDefinitionFile(tempDir, errorList)
+	assert.True(t, errorList.ContainsErrors(), "Expected errors for from > to")
+	assert.Contains(t, errorList.GetErrors()[0].Text, "'to' version '1.20' must be greater than 'from' version '2.0'")
+}
+
+func TestCheckDefinitionFile_Update_PatchVersionsNotAllowed(t *testing.T) {
+	tempDir := t.TempDir()
+	moduleFilePath := filepath.Join(tempDir, ModuleConfigFilename)
+
+	err := os.WriteFile(moduleFilePath, []byte(`
+name: test-module
+stage: Experimental
+descriptions:
+  en: "Test description"
+update:
+  versions:
+    - from: "1.10.5"
+      to: "1.20.3"
+`), 0600)
+	require.NoError(t, err)
+
+	rule := NewDefinitionFileRule(false)
+	errorList := errors.NewLintRuleErrorsList()
+	rule.CheckDefinitionFile(tempDir, errorList)
+	assert.True(t, errorList.ContainsErrors(), "Expected errors for patch versions")
+
+	errorTexts := []string{}
+	for _, e := range errorList.GetErrors() {
+		errorTexts = append(errorTexts, e.Text)
+	}
+	assert.Contains(t, strings.Join(errorTexts, " "), "must be in major.minor format (patch versions not allowed)")
+}
+
+func TestCheckDefinitionFile_Update_UnsortedVersions(t *testing.T) {
+	tempDir := t.TempDir()
+	moduleFilePath := filepath.Join(tempDir, ModuleConfigFilename)
+
+	err := os.WriteFile(moduleFilePath, []byte(`
+name: test-module
+stage: Experimental
+descriptions:
+  en: "Test description"
+update:
+  versions:
+    - from: "1.20"
+      to: "2.0"
+    - from: "1.10"
+      to: "1.30"
+`), 0600)
+	require.NoError(t, err)
+
+	rule := NewDefinitionFileRule(false)
+	errorList := errors.NewLintRuleErrorsList()
+	rule.CheckDefinitionFile(tempDir, errorList)
+	assert.True(t, errorList.ContainsErrors(), "Expected errors for unsorted versions")
+	assert.Contains(t, errorList.GetErrors()[0].Text, "Update versions must be sorted by 'from' version ascending")
+}
+
+func TestCheckDefinitionFile_Update_ComplexSortingScenario(t *testing.T) {
+	tempDir := t.TempDir()
+	moduleFilePath := filepath.Join(tempDir, ModuleConfigFilename)
+
+	err := os.WriteFile(moduleFilePath, []byte(`
+name: test-module
+stage: Experimental
+descriptions:
+  en: "Test description"
+update:
+  versions:
+    - from: "1.16"
+      to: "2.0"
+    - from: "1.16"
+      to: "1.25"
+    - from: "1.18"
+      to: "2.5"
+`), 0600)
+	require.NoError(t, err)
+
+	rule := NewDefinitionFileRule(false)
+	errorList := errors.NewLintRuleErrorsList()
+	rule.CheckDefinitionFile(tempDir, errorList)
+	assert.True(t, errorList.ContainsErrors(), "Expected errors for unsorted 'to' versions with same 'from'")
+	assert.Contains(t, errorList.GetErrors()[0].Text, "Update versions must be sorted by 'from' version ascending, then by 'to' version ascending")
+}
+
+func TestCheckDefinitionFile_Update_DuplicateToVersions(t *testing.T) {
+	tempDir := t.TempDir()
+	moduleFilePath := filepath.Join(tempDir, ModuleConfigFilename)
+
+	err := os.WriteFile(moduleFilePath, []byte(`
+name: test-module
+stage: Experimental
+descriptions:
+  en: "Test description"
+update:
+  versions:
+    - from: "1.10"
+      to: "2.0"
+    - from: "1.20"
+      to: "2.0"
+`), 0600)
+	require.NoError(t, err)
+
+	rule := NewDefinitionFileRule(false)
+	errorList := errors.NewLintRuleErrorsList()
+	rule.CheckDefinitionFile(tempDir, errorList)
+	assert.True(t, errorList.ContainsErrors(), "Expected errors for duplicate to versions")
+	assert.Contains(t, errorList.GetErrors()[0].Text, "Duplicate 'to' version '2.0' with different 'from' versions")
+}
+
+func TestCheckDefinitionFile_Update_EmptyVersions(t *testing.T) {
+	tempDir := t.TempDir()
+	moduleFilePath := filepath.Join(tempDir, ModuleConfigFilename)
+
+	err := os.WriteFile(moduleFilePath, []byte(`
+name: test-module
+stage: Experimental
+descriptions:
+  en: "Test description"
+update:
+  versions: []
+`), 0600)
+	require.NoError(t, err)
+
+	rule := NewDefinitionFileRule(false)
+	errorList := errors.NewLintRuleErrorsList()
+	rule.CheckDefinitionFile(tempDir, errorList)
+	assert.False(t, errorList.ContainsErrors(), "Expected no errors for empty versions array")
 }
