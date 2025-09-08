@@ -1,0 +1,10 @@
+linters-settings:
+  documentation:
+    impact: warn
+    exclude-rules:
+      readme:
+        modules: ["bad-readme"]
+      cyrillic-in-english:
+        files: ["README.md"]
+    bilingual:
+      disable: true
