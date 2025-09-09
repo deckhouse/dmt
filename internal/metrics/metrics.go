@@ -68,7 +68,7 @@ func SetDmtInfo() {
 	})
 }
 
-func SetLinterWarningsMetrics(cfg global.Global) {
+func SetLinterWarningsMetrics(cfg *global.Global) {
 	v := reflect.ValueOf(&cfg.Linters).Elem()
 	for i := range v.NumField() {
 		field := v.Field(i)

@@ -27,7 +27,7 @@ func Test_SetLinterWarningsMetrics_AddsWarningsForAllLinters(t *testing.T) {
 			Templates:  global.LinterConfig{Impact: ptr.To(pkg.Warn)},
 		},
 	}
-	SetLinterWarningsMetrics(cfg)
+	SetLinterWarningsMetrics(&cfg)
 	num, err := testutil.GatherAndCount(metrics.Gatherer, "dmt_linter_info")
 	require.NoError(t, err)
 	require.Equal(t, 9, num)
@@ -39,7 +39,7 @@ func Test_SetLinterWarningsMetrics_NoWarningsWhenNoLinters(t *testing.T) {
 	cfg := global.Global{
 		Linters: global.Linters{},
 	}
-	SetLinterWarningsMetrics(cfg)
+	SetLinterWarningsMetrics(&cfg)
 	num, err := testutil.GatherAndCount(metrics.Gatherer, "dmt_linter_info")
 	require.NoError(t, err)
 	require.Equal(t, 0, num)
@@ -54,7 +54,7 @@ func Test_SetLinterWarningsMetrics_AddsWarningsForSpecificLinters(t *testing.T) 
 			Hooks:     global.LinterConfig{Impact: nil},
 		},
 	}
-	SetLinterWarningsMetrics(cfg)
+	SetLinterWarningsMetrics(&cfg)
 	num, err := testutil.GatherAndCount(metrics.Gatherer, "dmt_linter_info")
 	require.NoError(t, err)
 	require.Equal(t, 1, num)
