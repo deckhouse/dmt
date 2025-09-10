@@ -107,7 +107,6 @@ type ServicePortExclude struct {
 	Port string `mapstructure:"port"`
 }
 
-// Helper functions for remapping exclude rules
 func remapKindRuleExclude(input *KindRuleExclude) *pkg.KindRuleExclude {
 	return &pkg.KindRuleExclude{
 		Name: input.Name,

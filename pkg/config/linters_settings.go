@@ -21,12 +21,10 @@ import (
 	"github.com/deckhouse/dmt/pkg/config/global"
 )
 
-// RuleSettings represents settings for a specific rule
 type RuleSettings struct {
 	Impact *pkg.Level `mapstructure:"impact"`
 }
 
-// LintersSettings represents the main configuration structure for all linters
 type LintersSettings struct {
 	Container  ContainerSettings  `mapstructure:"container"`
 	Hooks      HooksSettings      `mapstructure:"hooks"`

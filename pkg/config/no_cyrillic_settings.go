@@ -18,7 +18,6 @@ package config
 
 import "github.com/deckhouse/dmt/pkg"
 
-// NoCyrillicSettings represents no-cyrillic linter settings
 type NoCyrillicSettings struct {
 	NoCyrillicExcludeRules NoCyrillicExcludeRules  `mapstructure:"exclude-rules"`
 	RulesSettings          map[string]RuleSettings `mapstructure:"rules-settings"`
@@ -26,19 +25,15 @@ type NoCyrillicSettings struct {
 	Impact *pkg.Level `mapstructure:"impact"`
 }
 
-// GetRuleImpact returns the impact level for a specific no-cyrillic rule
 func (n NoCyrillicSettings) GetRuleImpact(ruleName string) *pkg.Level {
-	// Check rule-specific settings first
 	if n.RulesSettings != nil {
 		if ruleSettings, exists := n.RulesSettings[ruleName]; exists && ruleSettings.Impact != nil {
 			return ruleSettings.Impact
 		}
 	}
-	// Fall back to general impact
 	return n.Impact
 }
 
-// NoCyrillicExcludeRules represents no-cyrillic-specific exclude rules
 type NoCyrillicExcludeRules struct {
 	Files       StringRuleExcludeList `mapstructure:"files"`
 	Directories PrefixRuleExcludeList `mapstructure:"directories"`

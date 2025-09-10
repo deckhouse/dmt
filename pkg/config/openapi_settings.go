@@ -18,7 +18,6 @@ package config
 
 import "github.com/deckhouse/dmt/pkg"
 
-// OpenAPISettings represents openapi linter settings
 type OpenAPISettings struct {
 	OpenAPIExcludeRules OpenAPIExcludeRules     `mapstructure:"exclude-rules"`
 	RulesSettings       map[string]RuleSettings `mapstructure:"rules-settings"`
@@ -26,19 +25,15 @@ type OpenAPISettings struct {
 	Impact *pkg.Level `mapstructure:"impact"`
 }
 
-// GetRuleImpact returns the impact level for a specific openapi rule
 func (o OpenAPISettings) GetRuleImpact(ruleName string) *pkg.Level {
-	// Check rule-specific settings first
 	if o.RulesSettings != nil {
 		if ruleSettings, exists := o.RulesSettings[ruleName]; exists && ruleSettings.Impact != nil {
 			return ruleSettings.Impact
 		}
 	}
-	// Fall back to general impact
 	return o.Impact
 }
 
-// OpenAPIExcludeRules represents openapi-specific exclude rules
 type OpenAPIExcludeRules struct {
 	KeyBannedNames         []string              `mapstructure:"key-banned-names"`
 	EnumFileExcludes       []string              `mapstructure:"enum"`

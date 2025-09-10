@@ -18,7 +18,6 @@ package config
 
 import "github.com/deckhouse/dmt/pkg"
 
-// HooksSettings represents hooks linter settings
 type HooksSettings struct {
 	Ingress       HooksIngressRuleSetting `mapstructure:"ingress"`
 	RulesSettings map[string]RuleSettings `mapstructure:"rules-settings"`
@@ -26,19 +25,15 @@ type HooksSettings struct {
 	Impact *pkg.Level `mapstructure:"impact"`
 }
 
-// GetRuleImpact returns the impact level for a specific hooks rule
 func (h HooksSettings) GetRuleImpact(ruleName string) *pkg.Level {
-	// Check rule-specific settings first
 	if h.RulesSettings != nil {
 		if ruleSettings, exists := h.RulesSettings[ruleName]; exists && ruleSettings.Impact != nil {
 			return ruleSettings.Impact
 		}
 	}
-	// Fall back to general impact
 	return h.Impact
 }
 
-// HooksIngressRuleSetting represents hooks ingress rule settings
 type HooksIngressRuleSetting struct {
 	// disable ingress rule completely
 	Disable bool `mapstructure:"disable"`

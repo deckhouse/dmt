@@ -18,7 +18,6 @@ package config
 
 import "github.com/deckhouse/dmt/pkg"
 
-// ContainerSettings represents container linter settings
 type ContainerSettings struct {
 	ExcludeRules  ContainerExcludeRules   `mapstructure:"exclude-rules"`
 	RulesSettings map[string]RuleSettings `mapstructure:"rules-settings"`
@@ -26,19 +25,15 @@ type ContainerSettings struct {
 	Impact *pkg.Level `mapstructure:"impact"`
 }
 
-// GetRuleImpact returns the impact level for a specific container rule
 func (c ContainerSettings) GetRuleImpact(ruleName string) *pkg.Level {
-	// Check rule-specific settings first
 	if c.RulesSettings != nil {
 		if ruleSettings, exists := c.RulesSettings[ruleName]; exists && ruleSettings.Impact != nil {
 			return ruleSettings.Impact
 		}
 	}
-	// Fall back to general impact
 	return c.Impact
 }
 
-// ContainerExcludeRules represents container-specific exclude rules
 type ContainerExcludeRules struct {
 	ControllerSecurityContext KindRuleExcludeList `mapstructure:"controller-security-context"`
 	DNSPolicy                 KindRuleExcludeList `mapstructure:"dns-policy"`

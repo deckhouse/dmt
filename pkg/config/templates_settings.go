@@ -18,7 +18,6 @@ package config
 
 import "github.com/deckhouse/dmt/pkg"
 
-// TemplatesSettings represents templates linter settings
 type TemplatesSettings struct {
 	ExcludeRules      TemplatesExcludeRules        `mapstructure:"exclude-rules"`
 	RulesSettings     map[string]RuleSettings      `mapstructure:"rules-settings"`
@@ -28,19 +27,15 @@ type TemplatesSettings struct {
 	Impact *pkg.Level `mapstructure:"impact"`
 }
 
-// GetRuleImpact returns the impact level for a specific templates rule
 func (t TemplatesSettings) GetRuleImpact(ruleName string) *pkg.Level {
-	// Check rule-specific settings first
 	if t.RulesSettings != nil {
 		if ruleSettings, exists := t.RulesSettings[ruleName]; exists && ruleSettings.Impact != nil {
 			return ruleSettings.Impact
 		}
 	}
-	// Fall back to general impact
 	return t.Impact
 }
 
-// TemplatesExcludeRules represents templates-specific exclude rules
 type TemplatesExcludeRules struct {
 	VPAAbsent     KindRuleExcludeList    `mapstructure:"vpa"`
 	PDBAbsent     KindRuleExcludeList    `mapstructure:"pdb"`
@@ -49,12 +44,10 @@ type TemplatesExcludeRules struct {
 	Ingress       KindRuleExcludeList    `mapstructure:"ingress"`
 }
 
-// GrafanaDashboardsExcludeList represents grafana dashboards exclude list
 type GrafanaDashboardsExcludeList struct {
 	Disable bool `mapstructure:"disable"`
 }
 
-// PrometheusRulesExcludeList represents prometheus rules exclude list
 type PrometheusRulesExcludeList struct {
 	Disable bool `mapstructure:"disable"`
 }

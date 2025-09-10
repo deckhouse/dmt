@@ -18,7 +18,6 @@ package config
 
 import "github.com/deckhouse/dmt/pkg"
 
-// RbacSettings represents rbac linter settings
 type RbacSettings struct {
 	ExcludeRules  RBACExcludeRules        `mapstructure:"exclude-rules"`
 	RulesSettings map[string]RuleSettings `mapstructure:"rules-settings"`
@@ -26,19 +25,15 @@ type RbacSettings struct {
 	Impact *pkg.Level `mapstructure:"impact"`
 }
 
-// GetRuleImpact returns the impact level for a specific rbac rule
 func (r RbacSettings) GetRuleImpact(ruleName string) *pkg.Level {
-	// Check rule-specific settings first
 	if r.RulesSettings != nil {
 		if ruleSettings, exists := r.RulesSettings[ruleName]; exists && ruleSettings.Impact != nil {
 			return ruleSettings.Impact
 		}
 	}
-	// Fall back to general impact
 	return r.Impact
 }
 
-// RBACExcludeRules represents rbac-specific exclude rules
 type RBACExcludeRules struct {
 	BindingSubject StringRuleExcludeList `mapstructure:"binding-subject"`
 	Placement      KindRuleExcludeList   `mapstructure:"placement"`
