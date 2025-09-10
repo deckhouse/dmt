@@ -18,6 +18,7 @@ package rbac
 
 import (
 	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules"
@@ -32,6 +33,7 @@ type Rbac struct {
 	name, desc string
 	cfg        *config.RbacSettings
 	ErrorList  *errors.LintRuleErrorsList
+	moduleCfg  *config.ModuleConfig
 }
 
 func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Rbac {
@@ -40,7 +42,15 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Rbac {
 		desc:      "Lint rbac objects",
 		cfg:       &cfg.LintersSettings.Rbac,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Rbac.Impact),
+		moduleCfg: cfg,
 	}
+}
+
+func (l *Rbac) GetRuleImpact(ruleName string) *pkg.Level {
+	if l.moduleCfg != nil {
+		return l.moduleCfg.LintersSettings.GetRuleImpact(ID, ruleName)
+	}
+	return l.cfg.Impact
 }
 
 func (l *Rbac) Run(m *module.Module) {
@@ -50,14 +60,38 @@ func (l *Rbac) Run(m *module.Module) {
 
 	errorList := l.ErrorList.WithModule(m.GetName())
 
-	rules.NewUzerAuthZRule().
-		ObjectUserAuthzClusterRolePath(m, errorList)
-	rules.NewBindingSubjectRule(l.cfg.ExcludeRules.BindingSubject.Get()).
-		ObjectBindingSubjectServiceAccountCheck(m, errorList)
-	rules.NewPlacementRule(l.cfg.ExcludeRules.Placement.Get()).
-		ObjectRBACPlacement(m, errorList)
-	rules.NewWildcardsRule(l.cfg.ExcludeRules.Wildcards.Get()).
-		ObjectRolesWildcard(m, errorList)
+	// Apply rule-specific impact for each rule
+	userAuthzRuleImpact := l.GetRuleImpact("user-authz")
+	if userAuthzRuleImpact != nil {
+		userAuthzErrorList := errorList.WithMaxLevel(userAuthzRuleImpact)
+		rules.NewUzerAuthZRule().ObjectUserAuthzClusterRolePath(m, userAuthzErrorList)
+	} else {
+		rules.NewUzerAuthZRule().ObjectUserAuthzClusterRolePath(m, errorList)
+	}
+
+	bindingSubjectRuleImpact := l.GetRuleImpact("binding-subject")
+	if bindingSubjectRuleImpact != nil {
+		bindingSubjectErrorList := errorList.WithMaxLevel(bindingSubjectRuleImpact)
+		rules.NewBindingSubjectRule(l.cfg.ExcludeRules.BindingSubject.Get()).ObjectBindingSubjectServiceAccountCheck(m, bindingSubjectErrorList)
+	} else {
+		rules.NewBindingSubjectRule(l.cfg.ExcludeRules.BindingSubject.Get()).ObjectBindingSubjectServiceAccountCheck(m, errorList)
+	}
+
+	placementRuleImpact := l.GetRuleImpact("placement")
+	if placementRuleImpact != nil {
+		placementErrorList := errorList.WithMaxLevel(placementRuleImpact)
+		rules.NewPlacementRule(l.cfg.ExcludeRules.Placement.Get()).ObjectRBACPlacement(m, placementErrorList)
+	} else {
+		rules.NewPlacementRule(l.cfg.ExcludeRules.Placement.Get()).ObjectRBACPlacement(m, errorList)
+	}
+
+	wildcardsRuleImpact := l.GetRuleImpact("wildcards")
+	if wildcardsRuleImpact != nil {
+		wildcardsErrorList := errorList.WithMaxLevel(wildcardsRuleImpact)
+		rules.NewWildcardsRule(l.cfg.ExcludeRules.Wildcards.Get()).ObjectRolesWildcard(m, wildcardsErrorList)
+	} else {
+		rules.NewWildcardsRule(l.cfg.ExcludeRules.Wildcards.Get()).ObjectRolesWildcard(m, errorList)
+	}
 }
 
 func (l *Rbac) Name() string {

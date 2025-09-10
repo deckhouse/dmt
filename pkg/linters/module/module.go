@@ -18,6 +18,7 @@ package module
 
 import (
 	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/module/rules"
@@ -28,6 +29,7 @@ type Module struct {
 	name, desc string
 	cfg        *config.ModuleSettings
 	ErrorList  *errors.LintRuleErrorsList
+	moduleCfg  *config.ModuleConfig
 }
 
 const ID = "module"
@@ -38,7 +40,15 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Module
 		desc:      "Lint module rules",
 		cfg:       &cfg.LintersSettings.Module,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Module.Impact),
+		moduleCfg: cfg,
 	}
+}
+
+func (l *Module) GetRuleImpact(ruleName string) *pkg.Level {
+	if l.moduleCfg != nil {
+		return l.moduleCfg.LintersSettings.GetRuleImpact(ID, ruleName)
+	}
+	return l.cfg.Impact
 }
 
 func (l *Module) Run(m *module.Module) {
@@ -48,13 +58,56 @@ func (l *Module) Run(m *module.Module) {
 
 	errorList := l.ErrorList.WithModule(m.GetName())
 
-	rules.NewDefinitionFileRule(l.cfg.DefinitionFile.Disable).CheckDefinitionFile(m.GetPath(), errorList)
-	rules.NewOSSRule(l.cfg.OSS.Disable).OssModuleRule(m.GetPath(), errorList)
-	rules.NewConversionsRule(l.cfg.Conversions.Disable).CheckConversions(m.GetPath(), errorList)
-	rules.NewHelmignoreRule(l.cfg.Helmignore.Disable).CheckHelmignore(m.GetPath(), errorList)
-	rules.NewLicenseRule(l.cfg.ExcludeRules.License.Files.Get(), l.cfg.ExcludeRules.License.Directories.Get()).
-		CheckFiles(m, errorList)
-	rules.NewRequirementsRule().CheckRequirements(m.GetPath(), errorList)
+	// Apply rule-specific impact for each rule
+	definitionFileRuleImpact := l.GetRuleImpact("definition-file")
+	if definitionFileRuleImpact != nil {
+		definitionFileErrorList := errorList.WithMaxLevel(definitionFileRuleImpact)
+		rules.NewDefinitionFileRule(l.cfg.DefinitionFile.Disable).CheckDefinitionFile(m.GetPath(), definitionFileErrorList)
+	} else {
+		rules.NewDefinitionFileRule(l.cfg.DefinitionFile.Disable).CheckDefinitionFile(m.GetPath(), errorList)
+	}
+
+	ossRuleImpact := l.GetRuleImpact("oss")
+	if ossRuleImpact != nil {
+		ossErrorList := errorList.WithMaxLevel(ossRuleImpact)
+		rules.NewOSSRule(l.cfg.OSS.Disable).OssModuleRule(m.GetPath(), ossErrorList)
+	} else {
+		rules.NewOSSRule(l.cfg.OSS.Disable).OssModuleRule(m.GetPath(), errorList)
+	}
+
+	conversionsRuleImpact := l.GetRuleImpact("conversions")
+	if conversionsRuleImpact != nil {
+		conversionsErrorList := errorList.WithMaxLevel(conversionsRuleImpact)
+		rules.NewConversionsRule(l.cfg.Conversions.Disable).CheckConversions(m.GetPath(), conversionsErrorList)
+	} else {
+		rules.NewConversionsRule(l.cfg.Conversions.Disable).CheckConversions(m.GetPath(), errorList)
+	}
+
+	helmignoreRuleImpact := l.GetRuleImpact("helmignore")
+	if helmignoreRuleImpact != nil {
+		helmignoreErrorList := errorList.WithMaxLevel(helmignoreRuleImpact)
+		rules.NewHelmignoreRule(l.cfg.Helmignore.Disable).CheckHelmignore(m.GetPath(), helmignoreErrorList)
+	} else {
+		rules.NewHelmignoreRule(l.cfg.Helmignore.Disable).CheckHelmignore(m.GetPath(), errorList)
+	}
+
+	licenseRuleImpact := l.GetRuleImpact("license")
+	if licenseRuleImpact != nil {
+		licenseErrorList := errorList.WithMaxLevel(licenseRuleImpact)
+		rules.NewLicenseRule(l.cfg.ExcludeRules.License.Files.Get(), l.cfg.ExcludeRules.License.Directories.Get()).
+			CheckFiles(m, licenseErrorList)
+	} else {
+		rules.NewLicenseRule(l.cfg.ExcludeRules.License.Files.Get(), l.cfg.ExcludeRules.License.Directories.Get()).
+			CheckFiles(m, errorList)
+	}
+
+	requirementsRuleImpact := l.GetRuleImpact("requirements")
+	if requirementsRuleImpact != nil {
+		requirementsErrorList := errorList.WithMaxLevel(requirementsRuleImpact)
+		rules.NewRequirementsRule().CheckRequirements(m.GetPath(), requirementsErrorList)
+	} else {
+		rules.NewRequirementsRule().CheckRequirements(m.GetPath(), errorList)
+	}
 }
 
 func (l *Module) Name() string {

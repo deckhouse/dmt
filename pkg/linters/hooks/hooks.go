@@ -18,6 +18,7 @@ package hooks
 
 import (
 	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/hooks/rules"
@@ -28,6 +29,7 @@ type Hooks struct {
 	name, desc string
 	cfg        *config.HooksSettings
 	ErrorList  *errors.LintRuleErrorsList
+	moduleCfg  *config.ModuleConfig
 }
 
 const ID = "hooks"
@@ -38,7 +40,15 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Hooks 
 		desc:      "Lint hooks",
 		cfg:       &cfg.LintersSettings.Hooks,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Hooks.Impact),
+		moduleCfg: cfg,
 	}
+}
+
+func (h *Hooks) GetRuleImpact(ruleName string) *pkg.Level {
+	if h.moduleCfg != nil {
+		return h.moduleCfg.LintersSettings.GetRuleImpact(ID, ruleName)
+	}
+	return h.cfg.Impact
 }
 
 func (h *Hooks) Run(m *module.Module) {
@@ -48,6 +58,13 @@ func (h *Hooks) Run(m *module.Module) {
 
 	errorList := h.ErrorList.WithModule(m.GetName())
 	r := rules.NewHookRule(h.cfg)
+
+	// Get rule-specific impact for ingress rule
+	ruleImpact := h.GetRuleImpact("ingress")
+	if ruleImpact != nil {
+		errorList = errorList.WithMaxLevel(ruleImpact)
+	}
+
 	for _, object := range m.GetStorage() {
 		r.CheckIngressCopyCustomCertificateRule(m, object, errorList)
 	}

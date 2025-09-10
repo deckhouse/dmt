@@ -19,6 +19,7 @@ package nocyrillic
 import (
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/no-cyrillic/rules"
@@ -37,6 +38,7 @@ type NoCyrillic struct {
 	name, desc string
 	cfg        *config.NoCyrillicSettings
 	ErrorList  *errors.LintRuleErrorsList
+	moduleCfg  *config.ModuleConfig
 }
 
 func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *NoCyrillic {
@@ -45,7 +47,15 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *NoCyri
 		desc:      "NoCyrillic will check all files in the modules for contains cyrillic symbols",
 		cfg:       &cfg.LintersSettings.NoCyrillic,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.NoCyrillic.Impact),
+		moduleCfg: cfg,
 	}
+}
+
+func (l *NoCyrillic) GetRuleImpact(ruleName string) *pkg.Level {
+	if l.moduleCfg != nil {
+		return l.moduleCfg.LintersSettings.GetRuleImpact(ID, ruleName)
+	}
+	return l.cfg.Impact
 }
 
 func (l *NoCyrillic) Run(m *module.Module) {
@@ -53,6 +63,12 @@ func (l *NoCyrillic) Run(m *module.Module) {
 
 	if m.GetPath() == "" {
 		return
+	}
+
+	// Apply rule-specific impact for files rule
+	filesRuleImpact := l.GetRuleImpact("files")
+	if filesRuleImpact != nil {
+		errorList = errorList.WithMaxLevel(filesRuleImpact)
 	}
 
 	filesRule := rules.NewFilesRule(
