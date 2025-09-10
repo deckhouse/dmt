@@ -22,58 +22,27 @@ import (
 )
 
 type LintersSettings struct {
-	Container  ContainerSettings  `mapstructure:"container"`
-	Hooks      HooksSettings      `mapstructure:"hooks"`
-	Images     ImageSettings      `mapstructure:"images"`
-	Module     ModuleSettings     `mapstructure:"module"`
-	NoCyrillic NoCyrillicSettings `mapstructure:"no-cyrillic"`
-	OpenAPI    OpenAPISettings    `mapstructure:"openapi"`
-	Rbac       RbacSettings       `mapstructure:"rbac"`
-	Templates  TemplatesSettings  `mapstructure:"templates"`
-
-	globalRulesSettings *global.Linters
+	Container     ContainerSettings     `mapstructure:"container"`
+	Documentation DocumentationSettings `mapstructure:"documentation"`
+	Hooks         HooksSettings         `mapstructure:"hooks"`
+	Images        ImageSettings         `mapstructure:"images"`
+	Module        ModuleSettings        `mapstructure:"module"`
+	NoCyrillic    NoCyrillicSettings    `mapstructure:"no-cyrillic"`
+	OpenAPI       OpenAPISettings       `mapstructure:"openapi"`
+	Rbac          RbacSettings          `mapstructure:"rbac"`
+	Templates     TemplatesSettings     `mapstructure:"templates"`
 }
 
 func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
 	cfg.OpenAPI.Impact = calculateImpact(cfg.OpenAPI.Impact, lcfg.OpenAPI.Impact)
 	cfg.NoCyrillic.Impact = calculateImpact(cfg.NoCyrillic.Impact, lcfg.NoCyrillic.Impact)
 	cfg.Container.Impact = calculateImpact(cfg.Container.Impact, lcfg.Container.Impact)
+	cfg.Documentation.Impact = calculateImpact(cfg.Documentation.Impact, lcfg.Documentation.Impact)
 	cfg.Templates.Impact = calculateImpact(cfg.Templates.Impact, lcfg.Templates.Impact)
 	cfg.Images.Impact = calculateImpact(cfg.Images.Impact, lcfg.Images.Impact)
 	cfg.Rbac.Impact = calculateImpact(cfg.Rbac.Impact, lcfg.Rbac.Impact)
 	cfg.Hooks.Impact = calculateImpact(cfg.Hooks.Impact, lcfg.Hooks.Impact)
 	cfg.Module.Impact = calculateImpact(cfg.Module.Impact, lcfg.Module.Impact)
-
-	cfg.globalRulesSettings = lcfg
-}
-func (cfg *LintersSettings) GetRuleImpact(linterID, ruleID string) *pkg.Level {
-	if cfg.globalRulesSettings == nil {
-		return nil
-	}
-
-	var globalLinterConfig *global.LinterConfig
-	switch linterID {
-	case "container":
-		globalLinterConfig = &cfg.globalRulesSettings.Container
-	case "hooks":
-		globalLinterConfig = &cfg.globalRulesSettings.Hooks
-	case "images":
-		globalLinterConfig = &cfg.globalRulesSettings.Images
-	case "module":
-		globalLinterConfig = &cfg.globalRulesSettings.Module
-	case "no-cyrillic":
-		globalLinterConfig = &cfg.globalRulesSettings.NoCyrillic
-	case "openapi":
-		globalLinterConfig = &cfg.globalRulesSettings.OpenAPI
-	case "rbac":
-		globalLinterConfig = &cfg.globalRulesSettings.Rbac
-	case "templates":
-		globalLinterConfig = &cfg.globalRulesSettings.Templates
-	default:
-		return nil
-	}
-
-	return globalLinterConfig.GetRuleImpact(ruleID)
 }
 
 type ContainerSettings struct {
@@ -329,4 +298,35 @@ func remapContainerRuleExclude(input *ContainerRuleExclude) *pkg.ContainerRuleEx
 		Name:      input.Name,
 		Container: input.Container,
 	}
+}
+
+type DocumentationSettings struct {
+	ExcludeRules DocumentationExcludeRules `mapstructure:"exclude-rules"`
+
+	Bilingual DocumentationBilingualRuleSettings `mapstructure:"bilingual"`
+
+	Impact *pkg.Level `mapstructure:"impact"`
+}
+
+type DocumentationExcludeRules struct {
+	Readme            DocumentationReadmeExcludeRules            `mapstructure:"readme"`
+	Bilingual         DocumentationBilingualExcludeRules         `mapstructure:"bilingual"`
+	CyrillicInEnglish DocumentationCyrillicInEnglishExcludeRules `mapstructure:"cyrillic-in-english"`
+}
+
+type DocumentationReadmeExcludeRules struct {
+	Modules StringRuleExcludeList `mapstructure:"modules"`
+}
+
+type DocumentationBilingualExcludeRules struct {
+	Modules StringRuleExcludeList `mapstructure:"modules"`
+}
+
+type DocumentationCyrillicInEnglishExcludeRules struct {
+	Files       StringRuleExcludeList `mapstructure:"files"`
+	Directories PrefixRuleExcludeList `mapstructure:"directories"`
+}
+
+type DocumentationBilingualRuleSettings struct {
+	Disable bool `mapstructure:"disable"`
 }
