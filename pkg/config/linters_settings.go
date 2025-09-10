@@ -21,6 +21,12 @@ import (
 	"github.com/deckhouse/dmt/pkg/config/global"
 )
 
+// RuleSettings represents settings for a specific rule
+type RuleSettings struct {
+	Impact *pkg.Level `mapstructure:"impact"`
+}
+
+// LintersSettings represents the main configuration structure for all linters
 type LintersSettings struct {
 	Container  ContainerSettings  `mapstructure:"container"`
 	Hooks      HooksSettings      `mapstructure:"hooks"`
@@ -32,7 +38,12 @@ type LintersSettings struct {
 	Templates  TemplatesSettings  `mapstructure:"templates"`
 }
 
+// MergeGlobal merges global configuration with linter settings
 func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
+	if lcfg == nil {
+		return
+	}
+
 	cfg.OpenAPI.Impact = calculateImpact(cfg.OpenAPI.Impact, lcfg.OpenAPI.Impact)
 	cfg.NoCyrillic.Impact = calculateImpact(cfg.NoCyrillic.Impact, lcfg.NoCyrillic.Impact)
 	cfg.Container.Impact = calculateImpact(cfg.Container.Impact, lcfg.Container.Impact)
@@ -43,257 +54,26 @@ func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
 	cfg.Module.Impact = calculateImpact(cfg.Module.Impact, lcfg.Module.Impact)
 }
 
-type ContainerSettings struct {
-	ExcludeRules ContainerExcludeRules `mapstructure:"exclude-rules"`
-
-	Impact *pkg.Level `mapstructure:"impact"`
-}
-
-type ContainerExcludeRules struct {
-	ControllerSecurityContext KindRuleExcludeList `mapstructure:"controller-security-context"`
-	DNSPolicy                 KindRuleExcludeList `mapstructure:"dns-policy"`
-
-	HostNetworkPorts       ContainerRuleExcludeList `mapstructure:"host-network-ports"`
-	Ports                  ContainerRuleExcludeList `mapstructure:"ports"`
-	ReadOnlyRootFilesystem ContainerRuleExcludeList `mapstructure:"read-only-root-filesystem"`
-	ImageDigest            ContainerRuleExcludeList `mapstructure:"image-digest"`
-	Resources              ContainerRuleExcludeList `mapstructure:"resources"`
-	SecurityContext        ContainerRuleExcludeList `mapstructure:"security-context"`
-	Liveness               ContainerRuleExcludeList `mapstructure:"liveness-probe"`
-	Readiness              ContainerRuleExcludeList `mapstructure:"readiness-probe"`
-
-	Description StringRuleExcludeList `mapstructure:"description"`
-}
-
-type HooksSettings struct {
-	Ingress HooksIngressRuleSetting `mapstructure:"ingress"`
-
-	Impact *pkg.Level `mapstructure:"impact"`
-}
-
-type HooksIngressRuleSetting struct {
-	// disable ingress rule completely
-	Disable bool `mapstructure:"disable"`
-}
-
-type ImageSettings struct {
-	ExcludeRules ImageExcludeRules `mapstructure:"exclude-rules"`
-
-	Patches PatchesRuleSettings `mapstructure:"patches"`
-	Werf    WerfRuleSettings    `mapstructure:"werf"`
-
-	Impact *pkg.Level `mapstructure:"impact"`
-}
-
-type ImageExcludeRules struct {
-	SkipImageFilePathPrefix      PrefixRuleExcludeList `mapstructure:"skip-image-file-path-prefix"`
-	SkipDistrolessFilePathPrefix PrefixRuleExcludeList `mapstructure:"skip-distroless-file-path-prefix"`
-}
-
-type ModuleSettings struct {
-	ExcludeRules ModuleExcludeRules `mapstructure:"exclude-rules"`
-
-	OSS            ModuleOSSRuleSettings            `mapstructure:"oss"`
-	DefinitionFile ModuleDefinitionFileRuleSettings `mapstructure:"definition-file"`
-	Conversions    ConversionsRuleSettings          `mapstructure:"conversions"`
-	Helmignore     HelmignoreRuleSettings           `mapstructure:"helmignore"`
-
-	Impact *pkg.Level `mapstructure:"impact"`
-}
-
-type ModuleExcludeRules struct {
-	License LicenseExcludeRule `mapstructure:"license"`
-}
-
-type ModuleOSSRuleSettings struct {
-	// disable oss rule completely
-	Disable bool `mapstructure:"disable"`
-}
-
-type ModuleDefinitionFileRuleSettings struct {
-	// disable definition-file rule completely
-	Disable bool `mapstructure:"disable"`
-}
-
-type ConversionsRuleSettings struct {
-	// disable conversions rule completely
-	Disable bool `mapstructure:"disable"`
-}
-
-type HelmignoreRuleSettings struct {
-	// disable helmignore rule completely
-	Disable bool `mapstructure:"disable"`
-}
-
-type PatchesRuleSettings struct {
-	// disable conversions rule completely
-	Disable bool `mapstructure:"disable"`
-}
-
-type WerfRuleSettings struct {
-	// disable werf rule completely
-	Disable bool `mapstructure:"disable"`
-}
-
-type LicenseExcludeRule struct {
-	Files       StringRuleExcludeList `mapstructure:"files"`
-	Directories PrefixRuleExcludeList `mapstructure:"directories"`
-}
-
-type NoCyrillicSettings struct {
-	NoCyrillicExcludeRules NoCyrillicExcludeRules `mapstructure:"exclude-rules"`
-
-	Impact *pkg.Level `mapstructure:"impact"`
-}
-
-type NoCyrillicExcludeRules struct {
-	Files       StringRuleExcludeList `mapstructure:"files"`
-	Directories PrefixRuleExcludeList `mapstructure:"directories"`
-}
-
-type OpenAPISettings struct {
-	OpenAPIExcludeRules OpenAPIExcludeRules `mapstructure:"exclude-rules"`
-
-	Impact *pkg.Level `mapstructure:"impact"`
-}
-
-type OpenAPIExcludeRules struct {
-	KeyBannedNames         []string              `mapstructure:"key-banned-names"`
-	EnumFileExcludes       []string              `mapstructure:"enum"`
-	HAAbsoluteKeysExcludes StringRuleExcludeList `mapstructure:"ha-absolute-keys"`
-	CRDNamesExcludes       StringRuleExcludeList `mapstructure:"crd-names"`
-}
-
-type RbacSettings struct {
-	ExcludeRules RBACExcludeRules `mapstructure:"exclude-rules"`
-
-	Impact *pkg.Level `mapstructure:"impact"`
-}
-
-type RBACExcludeRules struct {
-	BindingSubject StringRuleExcludeList `mapstructure:"binding-subject"`
-	Placement      KindRuleExcludeList   `mapstructure:"placement"`
-	Wildcards      KindRuleExcludeList   `mapstructure:"wildcards"`
-}
-
-type TemplatesSettings struct {
-	ExcludeRules      TemplatesExcludeRules        `mapstructure:"exclude-rules"`
-	GrafanaDashboards GrafanaDashboardsExcludeList `mapstructure:"grafana-dashboards"`
-	PrometheusRules   PrometheusRulesExcludeList   `mapstructure:"prometheus-rules"`
-
-	Impact *pkg.Level `mapstructure:"impact"`
-}
-
-type TemplatesExcludeRules struct {
-	VPAAbsent     KindRuleExcludeList    `mapstructure:"vpa"`
-	PDBAbsent     KindRuleExcludeList    `mapstructure:"pdb"`
-	ServicePort   ServicePortExcludeList `mapstructure:"service-port"`
-	KubeRBACProxy StringRuleExcludeList  `mapstructure:"kube-rbac-proxy"`
-	Ingress       KindRuleExcludeList    `mapstructure:"ingress"`
-}
-
-type GrafanaDashboardsExcludeList struct {
-	Disable bool `mapstructure:"disable"`
-}
-
-type PrometheusRulesExcludeList struct {
-	Disable bool `mapstructure:"disable"`
-}
-
-type ServicePortExcludeList []ServicePortExclude
-
-func (l ServicePortExcludeList) Get() []pkg.ServicePortExclude {
-	result := make([]pkg.ServicePortExclude, 0, len(l))
-
-	for idx := range l {
-		result = append(result, *remapServicePortRuleExclude(&l[idx]))
-	}
-
-	return result
-}
-
-type StringRuleExcludeList []string
-
-func (l StringRuleExcludeList) Get() []pkg.StringRuleExclude {
-	result := make([]pkg.StringRuleExclude, 0, len(l))
-
-	for idx := range l {
-		result = append(result, pkg.StringRuleExclude(l[idx]))
-	}
-
-	return result
-}
-
-type PrefixRuleExcludeList []string
-
-func (l PrefixRuleExcludeList) Get() []pkg.PrefixRuleExclude {
-	result := make([]pkg.PrefixRuleExclude, 0, len(l))
-
-	for idx := range l {
-		result = append(result, pkg.PrefixRuleExclude(l[idx]))
-	}
-
-	return result
-}
-
-type KindRuleExcludeList []KindRuleExclude
-
-func (l KindRuleExcludeList) Get() []pkg.KindRuleExclude {
-	result := make([]pkg.KindRuleExclude, 0, len(l))
-
-	for idx := range l {
-		result = append(result, *remapKindRuleExclude(&l[idx]))
-	}
-
-	return result
-}
-
-type ContainerRuleExcludeList []ContainerRuleExclude
-
-func (l ContainerRuleExcludeList) Get() []pkg.ContainerRuleExclude {
-	result := make([]pkg.ContainerRuleExclude, 0, len(l))
-
-	for idx := range l {
-		result = append(result, *remapContainerRuleExclude(&l[idx]))
-	}
-
-	return result
-}
-
-type KindRuleExclude struct {
-	Kind string `mapstructure:"kind"`
-	Name string `mapstructure:"name"`
-}
-
-type ContainerRuleExclude struct {
-	Kind      string `mapstructure:"kind"`
-	Name      string `mapstructure:"name"`
-	Container string `mapstructure:"container"`
-}
-
-type ServicePortExclude struct {
-	Name string `mapstructure:"name"`
-	Port string `mapstructure:"port"`
-}
-
-func remapKindRuleExclude(input *KindRuleExclude) *pkg.KindRuleExclude {
-	return &pkg.KindRuleExclude{
-		Name: input.Name,
-		Kind: input.Kind,
-	}
-}
-
-func remapServicePortRuleExclude(input *ServicePortExclude) *pkg.ServicePortExclude {
-	return &pkg.ServicePortExclude{
-		Name: input.Name,
-		Port: input.Port,
-	}
-}
-
-func remapContainerRuleExclude(input *ContainerRuleExclude) *pkg.ContainerRuleExclude {
-	return &pkg.ContainerRuleExclude{
-		Kind:      input.Kind,
-		Name:      input.Name,
-		Container: input.Container,
+// GetRuleImpact returns the impact level for a specific rule in a specific linter
+func (cfg *LintersSettings) GetRuleImpact(linterName, ruleName string) *pkg.Level {
+	switch linterName {
+	case "container":
+		return cfg.Container.GetRuleImpact(ruleName)
+	case "hooks":
+		return cfg.Hooks.GetRuleImpact(ruleName)
+	case "images":
+		return cfg.Images.GetRuleImpact(ruleName)
+	case "module":
+		return cfg.Module.GetRuleImpact(ruleName)
+	case "no-cyrillic":
+		return cfg.NoCyrillic.GetRuleImpact(ruleName)
+	case "openapi":
+		return cfg.OpenAPI.GetRuleImpact(ruleName)
+	case "rbac":
+		return cfg.Rbac.GetRuleImpact(ruleName)
+	case "templates":
+		return cfg.Templates.GetRuleImpact(ruleName)
+	default:
+		return nil
 	}
 }
