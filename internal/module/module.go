@@ -32,6 +32,7 @@ import (
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/internal/values"
 	"github.com/deckhouse/dmt/internal/werf"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	dmtErrors "github.com/deckhouse/dmt/pkg/errors"
 )
@@ -40,6 +41,9 @@ const (
 	ChartConfigFilename  = "Chart.yaml"
 	ModuleConfigFilename = "module.yaml"
 )
+
+// Compile-time check to ensure Module implements pkg.Module interface
+var _ pkg.Module = (*Module)(nil)
 
 type Module struct {
 	name        string

@@ -23,22 +23,33 @@ type Global struct {
 }
 
 type Linters struct {
-	Container     LinterConfig `mapstructure:"container"`
-	Documentation LinterConfig `mapstructure:"documentation"`
-	Hooks         LinterConfig `mapstructure:"hooks"`
-	Images        LinterConfig `mapstructure:"images"`
-	License       LinterConfig `mapstructure:"license"`
-	Module        LinterConfig `mapstructure:"module"`
-	NoCyrillic    LinterConfig `mapstructure:"no-cyrillic"`
-	OpenAPI       LinterConfig `mapstructure:"openapi"`
-	Rbac          LinterConfig `mapstructure:"rbac"`
-	Templates     LinterConfig `mapstructure:"templates"`
+	Container  LinterConfig `mapstructure:"container"`
+	Hooks      LinterConfig `mapstructure:"hooks"`
+	Images     LinterConfig `mapstructure:"images"`
+	License    LinterConfig `mapstructure:"license"`
+	Module     LinterConfig `mapstructure:"module"`
+	NoCyrillic LinterConfig `mapstructure:"no-cyrillic"`
+	OpenAPI    LinterConfig `mapstructure:"openapi"`
+	Rbac       LinterConfig `mapstructure:"rbac"`
+	Templates  LinterConfig `mapstructure:"templates"`
 }
 
 type LinterConfig struct {
-	Impact *pkg.Level `mapstructure:"impact"`
+	Impact        *pkg.Level              `mapstructure:"impact"`
+	RulesSettings map[string]RuleSettings `mapstructure:"rules-settings"`
 }
 
 func (c LinterConfig) IsWarn() bool {
 	return c.Impact != nil && *c.Impact == pkg.Warn
+}
+
+type RuleSettings struct {
+	Impact *pkg.Level `mapstructure:"impact"`
+}
+
+func (c LinterConfig) GetRuleImpact(ruleID string) *pkg.Level {
+	if ruleSettings, exists := c.RulesSettings[ruleID]; exists && ruleSettings.Impact != nil {
+		return ruleSettings.Impact
+	}
+	return c.Impact
 }

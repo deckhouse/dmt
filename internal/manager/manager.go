@@ -42,7 +42,6 @@ import (
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/container"
-	"github.com/deckhouse/dmt/pkg/linters/docs"
 	"github.com/deckhouse/dmt/pkg/linters/hooks"
 	"github.com/deckhouse/dmt/pkg/linters/images"
 	moduleLinter "github.com/deckhouse/dmt/pkg/linters/module"
@@ -176,7 +175,6 @@ func getLintersForModule(cfg *config.ModuleConfig, errList *errors.LintRuleError
 		openapi.New(cfg, errList),
 		no_cyrillic.New(cfg, errList),
 		container.New(cfg, errList),
-		docs.New(cfg, errList),
 		templates.New(cfg, errList),
 		images.New(cfg, errList),
 		rbac.New(cfg, errList),
