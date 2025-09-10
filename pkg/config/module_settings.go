@@ -30,7 +30,7 @@ type ModuleSettings struct {
 	Impact *pkg.Level `mapstructure:"impact"`
 }
 
-func (m ModuleSettings) GetRuleImpact(ruleName string) *pkg.Level {
+func (m *ModuleSettings) GetRuleImpact(ruleName string) *pkg.Level {
 	if m.RulesSettings != nil {
 		if ruleSettings, exists := m.RulesSettings[ruleName]; exists && ruleSettings.Impact != nil {
 			return ruleSettings.Impact

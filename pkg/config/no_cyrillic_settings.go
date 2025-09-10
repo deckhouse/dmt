@@ -25,7 +25,7 @@ type NoCyrillicSettings struct {
 	Impact *pkg.Level `mapstructure:"impact"`
 }
 
-func (n NoCyrillicSettings) GetRuleImpact(ruleName string) *pkg.Level {
+func (n *NoCyrillicSettings) GetRuleImpact(ruleName string) *pkg.Level {
 	if n.RulesSettings != nil {
 		if ruleSettings, exists := n.RulesSettings[ruleName]; exists && ruleSettings.Impact != nil {
 			return ruleSettings.Impact

@@ -27,7 +27,7 @@ type TemplatesSettings struct {
 	Impact *pkg.Level `mapstructure:"impact"`
 }
 
-func (t TemplatesSettings) GetRuleImpact(ruleName string) *pkg.Level {
+func (t *TemplatesSettings) GetRuleImpact(ruleName string) *pkg.Level {
 	if t.RulesSettings != nil {
 		if ruleSettings, exists := t.RulesSettings[ruleName]; exists && ruleSettings.Impact != nil {
 			return ruleSettings.Impact

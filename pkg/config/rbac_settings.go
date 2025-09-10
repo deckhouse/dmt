@@ -25,7 +25,7 @@ type RbacSettings struct {
 	Impact *pkg.Level `mapstructure:"impact"`
 }
 
-func (r RbacSettings) GetRuleImpact(ruleName string) *pkg.Level {
+func (r *RbacSettings) GetRuleImpact(ruleName string) *pkg.Level {
 	if r.RulesSettings != nil {
 		if ruleSettings, exists := r.RulesSettings[ruleName]; exists && ruleSettings.Impact != nil {
 			return ruleSettings.Impact

@@ -25,7 +25,7 @@ type HooksSettings struct {
 	Impact *pkg.Level `mapstructure:"impact"`
 }
 
-func (h HooksSettings) GetRuleImpact(ruleName string) *pkg.Level {
+func (h *HooksSettings) GetRuleImpact(ruleName string) *pkg.Level {
 	if h.RulesSettings != nil {
 		if ruleSettings, exists := h.RulesSettings[ruleName]; exists && ruleSettings.Impact != nil {
 			return ruleSettings.Impact

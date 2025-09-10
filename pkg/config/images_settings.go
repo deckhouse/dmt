@@ -28,7 +28,7 @@ type ImageSettings struct {
 	Impact *pkg.Level `mapstructure:"impact"`
 }
 
-func (i ImageSettings) GetRuleImpact(ruleName string) *pkg.Level {
+func (i *ImageSettings) GetRuleImpact(ruleName string) *pkg.Level {
 	if i.RulesSettings != nil {
 		if ruleSettings, exists := i.RulesSettings[ruleName]; exists && ruleSettings.Impact != nil {
 			return ruleSettings.Impact

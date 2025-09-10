@@ -25,7 +25,7 @@ type ContainerSettings struct {
 	Impact *pkg.Level `mapstructure:"impact"`
 }
 
-func (c ContainerSettings) GetRuleImpact(ruleName string) *pkg.Level {
+func (c *ContainerSettings) GetRuleImpact(ruleName string) *pkg.Level {
 	if c.RulesSettings != nil {
 		if ruleSettings, exists := c.RulesSettings[ruleName]; exists && ruleSettings.Impact != nil {
 			return ruleSettings.Impact

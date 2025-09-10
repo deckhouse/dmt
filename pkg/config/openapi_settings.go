@@ -25,7 +25,7 @@ type OpenAPISettings struct {
 	Impact *pkg.Level `mapstructure:"impact"`
 }
 
-func (o OpenAPISettings) GetRuleImpact(ruleName string) *pkg.Level {
+func (o *OpenAPISettings) GetRuleImpact(ruleName string) *pkg.Level {
 	if o.RulesSettings != nil {
 		if ruleSettings, exists := o.RulesSettings[ruleName]; exists && ruleSettings.Impact != nil {
 			return ruleSettings.Impact
