@@ -6,4 +6,4 @@ dist
 coverage.out
 coverage.svg
 # Ignore manual test modules
-/test-modules/
+/test-modules/*
