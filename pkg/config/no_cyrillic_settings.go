@@ -34,6 +34,13 @@ func (n *NoCyrillicSettings) GetRuleImpact(ruleName string) *pkg.Level {
 	return n.Impact
 }
 
+func (n *NoCyrillicSettings) SetRuleImpact(ruleName string, impact *pkg.Level) {
+	if n.RulesSettings == nil {
+		n.RulesSettings = make(map[string]RuleSettings)
+	}
+	n.RulesSettings[ruleName] = RuleSettings{Impact: impact}
+}
+
 type NoCyrillicExcludeRules struct {
 	Files       StringRuleExcludeList `mapstructure:"files"`
 	Directories PrefixRuleExcludeList `mapstructure:"directories"`

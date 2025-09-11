@@ -24,6 +24,8 @@ import (
 	"github.com/deckhouse/dmt/pkg"
 )
 
+type RuleImpactFunc func(linterID, ruleID string) *pkg.Level
+
 type lintRuleError struct {
 	LinterID    string
 	ModuleID    string
@@ -75,7 +77,8 @@ type LintRuleErrorsList struct {
 	filePath   string
 	lineNumber int
 
-	maxLevel *pkg.Level
+	maxLevel       *pkg.Level
+	ruleImpactFunc RuleImpactFunc
 }
 
 func NewLintRuleErrorsList() *LintRuleErrorsList {
@@ -102,6 +105,13 @@ func (l *LintRuleErrorsList) copy() *LintRuleErrorsList {
 func (l *LintRuleErrorsList) WithMaxLevel(level *pkg.Level) *LintRuleErrorsList {
 	list := l.copy()
 	list.maxLevel = level
+
+	return list
+}
+
+func (l *LintRuleErrorsList) WithRuleImpactFunc(fn RuleImpactFunc) *LintRuleErrorsList {
+	list := l.copy()
+	list.ruleImpactFunc = fn
 
 	return list
 }
@@ -176,6 +186,13 @@ func (l *LintRuleErrorsList) add(str string, level pkg.Level) *LintRuleErrorsLis
 		l.storage = &errStorage{}
 	}
 
+	if l.ruleImpactFunc != nil {
+		if ruleImpact := l.ruleImpactFunc(l.linterID, l.ruleID); ruleImpact != nil {
+			level = *ruleImpact
+		}
+	}
+
+	// Apply maxLevel only if it's more restrictive than the current level
 	if l.maxLevel != nil && *l.maxLevel < level {
 		level = *l.maxLevel
 	}

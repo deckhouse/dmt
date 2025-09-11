@@ -34,6 +34,13 @@ func (h *HooksSettings) GetRuleImpact(ruleName string) *pkg.Level {
 	return h.Impact
 }
 
+func (h *HooksSettings) SetRuleImpact(ruleName string, impact *pkg.Level) {
+	if h.RulesSettings == nil {
+		h.RulesSettings = make(map[string]RuleSettings)
+	}
+	h.RulesSettings[ruleName] = RuleSettings{Impact: impact}
+}
+
 type HooksIngressRuleSetting struct {
 	// disable ingress rule completely
 	Disable bool `mapstructure:"disable"`

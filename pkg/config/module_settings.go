@@ -39,6 +39,13 @@ func (m *ModuleSettings) GetRuleImpact(ruleName string) *pkg.Level {
 	return m.Impact
 }
 
+func (m *ModuleSettings) SetRuleImpact(ruleName string, impact *pkg.Level) {
+	if m.RulesSettings == nil {
+		m.RulesSettings = make(map[string]RuleSettings)
+	}
+	m.RulesSettings[ruleName] = RuleSettings{Impact: impact}
+}
+
 type ModuleExcludeRules struct {
 	License LicenseExcludeRule `mapstructure:"license"`
 }

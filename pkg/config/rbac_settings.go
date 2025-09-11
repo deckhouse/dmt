@@ -34,6 +34,13 @@ func (r *RbacSettings) GetRuleImpact(ruleName string) *pkg.Level {
 	return r.Impact
 }
 
+func (r *RbacSettings) SetRuleImpact(ruleName string, impact *pkg.Level) {
+	if r.RulesSettings == nil {
+		r.RulesSettings = make(map[string]RuleSettings)
+	}
+	r.RulesSettings[ruleName] = RuleSettings{Impact: impact}
+}
+
 type RBACExcludeRules struct {
 	BindingSubject StringRuleExcludeList `mapstructure:"binding-subject"`
 	Placement      KindRuleExcludeList   `mapstructure:"placement"`

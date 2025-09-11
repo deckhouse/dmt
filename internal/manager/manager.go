@@ -72,11 +72,10 @@ type Manager struct {
 }
 
 func NewManager(dir string, rootConfig *config.RootConfig) *Manager {
-	managerLevel := pkg.Error
 	m := &Manager{
 		cfg: rootConfig,
 
-		errors: errors.NewLintRuleErrorsList().WithMaxLevel(&managerLevel),
+		errors: errors.NewLintRuleErrorsList(),
 	}
 
 	return m.initManager(dir)
@@ -155,7 +154,7 @@ func (m *Manager) Run() {
 
 			logger.InfoF("Run linters for `%s` module", module.GetName())
 
-			for _, linter := range getLintersForModule(module.GetModuleConfig(), m.errors) {
+			for _, linter := range getLintersForModule(module.GetModuleConfig(), m.errors.WithRuleImpactFunc(module.GetModuleConfig().LintersSettings.GetRuleImpact)) {
 				if flags.LinterName != "" && linter.Name() != flags.LinterName {
 					continue
 				}
@@ -231,7 +230,18 @@ func (m *Manager) PrintResult() {
 		}
 
 		// header
-		fmt.Fprint(w, emoji.Sprintf(":monkey:"))
+		var emojiStr string
+		switch err.Level {
+		case pkg.Warn:
+			emojiStr = ":warning:"
+		case pkg.Error:
+			emojiStr = ":monkey:"
+		case pkg.Critical:
+			emojiStr = ":monkey:"
+		default:
+			emojiStr = ":monkey:"
+		}
+		fmt.Fprint(w, emoji.Sprintf(emojiStr))
 		fmt.Fprint(w, color.New(color.FgHiBlue).SprintFunc()("["))
 
 		if err.RuleID != "" {

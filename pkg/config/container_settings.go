@@ -34,6 +34,13 @@ func (c *ContainerSettings) GetRuleImpact(ruleName string) *pkg.Level {
 	return c.Impact
 }
 
+func (c *ContainerSettings) SetRuleImpact(ruleName string, impact *pkg.Level) {
+	if c.RulesSettings == nil {
+		c.RulesSettings = make(map[string]RuleSettings)
+	}
+	c.RulesSettings[ruleName] = RuleSettings{Impact: impact}
+}
+
 type ContainerExcludeRules struct {
 	ControllerSecurityContext KindRuleExcludeList `mapstructure:"controller-security-context"`
 	DNSPolicy                 KindRuleExcludeList `mapstructure:"dns-policy"`

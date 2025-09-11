@@ -39,7 +39,7 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Module
 		name:      ID,
 		desc:      "Lint module rules",
 		cfg:       &cfg.LintersSettings.Module,
-		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Module.Impact),
+		ErrorList: errorList.WithLinterID(ID),
 		moduleCfg: cfg,
 	}
 }

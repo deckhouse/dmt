@@ -34,6 +34,13 @@ func (o *OpenAPISettings) GetRuleImpact(ruleName string) *pkg.Level {
 	return o.Impact
 }
 
+func (o *OpenAPISettings) SetRuleImpact(ruleName string, impact *pkg.Level) {
+	if o.RulesSettings == nil {
+		o.RulesSettings = make(map[string]RuleSettings)
+	}
+	o.RulesSettings[ruleName] = RuleSettings{Impact: impact}
+}
+
 type OpenAPIExcludeRules struct {
 	KeyBannedNames         []string              `mapstructure:"key-banned-names"`
 	EnumFileExcludes       []string              `mapstructure:"enum"`

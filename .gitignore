@@ -5,3 +5,5 @@ dist
 # Ignore Go coverage output
 coverage.out
 coverage.svg
+# Ignore manual test modules
+/test-modules/**

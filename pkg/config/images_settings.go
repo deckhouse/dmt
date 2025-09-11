@@ -37,6 +37,13 @@ func (i *ImageSettings) GetRuleImpact(ruleName string) *pkg.Level {
 	return i.Impact
 }
 
+func (i *ImageSettings) SetRuleImpact(ruleName string, impact *pkg.Level) {
+	if i.RulesSettings == nil {
+		i.RulesSettings = make(map[string]RuleSettings)
+	}
+	i.RulesSettings[ruleName] = RuleSettings{Impact: impact}
+}
+
 type ImageExcludeRules struct {
 	SkipImageFilePathPrefix      PrefixRuleExcludeList `mapstructure:"skip-image-file-path-prefix"`
 	SkipDistrolessFilePathPrefix PrefixRuleExcludeList `mapstructure:"skip-distroless-file-path-prefix"`

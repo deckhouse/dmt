@@ -36,6 +36,13 @@ func (t *TemplatesSettings) GetRuleImpact(ruleName string) *pkg.Level {
 	return t.Impact
 }
 
+func (t *TemplatesSettings) SetRuleImpact(ruleName string, impact *pkg.Level) {
+	if t.RulesSettings == nil {
+		t.RulesSettings = make(map[string]RuleSettings)
+	}
+	t.RulesSettings[ruleName] = RuleSettings{Impact: impact}
+}
+
 type TemplatesExcludeRules struct {
 	VPAAbsent     KindRuleExcludeList    `mapstructure:"vpa"`
 	PDBAbsent     KindRuleExcludeList    `mapstructure:"pdb"`
