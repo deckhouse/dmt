@@ -72,10 +72,11 @@ type Manager struct {
 }
 
 func NewManager(dir string, rootConfig *config.RootConfig) *Manager {
+	managerLevel := pkg.Error
 	m := &Manager{
 		cfg: rootConfig,
 
-		errors: errors.NewLintRuleErrorsList(),
+		errors: errors.NewLintRuleErrorsList().WithMaxLevel(&managerLevel),
 	}
 
 	return m.initManager(dir)
