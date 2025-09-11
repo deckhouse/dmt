@@ -68,7 +68,7 @@ func (l *Loader) Load() error {
 }
 
 func (l *Loader) setConfigFile() error {
-	l.viper.SetConfigName(".dmtlint")
+	l.viper.SetConfigName("dmt-config")
 
 	configSearchPaths := l.getConfigSearchPaths()
 

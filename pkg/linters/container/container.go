@@ -18,6 +18,7 @@ package container
 
 import (
 	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
@@ -31,6 +32,7 @@ type Container struct {
 	name, desc string
 	cfg        *config.ContainerSettings
 	ErrorList  *errors.LintRuleErrorsList
+	moduleCfg  *config.ModuleConfig
 }
 
 func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Container {
@@ -39,7 +41,15 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Contai
 		desc:      "Lint container objects",
 		cfg:       &cfg.LintersSettings.Container,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Container.Impact),
+		moduleCfg: cfg,
 	}
+}
+
+func (l *Container) GetRuleImpact(ruleName string) *pkg.Level {
+	if l.moduleCfg != nil {
+		return l.moduleCfg.LintersSettings.GetRuleImpact(ID, ruleName)
+	}
+	return l.cfg.Impact
 }
 
 func (l *Container) Run(m *module.Module) {

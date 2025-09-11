@@ -23,6 +23,7 @@ import (
 
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/openapi/rules"
@@ -33,6 +34,7 @@ type OpenAPI struct {
 	name, desc string
 	cfg        *config.OpenAPISettings
 	ErrorList  *errors.LintRuleErrorsList
+	moduleCfg  *config.ModuleConfig
 }
 
 func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *OpenAPI {
@@ -41,7 +43,15 @@ func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *OpenAP
 		desc:      "Linter will check openapi values is correct",
 		cfg:       &cfg.LintersSettings.OpenAPI,
 		ErrorList: errorList.WithLinterID("openapi").WithMaxLevel(cfg.LintersSettings.OpenAPI.Impact),
+		moduleCfg: cfg,
 	}
+}
+
+func (o *OpenAPI) GetRuleImpact(ruleName string) *pkg.Level {
+	if o.moduleCfg != nil {
+		return o.moduleCfg.LintersSettings.GetRuleImpact("openapi", ruleName)
+	}
+	return o.cfg.Impact
 }
 
 func (o *OpenAPI) Run(m *module.Module) {
@@ -53,20 +63,63 @@ func (o *OpenAPI) Run(m *module.Module) {
 	enumValidator := rules.NewEnumRule(o.cfg, m.GetPath())
 	haValidator := rules.NewHARule(o.cfg, m.GetPath())
 
+	// Apply rule-specific impact for enum and ha rules
+	enumRuleImpact := o.GetRuleImpact("enum")
+	haRuleImpact := o.GetRuleImpact("ha")
+
 	for _, file := range openAPIFiles {
-		enumValidator.Run(file, errorLists)
-		haValidator.Run(file, errorLists)
+		if enumRuleImpact != nil {
+			enumErrorList := errorLists.WithMaxLevel(enumRuleImpact)
+			enumValidator.Run(file, enumErrorList)
+		} else {
+			enumValidator.Run(file, errorLists)
+		}
+
+		if haRuleImpact != nil {
+			haErrorList := errorLists.WithMaxLevel(haRuleImpact)
+			haValidator.Run(file, haErrorList)
+		} else {
+			haValidator.Run(file, errorLists)
+		}
 	}
 
 	// check only CRDs files
 	crdFiles := fsutils.GetFiles(m.GetPath(), true, filterCRDsfiles)
 	crdValidator := rules.NewDeckhouseCRDsRule(o.cfg, m.GetPath())
 	keyValidator := rules.NewKeysRule(o.cfg, m.GetPath())
+
+	// Apply rule-specific impact for crd and keys rules
+	crdRuleImpact := o.GetRuleImpact("crds")
+	keysRuleImpact := o.GetRuleImpact("keys")
+
 	for _, file := range crdFiles {
-		enumValidator.Run(file, errorLists)
-		haValidator.Run(file, errorLists)
-		keyValidator.Run(file, errorLists)
-		crdValidator.Run(m.GetName(), file, errorLists)
+		if enumRuleImpact != nil {
+			enumErrorList := errorLists.WithMaxLevel(enumRuleImpact)
+			enumValidator.Run(file, enumErrorList)
+		} else {
+			enumValidator.Run(file, errorLists)
+		}
+
+		if haRuleImpact != nil {
+			haErrorList := errorLists.WithMaxLevel(haRuleImpact)
+			haValidator.Run(file, haErrorList)
+		} else {
+			haValidator.Run(file, errorLists)
+		}
+
+		if keysRuleImpact != nil {
+			keysErrorList := errorLists.WithMaxLevel(keysRuleImpact)
+			keyValidator.Run(file, keysErrorList)
+		} else {
+			keyValidator.Run(file, errorLists)
+		}
+
+		if crdRuleImpact != nil {
+			crdErrorList := errorLists.WithMaxLevel(crdRuleImpact)
+			crdValidator.Run(m.GetName(), file, crdErrorList)
+		} else {
+			crdValidator.Run(m.GetName(), file, errorLists)
+		}
 	}
 }
 

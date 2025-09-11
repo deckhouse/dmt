@@ -36,7 +36,7 @@ import (
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/metrics"
-	"github.com/deckhouse/dmt/internal/module"
+	modulePkg "github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/values"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
@@ -60,13 +60,13 @@ const (
 )
 
 type Linter interface {
-	Run(m *module.Module)
+	Run(m *modulePkg.Module)
 	Name() string
 }
 
 type Manager struct {
 	cfg     *config.RootConfig
-	Modules []*module.Module
+	Modules []*modulePkg.Module
 
 	errors *errors.LintRuleErrorsList
 }
@@ -107,7 +107,7 @@ func (m *Manager) initManager(dir string) *Manager {
 			// linting errors are already logged
 			continue
 		}
-		mdl, err := module.NewModule(paths[i], &vals, globalValues, errorList)
+		mdl, err := modulePkg.NewModule(paths[i], &vals, globalValues, errorList)
 		if err != nil {
 			errorList.
 				WithFilePath(paths[i]).WithModule(moduleName).
@@ -147,7 +147,7 @@ func (m *Manager) Run() {
 		processingCh <- struct{}{}
 		wg.Add(1)
 
-		go func() {
+		go func(module *modulePkg.Module) {
 			defer func() {
 				<-processingCh
 				wg.Done()
@@ -155,7 +155,14 @@ func (m *Manager) Run() {
 
 			logger.InfoF("Run linters for `%s` module", module.GetName())
 
-			for _, linter := range getLintersForModule(module.GetModuleConfig(), m.errors) {
+			// Create rule impact function
+			ruleImpactFunc := func(linterID, ruleID string) *pkg.Level {
+				return module.GetModuleConfig().LintersSettings.GetRuleImpact(linterID, ruleID)
+			}
+
+			errorListWithRuleImpact := m.errors.WithRuleImpactFunc(ruleImpactFunc)
+
+			for _, linter := range getLintersForModule(module.GetModuleConfig(), errorListWithRuleImpact) {
 				if flags.LinterName != "" && linter.Name() != flags.LinterName {
 					continue
 				}
@@ -164,7 +171,7 @@ func (m *Manager) Run() {
 
 				linter.Run(module)
 			}
-		}()
+		}(module)
 	}
 
 	wg.Wait()
@@ -231,7 +238,18 @@ func (m *Manager) PrintResult() {
 		}
 
 		// header
-		fmt.Fprint(w, emoji.Sprintf(":monkey:"))
+		var emojiStr string
+		switch err.Level {
+		case pkg.Warn:
+			emojiStr = ":warning:"
+		case pkg.Error:
+			emojiStr = ":monkey:"
+		case pkg.Critical:
+			emojiStr = ":monkey:"
+		default:
+			emojiStr = ":monkey:"
+		}
+		fmt.Fprint(w, emoji.Sprint(emojiStr))
 		fmt.Fprint(w, color.New(color.FgHiBlue).SprintFunc()("["))
 
 		if err.RuleID != "" {

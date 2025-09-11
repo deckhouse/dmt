@@ -27,20 +27,27 @@ import (
 func (l *Container) applyContainerRules(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithFilePath(object.GetPath())
 
-	objectRules := []func(storage.StoreObject, *errors.LintRuleErrorsList){
-		rules.NewRecommendedLabelsRule().ObjectRecommendedLabels,
-		rules.NewNamespaceLabelsRule().ObjectNamespaceLabels,
-		rules.NewAPIVersionRule().ObjectAPIVersion,
-		rules.NewPriorityClassRule().ObjectPriorityClass,
-		rules.NewDNSPolicyRule(l.cfg.ExcludeRules.DNSPolicy.Get()).
-			ObjectDNSPolicy,
-		rules.NewControllerSecurityContextRule(l.cfg.ExcludeRules.ControllerSecurityContext.Get()).
-			ControllerSecurityContext,
-		rules.NewRevisionHistoryLimitRule().ObjectRevisionHistoryLimit,
+	objectRules := []struct {
+		ruleName string
+		ruleFunc func(storage.StoreObject, *errors.LintRuleErrorsList)
+	}{
+		{"recommended-labels", rules.NewRecommendedLabelsRule().ObjectRecommendedLabels},
+		{"namespace-labels", rules.NewNamespaceLabelsRule().ObjectNamespaceLabels},
+		{"api-version", rules.NewAPIVersionRule().ObjectAPIVersion},
+		{"priority-class", rules.NewPriorityClassRule().ObjectPriorityClass},
+		{"dns-policy", rules.NewDNSPolicyRule(l.cfg.ExcludeRules.DNSPolicy.Get()).ObjectDNSPolicy},
+		{"controller-security-context", rules.NewControllerSecurityContextRule(l.cfg.ExcludeRules.ControllerSecurityContext.Get()).ControllerSecurityContext},
+		{"revision-history-limit", rules.NewRevisionHistoryLimitRule().ObjectRevisionHistoryLimit},
 	}
 
 	for _, rule := range objectRules {
-		rule(object, errorList)
+		ruleImpact := l.GetRuleImpact(rule.ruleName)
+		if ruleImpact != nil {
+			ruleErrorList := errorList.WithMaxLevel(ruleImpact)
+			rule.ruleFunc(object, ruleErrorList)
+		} else {
+			rule.ruleFunc(object, errorList)
+		}
 	}
 
 	allContainers, err := object.GetAllContainers()
@@ -55,25 +62,29 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 		return
 	}
 
-	containerRules := []func(storage.StoreObject, []corev1.Container, *errors.LintRuleErrorsList){
-		rules.NewNameDuplicatesRule().ContainerNameDuplicates,
-		rules.NewCheckReadOnlyRootFilesystemRule(l.cfg.ExcludeRules.ReadOnlyRootFilesystem.Get()).
-			ObjectReadOnlyRootFilesystem,
-		rules.NewHostNetworkPortsRule(l.cfg.ExcludeRules.HostNetworkPorts.Get()).ObjectHostNetworkPorts,
-
-		// old with module names skipping
-		rules.NewEnvVariablesDuplicatesRule().ContainerEnvVariablesDuplicates,
-		rules.NewImageDigestRule(l.cfg.ExcludeRules.ImageDigest.Get()).ContainerImageDigestCheck,
-		rules.NewImagePullPolicyRule().ContainersImagePullPolicy,
-		rules.NewResourcesRule(l.cfg.ExcludeRules.Resources.Get()).
-			ContainerStorageEphemeral,
-		rules.NewContainerSecurityContextRule(l.cfg.ExcludeRules.SecurityContext.Get()).
-			ContainerSecurityContext,
-		rules.NewPortsRule(l.cfg.ExcludeRules.Ports.Get()).ContainerPorts,
+	containerRules := []struct {
+		ruleName string
+		ruleFunc func(storage.StoreObject, []corev1.Container, *errors.LintRuleErrorsList)
+	}{
+		{"container-name-duplicates", rules.NewNameDuplicatesRule().ContainerNameDuplicates},
+		{"read-only-root-filesystem", rules.NewCheckReadOnlyRootFilesystemRule(l.cfg.ExcludeRules.ReadOnlyRootFilesystem.Get()).ObjectReadOnlyRootFilesystem},
+		{"host-network-ports", rules.NewHostNetworkPortsRule(l.cfg.ExcludeRules.HostNetworkPorts.Get()).ObjectHostNetworkPorts},
+		{"container-env-variables-duplicates", rules.NewEnvVariablesDuplicatesRule().ContainerEnvVariablesDuplicates},
+		{"image-digest", rules.NewImageDigestRule(l.cfg.ExcludeRules.ImageDigest.Get()).ContainerImageDigestCheck},
+		{"image-pull-policy", rules.NewImagePullPolicyRule().ContainersImagePullPolicy},
+		{"resources", rules.NewResourcesRule(l.cfg.ExcludeRules.Resources.Get()).ContainerStorageEphemeral},
+		{"container-security-context", rules.NewContainerSecurityContextRule(l.cfg.ExcludeRules.SecurityContext.Get()).ContainerSecurityContext},
+		{"ports", rules.NewPortsRule(l.cfg.ExcludeRules.Ports.Get()).ContainerPorts},
 	}
 
 	for _, rule := range containerRules {
-		rule(object, allContainers, errorList)
+		ruleImpact := l.GetRuleImpact(rule.ruleName)
+		if ruleImpact != nil {
+			ruleErrorList := errorList.WithMaxLevel(ruleImpact)
+			rule.ruleFunc(object, allContainers, ruleErrorList)
+		} else {
+			rule.ruleFunc(object, allContainers, errorList)
+		}
 	}
 
 	containers, err := object.GetContainers()
@@ -88,14 +99,21 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 		return
 	}
 
-	notInitContainerRules := []func(storage.StoreObject, []corev1.Container, *errors.LintRuleErrorsList){
-		rules.NewLivenessRule(l.cfg.ExcludeRules.Liveness.Get()).
-			CheckProbe,
-		rules.NewReadinessRule(l.cfg.ExcludeRules.Readiness.Get()).
-			CheckProbe,
+	notInitContainerRules := []struct {
+		ruleName string
+		ruleFunc func(storage.StoreObject, []corev1.Container, *errors.LintRuleErrorsList)
+	}{
+		{"liveness-probe", rules.NewLivenessRule(l.cfg.ExcludeRules.Liveness.Get()).CheckProbe},
+		{"readiness-probe", rules.NewReadinessRule(l.cfg.ExcludeRules.Readiness.Get()).CheckProbe},
 	}
 
 	for _, rule := range notInitContainerRules {
-		rule(object, containers, errorList)
+		ruleImpact := l.GetRuleImpact(rule.ruleName)
+		if ruleImpact != nil {
+			ruleErrorList := errorList.WithMaxLevel(ruleImpact)
+			rule.ruleFunc(object, containers, ruleErrorList)
+		} else {
+			rule.ruleFunc(object, containers, errorList)
+		}
 	}
 }
