@@ -39,19 +39,37 @@ func (r *ReadmeRule) CheckReadme(m pkg.Module, errorList *errors.LintRuleErrorsL
 	}
 
 	modulePath := m.GetPath()
-	readmePath := filepath.Join(modulePath, "README.md")
 
-	if _, err := os.Stat(readmePath); os.IsNotExist(err) {
+	readmePaths := []struct {
+		path     string
+		location string
+	}{
+		{filepath.Join(modulePath, "README.md"), "README.md"},
+		{filepath.Join(modulePath, "docs", "README.md"), "docs/README.md"},
+	}
+
+	var foundPath string
+	var foundLocation string
+
+	for _, readmeInfo := range readmePaths {
+		if _, err := os.Stat(readmeInfo.path); err == nil {
+			foundPath = readmeInfo.path
+			foundLocation = readmeInfo.location
+			break
+		}
+	}
+
+	if foundPath == "" {
 		errorList.
 			WithFilePath("README.md").
-			Error("README.md file is missing in module")
+			Error("README.md file is missing in module (checked root and docs/ directory)")
 		return
 	}
 
-	info, err := os.Stat(readmePath)
+	info, err := os.Stat(foundPath)
 	if err != nil {
 		errorList.
-			WithFilePath("README.md").
+			WithFilePath(foundLocation).
 			WithValue(err.Error()).
 			Error("failed to check README.md file")
 		return
@@ -59,7 +77,7 @@ func (r *ReadmeRule) CheckReadme(m pkg.Module, errorList *errors.LintRuleErrorsL
 
 	if info.Size() == 0 {
 		errorList.
-			WithFilePath("README.md").
+			WithFilePath(foundLocation).
 			Error("README.md file is empty")
 	}
 }

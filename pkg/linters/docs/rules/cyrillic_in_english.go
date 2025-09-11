@@ -22,7 +22,7 @@ var (
 	cyrRe              = regexp.MustCompile(`[А-Яа-яЁё]+`)
 	cyrPointerRe       = regexp.MustCompile(`[А-Яа-яЁё]`)
 	cyrFillerRe        = regexp.MustCompile(`[^А-Яа-яЁё]`)
-	russianDocRe       = regexp.MustCompile(`_RU\.md$|_ru\.md$|\.ru\.md$|/ru/.*\.md$`)
+	russianDocRe       = regexp.MustCompile(`_RU\.md$|_ru\.md$|\.ru\.md$|/ru/.*\.md$|/docs/.*_RU\.md$`)
 	markdownExtensions = []string{".md", ".markdown"}
 )
 
