@@ -21,6 +21,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gojuno/minimock/v3"
+
+	"github.com/deckhouse/dmt/internal/mocks"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
@@ -116,10 +119,10 @@ spec:
 			}
 
 			// Create mock module
-			mockModule := &mockModule{
-				name: "test-module",
-				path: modulePath,
-			}
+			mc := minimock.NewController(t)
+
+			mockModule := mocks.NewModuleMock(mc)
+			mockModule.GetPathMock.Return(modulePath)
 
 			// Create error list
 			errorList := errors.NewLintRuleErrorsList()
@@ -147,19 +150,6 @@ spec:
 			}
 		})
 	}
-}
-
-type mockModule struct {
-	name string
-	path string
-}
-
-func (m *mockModule) GetName() string {
-	return m.name
-}
-
-func (m *mockModule) GetPath() string {
-	return m.path
 }
 
 func contains(s, substr string) bool {

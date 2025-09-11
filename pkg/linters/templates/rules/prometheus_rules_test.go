@@ -21,6 +21,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gojuno/minimock/v3"
+
+	"github.com/deckhouse/dmt/internal/mocks"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg/errors"
 
@@ -189,7 +192,10 @@ func TestValidatePrometheusRules(t *testing.T) {
 			}()
 
 			// Mock module
-			mockModuleProm := &mockModuleProm{path: modulePath}
+			mc := minimock.NewController(t)
+
+			mockModuleProm := mocks.NewModuleMock(mc)
+			mockModuleProm.GetPathMock.Return(modulePath)
 
 			// Run validation
 			rule := NewPrometheusRule(nil)
@@ -207,12 +213,4 @@ func TestValidatePrometheusRules(t *testing.T) {
 			}
 		})
 	}
-}
-
-type mockModuleProm struct {
-	path string
-}
-
-func (m *mockModuleProm) GetPath() string {
-	return m.path
 }

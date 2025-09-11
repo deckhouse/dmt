@@ -61,11 +61,7 @@ type FilesRule struct {
 	skipSelfRe *regexp.Regexp
 }
 
-type moduleInterface interface {
-	GetPath() string
-}
-
-func (r *FilesRule) CheckFile(m moduleInterface, fileName string, errorList *errors.LintRuleErrorsList) {
+func (r *FilesRule) CheckFile(m pkg.Module, fileName string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
 	fName := fsutils.Rel(m.GetPath(), fileName)

@@ -49,6 +49,11 @@ setup-hooks:
 	./scripts/setup-hooks.sh
 .PHONY: setup-hooks
 
+# Mock generation
+generate-mocks:
+	go generate ./pkg/module.go
+.PHONY: generate-mocks
+
 # Non-PHONY targets (real files)
 
 $(BINARY): FORCE

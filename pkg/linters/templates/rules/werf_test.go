@@ -3,34 +3,24 @@ package rules
 import (
 	"testing"
 
+	"github.com/gojuno/minimock/v3"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/deckhouse/dmt/internal/mocks"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
-
-type mockModuleWerf struct {
-	werfFile string
-}
-
-func (m *mockModuleWerf) GetWerfFile() string {
-	return m.werfFile
-}
-
-func (*mockModuleWerf) GetPath() string {
-	return "/mock/path"
-}
-
-func (*mockModuleWerf) GetName() string {
-	return "mock-module"
-}
 
 func TestValidateWerfTemplates(t *testing.T) {
 	rule := NewWerfRule()
 	errorList := errors.NewLintRuleErrorsList()
 
 	// Mock module with valid Werf file
-	mock := &mockModuleWerf{
-		werfFile: `
+	mc := minimock.NewController(t)
+
+	mock := mocks.NewModuleMock(mc)
+	mock.GetPathMock.Return("/mock/path")
+	mock.GetNameMock.Return("mock-module")
+	mock.GetWerfFileMock.Return(`
 image: mock-module/test-image
 git:
 - add: /deckhouse/modules/910-test-module/images/test-image
@@ -38,22 +28,24 @@ git:
   stageDependencies:
     install:
     - '**/*.sh'
-`}
+`)
 
 	rule.ValidateWerfTemplates(mock, errorList)
 	assert.False(t, errorList.ContainsErrors(), "Expected no errors for valid Werf file")
 
 	errorList = errors.NewLintRuleErrorsList()
 	// Mock module with invalid Werf file
-	mockModuleWerfInvalid := &mockModuleWerf{
-		werfFile: `
+	mockModuleWerfInvalid := mocks.NewModuleMock(mc)
+	mockModuleWerfInvalid.GetPathMock.Return("/mock/path")
+	mockModuleWerfInvalid.GetNameMock.Return("mock-module")
+	mockModuleWerfInvalid.GetWerfFileMock.Return(`
 image: mock-module/test-image
 git:
 - add: /deckhouse/modules/910-test-module/images/test-image
   to: /src
 # Missing stageDependencies
 
-`}
+`)
 
 	rule.ValidateWerfTemplates(mockModuleWerfInvalid, errorList)
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for invalid Werf file")

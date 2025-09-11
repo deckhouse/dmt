@@ -43,13 +43,7 @@ type WerfRule struct {
 	pkg.RuleMeta
 }
 
-type iModule interface {
-	GetName() string
-	GetWerfFile() string
-	GetPath() string
-}
-
-func (r *WerfRule) ValidateWerfTemplates(m iModule, errorList *errors.LintRuleErrorsList) {
+func (r *WerfRule) ValidateWerfTemplates(m pkg.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithFilePath(m.GetPath()).WithRule(r.GetName())
 
 	manifests := fsutils.SplitManifests(m.GetWerfFile())
