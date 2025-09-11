@@ -241,7 +241,7 @@ func (m *Manager) PrintResult() {
 		default:
 			emojiStr = ":monkey:"
 		}
-		fmt.Fprint(w, emoji.Sprintf(emojiStr))
+		fmt.Fprint(w, emoji.Sprint(emojiStr))
 		fmt.Fprint(w, color.New(color.FgHiBlue).SprintFunc()("["))
 
 		if err.RuleID != "" {
