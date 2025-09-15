@@ -135,7 +135,7 @@ func (m *Module) GetModuleConfig() *config.ModuleConfig {
 }
 
 func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, errorList *dmtErrors.LintRuleErrorsList, globalConfig *global.Linters) (*Module, error) {
-	module, err := newModuleFromPath(path, globalConfig)
+	module, err := newModuleFromPath(path)
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +206,7 @@ func remapTemplates(ch *chart.Chart) {
 	}
 }
 
-func newModuleFromPath(path string, globalConfig *global.Linters) (*Module, error) {
+func newModuleFromPath(path string) (*Module, error) {
 	moduleYamlConfig, err := ParseModuleConfigFile(path)
 	if err != nil {
 		return nil, err
