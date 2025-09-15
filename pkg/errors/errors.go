@@ -197,6 +197,11 @@ func (l *LintRuleErrorsList) add(str string, level pkg.Level) *LintRuleErrorsLis
 		level = *l.maxLevel
 	}
 
+	// Skip adding error if level is Ignored
+	if level == pkg.Ignored {
+		return l
+	}
+
 	e := lintRuleError{
 		LinterID:    strings.ToLower(l.linterID),
 		ModuleID:    l.moduleID,
