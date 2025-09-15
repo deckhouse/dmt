@@ -41,29 +41,3 @@ type RuntimeLintersSettings struct {
 type RuntimeRootConfig struct {
 	LintersSettings RuntimeLintersSettings
 }
-
-// GetRuleImpactFunc returns the rule impact function for a specific linter
-func (r *RuntimeLintersSettings) GetRuleImpactFunc(linterID, ruleID string) *pkg.Level {
-	switch linterID {
-	case "container":
-		return r.Container.RuleImpactFunc(linterID, ruleID)
-	case "hooks":
-		return r.Hooks.RuleImpactFunc(linterID, ruleID)
-	case "images":
-		return r.Images.RuleImpactFunc(linterID, ruleID)
-	case "license":
-		return r.License.RuleImpactFunc(linterID, ruleID)
-	case "module":
-		return r.Module.RuleImpactFunc(linterID, ruleID)
-	case "no-cyrillic":
-		return r.NoCyrillic.RuleImpactFunc(linterID, ruleID)
-	case "openapi":
-		return r.OpenAPI.RuleImpactFunc(linterID, ruleID)
-	case "rbac":
-		return r.Rbac.RuleImpactFunc(linterID, ruleID)
-	case "templates":
-		return r.Templates.RuleImpactFunc(linterID, ruleID)
-	default:
-		return nil
-	}
-}

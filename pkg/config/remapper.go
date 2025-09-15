@@ -50,12 +50,10 @@ func (dto *UserLinterSettings) ToRuntime(globalConfig global.LinterConfig) *Runt
 
 	rulesSettings := make(map[string]RuleSettings)
 	for ruleName, ruleSettings := range dto.RulesSettings {
-		rulesSettings[ruleName] = RuleSettings{
-			Impact: ruleSettings.Impact,
-		}
+		rulesSettings[ruleName] = RuleSettings(ruleSettings)
 	}
 
-	ruleImpactFunc := func(linterID, ruleID string) *pkg.Level {
+	ruleImpactFunc := func(_, ruleID string) *pkg.Level {
 		if rulesSettings, exists := rulesSettings[ruleID]; exists && rulesSettings.Impact != nil {
 			return rulesSettings.Impact
 		}
@@ -69,9 +67,9 @@ func (dto *UserLinterSettings) ToRuntime(globalConfig global.LinterConfig) *Runt
 	}
 }
 
-func calculateRuntimeImpact(local, global *pkg.Level) *pkg.Level {
+func calculateRuntimeImpact(local, globalLevel *pkg.Level) *pkg.Level {
 	if local != nil {
 		return local
 	}
-	return global
+	return globalLevel
 }
