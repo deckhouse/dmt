@@ -17,23 +17,61 @@ limitations under the License.
 package config
 
 import (
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config/global"
 )
 
-// RemapGlobalLintersToLintersSettings converts global.Linters to LintersSettings
-func RemapGlobalLintersToLintersSettings(globalLinters *global.Linters) *LintersSettings {
-	if globalLinters == nil {
-		return &LintersSettings{}
+func (dto *UserRootConfig) ToRuntime(globalSettings *global.Linters) *RuntimeRootConfig {
+	return &RuntimeRootConfig{
+		LintersSettings: *dto.LintersSettings.ToRuntime(globalSettings),
+	}
+}
+
+func (dto *UserLintersSettings) ToRuntime(globalSettings *global.Linters) *RuntimeLintersSettings {
+	if globalSettings == nil {
+		globalSettings = &global.Linters{}
 	}
 
-	return &LintersSettings{
-		Container:  ContainerSettings{Impact: globalLinters.Container.Impact},
-		Hooks:      HooksSettings{Impact: globalLinters.Hooks.Impact},
-		Images:     ImageSettings{Impact: globalLinters.Images.Impact},
-		Module:     ModuleSettings{Impact: globalLinters.Module.Impact},
-		NoCyrillic: NoCyrillicSettings{Impact: globalLinters.NoCyrillic.Impact},
-		OpenAPI:    OpenAPISettings{Impact: globalLinters.OpenAPI.Impact},
-		Rbac:       RbacSettings{Impact: globalLinters.Rbac.Impact},
-		Templates:  TemplatesSettings{Impact: globalLinters.Templates.Impact},
+	return &RuntimeLintersSettings{
+		Container:  *dto.Container.ToRuntime(globalSettings.Container),
+		Hooks:      *dto.Hooks.ToRuntime(globalSettings.Hooks),
+		Images:     *dto.Images.ToRuntime(globalSettings.Images),
+		License:    *dto.License.ToRuntime(globalSettings.License),
+		Module:     *dto.Module.ToRuntime(globalSettings.Module),
+		NoCyrillic: *dto.NoCyrillic.ToRuntime(globalSettings.NoCyrillic),
+		OpenAPI:    *dto.OpenAPI.ToRuntime(globalSettings.OpenAPI),
+		Rbac:       *dto.Rbac.ToRuntime(globalSettings.Rbac),
+		Templates:  *dto.Templates.ToRuntime(globalSettings.Templates),
 	}
+}
+
+func (dto *UserLinterSettings) ToRuntime(globalConfig global.LinterConfig) *RuntimeLinterSettings {
+	impact := calculateRuntimeImpact(dto.Impact, globalConfig.Impact)
+
+	rulesSettings := make(map[string]RuleSettings)
+	for ruleName, ruleSettings := range dto.RulesSettings {
+		rulesSettings[ruleName] = RuleSettings{
+			Impact: ruleSettings.Impact,
+		}
+	}
+
+	ruleImpactFunc := func(linterID, ruleID string) *pkg.Level {
+		if rulesSettings, exists := rulesSettings[ruleID]; exists && rulesSettings.Impact != nil {
+			return rulesSettings.Impact
+		}
+		return impact
+	}
+
+	return &RuntimeLinterSettings{
+		Impact:         impact,
+		RulesSettings:  rulesSettings,
+		RuleImpactFunc: ruleImpactFunc,
+	}
+}
+
+func calculateRuntimeImpact(local, global *pkg.Level) *pkg.Level {
+	if local != nil {
+		return local
+	}
+	return global
 }

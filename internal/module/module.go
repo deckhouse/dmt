@@ -33,6 +33,7 @@ import (
 	"github.com/deckhouse/dmt/internal/values"
 	"github.com/deckhouse/dmt/internal/werf"
 	"github.com/deckhouse/dmt/pkg/config"
+	"github.com/deckhouse/dmt/pkg/config/global"
 	dmtErrors "github.com/deckhouse/dmt/pkg/errors"
 )
 
@@ -134,7 +135,10 @@ func (m *Module) GetModuleConfig() *config.ModuleConfig {
 }
 
 func (m *Module) MergeRootConfig(cfg *config.RootConfig) {
-	m.linterConfig.LintersSettings.MergeGlobal(&cfg.GlobalSettings.Linters)
+	// Merge global settings
+	if m.linterConfig != nil && m.linterConfig.LintersSettings != nil {
+		m.linterConfig.LintersSettings.MergeGlobal(&cfg.GlobalSettings.Linters)
+	}
 }
 
 func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, errorList *dmtErrors.LintRuleErrorsList) (*Module, error) {
@@ -167,12 +171,20 @@ func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, e
 		module.werfFile = werfFile
 	}
 
-	cfg := &config.ModuleConfig{}
-	if err := config.NewLoader(cfg, path).Load(); err != nil {
+	dtoConfig, err := config.LoadUserConfig(path)
+	if err != nil {
 		return nil, fmt.Errorf("can not parse module config: %w", err)
 	}
 
-	module.linterConfig = cfg
+	globalSettings := &global.Linters{}
+	runtimeConfig := dtoConfig.ToRuntime(globalSettings)
+
+	lintersSettings := runtimeConfig.LintersSettings.ToLintersSettings()
+	legacyConfig := &config.ModuleConfig{
+		LintersSettings: lintersSettings,
+	}
+
+	module.linterConfig = legacyConfig
 
 	return module, nil
 }

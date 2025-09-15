@@ -155,9 +155,19 @@ func (m *Manager) Run() {
 
 			logger.InfoF("Run linters for `%s` module", module.GetName())
 
+			moduleConfig := module.GetModuleConfig()
+			if moduleConfig == nil {
+				logger.ErrorF("Module config is nil for module `%s`", module.GetName())
+				return
+			}
+			if moduleConfig.LintersSettings == nil {
+				logger.ErrorF("LintersSettings is nil for module `%s`", module.GetName())
+				return
+			}
+
 			// Create rule impact function
 			ruleImpactFunc := func(linterID, ruleID string) *pkg.Level {
-				return module.GetModuleConfig().LintersSettings.GetRuleImpact(linterID, ruleID)
+				return moduleConfig.LintersSettings.GetRuleImpact(linterID, ruleID)
 			}
 
 			errorListWithRuleImpact := m.errors.WithRuleImpactFunc(ruleImpactFunc)
