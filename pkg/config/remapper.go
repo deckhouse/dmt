@@ -21,53 +21,131 @@ import (
 	"github.com/deckhouse/dmt/pkg/config/global"
 )
 
-func (dto *UserRootConfig) ToRuntime(globalSettings *global.Linters) *RuntimeRootConfig {
-	return &RuntimeRootConfig{
-		LintersSettings: *dto.LintersSettings.ToRuntime(globalSettings),
+func (dto *UserRootConfig) ToDomain(globalSettings *global.Linters) *DomainRootConfig {
+	return &DomainRootConfig{
+		LintersConfig: *dto.LintersSettings.ToDomain(globalSettings),
 	}
 }
 
-func (dto *UserLintersSettings) ToRuntime(globalSettings *global.Linters) *RuntimeLintersSettings {
+func (dto *UserLintersSettings) ToDomain(globalSettings *global.Linters) *DomainLintersConfig {
 	if globalSettings == nil {
 		globalSettings = &global.Linters{}
 	}
 
-	return &RuntimeLintersSettings{
-		Container:  *dto.Container.ToRuntime(globalSettings.Container),
-		Hooks:      *dto.Hooks.ToRuntime(globalSettings.Hooks),
-		Images:     *dto.Images.ToRuntime(globalSettings.Images),
-		License:    *dto.License.ToRuntime(globalSettings.License),
-		Module:     *dto.Module.ToRuntime(globalSettings.Module),
-		NoCyrillic: *dto.NoCyrillic.ToRuntime(globalSettings.NoCyrillic),
-		OpenAPI:    *dto.OpenAPI.ToRuntime(globalSettings.OpenAPI),
-		Rbac:       *dto.Rbac.ToRuntime(globalSettings.Rbac),
-		Templates:  *dto.Templates.ToRuntime(globalSettings.Templates),
+	return &DomainLintersConfig{
+		Container:  *dto.Container.ToContainerConfig(globalSettings.Container),
+		Hooks:      *dto.Hooks.ToHooksConfig(globalSettings.Hooks),
+		Images:     *dto.Images.ToImagesConfig(globalSettings.Images),
+		Module:     *dto.Module.ToModuleConfig(globalSettings.Module),
+		NoCyrillic: *dto.NoCyrillic.ToNoCyrillicConfig(globalSettings.NoCyrillic),
+		OpenAPI:    *dto.OpenAPI.ToOpenAPIConfig(globalSettings.OpenAPI),
+		Rbac:       *dto.Rbac.ToRbacConfig(globalSettings.Rbac),
+		Templates:  *dto.Templates.ToTemplatesConfig(globalSettings.Templates),
 	}
 }
 
-func (dto *UserLinterSettings) ToRuntime(globalConfig global.LinterConfig) *RuntimeLinterSettings {
-	impact := calculateRuntimeImpact(dto.Impact, globalConfig.Impact)
+type baseConfig struct {
+	Impact        *pkg.Level
+	RulesSettings map[string]RuleConfig
+	GetRuleImpact func(ruleID string) *pkg.Level
+}
 
-	rulesSettings := make(map[string]RuleSettings)
+func (dto *UserLinterSettings) toBaseConfig(globalImpact *pkg.Level) baseConfig {
+	impact := calculateDomainImpact(dto.Impact, globalImpact)
+
+	rulesSettings := make(map[string]RuleConfig)
 	for ruleName, ruleSettings := range dto.RulesSettings {
-		rulesSettings[ruleName] = RuleSettings(ruleSettings)
+		rulesSettings[ruleName] = RuleConfig(ruleSettings)
 	}
 
-	ruleImpactFunc := func(_, ruleID string) *pkg.Level {
-		if rulesSettings, exists := rulesSettings[ruleID]; exists && rulesSettings.Impact != nil {
-			return rulesSettings.Impact
+	getRuleImpact := func(ruleID string) *pkg.Level {
+		if ruleConfig, exists := rulesSettings[ruleID]; exists && ruleConfig.Impact != nil {
+			return ruleConfig.Impact
 		}
 		return impact
 	}
 
-	return &RuntimeLinterSettings{
-		Impact:         impact,
-		RulesSettings:  rulesSettings,
-		RuleImpactFunc: ruleImpactFunc,
+	return baseConfig{
+		Impact:        impact,
+		RulesSettings: rulesSettings,
+		GetRuleImpact: getRuleImpact,
 	}
 }
 
-func calculateRuntimeImpact(local, globalLevel *pkg.Level) *pkg.Level {
+func (dto *UserLinterSettings) ToContainerConfig(globalConfig global.LinterConfig) *ContainerConfig {
+	baseConfig := dto.toBaseConfig(globalConfig.Impact)
+	return &ContainerConfig{
+		Impact:        baseConfig.Impact,
+		RulesSettings: baseConfig.RulesSettings,
+		ExcludeRules:  ContainerExcludeRules{}, // TODO: добавить ремаппинг ExcludeRules
+		GetRuleImpact: baseConfig.GetRuleImpact,
+	}
+}
+
+func (dto *UserLinterSettings) ToHooksConfig(globalConfig global.LinterConfig) *HooksConfig {
+	baseConfig := dto.toBaseConfig(globalConfig.Impact)
+	return &HooksConfig{
+		Impact:        baseConfig.Impact,
+		RulesSettings: baseConfig.RulesSettings,
+		GetRuleImpact: baseConfig.GetRuleImpact,
+	}
+}
+
+func (dto *UserLinterSettings) ToImagesConfig(globalConfig global.LinterConfig) *ImagesConfig {
+	baseConfig := dto.toBaseConfig(globalConfig.Impact)
+	return &ImagesConfig{
+		Impact:        baseConfig.Impact,
+		RulesSettings: baseConfig.RulesSettings,
+		GetRuleImpact: baseConfig.GetRuleImpact,
+	}
+}
+
+func (dto *UserLinterSettings) ToModuleConfig(globalConfig global.LinterConfig) *ModuleLinterConfig {
+	baseConfig := dto.toBaseConfig(globalConfig.Impact)
+	return &ModuleLinterConfig{
+		Impact:        baseConfig.Impact,
+		RulesSettings: baseConfig.RulesSettings,
+		GetRuleImpact: baseConfig.GetRuleImpact,
+	}
+}
+
+func (dto *UserLinterSettings) ToNoCyrillicConfig(globalConfig global.LinterConfig) *NoCyrillicConfig {
+	baseConfig := dto.toBaseConfig(globalConfig.Impact)
+	return &NoCyrillicConfig{
+		Impact:        baseConfig.Impact,
+		RulesSettings: baseConfig.RulesSettings,
+		GetRuleImpact: baseConfig.GetRuleImpact,
+	}
+}
+
+func (dto *UserLinterSettings) ToOpenAPIConfig(globalConfig global.LinterConfig) *OpenAPIConfig {
+	baseConfig := dto.toBaseConfig(globalConfig.Impact)
+	return &OpenAPIConfig{
+		Impact:        baseConfig.Impact,
+		RulesSettings: baseConfig.RulesSettings,
+		GetRuleImpact: baseConfig.GetRuleImpact,
+	}
+}
+
+func (dto *UserLinterSettings) ToRbacConfig(globalConfig global.LinterConfig) *RbacConfig {
+	baseConfig := dto.toBaseConfig(globalConfig.Impact)
+	return &RbacConfig{
+		Impact:        baseConfig.Impact,
+		RulesSettings: baseConfig.RulesSettings,
+		GetRuleImpact: baseConfig.GetRuleImpact,
+	}
+}
+
+func (dto *UserLinterSettings) ToTemplatesConfig(globalConfig global.LinterConfig) *TemplatesConfig {
+	baseConfig := dto.toBaseConfig(globalConfig.Impact)
+	return &TemplatesConfig{
+		Impact:        baseConfig.Impact,
+		RulesSettings: baseConfig.RulesSettings,
+		GetRuleImpact: baseConfig.GetRuleImpact,
+	}
+}
+
+func calculateDomainImpact(local, globalLevel *pkg.Level) *pkg.Level {
 	if local != nil {
 		return local
 	}

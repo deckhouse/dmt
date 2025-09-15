@@ -16,103 +16,90 @@ limitations under the License.
 
 package config
 
-func (r *RuntimeLintersSettings) ToLintersSettings() *LintersSettings {
+func (domain *DomainRootConfig) ToLintersSettings() *LintersSettings {
 	return &LintersSettings{
-		Container:  *r.Container.toContainerSettings(),
-		Hooks:      *r.Hooks.toHooksSettings(),
-		Images:     *r.Images.toImageSettings(),
-		Module:     *r.Module.toModuleSettings(),
-		NoCyrillic: *r.NoCyrillic.toNoCyrillicSettings(),
-		OpenAPI:    *r.OpenAPI.toOpenAPISettings(),
-		Rbac:       *r.Rbac.toRbacSettings(),
-		Templates:  *r.Templates.toTemplatesSettings(),
+		Container:  *domain.LintersConfig.Container.ToContainerSettings(),
+		Hooks:      *domain.LintersConfig.Hooks.ToHooksSettings(),
+		Images:     *domain.LintersConfig.Images.ToImageSettings(),
+		Module:     *domain.LintersConfig.Module.ToModuleSettings(),
+		NoCyrillic: *domain.LintersConfig.NoCyrillic.ToNoCyrillicSettings(),
+		OpenAPI:    *domain.LintersConfig.OpenAPI.ToOpenAPISettings(),
+		Rbac:       *domain.LintersConfig.Rbac.ToRbacSettings(),
+		Templates:  *domain.LintersConfig.Templates.ToTemplatesSettings(),
 	}
 }
 
-func (r *RuntimeLinterSettings) toContainerSettings() *ContainerSettings {
+func (c *ContainerConfig) ToContainerSettings() *ContainerSettings {
 	rulesSettings := make(map[string]RuleSettings)
-	for ruleName, ruleSettings := range r.RulesSettings {
-		rulesSettings[ruleName] = RuleSettings{
-			Impact: ruleSettings.Impact,
-		}
+	for ruleName, ruleConfig := range c.RulesSettings {
+		rulesSettings[ruleName] = RuleSettings(ruleConfig)
 	}
 	return &ContainerSettings{
-		Impact:        r.Impact,
+		Impact:        c.Impact,
 		RulesSettings: rulesSettings,
+		ExcludeRules:  ContainerExcludeRules{},
 	}
 }
 
-func (r *RuntimeLinterSettings) toHooksSettings() *HooksSettings {
+func (h *HooksConfig) ToHooksSettings() *HooksSettings {
 	rulesSettings := make(map[string]RuleSettings)
-	for ruleName, ruleSettings := range r.RulesSettings {
-		rulesSettings[ruleName] = RuleSettings{
-			Impact: ruleSettings.Impact,
-		}
+	for ruleName, ruleConfig := range h.RulesSettings {
+		rulesSettings[ruleName] = RuleSettings(ruleConfig)
 	}
 	return &HooksSettings{
-		Impact:        r.Impact,
+		Impact:        h.Impact,
 		RulesSettings: rulesSettings,
 	}
 }
 
-func (r *RuntimeLinterSettings) toImageSettings() *ImageSettings {
+func (i *ImagesConfig) ToImageSettings() *ImageSettings {
 	rulesSettings := make(map[string]RuleSettings)
-	for ruleName, ruleSettings := range r.RulesSettings {
-		rulesSettings[ruleName] = RuleSettings{
-			Impact: ruleSettings.Impact,
-		}
+	for ruleName, ruleConfig := range i.RulesSettings {
+		rulesSettings[ruleName] = RuleSettings(ruleConfig)
 	}
 	return &ImageSettings{
-		Impact:        r.Impact,
+		Impact:        i.Impact,
 		RulesSettings: rulesSettings,
 	}
 }
 
-func (r *RuntimeLinterSettings) toModuleSettings() *ModuleSettings {
+func (m *ModuleLinterConfig) ToModuleSettings() *ModuleSettings {
 	rulesSettings := make(map[string]RuleSettings)
-	for ruleName, ruleSettings := range r.RulesSettings {
-		rulesSettings[ruleName] = RuleSettings{
-			Impact: ruleSettings.Impact,
-		}
+	for ruleName, ruleConfig := range m.RulesSettings {
+		rulesSettings[ruleName] = RuleSettings(ruleConfig)
 	}
 	return &ModuleSettings{
-		Impact:        r.Impact,
+		Impact:        m.Impact,
 		RulesSettings: rulesSettings,
 	}
 }
 
-func (r *RuntimeLinterSettings) toNoCyrillicSettings() *NoCyrillicSettings {
+func (n *NoCyrillicConfig) ToNoCyrillicSettings() *NoCyrillicSettings {
 	rulesSettings := make(map[string]RuleSettings)
-	for ruleName, ruleSettings := range r.RulesSettings {
-		rulesSettings[ruleName] = RuleSettings{
-			Impact: ruleSettings.Impact,
-		}
+	for ruleName, ruleConfig := range n.RulesSettings {
+		rulesSettings[ruleName] = RuleSettings(ruleConfig)
 	}
 	return &NoCyrillicSettings{
-		Impact:        r.Impact,
+		Impact:        n.Impact,
 		RulesSettings: rulesSettings,
 	}
 }
 
-func (r *RuntimeLinterSettings) toOpenAPISettings() *OpenAPISettings {
+func (o *OpenAPIConfig) ToOpenAPISettings() *OpenAPISettings {
 	rulesSettings := make(map[string]RuleSettings)
-	for ruleName, ruleSettings := range r.RulesSettings {
-		rulesSettings[ruleName] = RuleSettings{
-			Impact: ruleSettings.Impact,
-		}
+	for ruleName, ruleConfig := range o.RulesSettings {
+		rulesSettings[ruleName] = RuleSettings(ruleConfig)
 	}
 	return &OpenAPISettings{
-		Impact:        r.Impact,
+		Impact:        o.Impact,
 		RulesSettings: rulesSettings,
 	}
 }
 
-func (r *RuntimeLinterSettings) toRbacSettings() *RbacSettings {
+func (r *RbacConfig) ToRbacSettings() *RbacSettings {
 	rulesSettings := make(map[string]RuleSettings)
-	for ruleName, ruleSettings := range r.RulesSettings {
-		rulesSettings[ruleName] = RuleSettings{
-			Impact: ruleSettings.Impact,
-		}
+	for ruleName, ruleConfig := range r.RulesSettings {
+		rulesSettings[ruleName] = RuleSettings(ruleConfig)
 	}
 	return &RbacSettings{
 		Impact:        r.Impact,
@@ -120,43 +107,13 @@ func (r *RuntimeLinterSettings) toRbacSettings() *RbacSettings {
 	}
 }
 
-func (r *RuntimeLinterSettings) toTemplatesSettings() *TemplatesSettings {
+func (t *TemplatesConfig) ToTemplatesSettings() *TemplatesSettings {
 	rulesSettings := make(map[string]RuleSettings)
-	for ruleName, ruleSettings := range r.RulesSettings {
-		rulesSettings[ruleName] = RuleSettings{
-			Impact: ruleSettings.Impact,
-		}
+	for ruleName, ruleConfig := range t.RulesSettings {
+		rulesSettings[ruleName] = RuleSettings(ruleConfig)
 	}
 	return &TemplatesSettings{
-		Impact:        r.Impact,
-		RulesSettings: rulesSettings,
-	}
-}
-
-func (r *RuntimeLinterSettings) ToLegacyModuleSettings() *ModuleSettings {
-	rulesSettings := make(map[string]RuleSettings)
-	for ruleName, ruleSettings := range r.RulesSettings {
-		rulesSettings[ruleName] = RuleSettings{
-			Impact: ruleSettings.Impact,
-		}
-	}
-
-	return &ModuleSettings{
-		Impact:        r.Impact,
-		RulesSettings: rulesSettings,
-	}
-}
-
-func (r *RuntimeLinterSettings) ToLegacyContainerSettings() *ContainerSettings {
-	rulesSettings := make(map[string]RuleSettings)
-	for ruleName, ruleSettings := range r.RulesSettings {
-		rulesSettings[ruleName] = RuleSettings{
-			Impact: ruleSettings.Impact,
-		}
-	}
-
-	return &ContainerSettings{
-		Impact:        r.Impact,
+		Impact:        t.Impact,
 		RulesSettings: rulesSettings,
 	}
 }

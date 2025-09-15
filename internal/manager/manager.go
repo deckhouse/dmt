@@ -107,7 +107,7 @@ func (m *Manager) initManager(dir string) *Manager {
 			// linting errors are already logged
 			continue
 		}
-		mdl, err := modulePkg.NewModule(paths[i], &vals, globalValues, errorList)
+		mdl, err := modulePkg.NewModule(paths[i], &vals, globalValues, errorList, &m.cfg.GlobalSettings.Linters)
 		if err != nil {
 			errorList.
 				WithFilePath(paths[i]).WithModule(moduleName).
@@ -115,8 +115,6 @@ func (m *Manager) initManager(dir string) *Manager {
 				Errorf("cannot create module `%s`", moduleName)
 			continue
 		}
-
-		mdl.MergeRootConfig(m.cfg)
 
 		m.Modules = append(m.Modules, mdl)
 	}

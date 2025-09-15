@@ -16,7 +16,9 @@ limitations under the License.
 
 package config
 
-import "github.com/deckhouse/dmt/pkg"
+import (
+	"github.com/deckhouse/dmt/pkg"
+)
 
 type UserRuleSettings struct {
 	Impact *pkg.Level `mapstructure:"impact"`
@@ -25,6 +27,7 @@ type UserRuleSettings struct {
 type UserLinterSettings struct {
 	Impact        *pkg.Level                  `mapstructure:"impact"`
 	RulesSettings map[string]UserRuleSettings `mapstructure:"rules-settings"`
+	ExcludeRules  []string                    `mapstructure:"exclude-rules"`
 }
 
 type UserLintersSettings struct {

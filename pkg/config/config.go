@@ -17,7 +17,6 @@ limitations under the License.
 package config
 
 import (
-	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config/global"
 )
 
@@ -27,21 +26,8 @@ type RootConfig struct {
 }
 
 type ModuleConfig struct {
+	DomainConfig    *DomainRootConfig
 	LintersSettings *LintersSettings
-}
-
-func calculateImpact(v, input *pkg.Level) *pkg.Level {
-	if input != nil {
-		return input
-	}
-
-	if v != nil {
-		return v
-	}
-
-	lvl := pkg.Error
-
-	return &lvl
 }
 
 func NewDefaultRootConfig(dir string) (*RootConfig, error) {

@@ -20,6 +20,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/deckhouse/dmt/internal/storage"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/container/rules"
 )
@@ -42,10 +43,10 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 
 	for _, rule := range objectRules {
 		ruleImpact := l.GetRuleImpact(rule.ruleName)
-		if ruleImpact != nil {
+		if ruleImpact != nil && *ruleImpact != pkg.Ignored {
 			ruleErrorList := errorList.WithMaxLevel(ruleImpact)
 			rule.ruleFunc(object, ruleErrorList)
-		} else {
+		} else if ruleImpact == nil {
 			rule.ruleFunc(object, errorList)
 		}
 	}
@@ -79,10 +80,10 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 
 	for _, rule := range containerRules {
 		ruleImpact := l.GetRuleImpact(rule.ruleName)
-		if ruleImpact != nil {
+		if ruleImpact != nil && *ruleImpact != pkg.Ignored {
 			ruleErrorList := errorList.WithMaxLevel(ruleImpact)
 			rule.ruleFunc(object, allContainers, ruleErrorList)
-		} else {
+		} else if ruleImpact == nil {
 			rule.ruleFunc(object, allContainers, errorList)
 		}
 	}
@@ -109,10 +110,10 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 
 	for _, rule := range notInitContainerRules {
 		ruleImpact := l.GetRuleImpact(rule.ruleName)
-		if ruleImpact != nil {
+		if ruleImpact != nil && *ruleImpact != pkg.Ignored {
 			ruleErrorList := errorList.WithMaxLevel(ruleImpact)
 			rule.ruleFunc(object, containers, ruleErrorList)
-		} else {
+		} else if ruleImpact == nil {
 			rule.ruleFunc(object, containers, errorList)
 		}
 	}

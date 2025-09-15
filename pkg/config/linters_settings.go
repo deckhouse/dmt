@@ -18,7 +18,6 @@ package config
 
 import (
 	"github.com/deckhouse/dmt/pkg"
-	"github.com/deckhouse/dmt/pkg/config/global"
 )
 
 type RuleSettings struct {
@@ -34,22 +33,6 @@ type LintersSettings struct {
 	OpenAPI    OpenAPISettings    `mapstructure:"openapi"`
 	Rbac       RbacSettings       `mapstructure:"rbac"`
 	Templates  TemplatesSettings  `mapstructure:"templates"`
-}
-
-// MergeGlobal merges global configuration with linter settings
-func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
-	if lcfg == nil {
-		return
-	}
-
-	cfg.OpenAPI.Impact = calculateImpact(cfg.OpenAPI.Impact, lcfg.OpenAPI.Impact)
-	cfg.NoCyrillic.Impact = calculateImpact(cfg.NoCyrillic.Impact, lcfg.NoCyrillic.Impact)
-	cfg.Container.Impact = calculateImpact(cfg.Container.Impact, lcfg.Container.Impact)
-	cfg.Templates.Impact = calculateImpact(cfg.Templates.Impact, lcfg.Templates.Impact)
-	cfg.Images.Impact = calculateImpact(cfg.Images.Impact, lcfg.Images.Impact)
-	cfg.Rbac.Impact = calculateImpact(cfg.Rbac.Impact, lcfg.Rbac.Impact)
-	cfg.Hooks.Impact = calculateImpact(cfg.Hooks.Impact, lcfg.Hooks.Impact)
-	cfg.Module.Impact = calculateImpact(cfg.Module.Impact, lcfg.Module.Impact)
 }
 
 // GetRuleImpact returns the impact level for a specific rule in a specific linter

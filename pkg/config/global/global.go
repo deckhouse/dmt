@@ -19,7 +19,7 @@ package global
 import "github.com/deckhouse/dmt/pkg"
 
 type Global struct {
-	Linters Linters `mapstructure:"linters-settings"`
+	Linters Linters `mapstructure:"linters"`
 }
 
 type Linters struct {

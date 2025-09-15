@@ -134,15 +134,8 @@ func (m *Module) GetModuleConfig() *config.ModuleConfig {
 	return m.linterConfig
 }
 
-func (m *Module) MergeRootConfig(cfg *config.RootConfig) {
-	// Merge global settings
-	if m.linterConfig != nil && m.linterConfig.LintersSettings != nil {
-		m.linterConfig.LintersSettings.MergeGlobal(&cfg.GlobalSettings.Linters)
-	}
-}
-
-func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, errorList *dmtErrors.LintRuleErrorsList) (*Module, error) {
-	module, err := newModuleFromPath(path)
+func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, errorList *dmtErrors.LintRuleErrorsList, globalConfig *global.Linters) (*Module, error) {
+	module, err := newModuleFromPath(path, globalConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -176,15 +169,15 @@ func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, e
 		return nil, fmt.Errorf("can not parse module config: %w", err)
 	}
 
-	globalSettings := &global.Linters{}
-	runtimeConfig := dtoConfig.ToRuntime(globalSettings)
-
-	lintersSettings := runtimeConfig.LintersSettings.ToLintersSettings()
-	legacyConfig := &config.ModuleConfig{
-		LintersSettings: lintersSettings,
+	if globalConfig == nil {
+		globalConfig = &global.Linters{}
 	}
+	domainConfig := dtoConfig.ToDomain(globalConfig)
 
-	module.linterConfig = legacyConfig
+	module.linterConfig = &config.ModuleConfig{
+		DomainConfig:    domainConfig,
+		LintersSettings: domainConfig.ToLintersSettings(),
+	}
 
 	return module, nil
 }
@@ -213,7 +206,7 @@ func remapTemplates(ch *chart.Chart) {
 	}
 }
 
-func newModuleFromPath(path string) (*Module, error) {
+func newModuleFromPath(path string, globalConfig *global.Linters) (*Module, error) {
 	moduleYamlConfig, err := ParseModuleConfigFile(path)
 	if err != nil {
 		return nil, err
