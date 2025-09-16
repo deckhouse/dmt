@@ -5,25 +5,37 @@ type LinterConfig struct {
 }
 
 type RuleConfig struct {
-	Impact *Level
+	impact *Level
 }
 
 func (rc *RuleConfig) GetLevel() *Level {
-	return rc.Impact
+	return rc.impact
 }
 
 type LintersSettings struct {
 	Container ContainerLinterConfig
+	Image     ImageLinterConfig
+}
+
+type ImageLinterConfig struct {
+	LinterConfig
+	Rules        ImageLinterRules
+	ExcludeRules ImageExcludeRules
+}
+
+type ImageLinterRules struct {
+	DistrolessRule RuleConfig
+	ImageRule      RuleConfig
+	PatchesRule    RuleConfig
+	WerfRule       RuleConfig
+}
+
+type ImageExcludeRules struct {
 }
 
 type ContainerLinterConfig struct {
 	LinterConfig
-	Rules        ContainerLinterRules
 	ExcludeRules ContainerExcludeRules
-}
-
-type ContainerLinterRules struct {
-	RecommendedLabelsRule RuleConfig
 }
 
 type ContainerExcludeRules struct {
