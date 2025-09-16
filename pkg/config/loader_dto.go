@@ -16,8 +16,8 @@ limitations under the License.
 
 package config
 
-func LoadUserConfig(path string) (*UserRootConfig, error) {
-	dtoConfig := &UserRootConfig{}
+func LoadUserConfig(path string) (*UserRootConfigDTO, error) {
+	dtoConfig := &UserRootConfigDTO{}
 	loader := NewLoader(dtoConfig, path)
 
 	err := loader.Load()

@@ -67,18 +67,23 @@ func runLint(dir string) error {
 	color.NoColor = false
 	logger.InfoF("DMT version: %s", version)
 
-	cfg, err := config.NewDefaultRootConfig(dir)
+	dtoLoader := config.NewDTOLoader(dir)
+	userDTO, err := dtoLoader.LoadUserConfig()
 	logger.CheckErr(err)
+
+	globalDTO, err := dtoLoader.LoadGlobalConfig()
+	logger.CheckErr(err)
+
+	cfg := config.NewRootConfig(userDTO, globalDTO)
 
 	// init metrics storage, should be done before running manager
 	metrics.GetClient(dir)
 
-	mng := manager.NewManager(dir, cfg)
+	mng := manager.NewManager(dir, cfg.ToLintersSettings())
 	mng.Run()
 	mng.PrintResult()
 
 	metrics.SetDmtInfo()
-	metrics.SetLinterWarningsMetrics(cfg.GlobalSettings)
 	metrics.SetDmtRuntimeDuration()
 	metrics.SetDmtRuntimeDurationSeconds()
 

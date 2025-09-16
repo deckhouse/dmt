@@ -134,7 +134,7 @@ func (m *Module) GetModuleConfig() *config.ModuleConfig {
 	return m.linterConfig
 }
 
-func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, errorList *dmtErrors.LintRuleErrorsList, globalConfig *global.Linters) (*Module, error) {
+func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, errorList *dmtErrors.LintRuleErrorsList, _ *global.Linters) (*Module, error) {
 	module, err := newModuleFromPath(path)
 	if err != nil {
 		return nil, err
@@ -169,10 +169,19 @@ func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, e
 		return nil, fmt.Errorf("can not parse module config: %w", err)
 	}
 
-	if globalConfig == nil {
-		globalConfig = &global.Linters{}
+	globalDTO := &config.GlobalRootConfigDTO{
+		Global: config.GlobalLintersDTO{
+			Container:  config.GlobalLinterSettingsDTO{},
+			Hooks:      config.GlobalLinterSettingsDTO{},
+			Images:     config.GlobalLinterSettingsDTO{},
+			Module:     config.GlobalLinterSettingsDTO{},
+			NoCyrillic: config.GlobalLinterSettingsDTO{},
+			OpenAPI:    config.GlobalLinterSettingsDTO{},
+			Rbac:       config.GlobalLinterSettingsDTO{},
+			Templates:  config.GlobalLinterSettingsDTO{},
+		},
 	}
-	domainConfig := dtoConfig.ToDomain(globalConfig)
+	domainConfig := config.NewRootConfig(dtoConfig, globalDTO)
 
 	module.linterConfig = &config.ModuleConfig{
 		DomainConfig:    domainConfig,

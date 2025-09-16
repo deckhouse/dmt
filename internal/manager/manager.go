@@ -65,16 +65,16 @@ type Linter interface {
 }
 
 type Manager struct {
-	cfg     *config.RootConfig
+	cfg     *config.LintersSettings
 	Modules []*modulePkg.Module
 
 	errors *errors.LintRuleErrorsList
 }
 
-func NewManager(dir string, rootConfig *config.RootConfig) *Manager {
+func NewManager(dir string, lintersSettings *config.LintersSettings) *Manager {
 	managerLevel := pkg.Error
 	m := &Manager{
-		cfg: rootConfig,
+		cfg: lintersSettings,
 
 		errors: errors.NewLintRuleErrorsList().WithMaxLevel(&managerLevel),
 	}
@@ -107,7 +107,7 @@ func (m *Manager) initManager(dir string) *Manager {
 			// linting errors are already logged
 			continue
 		}
-		mdl, err := modulePkg.NewModule(paths[i], &vals, globalValues, errorList, &m.cfg.GlobalSettings.Linters)
+		mdl, err := modulePkg.NewModule(paths[i], &vals, globalValues, errorList, nil)
 		if err != nil {
 			errorList.
 				WithFilePath(paths[i]).WithModule(moduleName).
@@ -170,7 +170,7 @@ func (m *Manager) Run() {
 
 			errorListWithRuleImpact := m.errors.WithRuleImpactFunc(ruleImpactFunc)
 
-			for _, linter := range getLintersForModule(module.GetModuleConfig(), errorListWithRuleImpact) {
+			for _, linter := range getLintersForModule(m.cfg, errorListWithRuleImpact) {
 				if flags.LinterName != "" && linter.Name() != flags.LinterName {
 					continue
 				}
@@ -185,16 +185,20 @@ func (m *Manager) Run() {
 	wg.Wait()
 }
 
-func getLintersForModule(cfg *config.ModuleConfig, errList *errors.LintRuleErrorsList) []Linter {
+func getLintersForModule(cfg *config.LintersSettings, errList *errors.LintRuleErrorsList) []Linter {
+	moduleConfig := &config.ModuleConfig{
+		LintersSettings: cfg,
+	}
+
 	return []Linter{
-		openapi.New(cfg, errList),
-		no_cyrillic.New(cfg, errList),
-		container.New(cfg, errList),
-		templates.New(cfg, errList),
-		images.New(cfg, errList),
-		rbac.New(cfg, errList),
-		hooks.New(cfg, errList),
-		moduleLinter.New(cfg, errList),
+		openapi.New(moduleConfig, errList),
+		no_cyrillic.New(moduleConfig, errList),
+		container.New(moduleConfig, errList),
+		templates.New(moduleConfig, errList),
+		images.New(moduleConfig, errList),
+		rbac.New(moduleConfig, errList),
+		hooks.New(moduleConfig, errList),
+		moduleLinter.New(moduleConfig, errList),
 	}
 }
 

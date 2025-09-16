@@ -16,103 +16,119 @@ limitations under the License.
 
 package config
 
-func (domain *DomainRootConfig) ToLintersSettings() *LintersSettings {
+func (r *DomainRootConfig) ToLintersSettings() *LintersSettings {
 	return &LintersSettings{
-		Container:  *domain.LintersConfig.Container.ToContainerSettings(),
-		Hooks:      *domain.LintersConfig.Hooks.ToHooksSettings(),
-		Images:     *domain.LintersConfig.Images.ToImageSettings(),
-		Module:     *domain.LintersConfig.Module.ToModuleSettings(),
-		NoCyrillic: *domain.LintersConfig.NoCyrillic.ToNoCyrillicSettings(),
-		OpenAPI:    *domain.LintersConfig.OpenAPI.ToOpenAPISettings(),
-		Rbac:       *domain.LintersConfig.Rbac.ToRbacSettings(),
-		Templates:  *domain.LintersConfig.Templates.ToTemplatesSettings(),
+		Container:  r.LintersConfig.Container.ToContainerSettings(),
+		Hooks:      r.LintersConfig.Hooks.ToHooksSettings(),
+		Images:     r.LintersConfig.Images.ToImagesSettings(),
+		Module:     r.LintersConfig.Module.ToModuleSettings(),
+		NoCyrillic: r.LintersConfig.NoCyrillic.ToNoCyrillicSettings(),
+		OpenAPI:    r.LintersConfig.OpenAPI.ToOpenAPISettings(),
+		Rbac:       r.LintersConfig.Rbac.ToRbacSettings(),
+		Templates:  r.LintersConfig.Templates.ToTemplatesSettings(),
 	}
 }
 
-func (c *ContainerConfig) ToContainerSettings() *ContainerSettings {
+func (c *ContainerLinterConfig) ToContainerSettings() ContainerSettings {
 	rulesSettings := make(map[string]RuleSettings)
-	for ruleName, ruleConfig := range c.RulesSettings {
-		rulesSettings[ruleName] = RuleSettings(ruleConfig)
+	for ruleID, ruleConfig := range c.RulesSettings {
+		rulesSettings[ruleID] = RuleSettings(ruleConfig)
 	}
-	return &ContainerSettings{
+
+	excludeRules := ContainerExcludeRules{}
+
+	return ContainerSettings{
 		Impact:        c.Impact,
 		RulesSettings: rulesSettings,
-		ExcludeRules:  ContainerExcludeRules{},
+		ExcludeRules:  excludeRules,
 	}
 }
 
-func (h *HooksConfig) ToHooksSettings() *HooksSettings {
+func (h *HooksLinterConfig) ToHooksSettings() HooksSettings {
 	rulesSettings := make(map[string]RuleSettings)
-	for ruleName, ruleConfig := range h.RulesSettings {
-		rulesSettings[ruleName] = RuleSettings(ruleConfig)
+	for ruleID, ruleConfig := range h.RulesSettings {
+		rulesSettings[ruleID] = RuleSettings(ruleConfig)
 	}
-	return &HooksSettings{
+
+	return HooksSettings{
 		Impact:        h.Impact,
 		RulesSettings: rulesSettings,
 	}
 }
 
-func (i *ImagesConfig) ToImageSettings() *ImageSettings {
+func (i *ImagesLinterConfig) ToImagesSettings() ImageSettings {
 	rulesSettings := make(map[string]RuleSettings)
-	for ruleName, ruleConfig := range i.RulesSettings {
-		rulesSettings[ruleName] = RuleSettings(ruleConfig)
+	for ruleID, ruleConfig := range i.RulesSettings {
+		rulesSettings[ruleID] = RuleSettings(ruleConfig)
 	}
-	return &ImageSettings{
+
+	excludeRules := ImageExcludeRules{}
+
+	return ImageSettings{
 		Impact:        i.Impact,
 		RulesSettings: rulesSettings,
+		ExcludeRules:  excludeRules,
 	}
 }
 
-func (m *ModuleLinterConfig) ToModuleSettings() *ModuleSettings {
+func (m *ModuleLinterConfig) ToModuleSettings() ModuleSettings {
 	rulesSettings := make(map[string]RuleSettings)
-	for ruleName, ruleConfig := range m.RulesSettings {
-		rulesSettings[ruleName] = RuleSettings(ruleConfig)
+	for ruleID, ruleConfig := range m.RulesSettings {
+		rulesSettings[ruleID] = RuleSettings(ruleConfig)
 	}
-	return &ModuleSettings{
+
+	excludeRules := ModuleExcludeRules{}
+
+	return ModuleSettings{
 		Impact:        m.Impact,
 		RulesSettings: rulesSettings,
+		ExcludeRules:  excludeRules,
 	}
 }
 
-func (n *NoCyrillicConfig) ToNoCyrillicSettings() *NoCyrillicSettings {
+func (n *NoCyrillicLinterConfig) ToNoCyrillicSettings() NoCyrillicSettings {
 	rulesSettings := make(map[string]RuleSettings)
-	for ruleName, ruleConfig := range n.RulesSettings {
-		rulesSettings[ruleName] = RuleSettings(ruleConfig)
+	for ruleID, ruleConfig := range n.RulesSettings {
+		rulesSettings[ruleID] = RuleSettings(ruleConfig)
 	}
-	return &NoCyrillicSettings{
+
+	return NoCyrillicSettings{
 		Impact:        n.Impact,
 		RulesSettings: rulesSettings,
 	}
 }
 
-func (o *OpenAPIConfig) ToOpenAPISettings() *OpenAPISettings {
+func (o *OpenAPILinterConfig) ToOpenAPISettings() OpenAPISettings {
 	rulesSettings := make(map[string]RuleSettings)
-	for ruleName, ruleConfig := range o.RulesSettings {
-		rulesSettings[ruleName] = RuleSettings(ruleConfig)
+	for ruleID, ruleConfig := range o.RulesSettings {
+		rulesSettings[ruleID] = RuleSettings(ruleConfig)
 	}
-	return &OpenAPISettings{
+
+	return OpenAPISettings{
 		Impact:        o.Impact,
 		RulesSettings: rulesSettings,
 	}
 }
 
-func (r *RbacConfig) ToRbacSettings() *RbacSettings {
+func (r *RbacLinterConfig) ToRbacSettings() RbacSettings {
 	rulesSettings := make(map[string]RuleSettings)
-	for ruleName, ruleConfig := range r.RulesSettings {
-		rulesSettings[ruleName] = RuleSettings(ruleConfig)
+	for ruleID, ruleConfig := range r.RulesSettings {
+		rulesSettings[ruleID] = RuleSettings(ruleConfig)
 	}
-	return &RbacSettings{
+
+	return RbacSettings{
 		Impact:        r.Impact,
 		RulesSettings: rulesSettings,
 	}
 }
 
-func (t *TemplatesConfig) ToTemplatesSettings() *TemplatesSettings {
+func (t *TemplatesLinterConfig) ToTemplatesSettings() TemplatesSettings {
 	rulesSettings := make(map[string]RuleSettings)
-	for ruleName, ruleConfig := range t.RulesSettings {
-		rulesSettings[ruleName] = RuleSettings(ruleConfig)
+	for ruleID, ruleConfig := range t.RulesSettings {
+		rulesSettings[ruleID] = RuleSettings(ruleConfig)
 	}
-	return &TemplatesSettings{
+
+	return TemplatesSettings{
 		Impact:        t.Impact,
 		RulesSettings: rulesSettings,
 	}
