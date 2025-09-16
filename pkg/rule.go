@@ -54,6 +54,8 @@ func (r *StringRule) Enabled(str string) bool {
 	return true
 }
 
+type StringRuleExcludeList []StringRuleExclude
+
 type PrefixRule struct {
 	ExcludeRules []PrefixRuleExclude
 }
@@ -81,6 +83,8 @@ func (r *KindRule) Enabled(kind, name string) bool {
 
 	return true
 }
+
+type KindRuleExcludeList []KindRuleExclude
 
 type ContainerRule struct {
 	ExcludeRules []ContainerRuleExclude

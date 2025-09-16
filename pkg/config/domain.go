@@ -11,6 +11,11 @@ type ContainerLinterConfig struct {
 	RulesSettings map[string]RuleConfig
 	ExcludeRules  []string
 	GetRuleImpact func(ruleID string) *pkg.Level
+	Rules         ContainerLinterRules
+}
+
+type ContainerLinterRules struct {
+	RecommendedLabelsRule RuleConfig
 }
 
 type HooksLinterConfig struct {

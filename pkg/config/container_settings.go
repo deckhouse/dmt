@@ -19,26 +19,9 @@ package config
 import "github.com/deckhouse/dmt/pkg"
 
 type ContainerSettings struct {
-	ExcludeRules  ContainerExcludeRules   `mapstructure:"exclude-rules"`
-	RulesSettings map[string]RuleSettings `mapstructure:"rules-settings"`
+	ExcludeRules ContainerExcludeRules `mapstructure:"exclude-rules"`
 
 	Impact *pkg.Level `mapstructure:"impact"`
-}
-
-func (c *ContainerSettings) GetRuleImpact(ruleName string) *pkg.Level {
-	if c.RulesSettings != nil {
-		if ruleSettings, exists := c.RulesSettings[ruleName]; exists && ruleSettings.Impact != nil {
-			return ruleSettings.Impact
-		}
-	}
-	return c.Impact
-}
-
-func (c *ContainerSettings) SetRuleImpact(ruleName string, impact *pkg.Level) {
-	if c.RulesSettings == nil {
-		c.RulesSettings = make(map[string]RuleSettings)
-	}
-	c.RulesSettings[ruleName] = RuleSettings{Impact: impact}
 }
 
 type ContainerExcludeRules struct {

@@ -163,13 +163,6 @@ func (m *Manager) Run() {
 				return
 			}
 
-			// Create rule impact function
-			ruleImpactFunc := func(linterID, ruleID string) *pkg.Level {
-				return moduleConfig.LintersSettings.GetRuleImpact(linterID, ruleID)
-			}
-
-			errorListWithRuleImpact := m.errors.WithRuleImpactFunc(ruleImpactFunc)
-
 			for _, linter := range getLintersForModule(m.cfg, errorListWithRuleImpact) {
 				if flags.LinterName != "" && linter.Name() != flags.LinterName {
 					continue

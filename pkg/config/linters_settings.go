@@ -16,14 +16,6 @@ limitations under the License.
 
 package config
 
-import (
-	"github.com/deckhouse/dmt/pkg"
-)
-
-type RuleSettings struct {
-	Impact *pkg.Level `mapstructure:"impact"`
-}
-
 type LintersSettings struct {
 	Container  ContainerSettings  `mapstructure:"container"`
 	Hooks      HooksSettings      `mapstructure:"hooks"`
@@ -33,28 +25,4 @@ type LintersSettings struct {
 	OpenAPI    OpenAPISettings    `mapstructure:"openapi"`
 	Rbac       RbacSettings       `mapstructure:"rbac"`
 	Templates  TemplatesSettings  `mapstructure:"templates"`
-}
-
-// GetRuleImpact returns the impact level for a specific rule in a specific linter
-func (cfg *LintersSettings) GetRuleImpact(linterName, ruleName string) *pkg.Level {
-	switch linterName {
-	case "container":
-		return cfg.Container.GetRuleImpact(ruleName)
-	case "hooks":
-		return cfg.Hooks.GetRuleImpact(ruleName)
-	case "images":
-		return cfg.Images.GetRuleImpact(ruleName)
-	case "module":
-		return cfg.Module.GetRuleImpact(ruleName)
-	case "no-cyrillic":
-		return cfg.NoCyrillic.GetRuleImpact(ruleName)
-	case "openapi":
-		return cfg.OpenAPI.GetRuleImpact(ruleName)
-	case "rbac":
-		return cfg.Rbac.GetRuleImpact(ruleName)
-	case "templates":
-		return cfg.Templates.GetRuleImpact(ruleName)
-	default:
-		return nil
-	}
 }

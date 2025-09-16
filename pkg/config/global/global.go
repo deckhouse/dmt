@@ -19,22 +19,35 @@ package global
 import "github.com/deckhouse/dmt/pkg"
 
 type Global struct {
-	Linters Linters `mapstructure:"linters"`
+	Linters Linters `mapstructure:"linters-settings"`
 }
 
 type Linters struct {
-	Container  LinterConfig `mapstructure:"container"`
-	Hooks      LinterConfig `mapstructure:"hooks"`
-	Images     LinterConfig `mapstructure:"images"`
-	License    LinterConfig `mapstructure:"license"`
-	Module     LinterConfig `mapstructure:"module"`
-	NoCyrillic LinterConfig `mapstructure:"no-cyrillic"`
-	OpenAPI    LinterConfig `mapstructure:"openapi"`
-	Rbac       LinterConfig `mapstructure:"rbac"`
-	Templates  LinterConfig `mapstructure:"templates"`
+	Container  ContainerLinterConfig `mapstructure:"container"`
+	Hooks      LinterConfig          `mapstructure:"hooks"`
+	Images     LinterConfig          `mapstructure:"images"`
+	License    LinterConfig          `mapstructure:"license"`
+	Module     LinterConfig          `mapstructure:"module"`
+	NoCyrillic LinterConfig          `mapstructure:"no-cyrillic"`
+	OpenAPI    LinterConfig          `mapstructure:"openapi"`
+	Rbac       LinterConfig          `mapstructure:"rbac"`
+	Templates  LinterConfig          `mapstructure:"templates"`
+}
+
+type ContainerLinterConfig struct {
+	LinterConfig
+	Rules ContainerLinterRules `mapstructure:"rules"`
+}
+
+type ContainerLinterRules struct {
+	RecommendedLabelsRule RuleConfig `mapstructure:"recommended-labels"`
 }
 
 type LinterConfig struct {
+	Impact *pkg.Level `mapstructure:"impact"`
+}
+
+type RuleConfig struct {
 	Impact *pkg.Level `mapstructure:"impact"`
 }
 
