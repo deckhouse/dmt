@@ -60,3 +60,27 @@ func mergeExcludeRules(userRules, globalRules []string) []string {
 
 	return result
 }
+
+func newLinterConfig(userDTO *UserLinterSettingsDTO, globalDTO *GlobalLinterSettingsDTO) (map[string]RuleConfig, []string, func(string) *pkg.Level) {
+	rulesSettings := make(map[string]RuleConfig)
+	excludeRules := mergeExcludeRules(userDTO.ExcludeRules, globalDTO.ExcludeRules)
+	impact := mergeImpact(userDTO.Impact, globalDTO.Impact)
+
+	for ruleID, ruleDTO := range userDTO.RulesSettings {
+		rulesSettings[ruleID] = RuleConfig(ruleDTO)
+	}
+	for ruleID, ruleDTO := range globalDTO.RulesSettings {
+		if _, exists := rulesSettings[ruleID]; !exists {
+			rulesSettings[ruleID] = RuleConfig(ruleDTO)
+		}
+	}
+
+	getRuleImpact := func(ruleID string) *pkg.Level {
+		if rule, exists := rulesSettings[ruleID]; exists {
+			return rule.Impact
+		}
+		return impact
+	}
+
+	return rulesSettings, excludeRules, getRuleImpact
+}

@@ -1,28 +1,12 @@
 package config
 
-import "github.com/deckhouse/dmt/pkg"
-
 func NewImagesLinterConfig(userDTO *UserLinterSettingsDTO, globalDTO *GlobalLinterSettingsDTO) ImagesLinterConfig {
-	config := ImagesLinterConfig{
+	rulesSettings, excludeRules, getRuleImpact := newLinterConfig(userDTO, globalDTO)
+
+	return ImagesLinterConfig{
 		Impact:        mergeImpact(userDTO.Impact, globalDTO.Impact),
-		RulesSettings: make(map[string]RuleConfig),
-		ExcludeRules:  mergeExcludeRules(userDTO.ExcludeRules, globalDTO.ExcludeRules),
+		RulesSettings: rulesSettings,
+		ExcludeRules:  excludeRules,
+		GetRuleImpact: getRuleImpact,
 	}
-
-	for ruleID, ruleDTO := range userDTO.RulesSettings {
-		config.RulesSettings[ruleID] = RuleConfig(ruleDTO)
-	}
-	for ruleID, ruleDTO := range globalDTO.RulesSettings {
-		if _, exists := config.RulesSettings[ruleID]; !exists {
-			config.RulesSettings[ruleID] = RuleConfig(ruleDTO)
-		}
-	}
-	config.GetRuleImpact = func(ruleID string) *pkg.Level {
-		if rule, exists := config.RulesSettings[ruleID]; exists {
-			return rule.Impact
-		}
-		return config.Impact
-	}
-
-	return config
 }
