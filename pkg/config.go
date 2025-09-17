@@ -1,5 +1,7 @@
 package pkg
 
+import "github.com/deckhouse/dmt/pkg"
+
 type LinterConfig struct {
 	Impact *Level
 }
@@ -14,6 +16,22 @@ func (rc *RuleConfig) GetLevel() *Level {
 
 func (rc *RuleConfig) SetLevel(level *Level) {
 	rc.impact = level
+}
+
+func (rc *RuleConfig) SetStringLevel(current, backoff string) {
+	if current != "" {
+		rc.impact = pkg.ParseStringToLevel(current)
+
+		return
+	}
+
+	if backoff != "" {
+		rc.impact = pkg.ParseStringToLevel(backoff)
+
+		return
+	}
+
+	rc.impact = pkg.Error
 }
 
 func (lc *LinterConfig) SetLevel(level *Level) {
