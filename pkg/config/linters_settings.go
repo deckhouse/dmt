@@ -32,6 +32,10 @@ type LintersSettings struct {
 	Templates  TemplatesSettings  `mapstructure:"templates"`
 }
 
+type RuleConfig struct {
+	Impact *pkg.Level `mapstructure:"impact"`
+}
+
 func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
 	cfg.OpenAPI.Impact = calculateImpact(cfg.OpenAPI.Impact, lcfg.OpenAPI.Impact)
 	cfg.NoCyrillic.Impact = calculateImpact(cfg.NoCyrillic.Impact, lcfg.NoCyrillic.Impact)
@@ -41,10 +45,19 @@ func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
 	cfg.Rbac.Impact = calculateImpact(cfg.Rbac.Impact, lcfg.Rbac.Impact)
 	cfg.Hooks.Impact = calculateImpact(cfg.Hooks.Impact, lcfg.Hooks.Impact)
 	cfg.Module.Impact = calculateImpact(cfg.Module.Impact, lcfg.Module.Impact)
+
+	cfg.Container.RecommendedLabelsRule.Impact = calculateImpact(cfg.Container.RecommendedLabelsRule.Impact, lcfg.Container.RecommendedLabelsRule.Impact)
+
+	cfg.Images.Rules.DistrolessRule.Impact = calculateImpact(cfg.Images.Rules.DistrolessRule.Impact, lcfg.Images.Rules.DistrolessRule.Impact)
+	cfg.Images.Rules.ImageRule.Impact = calculateImpact(cfg.Images.Rules.ImageRule.Impact, lcfg.Images.Rules.ImageRule.Impact)
+	cfg.Images.Rules.PatchesRule.Impact = calculateImpact(cfg.Images.Rules.PatchesRule.Impact, lcfg.Images.Rules.PatchesRule.Impact)
+	cfg.Images.Rules.WerfRule.Impact = calculateImpact(cfg.Images.Rules.WerfRule.Impact, lcfg.Images.Rules.WerfRule.Impact)
 }
 
 type ContainerSettings struct {
 	ExcludeRules ContainerExcludeRules `mapstructure:"exclude-rules"`
+
+	RecommendedLabelsRule RuleConfig `mapstructure:"recommended-labels"`
 
 	Impact *pkg.Level `mapstructure:"impact"`
 }
@@ -79,6 +92,8 @@ type HooksIngressRuleSetting struct {
 type ImageSettings struct {
 	ExcludeRules ImageExcludeRules `mapstructure:"exclude-rules"`
 
+	Rules Rules `mapstructure:"rules"`
+
 	Patches PatchesRuleSettings `mapstructure:"patches"`
 	Werf    WerfRuleSettings    `mapstructure:"werf"`
 
@@ -88,6 +103,13 @@ type ImageSettings struct {
 type ImageExcludeRules struct {
 	SkipImageFilePathPrefix      PrefixRuleExcludeList `mapstructure:"skip-image-file-path-prefix"`
 	SkipDistrolessFilePathPrefix PrefixRuleExcludeList `mapstructure:"skip-distroless-file-path-prefix"`
+}
+
+type Rules struct {
+	DistrolessRule RuleConfig `mapstructure:"distroless"`
+	ImageRule      RuleConfig `mapstructure:"image"`
+	PatchesRule    RuleConfig `mapstructure:"patches"`
+	WerfRule       RuleConfig `mapstructure:"werf"`
 }
 
 type ModuleSettings struct {
