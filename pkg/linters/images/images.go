@@ -35,8 +35,8 @@ type Images struct {
 	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Images {
-	imageCfg := convertToImageLinterConfig(&cfg.LintersSettings.Images)
+func New(cfg *pkg.LintersSettings, errorList *errors.LintRuleErrorsList) *Images {
+	imageCfg := convertToImageLinterConfig(&cfg.Image)
 	return &Images{
 		name:      ID,
 		desc:      "Lint docker images",

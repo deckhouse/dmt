@@ -32,6 +32,7 @@ import (
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/internal/values"
 	"github.com/deckhouse/dmt/internal/werf"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	dmtErrors "github.com/deckhouse/dmt/pkg/errors"
 )
@@ -49,7 +50,7 @@ type Module struct {
 	objectStore *storage.UnstructuredObjectStore
 	werfFile    string
 
-	linterConfig *config.ModuleConfig
+	linterConfig *pkg.LintersSettings
 }
 
 type ModuleList []*Module
@@ -126,7 +127,7 @@ func (m *Module) GetWerfFile() string {
 	return m.werfFile
 }
 
-func (m *Module) GetModuleConfig() *config.ModuleConfig {
+func (m *Module) GetModuleConfig() *pkg.LintersSettings {
 	if m == nil {
 		return nil
 	}
@@ -137,7 +138,7 @@ func (m *Module) MergeRootConfig(cfg *config.RootConfig) {
 	m.linterConfig.LintersSettings.MergeGlobal(&cfg.GlobalSettings.Linters)
 }
 
-func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, errorList *dmtErrors.LintRuleErrorsList) (*Module, error) {
+func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, rootConfig *config.RootConfig, errorList *dmtErrors.LintRuleErrorsList) (*Module, error) {
 	module, err := newModuleFromPath(path)
 	if err != nil {
 		return nil, err
@@ -172,7 +173,11 @@ func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, e
 		return nil, fmt.Errorf("can not parse module config: %w", err)
 	}
 
-	module.linterConfig = cfg
+	// merge with root config
+	// remap to linters config
+	// mergedConfig:= MergeRootConfig(m.cfg)
+
+	module.linterConfig = // remapConfigToLintersSettings(mergedConfig)
 
 	return module, nil
 }
