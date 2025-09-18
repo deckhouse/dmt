@@ -16,9 +16,9 @@ func Test_SetLinterWarningsMetrics_AddsWarningsForAllLinters(t *testing.T) {
 	metrics = GetClient(".")
 	cfg := global.Global{
 		Linters: global.Linters{
-			Container:  global.LinterConfig{Impact: ptr.To(pkg.Warn)},
+			Container:  global.ContainerLinterConfig{},
 			Hooks:      global.LinterConfig{Impact: ptr.To(pkg.Warn)},
-			Images:     global.LinterConfig{Impact: ptr.To(pkg.Warn)},
+			Images:     global.ImagesLinterConfig{},
 			License:    global.LinterConfig{Impact: ptr.To(pkg.Warn)},
 			Module:     global.LinterConfig{Impact: ptr.To(pkg.Warn)},
 			NoCyrillic: global.LinterConfig{Impact: ptr.To(pkg.Warn)},
@@ -27,6 +27,9 @@ func Test_SetLinterWarningsMetrics_AddsWarningsForAllLinters(t *testing.T) {
 			Templates:  global.LinterConfig{Impact: ptr.To(pkg.Warn)},
 		},
 	}
+	cfg.Linters.Container.Impact = ptr.To(pkg.Warn)
+	cfg.Linters.Images.Impact = ptr.To(pkg.Warn)
+
 	SetLinterWarningsMetrics(cfg)
 	num, err := testutil.GatherAndCount(metrics.Gatherer, "dmt_linter_info")
 	require.NoError(t, err)
@@ -50,10 +53,13 @@ func Test_SetLinterWarningsMetrics_AddsWarningsForSpecificLinters(t *testing.T) 
 	metrics = GetClient(".")
 	cfg := global.Global{
 		Linters: global.Linters{
-			Container: global.LinterConfig{Impact: ptr.To(pkg.Warn)},
+			Container: global.ContainerLinterConfig{},
 			Hooks:     global.LinterConfig{Impact: nil},
 		},
 	}
+
+	cfg.Linters.Container.Impact = ptr.To(pkg.Warn)
+
 	SetLinterWarningsMetrics(cfg)
 	num, err := testutil.GatherAndCount(metrics.Gatherer, "dmt_linter_info")
 	require.NoError(t, err)

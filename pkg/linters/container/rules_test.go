@@ -8,12 +8,12 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/deckhouse/dmt/internal/storage"
-	"github.com/deckhouse/dmt/pkg/config"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 func TestApplyContainerRules_NoContainers(t *testing.T) {
-	cfg := &config.ContainerSettings{}
+	cfg := &pkg.ContainerLinterConfig{}
 	errList := errors.NewLintRuleErrorsList()
 	linter := &Container{cfg: cfg}
 
@@ -49,7 +49,7 @@ func TestApplyContainerRules_NoContainers(t *testing.T) {
 }
 
 func TestApplyContainerRules_ContainersError(t *testing.T) {
-	cfg := &config.ContainerSettings{}
+	cfg := &pkg.ContainerLinterConfig{}
 	errList := errors.NewLintRuleErrorsList()
 	linter := &Container{cfg: cfg}
 
@@ -68,7 +68,7 @@ func TestApplyContainerRules_ContainersError(t *testing.T) {
 }
 
 func TestApplyContainerRules_AllRules(t *testing.T) {
-	cfg := &config.ContainerSettings{}
+	cfg := &pkg.ContainerLinterConfig{}
 	errList := errors.NewLintRuleErrorsList()
 	linter := &Container{cfg: cfg}
 

@@ -135,17 +135,12 @@ func (m *Module) GetModuleConfig() *pkg.LintersSettings {
 }
 
 func RemapLinterSettings(configSettings *config.LintersSettings) *pkg.LintersSettings {
-	return &pkg.LintersSettings{
+	linterSettings := &pkg.LintersSettings{
 		Container: pkg.ContainerLinterConfig{
 			LinterConfig: pkg.LinterConfig{Impact: configSettings.Container.Impact},
 		},
 		Image: pkg.ImageLinterConfig{
 			LinterConfig: pkg.LinterConfig{Impact: configSettings.Images.Impact},
-			Rules: pkg.ImageLinterRules{
-				DistrolessRule: pkg.RuleConfig{
-					impact: configSettings.Images.Rules.DistrolessRule.Impact,
-				},
-			},
 		},
 		NoCyrillic: pkg.NoCyrillicLinterConfig{
 			LinterConfig: pkg.LinterConfig{Impact: configSettings.NoCyrillic.Impact},
@@ -166,6 +161,14 @@ func RemapLinterSettings(configSettings *config.LintersSettings) *pkg.LintersSet
 			LinterConfig: pkg.LinterConfig{Impact: configSettings.Module.Impact},
 		},
 	}
+
+	linterSettings.Image.Rules.DistrolessRule.SetLevel(configSettings.Images.Rules.DistrolessRule.Impact)
+	linterSettings.Image.Rules.ImageRule.SetLevel(configSettings.Images.Rules.ImageRule.Impact)
+	linterSettings.Image.Rules.PatchesRule.SetLevel(configSettings.Images.Rules.PatchesRule.Impact)
+	linterSettings.Image.Rules.WerfRule.SetLevel(configSettings.Images.Rules.WerfRule.Impact)
+	linterSettings.Container.Rules.RecommendedLabelsRule.SetLevel(configSettings.Container.RecommendedLabelsRule.Impact)
+
+	return linterSettings
 }
 
 func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, rootConfig *config.RootConfig, errorList *dmtErrors.LintRuleErrorsList) (*Module, error) {
