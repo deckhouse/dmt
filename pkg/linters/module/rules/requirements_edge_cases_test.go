@@ -431,3 +431,203 @@ func TestRequirementsRegistryEdgeCases(t *testing.T) {
 		})
 	}
 }
+
+func TestHasOptionalModules(t *testing.T) {
+	tests := []struct {
+		name        string
+		module      *DeckhouseModule
+		expected    bool
+		description string
+	}{
+		{
+			name:        "nil module",
+			module:      nil,
+			expected:    false,
+			description: "Should return false when module is nil",
+		},
+		{
+			name: "module without requirements",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+			},
+			expected:    false,
+			description: "Should return false when module has no requirements",
+		},
+		{
+			name: "module with nil requirements",
+			module: &DeckhouseModule{
+				Name:         "test-module",
+				Namespace:    "test",
+				Requirements: nil,
+			},
+			expected:    false,
+			description: "Should return false when requirements is nil",
+		},
+		{
+			name: "module with empty ParentModules",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+				Requirements: &ModuleRequirements{
+					ParentModules: map[string]string{},
+				},
+			},
+			expected:    false,
+			description: "Should return false when ParentModules is empty",
+		},
+		{
+			name: "module with non-optional dependencies",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+				Requirements: &ModuleRequirements{
+					ParentModules: map[string]string{
+						"module1": ">= 1.0.0",
+						"module2": "~1.2.0",
+					},
+				},
+			},
+			expected:    false,
+			description: "Should return false when all dependencies are non-optional",
+		},
+		{
+			name: "module with optional dependency",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+				Requirements: &ModuleRequirements{
+					ParentModules: map[string]string{
+						"module1": ">= 1.0.0 !optional",
+					},
+				},
+			},
+			expected:    true,
+			description: "Should return true when module has optional dependency",
+		},
+		{
+			name: "module with mixed dependencies",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+				Requirements: &ModuleRequirements{
+					ParentModules: map[string]string{
+						"module1": ">= 1.0.0",
+						"module2": ">= 1.2.0 !optional",
+						"module3": "~1.3.0",
+					},
+				},
+			},
+			expected:    true,
+			description: "Should return true when module has at least one optional dependency",
+		},
+		{
+			name: "module with multiple optional dependencies",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+				Requirements: &ModuleRequirements{
+					ParentModules: map[string]string{
+						"module1": ">= 1.0.0 !optional",
+						"module2": ">= 1.2.0 !optional",
+					},
+				},
+			},
+			expected:    true,
+			description: "Should return true when module has multiple optional dependencies",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := hasOptionalModules(tt.module)
+			assert.Equal(t, tt.expected, result, tt.description)
+		})
+	}
+}
+
+func TestOptionalModulesRequirementCheck(t *testing.T) {
+	helper := NewTestHelper(t)
+
+	tests := []struct {
+		name           string
+		module         *DeckhouseModule
+		expectedErrors []string
+		description    string
+	}{
+		{
+			name: "optional modules with sufficient deckhouse version",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: ">= 1.73.0",
+					},
+					ParentModules: map[string]string{
+						"module1": ">= 1.0.0 !optional",
+					},
+				},
+			},
+			expectedErrors: []string{},
+			description:    "Should pass when deckhouse version is >= 1.73.0 with optional modules",
+		},
+		{
+			name: "optional modules with insufficient deckhouse version",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: ">= 1.72.0",
+					},
+					ParentModules: map[string]string{
+						"module1": ">= 1.0.0 !optional",
+					},
+				},
+			},
+			expectedErrors: []string{"requirements [optional_modules]: Optional modules usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.73.0"},
+			description:    "Should fail when deckhouse version is < 1.73.0 with optional modules",
+		},
+		{
+			name: "optional modules without deckhouse version specified",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+				Requirements: &ModuleRequirements{
+					ParentModules: map[string]string{
+						"module1": ">= 1.0.0 !optional",
+					},
+				},
+			},
+			expectedErrors: []string{"requirements [optional_modules]: Optional modules usage requires minimum Deckhouse version, deckhouse version range should start no lower than 1.73.0"},
+			description:    "Should fail when deckhouse version is not specified with optional modules",
+		},
+		{
+			name: "no optional modules with old deckhouse version",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: ">= 1.70.0",
+					},
+					ParentModules: map[string]string{
+						"module1": ">= 1.0.0",
+					},
+				},
+			},
+			expectedErrors: []string{},
+			description:    "Should pass when no optional modules are used regardless of deckhouse version",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			registry := NewRequirementsRegistry()
+			errorList := errors.NewLintRuleErrorsList()
+			registry.RunAllChecks("", tt.module, errorList)
+			helper.AssertErrors(errorList, tt.expectedErrors)
+		})
+	}
+}

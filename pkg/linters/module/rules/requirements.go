@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/Masterminds/semver/v3"
 	"golang.org/x/mod/modfile"
@@ -39,6 +40,8 @@ const (
 	MinimalDeckhouseVersionForGoHooks = "1.68.0"
 	// MinimalDeckhouseVersionForReadinessProbes defines the minimum required Deckhouse version for readiness probes usage
 	MinimalDeckhouseVersionForReadinessProbes = "1.71.0"
+	// MinimalDeckhouseVersionForOptionalModules defines the minimum required Deckhouse version for optional modules usage
+	MinimalDeckhouseVersionForOptionalModules = "1.73.0"
 
 	// MinimalModuleSDKVersionForReadiness defines the minimum module-sdk version for readiness probes
 	MinimalModuleSDKVersionForReadiness = "0.3"
@@ -148,6 +151,22 @@ func NewRequirementsRegistry() *RequirementsRegistry {
 		Description: "Readiness probes usage requires minimum Deckhouse version",
 		Detector: func(modulePath string, _ *DeckhouseModule) bool {
 			return hasReadinessProbes(modulePath)
+		},
+	})
+
+	// Optional modules check - checks for !optional flag usage
+	registry.RegisterCheck(RequirementCheck{
+		Name: "optional_modules",
+		Requirements: []ComponentRequirement{
+			{
+				ComponentType: ComponentDeckhouse,
+				MinVersion:    MinimalDeckhouseVersionForOptionalModules,
+				Description:   "Optional modules usage requires minimum Deckhouse version",
+			},
+		},
+		Description: "Optional modules usage requires minimum Deckhouse version",
+		Detector: func(_ string, module *DeckhouseModule) bool {
+			return hasOptionalModules(module)
 		},
 	})
 
@@ -321,6 +340,20 @@ func hasGoHooks(modulePath string) bool {
 
 	// Check that there are app.Run calls only in directories with module-sdk dependency
 	return findPatternInGoFiles(validGoModDirs, appRunRegex)
+}
+
+// hasOptionalModules determines if there are optional module dependencies (with !optional flag)
+func hasOptionalModules(module *DeckhouseModule) bool {
+	if module == nil || module.Requirements == nil {
+		return false
+	}
+
+	for _, version := range module.Requirements.ParentModules {
+		if strings.Contains(version, "!optional") {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *RequirementsRule) CheckRequirements(modulePath string, errorList *errors.LintRuleErrorsList) {
