@@ -27,7 +27,7 @@ import (
 func (l *Container) applyContainerRules(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithFilePath(object.GetPath())
 
-	rules.NewRecommendedLabelsRule().ObjectRecommendedLabels(object, errorList.WithRule("recommended-labels").WithMaxLevel(l.cfg.GetRuleImpact("recommended-labels")))
+	rules.NewRecommendedLabelsRule().ObjectRecommendedLabels(object, errorList.WithRule("recommended-labels").WithMaxLevel(l.cfg.Rules.RecommendedLabelsRule.GetLevel()))
 	rules.NewNamespaceLabelsRule().ObjectNamespaceLabels(object, errorList)
 	rules.NewAPIVersionRule().ObjectAPIVersion(object, errorList)
 	rules.NewPriorityClassRule().ObjectPriorityClass(object, errorList)

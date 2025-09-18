@@ -12,8 +12,22 @@ func (rc *RuleConfig) GetLevel() *Level {
 	return rc.impact
 }
 
-func (rc *RuleConfig) SetLevel(level *Level) {
-	rc.impact = level
+func (rc *RuleConfig) SetLevel(level, backoff *Level) {
+	if level != nil {
+		rc.impact = level
+
+		return
+	}
+
+	if backoff != nil {
+		rc.impact = backoff
+
+		return
+	}
+
+	lvl := Error
+	rc.impact = &lvl
+
 }
 
 func (rc *RuleConfig) SetStringLevel(current, backoff string) {
@@ -37,16 +51,6 @@ func (rc *RuleConfig) SetStringLevel(current, backoff string) {
 
 func (lc *LinterConfig) SetLevel(level *Level) {
 	lc.Impact = level
-}
-
-func (clc *ContainerLinterConfig) GetRuleImpact(ruleID string) *Level {
-	switch ruleID {
-	case "recommended-labels":
-		if level := clc.Rules.RecommendedLabelsRule.GetLevel(); level != nil {
-			return level
-		}
-	}
-	return clc.Impact
 }
 
 type LintersSettings struct {

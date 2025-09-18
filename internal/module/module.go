@@ -162,11 +162,11 @@ func RemapLinterSettings(configSettings *config.LintersSettings) *pkg.LintersSet
 		},
 	}
 
-	linterSettings.Image.Rules.DistrolessRule.SetLevel(configSettings.Images.Rules.DistrolessRule.Impact)
-	linterSettings.Image.Rules.ImageRule.SetLevel(configSettings.Images.Rules.ImageRule.Impact)
-	linterSettings.Image.Rules.PatchesRule.SetLevel(configSettings.Images.Rules.PatchesRule.Impact)
-	linterSettings.Image.Rules.WerfRule.SetLevel(configSettings.Images.Rules.WerfRule.Impact)
-	linterSettings.Container.Rules.RecommendedLabelsRule.SetLevel(configSettings.Container.RecommendedLabelsRule.Impact)
+	linterSettings.Image.Rules.DistrolessRule.SetLevel(configSettings.Images.Rules.DistrolessRule.Impact, configSettings.Images.Impact)
+	linterSettings.Image.Rules.ImageRule.SetLevel(configSettings.Images.Rules.ImageRule.Impact, configSettings.Images.Impact)
+	linterSettings.Image.Rules.PatchesRule.SetLevel(configSettings.Images.Rules.PatchesRule.Impact, configSettings.Images.Impact)
+	linterSettings.Image.Rules.WerfRule.SetLevel(configSettings.Images.Rules.WerfRule.Impact, configSettings.Images.Impact)
+	linterSettings.Container.Rules.RecommendedLabelsRule.SetLevel(configSettings.Container.RecommendedLabelsRule.Impact, configSettings.Container.Impact)
 
 	return linterSettings
 }
