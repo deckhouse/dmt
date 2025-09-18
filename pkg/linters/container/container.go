@@ -19,7 +19,6 @@ package container
 import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg"
-	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
@@ -34,61 +33,13 @@ type Container struct {
 	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Container {
-	containerCfg := convertToContainerLinterConfig(&cfg.LintersSettings.Container)
+func New(containerCfg *pkg.ContainerLinterConfig, errorList *errors.LintRuleErrorsList) *Container {
 	return &Container{
 		name:      ID,
 		desc:      "Lint container objects",
 		cfg:       containerCfg,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(containerCfg.Impact),
 	}
-}
-
-func convertToContainerLinterConfig(oldCfg *config.ContainerSettings) *pkg.ContainerLinterConfig {
-	newCfg := &pkg.ContainerLinterConfig{}
-	newCfg.Impact = oldCfg.Impact
-
-	newCfg.Rules.RecommendedLabelsRule.SetLevel(oldCfg.RecommendedLabelsRule.Impact)
-
-	newCfg.ExcludeRules = pkg.ContainerExcludeRules{
-		ControllerSecurityContext: convertKindRuleExcludeList(oldCfg.ExcludeRules.ControllerSecurityContext),
-		DNSPolicy:                 convertKindRuleExcludeList(oldCfg.ExcludeRules.DNSPolicy),
-		HostNetworkPorts:          convertContainerRuleExcludeList(oldCfg.ExcludeRules.HostNetworkPorts),
-		Ports:                     convertContainerRuleExcludeList(oldCfg.ExcludeRules.Ports),
-		ReadOnlyRootFilesystem:    convertContainerRuleExcludeList(oldCfg.ExcludeRules.ReadOnlyRootFilesystem),
-		ImageDigest:               convertContainerRuleExcludeList(oldCfg.ExcludeRules.ImageDigest),
-		Resources:                 convertContainerRuleExcludeList(oldCfg.ExcludeRules.Resources),
-		SecurityContext:           convertContainerRuleExcludeList(oldCfg.ExcludeRules.SecurityContext),
-		Liveness:                  convertContainerRuleExcludeList(oldCfg.ExcludeRules.Liveness),
-		Readiness:                 convertContainerRuleExcludeList(oldCfg.ExcludeRules.Readiness),
-		Description:               convertStringRuleExcludeList(oldCfg.ExcludeRules.Description),
-	}
-
-	return newCfg
-}
-
-func convertKindRuleExcludeList(oldList config.KindRuleExcludeList) pkg.KindRuleExcludeList {
-	newList := make(pkg.KindRuleExcludeList, len(oldList))
-	for i, item := range oldList {
-		newList[i] = pkg.KindRuleExclude{Kind: item.Kind, Name: item.Name}
-	}
-	return newList
-}
-
-func convertContainerRuleExcludeList(oldList config.ContainerRuleExcludeList) pkg.ContainerRuleExcludeList {
-	newList := make(pkg.ContainerRuleExcludeList, len(oldList))
-	for i, item := range oldList {
-		newList[i] = pkg.ContainerRuleExclude{Kind: item.Kind, Name: item.Name, Container: item.Container}
-	}
-	return newList
-}
-
-func convertStringRuleExcludeList(oldList config.StringRuleExcludeList) pkg.StringRuleExcludeList {
-	newList := make(pkg.StringRuleExcludeList, len(oldList))
-	for i, item := range oldList {
-		newList[i] = string(item)
-	}
-	return newList
 }
 
 func (l *Container) Run(m *module.Module) {

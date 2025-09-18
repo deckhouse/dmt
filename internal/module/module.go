@@ -134,8 +134,38 @@ func (m *Module) GetModuleConfig() *pkg.LintersSettings {
 	return m.linterConfig
 }
 
-func (m *Module) MergeRootConfig(cfg *config.RootConfig) {
-	m.linterConfig.LintersSettings.MergeGlobal(&cfg.GlobalSettings.Linters)
+func RemapLinterSettings(configSettings *config.LintersSettings) *pkg.LintersSettings {
+	return &pkg.LintersSettings{
+		Container: pkg.ContainerLinterConfig{
+			LinterConfig: pkg.LinterConfig{Impact: configSettings.Container.Impact},
+		},
+		Image: pkg.ImageLinterConfig{
+			LinterConfig: pkg.LinterConfig{Impact: configSettings.Images.Impact},
+			Rules: pkg.ImageLinterRules{
+				DistrolessRule: pkg.RuleConfig{
+					impact: configSettings.Images.Rules.DistrolessRule.Impact,
+				},
+			},
+		},
+		NoCyrillic: pkg.NoCyrillicLinterConfig{
+			LinterConfig: pkg.LinterConfig{Impact: configSettings.NoCyrillic.Impact},
+		},
+		OpenAPI: pkg.OpenAPILinterConfig{
+			LinterConfig: pkg.LinterConfig{Impact: configSettings.OpenAPI.Impact},
+		},
+		Templates: pkg.TemplatesLinterConfig{
+			LinterConfig: pkg.LinterConfig{Impact: configSettings.Templates.Impact},
+		},
+		RBAC: pkg.RBACLinterConfig{
+			LinterConfig: pkg.LinterConfig{Impact: configSettings.Rbac.Impact},
+		},
+		Hooks: pkg.HooksLinterConfig{
+			LinterConfig: pkg.LinterConfig{Impact: configSettings.Hooks.Impact},
+		},
+		Module: pkg.ModuleLinterConfig{
+			LinterConfig: pkg.LinterConfig{Impact: configSettings.Module.Impact},
+		},
+	}
 }
 
 func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, rootConfig *config.RootConfig, errorList *dmtErrors.LintRuleErrorsList) (*Module, error) {
@@ -168,16 +198,15 @@ func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, r
 		module.werfFile = werfFile
 	}
 
+	// Load module config
 	cfg := &config.ModuleConfig{}
 	if err := config.NewLoader(cfg, path).Load(); err != nil {
 		return nil, fmt.Errorf("can not parse module config: %w", err)
 	}
 
-	// merge with root config
-	// remap to linters config
-	// mergedConfig:= MergeRootConfig(m.cfg)
+	cfg.LintersSettings.MergeGlobal(&rootConfig.GlobalSettings.Linters)
 
-	module.linterConfig = // remapConfigToLintersSettings(mergedConfig)
+	module.linterConfig = RemapLinterSettings(&cfg.LintersSettings)
 
 	return module, nil
 }

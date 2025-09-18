@@ -24,25 +24,24 @@ import (
 
 	"github.com/deckhouse/dmt/internal/openapi"
 	"github.com/deckhouse/dmt/pkg"
-	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 type HARule struct {
-	cfg *config.OpenAPISettings
+	cfg *pkg.OpenAPILinterConfig
 	pkg.RuleMeta
 	pkg.StringRule
 	rootPath string
 }
 
-func NewHARule(cfg *config.OpenAPISettings, rootPath string) *HARule {
+func NewHARule(cfg *pkg.OpenAPILinterConfig, rootPath string) *HARule {
 	return &HARule{
 		cfg: cfg,
 		RuleMeta: pkg.RuleMeta{
 			Name: "high-availability",
 		},
 		StringRule: pkg.StringRule{
-			ExcludeRules: cfg.OpenAPIExcludeRules.HAAbsoluteKeysExcludes.Get(),
+			ExcludeRules: cfg.ExcludeRules.HAAbsoluteKeysExcludes.Get(),
 		},
 		rootPath: rootPath,
 	}

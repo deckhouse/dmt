@@ -26,12 +26,11 @@ import (
 
 	"github.com/deckhouse/dmt/internal/openapi"
 	"github.com/deckhouse/dmt/pkg"
-	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 type EnumRule struct {
-	cfg      *config.OpenAPISettings
+	cfg      *pkg.OpenAPILinterConfig
 	rootPath string
 	pkg.RuleMeta
 }
@@ -40,7 +39,7 @@ var (
 	arrayPathRegex = regexp.MustCompile(`[\d+]`)
 )
 
-func NewEnumRule(cfg *config.OpenAPISettings, rootPath string) *EnumRule {
+func NewEnumRule(cfg *pkg.OpenAPILinterConfig, rootPath string) *EnumRule {
 	return &EnumRule{
 		cfg: cfg,
 		RuleMeta: pkg.RuleMeta{
@@ -62,14 +61,14 @@ func (e *EnumRule) Run(path string, errorList *errors.LintRuleErrorsList) {
 }
 
 type enumValidator struct {
-	cfg *config.OpenAPISettings
+	cfg *pkg.OpenAPILinterConfig
 
 	excludes map[string]struct{}
 }
 
-func newEnumValidator(cfg *config.OpenAPISettings) enumValidator {
+func newEnumValidator(cfg *pkg.OpenAPILinterConfig) enumValidator {
 	excludes := make(map[string]struct{})
-	for _, exc := range cfg.OpenAPIExcludeRules.EnumFileExcludes {
+	for _, exc := range cfg.ExcludeRules.EnumFileExcludes {
 		excludes[exc+".enum"] = struct{}{}
 	}
 	return enumValidator{

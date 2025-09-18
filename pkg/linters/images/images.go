@@ -19,7 +19,6 @@ package images
 import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg"
-	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/images/rules"
 )
@@ -35,29 +34,13 @@ type Images struct {
 	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *pkg.LintersSettings, errorList *errors.LintRuleErrorsList) *Images {
-	imageCfg := convertToImageLinterConfig(&cfg.Image)
+func New(imageCfg *pkg.ImageLinterConfig, errorList *errors.LintRuleErrorsList) *Images {
 	return &Images{
 		name:      ID,
 		desc:      "Lint docker images",
 		cfg:       imageCfg,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(imageCfg.Impact),
 	}
-}
-
-func convertToImageLinterConfig(oldCfg *config.ImageSettings) *pkg.ImageLinterConfig {
-	newCfg := &pkg.ImageLinterConfig{}
-	newCfg.Impact = oldCfg.Impact
-
-	newCfg.Rules.DistrolessRule.SetLevel(oldCfg.Rules.DistrolessRule.Impact)
-	newCfg.Rules.ImageRule.SetLevel(oldCfg.Rules.ImageRule.Impact)
-	newCfg.Rules.PatchesRule.SetLevel(oldCfg.Rules.PatchesRule.Impact)
-	newCfg.Rules.WerfRule.SetLevel(oldCfg.Rules.WerfRule.Impact)
-
-	newCfg.Patches.Disable = oldCfg.Patches.Disable
-	newCfg.Werf.Disable = oldCfg.Werf.Disable
-
-	return newCfg
 }
 
 func (l *Images) Run(m *module.Module) {
@@ -67,27 +50,10 @@ func (l *Images) Run(m *module.Module) {
 
 	errorList := l.ErrorList.WithModule(m.GetName())
 
-	oldCfg := l.convertToOldConfig()
-
-	rules.NewImageRule(oldCfg).CheckImageNamesInDockerFiles(m.GetPath(), errorList.WithRule("image").WithMaxLevel(l.cfg.GetRuleImpact("image")))
-	rules.NewDistrolessRule(oldCfg).CheckImageNamesInDockerFiles(m.GetPath(), errorList.WithRule("distroless").WithMaxLevel(l.cfg.GetRuleImpact("distroless")))
-	rules.NewWerfRule(l.cfg.Werf.Disable).LintWerfFile(m.GetName(), m.GetWerfFile(), errorList.WithRule("werf").WithMaxLevel(l.cfg.GetRuleImpact("werf")))
-	rules.NewPatchesRule(l.cfg.Patches.Disable).CheckPatches(m.GetPath(), errorList.WithRule("patches").WithMaxLevel(l.cfg.GetRuleImpact("patches")))
-}
-
-func (l *Images) convertToOldConfig() *config.ImageSettings {
-	return &config.ImageSettings{
-		ExcludeRules: config.ImageExcludeRules{},
-		Rules: config.Rules{
-			DistrolessRule: config.RuleConfig{Impact: l.cfg.Rules.DistrolessRule.GetLevel()},
-			ImageRule:      config.RuleConfig{Impact: l.cfg.Rules.ImageRule.GetLevel()},
-			PatchesRule:    config.RuleConfig{Impact: l.cfg.Rules.PatchesRule.GetLevel()},
-			WerfRule:       config.RuleConfig{Impact: l.cfg.Rules.WerfRule.GetLevel()},
-		},
-		Patches: config.PatchesRuleSettings{Disable: l.cfg.Patches.Disable},
-		Werf:    config.WerfRuleSettings{Disable: l.cfg.Werf.Disable},
-		Impact:  l.cfg.Impact,
-	}
+	rules.NewImageRule(l.cfg).CheckImageNamesInDockerFiles(m.GetPath(), errorList.WithRule("image").WithMaxLevel(l.cfg.Rules.ImageRule.GetLevel()))
+	rules.NewDistrolessRule(l.cfg).CheckImageNamesInDockerFiles(m.GetPath(), errorList.WithRule("distroless").WithMaxLevel(l.cfg.Rules.DistrolessRule.GetLevel()))
+	rules.NewWerfRule(l.cfg.Werf.Disable).LintWerfFile(m.GetName(), m.GetWerfFile(), errorList.WithRule("werf").WithMaxLevel(l.cfg.Rules.WerfRule.GetLevel()))
+	rules.NewPatchesRule(l.cfg.Patches.Disable).CheckPatches(m.GetPath(), errorList.WithRule("patches").WithMaxLevel(l.cfg.Rules.PatchesRule.GetLevel()))
 }
 
 func (l *Images) Name() string {

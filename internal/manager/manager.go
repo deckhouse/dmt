@@ -116,8 +116,6 @@ func (m *Manager) initManager(dir string) *Manager {
 			continue
 		}
 
-		// mdl.MergeRootConfig(m.cfg)
-
 		m.Modules = append(m.Modules, mdl)
 	}
 
@@ -172,14 +170,14 @@ func (m *Manager) Run() {
 
 func getLintersForModule(cfg *pkg.LintersSettings, errList *errors.LintRuleErrorsList) []Linter {
 	return []Linter{
-		openapi.New(cfg, errList),
-		no_cyrillic.New(cfg, errList),
-		container.New(cfg, errList),
-		templates.New(cfg, errList),
-		images.New(cfg.Image, errList),
-		rbac.New(cfg, errList),
-		hooks.New(cfg, errList),
-		moduleLinter.New(cfg, errList),
+		openapi.New(&cfg.OpenAPI, errList),
+		no_cyrillic.New(&cfg.NoCyrillic, errList),
+		container.New(&cfg.Container, errList),
+		templates.New(&cfg.Templates, errList),
+		images.New(&cfg.Image, errList),
+		rbac.New(&cfg.RBAC, errList),
+		hooks.New(&cfg.Hooks, errList),
+		moduleLinter.New(&cfg.Module, errList),
 	}
 }
 

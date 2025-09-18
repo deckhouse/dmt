@@ -26,7 +26,6 @@ import (
 
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/pkg"
-	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
@@ -60,13 +59,13 @@ type ImageRule struct {
 	pkg.PrefixRule
 }
 
-func NewImageRule(cfg *config.ImageSettings) *ImageRule {
+func NewImageRule(cfg *pkg.ImageLinterConfig) *ImageRule {
 	return &ImageRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: dockerfileRuleName,
 		},
 		PrefixRule: pkg.PrefixRule{
-			ExcludeRules: cfg.ExcludeRules.SkipImageFilePathPrefix.Get(),
+			ExcludeRules: cfg.ExcludeRules.SkipDistrolessFilePathPrefix.Get(),
 		},
 	}
 }

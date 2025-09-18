@@ -1,7 +1,5 @@
 package pkg
 
-import "github.com/deckhouse/dmt/pkg"
-
 type LinterConfig struct {
 	Impact *Level
 }
@@ -20,44 +18,25 @@ func (rc *RuleConfig) SetLevel(level *Level) {
 
 func (rc *RuleConfig) SetStringLevel(current, backoff string) {
 	if current != "" {
-		rc.impact = pkg.ParseStringToLevel(current)
+		level := ParseStringToLevel(current)
+		rc.impact = &level
 
 		return
 	}
 
 	if backoff != "" {
-		rc.impact = pkg.ParseStringToLevel(backoff)
+		level := ParseStringToLevel(backoff)
+		rc.impact = &level
 
 		return
 	}
 
-	rc.impact = pkg.Error
+	level := Error
+	rc.impact = &level
 }
 
 func (lc *LinterConfig) SetLevel(level *Level) {
 	lc.Impact = level
-}
-
-func (ilc *ImageLinterConfig) GetRuleImpact(ruleID string) *Level {
-	switch ruleID {
-	case "distroless":
-		if level := ilc.Rules.DistrolessRule.GetLevel(); level != nil {
-			return level
-		}
-	case "image":
-		if level := ilc.Rules.ImageRule.GetLevel(); level != nil {
-			return level
-		}
-	case "patches":
-		if level := ilc.Rules.PatchesRule.GetLevel(); level != nil {
-			return level
-		}
-	case "werf":
-		if level := ilc.Rules.WerfRule.GetLevel(); level != nil {
-			return level
-		}
-	}
-	return ilc.Impact
 }
 
 func (clc *ContainerLinterConfig) GetRuleImpact(ruleID string) *Level {
@@ -71,8 +50,167 @@ func (clc *ContainerLinterConfig) GetRuleImpact(ruleID string) *Level {
 }
 
 type LintersSettings struct {
-	Container ContainerLinterConfig
-	Image     ImageLinterConfig
+	Container  ContainerLinterConfig
+	Image      ImageLinterConfig
+	NoCyrillic NoCyrillicLinterConfig
+	OpenAPI    OpenAPILinterConfig
+	Templates  TemplatesLinterConfig
+	RBAC       RBACLinterConfig
+	Hooks      HooksLinterConfig
+	Module     ModuleLinterConfig
+}
+
+type NoCyrillicLinterConfig struct {
+	LinterConfig
+	Rules        NoCyrillicLinterRules
+	ExcludeRules NoCyrillicExcludeRules
+}
+type NoCyrillicLinterRules struct {
+	NoCyrillicRule RuleConfig
+}
+
+type NoCyrillicExcludeRules struct {
+	Files       StringRuleExcludeList
+	Directories PrefixRuleExcludeList
+}
+
+type OpenAPILinterConfig struct {
+	LinterConfig
+	Rules        OpenAPILinterRules
+	ExcludeRules OpenAPIExcludeRules
+}
+type OpenAPILinterRules struct {
+	EnumRule RuleConfig
+	HARule   RuleConfig
+	CRDsRule RuleConfig
+	KeysRule RuleConfig
+}
+
+type OpenAPIExcludeRules struct {
+	KeyBannedNames         []string
+	EnumFileExcludes       []string
+	HAAbsoluteKeysExcludes StringRuleExcludeList
+	CRDNamesExcludes       StringRuleExcludeList
+}
+
+type TemplatesLinterConfig struct {
+	LinterConfig
+	Rules                     TemplatesLinterRules
+	ExcludeRules              TemplatesExcludeRules
+	PrometheusRuleSettings    PrometheusRuleSettings
+	GrafanaDashboardsSettings GrafanaDashboardsSettings
+}
+type TemplatesLinterRules struct {
+	VPARule           RuleConfig
+	PDBRule           RuleConfig
+	IngressRule       RuleConfig
+	PrometheusRule    RuleConfig
+	GrafanaRule       RuleConfig
+	KubeRBACProxyRule RuleConfig
+	ServicePortRule   RuleConfig
+	ClusterDomainRule RuleConfig
+}
+
+type PrometheusRuleSettings struct {
+	Disable bool
+}
+
+type GrafanaDashboardsSettings struct {
+	Disable bool
+}
+type TemplatesExcludeRules struct {
+	VPAAbsent     KindRuleExcludeList
+	PDBAbsent     KindRuleExcludeList
+	ServicePort   ServicePortExcludeList
+	KubeRBACProxy StringRuleExcludeList
+	Ingress       KindRuleExcludeList
+}
+
+type ServicePortExcludeList []ServicePortExclude
+
+func (l ServicePortExcludeList) Get() []ServicePortExclude {
+	result := make([]ServicePortExclude, 0, len(l))
+
+	for idx := range l {
+		result = append(result, *remapServicePortRuleExclude(&l[idx]))
+	}
+
+	return result
+}
+
+func remapServicePortRuleExclude(input *ServicePortExclude) *ServicePortExclude {
+	return &ServicePortExclude{
+		Name: input.Name,
+		Port: input.Port,
+	}
+}
+
+type RBACLinterConfig struct {
+	LinterConfig
+	Rules        RBACLinterRules
+	ExcludeRules RBACExcludeRules
+}
+type RBACLinterRules struct {
+	UserAuthRule  RuleConfig
+	BindingRule   RuleConfig
+	PlacementRule RuleConfig
+	WildcardsRule RuleConfig
+}
+
+type RBACExcludeRules struct {
+	BindingSubject StringRuleExcludeList
+	Placement      KindRuleExcludeList
+	Wildcards      KindRuleExcludeList
+}
+type HooksLinterConfig struct {
+	LinterConfig
+	Rules               HooksLinterRules
+	IngressRuleSettings IngressRuleSettings
+}
+type HooksLinterRules struct {
+	HooksRule RuleConfig
+}
+type IngressRuleSettings struct {
+	Disable bool
+}
+
+type ModuleLinterConfig struct {
+	LinterConfig
+	Rules                      ModuleLinterRules
+	OSSRuleSettings            OSSRuleSettings
+	DefinitionFileRuleSettings DefinitionFileRuleSettings
+	ConversionsRuleSettings    ConversionsRuleSettings
+	HelmignoreRuleSettings     HelmignoreRuleSettings
+	ExcludeRules               ModuleExcludeRules
+}
+type ModuleLinterRules struct {
+	DefinitionFileRule RuleConfig
+	OSSRule            RuleConfig
+	ConversionRule     RuleConfig
+	HelmignoreRule     RuleConfig
+	LicenseRule        RuleConfig
+	RequarementsRule   RuleConfig
+}
+type OSSRuleSettings struct {
+	Disable bool
+}
+
+type DefinitionFileRuleSettings struct {
+	Disable bool
+}
+type ConversionsRuleSettings struct {
+	Disable bool
+}
+type HelmignoreRuleSettings struct {
+	Disable bool
+}
+type ModuleExcludeRules struct {
+	License LicenseExcludeRule
+}
+
+type LicenseExcludeRule struct {
+	Files       StringRuleExcludeList `mapstructure:"files"`
+	Directories PrefixRuleExcludeList `mapstructure:"directories"`
 }
 
 type ContainerLinterConfig struct {
@@ -105,6 +243,20 @@ type ImageLinterRules struct {
 }
 
 type ImageExcludeRules struct {
+	SkipImageFilePathPrefix      PrefixRuleExcludeList
+	SkipDistrolessFilePathPrefix PrefixRuleExcludeList
+}
+
+type PrefixRuleExcludeList []string
+
+func (l PrefixRuleExcludeList) Get() []PrefixRuleExclude {
+	result := make([]PrefixRuleExclude, 0, len(l))
+
+	for idx := range l {
+		result = append(result, PrefixRuleExclude(l[idx]))
+	}
+
+	return result
 }
 
 type ContainerLinterRules struct {

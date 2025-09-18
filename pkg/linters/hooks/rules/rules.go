@@ -29,7 +29,6 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
-	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
@@ -38,13 +37,13 @@ type HookRule struct {
 	pkg.BoolRule
 }
 
-func NewHookRule(cfg *config.HooksSettings) *HookRule {
+func NewHookRule(cfg *pkg.HooksLinterConfig) *HookRule {
 	return &HookRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: "ingress",
 		},
 		BoolRule: pkg.BoolRule{
-			Exclude: cfg.Ingress.Disable,
+			Exclude: cfg.IngressRuleSettings.Disable,
 		},
 	}
 }
