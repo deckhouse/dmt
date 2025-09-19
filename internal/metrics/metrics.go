@@ -18,6 +18,7 @@ package metrics
 
 import (
 	"cmp"
+	"fmt"
 	"os"
 	"reflect"
 	"strings"
@@ -68,21 +69,38 @@ func SetDmtInfo() {
 	})
 }
 
+// TODO: refactor this ASAP
 func SetLinterWarningsMetrics(cfg *global.Global) {
-	v := reflect.ValueOf(&cfg.Linters).Elem()
+	processLinterConfig("", reflect.ValueOf(&cfg.Linters).Elem())
+}
+
+func processLinterConfig(parent string, v reflect.Value) {
 	for i := range v.NumField() {
 		field := v.Field(i)
 		fType := v.Type().Field(i)
 
-		if field.CanInterface() {
-			linterConfig, ok := field.Interface().(global.LinterConfig)
-			if ok && linterConfig.IsWarn() {
-				metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
-					"id":     metrics.id,
-					"linter": strings.ToLower(fType.Name),
-					"level":  linterConfig.Impact,
-				})
+		if !field.CanInterface() {
+			continue
+		}
+
+		// Check if current field is a LinterConfig
+		if linterConfig, ok := field.Interface().(global.LinterConfig); ok && linterConfig.IsWarn() {
+			name := parent
+			if parent == "" {
+				name = fType.Name
 			}
+			fmt.Println(strings.ToLower(name))
+
+			metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
+				"id":     metrics.id,
+				"linter": strings.ToLower(name),
+				"level":  linterConfig.Impact,
+			})
+		}
+
+		// Recursively process nested structs
+		if field.Kind() == reflect.Struct {
+			processLinterConfig(fType.Name, field)
 		}
 	}
 }

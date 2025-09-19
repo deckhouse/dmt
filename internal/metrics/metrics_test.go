@@ -26,6 +26,7 @@ func Test_SetLinterWarningsMetrics_AddsWarningsForAllLinters(t *testing.T) {
 			Templates:  global.LinterConfig{Impact: pkg.Warn.String()},
 		},
 	}
+
 	cfg.Linters.Container.Impact = pkg.Warn.String()
 	cfg.Linters.Images.Impact = pkg.Warn.String()
 
@@ -53,7 +54,7 @@ func Test_SetLinterWarningsMetrics_AddsWarningsForSpecificLinters(t *testing.T) 
 	cfg := &global.Global{
 		Linters: global.Linters{
 			Container: global.ContainerLinterConfig{},
-			Hooks:     global.LinterConfig{Impact: ""},
+			Hooks:     global.LinterConfig{},
 		},
 	}
 
