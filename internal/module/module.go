@@ -178,6 +178,9 @@ func mapRuleSettings(linterSettings *pkg.LintersSettings, configSettings *config
 	// Image rules (uses global rule config + local fallback)
 	mapImageRules(linterSettings, configSettings, globalConfig)
 
+	// Documentation rules (uses global rule config + local fallback)
+	mapDocumentationRules(linterSettings, configSettings, globalConfig)
+
 	// Other linter rules (use local linter-level impact)
 	mapSimpleLinterRules(linterSettings, configSettings)
 }
@@ -200,6 +203,16 @@ func mapImageRules(linterSettings *pkg.LintersSettings, configSettings *config.L
 	rules.ImageRule.SetLevel(globalRules.ImageRule.Impact, fallbackImpact)
 	rules.PatchesRule.SetLevel(globalRules.PatchesRule.Impact, fallbackImpact)
 	rules.WerfRule.SetLevel(globalRules.WerfRule.Impact, fallbackImpact)
+}
+
+func mapDocumentationRules(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings, globalConfig *global.Linters) {
+	rules := &linterSettings.Documentation.Rules
+	globalRules := &globalConfig.Documentation.Rules
+	fallbackImpact := configSettings.Documentation.Impact
+
+	rules.BilingualRule.SetLevel(globalRules.BilingualRule.Impact, fallbackImpact)
+	rules.ReadmeRule.SetLevel(globalRules.ReadmeRule.Impact, fallbackImpact)
+	rules.CyrillicInEnglishRule.SetLevel(globalRules.NoCyrillicExcludeRules.Impact, fallbackImpact)
 }
 
 // mapSimpleLinterRules configures rules that use linter-level impact without global overrides
@@ -246,13 +259,6 @@ func mapSimpleLinterRules(linterSettings *pkg.LintersSettings, configSettings *c
 	module.HelmignoreRule.SetLevel("", moduleImpact)
 	module.LicenseRule.SetLevel("", moduleImpact)
 	module.RequarementsRule.SetLevel("", moduleImpact)
-
-	// Documentation rules
-	documentationImpact := configSettings.Documentation.Impact
-	documentation := &linterSettings.Documentation.Rules
-	documentation.BilingualRule.SetLevel("", documentationImpact)
-	documentation.CyrillicInEnglishRule.SetLevel("", documentationImpact)
-	documentation.ReadmeRule.SetLevel("", documentationImpact)
 }
 
 // mapExclusionRulesAndSettings maps exclusion rules and additional linter settings
