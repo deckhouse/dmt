@@ -23,7 +23,7 @@ import (
 
 // RootConfig encapsulates the config data specified in the YAML config file.
 type RootConfig struct {
-	GlobalSettings global.Global `mapstructure:"global"`
+	GlobalSettings *global.Global `mapstructure:"global"`
 }
 
 type ModuleConfig struct {
@@ -45,7 +45,9 @@ func calculateImpact(backoff, input string) string {
 }
 
 func NewDefaultRootConfig(dir string) (*RootConfig, error) {
-	cfg := &RootConfig{}
+	cfg := &RootConfig{
+		GlobalSettings: &global.Global{},
+	}
 
 	if err := NewLoader(cfg, dir).Load(); err != nil {
 		return nil, err
