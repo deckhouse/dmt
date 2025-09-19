@@ -40,13 +40,13 @@ type LinterConfig struct {
 }
 
 type ContainerLinterConfig struct {
-	LinterConfig
+	LinterConfig          `mapstructure:",squash"`
 	RecommendedLabelsRule RuleConfig `mapstructure:"recommended-labels"`
 }
 
 type ImagesLinterConfig struct {
-	LinterConfig
-	Rules ImageRules `mapstructure:"rules"`
+	LinterConfig `mapstructure:",squash"`
+	Rules        ImageRules `mapstructure:"rules"`
 }
 
 type ImageRules struct {
@@ -61,8 +61,8 @@ type RuleConfig struct {
 }
 
 type DocumentationLinterConfig struct {
-	LinterConfig
-	Rules DocumentationRules `mapstructure:"rules"`
+	LinterConfig `mapstructure:",squash"`
+	Rules        DocumentationRules `mapstructure:"rules"`
 }
 
 type DocumentationRules struct {
