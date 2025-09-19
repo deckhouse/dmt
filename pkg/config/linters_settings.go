@@ -309,7 +309,7 @@ type DocumentationSettings struct {
 
 	Bilingual DocumentationBilingualRuleSettings `mapstructure:"bilingual"`
 
-	Impact *pkg.Level `mapstructure:"impact"`
+	Impact string `mapstructure:"impact"`
 }
 
 type DocumentationExcludeRules struct {

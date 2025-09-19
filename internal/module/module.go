@@ -167,6 +167,7 @@ func mapLinterLevels(linterSettings *pkg.LintersSettings, configSettings *config
 	linterSettings.RBAC.SetLevel(configSettings.Rbac.Impact)
 	linterSettings.Hooks.SetLevel(configSettings.Hooks.Impact)
 	linterSettings.Module.SetLevel(configSettings.Module.Impact)
+	linterSettings.Documentation.SetLevel(configSettings.Documentation.Impact)
 }
 
 // mapRuleSettings configures individual rules with their specific impact levels
@@ -245,6 +246,13 @@ func mapSimpleLinterRules(linterSettings *pkg.LintersSettings, configSettings *c
 	module.HelmignoreRule.SetLevel("", moduleImpact)
 	module.LicenseRule.SetLevel("", moduleImpact)
 	module.RequarementsRule.SetLevel("", moduleImpact)
+
+	// Documentation rules
+	documentationImpact := configSettings.Documentation.Impact
+	documentation := &linterSettings.Documentation.Rules
+	documentation.BilingualRule.SetLevel("", documentationImpact)
+	documentation.CyrillicInEnglishRule.SetLevel("", documentationImpact)
+	documentation.ReadmeRule.SetLevel("", documentationImpact)
 }
 
 // mapExclusionRulesAndSettings maps exclusion rules and additional linter settings
@@ -257,6 +265,7 @@ func mapExclusionRulesAndSettings(linterSettings *pkg.LintersSettings, configSet
 	mapRBACExclusions(linterSettings, configSettings)
 	mapHooksSettings(linterSettings, configSettings)
 	mapModuleExclusionsAndSettings(linterSettings, configSettings)
+	mapDocumentationExclusionsAndSettings(linterSettings, configSettings)
 }
 
 // mapContainerExclusions maps Container linter exclusion rules
@@ -354,6 +363,17 @@ func mapModuleExclusionsAndSettings(linterSettings *pkg.LintersSettings, configS
 	linterSettings.Module.DefinitionFileRuleSettings.Disable = configSettings.Module.DefinitionFile.Disable
 	linterSettings.Module.ConversionsRuleSettings.Disable = configSettings.Module.Conversions.Disable
 	linterSettings.Module.HelmignoreRuleSettings.Disable = configSettings.Module.Helmignore.Disable
+}
+
+// mapDocumentationExclusionsAndSettings maps Documentation linter exclusions and settings
+func mapDocumentationExclusionsAndSettings(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings) {
+	excludes := &linterSettings.Documentation.ExcludeRules
+	configExcludes := &configSettings.Documentation.ExcludeRules
+
+	excludes.Readme.Modules = pkg.StringRuleExcludeList(configExcludes.Readme.Modules)
+	excludes.Bilingual.Modules = pkg.StringRuleExcludeList(configExcludes.Bilingual.Modules)
+	excludes.CyrillicInEnglish.Files = pkg.StringRuleExcludeList(configExcludes.CyrillicInEnglish.Files)
+	excludes.CyrillicInEnglish.Directories = pkg.PrefixRuleExcludeList(configExcludes.CyrillicInEnglish.Directories)
 }
 
 func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, rootConfig *config.RootConfig, errorList *dmtErrors.LintRuleErrorsList) (*Module, error) {

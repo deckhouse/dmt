@@ -23,15 +23,16 @@ type Global struct {
 }
 
 type Linters struct {
-	Container  ContainerLinterConfig `mapstructure:"container"`
-	Hooks      LinterConfig          `mapstructure:"hooks"`
-	Images     ImagesLinterConfig    `mapstructure:"images"`
-	License    LinterConfig          `mapstructure:"license"`
-	Module     LinterConfig          `mapstructure:"module"`
-	NoCyrillic LinterConfig          `mapstructure:"no-cyrillic"`
-	OpenAPI    LinterConfig          `mapstructure:"openapi"`
-	Rbac       LinterConfig          `mapstructure:"rbac"`
-	Templates  LinterConfig          `mapstructure:"templates"`
+	Container     ContainerLinterConfig `mapstructure:"container"`
+	Hooks         LinterConfig          `mapstructure:"hooks"`
+	Images        ImagesLinterConfig    `mapstructure:"images"`
+	License       LinterConfig          `mapstructure:"license"`
+	Module        LinterConfig          `mapstructure:"module"`
+	NoCyrillic    LinterConfig          `mapstructure:"no-cyrillic"`
+	OpenAPI       LinterConfig          `mapstructure:"openapi"`
+	Rbac          LinterConfig          `mapstructure:"rbac"`
+	Templates     LinterConfig          `mapstructure:"templates"`
+	Documentation LinterConfig          `mapstructure:"documentation"`
 }
 
 type LinterConfig struct {

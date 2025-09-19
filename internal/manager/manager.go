@@ -179,6 +179,7 @@ func getLintersForModule(cfg *pkg.LintersSettings, errList *errors.LintRuleError
 		rbac.New(&cfg.RBAC, errList),
 		hooks.New(&cfg.Hooks, errList),
 		moduleLinter.New(&cfg.Module, errList),
+		docs.New(&cfg.Documentation, errList),
 	}
 }
 
