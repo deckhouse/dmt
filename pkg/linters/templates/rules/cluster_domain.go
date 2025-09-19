@@ -44,12 +44,7 @@ func NewClusterDomainRule() *ClusterDomainRule {
 	}
 }
 
-type iModuleWithPath interface {
-	GetName() string
-	GetPath() string
-}
-
-func (r *ClusterDomainRule) ValidateClusterDomainInTemplates(m iModuleWithPath, errorList *errors.LintRuleErrorsList) {
+func (r *ClusterDomainRule) ValidateClusterDomainInTemplates(m pkg.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithFilePath(m.GetPath()).WithRule(r.GetName())
 
 	templatesPath := filepath.Join(m.GetPath(), "templates")

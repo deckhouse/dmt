@@ -88,11 +88,7 @@ func (*rulesCacheStruct) Get(hash string) (checkResult, bool) {
 	return res, ok
 }
 
-type ModuleInterface interface {
-	GetPath() string
-}
-
-func (r *PrometheusRule) ValidatePrometheusRules(m ModuleInterface, errorList *errors.LintRuleErrorsList) {
+func (r *PrometheusRule) ValidatePrometheusRules(m pkg.Module, errorList *errors.LintRuleErrorsList) {
 	if !r.Enabled() {
 		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
 	}
@@ -163,7 +159,7 @@ func isContentMatching(content []byte, desiredContent string) bool {
 	return false
 }
 
-func (r *PrometheusRule) PromtoolRuleCheck(m ModuleInterface, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+func (r *PrometheusRule) PromtoolRuleCheck(m pkg.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	if !r.Enabled() {
 		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
 	}

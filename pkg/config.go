@@ -63,14 +63,26 @@ func (rc *RuleConfig) SetStringLevel(current, backoff string) {
 }
 
 type LintersSettings struct {
-	Container  ContainerLinterConfig
-	Image      ImageLinterConfig
-	NoCyrillic NoCyrillicLinterConfig
-	OpenAPI    OpenAPILinterConfig
-	Templates  TemplatesLinterConfig
-	RBAC       RBACLinterConfig
-	Hooks      HooksLinterConfig
-	Module     ModuleLinterConfig
+	Container     ContainerLinterConfig
+	Image         ImageLinterConfig
+	NoCyrillic    NoCyrillicLinterConfig
+	OpenAPI       OpenAPILinterConfig
+	Templates     TemplatesLinterConfig
+	RBAC          RBACLinterConfig
+	Hooks         HooksLinterConfig
+	Module        ModuleLinterConfig
+	Documentation DocumentationLinterConfig
+}
+
+type DocumentationLinterConfig struct {
+	LinterConfig
+	Rules DocumentationLinterRules
+}
+
+type DocumentationLinterRules struct {
+	ReadmeRule            RuleConfig
+	BilingualRule         RuleConfig
+	CyrillicInEnglishRule RuleConfig
 }
 
 type NoCyrillicLinterConfig struct {

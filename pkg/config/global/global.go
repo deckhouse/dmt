@@ -23,15 +23,16 @@ type Global struct {
 }
 
 type Linters struct {
-	Container  ContainerLinterConfig `mapstructure:"container"`
-	Hooks      LinterConfig          `mapstructure:"hooks"`
-	Images     ImagesLinterConfig    `mapstructure:"images"`
-	License    LinterConfig          `mapstructure:"license"`
-	Module     LinterConfig          `mapstructure:"module"`
-	NoCyrillic LinterConfig          `mapstructure:"no-cyrillic"`
-	OpenAPI    LinterConfig          `mapstructure:"openapi"`
-	Rbac       LinterConfig          `mapstructure:"rbac"`
-	Templates  LinterConfig          `mapstructure:"templates"`
+	Container     ContainerLinterConfig     `mapstructure:"container"`
+	Hooks         LinterConfig              `mapstructure:"hooks"`
+	Images        ImagesLinterConfig        `mapstructure:"images"`
+	License       LinterConfig              `mapstructure:"license"`
+	Module        LinterConfig              `mapstructure:"module"`
+	NoCyrillic    LinterConfig              `mapstructure:"no-cyrillic"`
+	OpenAPI       LinterConfig              `mapstructure:"openapi"`
+	Rbac          LinterConfig              `mapstructure:"rbac"`
+	Templates     LinterConfig              `mapstructure:"templates"`
+	Documentation DocumentationLinterConfig `mapstructure:"documentation"`
 }
 
 type LinterConfig struct {
@@ -39,16 +40,16 @@ type LinterConfig struct {
 }
 
 type ContainerLinterConfig struct {
-	LinterConfig
+	LinterConfig          `mapstructure:",squash"`
 	RecommendedLabelsRule RuleConfig `mapstructure:"recommended-labels"`
 }
 
 type ImagesLinterConfig struct {
-	LinterConfig
-	Rules Rules `mapstructure:"rules"`
+	LinterConfig `mapstructure:",squash"`
+	Rules        ImageRules `mapstructure:"rules"`
 }
 
-type Rules struct {
+type ImageRules struct {
 	DistrolessRule RuleConfig `mapstructure:"distroless"`
 	ImageRule      RuleConfig `mapstructure:"image"`
 	PatchesRule    RuleConfig `mapstructure:"patches"`
@@ -57,6 +58,17 @@ type Rules struct {
 
 type RuleConfig struct {
 	Impact string `mapstructure:"impact"`
+}
+
+type DocumentationLinterConfig struct {
+	LinterConfig `mapstructure:",squash"`
+	Rules        DocumentationRules `mapstructure:"rules"`
+}
+
+type DocumentationRules struct {
+	BilingualRule          RuleConfig `mapstructure:"bilingual"`
+	ReadmeRule             RuleConfig `mapstructure:"readme"`
+	NoCyrillicExcludeRules RuleConfig `mapstructure:"cyrillic-in-english"`
 }
 
 func (c LinterConfig) IsWarn() bool {

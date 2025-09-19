@@ -22,14 +22,15 @@ import (
 )
 
 type LintersSettings struct {
-	Container  ContainerSettings  `mapstructure:"container"`
-	Hooks      HooksSettings      `mapstructure:"hooks"`
-	Images     ImageSettings      `mapstructure:"images"`
-	Module     ModuleSettings     `mapstructure:"module"`
-	NoCyrillic NoCyrillicSettings `mapstructure:"no-cyrillic"`
-	OpenAPI    OpenAPISettings    `mapstructure:"openapi"`
-	Rbac       RbacSettings       `mapstructure:"rbac"`
-	Templates  TemplatesSettings  `mapstructure:"templates"`
+	Container     ContainerSettings     `mapstructure:"container"`
+	Documentation DocumentationSettings `mapstructure:"documentation"`
+	Hooks         HooksSettings         `mapstructure:"hooks"`
+	Images        ImageSettings         `mapstructure:"images"`
+	Module        ModuleSettings        `mapstructure:"module"`
+	NoCyrillic    NoCyrillicSettings    `mapstructure:"no-cyrillic"`
+	OpenAPI       OpenAPISettings       `mapstructure:"openapi"`
+	Rbac          RbacSettings          `mapstructure:"rbac"`
+	Templates     TemplatesSettings     `mapstructure:"templates"`
 }
 
 type RuleConfig struct {
@@ -40,6 +41,7 @@ func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
 	cfg.OpenAPI.Impact = calculateImpact(cfg.OpenAPI.Impact, lcfg.OpenAPI.Impact)
 	cfg.NoCyrillic.Impact = calculateImpact(cfg.NoCyrillic.Impact, lcfg.NoCyrillic.Impact)
 	cfg.Container.Impact = calculateImpact(cfg.Container.Impact, lcfg.Container.Impact)
+	cfg.Documentation.Impact = calculateImpact(cfg.Documentation.Impact, lcfg.Documentation.Impact)
 	cfg.Templates.Impact = calculateImpact(cfg.Templates.Impact, lcfg.Templates.Impact)
 	cfg.Images.Impact = calculateImpact(cfg.Images.Impact, lcfg.Images.Impact)
 	cfg.Rbac.Impact = calculateImpact(cfg.Rbac.Impact, lcfg.Rbac.Impact)
@@ -300,4 +302,8 @@ func remapContainerRuleExclude(input *ContainerRuleExclude) *pkg.ContainerRuleEx
 		Name:      input.Name,
 		Container: input.Container,
 	}
+}
+
+type DocumentationSettings struct {
+	Impact string `mapstructure:"impact"`
 }

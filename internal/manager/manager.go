@@ -42,6 +42,7 @@ import (
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/container"
+	"github.com/deckhouse/dmt/pkg/linters/docs"
 	"github.com/deckhouse/dmt/pkg/linters/hooks"
 	"github.com/deckhouse/dmt/pkg/linters/images"
 	moduleLinter "github.com/deckhouse/dmt/pkg/linters/module"
@@ -178,6 +179,7 @@ func getLintersForModule(cfg *pkg.LintersSettings, errList *errors.LintRuleError
 		rbac.New(&cfg.RBAC, errList),
 		hooks.New(&cfg.Hooks, errList),
 		moduleLinter.New(&cfg.Module, errList),
+		docs.New(&cfg.Documentation, errList),
 	}
 }
 
