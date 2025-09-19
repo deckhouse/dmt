@@ -15,13 +15,10 @@ const (
 	ReadmeRuleName = "readme"
 )
 
-func NewReadmeRule(excludeModuleRules []pkg.StringRuleExclude) *ReadmeRule {
+func NewReadmeRule() *ReadmeRule {
 	return &ReadmeRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: ReadmeRuleName,
-		},
-		PathRule: pkg.PathRule{
-			ExcludeStringRules: excludeModuleRules,
 		},
 	}
 }

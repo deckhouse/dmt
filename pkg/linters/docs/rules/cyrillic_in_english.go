@@ -26,15 +26,10 @@ var (
 	markdownExtensions = []string{".md", ".markdown"}
 )
 
-func NewCyrillicInEnglishRule(excludeFileRules []pkg.StringRuleExclude,
-	excludeDirectoryRules []pkg.PrefixRuleExclude) *CyrillicInEnglishRule {
+func NewCyrillicInEnglishRule() *CyrillicInEnglishRule {
 	return &CyrillicInEnglishRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: CyrillicInEnglishRuleName,
-		},
-		PathRule: pkg.PathRule{
-			ExcludeStringRules: excludeFileRules,
-			ExcludePrefixRules: excludeDirectoryRules,
 		},
 	}
 }

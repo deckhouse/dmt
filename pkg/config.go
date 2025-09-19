@@ -76,38 +76,13 @@ type LintersSettings struct {
 
 type DocumentationLinterConfig struct {
 	LinterConfig
-	Rules         DocumentationLinterRules
-	ExcludeRules  DocumentationExcludeRules
-	BilingualRule BilingualRuleSettings
+	Rules DocumentationLinterRules
 }
 
 type DocumentationLinterRules struct {
 	ReadmeRule            RuleConfig
 	BilingualRule         RuleConfig
 	CyrillicInEnglishRule RuleConfig
-}
-
-type BilingualRuleSettings struct {
-	Disable bool
-}
-
-type DocumentationExcludeRules struct {
-	Readme            DocumentationReadmeExcludeRules
-	Bilingual         DocumentationBilingualExcludeRules
-	CyrillicInEnglish DocumentationCyrillicInEnglishExcludeRules
-}
-
-type DocumentationReadmeExcludeRules struct {
-	Modules StringRuleExcludeList
-}
-
-type DocumentationBilingualExcludeRules struct {
-	Modules StringRuleExcludeList
-}
-
-type DocumentationCyrillicInEnglishExcludeRules struct {
-	Files       StringRuleExcludeList
-	Directories PrefixRuleExcludeList
 }
 
 type NoCyrillicLinterConfig struct {

@@ -305,32 +305,5 @@ func remapContainerRuleExclude(input *ContainerRuleExclude) *pkg.ContainerRuleEx
 }
 
 type DocumentationSettings struct {
-	ExcludeRules DocumentationExcludeRules `mapstructure:"exclude-rules"`
-
-	Bilingual DocumentationBilingualRuleSettings `mapstructure:"bilingual"`
-
 	Impact string `mapstructure:"impact"`
-}
-
-type DocumentationExcludeRules struct {
-	Readme            DocumentationReadmeExcludeRules            `mapstructure:"readme"`
-	Bilingual         DocumentationBilingualExcludeRules         `mapstructure:"bilingual"`
-	CyrillicInEnglish DocumentationCyrillicInEnglishExcludeRules `mapstructure:"cyrillic-in-english"`
-}
-
-type DocumentationReadmeExcludeRules struct {
-	Modules StringRuleExcludeList `mapstructure:"modules"`
-}
-
-type DocumentationBilingualExcludeRules struct {
-	Modules StringRuleExcludeList `mapstructure:"modules"`
-}
-
-type DocumentationCyrillicInEnglishExcludeRules struct {
-	Files       StringRuleExcludeList `mapstructure:"files"`
-	Directories PrefixRuleExcludeList `mapstructure:"directories"`
-}
-
-type DocumentationBilingualRuleSettings struct {
-	Disable bool `mapstructure:"disable"`
 }

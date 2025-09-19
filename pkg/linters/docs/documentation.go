@@ -37,19 +37,11 @@ func (l *Documentation) Run(m *module.Module) {
 
 	errorList := l.ErrorList.WithModule(m.GetName())
 
-	rules.NewReadmeRule(
-		l.cfg.ExcludeRules.Readme.Modules.Get(),
-	).CheckReadme(m, errorList)
+	rules.NewReadmeRule().CheckReadme(m, errorList)
 
-	rules.NewBilingualRule(
-		l.cfg.ExcludeRules.Bilingual.Modules.Get(),
-		l.cfg.BilingualRule.Disable,
-	).CheckBilingual(m, errorList)
+	rules.NewBilingualRule().CheckBilingual(m, errorList)
 
-	rules.NewCyrillicInEnglishRule(
-		l.cfg.ExcludeRules.CyrillicInEnglish.Files.Get(),
-		l.cfg.ExcludeRules.CyrillicInEnglish.Directories.Get(),
-	).CheckFiles(m, errorList)
+	rules.NewCyrillicInEnglishRule().CheckFiles(m, errorList)
 }
 
 func (l *Documentation) Name() string {

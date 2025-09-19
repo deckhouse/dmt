@@ -15,15 +15,11 @@ const (
 	BilingualRuleName = "bilingual"
 )
 
-func NewBilingualRule(excludeModuleRules []pkg.StringRuleExclude, disable bool) *BilingualRule {
+func NewBilingualRule() *BilingualRule {
 	return &BilingualRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: BilingualRuleName,
 		},
-		PathRule: pkg.PathRule{
-			ExcludeStringRules: excludeModuleRules,
-		},
-		disable: disable,
 	}
 }
 

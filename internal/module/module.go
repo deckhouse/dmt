@@ -265,7 +265,7 @@ func mapExclusionRulesAndSettings(linterSettings *pkg.LintersSettings, configSet
 	mapRBACExclusions(linterSettings, configSettings)
 	mapHooksSettings(linterSettings, configSettings)
 	mapModuleExclusionsAndSettings(linterSettings, configSettings)
-	mapDocumentationExclusionsAndSettings(linterSettings, configSettings)
+	// no excluded rules - mapDocumentationExclusionsAndSettings(linterSettings, configSettings)
 }
 
 // mapContainerExclusions maps Container linter exclusion rules
@@ -363,17 +363,6 @@ func mapModuleExclusionsAndSettings(linterSettings *pkg.LintersSettings, configS
 	linterSettings.Module.DefinitionFileRuleSettings.Disable = configSettings.Module.DefinitionFile.Disable
 	linterSettings.Module.ConversionsRuleSettings.Disable = configSettings.Module.Conversions.Disable
 	linterSettings.Module.HelmignoreRuleSettings.Disable = configSettings.Module.Helmignore.Disable
-}
-
-// mapDocumentationExclusionsAndSettings maps Documentation linter exclusions and settings
-func mapDocumentationExclusionsAndSettings(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings) {
-	excludes := &linterSettings.Documentation.ExcludeRules
-	configExcludes := &configSettings.Documentation.ExcludeRules
-
-	excludes.Readme.Modules = pkg.StringRuleExcludeList(configExcludes.Readme.Modules)
-	excludes.Bilingual.Modules = pkg.StringRuleExcludeList(configExcludes.Bilingual.Modules)
-	excludes.CyrillicInEnglish.Files = pkg.StringRuleExcludeList(configExcludes.CyrillicInEnglish.Files)
-	excludes.CyrillicInEnglish.Directories = pkg.PrefixRuleExcludeList(configExcludes.CyrillicInEnglish.Directories)
 }
 
 func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, rootConfig *config.RootConfig, errorList *dmtErrors.LintRuleErrorsList) (*Module, error) {
