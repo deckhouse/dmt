@@ -18,7 +18,7 @@ package module
 
 import (
 	"github.com/deckhouse/dmt/internal/module"
-	"github.com/deckhouse/dmt/pkg/config"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/module/rules"
 )
@@ -26,18 +26,18 @@ import (
 // Module linter
 type Module struct {
 	name, desc string
-	cfg        *config.ModuleSettings
+	cfg        *pkg.ModuleLinterConfig
 	ErrorList  *errors.LintRuleErrorsList
 }
 
 const ID = "module"
 
-func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Module {
+func New(cfg *pkg.ModuleLinterConfig, errorList *errors.LintRuleErrorsList) *Module {
 	return &Module{
 		name:      ID,
 		desc:      "Lint module rules",
-		cfg:       &cfg.LintersSettings.Module,
-		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Module.Impact),
+		cfg:       cfg,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.Impact),
 	}
 }
 
@@ -48,10 +48,10 @@ func (l *Module) Run(m *module.Module) {
 
 	errorList := l.ErrorList.WithModule(m.GetName())
 
-	rules.NewDefinitionFileRule(l.cfg.DefinitionFile.Disable).CheckDefinitionFile(m.GetPath(), errorList)
-	rules.NewOSSRule(l.cfg.OSS.Disable).OssModuleRule(m.GetPath(), errorList)
-	rules.NewConversionsRule(l.cfg.Conversions.Disable).CheckConversions(m.GetPath(), errorList)
-	rules.NewHelmignoreRule(l.cfg.Helmignore.Disable).CheckHelmignore(m.GetPath(), errorList)
+	rules.NewDefinitionFileRule(l.cfg.DefinitionFileRuleSettings.Disable).CheckDefinitionFile(m.GetPath(), errorList)
+	rules.NewOSSRule(l.cfg.OSSRuleSettings.Disable).OssModuleRule(m.GetPath(), errorList)
+	rules.NewConversionsRule(l.cfg.ConversionsRuleSettings.Disable).CheckConversions(m.GetPath(), errorList)
+	rules.NewHelmignoreRule(l.cfg.HelmignoreRuleSettings.Disable).CheckHelmignore(m.GetPath(), errorList)
 	rules.NewLicenseRule(l.cfg.ExcludeRules.License.Files.Get(), l.cfg.ExcludeRules.License.Directories.Get()).
 		CheckFiles(m, errorList)
 	rules.NewRequirementsRule().CheckRequirements(m.GetPath(), errorList)

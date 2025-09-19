@@ -18,7 +18,7 @@ package container
 
 import (
 	"github.com/deckhouse/dmt/internal/module"
-	"github.com/deckhouse/dmt/pkg/config"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
@@ -29,16 +29,16 @@ const (
 // Container linter
 type Container struct {
 	name, desc string
-	cfg        *config.ContainerSettings
+	cfg        *pkg.ContainerLinterConfig
 	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Container {
+func New(containerCfg *pkg.ContainerLinterConfig, errorList *errors.LintRuleErrorsList) *Container {
 	return &Container{
 		name:      ID,
 		desc:      "Lint container objects",
-		cfg:       &cfg.LintersSettings.Container,
-		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Container.Impact),
+		cfg:       containerCfg,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(containerCfg.Impact),
 	}
 }
 

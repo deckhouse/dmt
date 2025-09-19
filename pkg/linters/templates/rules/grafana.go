@@ -21,7 +21,6 @@ import (
 
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg"
-	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 
 	"os"
@@ -33,10 +32,10 @@ const (
 	GrafanaRuleName = "grafana"
 )
 
-func NewGrafanaRule(cfg *config.TemplatesSettings) *GrafanaRule {
+func NewGrafanaRule(cfg *pkg.TemplatesLinterConfig) *GrafanaRule {
 	var exclude bool
 	if cfg != nil {
-		exclude = cfg.GrafanaDashboards.Disable
+		exclude = cfg.GrafanaDashboardsSettings.Disable
 	}
 	return &GrafanaRule{
 		RuleMeta: pkg.RuleMeta{

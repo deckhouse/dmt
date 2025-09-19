@@ -5,7 +5,8 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+    http://www.apa	linterSettings.NoCyrillic.ExcludeRules.Files = pkg.StringRuleExcludeList(configSettings.NoCyrillic.NoCyrillicExcludeRules.Files)
+	linterSettings.NoCyrillic.ExcludeRules.Directories = pkg.PrefixRuleExcludeList(configSettings.NoCyrillic.NoCyrillicExcludeRules.Directories)e.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -34,6 +35,7 @@ import (
 	"github.com/deckhouse/dmt/internal/werf"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
+	"github.com/deckhouse/dmt/pkg/config/global"
 	dmtErrors "github.com/deckhouse/dmt/pkg/errors"
 )
 
@@ -53,7 +55,7 @@ type Module struct {
 	objectStore *storage.UnstructuredObjectStore
 	werfFile    string
 
-	linterConfig *config.ModuleConfig
+	linterConfig *pkg.LintersSettings
 }
 
 type ModuleList []*Module
@@ -130,18 +132,231 @@ func (m *Module) GetWerfFile() string {
 	return m.werfFile
 }
 
-func (m *Module) GetModuleConfig() *config.ModuleConfig {
+func (m *Module) GetModuleConfig() *pkg.LintersSettings {
 	if m == nil {
 		return nil
 	}
 	return m.linterConfig
 }
 
-func (m *Module) MergeRootConfig(cfg *config.RootConfig) {
-	m.linterConfig.LintersSettings.MergeGlobal(&cfg.GlobalSettings.Linters)
+// remapLinterSettings converts configuration settings from the config package format
+// to the pkg package format, mapping both rule-level configurations and exclusion rules
+// across all linter domains (Container, Image, NoCyrillic, OpenAPI, Templates, RBAC, Hooks, Module).
+func remapLinterSettings(configSettings *config.LintersSettings, globalConfig *global.Linters) *pkg.LintersSettings {
+	linterSettings := &pkg.LintersSettings{}
+
+	// Step 1: Configure linter-level impact settings
+	mapLinterLevels(linterSettings, configSettings)
+
+	// Step 2: Configure individual rule impact settings
+	mapRuleSettings(linterSettings, configSettings, globalConfig)
+
+	// Step 3: Map exclusion rules and additional settings
+	mapExclusionRulesAndSettings(linterSettings, configSettings)
+
+	return linterSettings
 }
 
-func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, errorList *dmtErrors.LintRuleErrorsList) (*Module, error) {
+// mapLinterLevels sets the impact level for each linter domain
+func mapLinterLevels(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings) {
+	linterSettings.Container.SetLevel(configSettings.Container.Impact)
+	linterSettings.Image.SetLevel(configSettings.Images.Impact)
+	linterSettings.NoCyrillic.SetLevel(configSettings.NoCyrillic.Impact)
+	linterSettings.OpenAPI.SetLevel(configSettings.OpenAPI.Impact)
+	linterSettings.Templates.SetLevel(configSettings.Templates.Impact)
+	linterSettings.RBAC.SetLevel(configSettings.Rbac.Impact)
+	linterSettings.Hooks.SetLevel(configSettings.Hooks.Impact)
+	linterSettings.Module.SetLevel(configSettings.Module.Impact)
+}
+
+// mapRuleSettings configures individual rules with their specific impact levels
+func mapRuleSettings(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings, globalConfig *global.Linters) {
+	// Container rules (uses global rule config + local fallback)
+	mapContainerRules(linterSettings, configSettings, globalConfig)
+
+	// Image rules (uses global rule config + local fallback)
+	mapImageRules(linterSettings, configSettings, globalConfig)
+
+	// Other linter rules (use local linter-level impact)
+	mapSimpleLinterRules(linterSettings, configSettings)
+}
+
+// mapContainerRules configures Container linter rules
+func mapContainerRules(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings, globalConfig *global.Linters) {
+	linterSettings.Container.Rules.RecommendedLabelsRule.SetLevel(
+		globalConfig.Container.RecommendedLabelsRule.Impact,
+		configSettings.Container.Impact,
+	)
+}
+
+// mapImageRules configures Image linter rules
+func mapImageRules(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings, globalConfig *global.Linters) {
+	rules := &linterSettings.Image.Rules
+	globalRules := &globalConfig.Images.Rules
+	fallbackImpact := configSettings.Images.Impact
+
+	rules.DistrolessRule.SetLevel(globalRules.DistrolessRule.Impact, fallbackImpact)
+	rules.ImageRule.SetLevel(globalRules.ImageRule.Impact, fallbackImpact)
+	rules.PatchesRule.SetLevel(globalRules.PatchesRule.Impact, fallbackImpact)
+	rules.WerfRule.SetLevel(globalRules.WerfRule.Impact, fallbackImpact)
+}
+
+// mapSimpleLinterRules configures rules that use linter-level impact without global overrides
+func mapSimpleLinterRules(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings) {
+	// NoCyrillic rules
+	linterSettings.NoCyrillic.Rules.NoCyrillicRule.SetLevel("", configSettings.NoCyrillic.Impact)
+
+	// OpenAPI rules
+	openAPIImpact := configSettings.OpenAPI.Impact
+	linterSettings.OpenAPI.Rules.EnumRule.SetLevel("", openAPIImpact)
+	linterSettings.OpenAPI.Rules.HARule.SetLevel("", openAPIImpact)
+	linterSettings.OpenAPI.Rules.CRDsRule.SetLevel("", openAPIImpact)
+	linterSettings.OpenAPI.Rules.KeysRule.SetLevel("", openAPIImpact)
+
+	// Templates rules
+	templatesImpact := configSettings.Templates.Impact
+	templates := &linterSettings.Templates.Rules
+	templates.VPARule.SetLevel("", templatesImpact)
+	templates.PDBRule.SetLevel("", templatesImpact)
+	templates.IngressRule.SetLevel("", templatesImpact)
+	templates.PrometheusRule.SetLevel("", templatesImpact)
+	templates.GrafanaRule.SetLevel("", templatesImpact)
+	templates.KubeRBACProxyRule.SetLevel("", templatesImpact)
+	templates.ServicePortRule.SetLevel("", templatesImpact)
+	templates.ClusterDomainRule.SetLevel("", templatesImpact)
+
+	// RBAC rules
+	rbacImpact := configSettings.Rbac.Impact
+	rbac := &linterSettings.RBAC.Rules
+	rbac.UserAuthRule.SetLevel("", rbacImpact)
+	rbac.BindingRule.SetLevel("", rbacImpact)
+	rbac.PlacementRule.SetLevel("", rbacImpact)
+	rbac.WildcardsRule.SetLevel("", rbacImpact)
+
+	// Hooks rules
+	linterSettings.Hooks.Rules.HooksRule.SetLevel("", configSettings.Hooks.Impact)
+
+	// Module rules
+	moduleImpact := configSettings.Module.Impact
+	module := &linterSettings.Module.Rules
+	module.DefinitionFileRule.SetLevel("", moduleImpact)
+	module.OSSRule.SetLevel("", moduleImpact)
+	module.ConversionRule.SetLevel("", moduleImpact)
+	module.HelmignoreRule.SetLevel("", moduleImpact)
+	module.LicenseRule.SetLevel("", moduleImpact)
+	module.RequarementsRule.SetLevel("", moduleImpact)
+}
+
+// mapExclusionRulesAndSettings maps exclusion rules and additional linter settings
+func mapExclusionRulesAndSettings(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings) {
+	mapContainerExclusions(linterSettings, configSettings)
+	mapImageExclusionsAndSettings(linterSettings, configSettings)
+	mapNoCyrillicExclusions(linterSettings, configSettings)
+	mapOpenAPIExclusions(linterSettings, configSettings)
+	mapTemplatesExclusionsAndSettings(linterSettings, configSettings)
+	mapRBACExclusions(linterSettings, configSettings)
+	mapHooksSettings(linterSettings, configSettings)
+	mapModuleExclusionsAndSettings(linterSettings, configSettings)
+}
+
+// mapContainerExclusions maps Container linter exclusion rules
+func mapContainerExclusions(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings) {
+	excludes := &linterSettings.Container.ExcludeRules
+	configExcludes := &configSettings.Container.ExcludeRules
+
+	excludes.ControllerSecurityContext = configExcludes.ControllerSecurityContext.Get()
+	excludes.DNSPolicy = configExcludes.DNSPolicy.Get()
+	excludes.HostNetworkPorts = configExcludes.HostNetworkPorts.Get()
+	excludes.Ports = configExcludes.Ports.Get()
+	excludes.ReadOnlyRootFilesystem = configExcludes.ReadOnlyRootFilesystem.Get()
+	excludes.ImageDigest = configExcludes.ImageDigest.Get()
+	excludes.Resources = configExcludes.Resources.Get()
+	excludes.SecurityContext = configExcludes.SecurityContext.Get()
+	excludes.Liveness = configExcludes.Liveness.Get()
+	excludes.Readiness = configExcludes.Readiness.Get()
+	excludes.Description = pkg.StringRuleExcludeList(configExcludes.Description)
+}
+
+// mapImageExclusionsAndSettings maps Image linter exclusions and additional settings
+func mapImageExclusionsAndSettings(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings) {
+	// Exclusion rules
+	excludes := &linterSettings.Image.ExcludeRules
+	configExcludes := &configSettings.Images.ExcludeRules
+	excludes.SkipImageFilePathPrefix = pkg.PrefixRuleExcludeList(configExcludes.SkipImageFilePathPrefix)
+	excludes.SkipDistrolessFilePathPrefix = pkg.PrefixRuleExcludeList(configExcludes.SkipDistrolessFilePathPrefix)
+
+	// Additional settings
+	linterSettings.Image.Patches.Disable = configSettings.Images.Patches.Disable
+	linterSettings.Image.Werf.Disable = configSettings.Images.Werf.Disable
+}
+
+// mapNoCyrillicExclusions maps NoCyrillic linter exclusion rules
+func mapNoCyrillicExclusions(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings) {
+	excludes := &linterSettings.NoCyrillic.ExcludeRules
+	configExcludes := &configSettings.NoCyrillic.NoCyrillicExcludeRules
+
+	excludes.Files = pkg.StringRuleExcludeList(configExcludes.Files)
+	excludes.Directories = pkg.PrefixRuleExcludeList(configExcludes.Directories)
+}
+
+// mapOpenAPIExclusions maps OpenAPI linter exclusion rules
+func mapOpenAPIExclusions(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings) {
+	excludes := &linterSettings.OpenAPI.ExcludeRules
+	configExcludes := &configSettings.OpenAPI.OpenAPIExcludeRules
+
+	excludes.KeyBannedNames = configExcludes.KeyBannedNames
+	excludes.EnumFileExcludes = configExcludes.EnumFileExcludes
+	excludes.HAAbsoluteKeysExcludes = pkg.StringRuleExcludeList(configExcludes.HAAbsoluteKeysExcludes)
+	excludes.CRDNamesExcludes = pkg.StringRuleExcludeList(configExcludes.CRDNamesExcludes)
+}
+
+// mapTemplatesExclusionsAndSettings maps Templates linter exclusions and settings
+func mapTemplatesExclusionsAndSettings(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings) {
+	// Exclusion rules
+	excludes := &linterSettings.Templates.ExcludeRules
+	configExcludes := &configSettings.Templates.ExcludeRules
+	excludes.VPAAbsent = configExcludes.VPAAbsent.Get()
+	excludes.PDBAbsent = configExcludes.PDBAbsent.Get()
+	excludes.ServicePort = configExcludes.ServicePort.Get()
+	excludes.KubeRBACProxy = pkg.StringRuleExcludeList(configExcludes.KubeRBACProxy)
+	excludes.Ingress = configExcludes.Ingress.Get()
+
+	// Additional settings
+	linterSettings.Templates.PrometheusRuleSettings.Disable = configSettings.Templates.PrometheusRules.Disable
+	linterSettings.Templates.GrafanaDashboardsSettings.Disable = configSettings.Templates.GrafanaDashboards.Disable
+}
+
+// mapRBACExclusions maps RBAC linter exclusion rules
+func mapRBACExclusions(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings) {
+	excludes := &linterSettings.RBAC.ExcludeRules
+	configExcludes := &configSettings.Rbac.ExcludeRules
+
+	excludes.BindingSubject = pkg.StringRuleExcludeList(configExcludes.BindingSubject)
+	excludes.Placement = configExcludes.Placement.Get()
+	excludes.Wildcards = configExcludes.Wildcards.Get()
+}
+
+// mapHooksSettings maps Hooks linter settings
+func mapHooksSettings(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings) {
+	linterSettings.Hooks.IngressRuleSettings.Disable = configSettings.Hooks.Ingress.Disable
+}
+
+// mapModuleExclusionsAndSettings maps Module linter exclusions and settings
+func mapModuleExclusionsAndSettings(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings) {
+	// Exclusion rules
+	excludes := &linterSettings.Module.ExcludeRules
+	configExcludes := &configSettings.Module.ExcludeRules
+	excludes.License.Files = pkg.StringRuleExcludeList(configExcludes.License.Files)
+	excludes.License.Directories = pkg.PrefixRuleExcludeList(configExcludes.License.Directories)
+
+	// Additional settings
+	linterSettings.Module.OSSRuleSettings.Disable = configSettings.Module.OSS.Disable
+	linterSettings.Module.DefinitionFileRuleSettings.Disable = configSettings.Module.DefinitionFile.Disable
+	linterSettings.Module.ConversionsRuleSettings.Disable = configSettings.Module.Conversions.Disable
+	linterSettings.Module.HelmignoreRuleSettings.Disable = configSettings.Module.Helmignore.Disable
+}
+
+func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, rootConfig *config.RootConfig, errorList *dmtErrors.LintRuleErrorsList) (*Module, error) {
 	module, err := newModuleFromPath(path)
 	if err != nil {
 		return nil, err
@@ -171,12 +386,15 @@ func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, e
 		module.werfFile = werfFile
 	}
 
+	// Load module config
 	cfg := &config.ModuleConfig{}
 	if err := config.NewLoader(cfg, path).Load(); err != nil {
 		return nil, fmt.Errorf("can not parse module config: %w", err)
 	}
 
-	module.linterConfig = cfg
+	cfg.LintersSettings.MergeGlobal(&rootConfig.GlobalSettings.Linters)
+
+	module.linterConfig = remapLinterSettings(&cfg.LintersSettings, &rootConfig.GlobalSettings.Linters)
 
 	return module, nil
 }

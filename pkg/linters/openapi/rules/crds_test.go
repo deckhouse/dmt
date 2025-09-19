@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/deckhouse/dmt/pkg/config"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
@@ -520,9 +520,9 @@ spec:
 			filePath, cleanup := createTempFile(t, tt.content)
 			defer cleanup()
 
-			cfg := &config.OpenAPISettings{}
+			cfg := &pkg.OpenAPILinterConfig{}
 			if tt.name == "excluded CRD name" {
-				cfg.OpenAPIExcludeRules.CRDNamesExcludes = []string{"excluded.deckhouse.io"}
+				cfg.ExcludeRules.CRDNamesExcludes = []string{"excluded.deckhouse.io"}
 			}
 
 			rule := NewDeckhouseCRDsRule(cfg, "test")

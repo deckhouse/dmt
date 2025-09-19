@@ -31,7 +31,6 @@ import (
 	"github.com/deckhouse/dmt/internal/promtool"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
-	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
@@ -39,10 +38,10 @@ const (
 	PrometheusRuleName = "prometheus-rules"
 )
 
-func NewPrometheusRule(cfg *config.TemplatesSettings) *PrometheusRule {
+func NewPrometheusRule(cfg *pkg.TemplatesLinterConfig) *PrometheusRule {
 	var exclude bool
 	if cfg != nil {
-		exclude = cfg.PrometheusRules.Disable
+		exclude = cfg.PrometheusRuleSettings.Disable
 	}
 	return &PrometheusRule{
 		RuleMeta: pkg.RuleMeta{
