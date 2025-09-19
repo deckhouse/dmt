@@ -30,18 +30,18 @@ type ModuleConfig struct {
 	LintersSettings LintersSettings `mapstructure:"linters-settings"`
 }
 
-func calculateImpact(v, input *pkg.Level) *pkg.Level {
-	if input != nil {
-		return input
+func calculateImpact(backoff, input string) string {
+	if backoff != "" {
+		return backoff
 	}
 
-	if v != nil {
-		return v
+	if input != "" {
+		return input
 	}
 
 	lvl := pkg.Error
 
-	return &lvl
+	return lvl.String()
 }
 
 func NewDefaultRootConfig(dir string) (*RootConfig, error) {

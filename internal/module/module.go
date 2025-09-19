@@ -135,32 +135,16 @@ func (m *Module) GetModuleConfig() *pkg.LintersSettings {
 }
 
 func RemapLinterSettings(configSettings *config.LintersSettings) *pkg.LintersSettings {
-	linterSettings := &pkg.LintersSettings{
-		Container: pkg.ContainerLinterConfig{
-			LinterConfig: pkg.LinterConfig{Impact: configSettings.Container.Impact},
-		},
-		Image: pkg.ImageLinterConfig{
-			LinterConfig: pkg.LinterConfig{Impact: configSettings.Images.Impact},
-		},
-		NoCyrillic: pkg.NoCyrillicLinterConfig{
-			LinterConfig: pkg.LinterConfig{Impact: configSettings.NoCyrillic.Impact},
-		},
-		OpenAPI: pkg.OpenAPILinterConfig{
-			LinterConfig: pkg.LinterConfig{Impact: configSettings.OpenAPI.Impact},
-		},
-		Templates: pkg.TemplatesLinterConfig{
-			LinterConfig: pkg.LinterConfig{Impact: configSettings.Templates.Impact},
-		},
-		RBAC: pkg.RBACLinterConfig{
-			LinterConfig: pkg.LinterConfig{Impact: configSettings.Rbac.Impact},
-		},
-		Hooks: pkg.HooksLinterConfig{
-			LinterConfig: pkg.LinterConfig{Impact: configSettings.Hooks.Impact},
-		},
-		Module: pkg.ModuleLinterConfig{
-			LinterConfig: pkg.LinterConfig{Impact: configSettings.Module.Impact},
-		},
-	}
+	linterSettings := &pkg.LintersSettings{}
+
+	linterSettings.Container.SetLevel(configSettings.Container.Impact)
+	linterSettings.Image.SetLevel(configSettings.Images.Impact)
+	linterSettings.NoCyrillic.SetLevel(configSettings.NoCyrillic.Impact)
+	linterSettings.OpenAPI.SetLevel(configSettings.OpenAPI.Impact)
+	linterSettings.Templates.SetLevel(configSettings.Templates.Impact)
+	linterSettings.RBAC.SetLevel(configSettings.Rbac.Impact)
+	linterSettings.Hooks.SetLevel(configSettings.Hooks.Impact)
+	linterSettings.Module.SetLevel(configSettings.Module.Impact)
 
 	linterSettings.Image.Rules.DistrolessRule.SetLevel(configSettings.Images.Rules.DistrolessRule.Impact, configSettings.Images.Impact)
 	linterSettings.Image.Rules.ImageRule.SetLevel(configSettings.Images.Rules.ImageRule.Impact, configSettings.Images.Impact)

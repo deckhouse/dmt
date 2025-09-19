@@ -68,7 +68,7 @@ func SetDmtInfo() {
 	})
 }
 
-func SetLinterWarningsMetrics(cfg global.Global) {
+func SetLinterWarningsMetrics(cfg *global.Global) {
 	v := reflect.ValueOf(&cfg.Linters).Elem()
 	for i := range v.NumField() {
 		field := v.Field(i)
@@ -80,7 +80,7 @@ func SetLinterWarningsMetrics(cfg global.Global) {
 				metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
 					"id":     metrics.id,
 					"linter": strings.ToLower(fType.Name),
-					"level":  linterConfig.Impact.String(),
+					"level":  linterConfig.Impact,
 				})
 			}
 		}

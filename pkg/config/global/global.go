@@ -35,7 +35,7 @@ type Linters struct {
 }
 
 type LinterConfig struct {
-	Impact *pkg.Level `mapstructure:"impact"`
+	Impact string `mapstructure:"impact"`
 }
 
 type ContainerLinterConfig struct {
@@ -56,9 +56,9 @@ type Rules struct {
 }
 
 type RuleConfig struct {
-	Impact *pkg.Level `mapstructure:"impact"`
+	Impact string `mapstructure:"impact"`
 }
 
 func (c LinterConfig) IsWarn() bool {
-	return c.Impact != nil && *c.Impact == pkg.Warn
+	return c.Impact == pkg.Warn.String()
 }

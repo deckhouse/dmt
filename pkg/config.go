@@ -4,6 +4,18 @@ type LinterConfig struct {
 	Impact *Level
 }
 
+func (rc *LinterConfig) SetLevel(level string) {
+	if level != "" {
+		impact := ParseStringToLevel(level)
+		rc.Impact = &impact
+
+		return
+	}
+
+	lvl := Error
+	rc.Impact = &lvl
+}
+
 type RuleConfig struct {
 	impact *Level
 }
@@ -12,22 +24,23 @@ func (rc *RuleConfig) GetLevel() *Level {
 	return rc.impact
 }
 
-func (rc *RuleConfig) SetLevel(level, backoff *Level) {
-	if level != nil {
-		rc.impact = level
+func (rc *RuleConfig) SetLevel(level, backoff string) {
+	if level != "" {
+		impact := ParseStringToLevel(level)
+		rc.impact = &impact
 
 		return
 	}
 
-	if backoff != nil {
-		rc.impact = backoff
+	if backoff != "" {
+		impact := ParseStringToLevel(level)
+		rc.impact = &impact
 
 		return
 	}
 
 	lvl := Error
 	rc.impact = &lvl
-
 }
 
 func (rc *RuleConfig) SetStringLevel(current, backoff string) {
@@ -47,10 +60,6 @@ func (rc *RuleConfig) SetStringLevel(current, backoff string) {
 
 	level := Error
 	rc.impact = &level
-}
-
-func (lc *LinterConfig) SetLevel(level *Level) {
-	lc.Impact = level
 }
 
 type LintersSettings struct {
