@@ -58,16 +58,19 @@ type RequirementsRegistry struct {
 ## Current Requirements
 
 ### Stage Requirements
+
 - **Trigger**: Module has a `stage` field
 - **Requirement**: Deckhouse version >= 1.68.0
 - **Component**: deckhouse
 
 ### Go Hooks Requirements
+
 - **Trigger**: Module has Go hooks with module-sdk dependency and app.Run calls
 - **Requirement**: Deckhouse version >= 1.68.0
 - **Component**: deckhouse
 
 ### Readiness Probes Requirements
+
 - **Trigger**: Module has readiness probes (app.WithReadiness) with module-sdk >= 0.3
 - **Requirement**: Deckhouse version >= 1.71.0
 - **Component**: deckhouse
@@ -92,6 +95,7 @@ requirements:
 ### Adding New Component Types
 
 1. Add a new component type constant:
+
 ```go
 const (
     ComponentNewFeature ComponentType = "new-feature"
@@ -99,6 +103,7 @@ const (
 ```
 
 2. Extend the `ModulePlatformRequirements` struct in `module_yaml.go`:
+
 ```go
 type ModulePlatformRequirements struct {
     Deckhouse    string `json:"deckhouse,omitempty"`
@@ -109,6 +114,7 @@ type ModulePlatformRequirements struct {
 ```
 
 3. Add validation logic in `validateComponentRequirement`:
+
 ```go
 case ComponentNewFeature:
     if module.Requirements.NewFeature == "" {
@@ -122,6 +128,7 @@ case ComponentNewFeature:
 ### Adding New Requirement Checks
 
 1. Create a detector function:
+
 ```go
 func hasNewFeature(modulePath string, module *DeckhouseModule) bool {
     // Check if module uses the new feature
@@ -131,6 +138,7 @@ func hasNewFeature(modulePath string, module *DeckhouseModule) bool {
 ```
 
 2. Register the check in `NewRequirementsRegistry()`:
+
 ```go
 registry.RegisterCheck(RequirementCheck{
     Name: "new_feature",
@@ -203,4 +211,4 @@ The system includes comprehensive tests for all requirement checks. To add tests
 
 ## Migration Notes
 
-The new architecture maintains backward compatibility with existing module configurations. All existing tests continue to pass, and the public API remains unchanged. 
+The new architecture maintains backward compatibility with existing module configurations. All existing tests continue to pass, and the public API remains unchanged.
