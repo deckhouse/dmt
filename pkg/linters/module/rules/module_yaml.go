@@ -219,7 +219,10 @@ func (m ModuleRequirements) validateRequirements(errorList *errors.LintRuleError
 	}
 
 	for parentModuleName, parentModuleVersion := range m.ParentModules {
-		if _, err := semver.NewConstraint(parentModuleVersion); err != nil {
+		// Parse constraint by removing the !optional flag first
+		constraintStr := strings.TrimSpace(strings.ReplaceAll(parentModuleVersion, "!optional", ""))
+
+		if _, err := semver.NewConstraint(constraintStr); err != nil {
 			errorList.Errorf("Invalid module %q version requirement: %s", parentModuleName, err)
 		}
 	}
