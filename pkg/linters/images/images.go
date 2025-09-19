@@ -18,7 +18,7 @@ package images
 
 import (
 	"github.com/deckhouse/dmt/internal/module"
-	"github.com/deckhouse/dmt/pkg/config"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/images/rules"
 )
@@ -30,16 +30,16 @@ const (
 // Images linter
 type Images struct {
 	name, desc string
-	cfg        *config.ImageSettings
+	cfg        *pkg.ImageLinterConfig
 	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Images {
+func New(imageCfg *pkg.ImageLinterConfig, errorList *errors.LintRuleErrorsList) *Images {
 	return &Images{
 		name:      ID,
 		desc:      "Lint docker images",
-		cfg:       &cfg.LintersSettings.Images,
-		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Images.Impact),
+		cfg:       imageCfg,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(imageCfg.Impact),
 	}
 }
 
@@ -50,10 +50,10 @@ func (l *Images) Run(m *module.Module) {
 
 	errorList := l.ErrorList.WithModule(m.GetName())
 
-	rules.NewImageRule(l.cfg).CheckImageNamesInDockerFiles(m.GetPath(), errorList)
-	rules.NewDistrolessRule(l.cfg).CheckImageNamesInDockerFiles(m.GetPath(), errorList)
-	rules.NewWerfRule(l.cfg.Werf.Disable).LintWerfFile(m.GetName(), m.GetWerfFile(), errorList)
-	rules.NewPatchesRule(l.cfg.Patches.Disable).CheckPatches(m.GetPath(), errorList)
+	rules.NewImageRule(l.cfg).CheckImageNamesInDockerFiles(m.GetPath(), errorList.WithRule("image").WithMaxLevel(l.cfg.Rules.ImageRule.GetLevel()))
+	rules.NewDistrolessRule(l.cfg).CheckImageNamesInDockerFiles(m.GetPath(), errorList.WithRule("distroless").WithMaxLevel(l.cfg.Rules.DistrolessRule.GetLevel()))
+	rules.NewWerfRule(l.cfg.Werf.Disable).LintWerfFile(m.GetName(), m.GetWerfFile(), errorList.WithRule("werf").WithMaxLevel(l.cfg.Rules.WerfRule.GetLevel()))
+	rules.NewPatchesRule(l.cfg.Patches.Disable).CheckPatches(m.GetPath(), errorList.WithRule("patches").WithMaxLevel(l.cfg.Rules.PatchesRule.GetLevel()))
 }
 
 func (l *Images) Name() string {

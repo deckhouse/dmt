@@ -6,12 +6,12 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/deckhouse/dmt/internal/module"
-	"github.com/deckhouse/dmt/pkg/config"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 func TestContainer_NameAndDesc(t *testing.T) {
-	cfg := &config.ModuleConfig{}
+	cfg := &pkg.ContainerLinterConfig{}
 	errList := errors.NewLintRuleErrorsList()
 	linter := New(cfg, errList)
 
@@ -20,7 +20,7 @@ func TestContainer_NameAndDesc(t *testing.T) {
 }
 
 func TestContainer_Run_NilModule(_ *testing.T) {
-	cfg := &config.ModuleConfig{}
+	cfg := &pkg.ContainerLinterConfig{}
 	errList := errors.NewLintRuleErrorsList()
 	linter := New(cfg, errList)
 
@@ -29,7 +29,7 @@ func TestContainer_Run_NilModule(_ *testing.T) {
 }
 
 func TestContainer_Run_EmptyModule(t *testing.T) {
-	cfg := &config.ModuleConfig{}
+	cfg := &pkg.ContainerLinterConfig{}
 	errList := errors.NewLintRuleErrorsList()
 	linter := New(cfg, errList)
 

@@ -23,21 +23,42 @@ type Global struct {
 }
 
 type Linters struct {
-	Container  LinterConfig `mapstructure:"container"`
-	Hooks      LinterConfig `mapstructure:"hooks"`
-	Images     LinterConfig `mapstructure:"images"`
-	License    LinterConfig `mapstructure:"license"`
-	Module     LinterConfig `mapstructure:"module"`
-	NoCyrillic LinterConfig `mapstructure:"no-cyrillic"`
-	OpenAPI    LinterConfig `mapstructure:"openapi"`
-	Rbac       LinterConfig `mapstructure:"rbac"`
-	Templates  LinterConfig `mapstructure:"templates"`
+	Container  ContainerLinterConfig `mapstructure:"container"`
+	Hooks      LinterConfig          `mapstructure:"hooks"`
+	Images     ImagesLinterConfig    `mapstructure:"images"`
+	License    LinterConfig          `mapstructure:"license"`
+	Module     LinterConfig          `mapstructure:"module"`
+	NoCyrillic LinterConfig          `mapstructure:"no-cyrillic"`
+	OpenAPI    LinterConfig          `mapstructure:"openapi"`
+	Rbac       LinterConfig          `mapstructure:"rbac"`
+	Templates  LinterConfig          `mapstructure:"templates"`
 }
 
 type LinterConfig struct {
-	Impact *pkg.Level `mapstructure:"impact"`
+	Impact string `mapstructure:"impact"`
+}
+
+type ContainerLinterConfig struct {
+	LinterConfig
+	RecommendedLabelsRule RuleConfig `mapstructure:"recommended-labels"`
+}
+
+type ImagesLinterConfig struct {
+	LinterConfig
+	Rules Rules `mapstructure:"rules"`
+}
+
+type Rules struct {
+	DistrolessRule RuleConfig `mapstructure:"distroless"`
+	ImageRule      RuleConfig `mapstructure:"image"`
+	PatchesRule    RuleConfig `mapstructure:"patches"`
+	WerfRule       RuleConfig `mapstructure:"werf"`
+}
+
+type RuleConfig struct {
+	Impact string `mapstructure:"impact"`
 }
 
 func (c LinterConfig) IsWarn() bool {
-	return c.Impact != nil && *c.Impact == pkg.Warn
+	return c.Impact == pkg.Warn.String()
 }

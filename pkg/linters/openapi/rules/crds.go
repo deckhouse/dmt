@@ -24,7 +24,6 @@ import (
 	"strings"
 
 	"github.com/deckhouse/dmt/pkg"
-	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -43,13 +42,13 @@ var (
 	sep = regexp.MustCompile("(?:^|\\s*\n)---\\s*")
 )
 
-func NewDeckhouseCRDsRule(cfg *config.OpenAPISettings, rootPath string) *DeckhouseCRDsRule {
+func NewDeckhouseCRDsRule(cfg *pkg.OpenAPILinterConfig, rootPath string) *DeckhouseCRDsRule {
 	return &DeckhouseCRDsRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: "deckhouse-crds",
 		},
 		StringRule: pkg.StringRule{
-			ExcludeRules: cfg.OpenAPIExcludeRules.CRDNamesExcludes.Get(),
+			ExcludeRules: cfg.ExcludeRules.CRDNamesExcludes.Get(),
 		},
 		rootPath: rootPath,
 	}

@@ -5,7 +5,6 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
-	"k8s.io/utils/ptr"
 
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config/global"
@@ -14,19 +13,23 @@ import (
 func Test_SetLinterWarningsMetrics_AddsWarningsForAllLinters(t *testing.T) {
 	metrics = nil
 	metrics = GetClient(".")
-	cfg := global.Global{
+	cfg := &global.Global{
 		Linters: global.Linters{
-			Container:  global.LinterConfig{Impact: ptr.To(pkg.Warn)},
-			Hooks:      global.LinterConfig{Impact: ptr.To(pkg.Warn)},
-			Images:     global.LinterConfig{Impact: ptr.To(pkg.Warn)},
-			License:    global.LinterConfig{Impact: ptr.To(pkg.Warn)},
-			Module:     global.LinterConfig{Impact: ptr.To(pkg.Warn)},
-			NoCyrillic: global.LinterConfig{Impact: ptr.To(pkg.Warn)},
-			OpenAPI:    global.LinterConfig{Impact: ptr.To(pkg.Warn)},
-			Rbac:       global.LinterConfig{Impact: ptr.To(pkg.Warn)},
-			Templates:  global.LinterConfig{Impact: ptr.To(pkg.Warn)},
+			Container:  global.ContainerLinterConfig{},
+			Hooks:      global.LinterConfig{Impact: pkg.Warn.String()},
+			Images:     global.ImagesLinterConfig{},
+			License:    global.LinterConfig{Impact: pkg.Warn.String()},
+			Module:     global.LinterConfig{Impact: pkg.Warn.String()},
+			NoCyrillic: global.LinterConfig{Impact: pkg.Warn.String()},
+			OpenAPI:    global.LinterConfig{Impact: pkg.Warn.String()},
+			Rbac:       global.LinterConfig{Impact: pkg.Warn.String()},
+			Templates:  global.LinterConfig{Impact: pkg.Warn.String()},
 		},
 	}
+
+	cfg.Linters.Container.Impact = pkg.Warn.String()
+	cfg.Linters.Images.Impact = pkg.Warn.String()
+
 	SetLinterWarningsMetrics(cfg)
 	num, err := testutil.GatherAndCount(metrics.Gatherer, "dmt_linter_info")
 	require.NoError(t, err)
@@ -36,7 +39,7 @@ func Test_SetLinterWarningsMetrics_AddsWarningsForAllLinters(t *testing.T) {
 func Test_SetLinterWarningsMetrics_NoWarningsWhenNoLinters(t *testing.T) {
 	metrics = nil
 	metrics = GetClient(".")
-	cfg := global.Global{
+	cfg := &global.Global{
 		Linters: global.Linters{},
 	}
 	SetLinterWarningsMetrics(cfg)
@@ -48,12 +51,15 @@ func Test_SetLinterWarningsMetrics_NoWarningsWhenNoLinters(t *testing.T) {
 func Test_SetLinterWarningsMetrics_AddsWarningsForSpecificLinters(t *testing.T) {
 	metrics = nil
 	metrics = GetClient(".")
-	cfg := global.Global{
+	cfg := &global.Global{
 		Linters: global.Linters{
-			Container: global.LinterConfig{Impact: ptr.To(pkg.Warn)},
-			Hooks:     global.LinterConfig{Impact: nil},
+			Container: global.ContainerLinterConfig{},
+			Hooks:     global.LinterConfig{},
 		},
 	}
+
+	cfg.Linters.Container.Impact = pkg.Warn.String()
+
 	SetLinterWarningsMetrics(cfg)
 	num, err := testutil.GatherAndCount(metrics.Gatherer, "dmt_linter_info")
 	require.NoError(t, err)

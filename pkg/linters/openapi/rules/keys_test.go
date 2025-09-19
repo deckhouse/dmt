@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/deckhouse/dmt/pkg/config"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
@@ -107,8 +107,8 @@ components:
 			filePath, cleanup := createTempFile(t, tt.content)
 			defer cleanup()
 
-			cfg := &config.OpenAPISettings{
-				OpenAPIExcludeRules: config.OpenAPIExcludeRules{
+			cfg := &pkg.OpenAPILinterConfig{
+				ExcludeRules: pkg.OpenAPIExcludeRules{
 					KeyBannedNames: tt.bannedNames,
 				},
 			}
