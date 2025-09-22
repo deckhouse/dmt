@@ -6,7 +6,9 @@ package rules
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
@@ -42,89 +44,33 @@ func (r *BilingualRule) CheckBilingual(m pkg.Module, errorList *errors.LintRuleE
 
 	modulePath := m.GetPath()
 
-	// Try to find README files in multiple locations
-	readmePaths := []struct {
-		enPath   string
-		ruPath   string
-		location string
-	}{
-		{
-			filepath.Join(modulePath, "README.md"),
-			filepath.Join(modulePath, "README_RU.md"),
-			"root",
-		},
-		{
-			filepath.Join(modulePath, "docs", "README.md"),
-			filepath.Join(modulePath, "docs", "README_RU.md"),
-			"docs/",
-		},
+	docsPath := filepath.Join(modulePath, "docs")
+	if _, err := os.Stat(docsPath); err != nil {
+		return
 	}
 
-	var enExists, ruExists bool
-	var enPath, ruPath, location string
+	files := fsutils.GetFiles(docsPath, false, fsutils.FilterFileByExtensions(".md"))
 
-	for _, paths := range readmePaths {
-		enCheck := false
-		ruCheck := false
-
-		if _, err := os.Stat(paths.enPath); err == nil {
-			enCheck = true
-		}
-		if _, err := os.Stat(paths.ruPath); err == nil {
-			ruCheck = true
-		}
-
-		if enCheck || ruCheck {
-			enExists = enCheck
-			ruExists = ruCheck
-			enPath = paths.enPath
-			ruPath = paths.ruPath
-			location = paths.location
-			break
-		}
+	fileSet := make(map[string]struct{}, len(files))
+	for _, f := range files {
+		rel := fsutils.Rel(modulePath, f)
+		fileSet[rel] = struct{}{}
 	}
 
-	if enExists && !ruExists {
-		filePath := "README_RU.md"
-		if location == "docs/" {
-			filePath = "docs/README_RU.md"
+	for rel := range fileSet {
+		if !strings.HasPrefix(rel, "docs/") {
+			continue
 		}
-		errorList.
-			WithFilePath(filePath).
-			Error("README_RU.md file is missing - documentation should be available in both languages")
-	}
-
-	if ruExists && !enExists {
-		filePath := "README.md"
-		if location == "docs/" {
-			filePath = "docs/README.md"
+		if !strings.HasSuffix(rel, ".md") || strings.HasSuffix(rel, ".ru.md") {
+			continue
 		}
-		errorList.
-			WithFilePath(filePath).
-			Error("README.md file is missing - documentation should be available in both languages")
-	}
 
-	if enExists {
-		if info, err := os.Stat(enPath); err == nil && info.Size() == 0 {
-			filePath := "README.md"
-			if location == "docs/" {
-				filePath = "docs/README.md"
-			}
+		base := strings.TrimSuffix(rel, ".md")
+		ruRel := base + ".ru.md"
+		if _, ok := fileSet[ruRel]; !ok {
 			errorList.
-				WithFilePath(filePath).
-				Error("README.md file is empty")
-		}
-	}
-
-	if ruExists {
-		if info, err := os.Stat(ruPath); err == nil && info.Size() == 0 {
-			filePath := "README_RU.md"
-			if location == "docs/" {
-				filePath = "docs/README_RU.md"
-			}
-			errorList.
-				WithFilePath(filePath).
-				Error("README_RU.md file is empty")
+				WithFilePath(rel).
+				Error("Russian counterpart is missing: create a matching .ru.md in docs/")
 		}
 	}
 }

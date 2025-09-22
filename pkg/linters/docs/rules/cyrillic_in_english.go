@@ -6,6 +6,7 @@ package rules
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -22,7 +23,7 @@ var (
 	cyrRe              = regexp.MustCompile(`[А-Яа-яЁё]+`)
 	cyrPointerRe       = regexp.MustCompile(`[А-Яа-яЁё]`)
 	cyrFillerRe        = regexp.MustCompile(`[^А-Яа-яЁё]`)
-	russianDocRe       = regexp.MustCompile(`_RU\.md$|_ru\.md$|\.ru\.md$|/ru/.*\.md$|/docs/.*_RU\.md$`)
+	russianDocRe       = regexp.MustCompile(`\.ru\.md$`)
 	markdownExtensions = []string{".md", ".markdown"}
 )
 
@@ -47,7 +48,8 @@ func (r *CyrillicInEnglishRule) CheckFiles(m pkg.Module, errorList *errors.LintR
 		return
 	}
 
-	files := fsutils.GetFiles(modulePath, false, fsutils.FilterFileByExtensions(markdownExtensions...))
+	docsPath := filepath.Join(modulePath, "docs")
+	files := fsutils.GetFiles(docsPath, false, fsutils.FilterFileByExtensions(markdownExtensions...))
 
 	for _, fileName := range files {
 		r.checkFile(m, fileName, errorList)
