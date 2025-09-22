@@ -70,7 +70,7 @@ func (r *BilingualRule) CheckBilingual(m pkg.Module, errorList *errors.LintRuleE
 		if _, ok := fileSet[ruRel]; !ok {
 			errorList.
 				WithFilePath(rel).
-				Error("Russian counterpart is missing: create a matching .ru.md in docs/")
+				Error("Russian counterpart is missing: need to create a matching .ru.md in docs/")
 		}
 	}
 }
