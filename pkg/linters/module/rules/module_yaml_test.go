@@ -116,6 +116,82 @@ func TestValidateRequirements(t *testing.T) {
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for invalid requirements")
 }
 
+func TestValidateRequirementsWithOptionalModules(t *testing.T) {
+	tests := []struct {
+		name         string
+		requirements ModuleRequirements
+		expectErrors bool
+		description  string
+	}{
+		{
+			name: "valid optional modules",
+			requirements: ModuleRequirements{
+				ParentModules: map[string]string{
+					"parent-module": ">=2.0.0 !optional",
+				},
+			},
+			expectErrors: false,
+			description:  "Should pass for valid optional modules",
+		},
+		{
+			name: "mixed optional and regular modules",
+			requirements: ModuleRequirements{
+				ParentModules: map[string]string{
+					"parent-module":  ">=2.0.0 !optional",
+					"parent-module2": ">=1.0.0",
+				},
+			},
+			expectErrors: false,
+			description:  "Should pass for mixed optional and regular modules",
+		},
+		{
+			name: "invalid version constraint with optional flag",
+			requirements: ModuleRequirements{
+				ParentModules: map[string]string{
+					"parent-module": "invalid-version !optional",
+				},
+			},
+			expectErrors: true,
+			description:  "Should fail for invalid version constraint even with optional flag",
+		},
+		{
+			name: "multiple optional modules",
+			requirements: ModuleRequirements{
+				ParentModules: map[string]string{
+					"module1": ">=1.0.0 !optional",
+					"module2": "~2.1.0 !optional",
+					"module3": "^3.0.0 !optional",
+				},
+			},
+			expectErrors: false,
+			description:  "Should pass for multiple valid optional modules",
+		},
+		{
+			name: "optional flag with spaces",
+			requirements: ModuleRequirements{
+				ParentModules: map[string]string{
+					"parent-module": ">=2.0.0   !optional",
+				},
+			},
+			expectErrors: false,
+			description:  "Should pass for optional flag with extra spaces",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errorList := errors.NewLintRuleErrorsList()
+			tt.requirements.validateRequirements(errorList)
+
+			if tt.expectErrors {
+				assert.True(t, errorList.ContainsErrors(), tt.description)
+			} else {
+				assert.False(t, errorList.ContainsErrors(), tt.description)
+			}
+		})
+	}
+}
+
 func TestCheckDefinitionFile_CriticalModuleWithZeroWeight(t *testing.T) {
 	tempDir := t.TempDir()
 	moduleFilePath := filepath.Join(tempDir, ModuleConfigFilename)
