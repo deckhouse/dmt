@@ -55,9 +55,14 @@ func (r *RegistryRule) CheckRegistrySecret(md *module.Module, errorList *errors.
 		return
 	}
 
-	if getModuleNameFromRepository(md.GetPath()) == "deckhouse" {
-		// Skip registry secret check for deckhouse repository
-		return
+	skipRepos := []string{"deckhouse", "deckhouse-test-1", "deckhouse-test-2"}
+
+	moduleNameFromRepo := getModuleNameFromRepository(md.GetPath())
+	for _, repo := range skipRepos {
+		if moduleNameFromRepo == repo {
+			// Skip registry secret check
+			return
+		}
 	}
 
 	moduleName := md.GetName()
