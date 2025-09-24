@@ -54,7 +54,7 @@ func (r *BilingualRule) CheckBilingual(m pkg.Module, errorList *errors.LintRuleE
 	fileSet := make(map[string]struct{}, len(files))
 	for _, f := range files {
 		rel := fsutils.Rel(modulePath, f)
-		// include only files directly under docs/ (exclude nested paths)
+		// only consider top-level docs/* files
 		if filepath.Dir(rel) != "docs" {
 			continue
 		}
