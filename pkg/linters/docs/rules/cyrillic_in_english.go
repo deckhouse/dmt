@@ -52,6 +52,11 @@ func (r *CyrillicInEnglishRule) CheckFiles(m pkg.Module, errorList *errors.LintR
 	files := fsutils.GetFiles(docsPath, false, fsutils.FilterFileByExtensions(markdownExtensions...))
 
 	for _, fileName := range files {
+		relFromModule := fsutils.Rel(modulePath, fileName)
+		// only consider top-level docs/* files
+		if filepath.Dir(relFromModule) != "docs" {
+			continue
+		}
 		r.checkFile(m, fileName, errorList)
 	}
 }
