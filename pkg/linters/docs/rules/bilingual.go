@@ -67,14 +67,14 @@ func (r *BilingualRule) CheckBilingual(m pkg.Module, errorList *errors.LintRuleE
 		}
 		base := strings.TrimSuffix(rel, ".md")
 		ruRel := base + ".ru.md"
+		// TODO: Delete it after renaming to .ru.md view
 		ruRelUpper := base + "_RU.md"
 
-		if !strings.HasSuffix(rel, ".md") || strings.HasSuffix(rel, ruRel) || strings.HasSuffix(rel, ruRelUpper) {
+		if !strings.HasSuffix(rel, ".md") || !strings.HasSuffix(rel, ruRelUpper) || strings.HasSuffix(rel, ruRel) {
 			continue
 		}
 
 		if _, ok := fileSet[ruRel]; !ok {
-			// TODO: Delete it after renaming to .ru.md view
 			if _, altOk := fileSet[ruRelUpper]; altOk {
 				continue
 			}
