@@ -142,7 +142,7 @@ func execute() {
 
 	rootCmd.AddCommand(lintCmd)
 	rootCmd.AddCommand(bootstrapCmd)
-	rootCmd.PersistentFlags().AddFlagSet(flags.InitDefaultFlagSet())
+	rootCmd.Flags().AddFlagSet(flags.InitDefaultFlagSet())
 
 	err := rootCmd.Execute()
 	if err != nil {
