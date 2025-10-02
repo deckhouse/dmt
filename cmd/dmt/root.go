@@ -47,6 +47,10 @@ func execute() {
 			HiddenDefaultCmd: true,
 		},
 		Version: version,
+		PersistentPreRun: func(_ *cobra.Command, _ []string) {
+			flags.Version = version
+			logger.InitLogger(os.Stdout, flags.LogLevel)
+		},
 	}
 
 	rootCmd.SetVersionTemplate("dmt version: {{.Version}}\n")
