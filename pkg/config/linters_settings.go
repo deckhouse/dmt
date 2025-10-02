@@ -99,10 +99,11 @@ type ImageExcludeRules struct {
 type ModuleSettings struct {
 	ExcludeRules ModuleExcludeRules `mapstructure:"exclude-rules"`
 
-	OSS            ModuleOSSRuleSettings            `mapstructure:"oss"`
-	DefinitionFile ModuleDefinitionFileRuleSettings `mapstructure:"definition-file"`
-	Conversions    ConversionsRuleSettings          `mapstructure:"conversions"`
-	Helmignore     HelmignoreRuleSettings           `mapstructure:"helmignore"`
+	OSS               ModuleOSSRuleSettings            `mapstructure:"oss"`
+	DefinitionFile    ModuleDefinitionFileRuleSettings `mapstructure:"definition-file"`
+	Conversions       ConversionsRuleSettings          `mapstructure:"conversions"`
+	Helmignore        HelmignoreRuleSettings           `mapstructure:"helmignore"`
+	LegacyReleaseFile RuleConfig                       `mapstructure:"legacy-release-file"`
 
 	Impact string `mapstructure:"impact"`
 }

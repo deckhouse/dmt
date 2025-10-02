@@ -33,7 +33,7 @@ func (rc *RuleConfig) SetLevel(level, backoff string) {
 	}
 
 	if backoff != "" {
-		impact := ParseStringToLevel(level)
+		impact := ParseStringToLevel(backoff)
 		rc.impact = &impact
 
 		return
@@ -209,12 +209,13 @@ type ModuleLinterConfig struct {
 	ExcludeRules               ModuleExcludeRules
 }
 type ModuleLinterRules struct {
-	DefinitionFileRule RuleConfig
-	OSSRule            RuleConfig
-	ConversionRule     RuleConfig
-	HelmignoreRule     RuleConfig
-	LicenseRule        RuleConfig
-	RequarementsRule   RuleConfig
+	DefinitionFileRule    RuleConfig
+	OSSRule               RuleConfig
+	ConversionRule        RuleConfig
+	HelmignoreRule        RuleConfig
+	LicenseRule           RuleConfig
+	RequarementsRule      RuleConfig
+	LegacyReleaseFileRule RuleConfig
 }
 type OSSRuleSettings struct {
 	Disable bool

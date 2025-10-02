@@ -8,3 +8,25 @@ coverage.svg
 # Ignore manual test modules
 /test-modules/**
 /test-modules/*
+/testdata/**
+/testdata/*
+# Ignore IDE config files
+.vscode/
+.idea/
+*.iml
+# Ignore OS generated files
+.DS_Store
+Thumbs.db
+# Ignore editor swap files
+*.swp
+*~
+# Ignore binary files
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+# Ignore log files
+*.log
+logs/
+*.tmp

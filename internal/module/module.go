@@ -181,6 +181,9 @@ func mapRuleSettings(linterSettings *pkg.LintersSettings, configSettings *config
 	// Documentation rules (uses global rule config + local fallback)
 	mapDocumentationRules(linterSettings, configSettings, globalConfig)
 
+	// Module rules (uses global rule config + local fallback)
+	mapModuleRules(linterSettings, configSettings, globalConfig)
+
 	// Other linter rules (use local linter-level impact)
 	mapSimpleLinterRules(linterSettings, configSettings)
 }
@@ -213,6 +216,20 @@ func mapDocumentationRules(linterSettings *pkg.LintersSettings, configSettings *
 	rules.BilingualRule.SetLevel(globalRules.BilingualRule.Impact, fallbackImpact)
 	rules.ReadmeRule.SetLevel(globalRules.ReadmeRule.Impact, fallbackImpact)
 	rules.CyrillicInEnglishRule.SetLevel(globalRules.NoCyrillicExcludeRules.Impact, fallbackImpact)
+}
+
+func mapModuleRules(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings, globalConfig *global.Linters) {
+	rules := &linterSettings.Module.Rules
+	globalRules := &globalConfig.Module.Rules
+	fallbackImpact := configSettings.Module.Impact
+
+	rules.DefinitionFileRule.SetLevel(globalRules.DefinitionFileRule.Impact, fallbackImpact)
+	rules.OSSRule.SetLevel(globalRules.OSSRule.Impact, fallbackImpact)
+	rules.ConversionRule.SetLevel(globalRules.ConversionRule.Impact, fallbackImpact)
+	rules.HelmignoreRule.SetLevel(globalRules.HelmignoreRule.Impact, fallbackImpact)
+	rules.LicenseRule.SetLevel(globalRules.LicenseRule.Impact, fallbackImpact)
+	rules.RequarementsRule.SetLevel(globalRules.RequarementsRule.Impact, fallbackImpact)
+	rules.LegacyReleaseFileRule.SetLevel(globalRules.LegacyReleaseFileRule.Impact, fallbackImpact)
 }
 
 // mapSimpleLinterRules configures rules that use linter-level impact without global overrides
@@ -249,16 +266,6 @@ func mapSimpleLinterRules(linterSettings *pkg.LintersSettings, configSettings *c
 
 	// Hooks rules
 	linterSettings.Hooks.Rules.HooksRule.SetLevel("", configSettings.Hooks.Impact)
-
-	// Module rules
-	moduleImpact := configSettings.Module.Impact
-	module := &linterSettings.Module.Rules
-	module.DefinitionFileRule.SetLevel("", moduleImpact)
-	module.OSSRule.SetLevel("", moduleImpact)
-	module.ConversionRule.SetLevel("", moduleImpact)
-	module.HelmignoreRule.SetLevel("", moduleImpact)
-	module.LicenseRule.SetLevel("", moduleImpact)
-	module.RequarementsRule.SetLevel("", moduleImpact)
 }
 
 // mapExclusionRulesAndSettings maps exclusion rules and additional linter settings
