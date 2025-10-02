@@ -9,41 +9,10 @@ This is the simplest and fastest method to install the latest version. The comma
 ```shell
 go install github.com/deckhouse/dmt@latest
 ```
-After installation, add ~/go/bin to your PATH (if not already added):
-In ~/.bashrc or ~/.zshrc: 
-```shell
-export PATH=$PATH:~/go/bin
-source ~/.bashrc (or similar)
-dmt --version
-```
+After installation, add ~/go/bin to your PATH (if not already added).
 
 ### Download latest release
-You can download any [release](https://github.com/deckhouse/dmt/releases) that is compatible with your system.
-```shell
-mkdir ~/Downloads/dmt && cd ~/Downloads/dmt
-curl -L -o dmt-0.1.40-linux-amd64.tar.gz https://github.com/deckhouse/dmt/releases/download/v0.1.40/dmt-0.1.40-linux-amd64.tar.gz
-tar -xzf dmt-0.1.40-linux-amd64.tar.gz
-cd dmt-0.1.40-linux-amd64
-./dmt --version
-```
-Add to path:
-(A) Move the binary file to the system directory
-```shell
-sudo mv dmt /usr/local/bin/dmt
-```
-
-(B) Add the directory to ~/.bashrc or ~/.zshrc
-1. Open the file: nano ~/.bashrc (or vim ~/.bashrc).
-2. Add to the end:
-```shell
-export PATH="$PATH:$HOME/Downloads/dmt/dmt-0.1.40-linux-amd64"
-```
-(Replace the path with yours; use pwd for the exact one).
-
-3. Save and apply: source ~/.bashrc.
-4. Check: echo $PATH (should be your directory), then dmt --version.
-
-For zsh: Replace ~/.bashrc with ~/.zshrc and use source ~/.zshrc.
+You can directly download any [release](https://github.com/deckhouse/dmt/releases) that is compatible with your system.
 
 ## How to use
 
