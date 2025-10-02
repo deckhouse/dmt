@@ -36,7 +36,7 @@ func Test_SetLinterWarningsMetrics_AddsWarningsForAllLinters(t *testing.T) {
 	SetLinterWarningsMetrics(cfg)
 	num, err := testutil.GatherAndCount(metrics.Gatherer, "dmt_linter_info")
 	require.NoError(t, err)
-	require.Equal(t, 9, num)
+	require.Equal(t, 10, num)
 }
 
 func Test_SetLinterWarningsMetrics_NoWarningsWhenNoLinters(t *testing.T) {
