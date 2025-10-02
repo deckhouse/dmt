@@ -15,20 +15,23 @@ func Test_SetLinterWarningsMetrics_AddsWarningsForAllLinters(t *testing.T) {
 	metrics = GetClient(".")
 	cfg := &global.Global{
 		Linters: global.Linters{
-			Container:  global.ContainerLinterConfig{},
-			Hooks:      global.LinterConfig{Impact: pkg.Warn.String()},
-			Images:     global.ImagesLinterConfig{},
-			License:    global.LinterConfig{Impact: pkg.Warn.String()},
-			Module:     global.LinterConfig{Impact: pkg.Warn.String()},
-			NoCyrillic: global.LinterConfig{Impact: pkg.Warn.String()},
-			OpenAPI:    global.LinterConfig{Impact: pkg.Warn.String()},
-			Rbac:       global.LinterConfig{Impact: pkg.Warn.String()},
-			Templates:  global.LinterConfig{Impact: pkg.Warn.String()},
+			Container:     global.ContainerLinterConfig{},
+			Hooks:         global.LinterConfig{Impact: pkg.Warn.String()},
+			Images:        global.ImagesLinterConfig{},
+			License:       global.LinterConfig{Impact: pkg.Warn.String()},
+			Module:        global.ModuleLinterConfig{},
+			NoCyrillic:    global.LinterConfig{Impact: pkg.Warn.String()},
+			OpenAPI:       global.LinterConfig{Impact: pkg.Warn.String()},
+			Rbac:          global.LinterConfig{Impact: pkg.Warn.String()},
+			Templates:     global.LinterConfig{Impact: pkg.Warn.String()},
+			Documentation: global.DocumentationLinterConfig{},
 		},
 	}
 
 	cfg.Linters.Container.Impact = pkg.Warn.String()
 	cfg.Linters.Images.Impact = pkg.Warn.String()
+	cfg.Linters.Module.Impact = pkg.Warn.String()
+	cfg.Linters.Documentation.Impact = pkg.Warn.String()
 
 	SetLinterWarningsMetrics(cfg)
 	num, err := testutil.GatherAndCount(metrics.Gatherer, "dmt_linter_info")
