@@ -6,7 +6,6 @@ Deckhouse Module Tool - the swiss knife for your Deckhouse modules
 
 ### go install (recommended method)
 This is the simplest and fastest method to install the latest version. The command will download, compile, and install the binary in $GOPATH/bin (or ~/go/bin by default).
-Command:
 ```shell
 go install github.com/deckhouse/dmt@latest
 ```
@@ -19,8 +18,7 @@ dmt --version
 ```
 
 ### Download latest release
-You can download any [release] (https://github.com/deckhouse/dmt/releases) that is compatible with your system.
-At 
+You can download any [release](https://github.com/deckhouse/dmt/releases) that is compatible with your system.
 ```shell
 mkdir ~/Downloads/dmt && cd ~/Downloads/dmt
 curl -L -o dmt-0.1.40-linux-amd64.tar.gz https://github.com/deckhouse/dmt/releases/download/v0.1.40/dmt-0.1.40-linux-amd64.tar.gz
@@ -41,6 +39,7 @@ sudo mv dmt /usr/local/bin/dmt
 export PATH="$PATH:$HOME/Downloads/dmt/dmt-0.1.40-linux-amd64"
 ```
 (Replace the path with yours; use pwd for the exact one).
+
 3. Save and apply: source ~/.bashrc.
 4. Check: echo $PATH (should be your directory), then dmt --version.
 
