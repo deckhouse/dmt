@@ -1,0 +1,457 @@
+/*
+Copyright 2025 Flant JSC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package rules
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func TestLicenseParser_ParseFile(t *testing.T) {
+	parser := NewLicenseParser()
+
+	tests := []struct {
+		name     string
+		content  string
+		filename string
+		want     LicenseInfo
+	}{
+		{
+			name:     "Go file with CE license (block comment)",
+			filename: "test.go",
+			content: `/*
+Copyright 2024 Flant JSC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package main
+
+func main() {}
+`,
+			want: LicenseInfo{
+				Type:  "CE",
+				Year:  "2024",
+				Valid: true,
+			},
+		},
+		{
+			name:     "Go file with EE license",
+			filename: "test.go",
+			content: `/*
+Copyright 2023 Flant JSC
+Licensed under the Deckhouse Platform Enterprise Edition (EE) license. See https://github.com/deckhouse/deckhouse/blob/main/ee/LICENSE
+*/
+
+package main
+`,
+			want: LicenseInfo{
+				Type:  "EE",
+				Year:  "2023",
+				Valid: true,
+			},
+		},
+		{
+			name:     "Shell script with CE license",
+			filename: "test.sh",
+			content: `#!/bin/bash
+
+# Copyright 2025 Flant JSC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+echo "Hello"
+`,
+			want: LicenseInfo{
+				Type:  "CE",
+				Year:  "2025",
+				Valid: true,
+			},
+		},
+		{
+			name:     "Python file with EE license",
+			filename: "test.py",
+			content: `#!/usr/bin/env python3
+# Copyright 2023 Flant JSC
+# Licensed under the Deckhouse Platform Enterprise Edition (EE) license. See https://github.com/deckhouse/deckhouse/blob/main/ee/LICENSE
+
+def main():
+    pass
+`,
+			want: LicenseInfo{
+				Type:  "EE",
+				Year:  "2023",
+				Valid: true,
+			},
+		},
+		{
+			name:     "File without license",
+			filename: "test.go",
+			content: `package main
+
+func main() {}
+`,
+			want: LicenseInfo{
+				Valid: false,
+				Error: "no license header found",
+			},
+		},
+		{
+			name:     "File with invalid license",
+			filename: "test.go",
+			content: `// Copyright 2024 Someone Else
+// Some custom license
+
+package main
+`,
+			want: LicenseInfo{
+				Valid: false,
+				Error: "license header does not match any known license",
+			},
+		},
+		{
+			name:     "Lua file with CE license",
+			filename: "test.lua",
+			content: `--[[
+Copyright 2024 Flant JSC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+--]]
+
+local function test()
+end
+`,
+			want: LicenseInfo{
+				Type:  "CE",
+				Year:  "2024",
+				Valid: true,
+			},
+		},
+		{
+			name:     "YAML file with EE license",
+			filename: "config.yaml",
+			content: `# Copyright 2023 Flant JSC
+# Licensed under the Deckhouse Platform Enterprise Edition (EE) license. See https://github.com/deckhouse/deckhouse/blob/main/ee/LICENSE
+
+apiVersion: v1
+kind: ConfigMap
+`,
+			want: LicenseInfo{
+				Type:  "EE",
+				Year:  "2023",
+				Valid: true,
+			},
+		},
+		{
+			name:     "JavaScript file with CE license (line comments)",
+			filename: "app.js",
+			content: `// Copyright 2024 Flant JSC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+function main() {}
+`,
+			want: LicenseInfo{
+				Type:  "CE",
+				Year:  "2024",
+				Valid: true,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create temp file
+			tmpDir := t.TempDir()
+			tmpFile := filepath.Join(tmpDir, tt.filename)
+
+			err := os.WriteFile(tmpFile, []byte(tt.content), 0600)
+			if err != nil {
+				t.Fatalf("Failed to create test file: %v", err)
+			}
+
+			// Parse file
+			got, err := parser.ParseFile(tmpFile)
+			if err != nil {
+				t.Fatalf("ParseFile returned error: %v", err)
+			}
+
+			// Compare results
+			if got.Type != tt.want.Type {
+				t.Errorf("Type = %v, want %v", got.Type, tt.want.Type)
+			}
+			if got.Year != tt.want.Year {
+				t.Errorf("Year = %v, want %v", got.Year, tt.want.Year)
+			}
+			if got.Valid != tt.want.Valid {
+				t.Errorf("Valid = %v, want %v", got.Valid, tt.want.Valid)
+			}
+			if got.Error != tt.want.Error {
+				t.Errorf("Error = %v, want %v", got.Error, tt.want.Error)
+			}
+		})
+	}
+}
+
+func TestLicenseParser_FileTypeDetection(t *testing.T) {
+	parser := NewLicenseParser()
+
+	tests := []struct {
+		name     string
+		filename string
+		content  string
+		wantType bool
+	}{
+		{
+			name:     "Shell script without extension",
+			filename: "script",
+			content:  "#!/bin/bash\necho hello",
+			wantType: true,
+		},
+		{
+			name:     "Python script without extension",
+			filename: "script",
+			content:  "#!/usr/bin/env python3\nprint('hello')",
+			wantType: true,
+		},
+		{
+			name:     "Dockerfile",
+			filename: "Dockerfile",
+			content:  "FROM alpine",
+			wantType: true,
+		},
+		{
+			name:     "Unknown file type",
+			filename: "test.xyz",
+			content:  "some content",
+			wantType: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create temp file
+			tmpDir := t.TempDir()
+			tmpFile := filepath.Join(tmpDir, tt.filename)
+
+			err := os.WriteFile(tmpFile, []byte(tt.content), 0600)
+			if err != nil {
+				t.Fatalf("Failed to create test file: %v", err)
+			}
+
+			// Check if file type is detected
+			config := parser.getFileConfig(tmpFile)
+			if (config != nil) != tt.wantType {
+				t.Errorf("File type detection = %v, want %v", config != nil, tt.wantType)
+			}
+		})
+	}
+}
+
+func TestLicenseParser_NormalizeText(t *testing.T) {
+	parser := NewLicenseParser()
+
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name: "Remove block comment stars",
+			input: `
+ * Copyright 2024
+ * Some text
+ * More text
+`,
+			want: "Copyright 2024\nSome text\nMore text",
+		},
+		{
+			name:  "Normalize line endings",
+			input: "Line1\r\nLine2\r\nLine3",
+			want:  "Line1\nLine2\nLine3",
+		},
+		{
+			name:  "Trim whitespace",
+			input: "  \n  Text  \n  ",
+			want:  "Text",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parser.normalizeText(tt.input)
+			if got != tt.want {
+				t.Errorf("normalizeText() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestLicenseParser_EdgeCases(t *testing.T) {
+	parser := NewLicenseParser()
+
+	tests := []struct {
+		name     string
+		content  string
+		filename string
+		want     LicenseInfo
+	}{
+		{
+			name:     "Empty file",
+			filename: "empty.go",
+			content:  "",
+			want: LicenseInfo{
+				Valid: false,
+				Error: "no license header found",
+			},
+		},
+		{
+			name:     "File with only whitespace",
+			filename: "whitespace.go",
+			content:  "   \n\n\t\t  \n   ",
+			want: LicenseInfo{
+				Valid: false,
+				Error: "no license header found",
+			},
+		},
+		{
+			name:     "License with Windows line endings",
+			filename: "windows.go",
+			content:  "/*\r\nCopyright 2024 Flant JSC\r\n\r\nLicensed under the Apache License, Version 2.0 (the \"License\");\r\nyou may not use this file except in compliance with the License.\r\nYou may obtain a copy of the License at\r\n\r\n    http://www.apache.org/licenses/LICENSE-2.0\r\n\r\nUnless required by applicable law or agreed to in writing, software\r\ndistributed under the License is distributed on an \"AS IS\" BASIS,\r\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\r\nSee the License for the specific language governing permissions and\r\nlimitations under the License.\r\n*/\r\n\r\npackage main\r\n",
+			want: LicenseInfo{
+				Type:  "CE",
+				Year:  "2024",
+				Valid: true,
+			},
+		},
+		{
+			name:     "TypeScript file with EE license",
+			filename: "app.ts",
+			content: `/*
+Copyright 2023 Flant JSC
+Licensed under the Deckhouse Platform Enterprise Edition (EE) license. See https://github.com/deckhouse/deckhouse/blob/main/ee/LICENSE
+*/
+
+export function main() {}
+`,
+			want: LicenseInfo{
+				Type:  "EE",
+				Year:  "2023",
+				Valid: true,
+			},
+		},
+		{
+			name:     "C++ header file with CE license",
+			filename: "test.hpp",
+			content: `// Copyright 2024 Flant JSC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#pragma once
+`,
+			want: LicenseInfo{
+				Type:  "CE",
+				Year:  "2024",
+				Valid: true,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create temp file
+			tmpDir := t.TempDir()
+			tmpFile := filepath.Join(tmpDir, tt.filename)
+
+			err := os.WriteFile(tmpFile, []byte(tt.content), 0600)
+			if err != nil {
+				t.Fatalf("Failed to create test file: %v", err)
+			}
+
+			// Parse file
+			got, err := parser.ParseFile(tmpFile)
+			if err != nil {
+				t.Fatalf("ParseFile returned error: %v", err)
+			}
+
+			// Compare results
+			if got.Type != tt.want.Type {
+				t.Errorf("Type = %v, want %v", got.Type, tt.want.Type)
+			}
+			if got.Year != tt.want.Year {
+				t.Errorf("Year = %v, want %v", got.Year, tt.want.Year)
+			}
+			if got.Valid != tt.want.Valid {
+				t.Errorf("Valid = %v, want %v", got.Valid, tt.want.Valid)
+			}
+			if got.Error != tt.want.Error {
+				t.Errorf("Error = %v, want %v", got.Error, tt.want.Error)
+			}
+		})
+	}
+}
