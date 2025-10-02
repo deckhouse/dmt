@@ -34,7 +34,7 @@ import (
 	"github.com/deckhouse/dmt/internal/logger"
 )
 
-var version = "0.1.40"
+var version = "devel"
 
 var kebabCaseRegex = regexp.MustCompile(`^([a-z][a-z0-9]*)(-[a-z0-9]+)*$`)
 
@@ -46,20 +46,10 @@ func execute() {
 		CompletionOptions: cobra.CompletionOptions{
 			HiddenDefaultCmd: true,
 		},
-		Run: func(cmd *cobra.Command, _ []string) {
-			_ = cmd.Help()
-		},
-		PersistentPreRun: func(_ *cobra.Command, _ []string) {
-			flags.Version = version
-
-			logger.InitLogger(os.Stdout, flags.LogLevel)
-
-			if flags.PrintVersion {
-				fmt.Println("dmt version: ", flags.Version)
-				os.Exit(0)
-			}
-		},
+		Version: version,
 	}
+
+	rootCmd.SetVersionTemplate("dmt version: {{.Version}}\n")
 
 	lintCmd := &cobra.Command{
 		Use:   "lint",
