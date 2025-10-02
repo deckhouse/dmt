@@ -27,7 +27,7 @@ type Linters struct {
 	Hooks         LinterConfig              `mapstructure:"hooks"`
 	Images        ImagesLinterConfig        `mapstructure:"images"`
 	License       LinterConfig              `mapstructure:"license"`
-	Module        LinterConfig              `mapstructure:"module"`
+	Module        ModuleLinterConfig        `mapstructure:"module"`
 	NoCyrillic    LinterConfig              `mapstructure:"no-cyrillic"`
 	OpenAPI       LinterConfig              `mapstructure:"openapi"`
 	Rbac          LinterConfig              `mapstructure:"rbac"`
@@ -69,6 +69,21 @@ type DocumentationRules struct {
 	BilingualRule          RuleConfig `mapstructure:"bilingual"`
 	ReadmeRule             RuleConfig `mapstructure:"readme"`
 	NoCyrillicExcludeRules RuleConfig `mapstructure:"cyrillic-in-english"`
+}
+
+type ModuleLinterConfig struct {
+	LinterConfig `mapstructure:",squash"`
+	Rules        ModuleLinterRules `mapstructure:"rules"`
+}
+
+type ModuleLinterRules struct {
+	DefinitionFileRule    RuleConfig `mapstructure:"definition-file"`
+	OSSRule               RuleConfig `mapstructure:"oss"`
+	ConversionRule        RuleConfig `mapstructure:"conversion"`
+	HelmignoreRule        RuleConfig `mapstructure:"helmignore"`
+	LicenseRule           RuleConfig `mapstructure:"license"`
+	RequarementsRule      RuleConfig `mapstructure:"requarements"`
+	LegacyReleaseFileRule RuleConfig `mapstructure:"legacy-release-file"`
 }
 
 func (c LinterConfig) IsWarn() bool {
