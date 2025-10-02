@@ -2,6 +2,18 @@
 
 Deckhouse Module Tool - the swiss knife for your Deckhouse modules
 
+## How to install
+
+### go install (recommended method)
+This is the simplest and fastest method to install the latest version. The command will download, compile, and install the binary in $GOPATH/bin (or ~/go/bin by default).
+```shell
+go install github.com/deckhouse/dmt@latest
+```
+After installation, add ~/go/bin to your PATH (if not already added).
+
+### Download latest release
+You can directly download any [release](https://github.com/deckhouse/dmt/releases) that is compatible with your system.
+
 ## How to use
 
 ### Lint
@@ -84,6 +96,7 @@ dmt bootstrap my-module --repository-url https://github.com/myorg/custom-templat
 | [openapi](pkg/linters/openapi/README.md)                 | Check openapi settings, crds. |
 | [rbac](pkg/linters/rbac/README.md)                       | Check rbac rules. |
 | [templates](pkg/linters/templates/README.md)             | Check templates rules, VPA, PDB settings, prometheus, grafana rules, kube-rbac-proxy, service target port. |
+| [documentation](pkg/linters/no-cyrillic/README.md)       | Check documentation rules. |
 
 ## Development Setup
 
