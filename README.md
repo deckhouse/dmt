@@ -1,140 +1,329 @@
-# dmt
+<div align="center">
 
-Deckhouse Module Tool - the swiss knife for your Deckhouse modules
+# 🛠️ DMT - Deckhouse Module Tool
 
-## How to install
+**The Swiss Knife for Deckhouse Module Development**
 
-### go install (recommended method)
-This is the simplest and fastest method to install the latest version. The command will download, compile, and install the binary in $GOPATH/bin (or ~/go/bin by default).
-```shell
+[![GitHub Release](https://img.shields.io/github/v/release/deckhouse/dmt)](https://github.com/deckhouse/dmt/releases)
+
+[Features](#-features) •
+[Installation](#-installation) •
+[Quick Start](#-quick-start) •
+[Documentation](#-documentation) •
+[Contributing](#-contributing)
+
+</div>
+
+---
+
+## 📖 Overview
+
+**DMT** (Deckhouse Module Tool) is a comprehensive command-line tool designed to streamline the development, testing, and maintenance of [Deckhouse Kubernetes Platform](https://deckhouse.io/) modules. It provides powerful linting capabilities, project bootstrapping, and validation tools to ensure your modules meet quality standards.
+
+### Why DMT?
+
+- ✅ **Quality Assurance**: Comprehensive linting with 9 specialized linters
+- 🚀 **Fast Development**: Bootstrap new modules in seconds
+- 🔧 **Configurable**: Fine-tune linting rules per project
+- 🎯 **CI/CD Ready**: Perfect for automated pipelines
+
+---
+
+## 🎯 Features
+
+### 🔍 Advanced Module Linting
+
+DMT includes **9 specialized linters** to validate different aspects of your Deckhouse modules:
+
+| Linter | Purpose | Key Checks |
+|--------|---------|------------|
+| [**Container**](pkg/linters/container/README.md) | Container configuration validation | Duplicate names, env vars, security contexts, probes, resource limits |
+| [**Documentation**](pkg/linters/docs/README.md) | Documentation quality | README presence, bilingual support, no cyrillic in English docs |
+| [**Hooks**](pkg/linters/hooks/README.md) | Hook validation | Hook syntax, ingress configurations |
+| [**Images**](pkg/linters/images/README.md) | Image build instructions | Dockerfile best practices, werf configuration |
+| [**Module**](pkg/linters/module/README.md) | Module structure | module.yaml format, OpenAPI conversions, oss.yaml, license files |
+| [**NoCyrillic**](pkg/linters/no-cyrillic/README.md) | Character encoding | Cyrillic characters in code/config files |
+| [**OpenAPI**](pkg/linters/openapi/README.md) | OpenAPI schemas | Schema validation, CRD definitions, naming conventions |
+| [**RBAC**](pkg/linters/rbac/README.md) | Security policies | Role bindings, service accounts, wildcards |
+| [**Templates**](pkg/linters/templates/README.md) | Kubernetes templates | VPA/PDB settings, Prometheus rules, Grafana dashboards, service ports |
+
+### 🚀 Module Bootstrapping
+
+Quickly scaffold new Deckhouse modules with best practices:
+
+- **GitHub/GitLab** CI/CD integration
+- Pre-configured project structure
+- Template customization
+- Automated setup for common patterns
+
+### ⚙️ Flexible Configuration
+
+- **Per-module config**: Override rules for specific needs
+- **Impact levels**: Control severity (error/warn)
+- **Exclusion rules**: Skip checks for specific resources
+
+---
+
+## 📦 Installation
+
+### Method 1: Install Script (Recommended)
+
+Quick one-line installation for Linux and macOS:
+
+```bash
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/deckhouse/dmt/main/tools/install.sh)"
+```
+
+<details>
+<summary>Alternative installation commands</summary>
+
+**Using wget:**
+```bash
+sh -c "$(wget -qO- https://raw.githubusercontent.com/deckhouse/dmt/main/tools/install.sh)"
+```
+
+**Install specific version:**
+```bash
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/deckhouse/dmt/main/tools/install.sh)" "" --version v1.0.0
+```
+
+**Install to custom directory:**
+```bash
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/deckhouse/dmt/main/tools/install.sh)" "" --install-dir ~/bin
+```
+
+See [installation guide](tools/README.md) for more options.
+</details>
+
+### Method 2: Download Binary
+
+Download the latest release for your platform from the [releases page](https://github.com/deckhouse/dmt/releases).
+
+**Supported Platforms:**
+- Linux (amd64, arm64)
+- macOS (amd64, arm64)
+- Windows (amd64)
+
+### Method 3: Go Install
+
+If you have Go installed (requires Go 1.24+):
+
+```bash
 go install github.com/deckhouse/dmt@latest
 ```
-After installation, add ~/go/bin to your PATH (if not already added).
 
-### Download latest release
-You can directly download any [release](https://github.com/deckhouse/dmt/releases) that is compatible with your system.
+> **Note**: Ensure `~/go/bin` is in your PATH after installation.
 
-## How to use
+### Method 4: Using trdl
 
-### Lint
+[trdl](https://github.com/werf/trdl) is a tool release delivery system that provides automatic updates and channel management:
 
-You can run linter checks for a module:
+```bash
+# Install from stable channel
+trdl use dmt stable
 
-```shell
-dmt lint /some/path/<your-module>
+# Or install from alpha channel for latest features
+trdl use dmt alpha
 ```
 
-or some pack of modules
+**Benefits:**
+- Automatic updates
+- Channel-based releases (stable, alpha)
+- Cross-platform support
+- Version management
 
-```shell
-dmt lint /some/path/
+> **Note**: Requires [trdl](https://github.com/werf/trdl) to be installed first.
+
+### Verify Installation
+
+```bash
+dmt --version
 ```
 
-where `/some/path/` looks like this:
+---
 
-```shell
-ls -l /some/path/
-drwxrwxr-x 1 deckhouse deckhouse  4096 Nov 10 21:46 001-module-one
-drwxrwxr-x 1 deckhouse deckhouse  4096 Nov 12 21:45 002-module-two
-drwxrwxr-x 1 deckhouse deckhouse  4096 Nov 10 21:46 003-module-three
+## 🚀 Quick Start
+
+### Lint Your Modules
+
+**Lint a single module:**
+```bash
+dmt lint /path/to/your-module
 ```
 
-You can also run linter checks for multiple directories at once:
-
-```shell
-dmt lint /path/to/module1 /path/to/module2 /path/to/module3
+**Lint multiple modules:**
+```bash
+dmt lint /path/to/modules/
 ```
 
-Each directory is processed as a separate execution, and results are displayed for each directory individually.
-
-### Bootstrap
-
-Bootstrap a new Deckhouse module from template:
-
-```shell
-dmt bootstrap my-module-name
+**Lint specific directories:**
+```bash
+dmt lint ./module-1 ./module-2 ./module-3
 ```
 
-This command will:
-- Download the official Deckhouse module template
-- Extract it to the current directory (or specified directory)
-- Replace template placeholders with your module name
-- Configure CI/CD files based on your chosen platform
-
-#### Options
-
-- `--pipeline, -p`: Choose CI/CD platform (`github` or `gitlab`, default: `github`)
-- `--directory, -d`: Specify target directory (default: current directory)
-- `--repository-url, -r`: Use custom module template repository URL
-
-#### Examples
-
-Bootstrap a GitHub module:
-```shell
-dmt bootstrap my-awesome-module --pipeline github
+**Example directory structure:**
+```
+/path/to/modules/
+├── 001-module-one/
+├── 002-module-two/
+└── 003-module-three/
 ```
 
-Bootstrap a GitLab module in specific directory:
-```shell
-dmt bootstrap my-module --pipeline gitlab --directory ./modules/my-module
+### Bootstrap a New Module
+
+**Create a new module with GitHub CI/CD:**
+```bash
+dmt bootstrap my-awesome-module
 ```
 
-Use custom template repository:
-```shell
-dmt bootstrap my-module --repository-url https://github.com/myorg/custom-template/archive/main.zip
+**Create with GitLab CI/CD:**
+```bash
+dmt bootstrap my-module --pipeline gitlab
 ```
 
-## Linters list
-
-| Linter                                                   | Description                                                                  |
-|----------------------------------------------------------|------------------------------------------------------------------------------|
-| [container](pkg/linters/container/README.md)             | Check containers - duplicated names, env variables, ports, security context, liveness and readiness probes.|
-| [hooks](pkg/linters/hooks/README.md)                     | Check hooks rules. |
-| [images](pkg/linters/images/README.md)                   | Check images build instructions. |
-| [module](pkg/linters/module/README.md)                   | Check module.yaml definition, openapi conversions, oss.yaml file.|
-| [no-cyrillic](pkg/linters/no-cyrillic/README.md)         | Check cyrillic letters. |
-| [openapi](pkg/linters/openapi/README.md)                 | Check openapi settings, crds. |
-| [rbac](pkg/linters/rbac/README.md)                       | Check rbac rules. |
-| [templates](pkg/linters/templates/README.md)             | Check templates rules, VPA, PDB settings, prometheus, grafana rules, kube-rbac-proxy, service target port. |
-| [documentation](pkg/linters/no-cyrillic/README.md)       | Check documentation rules. |
-
-## Development Setup
-
-### Pre-commit Hooks
-
-To enable automatic linting before each commit, run:
-
-```shell
-make setup-hooks
+**Specify target directory:**
+```bash
+dmt bootstrap my-module --directory ./modules/my-module
 ```
 
-This will install a pre-commit hook that:
+**Use custom template:**
+```bash
+dmt bootstrap my-module --repository-url https://github.com/myorg/template/archive/main.zip
+```
 
-- Runs fast lint checks before each commit
-- Attempts to auto-fix issues when possible
-- Prevents commits with linting errors
+> **Note**: Module names must be in kebab-case (e.g., `my-module-name`)
 
-The hook uses `make lint-fast` for quick checks and `make lint-fix-fast` for auto-fixing.
+---
 
-### Available Make Targets
+## 📚 Documentation
 
-- `make setup-hooks` - Install pre-commit hooks
-- `make lint` - Run full linting
-- `make lint-fast` - Run fast linting (used by pre-commit hook)
-- `make lint-fix` - Run full linting with auto-fix
-- `make lint-fix-fast` - Run fast linting with auto-fix
+### Configuration
 
-## Configuration
+DMT can be configured using a `.dmtlint.yaml` file in your project root.
 
-You can exclude linters or setup them via the config file `.dmtlint.yaml`
-
-### Global settings
+#### Configuration
 
 ```yaml
-global:
-  linters-settings:
-    module:
-      impact: warn | critical
-    images:
-      impact: warn | critical  
+linters-settings:
+  container:
+    impact: error
+    exclude-rules:
+      # Exclude specific resources from checks
+      security-context:
+        - kind: Deployment
+          name: legacy-app
+          container: main
+      
+      resources:
+        - kind: DaemonSet
+          name: node-exporter
+  
+  images:
+    impact: warn
+    exclude-rules:
+      skip-image-file-path-prefix:
+        - images/special-case/
+  
+  documentation:
+    impact: error
+  
+  templates:
+    impact: error
+    exclude-rules:
+      vpa-absent:
+        - kind: Deployment
+          name: one-off-job
 ```
+
+### Command Line Options
+
+#### Lint Command
+
+```bash
+dmt lint [directories...] [flags]
+```
+
+**Flags:**
+- `--values-file, -v`: Specify custom values file
+- `--linter`: Run specific linter only
+- `--hide-warnings`: Hide warning-level issues
+- `--abs-path`: Show absolute paths in output
+- `--show-ignored`: Display ignored issues
+- `--log-level`: Set logging verbosity (debug, info, warn, error)
+
+**Examples:**
+```bash
+# Run only container linter
+dmt lint ./my-module --linter container
+
+# Hide warnings
+dmt lint ./my-module --hide-warnings
+
+# Use custom values
+dmt lint ./my-module --values-file custom-values.yaml
+
+# Debug mode
+dmt lint ./my-module --log-level debug
+```
+
+#### Bootstrap Command
+
+```bash
+dmt bootstrap <module-name> [flags]
+```
+
+**Flags:**
+- `--pipeline, -p`: CI/CD platform (`github` or `gitlab`, default: `github`)
+- `--directory, -d`: Target directory (default: current directory)
+- `--repository-url, -r`: Custom template repository URL
+
+**Examples:**
+```bash
+# GitHub project
+dmt bootstrap awesome-module --pipeline github
+
+# GitLab project in specific directory
+dmt bootstrap my-module -p gitlab -d ./modules/my-module
+
+# Custom template
+dmt bootstrap my-module -r https://example.com/template.zip
+```
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! Here's how you can help:
+
+1. **Report Bugs**: Open an issue describing the problem
+2. **Suggest Features**: Share your ideas for improvements
+3. **Submit PRs**: Fix bugs or add features
+4. **Improve Docs**: Help make documentation better
+
+### Development Guidelines
+
+- Follow Go best practices and idioms
+- Add tests for new features
+- Update documentation
+- Run `make lint` before committing
+- Use conventional commit messages
+
+---
+
+## 🔗 Links
+
+- **Website**: [deckhouse.io](https://deckhouse.io/)
+- **Issues**: [Report a bug or request a feature](https://github.com/deckhouse/dmt/issues)
+- **Releases**: [Download binaries](https://github.com/deckhouse/dmt/releases)
+- **Documentation**: [Deckhouse Documentation](https://deckhouse.io/documentation/)
+
+---
+
+## 🌟 Support
+
+If you find DMT helpful, please consider:
+- ⭐ Starring the repository
+- 🐛 Reporting bugs
+- 💡 Suggesting features
+- 📖 Contributing to documentation
+- 🔀 Submitting pull requests
