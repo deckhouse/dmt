@@ -1,30 +1,31 @@
-#!/usr/bin/env bash
+#!/bin/sh
 #
 # DMT (Deckhouse Module Tool) Installer Script
 #
 # This script should be run via curl:
-#   bash -c "$(curl -fsSL https://raw.githubusercontent.com/deckhouse/dmt/main/tools/install.sh)"
+#   sh -c "$(curl -fsSL https://raw.githubusercontent.com/deckhouse/dmt/main/tools/install.sh)"
 # or via wget:
-#   bash -c "$(wget -qO- https://raw.githubusercontent.com/deckhouse/dmt/main/tools/install.sh)"
+#   sh -c "$(wget -qO- https://raw.githubusercontent.com/deckhouse/dmt/main/tools/install.sh)"
 #
-# As an alternative, you can first download the install script and run it afterwards:
-#   wget https://raw.githubusercontent.com/deckhouse/dmt/main/tools/install.sh
-#   bash install.sh
+# Alternatively, download the script first and then run it:
+#   curl -fsSL https://raw.githubusercontent.com/deckhouse/dmt/main/tools/install.sh -o install.sh
+#   sh install.sh
 #
-# Respects the following environment variables:
+# Environment variables:
 #   INSTALL_DIR - Installation directory (default: /usr/local/bin)
 #   VERSION     - Version to install (default: latest)
 #   REPO        - GitHub repository (default: deckhouse/dmt)
 #   FORCE       - Force reinstall if already exists (default: no)
 #
-# You can also pass arguments to the install script:
+# Command-line options:
 #   --version <version>  - Install specific version
 #   --force             - Force reinstall
 #   --install-dir <dir> - Custom installation directory
 #   --unattended        - Non-interactive mode
 #
-# For example:
-#   sh install.sh --version v1.0.0 --install-dir ~/bin
+# Examples:
+#   sh install.sh --version v0.1.44 --install-dir ~/bin
+#   INSTALL_DIR=~/bin sh install.sh --force
 #
 set -e
 
@@ -75,7 +76,7 @@ user_can_sudo() {
 }
 
 check_dependencies() {
-  local missing=""
+  missing=""
   
   if ! command_exists curl && ! command_exists wget; then
     missing="${missing}curl or wget, "
@@ -93,8 +94,8 @@ check_dependencies() {
 }
 
 get_latest_version() {
-  local api_url="https://api.github.com/repos/${REPO}/releases/latest"
-  local version=""
+  api_url="https://api.github.com/repos/${REPO}/releases/latest"
+  version=""
   
   if command_exists curl; then
     version=$(curl -fsSL "$api_url" | grep '"tag_name":' | sed -E 's/.*"tag_name": "([^"]+)".*/\1/')
@@ -111,8 +112,8 @@ get_latest_version() {
 }
 
 download_file() {
-  local url="$1"
-  local output="$2"
+  url="$1"
+  output="$2"
   
   if command_exists curl; then
     curl -fsSL "$url" -o "$output"
@@ -307,7 +308,7 @@ setup_color() {
 }
 
 install_dmt() {
-  local install_version="$VERSION"
+  install_version="$VERSION"
   
   # Get latest version if not specified
   if [ "$install_version" = "latest" ]; then
@@ -317,20 +318,19 @@ install_dmt() {
   fi
   
   # Strip 'v' prefix from version for filename (v0.1.44 -> 0.1.44)
-  local version_for_filename="${install_version#v}"
+  version_for_filename="${install_version#v}"
   
   # Build download URL
-  local filename="${BINARY_NAME}-${version_for_filename}-${PLATFORM}.tar.gz"
-  local download_url="https://github.com/${REPO}/releases/download/${install_version}/${filename}"
+  filename="${BINARY_NAME}-${version_for_filename}-${PLATFORM}.tar.gz"
+  download_url="https://github.com/${REPO}/releases/download/${install_version}/${filename}"
   
   fmt_info "Downloading DMT ${install_version} for ${PLATFORM}..."
   
   # Create temporary directory
-  local tmp_dir
   tmp_dir=$(mktemp -d -t dmt-install.XXXXXXXXXX)
   trap 'rm -rf "$tmp_dir"' EXIT
   
-  local tar_file="${tmp_dir}/${filename}"
+  tar_file="${tmp_dir}/${filename}"
   
   # Download the release
   if ! download_file "$download_url" "$tar_file"; then
@@ -346,8 +346,8 @@ install_dmt() {
     tar -xzf "$tar_file" -C "$tmp_dir"
     
     # Look for the binary (it's wrapped in a directory by goreleaser)
-    local archive_dir="${BINARY_NAME}-${version_for_filename}-${PLATFORM}"
-    local binary_path="${tmp_dir}/${archive_dir}/${BINARY_NAME}"
+    archive_dir="${BINARY_NAME}-${version_for_filename}-${PLATFORM}"
+    binary_path="${tmp_dir}/${archive_dir}/${BINARY_NAME}"
     if [ ! -f "$binary_path" ]; then
         fmt_error "Binary not found in archive at: ${binary_path}"
         exit 1
@@ -361,8 +361,8 @@ install_dmt() {
 }
 
 install_binary() {
-  local binary_path="$1"
-  local target_path="${INSTALL_DIR}/${BINARY_NAME}"
+  binary_path="$1"
+  target_path="${INSTALL_DIR}/${BINARY_NAME}"
   
   # Check if binary already exists
   if [ -f "$target_path" ] && [ "$FORCE" != "yes" ]; then
@@ -404,7 +404,7 @@ install_binary() {
 }
 
 verify_installation() {
-  local target_path="${INSTALL_DIR}/${BINARY_NAME}"
+  target_path="${INSTALL_DIR}/${BINARY_NAME}"
   
   if ! command_exists "$BINARY_NAME" && [ ! -f "$target_path" ]; then
     fmt_error "Installation verification failed"
@@ -415,13 +415,11 @@ verify_installation() {
   
   # Try to get version
   if command_exists "$BINARY_NAME"; then
-    local version_output
     version_output=$("$BINARY_NAME" --version 2>/dev/null || echo "")
     if [ -n "$version_output" ]; then
       fmt_success "✓ ${version_output}"
     fi
   elif [ -f "$target_path" ]; then
-    local version_output
     version_output=$("$target_path" --version 2>/dev/null || echo "")
     if [ -n "$version_output" ]; then
       fmt_success "✓ ${version_output}"
