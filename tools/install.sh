@@ -7,24 +7,25 @@
 # or via wget:
 #   sh -c "$(wget -qO- https://raw.githubusercontent.com/deckhouse/dmt/main/tools/install.sh)"
 #
-# As an alternative, you can first download the install script and run it afterwards:
-#   wget https://raw.githubusercontent.com/deckhouse/dmt/main/tools/install.sh
+# Alternatively, download the script first and then run it:
+#   curl -fsSL https://raw.githubusercontent.com/deckhouse/dmt/main/tools/install.sh -o install.sh
 #   sh install.sh
 #
-# Respects the following environment variables:
+# Environment variables:
 #   INSTALL_DIR - Installation directory (default: /usr/local/bin)
 #   VERSION     - Version to install (default: latest)
 #   REPO        - GitHub repository (default: deckhouse/dmt)
 #   FORCE       - Force reinstall if already exists (default: no)
 #
-# You can also pass arguments to the install script:
+# Command-line options:
 #   --version <version>  - Install specific version
 #   --force             - Force reinstall
 #   --install-dir <dir> - Custom installation directory
 #   --unattended        - Non-interactive mode
 #
-# For example:
-#   sh install.sh --version v1.0.0 --install-dir ~/bin
+# Examples:
+#   sh install.sh --version v0.1.44 --install-dir ~/bin
+#   INSTALL_DIR=~/bin sh install.sh --force
 #
 set -e
 
@@ -71,11 +72,11 @@ command_exists() {
 
 user_can_sudo() {
   command_exists sudo || return 1
-  ! LANG= sudo -n -v 2>&1 | grep -q "may not run sudo"
+  ! LANG='' sudo -n -v 2>&1 | grep -q "may not run sudo"
 }
 
 check_dependencies() {
-  local missing=""
+  missing=""
   
   if ! command_exists curl && ! command_exists wget; then
     missing="${missing}curl or wget, "
@@ -93,8 +94,8 @@ check_dependencies() {
 }
 
 get_latest_version() {
-  local api_url="https://api.github.com/repos/${REPO}/releases/latest"
-  local version=""
+  api_url="https://api.github.com/repos/${REPO}/releases/latest"
+  version=""
   
   if command_exists curl; then
     version=$(curl -fsSL "$api_url" | grep '"tag_name":' | sed -E 's/.*"tag_name": "([^"]+)".*/\1/')
@@ -111,8 +112,8 @@ get_latest_version() {
 }
 
 download_file() {
-  local url="$1"
-  local output="$2"
+  url="$1"
+  output="$2"
   
   if command_exists curl; then
     curl -fsSL "$url" -o "$output"
@@ -173,7 +174,7 @@ supports_hyperlinks() {
 
   # VTE-based terminals above v0.50 (Gnome Terminal, Guake, ROXTerm, etc)
   if [ -n "$VTE_VERSION" ]; then
-    [ $VTE_VERSION -ge 5000 ]
+    [ "$VTE_VERSION" -ge 5000 ]
     return $?
   fi
 
@@ -250,6 +251,18 @@ fmt_error() {
   printf '%sError: %s%s\n' "${FMT_BOLD}${FMT_RED}" "$*" "$FMT_RESET" >&2
 }
 
+fmt_info() {
+  printf '%s%s%s\n' "${FMT_BLUE}" "$*" "$FMT_RESET"
+}
+
+fmt_success() {
+  printf '%s%s%s\n' "${FMT_GREEN}" "$*" "$FMT_RESET"
+}
+
+fmt_warn() {
+  printf '%sWarning: %s%s\n' "${FMT_YELLOW}" "$*" "$FMT_RESET"
+}
+
 setup_color() {
   # Only use colors if connected to a terminal
   if ! is_tty; then
@@ -263,6 +276,7 @@ setup_color() {
     return
   fi
 
+  # shellcheck disable=SC2034  # FMT_RAINBOW kept for potential future use
   if supports_truecolor; then
     FMT_RAINBOW="
       $(printf '\033[38;2;255;0;0m')
@@ -294,29 +308,29 @@ setup_color() {
 }
 
 install_dmt() {
-  local install_version="$VERSION"
+  install_version="$VERSION"
   
   # Get latest version if not specified
   if [ "$install_version" = "latest" ]; then
-    echo "${FMT_BLUE}Fetching latest version...${FMT_RESET}"
+    fmt_info "Fetching latest version..."
     install_version=$(get_latest_version)
-    echo "${FMT_GREEN}Latest version: ${install_version}${FMT_RESET}"
+    fmt_success "Latest version: ${install_version}"
   fi
   
   # Strip 'v' prefix from version for filename (v0.1.44 -> 0.1.44)
-  local version_for_filename="${install_version#v}"
+  version_for_filename="${install_version#v}"
   
   # Build download URL
-  local filename="${BINARY_NAME}-${version_for_filename}-${PLATFORM}.tar.gz"
-  local download_url="https://github.com/${REPO}/releases/download/${install_version}/${filename}"
+  filename="${BINARY_NAME}-${version_for_filename}-${PLATFORM}.tar.gz"
+  download_url="https://github.com/${REPO}/releases/download/${install_version}/${filename}"
   
-  echo "${FMT_BLUE}Downloading DMT ${install_version} for ${PLATFORM}...${FMT_RESET}"
+  fmt_info "Downloading DMT ${install_version} for ${PLATFORM}..."
   
   # Create temporary directory
-  local tmp_dir=$(mktemp -d -t dmt-install.XXXXXXXXXX)
-  trap "rm -rf '$tmp_dir'" EXIT
+  tmp_dir=$(mktemp -d -t dmt-install.XXXXXXXXXX)
+  trap 'rm -rf "$tmp_dir"' EXIT
   
-  local tar_file="${tmp_dir}/${filename}"
+  tar_file="${tmp_dir}/${filename}"
   
   # Download the release
   if ! download_file "$download_url" "$tar_file"; then
@@ -325,20 +339,19 @@ install_dmt() {
     exit 1
   fi
   
-  echo "${FMT_GREEN}Downloaded successfully${FMT_RESET}"
+  fmt_success "Downloaded successfully"
   
-  # Extract the binary
-  echo "${FMT_BLUE}Extracting ${BINARY_NAME}...${FMT_RESET}"
-  tar -xzf "$tar_file" -C "$tmp_dir"
-  
-  # Check if binary exists in extracted files
-  local binary_path="${tmp_dir}/${BINARY_NAME}"
-  if [ ! -f "$binary_path" ]; then
-    fmt_error "Binary not found in archive"
-    exit 1
-  fi
-  
-  # Make binary executable
+  # Extract the tarball
+    fmt_info "Extracting archive..."
+    tar -xzf "$tar_file" -C "$tmp_dir"
+    
+    # Look for the binary (it's wrapped in a directory by goreleaser)
+    archive_dir="${BINARY_NAME}-${version_for_filename}-${PLATFORM}"
+    binary_path="${tmp_dir}/${archive_dir}/${BINARY_NAME}"
+    if [ ! -f "$binary_path" ]; then
+        fmt_error "Binary not found in archive at: ${binary_path}"
+        exit 1
+    fi  # Make binary executable
   chmod +x "$binary_path"
   
   # Install the binary
@@ -348,8 +361,8 @@ install_dmt() {
 }
 
 install_binary() {
-  local binary_path="$1"
-  local target_path="${INSTALL_DIR}/${BINARY_NAME}"
+  binary_path="$1"
+  target_path="${INSTALL_DIR}/${BINARY_NAME}"
   
   # Check if binary already exists
   if [ -f "$target_path" ] && [ "$FORCE" != "yes" ]; then
@@ -371,7 +384,7 @@ install_binary() {
   # Check if we need sudo to install
   if [ ! -w "$INSTALL_DIR" ]; then
     if user_can_sudo; then
-      echo "${FMT_BLUE}Installing ${BINARY_NAME} to ${target_path} (requires sudo)...${FMT_RESET}"
+      fmt_info "Installing ${BINARY_NAME} to ${target_path} (requires sudo)..."
       sudo mkdir -p "$INSTALL_DIR"
       sudo cp "$binary_path" "$target_path"
       sudo chmod +x "$target_path"
@@ -381,42 +394,42 @@ install_binary() {
       exit 1
     fi
   else
-    echo "${FMT_BLUE}Installing ${BINARY_NAME} to ${target_path}...${FMT_RESET}"
+    fmt_info "Installing ${BINARY_NAME} to ${target_path}..."
     mkdir -p "$INSTALL_DIR"
     cp "$binary_path" "$target_path"
     chmod +x "$target_path"
   fi
   
-  echo "${FMT_GREEN}${BINARY_NAME} installed successfully!${FMT_RESET}"
+  fmt_success "${BINARY_NAME} installed successfully!"
 }
 
 verify_installation() {
-  local target_path="${INSTALL_DIR}/${BINARY_NAME}"
+  target_path="${INSTALL_DIR}/${BINARY_NAME}"
   
   if ! command_exists "$BINARY_NAME" && [ ! -f "$target_path" ]; then
     fmt_error "Installation verification failed"
     exit 1
   fi
   
-  echo "${FMT_BLUE}Verifying installation...${FMT_RESET}"
+  fmt_info "Verifying installation..."
   
   # Try to get version
   if command_exists "$BINARY_NAME"; then
-    local version_output=$("$BINARY_NAME" --version 2>/dev/null || echo "")
+    version_output=$("$BINARY_NAME" --version 2>/dev/null || echo "")
     if [ -n "$version_output" ]; then
-      echo "${FMT_GREEN}✓ ${version_output}${FMT_RESET}"
+      fmt_success "✓ ${version_output}"
     fi
   elif [ -f "$target_path" ]; then
-    local version_output=$("$target_path" --version 2>/dev/null || echo "")
+    version_output=$("$target_path" --version 2>/dev/null || echo "")
     if [ -n "$version_output" ]; then
-      echo "${FMT_GREEN}✓ ${version_output}${FMT_RESET}"
+      fmt_success "✓ ${version_output}"
     fi
   fi
   
   # Check if binary is in PATH
   if ! command_exists "$BINARY_NAME"; then
     echo ""
-    echo "${FMT_YELLOW}Note: ${INSTALL_DIR} is not in your PATH${FMT_RESET}"
+    fmt_warn "Note: ${INSTALL_DIR} is not in your PATH"
     echo "Add it to your PATH by adding this line to your shell profile:"
     echo ""
     echo "  ${FMT_BOLD}export PATH=\"${INSTALL_DIR}:\$PATH\"${FMT_RESET}"
@@ -533,7 +546,7 @@ main() {
 
   setup_color
   
-  echo "${FMT_BOLD}${FMT_BLUE}DMT (Deckhouse Module Tool) Installer${FMT_RESET}"
+  printf '%s%sDMT (Deckhouse Module Tool) Installer%s\n' "${FMT_BOLD}" "${FMT_BLUE}" "${FMT_RESET}"
   echo ""
 
   # Check dependencies
@@ -541,7 +554,7 @@ main() {
   
   # Detect platform
   detect_platform
-  echo "${FMT_GREEN}Detected platform: ${PLATFORM}${FMT_RESET}"
+  fmt_success "Detected platform: ${PLATFORM}"
   echo ""
 
   # Install DMT
