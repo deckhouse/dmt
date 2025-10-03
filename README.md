@@ -5,8 +5,6 @@
 **The Swiss Knife for Deckhouse Module Development**
 
 [![GitHub Release](https://img.shields.io/github/v/release/deckhouse/dmt)](https://github.com/deckhouse/dmt/releases)
-[![Go Report Card](https://goreportcard.com/badge/github.com/deckhouse/dmt)](https://goreportcard.com/report/github.com/deckhouse/dmt)
-[![License](https://img.shields.io/github/license/deckhouse/dmt)](LICENSE)
 
 [Features](#-features) •
 [Installation](#-installation) •
@@ -27,7 +25,6 @@
 - ✅ **Quality Assurance**: Comprehensive linting with 9 specialized linters
 - 🚀 **Fast Development**: Bootstrap new modules in seconds
 - 🔧 **Configurable**: Fine-tune linting rules per project
-- 📊 **Detailed Reports**: Clear, actionable feedback on issues
 - 🎯 **CI/CD Ready**: Perfect for automated pipelines
 
 ---
@@ -291,14 +288,11 @@ We welcome contributions! Here's how you can help:
 - Run `make lint` before committing
 - Use conventional commit messages
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines (if available).
-
 ---
 
 ## 🔗 Links
 
 - **Website**: [deckhouse.io](https://deckhouse.io/)
-- **GitHub**: [github.com/deckhouse/dmt](https://github.com/deckhouse/dmt)
 - **Issues**: [Report a bug or request a feature](https://github.com/deckhouse/dmt/issues)
 - **Releases**: [Download binaries](https://github.com/deckhouse/dmt/releases)
 - **Documentation**: [Deckhouse Documentation](https://deckhouse.io/documentation/)
