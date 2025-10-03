@@ -303,8 +303,11 @@ install_dmt() {
     echo "${FMT_GREEN}Latest version: ${install_version}${FMT_RESET}"
   fi
   
+  # Strip 'v' prefix from version for filename (v0.1.44 -> 0.1.44)
+  local version_for_filename="${install_version#v}"
+  
   # Build download URL
-  local filename="${BINARY_NAME}-${install_version}-${PLATFORM}.tar.gz"
+  local filename="${BINARY_NAME}-${version_for_filename}-${PLATFORM}.tar.gz"
   local download_url="https://github.com/${REPO}/releases/download/${install_version}/${filename}"
   
   echo "${FMT_BLUE}Downloading DMT ${install_version} for ${PLATFORM}...${FMT_RESET}"
