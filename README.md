@@ -114,6 +114,26 @@ go install github.com/deckhouse/dmt@latest
 
 > **Note**: Ensure `~/go/bin` is in your PATH after installation.
 
+### Method 4: Using trdl
+
+[trdl](https://github.com/werf/trdl) is a tool release delivery system that provides automatic updates and channel management:
+
+```bash
+# Install from stable channel
+trdl use dmt stable
+
+# Or install from alpha channel for latest features
+trdl use dmt alpha
+```
+
+**Benefits:**
+- Automatic updates
+- Channel-based releases (stable, alpha)
+- Cross-platform support
+- Version management
+
+> **Note**: Requires [trdl](https://github.com/werf/trdl) to be installed first.
+
 ### Verify Installation
 
 ```bash
