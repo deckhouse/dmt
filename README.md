@@ -4,15 +4,24 @@ Deckhouse Module Tool - the swiss knife for your Deckhouse modules
 
 ## How to install
 
-### go install (recommended method)
+### Install script (recommended method)
+
+Quick install (latest version)
+
+```bash
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/deckhouse/dmt/main/tools/install.sh)"
+```
+
+### Download latest release from release page
+You can directly download any [release](https://github.com/deckhouse/dmt/releases) that is compatible with your system.
+
+### go install
 This is the simplest and fastest method to install the latest version. The command will download, compile, and install the binary in $GOPATH/bin (or ~/go/bin by default).
 ```shell
 go install github.com/deckhouse/dmt@latest
 ```
 After installation, add ~/go/bin to your PATH (if not already added).
 
-### Download latest release
-You can directly download any [release](https://github.com/deckhouse/dmt/releases) that is compatible with your system.
 
 ## How to use
 
