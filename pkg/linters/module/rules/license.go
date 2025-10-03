@@ -96,6 +96,9 @@ func filterFiles(rootPath, path string) bool {
 	if f.IsDir() {
 		return false
 	}
+	if f.Size() == 0 {
+		return false
+	}
 	path = fsutils.Rel(rootPath, path)
 	if fileToCheckRe.MatchString(path) && !fileToSkipRe.MatchString(path) {
 		return true
