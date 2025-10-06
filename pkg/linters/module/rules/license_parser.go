@@ -319,7 +319,7 @@ func (p *LicenseParser) extractWithStyle(header string, style CommentStyle) stri
 				content = strings.TrimSpace(content)
 
 				// Check if this might be start of license
-				if !inLicense && (strings.Contains(content, "Copyright") || strings.Contains(content, "copyright")) {
+				if !inLicense && strings.HasPrefix(strings.ToLower(content), "copyright") {
 					inLicense = true
 				}
 
