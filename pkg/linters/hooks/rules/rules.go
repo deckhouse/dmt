@@ -23,11 +23,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"k8s.io/utils/ptr"
+
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
-	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
@@ -36,26 +37,26 @@ type HookRule struct {
 	pkg.BoolRule
 }
 
-func NewHookRule(cfg *config.HooksSettings) *HookRule {
+func NewHookRule(cfg *pkg.HooksLinterConfig) *HookRule {
 	return &HookRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: "ingress",
 		},
 		BoolRule: pkg.BoolRule{
-			Exclude: cfg.Ingress.Disable,
+			Exclude: cfg.IngressRuleSettings.Disable,
 		},
 	}
 }
 
 func (l *HookRule) CheckIngressCopyCustomCertificateRule(m *module.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(l.GetName()).WithFilePath(object.ShortPath())
+	errorList = errorList.WithRule(l.GetName()).WithFilePath(object.GetPath())
 
 	const (
 		copyCustomCertificateImport = `"github.com/deckhouse/deckhouse/go_lib/hooks/copy_custom_certificate"`
 	)
 
 	if !l.Enabled() {
-		return
+		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
 	}
 
 	if object.Unstructured.GetKind() != "Ingress" {

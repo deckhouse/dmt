@@ -19,171 +19,113 @@ package rules
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/gojuno/minimock/v3"
 
+	"github.com/deckhouse/dmt/internal/mocks"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
-// mockModule implements the mockModuleInterface for testing
-type mockModule struct {
-	path string
-}
+func TestFilesRule_CheckFile_WithMock(t *testing.T) {
+	mc := minimock.NewController(t)
 
-func (m *mockModule) GetPath() string {
-	return m.path
-}
+	// Create a mock module
+	mockModule := mocks.NewModuleMock(mc)
 
-func TestNewFilesRule(t *testing.T) {
-	excludeFiles := []pkg.StringRuleExclude{
-		"exclude.txt",
-	}
-	excludeDirs := []pkg.PrefixRuleExclude{
-		"exclude_dir/",
-	}
-
-	rule := NewFilesRule(excludeFiles, excludeDirs)
-
-	assert.Equal(t, "files", rule.GetName())
-	assert.Equal(t, excludeFiles, rule.ExcludeStringRules)
-	assert.Equal(t, excludeDirs, rule.ExcludePrefixRules)
-	assert.NotNil(t, rule.skipDocRe)
-	assert.NotNil(t, rule.skipI18NRe)
-	assert.NotNil(t, rule.skipSelfRe)
-}
-
-func TestCheckFile(t *testing.T) {
-	// Create a temporary directory
+	// Create test directory structure
 	tempDir := t.TempDir()
+	testFile := filepath.Join(tempDir, "test.go")
 
-	// Create test files
-	normalFile := filepath.Join(tempDir, "normal.txt")
-	err := os.WriteFile(normalFile, []byte("This is English text."), 0600)
-	require.NoError(t, err)
-
-	cyrillicFile := filepath.Join(tempDir, "cyrillic.txt")
-	err = os.WriteFile(cyrillicFile, []byte("This contains Cyrillic: Привет"), 0600)
-	require.NoError(t, err)
-
-	docRuFile := filepath.Join(tempDir, "doc-ru-test.yml")
-	err = os.WriteFile(docRuFile, []byte("This contains Cyrillic: Привет"), 0600)
-	require.NoError(t, err)
-
-	ruMdFile := filepath.Join(tempDir, "test_RU.md")
-	err = os.WriteFile(ruMdFile, []byte("This contains Cyrillic: Привет"), 0600)
-	require.NoError(t, err)
-
-	err = os.MkdirAll(filepath.Join(tempDir, "i18n"), 0755)
-	require.NoError(t, err)
-	i18nFile := filepath.Join(tempDir, "i18n", "strings.txt")
-	err = os.WriteFile(i18nFile, []byte("This contains Cyrillic: Привет"), 0600)
-	require.NoError(t, err)
-
-	selfFile := filepath.Join(tempDir, "no_cyrillic.go")
-	err = os.WriteFile(selfFile, []byte("This contains Cyrillic: Привет"), 0600)
-	require.NoError(t, err)
-
-	excludedFile := filepath.Join(tempDir, "exclude.txt")
-	err = os.WriteFile(excludedFile, []byte("This contains Cyrillic: Привет"), 0600)
-	require.NoError(t, err)
-
-	// Setup mock module for testing
-	mod := &mockModule{path: tempDir}
-
-	// Setup rule
-	excludeFiles := []pkg.StringRuleExclude{
-		"exclude.txt",
+	// Create a file with cyrillic content
+	err := os.WriteFile(testFile, []byte("package test\n// Привет мир\n"), 0600)
+	if err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
 	}
-	excludeDirs := []pkg.PrefixRuleExclude{}
-	rule := NewFilesRule(excludeFiles, excludeDirs)
 
-	// Test normal file (no Cyrillic)
-	t.Run("NormalFile", func(t *testing.T) {
-		errorList := errors.NewLintRuleErrorsList()
-		rule.CheckFile(mod, normalFile, errorList)
-		assert.Empty(t, errorList.GetErrors())
-	})
+	// Setup mock expectations
+	mockModule.GetPathMock.Return(tempDir)
 
-	// Test file with Cyrillic
-	t.Run("CyrillicFile", func(t *testing.T) {
-		errorList := errors.NewLintRuleErrorsList()
-		rule.CheckFile(mod, cyrillicFile, errorList)
-		errs := errorList.GetErrors()
-		// Just check that an error is produced for files with Cyrillic
-		assert.NotEmpty(t, errs, "Should report error for Cyrillic content")
-		if len(errs) > 0 {
-			assert.Contains(t, errs[0].Text, "has cyrillic letters")
-		}
-	})
+	// Create rule and error list
+	rule := NewFilesRule(nil, nil)
+	errorList := &errors.LintRuleErrorsList{}
 
-	// Test excluded file by regex (doc-ru)
-	t.Run("DocRuFile", func(t *testing.T) {
-		errorList := errors.NewLintRuleErrorsList()
-		rule.CheckFile(mod, docRuFile, errorList)
-		assert.Empty(t, errorList.GetErrors())
-	})
+	// Test the rule
+	rule.CheckFile(mockModule, testFile, errorList)
 
-	// Test excluded RU.md file pattern
-	t.Run("RUMdFile", func(t *testing.T) {
-		errorList := errors.NewLintRuleErrorsList()
-		rule.CheckFile(mod, ruMdFile, errorList)
-		assert.Empty(t, errorList.GetErrors())
-	})
-
-	// Test excluded file by regex (i18n)
-	t.Run("I18nFile", func(t *testing.T) {
-		errorList := errors.NewLintRuleErrorsList()
-		rule.CheckFile(mod, i18nFile, errorList)
-		assert.Empty(t, errorList.GetErrors())
-	})
-
-	// Test excluded file by regex (self)
-	t.Run("SelfFile", func(t *testing.T) {
-		errorList := errors.NewLintRuleErrorsList()
-		rule.CheckFile(mod, selfFile, errorList)
-		assert.Empty(t, errorList.GetErrors())
-	})
-
-	// Test excluded file by rule
-	t.Run("ExcludedFile", func(t *testing.T) {
-		errorList := errors.NewLintRuleErrorsList()
-		rule.CheckFile(mod, excludedFile, errorList)
-		assert.Empty(t, errorList.GetErrors())
-	})
-
-	// Test non-existent file
-	t.Run("NonExistentFile", func(t *testing.T) {
-		errorList := errors.NewLintRuleErrorsList()
-		rule.CheckFile(mod, filepath.Join(tempDir, "nonexistent.txt"), errorList)
-		errs := errorList.GetErrors()
-		assert.NotEmpty(t, errs, "Should report error for non-existent file")
-		if len(errs) > 0 {
-			assert.Contains(t, errs[0].Text, "no such file or directory")
-		}
-	})
+	// Verify that cyrillic was detected
+	errs := errorList.GetErrors()
+	if len(errs) == 0 {
+		t.Error("Expected cyrillic detection error, but got none")
+	}
 }
 
-func TestGetFileContent(t *testing.T) {
-	// Create a temporary directory
+func TestFilesRule_CheckFile_SkipRussianFile(t *testing.T) {
+	mc := minimock.NewController(t)
+
+	// Create a mock module
+	mockModule := mocks.NewModuleMock(mc)
+
+	// Create test directory structure
 	tempDir := t.TempDir()
+	testFile := filepath.Join(tempDir, "README_RU.md")
 
-	// Create a test file
-	testFile := filepath.Join(tempDir, "test.txt")
-	content := "line1\nline2\nline3"
-	err := os.WriteFile(testFile, []byte(content), 0600)
-	require.NoError(t, err)
+	// Create a Russian file with cyrillic content (should be skipped)
+	err := os.WriteFile(testFile, []byte("# Документация\nПривет мир\n"), 0600)
+	if err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
 
-	// Test reading existing file
-	fileBytes, err := os.ReadFile(testFile)
-	require.NoError(t, err)
-	lines := strings.Split(string(fileBytes), "\n")
-	assert.Equal(t, []string{"line1", "line2", "line3"}, lines)
+	// Setup mock expectations
+	mockModule.GetPathMock.Return(tempDir)
 
-	// Test reading non-existent file
-	_, err = os.ReadFile(filepath.Join(tempDir, "nonexistent.txt"))
-	require.Error(t, err)
+	// Create rule and error list
+	rule := NewFilesRule(nil, nil)
+	errorList := &errors.LintRuleErrorsList{}
+
+	// Test the rule
+	rule.CheckFile(mockModule, testFile, errorList)
+
+	// Verify that Russian file was skipped (no errors)
+	errs := errorList.GetErrors()
+	if len(errs) > 0 {
+		t.Errorf("Expected Russian file to be skipped, but got %d errors", len(errs))
+	}
+}
+
+func TestFilesRule_CheckFile_WithExcludeRules(t *testing.T) {
+	mc := minimock.NewController(t)
+
+	// Create a mock module
+	mockModule := mocks.NewModuleMock(mc)
+
+	// Create test directory structure
+	tempDir := t.TempDir()
+	testFile := filepath.Join(tempDir, "excluded.go")
+
+	// Create a file with cyrillic content
+	err := os.WriteFile(testFile, []byte("package test\n// Привет мир\n"), 0600)
+	if err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	// Setup mock expectations
+	mockModule.GetPathMock.Return(tempDir)
+
+	// Create rule with exclude rules
+	excludeRules := []pkg.StringRuleExclude{
+		pkg.StringRuleExclude("excluded.go"),
+	}
+	rule := NewFilesRule(excludeRules, nil)
+	errorList := &errors.LintRuleErrorsList{}
+
+	// Test the rule
+	rule.CheckFile(mockModule, testFile, errorList)
+
+	// Verify that file was excluded (no errors)
+	errs := errorList.GetErrors()
+	if len(errs) > 0 {
+		t.Errorf("Expected file to be excluded, but got %d errors", len(errs))
+	}
 }

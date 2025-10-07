@@ -23,21 +23,69 @@ type Global struct {
 }
 
 type Linters struct {
-	Container  LinterConfig `mapstructure:"container"`
-	Hooks      LinterConfig `mapstructure:"hooks"`
-	Images     LinterConfig `mapstructure:"images"`
-	License    LinterConfig `mapstructure:"license"`
-	Module     LinterConfig `mapstructure:"module"`
-	NoCyrillic LinterConfig `mapstructure:"no-cyrillic"`
-	OpenAPI    LinterConfig `mapstructure:"openapi"`
-	Rbac       LinterConfig `mapstructure:"rbac"`
-	Templates  LinterConfig `mapstructure:"templates"`
+	Container     ContainerLinterConfig     `mapstructure:"container"`
+	Hooks         LinterConfig              `mapstructure:"hooks"`
+	Images        ImagesLinterConfig        `mapstructure:"images"`
+	License       LinterConfig              `mapstructure:"license"`
+	Module        ModuleLinterConfig        `mapstructure:"module"`
+	NoCyrillic    LinterConfig              `mapstructure:"no-cyrillic"`
+	OpenAPI       LinterConfig              `mapstructure:"openapi"`
+	Rbac          LinterConfig              `mapstructure:"rbac"`
+	Templates     LinterConfig              `mapstructure:"templates"`
+	Documentation DocumentationLinterConfig `mapstructure:"documentation"`
 }
 
 type LinterConfig struct {
-	Impact *pkg.Level `mapstructure:"impact"`
+	Impact string `mapstructure:"impact"`
+}
+
+type ContainerLinterConfig struct {
+	LinterConfig          `mapstructure:",squash"`
+	RecommendedLabelsRule RuleConfig `mapstructure:"recommended-labels"`
+}
+
+type ImagesLinterConfig struct {
+	LinterConfig `mapstructure:",squash"`
+	Rules        ImageRules `mapstructure:"rules"`
+}
+
+type ImageRules struct {
+	DistrolessRule RuleConfig `mapstructure:"distroless"`
+	ImageRule      RuleConfig `mapstructure:"image"`
+	PatchesRule    RuleConfig `mapstructure:"patches"`
+	WerfRule       RuleConfig `mapstructure:"werf"`
+}
+
+type RuleConfig struct {
+	Impact string `mapstructure:"impact"`
+}
+
+type DocumentationLinterConfig struct {
+	LinterConfig `mapstructure:",squash"`
+	Rules        DocumentationRules `mapstructure:"rules"`
+}
+
+type DocumentationRules struct {
+	BilingualRule          RuleConfig `mapstructure:"bilingual"`
+	ReadmeRule             RuleConfig `mapstructure:"readme"`
+	NoCyrillicExcludeRules RuleConfig `mapstructure:"cyrillic-in-english"`
+}
+
+type ModuleLinterConfig struct {
+	LinterConfig `mapstructure:",squash"`
+	Rules        ModuleLinterRules `mapstructure:"rules"`
+}
+
+type ModuleLinterRules struct {
+	DefinitionFileRule    RuleConfig `mapstructure:"definition-file"`
+	OSSRule               RuleConfig `mapstructure:"oss"`
+	ConversionRule        RuleConfig `mapstructure:"conversion"`
+	HelmignoreRule        RuleConfig `mapstructure:"helmignore"`
+	LicenseRule           RuleConfig `mapstructure:"license"`
+	RequarementsRule      RuleConfig `mapstructure:"requarements"`
+	LegacyReleaseFileRule RuleConfig `mapstructure:"legacy-release-file"`
 }
 
 func (c LinterConfig) IsWarn() bool {
-	return c.Impact != nil && *c.Impact == pkg.Warn
+	return c.Impact == pkg.Warn.String()
 }

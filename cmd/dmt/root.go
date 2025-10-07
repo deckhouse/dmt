@@ -46,16 +46,15 @@ func execute() {
 		CompletionOptions: cobra.CompletionOptions{
 			HiddenDefaultCmd: true,
 		},
+		Version: version,
 		PersistentPreRun: func(_ *cobra.Command, _ []string) {
+			// TODO: move to separate package
 			flags.Version = version
-
 			logger.InitLogger(os.Stdout, flags.LogLevel)
-
-			if flags.PrintVersion {
-				fmt.Println("dmt version: ", flags.Version)
-			}
 		},
 	}
+
+	rootCmd.SetVersionTemplate("dmt version: {{.Version}}\n")
 
 	lintCmd := &cobra.Command{
 		Use:   "lint",

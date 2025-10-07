@@ -8,17 +8,17 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/deckhouse/dmt/internal/storage"
-	"github.com/deckhouse/dmt/pkg/config"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 func TestApplyContainerRules_NoContainers(t *testing.T) {
-	cfg := &config.ContainerSettings{}
+	cfg := &pkg.ContainerLinterConfig{}
 	errList := errors.NewLintRuleErrorsList()
 	linter := &Container{cfg: cfg}
 
 	obj := storage.StoreObject{
-		Path: "test.yaml",
+		AbsPath: "test.yaml",
 		Unstructured: unstructured.Unstructured{
 			Object: map[string]any{
 				"kind":     "Pod",
@@ -49,12 +49,12 @@ func TestApplyContainerRules_NoContainers(t *testing.T) {
 }
 
 func TestApplyContainerRules_ContainersError(t *testing.T) {
-	cfg := &config.ContainerSettings{}
+	cfg := &pkg.ContainerLinterConfig{}
 	errList := errors.NewLintRuleErrorsList()
 	linter := &Container{cfg: cfg}
 
 	obj := storage.StoreObject{
-		Path: "test.yaml",
+		AbsPath: "test.yaml",
 		Unstructured: unstructured.Unstructured{
 			Object: map[string]any{
 				"kind":     "UnknownKind",
@@ -68,12 +68,12 @@ func TestApplyContainerRules_ContainersError(t *testing.T) {
 }
 
 func TestApplyContainerRules_AllRules(t *testing.T) {
-	cfg := &config.ContainerSettings{}
+	cfg := &pkg.ContainerLinterConfig{}
 	errList := errors.NewLintRuleErrorsList()
 	linter := &Container{cfg: cfg}
 
 	obj := storage.StoreObject{
-		Path: "test.yaml",
+		AbsPath: "test.yaml",
 		Unstructured: unstructured.Unstructured{
 			Object: map[string]any{
 				"kind":       "Deployment",

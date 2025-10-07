@@ -42,6 +42,7 @@ import (
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/container"
+	"github.com/deckhouse/dmt/pkg/linters/docs"
 	"github.com/deckhouse/dmt/pkg/linters/hooks"
 	"github.com/deckhouse/dmt/pkg/linters/images"
 	moduleLinter "github.com/deckhouse/dmt/pkg/linters/module"
@@ -107,7 +108,7 @@ func (m *Manager) initManager(dir string) *Manager {
 			// linting errors are already logged
 			continue
 		}
-		mdl, err := module.NewModule(paths[i], &vals, globalValues, errorList)
+		mdl, err := module.NewModule(paths[i], &vals, globalValues, m.cfg, errorList)
 		if err != nil {
 			errorList.
 				WithFilePath(paths[i]).WithModule(moduleName).
@@ -115,8 +116,6 @@ func (m *Manager) initManager(dir string) *Manager {
 				Errorf("cannot create module `%s`", moduleName)
 			continue
 		}
-
-		mdl.MergeRootConfig(m.cfg)
 
 		m.Modules = append(m.Modules, mdl)
 	}
@@ -170,16 +169,17 @@ func (m *Manager) Run() {
 	wg.Wait()
 }
 
-func getLintersForModule(cfg *config.ModuleConfig, errList *errors.LintRuleErrorsList) []Linter {
+func getLintersForModule(cfg *pkg.LintersSettings, errList *errors.LintRuleErrorsList) []Linter {
 	return []Linter{
-		openapi.New(cfg, errList),
-		no_cyrillic.New(cfg, errList),
-		container.New(cfg, errList),
-		templates.New(cfg, errList),
-		images.New(cfg, errList),
-		rbac.New(cfg, errList),
-		hooks.New(cfg, errList),
-		moduleLinter.New(cfg, errList),
+		openapi.New(&cfg.OpenAPI, errList),
+		no_cyrillic.New(&cfg.NoCyrillic, errList),
+		container.New(&cfg.Container, errList),
+		templates.New(&cfg.Templates, errList),
+		images.New(&cfg.Image, errList),
+		rbac.New(&cfg.RBAC, errList),
+		hooks.New(&cfg.Hooks, errList),
+		moduleLinter.New(&cfg.Module, errList),
+		docs.New(&cfg.Documentation, errList),
 	}
 }
 
@@ -210,11 +210,25 @@ func (m *Manager) PrintResult() {
 
 		msgColor := color.FgRed
 
-		if err.Level == pkg.Warn {
-			msgColor = color.FgHiYellow
+		metrics.IncDmtLinterErrorsCount(err.LinterID, err.RuleID, err.Level.String())
+
+		if err.Level == pkg.Ignored {
+			// TODO: make it not global
+			if !flags.ShowIgnored {
+				continue
+			}
+
+			msgColor = color.FgWhite
 		}
 
-		metrics.IncDmtLinterErrorsCount(err.LinterID, err.RuleID, err.Level.String())
+		if err.Level == pkg.Warn {
+			// TODO: make it not global
+			if flags.HideWarnings {
+				continue
+			}
+
+			msgColor = color.FgHiYellow
+		}
 
 		// header
 		fmt.Fprint(w, emoji.Sprintf(":monkey:"))

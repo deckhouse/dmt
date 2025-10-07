@@ -21,7 +21,7 @@ import (
 	"path/filepath"
 
 	"github.com/deckhouse/dmt/internal/module"
-	"github.com/deckhouse/dmt/pkg/config"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/templates/rules"
 )
@@ -33,16 +33,16 @@ const (
 // Templates linter
 type Templates struct {
 	name, desc string
-	cfg        *config.TemplatesSettings
+	cfg        *pkg.TemplatesLinterConfig
 	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Templates {
+func New(cfg *pkg.TemplatesLinterConfig, errorList *errors.LintRuleErrorsList) *Templates {
 	return &Templates{
 		name:      ID,
 		desc:      "Lint templates",
-		cfg:       &cfg.LintersSettings.Templates,
-		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Templates.Impact),
+		cfg:       cfg,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.Impact),
 	}
 }
 
@@ -61,7 +61,7 @@ func (l *Templates) Run(m *module.Module) {
 	ingressRule := rules.NewIngressRule(l.cfg.ExcludeRules.Ingress.Get())
 
 	// monitoring
-	prometheusRule := rules.NewPrometheusRule()
+	prometheusRule := rules.NewPrometheusRule(l.cfg)
 	grafanaRule := rules.NewGrafanaRule(l.cfg)
 
 	if err := dirExists(m.GetPath(), "monitoring"); err == nil {
@@ -87,7 +87,11 @@ func (l *Templates) Run(m *module.Module) {
 	clusterDomainRule.ValidateClusterDomainInTemplates(m, errorList)
 
 	// werf file
+	// The following line is commented out because the Werf rule validation is not currently required.
+	// If needed in the future, uncomment and ensure the rule is properly configured.
 	// rules.NewWerfRule().ValidateWerfTemplates(m, errorList)
+
+	rules.NewRegistryRule().CheckRegistrySecret(m, errorList)
 }
 
 func (l *Templates) Name() string {

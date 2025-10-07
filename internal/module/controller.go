@@ -19,6 +19,8 @@ package module
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"helm.sh/helm/v3/pkg/chartutil"
@@ -42,6 +44,24 @@ func RunRender(m *Module, values chartutil.Values, objectStore *storage.Unstruct
 
 	var resultErr error
 	for path, bigFile := range files {
+		// path example: module/templates/file.yaml
+		// short path example: templates/file.yaml
+		shortPath := path
+		elements := strings.Split(path, string(os.PathSeparator))
+		if len(elements) > 0 {
+			shortPath = strings.Join(elements[1:], string(os.PathSeparator))
+		}
+
+		absPath, err := filepath.Abs(filepath.Join(m.path, shortPath))
+		if err != nil {
+			// TODO: handle error
+			_ = err
+		}
+
+		if absPath != "" {
+			path = absPath
+		}
+
 		for _, doc := range strings.Split(bigFile, "---") {
 			docBytes := []byte(doc)
 			if len(docBytes) == 0 {
@@ -57,7 +77,7 @@ func RunRender(m *Module, values chartutil.Values, objectStore *storage.Unstruct
 				continue
 			}
 
-			err = objectStore.Put(path, node, docBytes)
+			err = objectStore.Put(path, shortPath, node, docBytes)
 			if err != nil {
 				resultErr = errors.Join(resultErr, err)
 				continue

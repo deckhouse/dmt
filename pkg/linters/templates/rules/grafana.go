@@ -19,10 +19,11 @@ package rules
 import (
 	"github.com/tidwall/gjson"
 
-	"github.com/deckhouse/dmt/internal/fsutils"
+	"k8s.io/utils/ptr"
+
+  "github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg"
-	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 
 	"os"
@@ -34,10 +35,10 @@ const (
 	GrafanaRuleName = "grafana"
 )
 
-func NewGrafanaRule(cfg *config.TemplatesSettings) *GrafanaRule {
+func NewGrafanaRule(cfg *pkg.TemplatesLinterConfig) *GrafanaRule {
 	var exclude bool
 	if cfg != nil {
-		exclude = cfg.GrafanaDashboards.Disable
+		exclude = cfg.GrafanaDashboardsSettings.Disable
 	}
 	return &GrafanaRule{
 		RuleMeta: pkg.RuleMeta{
@@ -56,7 +57,7 @@ type GrafanaRule struct {
 
 func (r *GrafanaRule) ValidateGrafanaDashboards(m *module.Module, errorList *errors.LintRuleErrorsList) {
 	if !r.Enabled() {
-		return
+		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
 	}
 
 	errorList = errorList.WithFilePath(m.GetPath()).WithRule(r.GetName())

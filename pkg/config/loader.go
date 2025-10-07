@@ -21,9 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"slices"
-	"strings"
 
 	"github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/mapstructure"
@@ -31,7 +29,6 @@ import (
 
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/logger"
-	"github.com/deckhouse/dmt/pkg"
 )
 
 type LoaderOptions struct {
@@ -172,7 +169,6 @@ func (l *Loader) setConfigDir() error {
 
 func customDecoderHook() viper.DecoderConfigOption {
 	return viper.DecodeHook(mapstructure.ComposeDecodeHookFunc(
-		StringToLevelHookFunc(),
 		// Default hooks (https://github.com/spf13/viper/blob/518241257478c557633ab36e474dfcaeb9a3c623/viper.go#L135-L138).
 		mapstructure.StringToTimeDurationHookFunc(),
 		mapstructure.StringToSliceHookFunc(","),
@@ -180,21 +176,4 @@ func customDecoderHook() viper.DecoderConfigOption {
 		// Needed for forbidigo, and output.formats.
 		mapstructure.TextUnmarshallerHookFunc(),
 	))
-}
-
-func StringToLevelHookFunc() mapstructure.DecodeHookFuncType {
-	return func(
-		f reflect.Type,
-		t reflect.Type,
-		data any) (any, error) {
-		if f.Kind() != reflect.String || f.Kind() == reflect.Pointer {
-			return data, nil
-		}
-
-		if !strings.Contains(t.String(), "Level") {
-			return data, nil
-		}
-
-		return pkg.ParseStringToLevel(data.(string)), nil
-	}
 }

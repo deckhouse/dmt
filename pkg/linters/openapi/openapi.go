@@ -23,7 +23,7 @@ import (
 
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/module"
-	"github.com/deckhouse/dmt/pkg/config"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/openapi/rules"
 )
@@ -31,16 +31,16 @@ import (
 // OpenAPI linter
 type OpenAPI struct {
 	name, desc string
-	cfg        *config.OpenAPISettings
+	cfg        *pkg.OpenAPILinterConfig
 	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *OpenAPI {
+func New(cfg *pkg.OpenAPILinterConfig, errorList *errors.LintRuleErrorsList) *OpenAPI {
 	return &OpenAPI{
 		name:      "openapi",
 		desc:      "Linter will check openapi values is correct",
-		cfg:       &cfg.LintersSettings.OpenAPI,
-		ErrorList: errorList.WithLinterID("openapi").WithMaxLevel(cfg.LintersSettings.OpenAPI.Impact),
+		cfg:       cfg,
+		ErrorList: errorList.WithLinterID("openapi").WithMaxLevel(cfg.Impact),
 	}
 }
 

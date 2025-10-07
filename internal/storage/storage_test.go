@@ -49,11 +49,6 @@ func TestResourceIndex_AsString(t *testing.T) {
 	}
 }
 
-func TestStoreObject_ShortPath(t *testing.T) {
-	obj := StoreObject{Path: "/module/templates/test.yaml"}
-	assert.Equal(t, "module/templates/test.yaml", obj.ShortPath())
-}
-
 func TestStoreObject_Identity(t *testing.T) {
 	obj := StoreObject{
 		Unstructured: unstructured.Unstructured{
@@ -77,7 +72,7 @@ metadata:
   name: test-deployment
   namespace: test-namespace`)
 
-	err := store.Put("/path/to/object.yaml", obj, raw)
+	err := store.Put("/path/to/object.yaml", "", obj, raw)
 	require.NoError(t, err)
 
 	index := ResourceIndex{Kind: "Deployment", Name: "test-deployment", Namespace: "test-namespace"}
@@ -101,7 +96,7 @@ metadata:
   name: test-deployment
   namespace: test-namespace`)
 
-	err := store.Put("/path/to/object.yaml", obj, raw)
+	err := store.Put("/path/to/object.yaml", "", obj, raw)
 	require.NoError(t, err)
 	assert.True(t, store.Exists(index))
 }
@@ -117,7 +112,7 @@ metadata:
   name: test-deployment
   namespace: test-namespace`)
 
-	err := store.Put("/path/to/object.yaml", obj, raw)
+	err := store.Put("/path/to/object.yaml", "", obj, raw)
 	require.NoError(t, err)
 
 	store.Close()

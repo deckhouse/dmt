@@ -19,7 +19,7 @@ package nocyrillic
 import (
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/module"
-	"github.com/deckhouse/dmt/pkg/config"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/no-cyrillic/rules"
 )
@@ -35,16 +35,16 @@ var (
 // NoCyrillic linter
 type NoCyrillic struct {
 	name, desc string
-	cfg        *config.NoCyrillicSettings
+	cfg        *pkg.NoCyrillicLinterConfig
 	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *NoCyrillic {
+func New(cfg *pkg.NoCyrillicLinterConfig, errorList *errors.LintRuleErrorsList) *NoCyrillic {
 	return &NoCyrillic{
 		name:      ID,
 		desc:      "NoCyrillic will check all files in the modules for contains cyrillic symbols",
-		cfg:       &cfg.LintersSettings.NoCyrillic,
-		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.NoCyrillic.Impact),
+		cfg:       cfg,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.Impact),
 	}
 }
 
@@ -56,8 +56,8 @@ func (l *NoCyrillic) Run(m *module.Module) {
 	}
 
 	filesRule := rules.NewFilesRule(
-		l.cfg.NoCyrillicExcludeRules.Files.Get(),
-		l.cfg.NoCyrillicExcludeRules.Directories.Get())
+		l.cfg.ExcludeRules.Files.Get(),
+		l.cfg.ExcludeRules.Directories.Get())
 
 	files := fsutils.GetFiles(m.GetPath(), false, fsutils.FilterFileByExtensions(fileExtensions...))
 	for _, fileName := range files {

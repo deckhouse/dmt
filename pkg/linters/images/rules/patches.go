@@ -24,6 +24,8 @@ import (
 	"slices"
 	"strings"
 
+	"k8s.io/utils/ptr"
+
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/set"
 	"github.com/deckhouse/dmt/pkg"
@@ -57,7 +59,7 @@ func NewPatchesRule(disable bool) *PatchesRule {
 
 func (r *PatchesRule) CheckPatches(moduleDir string, errorList *errors.LintRuleErrorsList) {
 	if !r.Enabled() {
-		return
+		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
 	}
 
 	errorList = errorList.WithRule(r.Name)
