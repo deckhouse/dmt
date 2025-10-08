@@ -229,7 +229,10 @@ Validates that source files contain proper license headers.
 - Configuration files (`Dockerfile`, `Makefile`)
 - Empty files
 
-**Expected License Header:**
+**Expected License Headers:**
+
+### Apache License 2.0
+
 ```go
 /*
 Copyright 2025 Flant JSC
@@ -245,6 +248,38 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+*/
+```
+
+### Apache License 2.0 Modified
+
+```go
+/*
+Copyright 2010 SomeAuthor
+Copyright 2925 Flant JSC
+
+Modifications made by Flant JSC as part of the Deckhouse project.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+```
+
+### Deckhouse Platform Enterprise Edition
+
+```go
+/*
+Copyright {{YEAR}} Flant JSC
+Licensed under the Deckhouse Platform Enterprise Edition (EE) license. See https://github.com/deckhouse/deckhouse/blob/main/ee/LICENSE
 */
 ```
 
