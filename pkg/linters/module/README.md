@@ -274,6 +274,15 @@ limitations under the License.
 */
 ```
 
+### Apache License 2.0 SPDX
+
+```go
+/*
+Copyright (c) Flant JSC.
+SPDX-License-Identifier: Apache-2.0
+*/
+```
+
 ### Deckhouse Platform Enterprise Edition
 
 ```go
