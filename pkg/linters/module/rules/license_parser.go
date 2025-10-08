@@ -104,6 +104,12 @@ limitations under the License.`,
 				YearPattern: `20[0-9]{2}`,
 			},
 			{
+				Type: "CE",
+				Name: "SPDX Apache-2.0",
+				Template: `Copyright (c) Flant JSC.
+SPDX-License-Identifier: Apache-2.0`,
+			},
+			{
 				Type: "EE",
 				Name: "Deckhouse Platform Enterprise Edition",
 				Template: `Copyright {{YEAR}} Flant JSC
@@ -314,14 +320,15 @@ func (p *LicenseParser) extractWithStyle(header string, style CommentStyle) stri
 		if startIdx == -1 {
 			return ""
 		}
+		lastStartIdx := startIdx + len(style.BlockStart)
 
-		endIdx := strings.Index(header[startIdx:], style.BlockEnd)
+		endIdx := strings.Index(header[lastStartIdx:], style.BlockEnd)
 		if endIdx == -1 {
 			return ""
 		}
 
 		// Extract content between markers
-		content := header[startIdx+len(style.BlockStart) : startIdx+endIdx]
+		content := header[lastStartIdx : lastStartIdx+endIdx]
 		return p.normalizeText(content)
 	} else if style.LinePrefix != "" {
 		// Line comments
@@ -400,18 +407,21 @@ func (p *LicenseParser) matchLicense(text string, license License) (bool, string
 
 	// Create regex pattern from template
 	pattern := regexp.QuoteMeta(template)
-	pattern = strings.ReplaceAll(pattern, `\{\{YEAR\}\}`, fmt.Sprintf("(%s)", license.YearPattern))
-
+	if license.YearPattern != "" {
+		pattern = strings.ReplaceAll(pattern, `\{\{YEAR\}\}`, fmt.Sprintf("(%s)", license.YearPattern))
+	}
 	// Try to match
 	re, err := regexp.Compile(pattern)
 	if err != nil {
 		return false, ""
 	}
 
-	matches := re.FindStringSubmatch(text)
-	if len(matches) > 1 {
-		return true, matches[1] // Return matched year
+	match := re.FindStringSubmatch(text)
+	if match == nil {
+		return false, ""
 	}
-
-	return false, ""
+	if len(match) > 1 {
+		return true, match[1]
+	}
+	return true, "2025" // Default year if not captured
 }
