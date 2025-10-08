@@ -401,7 +401,6 @@ func (*LicenseParser) normalizeText(text string) string {
 
 // matchLicense checks if text matches a license template
 func (p *LicenseParser) matchLicense(text string, license License) (bool, string) {
-
 	// Normalize both texts
 	text = p.normalizeText(text)
 	template := p.normalizeText(license.Template)
