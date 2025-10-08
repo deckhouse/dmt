@@ -104,6 +104,12 @@ limitations under the License.`,
 				YearPattern: `20[0-9]{2}`,
 			},
 			{
+				Type: "CE",
+				Name: "SPDX Apache-2.0",
+				Template: `Copyright (c) Flant JSC.
+SPDX-License-Identifier: Apache-2.0`,
+			},
+			{
 				Type: "EE",
 				Name: "Deckhouse Platform Enterprise Edition",
 				Template: `Copyright {{YEAR}} Flant JSC
@@ -212,7 +218,7 @@ func (p *LicenseParser) ParseFile(filename string) (*LicenseInfo, error) {
 
 	// Try to extract license text from header
 	licenseText := p.extractLicenseText(header, config)
-	if licenseText == "" {
+	if len(licenseText) == 0 {
 		return &LicenseInfo{
 			Valid: false,
 			Error: "no license header found",
@@ -296,14 +302,15 @@ func (*LicenseParser) readFileHeader(filename string, size int) (string, error) 
 }
 
 // extractLicenseText extracts license text from file header
-func (p *LicenseParser) extractLicenseText(header string, config *FileTypeConfig) string {
+func (p *LicenseParser) extractLicenseText(header string, config *FileTypeConfig) []string {
+	result := make([]string, 0, len(config.CommentStyles))
 	// Try each comment style
 	for _, style := range config.CommentStyles {
 		if text := p.extractWithStyle(header, style); text != "" {
-			return text
+			result = append(result, text)
 		}
 	}
-	return ""
+	return result
 }
 
 // extractWithStyle extracts text using a specific comment style
@@ -314,6 +321,7 @@ func (p *LicenseParser) extractWithStyle(header string, style CommentStyle) stri
 		if startIdx == -1 {
 			return ""
 		}
+		startIdx = startIdx + len(style.BlockStart)
 
 		endIdx := strings.Index(header[startIdx:], style.BlockEnd)
 		if endIdx == -1 {
@@ -321,7 +329,7 @@ func (p *LicenseParser) extractWithStyle(header string, style CommentStyle) stri
 		}
 
 		// Extract content between markers
-		content := header[startIdx+len(style.BlockStart) : startIdx+endIdx]
+		content := header[startIdx : startIdx+endIdx]
 		return p.normalizeText(content)
 	} else if style.LinePrefix != "" {
 		// Line comments
@@ -393,25 +401,26 @@ func (*LicenseParser) normalizeText(text string) string {
 }
 
 // matchLicense checks if text matches a license template
-func (p *LicenseParser) matchLicense(text string, license License) (bool, string) {
-	// Normalize both texts
-	text = p.normalizeText(text)
-	template := p.normalizeText(license.Template)
+func (p *LicenseParser) matchLicense(foundedLinceses []string, license License) (bool, string) {
+	for _, text := range foundedLinceses {
+		// Normalize both texts
+		text = p.normalizeText(text)
+		template := p.normalizeText(license.Template)
 
-	// Create regex pattern from template
-	pattern := regexp.QuoteMeta(template)
-	pattern = strings.ReplaceAll(pattern, `\{\{YEAR\}\}`, fmt.Sprintf("(%s)", license.YearPattern))
+		// Create regex pattern from template
+		pattern := regexp.QuoteMeta(template)
+		pattern = strings.ReplaceAll(pattern, `\{\{YEAR\}\}`, fmt.Sprintf("(%s)", license.YearPattern))
 
-	// Try to match
-	re, err := regexp.Compile(pattern)
-	if err != nil {
-		return false, ""
+		// Try to match
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			return false, ""
+		}
+
+		matches := re.FindStringSubmatch(text)
+		if len(matches) > 1 {
+			return true, matches[1] // Return matched year
+		}
 	}
-
-	matches := re.FindStringSubmatch(text)
-	if len(matches) > 1 {
-		return true, matches[1] // Return matched year
-	}
-
 	return false, ""
 }
