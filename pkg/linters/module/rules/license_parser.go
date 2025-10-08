@@ -424,13 +424,12 @@ func (p *LicenseParser) matchLicense(text string, license License) (bool, string
 	return true, "2025" // Default year if not captured
 }
 
-func buildLicensePattern(tpl, yearPat string) string {
-	if yearPat == "" {
-		fmt.Println("pattern: ", tpl)
-		return regexp.QuoteMeta(tpl)
+func buildLicensePattern(template, yearPattern string) string {
+	if yearPattern == "" {
+		return regexp.QuoteMeta(template)
 	}
 
-	parts := strings.Split(tpl, "{{YEAR}}")
+	parts := strings.Split(template, "{{YEAR}}")
 	var b strings.Builder
 
 	for i, part := range parts {
@@ -441,7 +440,7 @@ func buildLicensePattern(tpl, yearPat string) string {
 			right := strings.TrimLeft(parts[i+1], " \t")
 			parts[i+1] = right
 
-			b.WriteString(`(?:\s*(` + yearPat + `)\s*|\s*)`)
+			b.WriteString(`(?:\s*(` + yearPattern + `)\s*|\s*)`)
 		}
 	}
 	return b.String()
