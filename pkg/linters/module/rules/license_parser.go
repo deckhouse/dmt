@@ -320,15 +320,15 @@ func (p *LicenseParser) extractWithStyle(header string, style CommentStyle) stri
 		if startIdx == -1 {
 			return ""
 		}
-		startIdx = startIdx + len(style.BlockStart)
+		lastStartIdx := startIdx + len(style.BlockStart)
 
-		endIdx := strings.Index(header[startIdx:], style.BlockEnd)
+		endIdx := strings.Index(header[lastStartIdx:], style.BlockEnd)
 		if endIdx == -1 {
 			return ""
 		}
 
 		// Extract content between markers
-		content := header[startIdx : startIdx+endIdx]
+		content := header[lastStartIdx : lastStartIdx+endIdx]
 		return p.normalizeText(content)
 	} else if style.LinePrefix != "" {
 		// Line comments
