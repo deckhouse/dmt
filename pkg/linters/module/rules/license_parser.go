@@ -218,7 +218,7 @@ func (p *LicenseParser) ParseFile(filename string) (*LicenseInfo, error) {
 
 	// Try to extract license text from header
 	licenseText := p.extractLicenseText(header, config)
-	if len(licenseText) == 0 {
+	if licenseText == "" {
 		return &LicenseInfo{
 			Valid: false,
 			Error: "no license header found",
@@ -302,15 +302,14 @@ func (*LicenseParser) readFileHeader(filename string, size int) (string, error) 
 }
 
 // extractLicenseText extracts license text from file header
-func (p *LicenseParser) extractLicenseText(header string, config *FileTypeConfig) []string {
-	result := make([]string, 0, len(config.CommentStyles))
+func (p *LicenseParser) extractLicenseText(header string, config *FileTypeConfig) string {
 	// Try each comment style
 	for _, style := range config.CommentStyles {
 		if text := p.extractWithStyle(header, style); text != "" {
-			result = append(result, text)
+			return text
 		}
 	}
-	return result
+	return ""
 }
 
 // extractWithStyle extracts text using a specific comment style
@@ -401,26 +400,50 @@ func (*LicenseParser) normalizeText(text string) string {
 }
 
 // matchLicense checks if text matches a license template
-func (p *LicenseParser) matchLicense(foundedLinceses []string, license License) (bool, string) {
-	for _, text := range foundedLinceses {
-		// Normalize both texts
-		text = p.normalizeText(text)
-		template := p.normalizeText(license.Template)
+func (p *LicenseParser) matchLicense(text string, license License) (bool, string) {
 
-		// Create regex pattern from template
-		pattern := regexp.QuoteMeta(template)
-		pattern = strings.ReplaceAll(pattern, `\{\{YEAR\}\}`, fmt.Sprintf("(%s)", license.YearPattern))
+	// Normalize both texts
+	text = p.normalizeText(text)
+	template := p.normalizeText(license.Template)
 
-		// Try to match
-		re, err := regexp.Compile(pattern)
-		if err != nil {
-			return false, ""
-		}
+	// Create regex pattern from template
+	pattern := buildLicensePattern(template, license.YearPattern)
 
-		matches := re.FindStringSubmatch(text)
-		if len(matches) > 1 {
-			return true, matches[1] // Return matched year
+	// Try to match
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return false, ""
+	}
+
+	match := re.FindStringSubmatch(text)
+	if match == nil {
+		return false, ""
+	}
+	if len(match) > 1 {
+		return true, match[1]
+	}
+	return true, "2025" // Default year if not captured
+}
+
+func buildLicensePattern(tpl, yearPat string) string {
+	if yearPat == "" {
+		fmt.Println("pattern: ", tpl)
+		return regexp.QuoteMeta(tpl)
+	}
+
+	parts := strings.Split(tpl, "{{YEAR}}")
+	var b strings.Builder
+
+	for i, part := range parts {
+		left := strings.TrimRight(part, " \t")
+		b.WriteString(regexp.QuoteMeta(left))
+
+		if i < len(parts)-1 {
+			right := strings.TrimLeft(parts[i+1], " \t")
+			parts[i+1] = right
+
+			b.WriteString(`(?:\s*(` + yearPat + `)\s*|\s*)`)
 		}
 	}
-	return false, ""
+	return b.String()
 }
