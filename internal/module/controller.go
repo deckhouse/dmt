@@ -62,7 +62,8 @@ func RunRender(m *Module, values chartutil.Values, objectStore *storage.Unstruct
 			path = absPath
 		}
 
-		for _, doc := range strings.Split(bigFile, "---") {
+		docs := splitYAMLDocuments(bigFile)
+		for _, doc := range docs {
 			docBytes := []byte(doc)
 			if len(docBytes) == 0 {
 				continue
@@ -96,3 +97,59 @@ func RunRender(m *Module, values chartutil.Values, objectStore *storage.Unstruct
 const (
 	manifestErrorMessage = `manifest (%q) unmarshal: %v`
 )
+
+func splitYAMLDocuments(content string) []string {
+	var docs []string
+	var current strings.Builder
+
+	lines := strings.Split(content, "\n")
+	inMultiLine := false
+	indentLevel := 0
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Check if we're starting a multi-line value (|-, |, >-, >)
+		if !inMultiLine && strings.Contains(line, ":") {
+			parts := strings.SplitN(line, ":", 2)
+			if len(parts) == 2 {
+				value := strings.TrimSpace(parts[1])
+				if value == "|-" || value == "|" || value == ">-" || value == ">" {
+					inMultiLine = true
+					indentLevel = len(line) - len(strings.TrimLeft(line, " \t"))
+				}
+			}
+		}
+
+		// Check if we're ending a multi-line value
+		if inMultiLine {
+			currentLineIndent := len(line) - len(strings.TrimLeft(line, " \t"))
+			if currentLineIndent <= indentLevel && trimmed != "" && !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "\t") {
+				inMultiLine = false
+				indentLevel = 0
+			}
+		}
+
+		// Check for document separator (---) only when not in multi-line
+		if !inMultiLine && trimmed == "---" {
+			if current.Len() > 0 {
+				docs = append(docs, strings.TrimSpace(current.String()))
+				current.Reset()
+			}
+			continue
+		}
+
+		// Add line to current document
+		if current.Len() > 0 {
+			current.WriteString("\n")
+		}
+		current.WriteString(line)
+	}
+
+	// Add the last document
+	if current.Len() > 0 {
+		docs = append(docs, strings.TrimSpace(current.String()))
+	}
+
+	return docs
+}
