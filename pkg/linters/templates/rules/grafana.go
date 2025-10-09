@@ -21,7 +21,7 @@ import (
 
 	"k8s.io/utils/ptr"
 
-  "github.com/deckhouse/dmt/internal/fsutils"
+	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
