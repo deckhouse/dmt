@@ -411,7 +411,7 @@ func (p *LicenseParser) matchLicense(text string, license License) (bool, string
 		pattern = strings.ReplaceAll(pattern, `\{\{YEAR\}\}`, fmt.Sprintf("(%s)", license.YearPattern))
 	}
 
-	pattern = strings.ReplaceAll(pattern, `\{\{ANYTHING\}\}`, `(?s:.*)`)
+	pattern = strings.ReplaceAll(pattern, `\{\{ANYTHING\}\}`, `(?:[^\n]*?)`)
 
 	// Try to match
 	re, err := regexp.Compile(pattern)
