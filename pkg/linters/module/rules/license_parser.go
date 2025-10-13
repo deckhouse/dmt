@@ -68,7 +68,7 @@ func NewLicenseParser() *LicenseParser {
 			{
 				Type: "CE",
 				Name: "Apache License 2.0",
-				Template: `Copyright {{YEAR}} Flant JSC
+				Template: `Copyright {{YEAR}} Flant JSC{{ANYTHING}}
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -86,7 +86,7 @@ limitations under the License.`,
 			{
 				Type: "CE",
 				Name: "Apache License 2.0 Modified",
-				Template: `Copyright {{YEAR}} Flant JSC
+				Template: `Copyright {{YEAR}} Flant JSC{{ANYTHING}}
 
 Modifications made by Flant JSC as part of the Deckhouse project.
 
@@ -106,13 +106,13 @@ limitations under the License.`,
 			{
 				Type: "CE",
 				Name: "SPDX Apache-2.0",
-				Template: `Copyright (c) Flant JSC.
+				Template: `Copyright (c){{ANYTHING}} Flant JSC{{ANYTHING}}
 SPDX-License-Identifier: Apache-2.0`,
 			},
 			{
 				Type: "EE",
 				Name: "Deckhouse Platform Enterprise Edition",
-				Template: `Copyright {{YEAR}} Flant JSC
+				Template: `Copyright {{YEAR}} Flant JSC{{ANYTHING}}
 Licensed under the Deckhouse Platform Enterprise Edition (EE) license. See https://github.com/deckhouse/deckhouse/blob/main/ee/LICENSE`,
 				YearPattern: `20[0-9]{2}`,
 			},
@@ -410,6 +410,9 @@ func (p *LicenseParser) matchLicense(text string, license License) (bool, string
 	if license.YearPattern != "" {
 		pattern = strings.ReplaceAll(pattern, `\{\{YEAR\}\}`, fmt.Sprintf("(%s)", license.YearPattern))
 	}
+
+	pattern = strings.ReplaceAll(pattern, `\{\{ANYTHING\}\}`, `(?:[^\n]*?)`)
+
 	// Try to match
 	re, err := regexp.Compile(pattern)
 	if err != nil {
