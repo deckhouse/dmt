@@ -581,6 +581,34 @@ All containers must set `securityContext.readOnlyRootFilesystem: true`. Containe
 
 Read-only root filesystems prevent unauthorized modifications, malware persistence, and privilege escalation attacks. This is a fundamental security hardening practice.
 
+⚠️ **Important** 
+
+When using conditions in templates, they must be rendered under all conditions.
+
+For example:
+```yaml
+{{- if .Values.csiNfs.v3support }}
+```
+
+Only works if:
+- csiNfs exists in .Values.
+- There is v3support inside it.
+
+If csiNfs is missing, there will be a rendering error (nil pointer evaluating).
+
+Therefore, no linter check will occur under it.
+
+In the case of
+```yaml
+{{- if (default false (dig “csiNfs” “v3support” .Values)) }}
+```
+- dig returns nil if the key does not exist, and there will be no error.
+- default false will substitute false for nil.
+
+The result is safer: if the key does not exist, the condition will not work, but the template will not fail.
+
+Linter will be able to check the block under the condition.
+
 **Examples:**
 
 ❌ **Incorrect** - Missing or false:
