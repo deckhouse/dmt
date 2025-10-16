@@ -215,6 +215,10 @@ func (p *LicenseParser) ParseFile(filename string) (*LicenseInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
+	// Check for generated file markers
+	if isHeaderMarkedAsGenerated(header) {
+		return &LicenseInfo{Valid: true}, nil
+	}
 
 	// Try to extract license text from header
 	licenseText := p.extractLicenseText(header, config)
@@ -299,6 +303,25 @@ func (*LicenseParser) readFileHeader(filename string, size int) (string, error) 
 	}
 
 	return string(buf[:n]), nil
+}
+
+// generatedDoNotRegex matches "generated ... do not edit|modify" across small spans
+var generatedDoNotRegex = regexp.MustCompile(`generated[\s\S]{0,200}?do\s*not\s*(edit|modify)`)
+
+// isHeaderMarkedAsGenerated checks if header contains markers indicating a generated file
+func isHeaderMarkedAsGenerated(header string) bool {
+	if header == "" {
+		return false
+	}
+
+	lower := strings.ToLower(header)
+
+	// Regex: generated ... do not (edit|modify)
+	if generatedDoNotRegex.MatchString(lower) {
+		return true
+	}
+
+	return false
 }
 
 // extractLicenseText extracts license text from file header
