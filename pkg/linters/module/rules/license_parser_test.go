@@ -66,7 +66,7 @@ package main
 		{
 			name:     "Generated block comment is skipped",
 			filename: "script.sh",
-			content:  "# AUTO-GENERATED FILE - DO NOT EDIT\necho hello\n",
+			content:  "# AUTO-GENERATED FILE - DO NOT modify\necho hello\n",
 			want: LicenseInfo{
 				Valid: true,
 			},
