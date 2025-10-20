@@ -128,10 +128,18 @@ func (r *WerfRule) LintWerfFile(moduleName, data string, errorList *errors.LintR
 		// Validate base image; exclude terraform-manager
 		// terraform-manager uses its own base images
 		err = isWerfImagesCorrect(w.FromImage)
-		if err != nil && !isModuleExcluded(moduleName) {
-			errorList.WithObjectID(fmt.Sprintf("werf.yaml:manifest-%d", i+1)).
-				WithValue("fromImage: " + w.FromImage).
-				Error(fmt.Sprintf("Invalid `fromImage:` value - %v", err))
+		if err != nil {
+			if isModuleExcluded(moduleName) {
+				// Ignore errors for excluded modules
+				errorList.WithMaxLevel(ptr.To(pkg.Ignored)).
+					WithObjectID(fmt.Sprintf("werf.yaml:manifest-%d", i+1)).
+					WithValue("fromImage: " + w.FromImage).
+					Error(fmt.Sprintf("Invalid `fromImage:` value - %v", err))
+			} else {
+				errorList.WithObjectID(fmt.Sprintf("werf.yaml:manifest-%d", i+1)).
+					WithValue("fromImage: " + w.FromImage).
+					Warn(fmt.Sprintf("Invalid `fromImage:` value - %v", err))
+			}
 		}
 
 		// Validate imageSpec.config.user is not overridden
