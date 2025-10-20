@@ -161,7 +161,7 @@ func splitManifests(bigFile string) []string {
 	return result
 }
 
-// isWerfImagesCorrect validates that the image path contains `base_images`.
+// isWerfImagesCorrect validates that the image path contains `base_images`
 func isWerfImagesCorrect(img string) error {
 	if img == "" {
 		return fmt.Errorf("`fromImage:` field is empty")

@@ -192,6 +192,7 @@ func (m *Manager) PrintResult() {
 
 	slices.SortFunc(errs, func(a, b pkg.LinterError) int {
 		return cmp.Or(
+			cmp.Compare(a.Level, b.Level),
 			cmp.Compare(a.ModuleID, b.ModuleID),
 			cmp.Compare(a.LinterID, b.LinterID),
 			cmp.Compare(a.RuleID, b.RuleID),
