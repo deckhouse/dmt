@@ -61,6 +61,17 @@ func NewWerfRule(disable bool) *WerfRule {
 	}
 }
 
+var excludeModules = []string{"terraform-manager"}
+
+func isModuleExcluded(moduleName string) bool {
+	for _, m := range excludeModules {
+		if moduleName == m {
+			return true
+		}
+	}
+	return false
+}
+
 func (r *WerfRule) LintWerfFile(moduleName, data string, errorList *errors.LintRuleErrorsList) {
 	if !r.Enabled() {
 		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
@@ -73,12 +84,12 @@ func (r *WerfRule) LintWerfFile(moduleName, data string, errorList *errors.LintR
 	werfDocs := splitManifests(data)
 
 	// Process each document
-	for i, doc := range werfDocs {
+	for _, doc := range werfDocs {
 		var w werfFile
 		err := yaml.Unmarshal([]byte(doc), &w)
 		if err != nil {
 			// Log invalid YAML but continue processing other documents
-			errorList.WithObjectID(fmt.Sprintf("werf.yaml:manifest-%d", i+1)).
+			errorList.WithObjectID("werf.yaml").
 				WithValue("yaml_error").
 				Error(fmt.Sprintf("Invalid YAML document: %v", err))
 			continue
@@ -102,7 +113,7 @@ func (r *WerfRule) LintWerfFile(moduleName, data string, errorList *errors.LintR
 
 		// Check for deprecated 'artifact' directive
 		if w.Artifact != "" {
-			errorList.WithObjectID(fmt.Sprintf("werf.yaml:manifest-%d", i+1)).
+			errorList.WithObjectID("werf.yaml").
 				WithValue("artifact: " + w.Artifact).
 				Error("Use `from:` or `fromImage:` and `final: false` directives instead of `artifact:` in the werf file")
 		}
@@ -116,24 +127,17 @@ func (r *WerfRule) LintWerfFile(moduleName, data string, errorList *errors.LintR
 
 		// Validate base image; exclude terraform-manager
 		// terraform-manager uses its own base images
-		if err := isWerfImagesCorrect(w.FromImage); err != nil && moduleName != "terraform-manager" {
-			errorList.WithObjectID(fmt.Sprintf("werf.yaml:manifest-%d", i+1)).
+		if err := isWerfImagesCorrect(w.FromImage); err != nil && !isModuleExcluded(moduleName) {
+			errorList.WithObjectID("werf.yaml").
 				WithValue("fromImage: " + w.FromImage).
 				Error(fmt.Sprintf("Invalid `fromImage:` value - %v", err))
 		}
 
 		// Validate imageSpec.config.user is not overridden
 		if w.ImageSpec.Config.User != "" {
-			// TODO: remove this check for istio and ingress-nginx modules
-			if moduleName != "istio" && moduleName != "ingress-nginx" {
-				errorList.WithObjectID(fmt.Sprintf("werf.yaml:manifest-%d", i+1)).
-					WithValue("imageSpec.config.user: " + w.ImageSpec.Config.User).
-					Error("`imageSpec.config.user:` parameter should be empty")
-			} else {
-				errorList.WithObjectID(fmt.Sprintf("werf.yaml:manifest-%d", i+1)).
-					WithValue("imageSpec.config.user: " + w.ImageSpec.Config.User).
-					Warn("`imageSpec.config.user:` parameter should be empty")
-			}
+			errorList.WithObjectID("werf.yaml").
+				WithValue("imageSpec.config.user: " + w.ImageSpec.Config.User).
+				Warn("`imageSpec.config.user:` parameter should be empty")
 		}
 	}
 }
@@ -164,13 +168,13 @@ func splitManifests(bigFile string) []string {
 // isWerfImagesCorrect validates that the image path contains `base_images`
 func isWerfImagesCorrect(img string) error {
 	if img == "" {
-		return fmt.Errorf("field is empty")
+		return fmt.Errorf("image is empty")
 	}
 
 	// Split by '/' to analyze path components
 	parts := strings.Split(img, "/")
 	if len(parts) < 2 {
-		return fmt.Errorf("should be in format `base/<name>`, got %q", img)
+		return fmt.Errorf("image should be in format `base/<name>`, got %q", img)
 	}
 
 	// Check if the first component is "base" or "common"
@@ -179,6 +183,6 @@ func isWerfImagesCorrect(img string) error {
 	case "base", "common":
 		return nil
 	default:
-		return fmt.Errorf("must start with `base/`, got %q", img)
+		return fmt.Errorf("image must start with `base/`, got %q", img)
 	}
 }
