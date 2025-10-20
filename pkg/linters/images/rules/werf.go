@@ -84,12 +84,12 @@ func (r *WerfRule) LintWerfFile(moduleName, data string, errorList *errors.LintR
 	werfDocs := splitManifests(data)
 
 	// Process each document
-	for _, doc := range werfDocs {
+	for i, doc := range werfDocs {
 		var w werfFile
 		err := yaml.Unmarshal([]byte(doc), &w)
 		if err != nil {
 			// Log invalid YAML but continue processing other documents
-			errorList.WithObjectID("werf.yaml").
+			errorList.WithObjectID(fmt.Sprintf("werf.yaml:manifest-%d", i+1)).
 				WithValue("yaml_error").
 				Error(fmt.Sprintf("Invalid YAML document: %v", err))
 			continue
@@ -113,7 +113,7 @@ func (r *WerfRule) LintWerfFile(moduleName, data string, errorList *errors.LintR
 
 		// Check for deprecated 'artifact' directive
 		if w.Artifact != "" {
-			errorList.WithObjectID("werf.yaml").
+			errorList.WithObjectID(fmt.Sprintf("werf.yaml:manifest-%d", i+1)).
 				WithValue("artifact: " + w.Artifact).
 				Error("Use `from:` or `fromImage:` and `final: false` directives instead of `artifact:` in the werf file")
 		}
@@ -127,15 +127,16 @@ func (r *WerfRule) LintWerfFile(moduleName, data string, errorList *errors.LintR
 
 		// Validate base image; exclude terraform-manager
 		// terraform-manager uses its own base images
-		if err := isWerfImagesCorrect(w.FromImage); err != nil && !isModuleExcluded(moduleName) {
-			errorList.WithObjectID("werf.yaml").
+		err = isWerfImagesCorrect(w.FromImage)
+		if err != nil && !isModuleExcluded(moduleName) {
+			errorList.WithObjectID(fmt.Sprintf("werf.yaml:manifest-%d", i+1)).
 				WithValue("fromImage: " + w.FromImage).
 				Error(fmt.Sprintf("Invalid `fromImage:` value - %v", err))
 		}
 
 		// Validate imageSpec.config.user is not overridden
 		if w.ImageSpec.Config.User != "" {
-			errorList.WithObjectID("werf.yaml").
+			errorList.WithObjectID(fmt.Sprintf("werf.yaml:manifest-%d", i+1)).
 				WithValue("imageSpec.config.user: " + w.ImageSpec.Config.User).
 				Warn("`imageSpec.config.user:` parameter should be empty")
 		}
