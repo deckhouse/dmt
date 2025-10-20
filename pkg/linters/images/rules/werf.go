@@ -164,13 +164,13 @@ func splitManifests(bigFile string) []string {
 // isWerfImagesCorrect validates that the image path contains `base_images`
 func isWerfImagesCorrect(img string) error {
 	if img == "" {
-		return fmt.Errorf("`fromImage:` field is empty")
+		return fmt.Errorf("field is empty")
 	}
 
 	// Split by '/' to analyze path components
 	parts := strings.Split(img, "/")
 	if len(parts) < 2 {
-		return fmt.Errorf("`fromImage:` should be in format `base/<name>`, got %q", img)
+		return fmt.Errorf("should be in format `base/<name>`, got %q", img)
 	}
 
 	// Check if the first component is "base" or "common"
@@ -179,6 +179,6 @@ func isWerfImagesCorrect(img string) error {
 	case "base", "common":
 		return nil
 	default:
-		return fmt.Errorf("`fromImage:` must start with `base/`, got %q", img)
+		return fmt.Errorf("must start with `base/`, got %q", img)
 	}
 }
