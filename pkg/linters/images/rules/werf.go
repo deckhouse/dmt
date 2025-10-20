@@ -116,10 +116,10 @@ func (r *WerfRule) LintWerfFile(moduleName, data string, errorList *errors.LintR
 
 		// Validate base image; exclude terraform-manager
 		// terraform-manager uses its own base images
-		if !isWerfImagesCorrect(w.FromImage) && moduleName != "terraform-manager" {
+		if err := isWerfImagesCorrect(w.FromImage); err != nil && moduleName != "terraform-manager" {
 			errorList.WithObjectID(fmt.Sprintf("werf.yaml:manifest-%d", i+1)).
 				WithValue("fromImage: " + w.FromImage).
-				Error("`fromImage:` parameter should be one of our `base` images")
+				Error(fmt.Sprintf("Invalid `fromImage:` value - %v", err))
 		}
 
 		// Validate imageSpec.config.user is not overridden
@@ -161,19 +161,24 @@ func splitManifests(bigFile string) []string {
 	return result
 }
 
-// isWerfImagesCorrect validates that the image path contains `base_images`
-func isWerfImagesCorrect(img string) bool {
+// isWerfImagesCorrect validates that the image path contains `base_images`.
+func isWerfImagesCorrect(img string) error {
 	if img == "" {
-		return false
+		return fmt.Errorf("`fromImage:` field is empty")
 	}
 
 	// Split by '/' to analyze path components
 	parts := strings.Split(img, "/")
 	if len(parts) < 2 {
-		return false
+		return fmt.Errorf("`fromImage:` should be in format `base/<name>` or `common/<name>`, got %q", img)
 	}
 
 	// Check if the first component is "base" or "common"
 	// TODO: remove "common" from this check
-	return (parts[0] == "base" || parts[0] == "common")
+	switch parts[0] {
+	case "base", "common":
+		return nil
+	default:
+		return fmt.Errorf("`fromImage:` must start with `base/` or `common/`, got %q", img)
+	}
 }
