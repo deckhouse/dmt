@@ -159,7 +159,7 @@ Validates the `werf.yaml` configuration file for image building.
 **Purpose:** Ensures werf.yaml follows best practices for building module images, including proper base image usage, avoidance of deprecated directives, and correct user configuration. This maintains build consistency and prevents security issues from user override.
 
 **Checks:**
-- ✅ `fromImage` uses approved base images (`base/*` or `common/*`)
+- ✅ `fromImage` uses approved base images (`base/*`)
 - ✅ No deprecated `artifact:` directive (use `from:` or `fromImage:` with `final: false`)
 - ✅ `imageSpec.config.user` is not overridden (except istio, ingress-nginx)
 - ✅ Valid YAML structure
@@ -172,7 +172,7 @@ configVersion: 1
 project: deckhouse
 ---
 image: my-module/my-image
-from: common/distroless
+from: base/distroless
 fromImage: base/distroless
 final: true  # or false for intermediate images
 imageSpec:
@@ -183,7 +183,7 @@ imageSpec:
 **Validation Rules:**
 
 1. **Base Image (`fromImage`):**
-   - Must start with `base/` or `common/`
+   - Must start with `base/`
    - Exception: `terraform-manager` module can use custom bases
 
 2. **Deprecated `artifact:` directive:**
