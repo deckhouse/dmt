@@ -25,11 +25,14 @@ import (
 	"sort"
 	"strings"
 
+	"gopkg.in/ini.v1"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 
 	"github.com/Masterminds/semver/v3"
 
+	"github.com/deckhouse/dmt/internal/fsutils"
+	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
@@ -125,6 +128,69 @@ type ModuleUpdateVersion struct {
 	To   string `json:"to"`
 }
 
+func getModuleNameFromRepository(dir string) string {
+	configFile := getGitConfigFile(dir)
+	if configFile == "" {
+		return ""
+	}
+
+	cfg, err := ini.Load(configFile)
+	if err != nil {
+		logger.ErrorF("Failed to load config file: %v", err)
+		return ""
+	}
+
+	sec, err := cfg.GetSection("remote \"origin\"")
+	if err != nil {
+		logger.ErrorF("Failed to get remote \"origin\": %v", err)
+		return ""
+	}
+
+	repositoryURL := sec.Key("url").String()
+	return convertURLToModuleName(repositoryURL)
+}
+
+func getGitConfigFile(dir string) string {
+	for {
+		if fsutils.IsDir(filepath.Join(dir, ".git")) &&
+			fsutils.IsFile(filepath.Join(dir, ".git", "config")) {
+			return filepath.Join(dir, ".git", "config")
+		}
+		parent := filepath.Dir(dir)
+		if dir == parent || parent == "" {
+			break
+		}
+
+		dir = parent
+	}
+
+	return ""
+}
+
+// convertURLToModuleName converts a repository URL to a module name.
+// It handles both SSH and HTTPS formats.
+// Examples:
+// git@github.com:deckhouse/dmt.git
+// https://github.com/deckhouse/dmt
+// It returns the last part of the URL as the module name.
+// For example, for the URL "git@github.com:deckhouse/dmt.git", it will return "dmt".
+func convertURLToModuleName(repoURL string) string {
+	// Remove the protocol part if it exists
+	repoURL = strings.TrimPrefix(repoURL, "https://")
+	repoURL = strings.TrimPrefix(repoURL, "git@")
+
+	// Remove the ".git" suffix if it exists
+	repoURL = strings.TrimSuffix(repoURL, ".git")
+
+	// Split by '/' and return the last part
+	parts := strings.Split(repoURL, "/")
+	if len(parts) == 0 {
+		return ""
+	}
+
+	return parts[len(parts)-1]
+}
+
 func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName()).WithFilePath(ModuleConfigFilename)
 
@@ -195,13 +261,23 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 		yml.Update.validateUpdate(errorList)
 	}
 
+	deckhouseRepos := []string{"deckhouse", "deckhouse-test-1", "deckhouse-test-2"}
+	maxLevel := ptr.To(pkg.Error)
+	moduleNameFromRepo := getModuleNameFromRepository(modulePath)
+	for _, repo := range deckhouseRepos {
+		if moduleNameFromRepo == repo {
+			maxLevel = ptr.To(pkg.Warn)
+			break
+		}
+	}
+
 	// ru description is not required
 	if yml.Descriptions.English == "" {
-		errorList.Error("Module `descriptions.en` field is required")
+		errorList.WithMaxLevel(maxLevel).Error("Module `descriptions.en` field is required")
 	}
 
 	if yml.Description != "" {
-		errorList.Error("Field 'description' is deprecated, use 'descriptions.en' instead")
+		errorList.WithMaxLevel(maxLevel).Error("Field 'description' is deprecated, use 'descriptions.en' instead")
 	}
 
 	if yml.Critical && yml.Weight == 0 {
