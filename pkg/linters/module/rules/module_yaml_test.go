@@ -308,15 +308,15 @@ stage: Experimental
 	errorList := errors.NewLintRuleErrorsList()
 	rule.CheckDefinitionFile(tempDir, errorList)
 
-	errors := []string{}
+	got_errors := []string{}
 	for _, e := range errorList.GetErrors() {
 		if e.Level == pkg.Error {
-			errors = append(errors, e.Text)
+			got_errors = append(got_errors, e.Text)
 		}
 	}
-	assert.NotEmpty(t, errors, "Expected error for missing descriptions.en")
+	assert.NotEmpty(t, got_errors, "Expected error for missing descriptions.en")
 	found := false
-	for _, w := range errors {
+	for _, w := range got_errors {
 		if w == "Module `descriptions.en` field is required" {
 			found = true
 		}
