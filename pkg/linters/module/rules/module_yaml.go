@@ -191,6 +191,8 @@ func convertURLToModuleName(repoURL string) string {
 	return parts[len(parts)-1]
 }
 
+var deckhouseRepos = []string{"deckhouse", "deckhouse-test-1", "deckhouse-test-2"}
+
 func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName()).WithFilePath(ModuleConfigFilename)
 
@@ -261,7 +263,7 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 		yml.Update.validateUpdate(errorList)
 	}
 
-	deckhouseRepos := []string{"deckhouse", "deckhouse-test-1", "deckhouse-test-2"}
+	// TODO: refactor this
 	maxLevel := ptr.To(pkg.Error)
 	moduleNameFromRepo := getModuleNameFromRepository(modulePath)
 	for _, repo := range deckhouseRepos {
