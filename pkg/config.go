@@ -1,5 +1,8 @@
 package pkg
 
+// TODO: THINK ABOUT HOW TO ENDURE
+var IgnoreDeckhouseReposList = []string{"deckhouse", "deckhouse-test-1", "deckhouse-test-2"}
+
 type LinterConfig struct {
 	Impact *Level
 }

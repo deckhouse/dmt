@@ -191,9 +191,6 @@ func convertURLToModuleName(repoURL string) string {
 	return parts[len(parts)-1]
 }
 
-// TODO: THINK ABOUT HOW TO ENDURE
-var deckhouseRepos = []string{"deckhouse", "deckhouse-test-1", "deckhouse-test-2"}
-
 func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName()).WithFilePath(ModuleConfigFilename)
 
@@ -267,7 +264,7 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 	// TODO: refactor this
 	maxLevel := ptr.To(pkg.Error)
 	moduleNameFromRepo := getModuleNameFromRepository(modulePath)
-	for _, repo := range deckhouseRepos {
+	for _, repo := range pkg.IgnoreDeckhouseReposList {
 		if moduleNameFromRepo == repo {
 			maxLevel = ptr.To(pkg.Warn)
 			break
