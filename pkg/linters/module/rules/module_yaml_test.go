@@ -1,6 +1,7 @@
 package rules
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -307,15 +308,15 @@ stage: Experimental
 	errorList := errors.NewLintRuleErrorsList()
 	rule.CheckDefinitionFile(tempDir, errorList)
 
-	warnings := []string{}
+	errors := []string{}
 	for _, e := range errorList.GetErrors() {
-		if e.Level == pkg.Warn {
-			warnings = append(warnings, e.Text)
+		if e.Level == pkg.Error {
+			errors = append(errors, e.Text)
 		}
 	}
-	assert.NotEmpty(t, warnings, "Expected warning for missing descriptions.en")
+	assert.NotEmpty(t, errors, "Expected error for missing descriptions.en")
 	found := false
-	for _, w := range warnings {
+	for _, w := range errors {
 		if w == "Module `descriptions.en` field is required" {
 			found = true
 		}
@@ -386,7 +387,7 @@ descriptions:
 	errorList := errors.NewLintRuleErrorsList()
 
 	rule.CheckDefinitionFile(tempDir, errorList)
-	assert.False(t, errorList.ContainsErrors(), "Expected warning for missing 'descriptions.en' field")
+	assert.True(t, errorList.ContainsErrors(), "Expected error for missing 'descriptions.en' field")
 	assert.Contains(t, errorList.GetErrors()[0].Text, "Module `descriptions.en` field is required")
 
 	// Test present 'descriptions.en' field
@@ -402,6 +403,53 @@ descriptions:
 	errorList = errors.NewLintRuleErrorsList()
 	rule.CheckDefinitionFile(tempDir, errorList)
 	assert.False(t, errorList.ContainsErrors(), "Expected no warnings for present 'descriptions.en' field")
+}
+
+func TestCheckDefinitionFile_DeprecatedDescriptionField(t *testing.T) {
+	tempDir := t.TempDir()
+	moduleFilePath := filepath.Join(tempDir, ModuleConfigFilename)
+
+	// Test deprecated 'description' field usage
+	err := os.WriteFile(moduleFilePath, []byte(`
+name: test-module
+stage: Experimental
+description: "Old description field"
+descriptions:
+  en: "Test description"
+  ru: "Тестовое описание"
+`), 0600)
+	require.NoError(t, err)
+
+	rule := NewDefinitionFileRule(false)
+	errorList := errors.NewLintRuleErrorsList()
+
+	rule.CheckDefinitionFile(tempDir, errorList)
+	fmt.Println(errorList.GetErrors())
+	assert.True(t, errorList.ContainsErrors(), "Expected error for deprecated 'description' field")
+
+	// Check that we have the deprecation warning
+	found := false
+	for _, err := range errorList.GetErrors() {
+		if strings.Contains(err.Text, "Field 'description' is deprecated") {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "Expected deprecation warning for 'description' field")
+
+	// Test without deprecated 'description' field
+	err = os.WriteFile(moduleFilePath, []byte(`
+name: test-module
+stage: Experimental
+descriptions:
+  en: "Test description"
+  ru: "Тестовое описание"
+`), 0600)
+	require.NoError(t, err)
+
+	errorList = errors.NewLintRuleErrorsList()
+	rule.CheckDefinitionFile(tempDir, errorList)
+	assert.False(t, errorList.ContainsErrors(), "Expected no warnings when 'description' field is not used")
 }
 
 func TestCheckDefinitionFile_FileErrors(t *testing.T) {

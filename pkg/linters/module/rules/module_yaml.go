@@ -197,7 +197,11 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 
 	// ru description is not required
 	if yml.Descriptions.English == "" {
-		errorList.Warn("Module `descriptions.en` field is required")
+		errorList.Error("Module `descriptions.en` field is required")
+	}
+
+	if yml.Description != "" {
+		errorList.Error("Field 'description' is deprecated, use 'descriptions.en' instead")
 	}
 
 	if yml.Critical && yml.Weight == 0 {
