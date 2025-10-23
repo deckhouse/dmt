@@ -191,6 +191,7 @@ func convertURLToModuleName(repoURL string) string {
 	return parts[len(parts)-1]
 }
 
+// TODO: THINK ABOUT HOW TO ENDURE
 var deckhouseRepos = []string{"deckhouse", "deckhouse-test-1", "deckhouse-test-2"}
 
 func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *errors.LintRuleErrorsList) {
