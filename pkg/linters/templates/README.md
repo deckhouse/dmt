@@ -1883,16 +1883,30 @@ Error: File contains hardcoded 'cluster.local' substring. Use '.Values.global.cl
 Object: templates/configmap.yaml
 ```
 
-**Cause:** Template contains hardcoded `cluster.local` string.
+## Grafana Dashboard Validation Rules
 
-**Solutions:**
+The linter now includes comprehensive validation for Grafana dashboards based on best practices from the Deckhouse project:
 
-1. **Use dynamic cluster domain:**
+### Deprecated Panel Types
 
-   ```yaml
-   # Before
-   url: "http://api.d8-my-module.svc.cluster.local:8080"
-   
-   # After
-   url: "http://api.d8-my-module.svc.{{ .Values.global.clusterConfiguration.clusterDomain }}:8080"
-   ```
+- **graph** → **timeseries**: The `graph` panel type is deprecated and should be replaced with `timeseries`
+- **flant-statusmap-panel** → **state-timeline**: The custom statusmap panel should use the standard `state-timeline` panel
+
+### Deprecated Intervals
+
+- **interval_rv**, **interval_sx3**, **interval_sx4**: These custom intervals are deprecated and should be replaced with Grafana's built-in `$__rate_interval` variable
+
+### Legacy Alert Rules
+
+- **Built-in alerts**: Panels with embedded alert rules should use external Alertmanager instead of Grafana's built-in alerting
+
+### Datasource Validation
+
+- **Legacy format**: Detects old datasource UID formats that need to be resaved with newer Grafana versions
+- **Hardcoded UIDs**: Identifies hardcoded datasource UIDs that should use Grafana variables
+- **Prometheus UIDs**: Ensures Prometheus datasources use recommended UID patterns (`$ds_prometheus` or `${ds_prometheus}`)
+
+### Template Variables
+
+- **Required variable**: Ensures dashboards contain the required `ds_prometheus` variable of type `datasource`
+- **Query variables**: Validates that query variables use recommended datasource UIDs

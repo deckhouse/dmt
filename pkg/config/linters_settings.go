@@ -187,8 +187,21 @@ type TemplatesSettings struct {
 	ExcludeRules      TemplatesExcludeRules        `mapstructure:"exclude-rules"`
 	GrafanaDashboards GrafanaDashboardsExcludeList `mapstructure:"grafana-dashboards"`
 	PrometheusRules   PrometheusRulesExcludeList   `mapstructure:"prometheus-rules"`
+	Rules             TemplatesLinterRules         `mapstructure:"rules"`
 
 	Impact string `mapstructure:"impact"`
+}
+
+type TemplatesLinterRules struct {
+	VPARule           RuleConfig `mapstructure:"vpa"`
+	PDBRule           RuleConfig `mapstructure:"pdb"`
+	IngressRule       RuleConfig `mapstructure:"ingress"`
+	PrometheusRule    RuleConfig `mapstructure:"prometheus-rules"`
+	GrafanaRule       RuleConfig `mapstructure:"grafana-dashboards"`
+	KubeRBACProxyRule RuleConfig `mapstructure:"kube-rbac-proxy"`
+	ServicePortRule   RuleConfig `mapstructure:"service-port"`
+	ClusterDomainRule RuleConfig `mapstructure:"cluster-domain"`
+	RegistryRule      RuleConfig `mapstructure:"registry"`
 }
 
 type TemplatesExcludeRules struct {

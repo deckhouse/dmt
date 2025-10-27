@@ -85,18 +85,9 @@ metadata:
     heritage: deckhouse
 ```
 
-**Configuration:**
-
-```yaml
-# .dmt.yaml
-linters-settings:
-  container:
-    rules:
-      recommended-labels:
-        level: error  # error | warning | info | ignored
-```
-
 ---
+
+**Configuration:**
 
 ### namespace-labels
 
@@ -1307,26 +1298,6 @@ linters-settings:
 - `info`: Violations are reported as informational messages
 - `ignored`: The linter is completely disabled
 
-### Rule-Level Settings
-
-Each rule can be individually configured with its own severity level:
-
-```yaml
-# .dmt.yaml
-linters-settings:
-  container:
-    impact: error
-    rules:
-      recommended-labels:
-        level: error            # error | warning | info | ignored
-      api-version:
-        level: error
-      priority-class:
-        level: error
-      revision-history-limit:
-        level: warning
-```
-
 ### Exclude Rules
 
 Many rules support excluding specific objects or containers:
@@ -1395,46 +1366,6 @@ linters-settings:
   container:
     # Global impact level for all container rules
     impact: error
-    
-    # Rule-specific severity levels
-    rules:
-      recommended-labels:
-        level: error
-      namespace-labels:
-        level: error
-      api-version:
-        level: error
-      priority-class:
-        level: error
-      dns-policy:
-        level: error
-      controller-security-context:
-        level: error
-      revision-history-limit:
-        level: warning
-      name-duplicates:
-        level: error
-      read-only-root-filesystem:
-        level: error
-      host-network-ports:
-        level: error
-      env-variables-duplicates:
-        level: error
-      image-digest:
-        level: error
-      image-pull-policy:
-        level: error
-      resources:
-        level: error
-      security-context:
-        level: error
-      ports:
-        level: error
-      liveness-probe:
-        level: error
-      readiness-probe:
-        level: error
-    
     # Exclude specific objects/containers from rules
     exclude-rules:
       read-only-root-filesystem:

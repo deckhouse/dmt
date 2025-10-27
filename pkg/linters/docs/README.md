@@ -89,15 +89,6 @@ This module provides...
 
 **Configuration:**
 
-```yaml
-# .dmt.yaml
-linters-settings:
-  documentation:
-    rules:
-      readme:
-        level: error  # error | warning | info | ignored
-```
-
 To disable this rule for specific modules:
 
 ```yaml
@@ -178,15 +169,6 @@ my-module/
 - **Legacy:** `FILENAME_RU.md` (e.g., `README_RU.md`, `FAQ_RU.md`) - case insensitive
 
 **Configuration:**
-
-```yaml
-# .dmt.yaml
-linters-settings:
-  documentation:
-    rules:
-      bilingual:
-        level: error  # error | warning | info | ignored
-```
 
 To disable bilingual checks for specific files:
 
@@ -303,15 +285,6 @@ Line 42: Check the документация for more details.
 
 **Configuration:**
 
-```yaml
-# .dmt.yaml
-linters-settings:
-  documentation:
-    rules:
-      cyrillic-in-english:
-        level: error  # error | warning | info | ignored
-```
-
 To exclude specific files from this check:
 
 ```yaml
@@ -345,24 +318,6 @@ linters-settings:
 - `info`: Violations are reported as informational messages
 - `ignored`: The linter is completely disabled
 
-### Rule-Level Settings
-
-Each rule can be individually configured with its own severity level:
-
-```yaml
-# .dmt.yaml
-linters-settings:
-  documentation:
-    impact: error
-    rules:
-      readme:
-        level: error            # error | warning | info | ignored
-      bilingual:
-        level: error
-      cyrillic-in-english:
-        level: warning          # Less strict for this rule
-```
-
 ### Path-Based Exclusions
 
 Exclude specific modules or files from validation:
@@ -381,48 +336,6 @@ linters-settings:
       cyrillic-in-english:
         exclude:
           - docs/GLOSSARY.md    # Technical terms document
-```
-
-### Complete Configuration Example
-
-```yaml
-# .dmt.yaml
-linters-settings:
-  documentation:
-    # Global impact level for all documentation rules
-    impact: error
-    
-    # Rule-specific settings
-    rules:
-      readme:
-        level: error
-        exclude:
-          - experimental-module
-      
-      bilingual:
-        level: error
-        exclude:
-          - docs/INTERNAL.md
-          - docs/DEVELOPMENT.md
-      
-      cyrillic-in-english:
-        level: warning
-        exclude:
-          - docs/GLOSSARY.md
-```
-
-### Configuration in Module Directory
-
-You can also place a `.dmt.yaml` configuration file directly in your module directory for module-specific settings:
-
-```yaml
-# modules/my-module/.dmt.yaml
-linters-settings:
-  documentation:
-    impact: warning  # More lenient for this specific module
-    rules:
-      bilingual:
-        level: info  # Informational only for translations
 ```
 
 ## Common Issues

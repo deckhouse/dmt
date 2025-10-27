@@ -31,7 +31,7 @@ type Linters struct {
 	NoCyrillic    LinterConfig              `mapstructure:"no-cyrillic"`
 	OpenAPI       LinterConfig              `mapstructure:"openapi"`
 	Rbac          LinterConfig              `mapstructure:"rbac"`
-	Templates     LinterConfig              `mapstructure:"templates"`
+	Templates     TemplatesLinterConfig     `mapstructure:"templates"`
 	Documentation DocumentationLinterConfig `mapstructure:"documentation"`
 }
 
@@ -84,6 +84,23 @@ type ModuleLinterRules struct {
 	LicenseRule           RuleConfig `mapstructure:"license"`
 	RequarementsRule      RuleConfig `mapstructure:"requarements"`
 	LegacyReleaseFileRule RuleConfig `mapstructure:"legacy-release-file"`
+}
+
+type TemplatesLinterConfig struct {
+	LinterConfig `mapstructure:",squash"`
+	Rules        TemplatesLinterRules `mapstructure:"rules"`
+}
+
+type TemplatesLinterRules struct {
+	VPARule           RuleConfig `mapstructure:"vpa"`
+	PDBRule           RuleConfig `mapstructure:"pdb"`
+	IngressRule       RuleConfig `mapstructure:"ingress"`
+	PrometheusRule    RuleConfig `mapstructure:"prometheus-rules"`
+	GrafanaRule       RuleConfig `mapstructure:"grafana-dashboards"`
+	KubeRBACProxyRule RuleConfig `mapstructure:"kube-rbac-proxy"`
+	ServicePortRule   RuleConfig `mapstructure:"service-port"`
+	ClusterDomainRule RuleConfig `mapstructure:"cluster-domain"`
+	RegistryRule      RuleConfig `mapstructure:"registry"`
 }
 
 func (c LinterConfig) IsWarn() bool {

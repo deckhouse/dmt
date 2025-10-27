@@ -428,30 +428,6 @@ linters-settings:
     impact: error                 # Level: error | warning | info
 ```
 
-### Rule-Level Configuration
-
-Configure individual rule severity:
-
-```yaml
-linters-settings:
-  module:
-    rules:
-      definition-file:
-        level: error              # error | warning | info | ignored
-      oss:
-        level: error
-      conversions:
-        level: warning
-      helmignore:
-        level: warning
-      license:
-        level: error
-      requirements:
-        level: error
-      legacy-release-file:
-        level: warning
-```
-
 ---
 
 ## Common Issues

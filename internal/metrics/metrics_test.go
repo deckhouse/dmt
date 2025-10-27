@@ -23,7 +23,7 @@ func Test_SetLinterWarningsMetrics_AddsWarningsForAllLinters(t *testing.T) {
 			NoCyrillic:    global.LinterConfig{Impact: pkg.Warn.String()},
 			OpenAPI:       global.LinterConfig{Impact: pkg.Warn.String()},
 			Rbac:          global.LinterConfig{Impact: pkg.Warn.String()},
-			Templates:     global.LinterConfig{Impact: pkg.Warn.String()},
+			Templates:     global.TemplatesLinterConfig{},
 			Documentation: global.DocumentationLinterConfig{},
 		},
 	}
@@ -32,6 +32,7 @@ func Test_SetLinterWarningsMetrics_AddsWarningsForAllLinters(t *testing.T) {
 	cfg.Linters.Images.Impact = pkg.Warn.String()
 	cfg.Linters.Module.Impact = pkg.Warn.String()
 	cfg.Linters.Documentation.Impact = pkg.Warn.String()
+	cfg.Linters.Templates.Impact = pkg.Warn.String()
 
 	SetLinterWarningsMetrics(cfg)
 	num, err := testutil.GatherAndCount(metrics.Gatherer, "dmt_linter_info")
