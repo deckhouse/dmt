@@ -87,6 +87,8 @@ metadata:
 
 ---
 
+**Configuration:**
+
 ### namespace-labels
 
 **Purpose:** Ensures Deckhouse namespaces (prefixed with `d8-`) have the Prometheus rules watcher label enabled. This allows Prometheus to automatically discover and apply monitoring rules for the namespace.
