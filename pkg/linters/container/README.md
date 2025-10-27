@@ -85,17 +85,6 @@ metadata:
     heritage: deckhouse
 ```
 
-**Configuration:**
-
-```yaml
-# .dmt.yaml
-linters-settings:
-  container:
-    rules:
-      recommended-labels:
-        level: error  # error | warning | info | ignored
-```
-
 ---
 
 ### namespace-labels
@@ -1259,45 +1248,6 @@ linters-settings:
 ```
 
 ## Configuration
-
-The Container linter can be configured at both the module level and for individual rules.
-
-### Module-Level Settings
-
-Configure the overall impact level for the container linter:
-
-```yaml
-# .dmt.yaml
-linters-settings:
-  container:
-    impact: error  # Options: error, warning, info, ignored
-```
-
-**Impact levels:**
-- `error`: Violations fail the validation and return a non-zero exit code
-- `warning`: Violations are reported but don't fail the validation
-- `info`: Violations are reported as informational messages
-- `ignored`: The linter is completely disabled
-
-### Rule-Level Settings
-
-Each rule can be individually configured with its own severity level:
-
-```yaml
-# .dmt.yaml
-linters-settings:
-  container:
-    impact: error
-    rules:
-      recommended-labels:
-        level: error            # error | warning | info | ignored
-      api-version:
-        level: error
-      priority-class:
-        level: error
-      revision-history-limit:
-        level: warning
-```
 
 ### Exclude Rules
 

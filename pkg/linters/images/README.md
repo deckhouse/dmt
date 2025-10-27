@@ -356,27 +356,6 @@ linters-settings:
     
     werf:
       disable: false         # Enable/disable werf validation
-    
-    # Overall impact level
-    impact: error            # Level: error | warning | info
-```
-
-### Rule-Level Configuration
-
-Configure individual rule severity:
-
-```yaml
-linters-settings:
-  images:
-    rules:
-      dockerfile:
-        level: error         # error | warning | info | ignored
-      distroless:
-        level: error
-      werf:
-        level: error
-      patches:
-        level: warning
 ```
 
 ---
