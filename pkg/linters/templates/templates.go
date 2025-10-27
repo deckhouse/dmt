@@ -54,9 +54,9 @@ func (l *Templates) Run(m *module.Module) {
 	errorList := l.ErrorList.WithModule(m.GetName())
 
 	// VPA
-	rules.NewVPARule(l.cfg.ExcludeRules.VPAAbsent.Get()).ControllerMustHaveVPA(m, errorList)
+	rules.NewVPARule(l.cfg.ExcludeRules.VPAAbsent.Get()).ControllerMustHaveVPA(m, errorList.WithMaxLevel(l.cfg.Rules.VPARule.GetLevel()))
 	// PDB
-	rules.NewPDBRule(l.cfg.ExcludeRules.PDBAbsent.Get()).ControllerMustHavePDB(m, errorList)
+	rules.NewPDBRule(l.cfg.ExcludeRules.PDBAbsent.Get()).ControllerMustHavePDB(m, errorList.WithMaxLevel(l.cfg.Rules.PDBRule.GetLevel()))
 	// Ingress
 	ingressRule := rules.NewIngressRule(l.cfg.ExcludeRules.Ingress.Get())
 
@@ -72,26 +72,26 @@ func (l *Templates) Run(m *module.Module) {
 	}
 
 	rules.NewKubeRbacProxyRule(l.cfg.ExcludeRules.KubeRBACProxy.Get()).
-		NamespaceMustContainKubeRBACProxyCA(m.GetObjectStore(), errorList)
+		NamespaceMustContainKubeRBACProxyCA(m.GetObjectStore(), errorList.WithMaxLevel(l.cfg.Rules.KubeRBACProxyRule.GetLevel()))
 
 	servicePortRule := rules.NewServicePortRule(l.cfg.ExcludeRules.ServicePort.Get())
 
 	for _, object := range m.GetStorage() {
-		servicePortRule.ObjectServiceTargetPort(object, errorList)
-		prometheusRule.PromtoolRuleCheck(m, object, errorList)
-		ingressRule.CheckSnippetsRule(object, errorList)
+		servicePortRule.ObjectServiceTargetPort(object, errorList.WithMaxLevel(l.cfg.Rules.ServicePortRule.GetLevel()))
+		prometheusRule.PromtoolRuleCheck(m, object, errorList.WithMaxLevel(l.cfg.Rules.PrometheusRule.GetLevel()))
+		ingressRule.CheckSnippetsRule(object, errorList.WithMaxLevel(l.cfg.Rules.IngressRule.GetLevel()))
 	}
 
 	// Cluster domain rule
 	clusterDomainRule := rules.NewClusterDomainRule()
-	clusterDomainRule.ValidateClusterDomainInTemplates(m, errorList)
+	clusterDomainRule.ValidateClusterDomainInTemplates(m, errorList.WithMaxLevel(l.cfg.Rules.ClusterDomainRule.GetLevel()))
 
 	// werf file
 	// The following line is commented out because the Werf rule validation is not currently required.
 	// If needed in the future, uncomment and ensure the rule is properly configured.
-	// rules.NewWerfRule().ValidateWerfTemplates(m, errorList)
+	// rules.NewWerfRule().ValidateWerfTemplates(m, errorList.WithMaxLevel(l.cfg.Rules.WerfRule.GetLevel()))
 
-	rules.NewRegistryRule().CheckRegistrySecret(m, errorList)
+	rules.NewRegistryRule().CheckRegistrySecret(m, errorList.WithMaxLevel(l.cfg.Rules.RegistryRule.GetLevel()))
 }
 
 func (l *Templates) Name() string {

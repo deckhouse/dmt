@@ -184,6 +184,9 @@ func mapRuleSettings(linterSettings *pkg.LintersSettings, configSettings *config
 	// Module rules (uses global rule config + local fallback)
 	mapModuleRules(linterSettings, configSettings, globalConfig)
 
+	// Templates rules (uses global rule config + local fallback)
+	mapTemplatesRules(linterSettings, configSettings, globalConfig)
+
 	// Other linter rules (use local linter-level impact)
 	mapSimpleLinterRules(linterSettings, configSettings)
 }
@@ -232,6 +235,23 @@ func mapModuleRules(linterSettings *pkg.LintersSettings, configSettings *config.
 	rules.LegacyReleaseFileRule.SetLevel(globalRules.LegacyReleaseFileRule.Impact, fallbackImpact)
 }
 
+// mapTemplatesRules configures Templates linter rules
+func mapTemplatesRules(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings, globalConfig *global.Linters) {
+	rules := &linterSettings.Templates.Rules
+	globalRules := &globalConfig.Templates.Rules
+	fallbackImpact := configSettings.Templates.Impact
+
+	rules.VPARule.SetLevel(globalRules.VPARule.Impact, fallbackImpact)
+	rules.PDBRule.SetLevel(globalRules.PDBRule.Impact, fallbackImpact)
+	rules.IngressRule.SetLevel(globalRules.IngressRule.Impact, fallbackImpact)
+	rules.PrometheusRule.SetLevel(globalRules.PrometheusRule.Impact, fallbackImpact)
+	rules.GrafanaRule.SetLevel(globalRules.GrafanaRule.Impact, fallbackImpact)
+	rules.KubeRBACProxyRule.SetLevel(globalRules.KubeRBACProxyRule.Impact, fallbackImpact)
+	rules.ServicePortRule.SetLevel(globalRules.ServicePortRule.Impact, fallbackImpact)
+	rules.ClusterDomainRule.SetLevel(globalRules.ClusterDomainRule.Impact, fallbackImpact)
+	rules.RegistryRule.SetLevel(globalRules.RegistryRule.Impact, fallbackImpact)
+}
+
 // mapSimpleLinterRules configures rules that use linter-level impact without global overrides
 func mapSimpleLinterRules(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings) {
 	// NoCyrillic rules
@@ -243,18 +263,6 @@ func mapSimpleLinterRules(linterSettings *pkg.LintersSettings, configSettings *c
 	linterSettings.OpenAPI.Rules.HARule.SetLevel("", openAPIImpact)
 	linterSettings.OpenAPI.Rules.CRDsRule.SetLevel("", openAPIImpact)
 	linterSettings.OpenAPI.Rules.KeysRule.SetLevel("", openAPIImpact)
-
-	// Templates rules
-	templatesImpact := configSettings.Templates.Impact
-	templates := &linterSettings.Templates.Rules
-	templates.VPARule.SetLevel("", templatesImpact)
-	templates.PDBRule.SetLevel("", templatesImpact)
-	templates.IngressRule.SetLevel("", templatesImpact)
-	templates.PrometheusRule.SetLevel("", templatesImpact)
-	templates.GrafanaRule.SetLevel("", templatesImpact)
-	templates.KubeRBACProxyRule.SetLevel("", templatesImpact)
-	templates.ServicePortRule.SetLevel("", templatesImpact)
-	templates.ClusterDomainRule.SetLevel("", templatesImpact)
 
 	// RBAC rules
 	rbacImpact := configSettings.Rbac.Impact

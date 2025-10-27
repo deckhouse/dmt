@@ -134,6 +134,7 @@ type TemplatesLinterRules struct {
 	KubeRBACProxyRule RuleConfig
 	ServicePortRule   RuleConfig
 	ClusterDomainRule RuleConfig
+	RegistryRule      RuleConfig
 }
 
 type PrometheusRuleSettings struct {
