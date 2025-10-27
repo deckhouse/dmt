@@ -356,6 +356,9 @@ linters-settings:
     
     werf:
       disable: false         # Enable/disable werf validation
+      
+    # Overall impact level
+    impact: error            # Level: error | warning | info
 ```
 
 ---

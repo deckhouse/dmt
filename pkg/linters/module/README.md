@@ -372,6 +372,8 @@ linters-settings:
           - third-party/
           - vendor/
     
+    # Overall impact level
+    impact: error                 # Level: error | warning | info
 ```
 
 ---
