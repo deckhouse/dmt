@@ -299,6 +299,25 @@ linters-settings:
 
 ## Configuration
 
+The Documentation linter can be configured at both the module level and for individual rules.
+
+### Module-Level Settings
+
+Configure the overall impact level for the documentation linter:
+
+```yaml
+# .dmt.yaml
+linters-settings:
+  documentation:
+    impact: error  # Options: error, warning, info, ignored
+```
+
+**Impact levels:**
+- `error`: Violations fail the validation and return a non-zero exit code
+- `warning`: Violations are reported but don't fail the validation
+- `info`: Violations are reported as informational messages
+- `ignored`: The linter is completely disabled
+
 ### Path-Based Exclusions
 
 Exclude specific modules or files from validation:

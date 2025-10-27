@@ -1251,6 +1251,25 @@ linters-settings:
 
 ## Configuration
 
+The Container linter can be configured at both the module level and for individual rules.
+
+### Module-Level Settings
+
+Configure the overall impact level for the container linter:
+
+```yaml
+# .dmt.yaml
+linters-settings:
+  container:
+    impact: error  # Options: error, warning, info, ignored
+```
+
+**Impact levels:**
+- `error`: Violations fail the validation and return a non-zero exit code
+- `warning`: Violations are reported but don't fail the validation
+- `info`: Violations are reported as informational messages
+- `ignored`: The linter is completely disabled
+
 ### Exclude Rules
 
 Many rules support excluding specific objects or containers:
