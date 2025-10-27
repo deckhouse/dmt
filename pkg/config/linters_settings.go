@@ -201,6 +201,7 @@ type TemplatesLinterRules struct {
 	KubeRBACProxyRule RuleConfig `mapstructure:"kube-rbac-proxy"`
 	ServicePortRule   RuleConfig `mapstructure:"service-port"`
 	ClusterDomainRule RuleConfig `mapstructure:"cluster-domain"`
+	RegistryRule      RuleConfig `mapstructure:"registry"`
 }
 
 type TemplatesExcludeRules struct {
