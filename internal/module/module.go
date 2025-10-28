@@ -304,6 +304,8 @@ func mapContainerExclusions(linterSettings *pkg.LintersSettings, configSettings 
 	excludes.SecurityContext = configExcludes.SecurityContext.Get()
 	excludes.Liveness = configExcludes.Liveness.Get()
 	excludes.Readiness = configExcludes.Readiness.Get()
+	excludes.SeccompProfile = configExcludes.SeccompProfile.Get()
+	excludes.NoNewPrivileges = configExcludes.NoNewPrivileges.Get()
 	excludes.Description = pkg.StringRuleExcludeList(configExcludes.Description)
 }
 

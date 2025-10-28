@@ -300,6 +300,8 @@ type ContainerExcludeRules struct {
 	HostNetworkPorts       ContainerRuleExcludeList
 	Ports                  ContainerRuleExcludeList
 	ReadOnlyRootFilesystem ContainerRuleExcludeList
+	NoNewPrivileges        ContainerRuleExcludeList
+	SeccompProfile         ContainerRuleExcludeList
 	ImageDigest            ContainerRuleExcludeList
 	Resources              ContainerRuleExcludeList
 	SecurityContext        ContainerRuleExcludeList
