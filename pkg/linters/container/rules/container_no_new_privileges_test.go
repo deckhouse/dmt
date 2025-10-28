@@ -123,7 +123,7 @@ func TestNoNewPrivilegesRule_ContainerNoNewPrivileges(t *testing.T) {
 			errorList := errors.NewLintRuleErrorsList()
 
 			obj := storage.StoreObject{
-				Path: "test.yaml",
+				AbsPath: "test.yaml",
 				Unstructured: unstructured.Unstructured{
 					Object: map[string]any{
 						"kind":     tt.kind,
@@ -160,7 +160,7 @@ func TestNoNewPrivilegesRule_WithExclusions(t *testing.T) {
 	errorList := errors.NewLintRuleErrorsList()
 
 	obj := storage.StoreObject{
-		Path: "test.yaml",
+		AbsPath: "test.yaml",
 		Unstructured: unstructured.Unstructured{
 			Object: map[string]any{
 				"kind":     "Deployment",

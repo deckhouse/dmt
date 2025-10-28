@@ -132,7 +132,7 @@ func TestSeccompProfileRule_ContainerSeccompProfile(t *testing.T) {
 			}
 
 			obj := storage.StoreObject{
-				Path:         "test.yaml",
+				AbsPath:      "test.yaml",
 				Unstructured: unstructured.Unstructured{Object: objData},
 			}
 
@@ -169,7 +169,7 @@ func TestSeccompProfileRule_PodLevelProfile(t *testing.T) {
 	}
 
 	obj := storage.StoreObject{
-		Path:         "test.yaml",
+		AbsPath:      "test.yaml",
 		Unstructured: unstructured.Unstructured{Object: objData},
 	}
 
@@ -203,7 +203,7 @@ func TestSeccompProfileRule_ContainerOverridesPod(t *testing.T) {
 	}
 
 	obj := storage.StoreObject{
-		Path:         "test.yaml",
+		AbsPath:      "test.yaml",
 		Unstructured: unstructured.Unstructured{Object: objData},
 	}
 
@@ -236,7 +236,7 @@ func TestSeccompProfileRule_WithExclusions(t *testing.T) {
 	errorList := errors.NewLintRuleErrorsList()
 
 	obj := storage.StoreObject{
-		Path: "test.yaml",
+		AbsPath: "test.yaml",
 		Unstructured: unstructured.Unstructured{
 			Object: map[string]any{
 				"kind":     "Deployment",
