@@ -21,6 +21,7 @@ import (
 	"regexp"
 	"strings"
 
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 
 	"github.com/deckhouse/dmt/pkg"
@@ -60,9 +61,20 @@ func NewWerfRule(disable bool) *WerfRule {
 	}
 }
 
+var excludeModules = []string{"terraform-manager"}
+
+func isModuleExcluded(moduleName string) bool {
+	for _, m := range excludeModules {
+		if moduleName == m {
+			return true
+		}
+	}
+	return false
+}
+
 func (r *WerfRule) LintWerfFile(moduleName, data string, errorList *errors.LintRuleErrorsList) {
 	if !r.Enabled() {
-		return
+		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
 	}
 
 	// Set rule name for all errors in this function
@@ -115,10 +127,19 @@ func (r *WerfRule) LintWerfFile(moduleName, data string, errorList *errors.LintR
 
 		// Validate base image; exclude terraform-manager
 		// terraform-manager uses its own base images
-		if !isWerfImagesCorrect(w.FromImage) && moduleName != "terraform-manager" {
-			errorList.WithObjectID(fmt.Sprintf("werf.yaml:manifest-%d", i+1)).
-				WithValue("fromImage: " + w.FromImage).
-				Error("`fromImage:` parameter should be one of our `base` images")
+		err = isWerfImagesCorrect(w.FromImage)
+		if err != nil {
+			if isModuleExcluded(moduleName) {
+				// Ignore errors for excluded modules
+				errorList.WithMaxLevel(ptr.To(pkg.Ignored)).
+					WithObjectID(fmt.Sprintf("werf.yaml:manifest-%d", i+1)).
+					WithValue("fromImage: " + w.FromImage).
+					Error(fmt.Sprintf("Invalid `fromImage:` value - %v", err))
+			} else {
+				errorList.WithObjectID(fmt.Sprintf("werf.yaml:manifest-%d", i+1)).
+					WithValue("fromImage: " + w.FromImage).
+					Error(fmt.Sprintf("Invalid `fromImage:` value - %v", err))
+			}
 		}
 
 		// Validate imageSpec.config.user is not overridden
@@ -161,18 +182,23 @@ func splitManifests(bigFile string) []string {
 }
 
 // isWerfImagesCorrect validates that the image path contains `base_images`
-func isWerfImagesCorrect(img string) bool {
+func isWerfImagesCorrect(img string) error {
 	if img == "" {
-		return false
+		return fmt.Errorf("image is empty")
 	}
 
 	// Split by '/' to analyze path components
 	parts := strings.Split(img, "/")
 	if len(parts) < 2 {
-		return false
+		return fmt.Errorf("image should be in format `base/<name>`, got %q", img)
 	}
 
 	// Check if the first component is "base" or "common"
 	// TODO: remove "common" from this check
-	return (parts[0] == "base" || parts[0] == "common")
+	switch parts[0] {
+	case "base", "common":
+		return nil
+	default:
+		return fmt.Errorf("image must start with `base/`, got %q", img)
+	}
 }

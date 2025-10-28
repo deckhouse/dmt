@@ -12,6 +12,7 @@ require (
 	github.com/flant/addon-operator v1.5.0
 	github.com/go-openapi/spec v0.21.0
 	github.com/gobwas/glob v0.2.3
+	github.com/gojuno/minimock/v3 v3.4.7
 	github.com/golang/protobuf v1.5.4
 	github.com/golang/snappy v0.0.4
 	github.com/google/go-containerregistry v0.20.2
@@ -29,8 +30,8 @@ require (
 	github.com/spf13/pflag v1.0.6
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.10.0
-	github.com/tidwall/gjson v1.14.4
-	golang.org/x/mod v0.25.0
+	github.com/tidwall/gjson v1.18.0
+	golang.org/x/mod v0.27.0
 	gopkg.in/ini.v1 v1.67.0
 	gopkg.in/yaml.v3 v3.0.1
 	helm.sh/helm/v3 v3.18.4
@@ -150,7 +151,7 @@ require (
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
 	golang.org/x/net v0.40.0 // indirect
 	golang.org/x/oauth2 v0.28.0 // indirect
-	golang.org/x/sync v0.15.0 // indirect
+	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
 	golang.org/x/term v0.32.0 // indirect
 	golang.org/x/text v0.26.0 // indirect

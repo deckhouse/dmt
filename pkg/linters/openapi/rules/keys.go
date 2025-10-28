@@ -24,17 +24,16 @@ import (
 
 	"github.com/deckhouse/dmt/internal/openapi"
 	"github.com/deckhouse/dmt/pkg"
-	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 type KeysRule struct {
-	cfg *config.OpenAPISettings
+	cfg *pkg.OpenAPILinterConfig
 	pkg.RuleMeta
 	rootPath string
 }
 
-func NewKeysRule(cfg *config.OpenAPISettings, rootPath string) *KeysRule {
+func NewKeysRule(cfg *pkg.OpenAPILinterConfig, rootPath string) *KeysRule {
 	return &KeysRule{
 		cfg: cfg,
 		RuleMeta: pkg.RuleMeta{
@@ -59,9 +58,9 @@ type keyValidator struct {
 	bannedNames []string
 }
 
-func newKeyValidator(cfg *config.OpenAPISettings) keyValidator {
+func newKeyValidator(cfg *pkg.OpenAPILinterConfig) keyValidator {
 	return keyValidator{
-		bannedNames: cfg.OpenAPIExcludeRules.KeyBannedNames,
+		bannedNames: cfg.ExcludeRules.KeyBannedNames,
 	}
 }
 

@@ -18,6 +18,8 @@ package flags
 
 import (
 	"github.com/spf13/pflag"
+
+	"github.com/deckhouse/dmt/internal/logger"
 )
 
 const (
@@ -35,6 +37,16 @@ var (
 	Version      string
 	ValuesFile   string
 	PprofFile    string
+	HideWarnings bool
+	AbsPath      bool
+	ShowIgnored  bool
+)
+
+var (
+	BootstrapRepositoryType string
+	BootstrapRepositoryURL  string
+	BootstrapDirectory      string
+	BootstrapModule         string
 )
 
 func InitDefaultFlagSet() *pflag.FlagSet {
@@ -55,11 +67,37 @@ func InitLintFlagSet() *pflag.FlagSet {
 	lint.StringVarP(&ValuesFile, "values-file", "f", "", "path to values.yaml file with override values")
 	lint.StringVarP(&PprofFile, "pprof-file", "", "", "path to pprof file")
 
+	// hide warnings in output
+	lint.BoolVarP(&HideWarnings, "hide-warnings", "", false, "hide warnings")
+	err := lint.MarkHidden("hide-warnings")
+	if err != nil {
+		logger.ErrorF("mark hidden flag 'hide-warnings' is failed")
+	}
+
+	// make path absolute
+	lint.BoolVarP(&AbsPath, "abs-path", "", false, "make paths absolute")
+	err = lint.MarkHidden("abs-path")
+	if err != nil {
+		logger.ErrorF("mark hidden flag 'abs-path' is failed")
+	}
+
+	// show ignored errors
+	lint.BoolVarP(&ShowIgnored, "show-ignored", "", false, "show ignored errors")
+	err = lint.MarkHidden("show-ignored")
+	if err != nil {
+		logger.ErrorF("mark hidden flag 'show-ignored' is failed")
+	}
+
 	return lint
 }
 
-func InitGenFlagSet() *pflag.FlagSet {
-	gen := pflag.NewFlagSet("gen", pflag.ContinueOnError)
+func InitBootstrapFlagSet() *pflag.FlagSet {
+	bootstrap := pflag.NewFlagSet("bootstrap", pflag.ContinueOnError)
 
-	return gen
+	bootstrap.StringVarP(&BootstrapRepositoryType, "pipeline", "p", "github", "pipeline type [github | gitlab]")
+	bootstrap.StringVarP(&BootstrapRepositoryURL, "repository-url", "r", "", "custom module template repository URL, must point to zip compressed archive with repo content")
+	// if user doesn't pass directory flag - it will be dmt executing directory
+	bootstrap.StringVarP(&BootstrapDirectory, "directory", "d", ".", "directory to bootstrap")
+
+	return bootstrap
 }

@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 
 	"github.com/deckhouse/dmt/pkg"
@@ -55,8 +56,7 @@ func (r *OSSRule) OssModuleRule(moduleRoot string, errorList *errors.LintRuleErr
 	errorList = errorList.WithRule(r.GetName())
 
 	if !r.Enabled() {
-		// TODO: add metrics
-		return
+		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
 	}
 
 	if errs := verifyOssFile(moduleRoot); len(errs) > 0 {

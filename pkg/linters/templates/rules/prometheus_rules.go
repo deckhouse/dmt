@@ -25,6 +25,7 @@ import (
 	"strings"
 	"sync"
 
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 
 	"github.com/deckhouse/dmt/internal/promtool"
@@ -37,16 +38,24 @@ const (
 	PrometheusRuleName = "prometheus-rules"
 )
 
-func NewPrometheusRule() *PrometheusRule {
+func NewPrometheusRule(cfg *pkg.TemplatesLinterConfig) *PrometheusRule {
+	var exclude bool
+	if cfg != nil {
+		exclude = cfg.PrometheusRuleSettings.Disable
+	}
 	return &PrometheusRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: PrometheusRuleName,
+		},
+		BoolRule: pkg.BoolRule{
+			Exclude: exclude,
 		},
 	}
 }
 
 type PrometheusRule struct {
 	pkg.RuleMeta
+	pkg.BoolRule
 }
 
 type checkResult struct {
@@ -79,11 +88,11 @@ func (*rulesCacheStruct) Get(hash string) (checkResult, bool) {
 	return res, ok
 }
 
-type ModuleInterface interface {
-	GetPath() string
-}
+func (r *PrometheusRule) ValidatePrometheusRules(m pkg.Module, errorList *errors.LintRuleErrorsList) {
+	if !r.Enabled() {
+		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
+	}
 
-func (r *PrometheusRule) ValidatePrometheusRules(m ModuleInterface, errorList *errors.LintRuleErrorsList) {
 	modulePath := m.GetPath()
 	errorList = errorList.WithFilePath(modulePath).WithRule(r.GetName())
 
@@ -150,7 +159,11 @@ func isContentMatching(content []byte, desiredContent string) bool {
 	return false
 }
 
-func (r *PrometheusRule) PromtoolRuleCheck(m ModuleInterface, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+func (r *PrometheusRule) PromtoolRuleCheck(m pkg.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+	if !r.Enabled() {
+		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
+	}
+
 	errorList = errorList.WithFilePath(m.GetPath()).WithRule(r.GetName())
 
 	if object.Unstructured.GetKind() != "PrometheusRule" {

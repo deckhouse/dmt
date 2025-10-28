@@ -40,7 +40,7 @@ final: true
 
 	rule.LintWerfFile("test-module", invalidWerfData, errorList)
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for invalid base image")
-	assert.Contains(t, errorList.GetErrors()[0].Text, "`fromImage:` parameter should be one of our `base` images")
+	assert.Contains(t, errorList.GetErrors()[0].Text, "Invalid `fromImage:` value - image should be in format `base/<name>`, got \"disstroless\"")
 }
 
 func TestWerfRule_LintWerfFile_ArtifactDirective(t *testing.T) {
@@ -138,7 +138,7 @@ final: true
 
 	errorListErrors := errorList.GetErrors()
 	assert.Len(t, errorListErrors, 1, "Expected exactly one error")
-	assert.Contains(t, errorListErrors[0].Text, "`fromImage:` parameter should be one of our `base` images")
+	assert.Contains(t, errorListErrors[0].Text, "Invalid `fromImage:` value - image should be in format `base/<name>`, got \"disstroless\"")
 }
 
 func TestWerfRule_LintWerfFile_InvalidYAML(t *testing.T) {
@@ -366,6 +366,6 @@ imageSpec:
 
 	// Check that both errors are present
 	errorTexts := []string{errs[0].Text, errs[1].Text}
-	assert.Contains(t, errorTexts, "`fromImage:` parameter should be one of our `base` images")
+	assert.Contains(t, errorTexts, "Invalid `fromImage:` value - image must start with `base/`, got \"invalid/path\"")
 	assert.Contains(t, errorTexts, "`imageSpec.config.user:` parameter should be empty")
 }

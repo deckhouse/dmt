@@ -19,7 +19,6 @@ package storage
 import (
 	"crypto/sha256"
 	"fmt"
-	"os"
 	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -27,6 +26,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/deckhouse/dmt/internal/flags"
 )
 
 const (
@@ -54,7 +55,8 @@ func (g *ResourceIndex) AsString() string {
 }
 
 type StoreObject struct {
-	Path         string
+	AbsPath      string
+	shortPath    string
 	Hash         string
 	Unstructured unstructured.Unstructured
 }
@@ -347,13 +349,16 @@ func (s *StoreObject) IsHostNetwork() (bool, error) {
 	return false, nil
 }
 
-func (s *StoreObject) ShortPath() string {
-	elements := strings.Split(s.Path, string(os.PathSeparator))
-	if len(elements) == 0 {
-		return ""
+func (s *StoreObject) GetPath() string {
+	if flags.AbsPath {
+		return s.AbsPath
 	}
-	path := elements[1:]
-	return strings.Join(path, string(os.PathSeparator))
+
+	return s.shortPath
+}
+
+func (s *StoreObject) ShortPath() string {
+	return s.shortPath
 }
 
 func (s *StoreObject) Identity() string {
@@ -375,11 +380,11 @@ func NewUnstructuredObjectStore() *UnstructuredObjectStore {
 	return &UnstructuredObjectStore{Storage: make(map[ResourceIndex]StoreObject)}
 }
 
-func (s *UnstructuredObjectStore) Put(path string, object map[string]any, raw []byte) error {
+func (s *UnstructuredObjectStore) Put(path, shortPath string, object map[string]any, raw []byte) error {
 	var u unstructured.Unstructured
 	u.SetUnstructuredContent(object)
 
-	storeObject := StoreObject{Path: path, Unstructured: u, Hash: NewSHA256(raw)}
+	storeObject := StoreObject{AbsPath: path, shortPath: shortPath, Unstructured: u, Hash: NewSHA256(raw)}
 
 	var err error
 	index := GetResourceIndex(storeObject)

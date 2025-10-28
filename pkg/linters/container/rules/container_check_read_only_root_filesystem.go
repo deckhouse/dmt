@@ -45,7 +45,7 @@ type CheckReadOnlyRootFilesystemRule struct {
 }
 
 func (r *CheckReadOnlyRootFilesystemRule) ObjectReadOnlyRootFilesystem(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.ShortPath())
+	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.GetPath())
 
 	switch object.Unstructured.GetKind() {
 	case "Deployment", "DaemonSet", "StatefulSet", "Pod", "Job", "CronJob":
@@ -61,12 +61,8 @@ func (r *CheckReadOnlyRootFilesystemRule) ObjectReadOnlyRootFilesystem(object st
 			continue
 		}
 
-		if c.VolumeMounts == nil {
-			continue
-		}
-
 		if c.SecurityContext == nil {
-			errorList.WithObjectID(object.Identity()).
+			errorList.WithObjectID(object.Identity() + " ; container = " + c.Name).
 				Error("Container's SecurityContext is missing")
 
 			continue

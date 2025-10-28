@@ -22,20 +22,26 @@ import (
 )
 
 type LintersSettings struct {
-	Container  ContainerSettings  `mapstructure:"container"`
-	Hooks      HooksSettings      `mapstructure:"hooks"`
-	Images     ImageSettings      `mapstructure:"images"`
-	Module     ModuleSettings     `mapstructure:"module"`
-	NoCyrillic NoCyrillicSettings `mapstructure:"no-cyrillic"`
-	OpenAPI    OpenAPISettings    `mapstructure:"openapi"`
-	Rbac       RbacSettings       `mapstructure:"rbac"`
-	Templates  TemplatesSettings  `mapstructure:"templates"`
+	Container     ContainerSettings     `mapstructure:"container"`
+	Documentation DocumentationSettings `mapstructure:"documentation"`
+	Hooks         HooksSettings         `mapstructure:"hooks"`
+	Images        ImageSettings         `mapstructure:"images"`
+	Module        ModuleSettings        `mapstructure:"module"`
+	NoCyrillic    NoCyrillicSettings    `mapstructure:"no-cyrillic"`
+	OpenAPI       OpenAPISettings       `mapstructure:"openapi"`
+	Rbac          RbacSettings          `mapstructure:"rbac"`
+	Templates     TemplatesSettings     `mapstructure:"templates"`
+}
+
+type RuleConfig struct {
+	Impact string `mapstructure:"impact"`
 }
 
 func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
 	cfg.OpenAPI.Impact = calculateImpact(cfg.OpenAPI.Impact, lcfg.OpenAPI.Impact)
 	cfg.NoCyrillic.Impact = calculateImpact(cfg.NoCyrillic.Impact, lcfg.NoCyrillic.Impact)
 	cfg.Container.Impact = calculateImpact(cfg.Container.Impact, lcfg.Container.Impact)
+	cfg.Documentation.Impact = calculateImpact(cfg.Documentation.Impact, lcfg.Documentation.Impact)
 	cfg.Templates.Impact = calculateImpact(cfg.Templates.Impact, lcfg.Templates.Impact)
 	cfg.Images.Impact = calculateImpact(cfg.Images.Impact, lcfg.Images.Impact)
 	cfg.Rbac.Impact = calculateImpact(cfg.Rbac.Impact, lcfg.Rbac.Impact)
@@ -46,7 +52,7 @@ func (cfg *LintersSettings) MergeGlobal(lcfg *global.Linters) {
 type ContainerSettings struct {
 	ExcludeRules ContainerExcludeRules `mapstructure:"exclude-rules"`
 
-	Impact *pkg.Level `mapstructure:"impact"`
+	Impact string `mapstructure:"impact"`
 }
 
 type ContainerExcludeRules struct {
@@ -70,7 +76,7 @@ type ContainerExcludeRules struct {
 type HooksSettings struct {
 	Ingress HooksIngressRuleSetting `mapstructure:"ingress"`
 
-	Impact *pkg.Level `mapstructure:"impact"`
+	Impact string `mapstructure:"impact"`
 }
 
 type HooksIngressRuleSetting struct {
@@ -84,7 +90,7 @@ type ImageSettings struct {
 	Patches PatchesRuleSettings `mapstructure:"patches"`
 	Werf    WerfRuleSettings    `mapstructure:"werf"`
 
-	Impact *pkg.Level `mapstructure:"impact"`
+	Impact string `mapstructure:"impact"`
 }
 
 type ImageExcludeRules struct {
@@ -95,12 +101,13 @@ type ImageExcludeRules struct {
 type ModuleSettings struct {
 	ExcludeRules ModuleExcludeRules `mapstructure:"exclude-rules"`
 
-	OSS            ModuleOSSRuleSettings            `mapstructure:"oss"`
-	DefinitionFile ModuleDefinitionFileRuleSettings `mapstructure:"definition-file"`
-	Conversions    ConversionsRuleSettings          `mapstructure:"conversions"`
-	Helmignore     HelmignoreRuleSettings           `mapstructure:"helmignore"`
+	OSS               ModuleOSSRuleSettings            `mapstructure:"oss"`
+	DefinitionFile    ModuleDefinitionFileRuleSettings `mapstructure:"definition-file"`
+	Conversions       ConversionsRuleSettings          `mapstructure:"conversions"`
+	Helmignore        HelmignoreRuleSettings           `mapstructure:"helmignore"`
+	LegacyReleaseFile RuleConfig                       `mapstructure:"legacy-release-file"`
 
-	Impact *pkg.Level `mapstructure:"impact"`
+	Impact string `mapstructure:"impact"`
 }
 
 type ModuleExcludeRules struct {
@@ -145,7 +152,7 @@ type LicenseExcludeRule struct {
 type NoCyrillicSettings struct {
 	NoCyrillicExcludeRules NoCyrillicExcludeRules `mapstructure:"exclude-rules"`
 
-	Impact *pkg.Level `mapstructure:"impact"`
+	Impact string `mapstructure:"impact"`
 }
 
 type NoCyrillicExcludeRules struct {
@@ -156,7 +163,7 @@ type NoCyrillicExcludeRules struct {
 type OpenAPISettings struct {
 	OpenAPIExcludeRules OpenAPIExcludeRules `mapstructure:"exclude-rules"`
 
-	Impact *pkg.Level `mapstructure:"impact"`
+	Impact string `mapstructure:"impact"`
 }
 
 type OpenAPIExcludeRules struct {
@@ -169,7 +176,7 @@ type OpenAPIExcludeRules struct {
 type RbacSettings struct {
 	ExcludeRules RBACExcludeRules `mapstructure:"exclude-rules"`
 
-	Impact *pkg.Level `mapstructure:"impact"`
+	Impact string `mapstructure:"impact"`
 }
 
 type RBACExcludeRules struct {
@@ -181,8 +188,22 @@ type RBACExcludeRules struct {
 type TemplatesSettings struct {
 	ExcludeRules      TemplatesExcludeRules        `mapstructure:"exclude-rules"`
 	GrafanaDashboards GrafanaDashboardsExcludeList `mapstructure:"grafana-dashboards"`
+	PrometheusRules   PrometheusRulesExcludeList   `mapstructure:"prometheus-rules"`
+	Rules             TemplatesLinterRules         `mapstructure:"rules"`
 
-	Impact *pkg.Level `mapstructure:"impact"`
+	Impact string `mapstructure:"impact"`
+}
+
+type TemplatesLinterRules struct {
+	VPARule           RuleConfig `mapstructure:"vpa"`
+	PDBRule           RuleConfig `mapstructure:"pdb"`
+	IngressRule       RuleConfig `mapstructure:"ingress"`
+	PrometheusRule    RuleConfig `mapstructure:"prometheus-rules"`
+	GrafanaRule       RuleConfig `mapstructure:"grafana-dashboards"`
+	KubeRBACProxyRule RuleConfig `mapstructure:"kube-rbac-proxy"`
+	ServicePortRule   RuleConfig `mapstructure:"service-port"`
+	ClusterDomainRule RuleConfig `mapstructure:"cluster-domain"`
+	RegistryRule      RuleConfig `mapstructure:"registry"`
 }
 
 type TemplatesExcludeRules struct {
@@ -194,6 +215,10 @@ type TemplatesExcludeRules struct {
 }
 
 type GrafanaDashboardsExcludeList struct {
+	Disable bool `mapstructure:"disable"`
+}
+
+type PrometheusRulesExcludeList struct {
 	Disable bool `mapstructure:"disable"`
 }
 
@@ -293,4 +318,8 @@ func remapContainerRuleExclude(input *ContainerRuleExclude) *pkg.ContainerRuleEx
 		Name:      input.Name,
 		Container: input.Container,
 	}
+}
+
+type DocumentationSettings struct {
+	Impact string `mapstructure:"impact"`
 }

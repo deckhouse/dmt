@@ -27,7 +27,6 @@ import (
 
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/pkg"
-	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
@@ -47,7 +46,7 @@ type DistrolessRule struct {
 	pkg.PrefixRule
 }
 
-func NewDistrolessRule(cfg *config.ImageSettings) *DistrolessRule {
+func NewDistrolessRule(cfg *pkg.ImageLinterConfig) *DistrolessRule {
 	return &DistrolessRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: distrolessRuleName,

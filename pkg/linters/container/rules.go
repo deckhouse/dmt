@@ -25,23 +25,17 @@ import (
 )
 
 func (l *Container) applyContainerRules(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithFilePath(object.ShortPath())
+	errorList = errorList.WithFilePath(object.GetPath())
 
-	objectRules := []func(storage.StoreObject, *errors.LintRuleErrorsList){
-		rules.NewRecommendedLabelsRule().ObjectRecommendedLabels,
-		rules.NewNamespaceLabelsRule().ObjectNamespaceLabels,
-		rules.NewAPIVersionRule().ObjectAPIVersion,
-		rules.NewPriorityClassRule().ObjectPriorityClass,
-		rules.NewDNSPolicyRule(l.cfg.ExcludeRules.DNSPolicy.Get()).
-			ObjectDNSPolicy,
-		rules.NewControllerSecurityContextRule(l.cfg.ExcludeRules.ControllerSecurityContext.Get()).
-			ControllerSecurityContext,
-		rules.NewRevisionHistoryLimitRule().ObjectRevisionHistoryLimit,
-	}
-
-	for _, rule := range objectRules {
-		rule(object, errorList)
-	}
+	rules.NewRecommendedLabelsRule().ObjectRecommendedLabels(object, errorList.WithRule("recommended-labels").WithMaxLevel(l.cfg.Rules.RecommendedLabelsRule.GetLevel()))
+	rules.NewNamespaceLabelsRule().ObjectNamespaceLabels(object, errorList)
+	rules.NewAPIVersionRule().ObjectAPIVersion(object, errorList)
+	rules.NewPriorityClassRule().ObjectPriorityClass(object, errorList)
+	rules.NewDNSPolicyRule(l.cfg.ExcludeRules.DNSPolicy.Get()).
+		ObjectDNSPolicy(object, errorList)
+	rules.NewControllerSecurityContextRule(l.cfg.ExcludeRules.ControllerSecurityContext.Get()).
+		ControllerSecurityContext(object, errorList)
+	rules.NewRevisionHistoryLimitRule().ObjectRevisionHistoryLimit(object, errorList)
 
 	allContainers, err := object.GetAllContainers()
 	if err != nil {

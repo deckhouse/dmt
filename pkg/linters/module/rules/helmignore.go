@@ -22,6 +22,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"k8s.io/utils/ptr"
+
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
@@ -56,8 +58,7 @@ func (r *HelmignoreRule) CheckHelmignore(modulePath string, errorList *errors.Li
 	errorList = errorList.WithRule(r.GetName())
 
 	if !r.Enabled() {
-		// TODO: add metrics
-		return
+		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
 	}
 
 	helmignorePath := filepath.Join(modulePath, helmignoreFile)

@@ -21,7 +21,7 @@ import (
 	"path/filepath"
 
 	"github.com/deckhouse/dmt/internal/module"
-	"github.com/deckhouse/dmt/pkg/config"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/templates/rules"
 )
@@ -33,16 +33,16 @@ const (
 // Templates linter
 type Templates struct {
 	name, desc string
-	cfg        *config.TemplatesSettings
+	cfg        *pkg.TemplatesLinterConfig
 	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *config.ModuleConfig, errorList *errors.LintRuleErrorsList) *Templates {
+func New(cfg *pkg.TemplatesLinterConfig, errorList *errors.LintRuleErrorsList) *Templates {
 	return &Templates{
 		name:      ID,
 		desc:      "Lint templates",
-		cfg:       &cfg.LintersSettings.Templates,
-		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.LintersSettings.Templates.Impact),
+		cfg:       cfg,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.Impact),
 	}
 }
 
@@ -54,36 +54,44 @@ func (l *Templates) Run(m *module.Module) {
 	errorList := l.ErrorList.WithModule(m.GetName())
 
 	// VPA
-	rules.NewVPARule(l.cfg.ExcludeRules.VPAAbsent.Get()).ControllerMustHaveVPA(m, errorList)
+	rules.NewVPARule(l.cfg.ExcludeRules.VPAAbsent.Get()).ControllerMustHaveVPA(m, errorList.WithMaxLevel(l.cfg.Rules.VPARule.GetLevel()))
 	// PDB
-	rules.NewPDBRule(l.cfg.ExcludeRules.PDBAbsent.Get()).ControllerMustHavePDB(m, errorList)
+	rules.NewPDBRule(l.cfg.ExcludeRules.PDBAbsent.Get()).ControllerMustHavePDB(m, errorList.WithMaxLevel(l.cfg.Rules.PDBRule.GetLevel()))
 	// Ingress
 	ingressRule := rules.NewIngressRule(l.cfg.ExcludeRules.Ingress.Get())
 
 	// monitoring
-	prometheusRule := rules.NewPrometheusRule()
+	prometheusRule := rules.NewPrometheusRule(l.cfg)
 	grafanaRule := rules.NewGrafanaRule(l.cfg)
 
 	if err := dirExists(m.GetPath(), "monitoring"); err == nil {
-		grafanaRule.ValidateGrafanaDashboards(m, errorList)
-		prometheusRule.ValidatePrometheusRules(m, errorList)
+		grafanaRule.ValidateGrafanaDashboards(m, errorList.WithMaxLevel(l.cfg.Rules.GrafanaRule.GetLevel()))
+		prometheusRule.ValidatePrometheusRules(m, errorList.WithMaxLevel(l.cfg.Rules.PrometheusRule.GetLevel()))
 	} else if !os.IsNotExist(err) {
 		errorList.Errorf("reading the 'monitoring' folder failed: %s", err)
 	}
 
 	rules.NewKubeRbacProxyRule(l.cfg.ExcludeRules.KubeRBACProxy.Get()).
-		NamespaceMustContainKubeRBACProxyCA(m.GetObjectStore(), errorList)
+		NamespaceMustContainKubeRBACProxyCA(m.GetObjectStore(), errorList.WithMaxLevel(l.cfg.Rules.KubeRBACProxyRule.GetLevel()))
 
 	servicePortRule := rules.NewServicePortRule(l.cfg.ExcludeRules.ServicePort.Get())
 
 	for _, object := range m.GetStorage() {
-		servicePortRule.ObjectServiceTargetPort(object, errorList)
-		prometheusRule.PromtoolRuleCheck(m, object, errorList)
-		ingressRule.CheckSnippetsRule(object, errorList)
+		servicePortRule.ObjectServiceTargetPort(object, errorList.WithMaxLevel(l.cfg.Rules.ServicePortRule.GetLevel()))
+		prometheusRule.PromtoolRuleCheck(m, object, errorList.WithMaxLevel(l.cfg.Rules.PrometheusRule.GetLevel()))
+		ingressRule.CheckSnippetsRule(object, errorList.WithMaxLevel(l.cfg.Rules.IngressRule.GetLevel()))
 	}
 
+	// Cluster domain rule
+	clusterDomainRule := rules.NewClusterDomainRule()
+	clusterDomainRule.ValidateClusterDomainInTemplates(m, errorList.WithMaxLevel(l.cfg.Rules.ClusterDomainRule.GetLevel()))
+
 	// werf file
-	// rules.NewWerfRule().ValidateWerfTemplates(m, errorList)
+	// The following line is commented out because the Werf rule validation is not currently required.
+	// If needed in the future, uncomment and ensure the rule is properly configured.
+	// rules.NewWerfRule().ValidateWerfTemplates(m, errorList.WithMaxLevel(l.cfg.Rules.WerfRule.GetLevel()))
+
+	rules.NewRegistryRule().CheckRegistrySecret(m, errorList.WithMaxLevel(l.cfg.Rules.RegistryRule.GetLevel()))
 }
 
 func (l *Templates) Name() string {
