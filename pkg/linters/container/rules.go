@@ -27,14 +27,14 @@ import (
 func (l *Container) applyContainerRules(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithFilePath(object.GetPath())
 
-	rules.NewRecommendedLabelsRule().ObjectRecommendedLabels(object, errorList.WithRule("recommended-labels").WithMaxLevel(l.cfg.Rules.RecommendedLabelsRule.GetLevel()))
-	rules.NewNamespaceLabelsRule().ObjectNamespaceLabels(object, errorList.WithRule("namespace-labels").WithMaxLevel(l.cfg.Rules.NamespaceLabelsRule.GetLevel()))
-	rules.NewAPIVersionRule().ObjectAPIVersion(object, errorList.WithRule("api-version").WithMaxLevel(l.cfg.Rules.ApiVersionRule.GetLevel()))
-	rules.NewPriorityClassRule().ObjectPriorityClass(object, errorList.WithRule("priority-class").WithMaxLevel(l.cfg.Rules.PriorityClassRule.GetLevel()))
+	rules.NewRecommendedLabelsRule().ObjectRecommendedLabels(object, errorList.WithMaxLevel(l.cfg.Rules.RecommendedLabelsRule.GetLevel()))
+	rules.NewNamespaceLabelsRule().ObjectNamespaceLabels(object, errorList.WithMaxLevel(l.cfg.Rules.NamespaceLabelsRule.GetLevel()))
+	rules.NewAPIVersionRule().ObjectAPIVersion(object, errorList.WithMaxLevel(l.cfg.Rules.ApiVersionRule.GetLevel()))
+	rules.NewPriorityClassRule().ObjectPriorityClass(object, errorList.WithMaxLevel(l.cfg.Rules.PriorityClassRule.GetLevel()))
 	rules.NewDNSPolicyRule(l.cfg.ExcludeRules.DNSPolicy.Get()).
-		ObjectDNSPolicy(object, errorList.WithRule("dns-policy").WithMaxLevel(l.cfg.Rules.DNSPolicyRule.GetLevel()))
+		ObjectDNSPolicy(object, errorList.WithMaxLevel(l.cfg.Rules.DNSPolicyRule.GetLevel()))
 	rules.NewControllerSecurityContextRule(l.cfg.ExcludeRules.ControllerSecurityContext.Get()).
-		ControllerSecurityContext(object, errorList.WithRule("controller-security-context").WithMaxLevel(l.cfg.Rules.ControllerSecurityContextRule.GetLevel()))
+		ControllerSecurityContext(object, errorList.WithMaxLevel(l.cfg.Rules.ControllerSecurityContextRule.GetLevel()))
 	rules.NewRevisionHistoryLimitRule().ObjectRevisionHistoryLimit(object, errorList.WithRule("revision-history-limit").WithMaxLevel(l.cfg.Rules.NewRevisionHistoryLimitRule.GetLevel()))
 
 	allContainers, err := object.GetAllContainers()
@@ -51,42 +51,42 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 
 	containerRules := []func(storage.StoreObject, []corev1.Container, *errors.LintRuleErrorsList){
 		func(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-			rules.NewNameDuplicatesRule().ContainerNameDuplicates(object, containers, errorList.WithRule("name-duplicates").WithMaxLevel(l.cfg.Rules.NameDuplicatesRule.GetLevel()))
+			rules.NewNameDuplicatesRule().ContainerNameDuplicates(object, containers, errorList.WithMaxLevel(l.cfg.Rules.NameDuplicatesRule.GetLevel()))
 		},
 		func(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 			rules.NewCheckReadOnlyRootFilesystemRule(l.cfg.ExcludeRules.ReadOnlyRootFilesystem.Get()).
-				ObjectReadOnlyRootFilesystem(object, containers, errorList.WithRule("read-only-root-filesystem").WithMaxLevel(l.cfg.Rules.ReadOnlyRootFilesystemRule.GetLevel()))
+				ObjectReadOnlyRootFilesystem(object, containers, errorList.WithMaxLevel(l.cfg.Rules.ReadOnlyRootFilesystemRule.GetLevel()))
 		},
 		func(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 			rules.NewNoNewPrivilegesRule(l.cfg.ExcludeRules.NoNewPrivileges.Get()).
-				ContainerNoNewPrivileges(object, containers, errorList.WithRule("no-new-privileges").WithMaxLevel(l.cfg.Rules.NoNewPrivilegesRule.GetLevel()))
+				ContainerNoNewPrivileges(object, containers, errorList.WithMaxLevel(l.cfg.Rules.NoNewPrivilegesRule.GetLevel()))
 		},
 		func(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 			rules.NewSeccompProfileRule(l.cfg.ExcludeRules.SeccompProfile.Get()).
-				ContainerSeccompProfile(object, containers, errorList.WithRule("seccomp-profile").WithMaxLevel(l.cfg.Rules.SeccompProfileRule.GetLevel()))
+				ContainerSeccompProfile(object, containers, errorList.WithMaxLevel(l.cfg.Rules.SeccompProfileRule.GetLevel()))
 		},
 		func(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-			rules.NewHostNetworkPortsRule(l.cfg.ExcludeRules.HostNetworkPorts.Get()).ObjectHostNetworkPorts(object, containers, errorList.WithRule("host-network-ports").WithMaxLevel(l.cfg.Rules.HostNetworkPortsRule.GetLevel()))
+			rules.NewHostNetworkPortsRule(l.cfg.ExcludeRules.HostNetworkPorts.Get()).ObjectHostNetworkPorts(object, containers, errorList.WithMaxLevel(l.cfg.Rules.HostNetworkPortsRule.GetLevel()))
 		},
 		func(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-			rules.NewEnvVariablesDuplicatesRule().ContainerEnvVariablesDuplicates(object, containers, errorList.WithRule("env-variables-duplicates").WithMaxLevel(l.cfg.Rules.EnvVariablesDuplicatesRule.GetLevel()))
+			rules.NewEnvVariablesDuplicatesRule().ContainerEnvVariablesDuplicates(object, containers, errorList.WithMaxLevel(l.cfg.Rules.EnvVariablesDuplicatesRule.GetLevel()))
 		},
 		func(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-			rules.NewImageDigestRule(l.cfg.ExcludeRules.ImageDigest.Get()).ContainerImageDigestCheck(object, containers, errorList.WithRule("image-digest").WithMaxLevel(l.cfg.Rules.ImageDigestRule.GetLevel()))
+			rules.NewImageDigestRule(l.cfg.ExcludeRules.ImageDigest.Get()).ContainerImageDigestCheck(object, containers, errorList.WithMaxLevel(l.cfg.Rules.ImageDigestRule.GetLevel()))
 		},
 		func(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-			rules.NewImagePullPolicyRule().ContainersImagePullPolicy(object, containers, errorList.WithRule("image-pull-policy").WithMaxLevel(l.cfg.Rules.ImagePullPolicyRule.GetLevel()))
+			rules.NewImagePullPolicyRule().ContainersImagePullPolicy(object, containers, errorList.WithMaxLevel(l.cfg.Rules.ImagePullPolicyRule.GetLevel()))
 		},
 		func(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 			rules.NewResourcesRule(l.cfg.ExcludeRules.Resources.Get()).
-				ContainerStorageEphemeral(object, containers, errorList.WithRule("resources").WithMaxLevel(l.cfg.Rules.ResourcesRule.GetLevel()))
+				ContainerStorageEphemeral(object, containers, errorList.WithMaxLevel(l.cfg.Rules.ResourcesRule.GetLevel()))
 		},
 		func(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 			rules.NewContainerSecurityContextRule(l.cfg.ExcludeRules.SecurityContext.Get()).
-				ContainerSecurityContext(object, containers, errorList.WithRule("container-security-context").WithMaxLevel(l.cfg.Rules.ContainerSecurityContextRule.GetLevel()))
+				ContainerSecurityContext(object, containers, errorList.WithMaxLevel(l.cfg.Rules.ContainerSecurityContextRule.GetLevel()))
 		},
 		func(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-			rules.NewPortsRule(l.cfg.ExcludeRules.Ports.Get()).ContainerPorts(object, containers, errorList.WithRule("ports").WithMaxLevel(l.cfg.Rules.PortsRule.GetLevel()))
+			rules.NewPortsRule(l.cfg.ExcludeRules.Ports.Get()).ContainerPorts(object, containers, errorList.WithMaxLevel(l.cfg.Rules.PortsRule.GetLevel()))
 		},
 	}
 
@@ -109,11 +109,11 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 	notInitContainerRules := []func(storage.StoreObject, []corev1.Container, *errors.LintRuleErrorsList){
 		func(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 			rules.NewLivenessRule(l.cfg.ExcludeRules.Liveness.Get()).
-				CheckProbe(object, containers, errorList.WithRule("liveness-probe").WithMaxLevel(l.cfg.Rules.LivenessRule.GetLevel()))
+				CheckProbe(object, containers, errorList.WithMaxLevel(l.cfg.Rules.LivenessRule.GetLevel()))
 		},
 		func(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 			rules.NewReadinessRule(l.cfg.ExcludeRules.Readiness.Get()).
-				CheckProbe(object, containers, errorList.WithRule("readiness-probe").WithMaxLevel(l.cfg.Rules.ReadinessRule.GetLevel()))
+				CheckProbe(object, containers, errorList.WithMaxLevel(l.cfg.Rules.ReadinessRule.GetLevel()))
 		},
 	}
 
