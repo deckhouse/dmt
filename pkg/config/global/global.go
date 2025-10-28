@@ -40,8 +40,33 @@ type LinterConfig struct {
 }
 
 type ContainerLinterConfig struct {
-	LinterConfig          `mapstructure:",squash"`
-	RecommendedLabelsRule RuleConfig `mapstructure:"recommended-labels"`
+	LinterConfig `mapstructure:",squash"`
+	Rules        ContainerRules `mapstructure:"rules"`
+}
+
+type ContainerRules struct {
+	RecommendedLabelsRule         RuleConfig `mapstructure:"recommended-labels"`
+	NamespaceLabelsRule           RuleConfig `mapstructure:"namespace-labels"`
+	ApiVersionRule                RuleConfig `mapstructure:"api-version"`
+	PriorityClassRule             RuleConfig `mapstructure:"priority-class"`
+	DNSPolicyRule                 RuleConfig `mapstructure:"dns-policy"`
+	ControllerSecurityContextRule RuleConfig `mapstructure:"controller-security-context"`
+	NewRevisionHistoryLimitRule   RuleConfig `mapstructure:"revision-history-limit"`
+
+	// Container-specific rules
+	NameDuplicatesRule           RuleConfig `mapstructure:"name-duplicates"`
+	ReadOnlyRootFilesystemRule   RuleConfig `mapstructure:"read-only-root-filesystem"`
+	NoNewPrivilegesRule          RuleConfig `mapstructure:"no-new-privileges"`
+	SeccompProfileRule           RuleConfig `mapstructure:"seccomp-profile"`
+	HostNetworkPortsRule         RuleConfig `mapstructure:"host-network-ports"`
+	EnvVariablesDuplicatesRule   RuleConfig `mapstructure:"env-variables-duplicates"`
+	ImageDigestRule              RuleConfig `mapstructure:"image-digest"`
+	ImagePullPolicyRule          RuleConfig `mapstructure:"image-pull-policy"`
+	ResourcesRule                RuleConfig `mapstructure:"resources"`
+	ContainerSecurityContextRule RuleConfig `mapstructure:"container-security-context"`
+	PortsRule                    RuleConfig `mapstructure:"ports"`
+	LivenessRule                 RuleConfig `mapstructure:"liveness-probe"`
+	ReadinessRule                RuleConfig `mapstructure:"readiness-probe"`
 }
 
 type ImagesLinterConfig struct {

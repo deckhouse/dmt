@@ -290,7 +290,28 @@ func (l PrefixRuleExcludeList) Get() []PrefixRuleExclude {
 }
 
 type ContainerLinterRules struct {
-	RecommendedLabelsRule RuleConfig
+	RecommendedLabelsRule         RuleConfig
+	NamespaceLabelsRule           RuleConfig
+	ApiVersionRule                RuleConfig
+	PriorityClassRule             RuleConfig
+	DNSPolicyRule                 RuleConfig
+	ControllerSecurityContextRule RuleConfig
+	NewRevisionHistoryLimitRule   RuleConfig
+
+	// Container-specific rules
+	NameDuplicatesRule           RuleConfig
+	ReadOnlyRootFilesystemRule   RuleConfig
+	NoNewPrivilegesRule          RuleConfig
+	SeccompProfileRule           RuleConfig
+	HostNetworkPortsRule         RuleConfig
+	EnvVariablesDuplicatesRule   RuleConfig
+	ImageDigestRule              RuleConfig
+	ImagePullPolicyRule          RuleConfig
+	ResourcesRule                RuleConfig
+	ContainerSecurityContextRule RuleConfig
+	PortsRule                    RuleConfig
+	LivenessRule                 RuleConfig
+	ReadinessRule                RuleConfig
 }
 
 type ContainerExcludeRules struct {
@@ -300,6 +321,8 @@ type ContainerExcludeRules struct {
 	HostNetworkPorts       ContainerRuleExcludeList
 	Ports                  ContainerRuleExcludeList
 	ReadOnlyRootFilesystem ContainerRuleExcludeList
+	NoNewPrivileges        ContainerRuleExcludeList
+	SeccompProfile         ContainerRuleExcludeList
 	ImageDigest            ContainerRuleExcludeList
 	Resources              ContainerRuleExcludeList
 	SecurityContext        ContainerRuleExcludeList

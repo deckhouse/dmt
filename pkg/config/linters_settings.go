@@ -62,6 +62,8 @@ type ContainerExcludeRules struct {
 	HostNetworkPorts       ContainerRuleExcludeList `mapstructure:"host-network-ports"`
 	Ports                  ContainerRuleExcludeList `mapstructure:"ports"`
 	ReadOnlyRootFilesystem ContainerRuleExcludeList `mapstructure:"read-only-root-filesystem"`
+	NoNewPrivileges        ContainerRuleExcludeList `mapstructure:"no-new-privileges"`
+	SeccompProfile         ContainerRuleExcludeList `mapstructure:"seccomp-profile"`
 	ImageDigest            ContainerRuleExcludeList `mapstructure:"image-digest"`
 	Resources              ContainerRuleExcludeList `mapstructure:"resources"`
 	SecurityContext        ContainerRuleExcludeList `mapstructure:"security-context"`

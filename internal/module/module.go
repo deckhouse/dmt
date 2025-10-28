@@ -194,7 +194,85 @@ func mapRuleSettings(linterSettings *pkg.LintersSettings, configSettings *config
 // mapContainerRules configures Container linter rules
 func mapContainerRules(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings, globalConfig *global.Linters) {
 	linterSettings.Container.Rules.RecommendedLabelsRule.SetLevel(
-		globalConfig.Container.RecommendedLabelsRule.Impact,
+		globalConfig.Container.Rules.RecommendedLabelsRule.Impact,
+		configSettings.Container.Impact,
+	)
+	linterSettings.Container.Rules.NamespaceLabelsRule.SetLevel(
+		globalConfig.Container.Rules.NamespaceLabelsRule.Impact,
+		configSettings.Container.Impact,
+	)
+	linterSettings.Container.Rules.ApiVersionRule.SetLevel(
+		globalConfig.Container.Rules.ApiVersionRule.Impact,
+		configSettings.Container.Impact,
+	)
+	linterSettings.Container.Rules.PriorityClassRule.SetLevel(
+		globalConfig.Container.Rules.PriorityClassRule.Impact,
+		configSettings.Container.Impact,
+	)
+	linterSettings.Container.Rules.DNSPolicyRule.SetLevel(
+		globalConfig.Container.Rules.DNSPolicyRule.Impact,
+		configSettings.Container.Impact,
+	)
+	linterSettings.Container.Rules.ControllerSecurityContextRule.SetLevel(
+		globalConfig.Container.Rules.ControllerSecurityContextRule.Impact,
+		configSettings.Container.Impact,
+	)
+	linterSettings.Container.Rules.NewRevisionHistoryLimitRule.SetLevel(
+		globalConfig.Container.Rules.NewRevisionHistoryLimitRule.Impact,
+		configSettings.Container.Impact,
+	)
+
+	// Container-specific rules
+	linterSettings.Container.Rules.NameDuplicatesRule.SetLevel(
+		globalConfig.Container.Rules.NameDuplicatesRule.Impact,
+		configSettings.Container.Impact,
+	)
+	linterSettings.Container.Rules.ReadOnlyRootFilesystemRule.SetLevel(
+		globalConfig.Container.Rules.ReadOnlyRootFilesystemRule.Impact,
+		configSettings.Container.Impact,
+	)
+	linterSettings.Container.Rules.NoNewPrivilegesRule.SetLevel(
+		globalConfig.Container.Rules.NoNewPrivilegesRule.Impact,
+		configSettings.Container.Impact,
+	)
+	linterSettings.Container.Rules.SeccompProfileRule.SetLevel(
+		globalConfig.Container.Rules.SeccompProfileRule.Impact,
+		configSettings.Container.Impact,
+	)
+	linterSettings.Container.Rules.HostNetworkPortsRule.SetLevel(
+		globalConfig.Container.Rules.HostNetworkPortsRule.Impact,
+		configSettings.Container.Impact,
+	)
+	linterSettings.Container.Rules.EnvVariablesDuplicatesRule.SetLevel(
+		globalConfig.Container.Rules.EnvVariablesDuplicatesRule.Impact,
+		configSettings.Container.Impact,
+	)
+	linterSettings.Container.Rules.ImageDigestRule.SetLevel(
+		globalConfig.Container.Rules.ImageDigestRule.Impact,
+		configSettings.Container.Impact,
+	)
+	linterSettings.Container.Rules.ImagePullPolicyRule.SetLevel(
+		globalConfig.Container.Rules.ImagePullPolicyRule.Impact,
+		configSettings.Container.Impact,
+	)
+	linterSettings.Container.Rules.ResourcesRule.SetLevel(
+		globalConfig.Container.Rules.ResourcesRule.Impact,
+		configSettings.Container.Impact,
+	)
+	linterSettings.Container.Rules.ContainerSecurityContextRule.SetLevel(
+		globalConfig.Container.Rules.ContainerSecurityContextRule.Impact,
+		configSettings.Container.Impact,
+	)
+	linterSettings.Container.Rules.PortsRule.SetLevel(
+		globalConfig.Container.Rules.PortsRule.Impact,
+		configSettings.Container.Impact,
+	)
+	linterSettings.Container.Rules.LivenessRule.SetLevel(
+		globalConfig.Container.Rules.LivenessRule.Impact,
+		configSettings.Container.Impact,
+	)
+	linterSettings.Container.Rules.ReadinessRule.SetLevel(
+		globalConfig.Container.Rules.ReadinessRule.Impact,
 		configSettings.Container.Impact,
 	)
 }
@@ -304,6 +382,8 @@ func mapContainerExclusions(linterSettings *pkg.LintersSettings, configSettings 
 	excludes.SecurityContext = configExcludes.SecurityContext.Get()
 	excludes.Liveness = configExcludes.Liveness.Get()
 	excludes.Readiness = configExcludes.Readiness.Get()
+	excludes.SeccompProfile = configExcludes.SeccompProfile.Get()
+	excludes.NoNewPrivileges = configExcludes.NoNewPrivileges.Get()
 	excludes.Description = pkg.StringRuleExcludeList(configExcludes.Description)
 }
 

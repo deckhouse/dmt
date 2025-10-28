@@ -1,5 +1,18 @@
 # Container Linter
 
+Checks containers inside the template spec. This linter protects against the next cases:
+
+- containers with the duplicated names
+- containers with the duplicated env variables
+- misconfigured images repository and digest
+- imagePullPolicy is "Always" (should be unspecified or "IfNotPresent")
+- ephemeral storage is not defined in .resources
+- SecurityContext is not defined
+- ReadOnlyRootFilesystem is not set to true (prevents write access to container root filesystem)
+- AllowPrivilegeEscalation is not set to false (prevents privilege escalation attacks)
+- Seccomp profile is not properly configured (ensures default seccomp filtering is enabled)
+- container uses port <= 1024
+- Checks for probes defined in containers.
 ## Overview
 
 The **Container Linter** validates Kubernetes objects and their container specifications to ensure compliance with security best practices, resource management, and operational standards. This linter examines Deployments, DaemonSets, StatefulSets, Pods, Jobs, and CronJobs to enforce consistent configuration across all workloads.
@@ -1372,6 +1385,17 @@ linters-settings:
         - kind: Deployment
           name: deckhouse
           container: init-downloaded-modules
+      # exclude if object kind, object name and containers name are equal
+      no-new-privileges:
+        - kind: Deployment
+          name: privileged-deployment
+          container: init-container
+      # exclude if object kind, object name and containers name are equal
+      seccomp-profile:
+        - kind: DaemonSet
+          name: system-daemon
+          container: system-container
+      # exclude if object kind, object name and containers name are equal
       
       resources:
         - kind: Deployment
@@ -1401,6 +1425,8 @@ linters-settings:
         - kind: Deployment
           name: okmeter
           container: okagent
+    impact: error
+```
 ```
 
 ### Configuration in Module Directory
