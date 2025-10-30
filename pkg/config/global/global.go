@@ -54,19 +54,20 @@ type ContainerRules struct {
 	NewRevisionHistoryLimitRule   RuleConfig `mapstructure:"revision-history-limit"`
 
 	// Container-specific rules
-	NameDuplicatesRule           RuleConfig `mapstructure:"name-duplicates"`
-	ReadOnlyRootFilesystemRule   RuleConfig `mapstructure:"read-only-root-filesystem"`
-	NoNewPrivilegesRule          RuleConfig `mapstructure:"no-new-privileges"`
-	SeccompProfileRule           RuleConfig `mapstructure:"seccomp-profile"`
-	HostNetworkPortsRule         RuleConfig `mapstructure:"host-network-ports"`
-	EnvVariablesDuplicatesRule   RuleConfig `mapstructure:"env-variables-duplicates"`
-	ImageDigestRule              RuleConfig `mapstructure:"image-digest"`
-	ImagePullPolicyRule          RuleConfig `mapstructure:"image-pull-policy"`
-	ResourcesRule                RuleConfig `mapstructure:"resources"`
-	ContainerSecurityContextRule RuleConfig `mapstructure:"container-security-context"`
-	PortsRule                    RuleConfig `mapstructure:"ports"`
-	LivenessRule                 RuleConfig `mapstructure:"liveness-probe"`
-	ReadinessRule                RuleConfig `mapstructure:"readiness-probe"`
+	NameDuplicatesRule              RuleConfig `mapstructure:"name-duplicates"`
+	ReadOnlyRootFilesystemRule      RuleConfig `mapstructure:"read-only-root-filesystem"`
+	NoNewPrivilegesRule             RuleConfig `mapstructure:"no-new-privileges"`
+	SeccompProfileRule              RuleConfig `mapstructure:"seccomp-profile"`
+	HostNetworkPortsRule            RuleConfig `mapstructure:"host-network-ports"`
+	EnvVariablesDuplicatesRule      RuleConfig `mapstructure:"env-variables-duplicates"`
+	ImageDigestRule                 RuleConfig `mapstructure:"image-digest"`
+	ImagePullPolicyRule             RuleConfig `mapstructure:"image-pull-policy"`
+	ResourcesRule                   RuleConfig `mapstructure:"resources"`
+	ContainerSecurityContextRule    RuleConfig `mapstructure:"container-security-context"`
+	PortsRule                       RuleConfig `mapstructure:"ports"`
+	LivenessRule                    RuleConfig `mapstructure:"liveness-probe"`
+	ReadinessRule                   RuleConfig `mapstructure:"readiness-probe"`
+	DeckhouseVersionRequirementRule RuleConfig `mapstructure:"deckhouse-version-requirement"`
 }
 
 type ImagesLinterConfig struct {
