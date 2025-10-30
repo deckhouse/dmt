@@ -65,9 +65,14 @@ func (r *DeckhouseVersionRequirementRule) CheckDeckhouseVersionRequirement(objec
 		path = object.AbsPath
 	}
 
+	modulePath := getModulePath(path)
+	if modulePath == "" {
+		return
+	}
+
 	// First check if Module-SDK version >= 1.3 in any go.mod files
 	// We need to check this before looking for module.yaml
-	hasRequiredSDKVersion, err := checkModuleSDKVersionFromPath(path)
+	hasRequiredSDKVersion, err := checkModuleSDKVersionFromPath(modulePath)
 	if err != nil {
 		errorList.WithObjectID(object.Identity()).
 			Errorf("Cannot check Module-SDK version: %s", err)
@@ -75,13 +80,6 @@ func (r *DeckhouseVersionRequirementRule) CheckDeckhouseVersionRequirement(objec
 	}
 
 	if !hasRequiredSDKVersion {
-		return
-	}
-
-	modulePath := getModulePath(path)
-	if modulePath == "" {
-		errorList.WithObjectID(object.Identity()).
-			Errorf("Module-SDK version >= %s requires Deckhouse version >= %s, but module.yaml not found", MinModuleSDKVersion, MinDeckhouseVersion)
 		return
 	}
 
@@ -152,19 +150,10 @@ func getModulePath(objectPath string) string {
 }
 
 // checkModuleSDKVersionFromPath checks if Module-SDK version >= 1.3 in any go.mod files from the given path
-func checkModuleSDKVersionFromPath(objectPath string) (bool, error) {
-	dir := filepath.Dir(objectPath)
-	for dir != "/" && dir != "." {
-		hooksDir := filepath.Join(dir, "hooks")
-		if _, err := os.Stat(hooksDir); err == nil {
-			if hasSDK, err := checkModuleSDKVersionInDirectory(hooksDir); err != nil {
-				return false, err
-			} else if hasSDK {
-				return true, nil
-			}
-		}
-
-		dir = filepath.Dir(dir)
+func checkModuleSDKVersionFromPath(modulePath string) (bool, error) {
+	hooksDir := filepath.Join(modulePath, "hooks")
+	if _, err := os.Stat(hooksDir); err == nil {
+		return checkModuleSDKVersionInDirectory(hooksDir)
 	}
 
 	return false, nil

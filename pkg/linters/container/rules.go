@@ -36,7 +36,6 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 	rules.NewControllerSecurityContextRule(l.cfg.ExcludeRules.ControllerSecurityContext.Get()).
 		ControllerSecurityContext(object, errorList.WithMaxLevel(l.cfg.Rules.ControllerSecurityContextRule.GetLevel()))
 	rules.NewRevisionHistoryLimitRule().ObjectRevisionHistoryLimit(object, errorList.WithMaxLevel(l.cfg.Rules.NewRevisionHistoryLimitRule.GetLevel()))
-	rules.NewDeckhouseVersionRequirementRule().CheckDeckhouseVersionRequirement(object, errorList.WithMaxLevel(l.cfg.Rules.DeckhouseVersionRequirementRule.GetLevel()))
 
 	allContainers, err := object.GetAllContainers()
 	if err != nil {
