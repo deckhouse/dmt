@@ -35,7 +35,7 @@ func (l *Container) applyContainerRules(object storage.StoreObject, errorList *e
 		ObjectDNSPolicy(object, errorList.WithMaxLevel(l.cfg.Rules.DNSPolicyRule.GetLevel()))
 	rules.NewControllerSecurityContextRule(l.cfg.ExcludeRules.ControllerSecurityContext.Get()).
 		ControllerSecurityContext(object, errorList.WithMaxLevel(l.cfg.Rules.ControllerSecurityContextRule.GetLevel()))
-	rules.NewRevisionHistoryLimitRule().ObjectRevisionHistoryLimit(object, errorList.WithRule("revision-history-limit").WithMaxLevel(l.cfg.Rules.NewRevisionHistoryLimitRule.GetLevel()))
+	rules.NewRevisionHistoryLimitRule().ObjectRevisionHistoryLimit(object, errorList.WithMaxLevel(l.cfg.Rules.NewRevisionHistoryLimitRule.GetLevel()))
 
 	allContainers, err := object.GetAllContainers()
 	if err != nil {
