@@ -18,10 +18,8 @@ package container
 
 import (
 	"github.com/deckhouse/dmt/internal/module"
-	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/linters/container/rules"
 )
 
 const (
@@ -50,17 +48,6 @@ func (l *Container) Run(m *module.Module) {
 	}
 
 	errorList := l.ErrorList.WithModule(m.GetName())
-
-	storageMap := m.GetStorage()
-	if len(storageMap) > 0 {
-		var firstObject storage.StoreObject
-		for _, obj := range storageMap {
-			firstObject = obj
-			break
-		}
-		ruleErrorList := errorList.WithMaxLevel(l.cfg.Rules.DeckhouseVersionRequirementRule.GetLevel())
-		rules.NewDeckhouseVersionRequirementRule().CheckDeckhouseVersionRequirement(firstObject, ruleErrorList)
-	}
 
 	for _, object := range m.GetStorage() {
 		l.applyContainerRules(object, errorList)

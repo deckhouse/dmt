@@ -275,10 +275,6 @@ func mapContainerRules(linterSettings *pkg.LintersSettings, configSettings *conf
 		globalConfig.Container.Rules.ReadinessRule.Impact,
 		configSettings.Container.Impact,
 	)
-	linterSettings.Container.Rules.DeckhouseVersionRequirementRule.SetLevel(
-		globalConfig.Container.Rules.DeckhouseVersionRequirementRule.Impact,
-		configSettings.Container.Impact,
-	)
 }
 
 // mapImageRules configures Image linter rules

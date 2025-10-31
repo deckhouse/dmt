@@ -299,20 +299,19 @@ type ContainerLinterRules struct {
 	NewRevisionHistoryLimitRule   RuleConfig
 
 	// Container-specific rules
-	NameDuplicatesRule              RuleConfig
-	ReadOnlyRootFilesystemRule      RuleConfig
-	NoNewPrivilegesRule             RuleConfig
-	SeccompProfileRule              RuleConfig
-	HostNetworkPortsRule            RuleConfig
-	EnvVariablesDuplicatesRule      RuleConfig
-	ImageDigestRule                 RuleConfig
-	ImagePullPolicyRule             RuleConfig
-	ResourcesRule                   RuleConfig
-	ContainerSecurityContextRule    RuleConfig
-	PortsRule                       RuleConfig
-	LivenessRule                    RuleConfig
-	ReadinessRule                   RuleConfig
-	DeckhouseVersionRequirementRule RuleConfig
+	NameDuplicatesRule           RuleConfig
+	ReadOnlyRootFilesystemRule   RuleConfig
+	NoNewPrivilegesRule          RuleConfig
+	SeccompProfileRule           RuleConfig
+	HostNetworkPortsRule         RuleConfig
+	EnvVariablesDuplicatesRule   RuleConfig
+	ImageDigestRule              RuleConfig
+	ImagePullPolicyRule          RuleConfig
+	ResourcesRule                RuleConfig
+	ContainerSecurityContextRule RuleConfig
+	PortsRule                    RuleConfig
+	LivenessRule                 RuleConfig
+	ReadinessRule                RuleConfig
 }
 
 type ContainerExcludeRules struct {
