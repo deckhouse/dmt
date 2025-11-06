@@ -202,30 +202,38 @@ func (r *RequirementsRegistry) RegisterCheck(check RequirementCheck) {
 func (r *RequirementsRegistry) RunAllChecks(modulePath string, module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
 	for _, check := range r.checks {
 		if check.Detector(modulePath, module) {
-			r.validateRequirement(check, module, errorList)
+			r.validateRequirement(check, modulePath, module, errorList)
 		}
 	}
 }
 
 // validateRequirement validates a single requirement check
-func (r *RequirementsRegistry) validateRequirement(check RequirementCheck, module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
+func (r *RequirementsRegistry) validateRequirement(check RequirementCheck, modulePath string, module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
 	if module == nil {
 		errorList.Errorf("requirements [%s]: %s, module is not defined", check.Name, check.Description)
 		return
 	}
 
 	for _, req := range check.Requirements {
-		r.validateComponentRequirement(check.Name, req, module, errorList)
+		r.validateComponentRequirement(check.Name, req, modulePath, module, errorList)
 	}
 }
 
 // validateComponentRequirement validates a single component requirement
-func (*RequirementsRegistry) validateComponentRequirement(checkName string, req ComponentRequirement, module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
+func (*RequirementsRegistry) validateComponentRequirement(checkName string, req ComponentRequirement, modulePath string, module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
 	var constraintStr string
 	var constraintName string
 
 	switch req.ComponentType {
 	case ComponentDeckhouse:
+		// Skip deckhouse version check for repositories in the ignore list
+		moduleNameFromRepo := getModuleNameFromRepository(modulePath)
+		for _, repo := range pkg.IgnoreDeckhouseReposList {
+			if moduleNameFromRepo == repo {
+				return
+			}
+		}
+
 		if module.Requirements == nil || module.Requirements.Deckhouse == "" {
 			errorList.Errorf("requirements [%s]: %s, deckhouse version range should start no lower than %s",
 				checkName, req.Description, req.MinVersion)
@@ -384,13 +392,6 @@ func hasOptionalModules(module *DeckhouseModule) bool {
 
 func (r *RequirementsRule) CheckRequirements(modulePath string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName()).WithFilePath(ModuleConfigFilename)
-	moduleNameFromRepo := getModuleNameFromRepository(modulePath)
-	for _, repo := range pkg.IgnoreDeckhouseReposList {
-		if moduleNameFromRepo == repo {
-			// Skip requirements check
-			return
-		}
-	}
 
 	moduleDescriptions, err := getDeckhouseModule(modulePath, errorList)
 	if err != nil {

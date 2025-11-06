@@ -106,7 +106,7 @@ func TestValidateComponentRequirementEdgeCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(_ *testing.T) {
 			errorList := errors.NewLintRuleErrorsList()
-			registry.validateComponentRequirement(tt.checkName, tt.req, tt.module, errorList)
+			registry.validateComponentRequirement(tt.checkName, tt.req, "", tt.module, errorList)
 			helper.AssertErrors(errorList, tt.expectedErrors)
 		})
 	}
