@@ -384,6 +384,13 @@ func hasOptionalModules(module *DeckhouseModule) bool {
 
 func (r *RequirementsRule) CheckRequirements(modulePath string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName()).WithFilePath(ModuleConfigFilename)
+	moduleNameFromRepo := getModuleNameFromRepository(modulePath)
+	for _, repo := range pkg.IgnoreDeckhouseReposList {
+		if moduleNameFromRepo == repo {
+			// Skip requirements check
+			return
+		}
+	}
 
 	moduleDescriptions, err := getDeckhouseModule(modulePath, errorList)
 	if err != nil {
