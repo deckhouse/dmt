@@ -28,7 +28,7 @@ func TestApplyContainerRules_NoContainers(t *testing.T) {
 		},
 	}
 
-	linter.applyContainerRules(obj, errList)
+	linter.applyContainerRules(obj, make(map[storage.ResourceIndex]storage.StoreObject), errList)
 	errs := errList.GetErrors()
 	assert.NotEmpty(t, errs, "Should report errors for missing labels and security context")
 	var foundModule, foundHeritage, foundSecurityContext bool
@@ -63,7 +63,7 @@ func TestApplyContainerRules_ContainersError(t *testing.T) {
 		},
 	}
 
-	linter.applyContainerRules(obj, errList)
+	linter.applyContainerRules(obj, make(map[storage.ResourceIndex]storage.StoreObject), errList)
 	assert.NotEmpty(t, errList.GetErrors(), "Error expected if GetAllContainers returns error")
 }
 
@@ -113,7 +113,7 @@ func TestApplyContainerRules_AllRules(t *testing.T) {
 		},
 	}
 
-	linter.applyContainerRules(obj, errList)
+	linter.applyContainerRules(obj, make(map[storage.ResourceIndex]storage.StoreObject), errList)
 	errs := errList.GetErrors()
 	var (
 		foundModule, foundHeritage, foundNameDup, foundEnvDup, foundSecCtx, foundLiveness, foundReadiness bool

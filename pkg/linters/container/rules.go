@@ -24,11 +24,11 @@ import (
 	"github.com/deckhouse/dmt/pkg/linters/container/rules"
 )
 
-func (l *Container) applyContainerRules(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+func (l *Container) applyContainerRules(object storage.StoreObject, storageMap map[storage.ResourceIndex]storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithFilePath(object.GetPath())
 
 	rules.NewRecommendedLabelsRule().ObjectRecommendedLabels(object, errorList.WithMaxLevel(l.cfg.Rules.RecommendedLabelsRule.GetLevel()))
-	rules.NewNamespaceLabelsRule().ObjectNamespaceLabels(object, errorList.WithMaxLevel(l.cfg.Rules.NamespaceLabelsRule.GetLevel()))
+	rules.NewNamespaceLabelsRule().ObjectNamespaceLabels(object, storageMap, errorList.WithMaxLevel(l.cfg.Rules.NamespaceLabelsRule.GetLevel()))
 	rules.NewAPIVersionRule().ObjectAPIVersion(object, errorList.WithMaxLevel(l.cfg.Rules.ApiVersionRule.GetLevel()))
 	rules.NewPriorityClassRule().ObjectPriorityClass(object, errorList.WithMaxLevel(l.cfg.Rules.PriorityClassRule.GetLevel()))
 	rules.NewDNSPolicyRule(l.cfg.ExcludeRules.DNSPolicy.Get()).
