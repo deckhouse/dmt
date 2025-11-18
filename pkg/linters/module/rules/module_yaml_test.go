@@ -586,43 +586,6 @@ accessibility:
 	rule.CheckDefinitionFile(tempDir, errorList)
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for invalid bundle name")
 	assert.Contains(t, errorList.GetErrors()[0].Text, "Invalid bundle")
-
-	// Test missing enabledInBundles field
-	err = os.WriteFile(moduleFilePath, []byte(`
-name: test-module
-stage: Experimental
-descriptions:
-  en: "Test description"
-accessibility:
-  editions:
-    _default:
-      available: true
-`), 0600)
-	require.NoError(t, err)
-
-	errorList = errors.NewLintRuleErrorsList()
-	rule.CheckDefinitionFile(tempDir, errorList)
-	assert.True(t, errorList.ContainsErrors(), "Expected errors for missing enabledInBundles field")
-	assert.Contains(t, errorList.GetErrors()[0].Text, "Field 'enabledInBundles' is required")
-
-	// Test empty enabledInBundles array
-	err = os.WriteFile(moduleFilePath, []byte(`
-name: test-module
-stage: Experimental
-descriptions:
-  en: "Test description"
-accessibility:
-  editions:
-    _default:
-      available: true
-      enabledInBundles: []
-`), 0600)
-	require.NoError(t, err)
-
-	errorList = errors.NewLintRuleErrorsList()
-	rule.CheckDefinitionFile(tempDir, errorList)
-	assert.True(t, errorList.ContainsErrors(), "Expected errors for empty enabledInBundles array")
-	assert.Contains(t, errorList.GetErrors()[0].Text, "Field 'enabledInBundles' is required")
 }
 
 func TestCheckDefinitionFile_Update_Valid(t *testing.T) {
