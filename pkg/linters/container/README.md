@@ -108,12 +108,13 @@ metadata:
 
 **Description:**
 
-Namespaces starting with `d8-` must have the label `prometheus.deckhouse.io/rules-watcher-enabled: "true"` to enable automatic Prometheus rules discovery.
+Namespaces starting with `d8-` with `PrometheusRule` must have the label `prometheus.deckhouse.io/rules-watcher-enabled: "true"` to enable automatic Prometheus rules discovery.
 
 **What it checks:**
 
 1. Identifies Namespace objects with names starting with `d8-`
-2. Validates the `prometheus.deckhouse.io/rules-watcher-enabled` label is set to `"true"`
+2. Find kind `PrometheusRule` with the same Namespace
+3. Validates the `prometheus.deckhouse.io/rules-watcher-enabled` label is set to `"true"`
 
 **Why it matters:**
 
@@ -124,6 +125,11 @@ Without this label, Prometheus won't monitor the namespace properly, leading to 
 ❌ **Incorrect** - Missing Prometheus label:
 
 ```yaml
+apiVersion: v1
+kind: PrometheusRule
+metadata:
+  ...
+---
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -141,6 +147,11 @@ Namespace object does not have the label "prometheus.deckhouse.io/rules-watcher-
 ✅ **Correct** - Prometheus label present:
 
 ```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  ...
+---
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -149,6 +160,18 @@ metadata:
     module: my-module
     heritage: deckhouse
     prometheus.deckhouse.io/rules-watcher-enabled: "true"
+```
+
+✅ **Correct** - No PrometheusRule:
+
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: d8-my-module
+  labels:
+    module: my-module
+    heritage: deckhouse
 ```
 
 ---

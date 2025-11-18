@@ -40,10 +40,26 @@ type NamespaceLabelsRule struct {
 	pkg.RuleMeta
 }
 
-func (r *NamespaceLabelsRule) ObjectNamespaceLabels(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+func (r *NamespaceLabelsRule) ObjectNamespaceLabels(object storage.StoreObject, storageMap map[storage.ResourceIndex]storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
 	if object.Unstructured.GetKind() != "Namespace" || !strings.HasPrefix(object.Unstructured.GetName(), "d8-") {
+		return
+	}
+
+	namespaceName := object.Unstructured.GetName()
+
+	hasPrometheusRules := false
+	for _, obj := range storageMap {
+		if obj.Unstructured.GetKind() == "PrometheusRule" {
+			if obj.Unstructured.GetNamespace() == namespaceName {
+				hasPrometheusRules = true
+				break
+			}
+		}
+	}
+
+	if !hasPrometheusRules {
 		return
 	}
 
