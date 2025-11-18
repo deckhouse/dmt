@@ -57,7 +57,7 @@ The `accessibility` section controls which editions and bundles include the modu
 
 **Validation Rules:**
 - `accessibility.editions` is required when `accessibility` is specified
-- Each edition must have `available` (boolean) and `enabledInBundles` (array) fields
+- Each edition must have `available` (boolean) and can have `enabledInBundles` (array) fields
 - `enabledInBundles` must contain only valid bundle names
 - Edition names must be from the valid editions list
 

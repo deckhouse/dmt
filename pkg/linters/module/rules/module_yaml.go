@@ -321,9 +321,7 @@ func (a *ModuleAccessibility) validateAccessibility(errorList *errors.LintRuleEr
 		}
 
 		// Validate enabledInBundles values
-		if len(edition.EnabledInBundles) == 0 {
-			errorList.Errorf("Field 'enabledInBundles' is required for edition %q", editionName)
-		} else {
+		if len(edition.EnabledInBundles) > 0 {
 			for _, bundle := range edition.EnabledInBundles {
 				if !slices.Contains(ValidBundles, bundle) {
 					errorList.Errorf("Invalid bundle %q for edition %q. Must be one of: %s", bundle, editionName, strings.Join(ValidBundles, ", "))
