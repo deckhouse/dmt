@@ -114,7 +114,7 @@ Namespaces starting with `d8-` with `PrometheusRule` must have the label `promet
 
 1. Identifies Namespace objects with names starting with `d8-`
 2. Find kind `PrometheusRule` with the same Namespace
-2. Validates the `prometheus.deckhouse.io/rules-watcher-enabled` label is set to `"true"`
+3. Validates the `prometheus.deckhouse.io/rules-watcher-enabled` label is set to `"true"`
 
 **Why it matters:**
 
