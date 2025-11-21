@@ -675,23 +675,16 @@ rules:
 
 **Naming Patterns Summary:**
 
-| Resource Type | File Pattern | Namespace | Name Pattern | Example |
-|---------------|--------------|-----------|--------------|---------|
-| ServiceAccount | `templates/rbac-for-us.yaml` | `d8-<module>` | `<module-name>` | `my-module` |
-| ServiceAccount | `templates/rbac-for-us.yaml` | System | `d8-<module-name>` | `d8-my-module` |
-| ServiceAccount | `templates/**/rbac-for-us.yaml` | `d8-<module>` | `<path-parts>` | `controller` |
-| ServiceAccount | `templates/**/rbac-for-us.yaml` | System | `<module>-<path-parts>` | `my-module-controller` |
-| ClusterRole | `templates/rbac-for-us.yaml` | N/A | `d8:<module>:<suffix>` | `d8:my-module:controller` |
-| ClusterRole | `templates/**/rbac-for-us.yaml` | N/A | `d8:<module>:<path>:<suffix>` | `d8:my-module:webhook:handler` |
-| ClusterRole | `templates/user-authz-cluster-roles.yaml` | N/A | `d8:user-authz:<module>:<level>` | `d8:user-authz:my-module:admin` |
-| Role | `templates/rbac-for-us.yaml` | `d8-<module>` | `<name>` | `config-reader` |
-| Role | `templates/rbac-for-us.yaml` | System | `d8:<module>:<suffix>` | `d8:my-module:config-admin` |
-| Role | `templates/rbac-to-us.yaml` | Any | `access-to-<module>-<suffix>` | `access-to-my-module-config` |
-
-**Path to Name Conversion Examples:**
-- `templates/webhook/rbac-for-us.yaml` → Path: `webhook` → Names: `webhook` / `<module>-webhook`
-- `templates/images/cdi/cdi-operator/rbac-for-us.yaml` → Path: `images/cdi/cdi-operator` → Names: `images-cdi-cdi-operator` / `<module>-images-cdi-cdi-operator`
-- `templates/controller/webhook/rbac-for-us.yaml` → Path: `controller/webhook` → Names: `controller-webhook` / `<module>-controller-webhook`
+| Resource Type | File | Namespace | Name Pattern |
+|---------------|------|-----------|--------------|
+| ServiceAccount | rbac-for-us.yaml | Module namespace | `<module-name>` |
+| ServiceAccount | rbac-for-us.yaml | System namespace | `d8-<module-name>` |
+| ServiceAccount | rbac-for-us.yaml | d8-system/d8-monitoring | `<module-name>` or `d8-<module-name>` |
+| ClusterRole | rbac-for-us.yaml | N/A | `d8:<module-name>:<suffix>` |
+| ClusterRole | nested/rbac-for-us.yaml | N/A | `d8:<module-name>:<path>:<suffix>` |
+| Role | rbac-for-us.yaml | Module namespace | `<name>` |
+| Role | rbac-for-us.yaml | d8-system/d8-monitoring | `d8:<module-name>:<suffix>` |
+| Role | rbac-to-us.yaml | Any | `access-to-<module-name>-<suffix>` |
 
 **Configuration:**
 
