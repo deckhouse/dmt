@@ -24,7 +24,7 @@ type LinterError struct {
 	ObjectValue   any
 	Text          string
 	FilePath      string
-	LineNumber     int
+	LineNumber    int
 	Level         Level
 	Documentation string
 }

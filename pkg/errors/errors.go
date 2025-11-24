@@ -32,7 +32,7 @@ type lintRuleError struct {
 	ObjectValue   any
 	Text          string
 	FilePath      string
-	LineNumber     int
+	LineNumber    int
 	Level         pkg.Level
 	Documentation string
 }
@@ -196,7 +196,7 @@ func (l *LintRuleErrorsList) add(str string, level pkg.Level) *LintRuleErrorsLis
 		ObjectID:      l.objectID,
 		ObjectValue:   l.value,
 		FilePath:      l.filePath,
-		LineNumber:     l.lineNumber,
+		LineNumber:    l.lineNumber,
 		Text:          str,
 		Level:         level,
 		Documentation: l.documentation,
@@ -247,7 +247,7 @@ func remapErrorToLinterError(err *lintRuleError) *pkg.LinterError {
 		ObjectID:      err.ObjectID,
 		ObjectValue:   err.ObjectValue,
 		FilePath:      err.FilePath,
-		LineNumber:     err.LineNumber,
+		LineNumber:    err.LineNumber,
 		Text:          err.Text,
 		Level:         err.Level,
 		Documentation: err.Documentation,
