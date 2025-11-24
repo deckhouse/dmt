@@ -12,19 +12,19 @@ The Module linter includes **7 validation rules**:
 
 | Rule | Description | Configurable |
 |------|-------------|--------------|
-| [**definition-file**](#definition-file-rule) | Validates `module.yaml` structure, accessibility, and update sections | ✅ Yes |
-| [**oss**](#oss-rule) | Validates open-source software attribution in `oss.yaml` | ✅ Yes |
-| [**conversions**](#conversions-rule) | Validates OpenAPI conversion files and documentation | ✅ Yes |
-| [**helmignore**](#helmignore-rule) | Validates `.helmignore` file presence and content | ✅ Yes |
-| [**license**](#license-rule) | Validates license headers in source files | ✅ Yes |
-| [**requirements**](#requirements-rule) | Validates version requirements for features | ❌ No |
-| [**legacy-release-file**](#legacy-release-file-rule) | Checks for deprecated `release.yaml` file | ❌ No |
+| [**definition-file**](#definition-file) | Validates `module.yaml` structure, accessibility, and update sections | ✅ Yes |
+| [**oss**](#oss) | Validates open-source software attribution in `oss.yaml` | ✅ Yes |
+| [**conversions**](#conversions) | Validates OpenAPI conversion files and documentation | ✅ Yes |
+| [**helmignore**](#helmignore) | Validates `.helmignore` file presence and content | ✅ Yes |
+| [**license**](#license) | Validates license headers in source files | ✅ Yes |
+| [**requirements**](#requirements) | Validates version requirements for features | ❌ No |
+| [**legacy-release-file**](#legacy-release-file) | Checks for deprecated `release.yaml` file | ❌ No |
 
 ---
 
 ## Rule Details
 
-### Definition File Rule
+### definition-file
 
 Validates the `module.yaml` configuration file structure and content.
 
@@ -113,7 +113,7 @@ update:
 
 ---
 
-### OSS Rule
+### oss
 
 Validates the `oss.yaml` file containing open-source software attribution.
 
@@ -145,7 +145,7 @@ Validates the `oss.yaml` file containing open-source software attribution.
 
 ---
 
-### Conversions Rule
+### conversions
 
 Validates OpenAPI conversion files for configuration version upgrades.
 
@@ -179,7 +179,7 @@ description:
 
 ---
 
-### Helmignore Rule
+### helmignore
 
 Validates the `.helmignore` file in the module root.
 
@@ -209,7 +209,7 @@ openapi/
 
 ---
 
-### License Rule
+### license
 
 Validates that source files contain proper license headers.
 
@@ -317,7 +317,7 @@ linters-settings:
 
 ---
 
-### Requirements Rule
+### requirements
 
 Validates that modules declare minimum version requirements when using advanced features.
 
@@ -370,7 +370,7 @@ requirements:
 
 ---
 
-### Legacy Release File Rule
+### legacy-release-file
 
 Checks for the deprecated `release.yaml` file.
 
