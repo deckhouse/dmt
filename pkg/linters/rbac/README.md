@@ -374,6 +374,35 @@ Validates that RBAC resources (ServiceAccounts, Roles, ClusterRoles, RoleBinding
 
 Consistent RBAC organization makes modules predictable, reduces errors, prevents naming conflicts, and enables automated tooling to understand and manage RBAC resources. Proper placement also clarifies the scope and purpose of each RBAC resource.
 
+**ServiceAccount Naming Logic:**
+
+**For Root Level (`templates/rbac-for-us.yaml`):**
+- **Simple name**: `<module-name>` → Deploy to module namespace (`d8-<module-name>`)
+- **System name**: `d8-<module-name>` → Deploy to system namespaces (`d8-system`, `d8-monitoring`, etc.)
+
+**For Nested Paths (`templates/**/rbac-for-us.yaml`):**
+1. **Extract path components**: `templates/<path>/rbac-for-us.yaml` → `["<path>", "parts"]`
+2. **Join with hyphens**: `path-parts` (base ServiceAccount name)
+3. **Full name**: `<module-name>-<base-name>` (for system namespaces)
+
+**Examples of Path to Name Conversion:**
+- `templates/webhook/rbac-for-us.yaml` → `webhook` (local) or `module-webhook` (system)
+- `templates/images/cdi/cdi-operator/rbac-for-us.yaml` → `images-cdi-cdi-operator` (local) or `module-images-cdi-cdi-operator` (system)
+- `templates/controller/webhook/rbac-for-us.yaml` → `controller-webhook` (local) or `module-controller-webhook` (system)
+
+**Role Naming Logic:**
+
+**For ClusterRoles:**
+- Root: `d8:<module-name>:<suffix>`
+- Nested: `d8:<module-name>:<path>:<suffix>` (path joined with `:`)
+
+**For Roles in rbac-for-us.yaml:**
+- Local scope: `<name>` (in module namespace)
+- Global scope: `d8:<module-name>:<suffix>` (in system namespaces)
+
+**For Roles in rbac-to-us.yaml:**
+- `access-to-<module-name>-<suffix>`
+
 **ServiceAccount Placement Rules:**
 
 ❌ **Incorrect** - ServiceAccount in wrong file:
@@ -452,6 +481,66 @@ metadata:
   namespace: d8-system
 ```
 
+**Common Error Scenarios:**
+
+❌ **Incorrect** - ServiceAccount name doesn't match path structure:
+
+```yaml
+# File: templates/pre-delete-hook/rbac-for-us.yaml
+# Path analysis: templates/pre-delete-hook/rbac-for-us.yaml
+# Expected: parts = ["pre-delete-hook"] → serviceAccountName = "pre-delete-hook"
+# Expected names: "pre-delete-hook" (local) or "module-pre-delete-hook" (system)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pre-delete-hook-sa  # ❌ Wrong name - doesn't match expected pattern
+  namespace: d8-module
+```
+
+**Error:**
+```
+Error: Name of ServiceAccount should be equal to "pre-delete-hook" or "module-pre-delete-hook"
+```
+
+❌ **Incorrect** - Wrong namespace for system ServiceAccount name:
+
+```yaml
+# File: templates/controller/rbac-for-us.yaml
+# Expected names: "controller" (local) or "module-controller" (system)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: module-controller  # ✅ Name matches system pattern
+  namespace: d8-module     # ❌ Wrong namespace - should be d8-system or d8-monitoring
+```
+
+**Error:**
+```
+Error: ServiceAccount should be deployed to "d8-system" or "d8-monitoring"
+```
+
+✅ **Correct** - Matching path and namespace:
+
+```yaml
+# File: templates/pre-delete-hook/rbac-for-us.yaml
+# Path: pre-delete-hook → serviceAccountName = "pre-delete-hook"
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pre-delete-hook        # ✅ Local name
+  namespace: d8-module         # ✅ Module namespace
+```
+
+```yaml
+# File: templates/pre-delete-hook/rbac-for-us.yaml
+# Path: pre-delete-hook → expectedServiceAccountName = "module-pre-delete-hook"
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: module-pre-delete-hook # ✅ System name
+  namespace: d8-system         # ✅ System namespace
+```
+
 **ClusterRole Placement Rules:**
 
 ❌ **Incorrect** - ClusterRole in wrong file:
@@ -501,15 +590,38 @@ rules:
 ✅ **Correct** - Nested ClusterRole:
 
 ```yaml
-# templates/webhook/rbac-for-us.yaml
+# File: templates/webhook/rbac-for-us.yaml
+# Path: templates/webhook/rbac-for-us.yaml
+# Expected prefix: d8:my-module:webhook
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: d8:my-module:webhook:handler
+  name: d8:my-module:webhook:handler  # ✅ Follows d8:<module>:<path>:<suffix> pattern
 rules:
   - apiGroups: ["admissionregistration.k8s.io"]
     resources: ["validatingwebhookconfigurations"]
     verbs: ["get", "list", "watch"]
+```
+
+❌ **Incorrect** - Nested ClusterRole with wrong prefix:
+
+```yaml
+# File: templates/controller/webhook/rbac-for-us.yaml
+# Path: templates/controller/webhook/rbac-for-us.yaml
+# Expected prefix: d8:my-module:controller:webhook
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: d8:my-module:webhook-handler  # ❌ Wrong prefix - missing "controller" part
+rules:
+  - apiGroups: ["admissionregistration.k8s.io"]
+    resources: ["validatingwebhookconfigurations"]
+    verbs: ["get", "list", "watch"]
+```
+
+**Error:**
+```
+Error: Name of ClusterRole should start with "d8:my-module:controller:webhook"
 ```
 
 **Role Placement Rules:**
@@ -1106,6 +1218,65 @@ Error: apiGroups, resources, verbs contains a wildcards. Replace them with an ex
          wildcards:
            - kind: ClusterRole
              name: d8:my-module:legacy-admin
+   ```
+
+### Issue: ServiceAccount name and namespace mismatch in nested paths
+
+**Symptom:**
+```
+Error: ServiceAccount should be deployed to "d8-system" or "d8-monitoring"
+```
+or
+```
+Error: Name of ServiceAccount should be equal to "path-parts" or "module-path-parts"
+```
+
+**Cause:** ServiceAccount name doesn't match the expected pattern based on file path structure, or namespace doesn't correspond to the name type.
+
+**Path Analysis Logic:**
+1. **Extract path**: `templates/<folder>/rbac-for-us.yaml`
+2. **Split by `/`**: Get path components
+3. **Join with `-`**: Create base ServiceAccount name
+4. **Check name pattern**:
+   - Local name (`path-parts`) → Module namespace (`d8-<module>`)
+   - Global name (`<module>-path-parts`) → System namespaces (`d8-system`, `d8-monitoring`)
+
+**Examples:**
+
+**File:** `templates/pre-delete-hook/rbac-for-us.yaml`
+- **Path parts**: `["pre-delete-hook"]`
+- **Base name**: `"pre-delete-hook"`
+- **Expected names**:
+  - `"pre-delete-hook"` → namespace: `d8-<module>`
+  - `"<module>-pre-delete-hook"` → namespace: `d8-system` or `d8-monitoring`
+
+**File:** `templates/images/cdi/cdi-operator/rbac-for-us.yaml`
+- **Path parts**: `["images", "cdi", "cdi-operator"]`
+- **Base name**: `"images-cdi-cdi-operator"`
+- **Expected names**:
+  - `"images-cdi-cdi-operator"` → namespace: `d8-<module>`
+  - `"<module>-images-cdi-cdi-operator"` → namespace: `d8-system` or `d8-monitoring`
+
+**Solutions:**
+
+1. **Use local name in module namespace:**
+   ```yaml
+   # templates/pre-delete-hook/rbac-for-us.yaml
+   apiVersion: v1
+   kind: ServiceAccount
+   metadata:
+     name: pre-delete-hook      # ✅ Local pattern
+     namespace: d8-my-module    # ✅ Module namespace
+   ```
+
+2. **Use global name in system namespace:**
+   ```yaml
+   # templates/pre-delete-hook/rbac-for-us.yaml
+   apiVersion: v1
+   kind: ServiceAccount
+   metadata:
+     name: my-module-pre-delete-hook  # ✅ Global pattern
+     namespace: d8-system             # ✅ System namespace
    ```
 
 ### Issue: ServiceAccount wrong namespace for placement
