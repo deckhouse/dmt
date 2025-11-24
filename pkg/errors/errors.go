@@ -25,15 +25,16 @@ import (
 )
 
 type lintRuleError struct {
-	LinterID    string
-	ModuleID    string
-	RuleID      string
-	ObjectID    string
-	ObjectValue any
-	Text        string
-	FilePath    string
-	LineNumber  int
-	Level       pkg.Level
+	LinterID      string
+	ModuleID      string
+	RuleID        string
+	ObjectID      string
+	ObjectValue   any
+	Text          string
+	FilePath      string
+	LineNumber     int
+	Level         pkg.Level
+	Documentation string
 }
 
 func (l *lintRuleError) EqualsTo(candidate lintRuleError) bool { //nolint:gocritic // it's a simple method
@@ -67,13 +68,14 @@ func (s *errStorage) add(err *lintRuleError) {
 type LintRuleErrorsList struct {
 	storage *errStorage
 
-	linterID   string
-	moduleID   string
-	ruleID     string
-	objectID   string
-	value      any
-	filePath   string
-	lineNumber int
+	linterID      string
+	moduleID      string
+	ruleID        string
+	objectID      string
+	value         any
+	filePath      string
+	lineNumber    int
+	documentation string
 
 	maxLevel *pkg.Level
 }
@@ -155,6 +157,13 @@ func (l *LintRuleErrorsList) WithLineNumber(lineNumber int) *LintRuleErrorsList 
 	return list
 }
 
+func (l *LintRuleErrorsList) WithDocumentation(documentation string) *LintRuleErrorsList {
+	list := l.copy()
+	list.documentation = documentation
+
+	return list
+}
+
 func (l *LintRuleErrorsList) Warn(str string) *LintRuleErrorsList {
 	return l.add(str, pkg.Warn)
 }
@@ -181,15 +190,16 @@ func (l *LintRuleErrorsList) add(str string, level pkg.Level) *LintRuleErrorsLis
 	}
 
 	e := lintRuleError{
-		LinterID:    strings.ToLower(l.linterID),
-		ModuleID:    l.moduleID,
-		RuleID:      l.ruleID,
-		ObjectID:    l.objectID,
-		ObjectValue: l.value,
-		FilePath:    l.filePath,
-		LineNumber:  l.lineNumber,
-		Text:        str,
-		Level:       level,
+		LinterID:      strings.ToLower(l.linterID),
+		ModuleID:      l.moduleID,
+		RuleID:        l.ruleID,
+		ObjectID:      l.objectID,
+		ObjectValue:   l.value,
+		FilePath:      l.filePath,
+		LineNumber:     l.lineNumber,
+		Text:          str,
+		Level:         level,
+		Documentation: l.documentation,
 	}
 
 	l.storage.add(&e)
@@ -231,14 +241,15 @@ func remapErrorsToLinterErrors(errs ...lintRuleError) []pkg.LinterError {
 
 func remapErrorToLinterError(err *lintRuleError) *pkg.LinterError {
 	return &pkg.LinterError{
-		LinterID:    err.LinterID,
-		ModuleID:    err.ModuleID,
-		RuleID:      err.RuleID,
-		ObjectID:    err.ObjectID,
-		ObjectValue: err.ObjectValue,
-		FilePath:    err.FilePath,
-		LineNumber:  err.LineNumber,
-		Text:        err.Text,
-		Level:       err.Level,
+		LinterID:      err.LinterID,
+		ModuleID:      err.ModuleID,
+		RuleID:        err.RuleID,
+		ObjectID:      err.ObjectID,
+		ObjectValue:   err.ObjectValue,
+		FilePath:      err.FilePath,
+		LineNumber:     err.LineNumber,
+		Text:          err.Text,
+		Level:         err.Level,
+		Documentation: err.Documentation,
 	}
 }

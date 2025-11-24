@@ -41,6 +41,8 @@ Proper container configuration is critical for cluster stability, security, and 
 | [ports](#ports) | Validates container ports > 1024 | ✅ | enabled |
 | [liveness-probe](#liveness-probe) | Validates liveness probe configuration | ✅ | enabled |
 | [readiness-probe](#readiness-probe) | Validates readiness probe configuration | ✅ | enabled |
+| [no-new-privileges](#no-new-privileges) | Validates containers don't allow privilege escalation | ✅ | enabled |
+| [seccomp-profile](#seccomp-profile) | Validates seccomp profile configuration | ✅ | enabled |
 
 ## Rule Details
 
@@ -1311,6 +1313,138 @@ linters-settings:
         - kind: Deployment
           name: standby-holder
           container: reserve-resources
+```
+
+### no-new-privileges
+
+**Purpose:** Ensures containers don't allow privilege escalation by setting `allowPrivilegeEscalation` to `false`. This prevents processes from gaining additional privileges beyond what the container starts with.
+
+**Description:**
+
+Validates that container security contexts explicitly set `allowPrivilegeEscalation: false` or leave it unset (defaults to `false` in most Kubernetes versions).
+
+**What it checks:**
+
+1. Validates `allowPrivilegeEscalation` is set to `false` in container security context
+2. Warns if `allowPrivilegeEscalation` is set to `true`
+
+**Why it matters:**
+
+Privilege escalation allows processes to gain additional privileges, potentially allowing attackers to break out of container isolation. Setting `allowPrivilegeEscalation: false` provides an additional security layer.
+
+**Examples:**
+
+❌ **Incorrect** - Privilege escalation allowed:
+
+```yaml
+containers:
+  - name: app
+    image: my-image
+    securityContext:
+      allowPrivilegeEscalation: true  # ❌ Allows privilege escalation
+```
+
+**Error:**
+```
+Container allows privilege escalation (allowPrivilegeEscalation is true)
+```
+
+✅ **Correct** - Privilege escalation disabled:
+
+```yaml
+containers:
+  - name: app
+    image: my-image
+    securityContext:
+      allowPrivilegeEscalation: false  # ✅ Explicitly disabled
+```
+
+**Configuration:**
+
+```yaml
+# .dmt.yaml
+linters-settings:
+  container:
+    exclude-rules:
+      no-new-privileges:
+        - kind: Deployment
+          name: privileged-deployment
+          container: init-container
+```
+
+### seccomp-profile
+
+**Purpose:** Ensures containers use appropriate seccomp profiles for system call filtering. Seccomp provides an additional security layer by restricting which system calls processes can make.
+
+**Description:**
+
+Validates that containers have proper seccomp profile configuration. The recommended setting is `seccompProfile.type: RuntimeDefault` which uses the container runtime's default seccomp profile.
+
+**What it checks:**
+
+1. Validates seccomp profile is configured (either at pod or container level)
+2. Recommends `RuntimeDefault` profile for security
+3. Warns against `Unconfined` profile which disables seccomp filtering
+4. Validates custom profiles have proper configuration
+
+**Why it matters:**
+
+Seccomp filtering reduces the attack surface by restricting system calls. Without proper seccomp configuration, containers have access to the full system call interface, increasing security risks.
+
+**Examples:**
+
+❌ **Incorrect** - No seccomp profile:
+
+```yaml
+containers:
+  - name: app
+    image: my-image
+    # Missing: seccompProfile configuration
+```
+
+**Warning:**
+```
+No seccomp profile specified - consider explicitly setting seccompProfile.type to 'RuntimeDefault'
+```
+
+❌ **Incorrect** - Seccomp disabled:
+
+```yaml
+containers:
+  - name: app
+    image: my-image
+    securityContext:
+      seccompProfile:
+        type: Unconfined  # ❌ Disables seccomp filtering
+```
+
+**Error:**
+```
+Container has seccompProfile.type set to 'Unconfined' which disables seccomp filtering and poses security risks - use 'RuntimeDefault' instead
+```
+
+✅ **Correct** - Runtime default profile:
+
+```yaml
+containers:
+  - name: app
+    image: my-image
+    securityContext:
+      seccompProfile:
+        type: RuntimeDefault  # ✅ Uses secure default profile
+```
+
+**Configuration:**
+
+```yaml
+# .dmt.yaml
+linters-settings:
+  container:
+    exclude-rules:
+      seccomp-profile:
+        - kind: DaemonSet
+          name: system-daemon
+          container: system-container
 ```
 
 ## Configuration

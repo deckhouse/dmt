@@ -28,6 +28,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/fatih/color"
+
 	"github.com/kyokomi/emoji"
 	"github.com/mitchellh/go-wordwrap"
 	"helm.sh/helm/v3/pkg/chartutil"
@@ -58,7 +59,15 @@ const (
 	HooksDir            = "hooks"
 	ImagesDir           = "images"
 	OpenAPIDir          = "openapi"
+	baseRepoURL         = "https://github.com/deckhouse/dmt/tree/main"
 )
+
+func generateDocumentationURL(linterID, ruleID string) string {
+	if linterID == "" || ruleID == "" {
+		return "Not ready"
+	}
+	return fmt.Sprintf("%s/pkg/linters/%s#%s", baseRepoURL, linterID, ruleID)
+}
 
 type Linter interface {
 	Run(m *module.Module)
@@ -262,6 +271,13 @@ func (m *Manager) PrintResult() {
 
 		if err.LineNumber != 0 {
 			fmt.Fprintf(w, "\t%s\t\t%d\n", "LineNumber:", err.LineNumber)
+		}
+
+		if flags.ShowDocumentation {
+			docURL := generateDocumentationURL(err.LinterID, err.RuleID)
+			if docURL != "" {
+				fmt.Fprintf(w, "\t%s\t\t%s\n", "Documentation:", docURL)
+			}
 		}
 
 		fmt.Fprintln(w)
