@@ -21,7 +21,7 @@ The Images linter includes **4 validation rules**:
 
 ## Rule Details
 
-### dockerfile
+### Dockerfile
 
 Validates that Dockerfiles use approved base image CI variables instead of hardcoded image names.
 
@@ -75,7 +75,7 @@ linters-settings:
 
 ---
 
-### distroless
+### Distroless
 
 Ensures final Docker images are distroless (minimal, secure images without unnecessary tools).
 
@@ -152,7 +152,7 @@ linters-settings:
 
 ---
 
-### werf
+### Werf
 
 Validates the `werf.yaml` configuration file for image building.
 
@@ -237,7 +237,7 @@ linters-settings:
 
 ---
 
-### patches
+### Patches
 
 Validates patch file organization, naming, and documentation.
 

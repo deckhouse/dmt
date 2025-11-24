@@ -24,7 +24,7 @@ The Module linter includes **7 validation rules**:
 
 ## Rule Details
 
-### definition-file
+### Definition file
 
 Validates the `module.yaml` configuration file structure and content.
 
@@ -113,7 +113,7 @@ update:
 
 ---
 
-### oss
+### OSS
 
 Validates the `oss.yaml` file containing open-source software attribution.
 
@@ -145,7 +145,7 @@ Validates the `oss.yaml` file containing open-source software attribution.
 
 ---
 
-### conversions
+### Conversions
 
 Validates OpenAPI conversion files for configuration version upgrades.
 
@@ -179,7 +179,7 @@ description:
 
 ---
 
-### helmignore
+### Helmignore
 
 Validates the `.helmignore` file in the module root.
 
@@ -209,7 +209,7 @@ openapi/
 
 ---
 
-### license
+### License
 
 Validates that source files contain proper license headers.
 
@@ -317,7 +317,7 @@ linters-settings:
 
 ---
 
-### requirements
+### Requirements
 
 Validates that modules declare minimum version requirements when using advanced features.
 
@@ -370,7 +370,7 @@ requirements:
 
 ---
 
-### legacy-release-file
+### Legacy release file
 
 Checks for the deprecated `release.yaml` file.
 
