@@ -89,10 +89,10 @@ func InitLintFlagSet() *pflag.FlagSet {
 		logger.ErrorF("mark hidden flag 'show-ignored' is failed")
 	}
 
-	lint.BoolVarP(&ShowDocumentation, "show-documentation", "", false, "show documentation links")
-	err = lint.MarkHidden("show-documentation")
+	lint.BoolVarP(&ShowDocumentation, "doc", "", false, "show documentation links")
+	err = lint.MarkHidden("doc")
 	if err != nil {
-		logger.ErrorF("mark hidden flag 'show-documentation' is failed")
+		logger.ErrorF("mark hidden flag 'doc' is failed")
 	}
 
 	return lint
