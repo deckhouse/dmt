@@ -33,13 +33,14 @@ var (
 )
 
 var (
-	PrintVersion bool
-	Version      string
-	ValuesFile   string
-	PprofFile    string
-	HideWarnings bool
-	AbsPath      bool
-	ShowIgnored  bool
+	PrintVersion      bool
+	Version           string
+	ValuesFile        string
+	PprofFile         string
+	HideWarnings      bool
+	AbsPath           bool
+	ShowIgnored       bool
+	ShowDocumentation bool
 )
 
 var (
@@ -86,6 +87,12 @@ func InitLintFlagSet() *pflag.FlagSet {
 	err = lint.MarkHidden("show-ignored")
 	if err != nil {
 		logger.ErrorF("mark hidden flag 'show-ignored' is failed")
+	}
+
+	lint.BoolVarP(&ShowDocumentation, "doc", "", false, "show documentation links")
+	err = lint.MarkHidden("doc")
+	if err != nil {
+		logger.ErrorF("mark hidden flag 'doc' is failed")
 	}
 
 	return lint

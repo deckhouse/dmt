@@ -12,16 +12,16 @@ The Images linter includes **4 validation rules**:
 
 | Rule | Description | Configurable |
 |------|-------------|--------------|
-| [**dockerfile**](#dockerfile-rule) | Validates Dockerfile base images use approved CI variables | ❌ No |
-| [**distroless**](#distroless-rule) | Ensures final images are distroless for security | ✅ Yes |
-| [**werf**](#werf-rule) | Validates werf.yaml configuration | ✅ Yes |
-| [**patches**](#patches-rule) | Validates patch file structure and documentation | ✅ Yes |
+| [**dockerfile**](#dockerfile) | Validates Dockerfile base images use approved CI variables | ❌ No |
+| [**distroless**](#distroless) | Ensures final images are distroless for security | ✅ Yes |
+| [**werf**](#werf) | Validates werf.yaml configuration | ✅ Yes |
+| [**patches**](#patches) | Validates patch file structure and documentation | ✅ Yes |
 
 ---
 
 ## Rule Details
 
-### Dockerfile Rule
+### Dockerfile
 
 Validates that Dockerfiles use approved base image CI variables instead of hardcoded image names.
 
@@ -75,7 +75,7 @@ linters-settings:
 
 ---
 
-### Distroless Rule
+### Distroless
 
 Ensures final Docker images are distroless (minimal, secure images without unnecessary tools).
 
@@ -152,7 +152,7 @@ linters-settings:
 
 ---
 
-### Werf Rule
+### Werf
 
 Validates the `werf.yaml` configuration file for image building.
 
@@ -237,7 +237,7 @@ linters-settings:
 
 ---
 
-### Patches Rule
+### Patches
 
 Validates patch file organization, naming, and documentation.
 
