@@ -292,18 +292,30 @@ tasks:
         done
       - git signatures push
 
-  release:publish-trdl-channels:
-    desc: Publish release channels to TRDL
+  release:push-trdl-branch:
+    desc: Push TRDL channels branch
     preconditions:
       - sh: test $(git rev-parse --abbrev-ref HEAD) = "main"
         msg: This can only be done on main branch
     prompt:
       - "Have you updated trdl_channels.yaml with new versions?"
     cmds:
+      - git checkout -b chore/publish-trdl-channels
       - git add trdl_channels.yaml
       - git commit -S -m 'Signed release channels'
-      - git push
+      - git push origin chore/publish-trdl-channels
+
+  release:publish-trdl-channels:
+    desc: Publish release channels to TRDL using git signatures
+    preconditions:
+      - sh: test $(git rev-parse --abbrev-ref HEAD) = "main"
+        msg: This can only be done on main branch
+    prompt:
+      - "Has the TRDL channels branch been pushed?"
+    cmds:
+      - git checkout main
       - git fetch
+      - git pull
       - git signatures pull
       - git signatures add origin/main
       - git signatures push
