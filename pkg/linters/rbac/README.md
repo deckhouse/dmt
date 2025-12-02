@@ -489,29 +489,29 @@ metadata:
 # File: templates/pre-delete-hook/rbac-for-us.yaml
 # Path analysis: templates/pre-delete-hook/rbac-for-us.yaml
 # Expected: parts = ["pre-delete-hook"] → serviceAccountName = "pre-delete-hook"
-# Expected names: "pre-delete-hook" (local) or "module-pre-delete-hook" (system)
+# Expected names: "pre-delete-hook" (local) or "my-module-pre-delete-hook" (system)
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: pre-delete-hook-sa  # ❌ Wrong name - doesn't match expected pattern
-  namespace: d8-module
+  namespace: d8-my-module
 ```
 
 **Error:**
 ```
-Error: Name of ServiceAccount should be equal to "pre-delete-hook" or "module-pre-delete-hook"
+Error: Name of ServiceAccount should be equal to "pre-delete-hook" or "my-module-pre-delete-hook"
 ```
 
 ❌ **Incorrect** - Wrong namespace for system ServiceAccount name:
 
 ```yaml
 # File: templates/controller/rbac-for-us.yaml
-# Expected names: "controller" (local) or "module-controller" (system)
+# Expected names: "controller" (local) or "my-module-controller" (system)
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: module-controller  # ✅ Name matches system pattern
-  namespace: d8-module     # ❌ Wrong namespace - should be d8-system or d8-monitoring
+  name: my-module-controller  # ✅ Name matches system pattern
+  namespace: d8-my-module     # ❌ Wrong namespace - should be d8-system or d8-monitoring
 ```
 
 **Error:**
@@ -528,17 +528,17 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: pre-delete-hook        # ✅ Local name
-  namespace: d8-module         # ✅ Module namespace
+  namespace: d8-my-module      # ✅ Module namespace
 ```
 
 ```yaml
 # File: templates/pre-delete-hook/rbac-for-us.yaml
-# Path: pre-delete-hook → expectedServiceAccountName = "module-pre-delete-hook"
+# Path: pre-delete-hook → expectedServiceAccountName = "my-module-pre-delete-hook"
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: module-pre-delete-hook # ✅ System name
-  namespace: d8-system         # ✅ System namespace
+  name: my-module-pre-delete-hook # ✅ System name
+  namespace: d8-system            # ✅ System namespace
 ```
 
 **ClusterRole Placement Rules:**

@@ -19,6 +19,7 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [grafana-dashboards](#grafana-dashboards) | Validates Grafana dashboard templates | ✅ | enabled |
 | [cluster-domain](#cluster-domain) | Validates cluster domain configuration is dynamic | ❌ | enabled |
 | [registry](#registry) | Validates registry secret configuration | ❌ | enabled |
+| [werf](#werf) | Validates werf.yaml templates for git stage dependencies | ❌ | enabled |
 
 ## Rule Details
 
@@ -1229,7 +1230,7 @@ monitoring/
 # .dmt.yaml
 linters-settings:
   templates:
-    grafana-dashboards:
+    grafana:
       disable: true  # Disable rule completely
 ```
 
@@ -1458,6 +1459,81 @@ Module names are converted to camelCase for values:
 - `my-module` → `myModule`
 - `cert-manager` → `certManager`
 - `ingress-nginx` → `ingressNginx`
+
+---
+
+### werf
+
+**Purpose:** Validates werf.yaml templates to ensure proper git stage dependencies are configured. This ensures consistent and reproducible image builds.
+
+**Description:**
+
+Scans the werf.yaml file for image definitions that belong to the module and validates that git sections have proper `stageDependencies` configured.
+
+**What it checks:**
+
+1. Image definitions in werf.yaml that match the module name
+2. Git sections have `stageDependencies` configured
+
+**Why it matters:**
+
+Missing stage dependencies:
+- Can cause inconsistent builds
+- May skip rebuilds when source files change
+- Lead to stale images being used
+- Create debugging difficulties
+
+**Examples:**
+
+❌ **Incorrect** - Missing stageDependencies:
+
+```yaml
+# werf.yaml
+image: my-module/app
+git:
+  - add: /src
+    to: /app
+    # ❌ Missing stageDependencies
+```
+
+**Error:**
+```
+Error: parsing Werf file, document 1 (image: my-module/app) failed: 'git.stageDependencies' is required
+```
+
+✅ **Correct** - With stageDependencies:
+
+```yaml
+# werf.yaml
+image: my-module/app
+git:
+  - add: /src
+    to: /app
+    stageDependencies:
+      install:
+        - "**/*"
+      beforeSetup:
+        - "go.mod"
+        - "go.sum"
+```
+
+✅ **Correct** - Multiple git sources:
+
+```yaml
+# werf.yaml
+image: my-module/app
+git:
+  - add: /src
+    to: /app/src
+    stageDependencies:
+      install:
+        - "**/*.go"
+  - add: /config
+    to: /app/config
+    stageDependencies:
+      beforeSetup:
+        - "**/*.yaml"
+```
 
 ## Configuration
 

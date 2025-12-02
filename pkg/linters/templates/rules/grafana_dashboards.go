@@ -32,7 +32,7 @@ import (
 )
 
 const (
-	GrafanaRuleName = "grafana"
+	GrafanaRuleName = "grafana-dashboards"
 )
 
 func NewGrafanaRule(cfg *pkg.TemplatesLinterConfig) *GrafanaRule {

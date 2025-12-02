@@ -27,18 +27,18 @@ import (
 )
 
 const (
-	UzerAuthZRuleName = "uzer-authz"
+	UserAuthZRuleName = "user-authz"
 )
 
-func NewUzerAuthZRule() *UzerAuthZRule {
-	return &UzerAuthZRule{
+func NewUserAuthZRule() *UserAuthZRule {
+	return &UserAuthZRule{
 		RuleMeta: pkg.RuleMeta{
-			Name: UzerAuthZRuleName,
+			Name: UserAuthZRuleName,
 		},
 	}
 }
 
-type UzerAuthZRule struct {
+type UserAuthZRule struct {
 	pkg.RuleMeta
 }
 
@@ -46,7 +46,7 @@ type UzerAuthZRule struct {
 objectUserAuthzClusterRolePath validates that files for user-authz contains only cluster roles.
 Also, it validates that role names equals to d8:user-authz:<ChartName>:<AccessLevel>
 */
-func (*UzerAuthZRule) ObjectUserAuthzClusterRolePath(m *module.Module, errorList *errors.LintRuleErrorsList) {
+func (*UserAuthZRule) ObjectUserAuthzClusterRolePath(m *module.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithModule(m.GetName())
 
 	for _, object := range m.GetStorage() {

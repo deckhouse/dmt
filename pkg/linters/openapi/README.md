@@ -294,18 +294,18 @@ linters-settings:
 
 ### keys
 
-**Purpose:** Prevents use of banned property names in OpenAPI schemas that could cause conflicts, confusion, or violate naming conventions. This ensures consistent and safe property naming across all module configurations.
+**Purpose:** Prevents use of banned names in enum values within OpenAPI schemas. This ensures enum values don't conflict with reserved keywords or cause confusion.
 
 **Description:**
 
-Validates that OpenAPI schema property names and enum values don't use banned keywords. Banned names are typically reserved words, common mistakes, or names that could cause conflicts with Kubernetes or Deckhouse internals.
+Validates that enum values in OpenAPI schema files (specifically in CRD files in `crds/` directory) don't use banned keywords. Banned names are typically reserved words that could cause conflicts with Kubernetes or Deckhouse internals.
 
 **What it checks:**
 
-1. Scans all property names in OpenAPI schemas
-2. Checks enum values for banned names
-3. Recursively validates nested properties and arrays
-4. Reports any usage of banned keywords
+1. Scans enum fields in CRD OpenAPI schemas
+2. Checks each enum value against the banned names list
+3. Recursively validates nested structures
+4. Reports any usage of banned keywords in enum values
 
 **Why it matters:**
 
@@ -372,16 +372,19 @@ properties:
 
 **Configuration:**
 
+Define which names should be banned in enum values:
+
 ```yaml
 # .dmt.yaml
 linters-settings:
   openapi:
     exclude-rules:
       key-banned-names:
-        - "properties.legacy.properties.mode"  # Exclude specific field
+        - "default"    # Ban "default" as an enum value
+        - "type"       # Ban "type" as an enum value
 ```
 
-**Note:** The list of banned names is configured in the linter settings. Common banned names typically include:
+**Note:** The `key-banned-names` list defines which names are **not allowed** as enum values. Common banned names typically include:
 - `default` - Reserved for schema defaults
 - `type` - Reserved for OpenAPI type definitions
 - Other context-specific reserved words
@@ -663,9 +666,9 @@ linters-settings:
         - "properties.internal.properties.highAvailability"
 ```
 
-#### Key Name Exclusions
+#### Key Banned Names Configuration
 
-Configure banned property names:
+Define which property names are banned in enum values:
 
 ```yaml
 # .dmt.yaml
@@ -673,9 +676,12 @@ linters-settings:
   openapi:
     exclude-rules:
       key-banned-names:
-        - "properties.legacy.properties.default"
-        - "properties.settings.properties.type"
+        - "default"    # Ban "default" as an enum value
+        - "type"       # Ban "type" as an enum value
+        - "name"       # Ban "name" as an enum value
 ```
+
+**Note:** This list defines which names are **not allowed** in enum values, not paths to exclude from validation.
 
 #### CRD Exclusions
 
@@ -703,7 +709,7 @@ linters-settings:
     
     # Rule-specific exclusions
     exclude-rules:
-      # Enum value exclusions
+      # Enum value exclusions (paths to exclude from enum validation)
       enum:
         - "properties.storageClass.properties.provision.items.properties.type"
         - "properties.storageClass.properties.provision.items.oneOf[*].properties.type"
@@ -713,9 +719,10 @@ linters-settings:
       ha-absolute-keys:
         - "properties.internal.properties.highAvailability"
       
-      # Banned key name exclusions
+      # Banned names in enum values (names that are not allowed)
       key-banned-names:
-        - "properties.advanced.properties.default"
+        - "default"
+        - "type"
       
       # CRD name exclusions
       crd-names:

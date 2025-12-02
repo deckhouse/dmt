@@ -23,13 +23,13 @@ Proper container configuration is critical for cluster stability, security, and 
 
 | Rule | Description | Configurable | Default |
 |------|-------------|--------------|---------|
-| [recommended-labels](#recommended-labels) | Validates required labels (module, heritage) | ✅ | enabled |
-| [namespace-labels](#namespace-labels) | Validates Prometheus watcher label on d8-* namespaces | ❌ | enabled |
-| [api-version](#api-version) | Validates API versions are not deprecated | ❌ | enabled |
-| [priority-class](#priority-class) | Validates PriorityClass is set and allowed | ❌ | enabled |
+| [object-recommended-labels](#object-recommended-labels) | Validates required labels (module, heritage) | ❌ | enabled |
+| [object-namespace-labels](#object-namespace-labels) | Validates Prometheus watcher label on d8-* namespaces | ❌ | enabled |
+| [object-api-version](#object-api-version) | Validates API versions are not deprecated | ❌ | enabled |
+| [object-priority-class](#object-priority-class) | Validates PriorityClass is set and allowed | ❌ | enabled |
 | [dns-policy](#dns-policy) | Validates DNS policy for hostNetwork pods | ✅ | enabled |
 | [controller-security-context](#controller-security-context) | Validates Pod-level security context | ✅ | enabled |
-| [revision-history-limit](#revision-history-limit) | Validates Deployment revision history limit ≤ 2 | ❌ | enabled |
+| [object-revision-history-limit](#object-revision-history-limit) | Validates Deployment revision history limit ≤ 2 | ❌ | enabled |
 | [name-duplicates](#name-duplicates) | Validates no duplicate container names | ❌ | enabled |
 | [read-only-root-filesystem](#read-only-root-filesystem) | Validates containers use read-only root filesystem | ✅ | enabled |
 | [host-network-ports](#host-network-ports) | Validates host network and host port usage | ✅ | enabled |
@@ -46,7 +46,7 @@ Proper container configuration is critical for cluster stability, security, and 
 
 ## Rule Details
 
-### recommended-labels
+### object-recommended-labels
 
 **Purpose:** Ensures all Kubernetes objects have required labels for proper identification, monitoring, and management within the Deckhouse platform. These labels are used for resource tracking, metrics collection, and operational automation.
 
@@ -102,9 +102,7 @@ metadata:
 
 ---
 
-**Configuration:**
-
-### namespace-labels
+### object-namespace-labels
 
 **Purpose:** Ensures Deckhouse namespaces (prefixed with `d8-`) have the Prometheus rules watcher label enabled. This allows Prometheus to automatically discover and apply monitoring rules for the namespace.
 
@@ -178,7 +176,7 @@ metadata:
 
 ---
 
-### api-version
+### object-api-version
 
 **Purpose:** Prevents use of deprecated Kubernetes API versions that may be removed in future Kubernetes releases. This ensures module compatibility with current and future Kubernetes versions.
 
@@ -230,7 +228,7 @@ metadata:
 
 ---
 
-### priority-class
+### object-priority-class
 
 **Purpose:** Ensures all workloads have appropriate priority classes assigned for proper pod scheduling and preemption behavior. This prevents workloads from running without priority, which can cause scheduling issues.
 
@@ -474,7 +472,7 @@ linters-settings:
 
 ---
 
-### revision-history-limit
+### object-revision-history-limit
 
 **Purpose:** Limits the number of old ReplicaSets retained for each Deployment to reduce control plane resource consumption. Deckhouse doesn't use rollback functionality, so keeping many old ReplicaSets is wasteful.
 

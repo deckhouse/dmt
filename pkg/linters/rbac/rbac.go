@@ -50,7 +50,7 @@ func (l *Rbac) Run(m *module.Module) {
 
 	errorList := l.ErrorList.WithModule(m.GetName())
 
-	rules.NewUzerAuthZRule().
+	rules.NewUserAuthZRule().
 		ObjectUserAuthzClusterRolePath(m, errorList)
 	rules.NewBindingSubjectRule(l.cfg.ExcludeRules.BindingSubject.Get()).
 		ObjectBindingSubjectServiceAccountCheck(m, errorList)
