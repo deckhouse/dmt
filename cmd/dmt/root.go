@@ -32,9 +32,8 @@ import (
 	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/logger"
+	"github.com/deckhouse/dmt/internal/version"
 )
-
-var version = "devel"
 
 var kebabCaseRegex = regexp.MustCompile(`^([a-z][a-z0-9]*)(-[a-z0-9]+)*$`)
 
@@ -46,10 +45,10 @@ func execute() {
 		CompletionOptions: cobra.CompletionOptions{
 			HiddenDefaultCmd: true,
 		},
-		Version: version,
+		Version: version.Version,
 		PersistentPreRun: func(_ *cobra.Command, _ []string) {
 			// TODO: move to separate package
-			flags.Version = version
+			flags.Version = version.Version
 			logger.InitLogger(os.Stdout, flags.LogLevel)
 		},
 	}

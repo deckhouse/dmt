@@ -2,6 +2,7 @@
 release-build
 dist
 /dmt
+/bin
 # Ignore Go coverage output
 coverage.out
 coverage.svg

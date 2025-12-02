@@ -1,0 +1,309 @@
+version: "3"
+
+vars:
+  binaryName: dmt
+  mode: '{{ ternary "cgo" "go" (eq OS "linux") }}'
+  arch: '{{ ternary "arm64" ARCH (eq ARCH "arm") }}'
+  buildDate:
+    sh: date -u +'%Y-%m-%dT%H:%M:%SZ'
+  version:
+    sh: git describe --tags
+  kubectlVersion: v1.29.3
+  kubectlLDFlags:
+    sh: |
+      buildDate="{{ .buildDate }}"
+      gitCommit="0000000000000000000000000000000000000000"
+      gitTreeState="archive"
+      gitVersion="{{ .kubectlVersion }}"
+      _strippedGitVersion="${gitVersion#[vV]}"
+      gitMajor="$(cut -d. -f1 <<< "$_strippedGitVersion")"
+      gitMinor="$(cut -d. -f2 <<< "$_strippedGitVersion")"
+
+      declare -a ldflags
+      function add_ldflag() {
+        local key=${1}
+        local val=${2}
+        ldflags+=(
+            "-X 'k8s.io/client-go/pkg/version.${key}=${val}'"
+            "-X 'k8s.io/component-base/version.${key}=${val}'"
+        )
+      }
+
+      for ldflag in buildDate gitCommit gitTreeState gitVersion gitMajor gitMinor; do
+        add_ldflag "${ldflag}" "${!ldflag}"
+      done
+
+      echo "${ldflags[*]-}"
+  werfLDFlags: ""
+
+  cgoTags: ""
+  goTags: ""
+
+  cgoDevLDFlags: "-s -w -X 'github.com/deckhouse/dmt/internal/version.Version=local-dev' {{ .werfLDFlags }}"
+  goDevLDFlags: "-s -w -X 'github.com/deckhouse/deckhouse-cli/internal/version.Version=local-dev' {{ .werfLDFlags }}"
+
+  cgoReleaseLDFlags: "-s -w -X 'github.com/deckhouse/dmt/internal/version.Version={{ .version }}' {{ .werfLDFlags }} {{ .kubectlLDFlags }}"
+  goReleaseLDFlags: "-s -w -X 'github.com/deckhouse/dmt/internal/version.Version={{ .version }}' {{ .werfLDFlags }} {{ .kubectlLDFlags }}"
+
+tasks:
+  _build:cgo:dev:
+    internal: true
+    cmds:
+      - go build -o "{{ .outputDir | default (printf "./build/%s-%s" .targetOS .targetArch) }}/bin/{{ .binaryName }}"
+        -ldflags="{{ .cgoDevLDFlags }}" -tags="{{ .cgoTags }}" {{ .CLI_ARGS }} ./cmd/dmt/
+    env:
+      CGO_ENABLED: "1"
+      GOOS: "{{ .targetOS }}"
+      GOARCH: "{{ .targetArch }}"
+
+  _build:cgo:dist:
+    internal: true
+    cmds:
+      - go build -o "{{ .outputDir | default (printf "./dist/%s/%s-%s" .version .targetOS .targetArch) }}/bin/{{ .binaryName }}"
+        -compiler gc -ldflags="{{ .cgoReleaseLDFlags }}" -tags="{{ .cgoTags }}" {{ .CLI_ARGS }} ./cmd/dmt/
+    env:
+      CGO_ENABLED: "1"
+      GOOS: "{{ .targetOS }}"
+      GOARCH: "{{ .targetArch }}"
+
+  _build:go:dev:
+    internal: true
+    cmds:
+      - go build -o "{{ .outputDir | default (printf "./build/%s-%s" .targetOS .targetArch) }}/bin/{{ .binaryName }}{{ if (eq .targetOS "windows") }}.exe{{ end }}"
+        -ldflags="{{ .goDevLDFlags }}" -tags="{{ .goTags }}" {{ .CLI_ARGS }} ./cmd/dmt/
+    env:
+      CGO_ENABLED: "0"
+      GOOS: "{{ .targetOS }}"
+      GOARCH: "{{ .targetArch }}"
+
+  _build:go:dist:
+    internal: true
+    cmds:
+      - go build -o "{{ .outputDir | default (printf "./dist/%s/%s-%s" .version .targetOS .targetArch) }}/bin/{{ .binaryName }}{{ if (eq .targetOS "windows") }}.exe{{ end }}"
+        -ldflags="{{ .goReleaseLDFlags }}" -tags="{{ .goTags }}" {{ .CLI_ARGS }} ./cmd/dmt/
+    env:
+      CGO_ENABLED: "0"
+      GOOS: "{{ .targetOS }}"
+      GOARCH: "{{ .targetArch }}"
+
+  _test:go:
+    internal: true
+    cmds:
+      - go test -count=1 -tags="{{ .cgoTags }}" ./...
+
+  build:
+    desc: Build d8 binary for personal usage
+    run: once
+    cmds:
+      - task: build:dev:{{ OS }}:{{ .arch }}
+        vars:
+          outputDir: "."
+
+  build:dev:linux:amd64:
+    desc: Build d8 dev binary for linux/amd64
+    cmds:
+      - task: _build:cgo:dev
+        vars:
+          targetOS: "linux"
+          targetArch: "amd64"
+          outputDir: "{{ .outputDir }}"
+
+  build:dev:darwin:amd64:
+    desc: Build d8 dev binary for darwin/amd64
+    cmds:
+      - task: _build:go:dev
+        vars:
+          targetOS: "darwin"
+          targetArch: "amd64"
+          outputDir: "{{ .outputDir }}"
+
+  build:dev:darwin:arm64:
+    desc: Build d8 dev binary for darwin/arm64
+    cmds:
+      - task: _build:go:dev
+        vars:
+          targetOS: "darwin"
+          targetArch: "arm64"
+          outputDir: "{{ .outputDir }}"
+
+  build:dev:windows:amd64:
+    desc: Build d8 dev binary for windows/amd64
+    cmds:
+      - task: _build:go:dev
+        vars:
+          targetOS: "windows"
+          targetArch: "amd64"
+          outputDir: "{{.outputDir}}"
+
+  build:dist:all:
+    desc: Build all d8 release binaries in parallel
+    deps:
+      - build:dist:linux:amd64
+      - build:dist:darwin:amd64
+      - build:dist:darwin:arm64
+      - build:dist:windows:amd64
+
+  build:dist:linux:amd64:
+    desc: Build d8 release binary for linux/amd64
+    cmds:
+      - task: _build:cgo:dist
+        vars:
+          targetOS: "linux"
+          targetArch: "amd64"
+          outputDir: "{{ .outputDir }}"
+
+  build:dist:darwin:amd64:
+    desc: Build d8 release binary for darwin/amd64
+    cmds:
+      - task: _build:go:dist
+        vars:
+          targetOS: "darwin"
+          targetArch: "amd64"
+          outputDir: "{{ .outputDir }}"
+
+  build:dist:darwin:arm64:
+    desc: Build d8 release binary for darwin/arm64
+    cmds:
+      - task: _build:go:dist
+        vars:
+          targetOS: "darwin"
+          targetArch: "arm64"
+          outputDir: "{{ .outputDir }}"
+
+  build:dist:windows:amd64:
+    desc: Build d8 release binary for windows/amd64
+    cmds:
+      - task: _build:go:dist
+        vars:
+          targetOS: "windows"
+          targetArch: "amd64"
+          outputDir: "{{ .outputDir }}"
+
+  _package:dist:
+    dir: dist/{{ .version }}
+    cmds:
+      - cp ../../LICENSE ../../README.md {{ .target }}
+      - tar -zcf {{ .binaryName }}-{{ .version }}-{{ .target }}.tar.gz {{ .target }}
+
+  package:dist:all:
+    desc: Package all release assets in parallel
+    deps:
+      - package:dist:linux:amd64
+      - package:dist:darwin:amd64
+      - package:dist:darwin:arm64
+      - package:dist:windows:amd64
+
+  package:dist:linux:amd64:
+    desc: Package release asset for linux/amd64
+    dir: dist/{{ .version }}
+    cmds:
+      - task: _package:dist
+        vars:
+          target: "linux-amd64"
+
+  package:dist:darwin:amd64:
+    desc: Package release asset for darwin/amd64
+    dir: dist/{{ .version }}
+    cmds:
+      - task: _package:dist
+        vars:
+          target: "darwin-amd64"
+
+  package:dist:darwin:arm64:
+    desc: Package release asset for darwin/arm64
+    dir: dist/{{ .version }}
+    cmds:
+      - task: _package:dist
+        vars:
+          target: "darwin-arm64"
+
+  package:dist:windows:amd64:
+    desc: Package release asset for windows/amd64
+    dir: dist/{{ .version }}
+    cmds:
+      - task: _package:dist
+        vars:
+          target: "windows-amd64"
+
+  checksum:
+    desc: Calculate sha256 checksum for release assets
+    dir: dist/{{ .version }}
+    cmds:
+      - |
+        for asset in *.tar.gz; do
+          shasum -a 256 "${asset}" > "${asset}".sha256sum
+        done
+
+  build-and-package:
+    desc: Build and package all d8 binaries
+    cmds:
+      - task: build:dist:all
+      - task: package:dist:all
+      - task: checksum
+
+  test:
+    desc: Run go test for current project
+    cmds:
+      - task: _test:go
+
+  lint:
+    desc: Run golangci-lint with auto-fix
+    cmds:
+      - golangci-lint run ./... --fix --build-tags="{{ .goTags }}"
+
+  lint:check:
+    desc: Run golangci-lint without auto-fix (CI mode)
+    cmds:
+      - golangci-lint run ./... --build-tags="{{ .goTags }}"
+
+  clean:
+    desc: Clean all binaries
+    cmds:
+      - rm -rf ./build ./dist ./{{ .binaryName }}
+
+  release:tag:
+    desc: Tag current main branch state as new release. Provide version tag as argument (eg. task {{.TASK}} -- v1.2.3).
+    preconditions:
+      - sh: test $(git rev-parse --abbrev-ref HEAD) = "main"
+        msg: This can only be done on main branch
+      - sh: '[[ "{{.CLI_ARGS}}" =~ ^v\d+.\d+.\d+$ ]] || exit 1'
+        msg: Provide valid semver prefixed with "v" (eg. task {{.TASK}} -- v1.2.3) to be used as version
+    prompt:
+      - "Tag current main branch state as new release? ({{.CLI_ARGS}})"
+      - "Have you created Github release draft for {{.CLI_ARGS}} tag?"
+    cmds:
+      - git tag -s {{.CLI_ARGS}} -m 'Signed {{.CLI_ARGS}} release'
+      - git push origin {{.CLI_ARGS}}
+      - echo "Release tag created, now publish your Github release so that CI can upload build artifacts to it."
+
+  release:sign:
+    desc: "Sign last version tag + origin/main and push signatures."
+    preconditions:
+      - sh: '[[ "{{.CLI_ARGS}}" =~ ^v\d+.\d+.\d+$ ]] || exit 1'
+        msg: Provide valid semver prefixed with "v" (eg. task {{.TASK}} -- v1.2.3) to be used as version
+    cmds:
+      - git fetch --tags -f
+      - git signatures pull
+      - |
+        for ref in {{.refs | default "$(git tag --sort=v:refname | tail -n1) origin/main"}}; do
+          echo "Signing $ref..."
+          git signatures add {{.CLI_ARGS}} $ref
+          git signatures show {{.CLI_ARGS}} $ref
+        done
+      - git signatures push
+
+  release:publish-trdl-channels:
+    desc: Publish release channels to TRDL
+    preconditions:
+      - sh: test $(git rev-parse --abbrev-ref HEAD) = "main"
+        msg: This can only be done on main branch
+    prompt:
+      - "Have you updated trdl_channels.yaml with new versions?"
+    cmds:
+      - git add trdl_channels.yaml
+      - git commit -S -m 'Signed release channels'
+      - git push
+      - git fetch
+      - git signatures pull
+      - git signatures add origin/main
+      - git signatures push
