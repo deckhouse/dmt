@@ -30,6 +30,7 @@ import (
 	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/manager"
 	"github.com/deckhouse/dmt/internal/metrics"
+	"github.com/deckhouse/dmt/internal/version"
 	"github.com/deckhouse/dmt/pkg/config"
 )
 
@@ -65,7 +66,7 @@ func runLint(dir string) error {
 	}
 	// enable color output for Github actions, do not remove it
 	color.NoColor = false
-	logger.InfoF("DMT version: %s", version)
+	logger.InfoF("DMT version: %s, Commit: %s, Date: %s", version.Version, version.Commit, version.Date)
 
 	cfg, err := config.NewDefaultRootConfig(dir)
 	logger.CheckErr(err)

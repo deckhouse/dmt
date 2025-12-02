@@ -7,7 +7,7 @@ builds:
     main: ./cmd/dmt
     flags:
       - -trimpath
-    ldflags: -s -w -X main.version={{ .Tag }} -X main.commit={{.ShortCommit}} -X main.date={{.Date}}
+    ldflags: -s -w -X 'github.com/deckhouse/dmt/internal/version.Version={{ .Tag }}' -X 'github.com/deckhouse/dmt/internal/version.Commit={{.ShortCommit}}' -X 'github.com/deckhouse/dmt/internal/version.Date={{.Date}}'
     env:
       - CGO_ENABLED=0
     goos:
