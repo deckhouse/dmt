@@ -313,7 +313,9 @@ tasks:
     prompt:
       - "Has the TRDL channels branch been pushed?"
     cmds:
+      - git checkout chore/publish-trdl-channels || true
       - git checkout main
+      - git branch -D chore/publish-trdl-channels || true
       - git fetch
       - git pull
       - git signatures pull
