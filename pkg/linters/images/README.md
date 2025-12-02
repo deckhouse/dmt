@@ -68,10 +68,12 @@ FROM $BASE_GOLANG_16_ALPINE
 linters-settings:
   images:
     exclude-rules:
-      skip-image-file-path-prefix:
+      skip-distroless-file-path-prefix:
         - "updater"        # Skip images/updater/
         - "legacy"         # Skip images/legacy/
 ```
+
+> Note: Currently, dockerfile rule uses the same exclusion list as distroless rule (`skip-distroless-file-path-prefix`).
 
 ---
 
@@ -247,7 +249,7 @@ Validates patch file organization, naming, and documentation.
 - ✅ Patch files are in `images/<image_name>/patches/` directory
 - ✅ Patch file names follow pattern: `XXX-<patch-name>.patch` (e.g., `001-fix-ssl.patch`)
 - ✅ Each patches directory has a `README.md` file
-- ✅ README.md documents each patch with `# XXX-<patch-name>.patch` header
+- ✅ README.md documents each patch with `# XXX-<patch-name>.patch` header (single `#`, not `##`)
 
 **Patch Directory Structure:**
 ```
@@ -271,17 +273,17 @@ images/
 ```markdown
 # Patches
 
-## 001-fix-ssl.patch
+# 001-fix-ssl.patch
 - **Issue**: SSL handshake fails with certain clients
 - **Upstream**: https://github.com/project/repo/issues/1234
 - **Status**: Waiting for upstream fix in v2.0
 
-## 002-update-config.patch
+# 002-update-config.patch
 - **Issue**: Default config incompatible with Kubernetes
 - **Upstream**: PR submitted https://github.com/project/repo/pull/5678
 - **Status**: Merged, will be in next release
 
-## 003-security-fix.patch
+# 003-security-fix.patch
 - **Issue**: CVE-2024-12345 vulnerability
 - **Upstream**: https://github.com/project/repo/security/advisories/GHSA-xxxx
 - **Status**: Backport from upstream fix
@@ -339,15 +341,11 @@ Configure the Images linter in `.dmtlint.yaml`:
 ```yaml
 linters-settings:
   images:
-    # Exclude specific image paths from dockerfile checks
+    # Exclude specific image paths from dockerfile and distroless checks
     exclude-rules:
-      skip-image-file-path-prefix:
-        - "updater"          # Skip images/updater/
-        - "legacy"           # Skip images/legacy/
-      
-      # Exclude specific image paths from distroless checks
+      # Note: Both dockerfile and distroless rules use this exclusion list
       skip-distroless-file-path-prefix:
-        - "updater"          # Skip distroless validation
+        - "updater"          # Skip images/updater/
         - "debug-tools"      # Skip for debug images
     
     # Rule-specific settings
@@ -426,11 +424,11 @@ final: false
 
 **Error:** `README.md file does not contain # 001-fix-ssl.patch`
 
-**Solution:** Add documentation to `patches/README.md`:
+**Solution:** Add documentation to `patches/README.md` with single `#` heading:
 ```markdown
 # Patches
 
-## 001-fix-ssl.patch
+# 001-fix-ssl.patch
 - **Issue**: Description of the issue
 - **Upstream**: Link to upstream issue/PR
 - **Status**: Current status

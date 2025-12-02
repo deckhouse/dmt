@@ -32,10 +32,26 @@ Validates the `module.yaml` configuration file structure and content.
 
 **Checks:**
 - ✅ File exists and is valid YAML
-- ✅ Required fields are present (name, namespace)
+- ✅ Required fields are present:
+  - `name` - Module name (max 64 characters)
+  - `stage` - Module stage (required)
+  - `descriptions.en` - English description (required)
 - ✅ Optional fields are valid when present
 - ✅ Accessibility configuration is correct
 - ✅ Update section follows versioning rules
+- ✅ `weight` must not be zero for critical modules
+- ✅ `description` field is deprecated (use `descriptions.en` instead)
+
+#### Stage Values
+
+The `stage` field defines the module's lifecycle stage:
+
+| Stage | Description |
+|-------|-------------|
+| `Experimental` | Early development, may have breaking changes |
+| `Preview` | Feature complete but not production-ready |
+| `General Availability` | Production-ready and stable |
+| `Deprecated` | Scheduled for removal |
 
 #### Accessibility Validation
 
@@ -69,6 +85,10 @@ namespace: d8-my-module
 weight: 100
 stage: "General Availability"
 
+descriptions:
+  en: "My module provides functionality for..."
+  ru: "Мой модуль обеспечивает функциональность для..."
+
 accessibility:
   editions:
     _default:
@@ -94,7 +114,7 @@ The `update` section defines version upgrade paths for the module.
 - `to` version must be greater than `from` version
 - Versions must use `major.minor` format (no patch versions)
 - Entries must be sorted: first by `from` version ascending, then by `to` version ascending
-- No duplicate `from` versions for the same `to` version
+- No duplicate `to` versions with different `from` versions (use the earliest `from` version instead)
 
 **Example:**
 ```yaml
@@ -125,22 +145,24 @@ Validates the `oss.yaml` file containing open-source software attribution.
 - ✅ At least one project is described
 - ✅ Each project has required fields:
   - `name` - Project name
-  - `url` - Valid project URL
+  - `description` - Project description
+  - `link` - Valid project URL
   - `license` - Valid license identifier
-  - `version` (optional) - Project version
+  - `logo` (optional) - Valid logo URL
 
 **Example:**
 ```yaml
 # oss.yaml
 - name: nginx
-  url: https://nginx.org/
+  description: High performance web server
+  link: https://nginx.org/
   license: BSD-2-Clause
-  version: "1.25.3"
+  logo: https://nginx.org/nginx.png
 
 - name: prometheus
-  url: https://prometheus.io/
+  description: Monitoring system and time series database
+  link: https://prometheus.io/
   license: Apache-2.0
-  version: "2.48.0"
 ```
 
 ---
@@ -153,19 +175,20 @@ Validates OpenAPI conversion files for configuration version upgrades.
 
 **Checks:**
 - ✅ Conversion files in `openapi/conversions/` are valid
-- ✅ Version files follow naming convention: `v1.yaml`, `v2.yaml`, etc.
+- ✅ Version files follow naming convention: `v2.yaml`, `v3.yaml`, etc. (starting from v2)
 - ✅ Each conversion has human-readable descriptions (English and Russian)
-- ✅ Version numbers are sequential
+- ✅ Version numbers are sequential (starting from 2)
 - ✅ Descriptions are not empty
+- ✅ Version in filename matches version in file content
 
 **File Structure:**
 ```
 openapi/
-├── config-values.yaml          # Current config version
+├── config-values.yaml          # Current config version (must have x-config-version)
 └── conversions/
-    ├── v1.yaml                 # Conversion to version 1
-    ├── v2.yaml                 # Conversion to version 2
-    └── v3.yaml                 # Conversion to version 3
+    ├── v2.yaml                 # Conversion to version 2 (first conversion)
+    ├── v3.yaml                 # Conversion to version 3
+    └── v4.yaml                 # Conversion to version 4
 ```
 
 **Example:**
@@ -183,13 +206,16 @@ description:
 
 Validates the `.helmignore` file in the module root.
 
+**Purpose:** The `.helmignore` file prevents unnecessary files from being packaged in Helm charts, reducing chart size and improving performance.
+
 **Checks:**
 - ✅ File exists in module root
+- ✅ File is not empty (contains at least one non-comment pattern)
+- ✅ Patterns don't contain unquoted spaces
+- ✅ Patterns are not too broad (`*` or `**`)
 - ✅ Critical Helm files are NOT excluded:
   - `templates/` - Helm template directory
   - `Chart.yaml` - Helm chart metadata
-
-**Purpose:** The `.helmignore` file prevents unnecessary files from being packaged in Helm charts, reducing chart size and improving performance.
 
 **Example:**
 ```
@@ -333,7 +359,8 @@ This rule automatically detects feature usage and ensures proper version constra
 | **Stage Field** | ≥ 1.68.0 | `stage` field present in `module.yaml` |
 | **Go Hooks** | ≥ 1.68.0 | `go.mod` with `module-sdk` + `app.Run()` calls |
 | **Readiness Probes** | ≥ 1.71.0 | `module-sdk ≥ 0.3` + `app.WithReadiness()` calls |
-| **Optional Modules** | ≥ 1.73.0 | `bootstrapped: false` in requirements |
+| **Module-SDK ≥ 1.3** | ≥ 1.71.0 | `module-sdk ≥ 1.3.0` in `go.mod` |
+| **Optional Modules** | ≥ 1.73.0 | `!optional` flag in module requirements |
 
 **Validation:**
 - ✅ Minimum version constraints are declared
@@ -353,6 +380,7 @@ requirements:
   kubernetes: ">= 1.28.0"      # Optional: Kubernetes requirement
   modules:                      # Optional: Module dependencies
     monitoring-ping: ">= 1.0.0"
+    optional-module: ">= 1.0.0 !optional"  # Optional module dependency (requires >= 1.73.0)
 ```
 
 **Supported Constraint Formats:**

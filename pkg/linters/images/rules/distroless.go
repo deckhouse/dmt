@@ -125,7 +125,7 @@ func isDockerfileInstructionUnacceptable(from string, final bool) (bool, string)
 	} else {
 		matched, _ := regexp.MatchString("@sha256:[A-Fa-f0-9]{64}", from)
 		if !strings.HasPrefix(from, "$BASE_") && !matched {
-			return true, "Intermediate `FROM` instructions should use one of our $BASE_ images or have `@sha526:` checksum specified"
+			return true, "Intermediate `FROM` instructions should use one of our $BASE_ images or have `@sha256:` checksum specified"
 		}
 	}
 
