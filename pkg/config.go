@@ -220,6 +220,7 @@ type ModuleLinterRules struct {
 	LicenseRule           RuleConfig
 	RequarementsRule      RuleConfig
 	LegacyReleaseFileRule RuleConfig
+	ChangelogRule         RuleConfig
 }
 type OSSRuleSettings struct {
 	Disable bool

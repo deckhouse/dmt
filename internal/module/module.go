@@ -311,6 +311,7 @@ func mapModuleRules(linterSettings *pkg.LintersSettings, configSettings *config.
 	rules.LicenseRule.SetLevel(globalRules.LicenseRule.Impact, fallbackImpact)
 	rules.RequarementsRule.SetLevel(globalRules.RequarementsRule.Impact, fallbackImpact)
 	rules.LegacyReleaseFileRule.SetLevel(globalRules.LegacyReleaseFileRule.Impact, fallbackImpact)
+	rules.ChangelogRule.SetLevel(globalRules.ChangelogRule.Impact, fallbackImpact)
 }
 
 // mapTemplatesRules configures Templates linter rules
