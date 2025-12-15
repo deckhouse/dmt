@@ -94,6 +94,7 @@ type DocumentationRules struct {
 	BilingualRule          RuleConfig `mapstructure:"bilingual"`
 	ReadmeRule             RuleConfig `mapstructure:"readme"`
 	NoCyrillicExcludeRules RuleConfig `mapstructure:"cyrillic-in-english"`
+	ChangelogRule          RuleConfig `mapstructure:"changelog"`
 }
 
 type ModuleLinterConfig struct {

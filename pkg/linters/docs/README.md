@@ -13,6 +13,7 @@ Proper documentation is critical for Deckhouse modules as it helps users underst
 | [readme](#readme) | Validates presence of README.md in docs/ directory | ✅ | enabled |
 | [bilingual](#bilingual) | Validates documentation exists in both English and Russian | ✅ | enabled |
 | [cyrillic-in-english](#cyrillic-in-english) | Validates English documentation doesn't contain cyrillic characters | ✅ | enabled |
+| [changelog](#changelog) | Validates changelog file presence and content | ✅ | enabled |
 
 ## Rule Details
 
@@ -519,4 +520,221 @@ But you have `docs/README-RU.md` or `docs/README_ru.md` (lowercase).
    - ✅ `FILENAME.ru.md` (preferred)
    - ✅ `FILENAME_RU.md` (legacy, case insensitive)
    - ❌ `FILENAME-RU.md` (not supported)
+
+---
+
+### changelog
+
+Validates changelog file presence and content in modules.
+
+**Purpose:** Ensures modules maintain proper documentation of changes by requiring both changelog files with meaningful content. This helps users understand what changes are included in each module version and maintains transparency about module evolution.
+
+**Description:**
+
+Every Deckhouse module must have changelog files that document the history of changes and improvements. Two files are required: an English version (`CHANGELOG.md`) and a Russian version (`CHANGELOG_RU.md`), both containing meaningful content.
+
+**What it checks:**
+
+1. Verifies that `CHANGELOG.md` file exists in the module root
+2. Verifies that `CHANGELOG_RU.md` file exists in the module root
+3. Checks that both files are not empty (size > 0 bytes)
+4. Validates files are readable and accessible
+
+**Why it matters:**
+
+Change documentation is essential for users to understand module evolution, new features, bug fixes, and breaking changes. Without proper changelog documentation, users cannot make informed decisions about module updates and may miss important changes that affect their deployments.
+
+**Examples:**
+
+❌ **Incorrect** - Missing changelog files:
+
+```
+my-module/
+├── templates/
+│   └── deployment.yaml
+├── openapi/
+│   └── config-values.yaml
+└── docs/
+    └── README.md                 # Other docs exist but no changelogs
+                                  # ❌ Missing CHANGELOG.md and CHANGELOG_RU.md
+```
+
+**Error:**
+```
+CHANGELOG.md file is missing
+CHANGELOG_RU.md file is missing
+```
+
+❌ **Incorrect** - Empty changelog files:
+
+```
+my-module/
+├── CHANGELOG.md                 # File exists but is empty (0 bytes)
+├── CHANGELOG_RU.md              # File exists but is empty (0 bytes)
+└── docs/
+    └── README.md
+```
+
+**Error:**
+```
+CHANGELOG.md file is empty
+CHANGELOG_RU.md file is empty
+```
+
+✅ **Correct** - Complete changelog documentation:
+
+```
+my-module/
+├── CHANGELOG.md                 # Contains English changelog
+├── CHANGELOG_RU.md              # Contains Russian changelog
+└── docs/
+    └── README.md
+```
+
+```markdown
+<!-- CHANGELOG.md -->
+# Changelog
+
+## v1.0.0
+- Initial release with basic functionality
+- Added support for configuration validation
+
+## v0.9.0 (2024-12-01)
+- Beta release with core features
+- Fixed configuration parsing issues
+```
+
+```markdown
+<!-- CHANGELOG_RU.md -->
+# Журнал изменений
+
+## v1.0.0
+- Начальный релиз с базовым функционалом
+- Добавлена поддержка валидации конфигурации
+
+## v0.9.0 (2024-12-01)
+- Бета-релиз с основными функциями
+- Исправлены проблемы с разбором конфигурации
+```
+
+**Common Issues:**
+
+### Issue: Missing CHANGELOG.md
+
+**Symptom:**
+```
+Error: CHANGELOG.md file is missing
+```
+
+**Cause:** The module doesn't have a `CHANGELOG.md` file.
+
+**Solutions:**
+
+1. **Create the changelog file:**
+
+   ```bash
+   cat > modules/my-module/CHANGELOG.md << 'EOF'
+   # Changelog
+
+   ## v1.0.0
+   - Initial release
+   - Add basic functionality
+   EOF
+   ```
+
+2. **Use a changelog template:**
+
+   ```bash
+   # Copy from another module
+   cp modules/reference-module/CHANGELOG.md modules/my-module/CHANGELOG.md
+   # Then customize the content
+   ```
+
+### Issue: Empty CHANGELOG.md file
+
+**Symptom:**
+```
+Error: CHANGELOG.md file is empty
+```
+
+**Cause:** The `CHANGELOG.md` file exists but contains no content (0 bytes).
+
+**Solutions:**
+
+1. **Add content to the file:**
+
+   ```bash
+   cat >> modules/my-module/CHANGELOG.md << 'EOF'
+   ## v1.0.0
+   - Initial release with core functionality
+   - Added configuration validation
+   EOF
+   ```
+
+2. **Use a minimal template:**
+
+   ```markdown
+   # Changelog
+
+   ## v1.0.0
+   - Initial release
+   - [Add release notes here]
+   ```
+
+### Issue: Missing CHANGELOG_RU.md
+
+**Symptom:**
+```
+Error: CHANGELOG_RU.md file is missing
+```
+
+**Cause:** The module doesn't have a `CHANGELOG_RU.md` file.
+
+**Solutions:**
+
+1. **Create the Russian changelog file:**
+
+   ```bash
+   cat > modules/my-module/CHANGELOG_RU.md << 'EOF'
+   # Журнал изменений
+
+   ## v1.0.0
+   - Начальный релиз
+   - Добавлена базовая функциональность
+   EOF
+   ```
+
+2. **Translate from English version:**
+
+   ```bash
+   # Start with copying the English version
+   cp modules/my-module/CHANGELOG.md \
+      modules/my-module/CHANGELOG_RU.md
+   # Then translate the content to Russian
+   ```
+
+### Issue: Empty CHANGELOG_RU.md file
+
+**Symptom:**
+```
+Error: CHANGELOG_RU.md file is empty
+```
+
+**Cause:** The `CHANGELOG_RU.md` file exists but contains no content (0 bytes).
+
+**Solutions:**
+
+1. **Add Russian content:**
+
+   ```bash
+   cat >> modules/my-module/CHANGELOG_RU.md << 'EOF'
+   ## v1.0.0
+   - Начальный релиз с основной функциональностью
+   - Добавлена валидация конфигурации
+   EOF
+   ```
+
+2. **Translate existing English content:**
+
+   If you have content in `CHANGELOG.md`, translate it to Russian and add to `CHANGELOG_RU.md`.
 
