@@ -163,3 +163,18 @@ func (f files) Lines(filePath string) []string {
 	}
 	return strings.Split(s, "\n")
 }
+
+// Exists returns true if the named file exists in the Files object.
+//
+// This is designed to be called from a template.
+//
+//	{{ if .Files.Exists "foo" }}
+//	{{ .Files.Get "foo" }}
+//	{{ end }}
+func (f files) Exists(filePath string) bool {
+	if f == nil {
+		return false
+	}
+	_, exists := f[filePath]
+	return exists
+}
