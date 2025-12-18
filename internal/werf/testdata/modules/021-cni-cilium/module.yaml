@@ -1,0 +1,3 @@
+name: 021-cni-cilium
+namespace: d8-system
+weight: 210

@@ -18,6 +18,7 @@ package werf
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -46,6 +47,46 @@ func TestGetWerfConfig(t *testing.T) {
 			_, err := GetWerfConfig(tt.dir)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetWerfConfig() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestGetWerfConfigWithFilesExists(t *testing.T) {
+	tests := []struct {
+		name               string
+		dir                string
+		expectedContains   []string
+		unexpectedContains []string
+		wantErr            bool
+	}{
+		{
+			name:               "Test werf.yaml with Files.Exists",
+			dir:                "testdata",
+			expectedContains:   []string{"module-cni-cilium: exists", "nonexistent: missing"},
+			unexpectedContains: []string{"module-cni-cilium: missing", "nonexistent: exists"},
+			wantErr:            false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config, err := GetWerfConfig(tt.dir)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetWerfConfig() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr {
+				for _, expected := range tt.expectedContains {
+					if !strings.Contains(config, expected) {
+						t.Errorf("GetWerfConfig() config = %v, expected to contain %v", config, expected)
+					}
+				}
+				for _, unexpected := range tt.unexpectedContains {
+					if strings.Contains(config, unexpected) {
+						t.Errorf("GetWerfConfig() config = %v, should not contain %v", config, unexpected)
+					}
+				}
 			}
 		})
 	}

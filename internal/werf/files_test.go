@@ -170,3 +170,28 @@ func TestGlobWithWerfIncYaml(t *testing.T) {
 	require.Len(t, result, 1)
 	require.Equal(t, "root module yaml", result["werf.yaml"])
 }
+
+func TestExists(t *testing.T) {
+	rootDir, moduleDir, cleanup := setupTestEnvironment(t)
+	defer cleanup()
+
+	f := NewFiles(rootDir, moduleDir)
+
+	// Test existing files
+	require.True(t, f.Exists("test.txt"), "existing file test.txt should return true")
+	require.True(t, f.Exists("dir1/file1.txt"), "existing file dir1/file1.txt should return true")
+	require.True(t, f.Exists("werf.yaml"), "existing file werf.yaml should return true")
+
+	// Test non-existing files
+	require.False(t, f.Exists("non-existent.txt"), "non-existent file should return false")
+	require.False(t, f.Exists("dir1/non-existent.txt"), "non-existent file in existing dir should return false")
+	require.False(t, f.Exists("non-existent-dir/file.txt"), "file in non-existent dir should return false")
+
+	// Test special case for base_images.yml
+	require.False(t, f.Exists("base_images.yml"), "base_images.yml should return false when file doesn't exist")
+	require.False(t, f.Exists("base_images.yaml"), "base_images.yaml should return false when file doesn't exist")
+
+	// Test directories (should return false)
+	require.False(t, f.Exists("dir1"), "directory should return false")
+	require.False(t, f.Exists("dir3"), "directory should return false")
+}

@@ -99,3 +99,15 @@ func (f files) Glob(pattern string) map[string]any {
 		return res
 	}
 }
+
+// Exists returns true if the named file exists in the Files object.
+//
+// This is designed to be called from a template.
+//
+//	{{ if .Files.Exists "foo" }}
+//	{{ .Files.Get "foo" }}
+//	{{ end }}
+func (f files) Exists(relPath string) bool {
+	fullPath := filepath.Join(f.rootDir, relPath)
+	return fsutils.IsFile(fullPath)
+}
