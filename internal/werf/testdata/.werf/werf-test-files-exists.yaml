@@ -1,0 +1,33 @@
+# Test werf config with Files.Exists usage
+{{- $Root := . }}
+{{- if $Root.Files.Exists "modules/021-cni-cilium/module.yaml" }}
+# Module exists, include it
+module-cni-cilium: exists
+{{- else }}
+# Module doesn't exist
+module-cni-cilium: missing
+{{- end }}
+
+{{- if $Root.Files.Exists "nonexistent-module/module.yaml" }}
+# Non-existent module
+nonexistent: exists
+{{- else }}
+# Non-existent module
+nonexistent: missing
+{{- end }}
+
+{{- if .Files.Exists "nonexistent-module/module.yaml" }}
+# Non-existent module
+nonexistent: exists
+{{- else }}
+# Non-existent module
+nonexistent: missing
+{{- end }}
+
+{{- if .Files.Exists "nonexistent-module/module.yaml" }}
+# Non-existent module
+nonexistent: exists
+{{- else }}
+# Non-existent module
+nonexistent: missing
+{{- end }}
