@@ -7,7 +7,6 @@ module-cni-cilium: exists
 # Module doesn't exist
 module-cni-cilium: missing
 {{- end }}
-
 {{- if $Root.Files.Exists "nonexistent-module/module.yaml" }}
 # Non-existent module
 nonexistent: exists
@@ -15,7 +14,6 @@ nonexistent: exists
 # Non-existent module
 nonexistent: missing
 {{- end }}
-
 {{- if .Files.Exists "nonexistent-module/module.yaml" }}
 # Non-existent module
 nonexistent: exists
@@ -23,7 +21,6 @@ nonexistent: exists
 # Non-existent module
 nonexistent: missing
 {{- end }}
-
 {{- if .Files.Exists "nonexistent-module/module.yaml" }}
 # Non-existent module
 nonexistent: exists
