@@ -18,6 +18,7 @@ package rules
 
 import (
 	errs "errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -46,22 +47,24 @@ func (r *ChangelogRule) CheckChangelog(modulePath string, errorList *errors.Lint
 	errorList = errorList.WithRule(r.GetName())
 
 	changelogPath := filepath.Join(modulePath, changelogFilename)
-	exists, empty := checkFile(changelogPath)
-
-	if !exists {
-		errorList.WithFilePath(changelogFilename).Error("changelog.yaml file is missing")
-	} else if empty {
-		errorList.WithFilePath(changelogFilename).Error("changelog.yaml file is empty")
+	err := checkFile(changelogPath)
+	if err != nil {
+		errorList.WithFilePath(changelogFilename).Error(err.Error())
 	}
+
 }
 
-func checkFile(filePath string) (bool, bool) {
+func checkFile(filePath string) error {
 	stat, err := os.Stat(filePath)
 	if errs.Is(err, os.ErrNotExist) {
-		return false, true
+		return fmt.Errorf("changelog.yaml file does not exist: %w", err)
 	}
 	if err != nil {
-		return false, true
+		return fmt.Errorf("failed to stat changelog.yaml file: %w", err)
 	}
-	return true, stat.Size() == 0
+	if stat.Size() == 0 {
+		return fmt.Errorf("changelog.yaml file is empty")
+	}
+
+	return nil
 }
