@@ -51,7 +51,6 @@ func (r *ChangelogRule) CheckChangelog(modulePath string, errorList *errors.Lint
 	if err != nil {
 		errorList.WithFilePath(changelogFilename).Error(err.Error())
 	}
-
 }
 
 func checkFile(filePath string) error {
