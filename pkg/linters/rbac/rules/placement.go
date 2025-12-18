@@ -132,7 +132,6 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 			strings.TrimPrefix(strings.TrimSuffix(shortPath, "/rbac-for-us.yaml"), "templates/"),
 			string(os.PathSeparator),
 		)
-
 		serviceAccountName := strings.Join(parts, serviceAccountNameDelimiter)
 		expectedServiceAccountName := m.GetName() + serviceAccountNameDelimiter + serviceAccountName
 
@@ -143,17 +142,20 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 			return
 		}
 
-		switch objectName {
-		case serviceAccountName:
-			if m.GetNamespace() != namespace {
-				errorList.Errorf("ServiceAccount should be deployed to %q", m.GetNamespace())
+		if isDeckhouseSystemNamespace(namespace) {
+			if objectName != expectedServiceAccountName {
+				errorList.Errorf("Name of ServiceAccount in %q in namespace %q should be equal to %q. If the name is correct, change the namespace to local", shortPath, namespace, expectedServiceAccountName)
+				return
 			}
-			return
-		case expectedServiceAccountName:
-			if !isDeckhouseSystemNamespace(namespace) {
-				errorList.Error("ServiceAccount should be deployed to \"d8-system\" or \"d8-monitoring\"")
+		} else {
+			if objectName != serviceAccountName {
+				errorList.Errorf("Name of ServiceAccount in %q should be equal to %q. If the name is correct, change the namespace to system", shortPath, serviceAccountName)
+				return
 			}
-			return
+			if namespace != m.GetNamespace() {
+				errorList.Errorf("ServiceAccount in %q should be deployed in namespace %q or change namespace to system", shortPath, m.GetNamespace())
+				return
+			}
 		}
 
 		if strings.HasPrefix(objectName, "istiod") && namespace == "d8-istio" {
