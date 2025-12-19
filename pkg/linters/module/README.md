@@ -555,22 +555,24 @@ Validates changelog.yaml file presence and content in modules.
 ```yaml
 # changelog.yaml - Valid changelog
 ---
-versions:
-  - version: "v1.0.0"
-    date: "2024-12-15"
-    changes:
-      - type: "feature"
-        description: "Initial release with basic functionality"
-      - type: "feature"
-        description: "Added support for configuration validation"
+features:
+  Web Application:
+    Cluster:
+      - The Dekhouse editorial office was added to the launch review.
+      - 'Deckhouse: Added support for the configuration of the VMware Cloud Director (VCD) provider'
+      - 'Deckhouse: Added support for the configuration of the Yandex Cloud provider'
+      - 'Deckhouse: Updated the deckhouse update section'
+      - 'Deckhouse: Updated the global settings view, added the "Default StorageClass" field (`defaultClusterStorageClass`)'
+      - 'Deckhouse: Upgraded the modules section! Added update policies (MUP), Module sources (MS) and Overrides (MPO)'
+fixes:
+  Web Application:
+    Cluster:
+      - Updated links in authentication providers for OIDC and LDAP (now they are not broken, they lead to the Dex website)
+      - In user sessions, filtering no longer resets the selection of checkboxes
+chore:
+  Web Application:
+    - Updated the Content-Security-Policy header
 
-  - version: "v0.9.0"
-    date: "2024-12-01"
-    changes:
-      - type: "feature"
-        description: "Beta release with core features"
-      - type: "fix"
-        description: "Fixed configuration parsing issues"
 ```
 
 **Error Examples:**
