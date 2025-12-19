@@ -556,22 +556,23 @@ Validates changelog.yaml file presence and content in modules.
 # changelog.yaml - Valid changelog
 ---
 features:
-  Web Application:
-    Cluster:
-      - The Dekhouse editorial office was added to the launch review.
-      - 'Deckhouse: Added support for the configuration of the VMware Cloud Director (VCD) provider'
-      - 'Deckhouse: Added support for the configuration of the Yandex Cloud provider'
-      - 'Deckhouse: Updated the deckhouse update section'
-      - 'Deckhouse: Updated the global settings view, added the "Default StorageClass" field (`defaultClusterStorageClass`)'
-      - 'Deckhouse: Upgraded the modules section! Added update policies (MUP), Module sources (MS) and Overrides (MPO)'
+  Linting:
+    Module:
+      - Added new changelog validation rule to ensure proper changelog format
+      - Enhanced module YAML file checking with additional validation rules
+      - Improved license checking functionality with better error reporting
+      - Added support for restricting UpdateMode to Auto in module configurations
 fixes:
-  Web Application:
-    Cluster:
-      - Updated links in authentication providers for OIDC and LDAP (now they are not broken, they lead to the Dex website)
-      - In user sessions, filtering no longer resets the selection of checkboxes
+  Linting:
+    Module:
+      - Fixed install output formatting issues
+      - Corrected changelog rule validation logic
+      - Resolved false positives in module YAML validation
 chore:
-  Web Application:
-    - Updated the Content-Security-Policy header
+  Dependencies:
+    - Updated helm.sh/helm/v3 dependency from 3.18.4 to 3.18.5
+  Linting:
+    - Refactored changelog validation code for better maintainability
 
 ```
 
