@@ -8,7 +8,7 @@ The Module linter performs automated checks on Deckhouse modules to validate con
 
 ## Rules
 
-The Module linter includes **7 validation rules**:
+The Module linter includes **8 validation rules**:
 
 | Rule | Description | Configurable |
 |------|-------------|--------------|
@@ -19,6 +19,7 @@ The Module linter includes **7 validation rules**:
 | [**license**](#license) | Validates license headers in source files | ✅ Yes |
 | [**requirements**](#requirements) | Validates version requirements for features | ❌ No |
 | [**legacy-release-file**](#legacy-release-file) | Checks for deprecated `release.yaml` file | ❌ No |
+| [**changelog**](#changelog) | Validates changelog file presence and content | ❌ No |
 
 ---
 
@@ -530,4 +531,53 @@ update:
       to: "1.25"
     - from: "1.17"
       to: "1.20"
+```
+
+---
+
+### Changelog
+
+Validates changelog.yaml file presence and content in modules.
+
+**Purpose:** Ensures modules have a changelog file that documents changes and version history. This maintains transparency about module evolution and helps users understand what changes are included in each version.
+
+**Checks:**
+- ✅ `changelog.yaml` file must exist in module root
+- ✅ File must not be empty (size > 0 bytes)
+
+**Validation Logic:**
+- File `changelog.yaml` is required in the module root directory
+- File must contain content (not be empty)
+- Missing or empty files generate appropriate error messages
+
+**Examples:**
+
+```yaml
+# changelog.yaml - Valid changelog
+---
+features:
+  Linting:
+    Module:
+      - Added new changelog validation rule to ensure proper changelog format
+      - Enhanced module YAML file checking with additional validation rules
+      - Improved license checking functionality with better error reporting
+      - Added support for restricting UpdateMode to Auto in module configurations
+fixes:
+  Linting:
+    Module:
+      - Fixed install output formatting issues
+      - Corrected changelog rule validation logic
+      - Resolved false positives in module YAML validation
+chore:
+  Dependencies:
+    - Updated helm.sh/helm/v3 dependency from 3.18.4 to 3.18.5
+  Linting:
+    - Refactored changelog validation code for better maintainability
+
+```
+
+**Error Examples:**
+```
+❌ changelog.yaml file is missing
+❌ changelog.yaml file is empty
 ```
