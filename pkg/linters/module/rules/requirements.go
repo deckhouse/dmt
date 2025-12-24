@@ -59,7 +59,7 @@ const (
 var (
 	readinessProbeRegex    = regexp.MustCompile(ReadinessProbePattern)
 	appRunRegex            = regexp.MustCompile(AppRunPattern)
-	versionConstraintRegex = regexp.MustCompile(`([><=]=?|!=)\s*v?(\d+\.\d+\.\d+)`)
+	versionConstraintRegex = regexp.MustCompile(`([><=]=?|!=)\s*v?(\d+(?:\.\d+){0,2})`)
 )
 
 func NewRequirementsRule() *RequirementsRule {
