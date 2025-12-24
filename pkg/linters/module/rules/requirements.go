@@ -47,7 +47,7 @@ const (
 	MinimalModuleSDKVersionForReadiness = "0.3"
 	// MinimalModuleSDKVersionRequiresDeckhouse171 defines the minimum module-sdk version that requires Deckhouse >= 1.71
 	MinimalModuleSDKVersionRequiresDeckhouse171 = "0.3.0"
-	// MinimalDeckhouseVersionForModuleSDK03 defines the minimum Deckhouse version required for Module-SDK >= 1.3
+	// MinimalDeckhouseVersionForModuleSDK03 defines the minimum Deckhouse version required for Module-SDK >= 0.3
 	MinimalDeckhouseVersionForModuleSDK03 = "1.71.0"
 
 	// Common patterns used in Go files
