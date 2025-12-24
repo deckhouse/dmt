@@ -165,8 +165,11 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 			// not a single istiod instance, but several for different versions and can't use the shared ServiceAccount for them.
 			return
 		}
+		if objectName != serviceAccountName && objectName != expectedServiceAccountName {
+			errorList.Errorf("Name of ServiceAccount should be equal to %q or %q", serviceAccountName, expectedServiceAccountName)
+			return
+		}
 
-		errorList.Errorf("Name of ServiceAccount should be equal to %q or %q", serviceAccountName, expectedServiceAccountName)
 		return
 	}
 
