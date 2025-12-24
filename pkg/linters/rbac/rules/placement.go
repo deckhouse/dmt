@@ -142,6 +142,14 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 			return
 		}
 
+		if strings.HasPrefix(objectName, "istiod") && namespace == "d8-istio" {
+			// istiod Deployment is rendered by istio-operator with serviceAccountName according to its
+			// naming conventions we can't change (i.e. istiod-v1x19).
+			// In our convention it has to be named as "iop" according to template folder, but within the folder we render
+			// not a single istiod instance, but several for different versions and can't use the shared ServiceAccount for them.
+			return
+		}
+
 		if isDeckhouseSystemNamespace(namespace) {
 			if objectName != expectedServiceAccountName {
 				errorList.Errorf("Name of ServiceAccount in %q in namespace %q should be equal to %q. If the name is correct, change the namespace to %q", shortPath, namespace, expectedServiceAccountName, m.GetNamespace())
@@ -158,15 +166,6 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 			}
 		}
 
-		if strings.HasPrefix(objectName, "istiod") && namespace == "d8-istio" {
-			// istiod Deployment is rendered by istio-operator with serviceAccountName according to its
-			// naming conventions we can't change (i.e. istiod-v1x19).
-			// In our convention it has to be named as "iop" according to template folder, but within the folder we render
-			// not a single istiod instance, but several for different versions and can't use the shared ServiceAccount for them.
-			return
-		}
-
-		errorList.Errorf("Name of ServiceAccount should be equal to %q or %q", serviceAccountName, expectedServiceAccountName)
 		return
 	}
 
