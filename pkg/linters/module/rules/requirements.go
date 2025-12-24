@@ -43,21 +43,17 @@ const (
 	// MinimalDeckhouseVersionForOptionalModules defines the minimum required Deckhouse version for optional modules usage
 	MinimalDeckhouseVersionForOptionalModules = "1.73.0"
 
-	// MinimalModuleSDKVersionForReadiness defines the minimum module-sdk version for readiness probes
-	MinimalModuleSDKVersionForReadiness = "0.3"
 	// MinimalModuleSDKVersionRequiresDeckhouse171 defines the minimum module-sdk version that requires Deckhouse >= 1.71
 	MinimalModuleSDKVersionRequiresDeckhouse171 = "0.3.0"
 	// MinimalDeckhouseVersionForModuleSDK03 defines the minimum Deckhouse version required for Module-SDK >= 0.3
 	MinimalDeckhouseVersionForModuleSDK03 = "1.71.0"
 
 	// Common patterns used in Go files
-	ReadinessProbePattern = `(\w+)\.WithReadiness`
-	AppRunPattern         = `\w+\.Run\(`
+	AppRunPattern = `\w+\.Run\(`
 )
 
 // Precompiled regex patterns for better performance
 var (
-	readinessProbeRegex    = regexp.MustCompile(ReadinessProbePattern)
 	appRunRegex            = regexp.MustCompile(AppRunPattern)
 	versionConstraintRegex = regexp.MustCompile(`([><=]=?|!=)\s*v?(\d+(?:\.\d+){0,2})`)
 )
@@ -139,22 +135,6 @@ func NewRequirementsRegistry() *RequirementsRegistry {
 		Description: "Go hooks usage requires minimum Deckhouse version",
 		Detector: func(modulePath string, _ *DeckhouseModule) bool {
 			return hasGoHooks(modulePath)
-		},
-	})
-
-	// Readiness probes check - checks for app.WithReadiness with module-sdk >= 0.3
-	registry.RegisterCheck(RequirementCheck{
-		Name: "readiness_probes",
-		Requirements: []ComponentRequirement{
-			{
-				ComponentType: ComponentDeckhouse,
-				MinVersion:    MinimalDeckhouseVersionForReadinessProbes,
-				Description:   "Readiness probes usage requires minimum Deckhouse version",
-			},
-		},
-		Description: "Readiness probes usage requires minimum Deckhouse version",
-		Detector: func(modulePath string, _ *DeckhouseModule) bool {
-			return hasReadinessProbes(modulePath)
 		},
 	})
 
@@ -346,16 +326,6 @@ func findPatternInGoFiles(dirs []string, pattern *regexp.Regexp) bool {
 		}
 	}
 	return false
-}
-
-// hasReadinessProbes determines if readiness probes (app.WithReadiness) and module-sdk >= 0.3 are used
-func hasReadinessProbes(modulePath string) bool {
-	validGoModDirs := findGoModFilesWithModuleSDK(modulePath, MinimalModuleSDKVersionForReadiness)
-	if len(validGoModDirs) == 0 {
-		return false
-	}
-
-	return findPatternInGoFiles(validGoModDirs, readinessProbeRegex)
 }
 
 // hasGoHooks determines if there are go hooks with module-sdk dependency and app.Run calls
