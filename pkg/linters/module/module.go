@@ -56,7 +56,6 @@ func (l *Module) Run(m *module.Module) {
 		CheckFiles(m, errorList.WithMaxLevel(l.cfg.Rules.LicenseRule.GetLevel()))
 	rules.NewRequirementsRule().CheckRequirements(m.GetPath(), errorList.WithMaxLevel(l.cfg.Rules.RequarementsRule.GetLevel()))
 	rules.NewLegacyReleaseFileRule().CheckLegacyReleaseFile(m.GetPath(), errorList.WithMaxLevel(l.cfg.Rules.LegacyReleaseFileRule.GetLevel()))
-	rules.NewChangelogRule().CheckChangelog(m.GetPath(), errorList.WithMaxLevel(l.cfg.Rules.ChangelogRule.GetLevel()))
 }
 
 func (l *Module) Name() string {
