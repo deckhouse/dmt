@@ -109,7 +109,6 @@ type ModuleLinterRules struct {
 	LicenseRule           RuleConfig `mapstructure:"license"`
 	RequarementsRule      RuleConfig `mapstructure:"requarements"`
 	LegacyReleaseFileRule RuleConfig `mapstructure:"legacy-release-file"`
-	ChangelogRule         RuleConfig `mapstructure:"changelog"`
 }
 
 type TemplatesLinterConfig struct {
