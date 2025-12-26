@@ -142,6 +142,19 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 			return
 		}
 
+		switch objectName {
+		case serviceAccountName:
+			if m.GetNamespace() != namespace {
+				errorList.Errorf("ServiceAccount should be deployed to %q", m.GetNamespace())
+			}
+			return
+		case expectedServiceAccountName:
+			if !isDeckhouseSystemNamespace(namespace) {
+				errorList.Error("ServiceAccount should be deployed to \"d8-system\" or \"d8-monitoring\"")
+			}
+			return
+		}
+
 		if strings.HasPrefix(objectName, "istiod") && namespace == "d8-istio" {
 			// istiod Deployment is rendered by istio-operator with serviceAccountName according to its
 			// naming conventions we can't change (i.e. istiod-v1x19).
@@ -150,22 +163,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 			return
 		}
 
-		if isDeckhouseSystemNamespace(namespace) {
-			if objectName != expectedServiceAccountName {
-				errorList.Errorf("Name of ServiceAccount in %q in namespace %q should be equal to %q. If the name is correct, change the namespace to %q", shortPath, namespace, expectedServiceAccountName, m.GetNamespace())
-				return
-			}
-		} else {
-			if objectName != serviceAccountName {
-				errorList.Errorf("Name of ServiceAccount in %q should be equal to %q. If the name is correct, change the namespace to system like \"d8-system\" or \"d8-monitoring\"", shortPath, serviceAccountName)
-				return
-			}
-			if namespace != m.GetNamespace() {
-				errorList.Errorf("ServiceAccount in %q should be deployed in namespace %q or change namespace to system like \"d8-system\" or \"d8-monitoring\"", shortPath, m.GetNamespace())
-				return
-			}
-		}
-
+		errorList.Errorf("Name of ServiceAccount should be equal to %q or %q", serviceAccountName, expectedServiceAccountName)
 		return
 	}
 
