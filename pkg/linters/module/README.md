@@ -358,8 +358,7 @@ This rule automatically detects feature usage and ensures proper version constra
 |---------|----------------------|-------------------|
 | **Stage Field** | ≥ 1.68.0 | `stage` field present in `module.yaml` |
 | **Go Hooks** | ≥ 1.68.0 | `go.mod` with `module-sdk` + `app.Run()` calls |
-| **Readiness Probes** | ≥ 1.71.0 | `module-sdk ≥ 0.3` + `app.WithReadiness()` calls |
-| **Module-SDK ≥ 1.3** | ≥ 1.71.0 | `module-sdk ≥ 1.3.0` in `go.mod` |
+| **Module-SDK ≥ 0.3** | ≥ 1.71.0 | `module-sdk ≥ 0.3.0` in `go.mod` |
 | **Optional Modules** | ≥ 1.73.0 | `!optional` flag in module requirements |
 
 **Validation:**

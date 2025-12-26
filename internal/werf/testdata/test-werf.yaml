@@ -1,0 +1,2 @@
+{{- $content := .Files.Get ".werf/test-werf-modules.yaml" }}
+{{- tpl $content . }}

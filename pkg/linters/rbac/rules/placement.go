@@ -132,26 +132,12 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 			strings.TrimPrefix(strings.TrimSuffix(shortPath, "/rbac-for-us.yaml"), "templates/"),
 			string(os.PathSeparator),
 		)
-
 		serviceAccountName := strings.Join(parts, serviceAccountNameDelimiter)
 		expectedServiceAccountName := m.GetName() + serviceAccountNameDelimiter + serviceAccountName
 
 		if isSystemNamespace(namespace) {
 			if objectName != "d8-"+expectedServiceAccountName {
 				errorList.Errorf("Name of ServiceAccount in %q in namespace %q should be equal to d8-%s", shortPath, namespace, expectedServiceAccountName)
-			}
-			return
-		}
-
-		switch objectName {
-		case serviceAccountName:
-			if m.GetNamespace() != namespace {
-				errorList.Errorf("ServiceAccount should be deployed to %q", m.GetNamespace())
-			}
-			return
-		case expectedServiceAccountName:
-			if !isDeckhouseSystemNamespace(namespace) {
-				errorList.Error("ServiceAccount should be deployed to \"d8-system\" or \"d8-monitoring\"")
 			}
 			return
 		}
@@ -164,7 +150,22 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 			return
 		}
 
-		errorList.Errorf("Name of ServiceAccount should be equal to %q or %q", serviceAccountName, expectedServiceAccountName)
+		if isDeckhouseSystemNamespace(namespace) {
+			if objectName != expectedServiceAccountName {
+				errorList.Errorf("Name of ServiceAccount in %q in namespace %q should be equal to %q. If the name is correct, change the namespace to %q", shortPath, namespace, expectedServiceAccountName, m.GetNamespace())
+				return
+			}
+		} else {
+			if objectName != serviceAccountName {
+				errorList.Errorf("Name of ServiceAccount in %q should be equal to %q. If the name is correct, change the namespace to system like \"d8-system\" or \"d8-monitoring\"", shortPath, serviceAccountName)
+				return
+			}
+			if namespace != m.GetNamespace() {
+				errorList.Errorf("ServiceAccount in %q should be deployed in namespace %q or change namespace to system like \"d8-system\" or \"d8-monitoring\"", shortPath, m.GetNamespace())
+				return
+			}
+		}
+
 		return
 	}
 

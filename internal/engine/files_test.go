@@ -89,3 +89,32 @@ bytes_len: {{ len $bytes }}`)},
 	assert.Contains(t, out["test-files/templates/assecrets.yaml"], "file1.txt: "+expected1)
 	assert.Contains(t, out["test-files/templates/assecrets.yaml"], "file2.txt: "+expected2)
 }
+
+// TestFilesExists tests the Exists method on Files
+func TestFilesExists(t *testing.T) {
+	c := &chart.Chart{
+		Metadata: &chart.Metadata{
+			Name:    "test-files",
+			Version: "1.0.0",
+		},
+		Files: []*chart.File{
+			{Name: "file1.txt", Data: []byte("contents of file1")},
+			{Name: "file2.txt", Data: []byte("contents of file2")},
+		},
+		Templates: []*chart.File{
+			{Name: "templates/exists.yaml", Data: []byte(`exists: {{ .Files.Exists "file1.txt" }}
+not_exists: {{ .Files.Exists "nonexistent.txt" }}`)},
+		},
+	}
+
+	vals := map[string]any{}
+	v, err := chartutil.CoalesceValues(c, vals)
+	require.NoError(t, err)
+
+	e := New()
+	out, err := e.Render(c, v)
+	require.NoError(t, err)
+
+	assert.Contains(t, out["test-files/templates/exists.yaml"], "exists: true")
+	assert.Contains(t, out["test-files/templates/exists.yaml"], "not_exists: false")
+}
