@@ -142,12 +142,6 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 			return
 		}
 
-		// проверяем ServiceAccount
-		// если ServiceAccount имеет имя равное имени папок от папки templates до файла rbac-for-us.yaml,
-		// то он должен быть в namespace модуля
-		// если ServiceAccount имеет имя равное имени модуля + "-" + имени папок от папки templates до файла rbac-for-us.yaml,
-		// то он должен быть в системном namespace Deckhouse
-
 		switch objectName {
 		case serviceAccountName:
 			if m.GetNamespace() != namespace {
@@ -156,17 +150,17 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 					return
 				}
 
-				errorList.Errorf("Service account namespace should be equal to %q namespace.", m.GetNamespace())
+				errorList.Errorf("Service account namespace should be equal to %q namespace", m.GetNamespace())
 			}
 			return
 		case expectedServiceAccountName:
 			if !isDeckhouseSystemNamespace(namespace) {
-				if m.GetNamespace() != namespace {
-					errorList.Errorf("Name of ServiceAccount in %q in namespace %q should be equal to system like \"d8-system\" or \"d8-monitoring\". If this namespaces is incorrect, change name to %q and change the namespace to %q", shortPath, serviceAccountName, expectedServiceAccountName, m.GetNamespace())
+				if m.GetNamespace() == namespace {
+					errorList.Errorf("Service account namespace should be equal to namespaces like \"d8-system\" or \"d8-monitoring\". If this namespaces is incorrect, change name to %q", expectedServiceAccountName)
 					return
 				}
 
-				errorList.Errorf("Name of ServiceAccount in %q in namespace %q should be equal to system like \"d8-system\" or \"d8-monitoring\". If the name is correct, change the name to %q", shortPath, namespace, serviceAccountName)
+				errorList.Errorf("Service account namespace should be equal to namespaces like \"d8-system\" or \"d8-monitoring\"")
 			}
 			return
 		}
