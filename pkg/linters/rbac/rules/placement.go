@@ -156,7 +156,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 		case expectedServiceAccountName:
 			if !isDeckhouseSystemNamespace(namespace) {
 				if m.GetNamespace() == namespace {
-					errorList.Errorf("Service account namespace should be equal to deckhouse namespaces like \"d8-system\" or \"d8-monitoring\". If this namespaces is incorrect, change name to %q", serviceAccountName)
+					errorList.Errorf("Service account namespace should be equal to deckhouse namespaces like \"d8-system\" or \"d8-monitoring\". If this namespaces is correct, change name to %q", serviceAccountName)
 					return
 				}
 
