@@ -32,6 +32,8 @@ import (
 	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/logger"
+	"github.com/deckhouse/dmt/internal/test"
+	"github.com/deckhouse/dmt/internal/test/conversions"
 	"github.com/deckhouse/dmt/internal/version"
 )
 
@@ -137,11 +139,31 @@ func execute() {
 		},
 	}
 
+	testCmd := &cobra.Command{
+		Use:   "test <module-path>",
+		Short: "run tests for Deckhouse modules",
+		Long: `Run various tests for Deckhouse modules.
+
+Currently supported test types:
+  - conversions: tests for config version conversions
+
+To run conversion tests, create openapi/conversions/conversions_test.yaml in your module.
+
+Example:
+  dmt test ./my-module
+  dmt test /path/to/module --type conversions`,
+		Args:         cobra.ExactArgs(1),
+		SilenceUsage: true,
+		RunE:         testCmdFunc,
+	}
+
 	lintCmd.Flags().AddFlagSet(flags.InitLintFlagSet())
 	bootstrapCmd.Flags().AddFlagSet(flags.InitBootstrapFlagSet())
+	testCmd.Flags().AddFlagSet(flags.InitTestFlagSet())
 
 	rootCmd.AddCommand(lintCmd)
 	rootCmd.AddCommand(bootstrapCmd)
+	rootCmd.AddCommand(testCmd)
 	rootCmd.Flags().AddFlagSet(flags.InitDefaultFlagSet())
 
 	err := rootCmd.Execute()
@@ -186,6 +208,51 @@ func runLintMultiple(dirs []string) error {
 
 	if hasErrors {
 		return fmt.Errorf("critical errors found")
+	}
+
+	return nil
+}
+
+func testCmdFunc(_ *cobra.Command, args []string) error {
+	modulePath, err := fsutils.ExpandDir(args[0])
+	if err != nil {
+		return fmt.Errorf("error expanding path %s: %w", args[0], err)
+	}
+
+	return runTests(modulePath)
+}
+
+func runTests(dir string) error {
+	logger.InfoF("Running tests for: %s", dir)
+
+	// Create test runner and register testers
+	runner := test.NewRunner()
+	runner.Register(conversions.NewTester())
+
+	// Build test options
+	opts := test.RunOptions{
+		ModulePath: dir,
+		Verbose:    flags.TestVerbose,
+	}
+
+	// Filter by test type if specified
+	if flags.TestType != "" {
+		opts.TestTypes = []test.TestType{test.TestType(flags.TestType)}
+	}
+
+	// Run tests
+	summary, err := runner.Run(opts)
+	if err != nil {
+		logger.ErrorF("Test execution failed: %v", err)
+		return err
+	}
+
+	// Print results
+	test.PrintSummary(summary)
+
+	// Return error if any tests failed
+	if summary.FailedTests > 0 {
+		return errors.New("some tests failed")
 	}
 
 	return nil
