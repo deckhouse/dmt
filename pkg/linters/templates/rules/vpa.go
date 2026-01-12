@@ -129,6 +129,16 @@ func fillVPAMaps(
 	vpaUpdateModes[target] = updateMode
 }
 
+// isValidUpdateMode checks if the updateMode is one of the allowed values
+func isValidUpdateMode(updateMode UpdateMode) bool {
+	switch updateMode {
+	case UpdateModeOff, UpdateModeInitial, UpdateModeRecreate, UpdateModeInPlaceOrReacreate:
+		return true
+	default:
+		return false
+	}
+}
+
 // parseVPAResourcePolicyContainers parses VPA containers names in ResourcePolicy and check if minAllowed and maxAllowed for container is set
 func parseVPAResourcePolicyContainers(vpaObject storage.StoreObject, errorList *errors.LintRuleErrorsList) (UpdateMode, set.Set, bool) {
 	errorListObj := errorList.WithObjectID(vpaObject.Identity()).WithFilePath(vpaObject.ShortPath())
@@ -157,6 +167,10 @@ func parseVPAResourcePolicyContainers(vpaObject storage.StoreObject, errorList *
 
 	if updateMode == UpdateModeAuto {
 		errorListObj.Errorf("VPA updateMode cannot be 'Auto'")
+	}
+
+	if !isValidUpdateMode(updateMode) {
+		errorListObj.Errorf("Invalid updateMode '%s'. Allowed values are: Off, Initial, Recreate, InPlaceOrRecreate", updateMode)
 	}
 
 	for _, cp := range v.Spec.ResourcePolicy.ContainerPolicies {

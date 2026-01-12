@@ -115,11 +115,16 @@ const (
 	// creation and additionally can update them during the lifetime of the
 	// pod by deleting and recreating the pod.
 	UpdateModeRecreate UpdateMode = "Recreate"
+	// DEPRECATED since vpa version 1.5.1. It is now recommended to use InPlaceOrRecreate instead.
 	// UpdateModeAuto means that autoscaler assigns resources on pod creation
 	// and additionally can update them during the lifetime of the pod,
 	// using any available update method. Currently this is equivalent to
 	// Recreate, which is the only available update method.
 	UpdateModeAuto UpdateMode = "Auto"
+	// UpdateModeInPlaceOrReacreate means that autoscaler assigns resources on pod creation
+	// if Kubernetes support is available, in-place resource updates are performed,
+	// and if it is not available, a fallback to eviction is performed.
+	UpdateModeInPlaceOrReacreate UpdateMode = "InPlaceOrRecreate"
 )
 
 // PodResourcePolicy controls how autoscaler computes the recommended resources
