@@ -132,7 +132,7 @@ func fillVPAMaps(
 // isValidUpdateMode checks if the updateMode is one of the allowed values
 func isValidUpdateMode(updateMode UpdateMode) bool {
 	switch updateMode {
-	case UpdateModeOff, UpdateModeInitial, UpdateModeRecreate, UpdateModeInPlaceOrReacreate:
+	case UpdateModeOff, UpdateModeInitial, UpdateModeRecreate, UpdateModeInPlaceOrReacreate, UpdateModeAuto:
 		return true
 	default:
 		return false
@@ -166,7 +166,7 @@ func parseVPAResourcePolicyContainers(vpaObject storage.StoreObject, errorList *
 	}
 
 	if updateMode == UpdateModeAuto {
-		errorListObj.Errorf("VPA updateMode cannot be 'Auto'")
+		errorListObj.Errorf("VPA updateMode cannot be 'Auto' as it is deprecated. Please use 'InPlaceOrRecreate' instead")
 	}
 
 	if !isValidUpdateMode(updateMode) {

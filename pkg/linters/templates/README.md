@@ -187,7 +187,7 @@ spec:
 
 **Error:**
 ```
-Error: VPA updateMode cannot be 'Auto'
+Error: VPA updateMode cannot be 'Auto' as it is deprecated. Please use 'InPlaceOrRecreate' instead
 ```
 
 **Why updateMode: Auto is no longer supported:**
