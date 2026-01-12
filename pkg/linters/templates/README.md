@@ -187,12 +187,12 @@ spec:
 
 **Error:**
 ```
-Error: VPA updateMode cannot be 'Auto'
+Error: VPA updateMode cannot be 'Auto' as it is deprecated. Please use 'InPlaceOrRecreate' instead
 ```
 
 **Why updateMode: Auto is no longer supported:**
 
-The `updateMode: Auto` is no longer supported (considered deprecated) because in the upstream `Vertical Pod Autoscaler`, this mode has been deprecated since `VPA 1.4.0` and is now an alias for `Recreate` - that is, it always works through eviction/recreation of Pods and does not provide the advantages of in-place resizing. 
+The `updateMode: Auto` is no longer supported (considered deprecated) because in the upstream `Vertical Pod Autoscaler`, this mode has been deprecated since `VPA 1.5.1` and is now an alias for `Recreate` - that is, it always works through eviction/recreation of Pods and does not provide the advantages of in-place resizing. 
 In `Deckhouse`, this has been fixed with a change: all `Deckhouse-managed VPAs` have been switched from `Auto` to `InPlaceOrRecreate` so that, if Kubernetes support is available, in-place resource updates are performed, and if it is not available, a fallback to eviction is performed. 
 
 **Which mode to use instead of Auto**
