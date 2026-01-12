@@ -145,10 +145,6 @@ func parseVPAResourcePolicyContainers(vpaObject storage.StoreObject, errorList *
 	}
 
 	updateMode := *v.Spec.UpdatePolicy.UpdateMode
-	if updateMode == UpdateModeAuto {
-		errorListObj.Errorf("VPA updateMode cannot be 'Auto'")
-		return updateMode, containers, false
-	}
 	if updateMode == UpdateModeOff {
 		return updateMode, containers, true
 	}
@@ -157,6 +153,10 @@ func parseVPAResourcePolicyContainers(vpaObject storage.StoreObject, errorList *
 		errorListObj.Error("No VPA specs resourcePolicy.containerPolicies is found for object")
 
 		return updateMode, containers, false
+	}
+
+	if updateMode == UpdateModeAuto {
+		errorListObj.Errorf("VPA updateMode cannot be 'Auto'")
 	}
 
 	for _, cp := range v.Spec.ResourcePolicy.ContainerPolicies {
