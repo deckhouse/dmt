@@ -35,6 +35,8 @@ func Test_assertProject(t *testing.T) {
 			name:    "all filled leads to no errors",
 			wantErr: false,
 			project: ossProject{
+				Id:          "1",
+				Version:     "1.0.0",
 				Name:        "Dex",
 				Description: "A Federated OpenID Connect Provider with pluggable connectors",
 				Link:        "https://github.com/dexidp/dex",
@@ -46,6 +48,8 @@ func Test_assertProject(t *testing.T) {
 			name:    "empty description leads to error",
 			wantErr: true,
 			project: ossProject{
+				Id:      "1",
+				Version: "1.0.0",
 				Name:    "Dex",
 				Link:    "https://github.com/dexidp/dex",
 				Logo:    "https://dexidp.io/img/logos/dex-horizontal-color.png",
@@ -56,6 +60,8 @@ func Test_assertProject(t *testing.T) {
 			name:    "empty link leads to error",
 			wantErr: true,
 			project: ossProject{
+				Id:          "1",
+				Version:     "1.0.0",
 				Name:        "Dex",
 				Description: "A Federated OpenID Connect Provider with pluggable connectors",
 				Logo:        "https://dexidp.io/img/logos/dex-horizontal-color.png",
@@ -66,6 +72,8 @@ func Test_assertProject(t *testing.T) {
 			name:    "empty logo is optional, does not lead to error",
 			wantErr: false,
 			project: ossProject{
+				Id:          "1",
+				Version:     "1.0.0",
 				Name:        "Dex",
 				Description: "A Federated OpenID Connect Provider with pluggable connectors",
 				Link:        "https://github.com/dexidp/dex",
@@ -76,6 +84,8 @@ func Test_assertProject(t *testing.T) {
 			name:    "empty license leads to error",
 			wantErr: true,
 			project: ossProject{
+				Id:          "1",
+				Version:     "1.0.0",
 				Name:        "Dex",
 				Description: "A Federated OpenID Connect Provider with pluggable connectors",
 				Link:        "https://github.com/dexidp/dex",
@@ -86,6 +96,8 @@ func Test_assertProject(t *testing.T) {
 			name:    "malformed link leads to error",
 			wantErr: true,
 			project: ossProject{
+				Id:          "1",
+				Version:     "1.0.0",
 				Name:        "Dex",
 				Description: "A Federated OpenID Connect Provider with pluggable connectors",
 				Link:        "zazaz",
@@ -97,6 +109,8 @@ func Test_assertProject(t *testing.T) {
 			name:    "malformed logo link leads to error",
 			wantErr: true,
 			project: ossProject{
+				Id:          "1",
+				Version:     "1.0.0",
 				Name:        "Dex",
 				Description: "A Federated OpenID Connect Provider with pluggable connectors",
 				Link:        "https://github.com/dexidp/dex",
@@ -104,8 +118,31 @@ func Test_assertProject(t *testing.T) {
 				License:     "Apache License 2.0",
 			},
 		},
+		{
+			name:    "empty id leads to error",
+			wantErr: true,
+			project: ossProject{
+				Version:     "1.0.0",
+				Name:        "Dex",
+				Description: "A Federated OpenID Connect Provider with pluggable connectors",
+				Link:        "https://github.com/dexidp/dex",
+				Logo:        "https://dexidp.io/img/logos/dex-horizontal-color.png",
+				License:     "Apache License 2.0",
+			},
+		},
+		{
+			name:    "empty version leads to error",
+			wantErr: true,
+			project: ossProject{
+				Id:          "1",
+				Name:        "Dex",
+				Description: "A Federated OpenID Connect Provider with pluggable connectors",
+				Link:        "https://github.com/dexidp/dex",
+				Logo:        "https://dexidp.io/img/logos/dex-horizontal-color.png",
+				License:     "Apache License 2.0",
+			},
+		},
 	}
-
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			err := assertOssProject(0, &test.project)
@@ -137,7 +174,9 @@ func Test_projectList(t *testing.T) {
 			name:      "one",
 			wantCount: 1,
 			yaml: `
-- name: a
+- id: "1"
+  version: "1.0.0"
+  name: a
   description: a
   link: https://example.com
   license: Opachke 2.0
@@ -147,25 +186,27 @@ func Test_projectList(t *testing.T) {
 			name:      "two",
 			wantCount: 2,
 			yaml: `
-- name: a
+- id: "1"
+  version: "1.0.0"
+  name: a
   description: a
   link: https://example.com
   license: Opachke 2.0
-- name: b
+- id: "2"
+  version: "1.0.1"
+  name: b
   description: b
   link: https://example.com
   license: Opachke 2.0
 `,
 		},
 	}
-
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			projects, err := parseProjectList([]byte(test.yaml))
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
-
 			if len(projects) != test.wantCount {
 				t.Errorf("unexpected project count: got=%d, want=%d", len(projects), test.wantCount)
 			}

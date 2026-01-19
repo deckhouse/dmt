@@ -101,6 +101,17 @@ func assertOssProject(i int, p *ossProject) error {
 	// prefix to make it easier navigate among errors
 	prefix := fmt.Sprintf("#%d", i)
 
+	// Id
+
+	if strings.TrimSpace(p.Id) == "" {
+		complaints = append(complaints, "id must not be empty")
+	}
+
+	// Version
+
+	if strings.TrimSpace(p.Version) == "" {
+		complaints = append(complaints, "version must not be empty")
+	}
 	// Name
 
 	if strings.TrimSpace(p.Name) == "" {
@@ -168,4 +179,6 @@ type ossProject struct {
 	Link        string `json:"link"`           // example: https://github.com/dexidp/dex
 	Logo        string `json:"logo,omitempty"` // example: https://dexidp.io/img/logos/dex-horizontal-color.png
 	License     string `json:"license"`        // example: Apache License 2.0
+	Id          string `json:"id"`             // example: dexidp/dex
+	Version     string `json:"version"`        // example: 2.0.0
 }
