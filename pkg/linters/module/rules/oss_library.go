@@ -108,11 +108,7 @@ func assertOssProject(i int, p *ossProject) error {
 	}
 
 	// Version
-	versionNotification := `
-	version must not be empty. 
-	Please fill in the parameter and configure CI (werf files for module images) to use these setting.
-	See ADR "platform-security/2026-01-21-oss-yaml-werf.md"
-	`
+	versionNotification := "version must not be empty. Please fill in the parameter and configure CI (werf files for module images) to use these setting. See ADR \"platform-security/2026-01-21-oss-yaml-werf.md\""
 
 	if strings.TrimSpace(p.Version) == "" {
 		complaints = append(complaints, versionNotification)
