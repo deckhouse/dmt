@@ -47,7 +47,7 @@ type ContainerLinterConfig struct {
 type ContainerRules struct {
 	RecommendedLabelsRule         RuleConfig `mapstructure:"recommended-labels"`
 	NamespaceLabelsRule           RuleConfig `mapstructure:"namespace-labels"`
-	ApiVersionRule                RuleConfig `mapstructure:"api-version"`
+	APIVersionRule                RuleConfig `mapstructure:"api-version"`
 	PriorityClassRule             RuleConfig `mapstructure:"priority-class"`
 	DNSPolicyRule                 RuleConfig `mapstructure:"dns-policy"`
 	ControllerSecurityContextRule RuleConfig `mapstructure:"controller-security-context"`

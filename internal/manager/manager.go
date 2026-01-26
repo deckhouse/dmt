@@ -28,7 +28,6 @@ import (
 	"text/tabwriter"
 
 	"github.com/fatih/color"
-
 	"github.com/kyokomi/emoji"
 	"github.com/mitchellh/go-wordwrap"
 	"helm.sh/helm/v3/pkg/chartutil"

@@ -201,8 +201,8 @@ func mapContainerRules(linterSettings *pkg.LintersSettings, configSettings *conf
 		globalConfig.Container.Rules.NamespaceLabelsRule.Impact,
 		configSettings.Container.Impact,
 	)
-	linterSettings.Container.Rules.ApiVersionRule.SetLevel(
-		globalConfig.Container.Rules.ApiVersionRule.Impact,
+	linterSettings.Container.Rules.APIVersionRule.SetLevel(
+		globalConfig.Container.Rules.APIVersionRule.Impact,
 		configSettings.Container.Impact,
 	)
 	linterSettings.Container.Rules.PriorityClassRule.SetLevel(

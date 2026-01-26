@@ -23,10 +23,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Masterminds/semver/v3"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
-
-	"github.com/Masterminds/semver/v3"
 
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"

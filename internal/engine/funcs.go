@@ -19,10 +19,9 @@ package engine
 import (
 	"bytes"
 	"encoding/json"
+	"maps"
 	"strings"
 	"text/template"
-
-	"maps"
 
 	"github.com/BurntSushi/toml"
 	"github.com/Masterminds/sprig/v3"

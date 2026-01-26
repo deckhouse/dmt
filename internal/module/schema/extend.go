@@ -2,7 +2,6 @@ package schema
 
 import (
 	"encoding/json"
-
 	"maps"
 
 	"github.com/go-openapi/spec"

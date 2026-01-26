@@ -19,10 +19,10 @@ package helm
 import (
 	"fmt"
 
-	"github.com/deckhouse/dmt/internal/engine"
-
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
+
+	"github.com/deckhouse/dmt/internal/engine"
 )
 
 type Renderer struct {

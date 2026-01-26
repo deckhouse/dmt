@@ -17,6 +17,7 @@ limitations under the License.
 package engine
 
 import (
+	"errors"
 	"fmt"
 	"path"
 	"path/filepath"
@@ -24,8 +25,6 @@ import (
 	"sort"
 	"strings"
 	"text/template"
-
-	"errors"
 
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
