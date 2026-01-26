@@ -17,193 +17,382 @@ limitations under the License.
 package rules
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/deckhouse/dmt/pkg"
+	"github.com/deckhouse/dmt/pkg/errors"
 )
 
-func Test_assertProject(t *testing.T) {
+func TestOSSRule_OssModuleRule(t *testing.T) {
 	tests := []struct {
-		name    string
-		project ossProject
-		wantErr bool
+		name       string
+		disable    bool
+		setupFiles map[string]string
+		wantErrors []string
+		wantWarns  []string
 	}{
 		{
-			name:    "all empty leads to errors",
-			wantErr: true,
-			project: ossProject{},
+			name:       "rule disabled, no oss.yaml",
+			disable:    true,
+			setupFiles: map[string]string{},
+			wantErrors: nil,
+			wantWarns:  nil,
 		},
 		{
-			name:    "all filled leads to no errors",
-			wantErr: false,
-			project: ossProject{
-				Id:          "1",
-				Version:     "1.0.0",
-				Name:        "Dex",
-				Description: "A Federated OpenID Connect Provider with pluggable connectors",
-				Link:        "https://github.com/dexidp/dex",
-				Logo:        "https://dexidp.io/img/logos/dex-horizontal-color.png",
-				License:     "Apache License 2.0",
+			name:    "rule disabled, invalid oss.yaml",
+			disable: true,
+			setupFiles: map[string]string{
+				"oss.yaml": "invalid yaml: [",
 			},
+			wantErrors: nil,
+			wantWarns:  nil,
 		},
 		{
-			name:    "empty description leads to error",
-			wantErr: true,
-			project: ossProject{
-				Id:      "1",
-				Version: "1.0.0",
-				Name:    "Dex",
-				Link:    "https://github.com/dexidp/dex",
-				Logo:    "https://dexidp.io/img/logos/dex-horizontal-color.png",
-				License: "Apache License 2.0",
-			},
+			name:       "oss.yaml missing",
+			setupFiles: map[string]string{},
+			wantErrors: []string{"no such file or directory"},
 		},
 		{
-			name:    "empty link leads to error",
-			wantErr: true,
-			project: ossProject{
-				Id:          "1",
-				Version:     "1.0.0",
-				Name:        "Dex",
-				Description: "A Federated OpenID Connect Provider with pluggable connectors",
-				Logo:        "https://dexidp.io/img/logos/dex-horizontal-color.png",
-				License:     "Apache License 2.0",
+			name: "oss.yaml invalid yaml",
+			setupFiles: map[string]string{
+				"oss.yaml": "invalid: yaml: content",
 			},
+			wantErrors: []string{"error converting YAML to JSON"},
 		},
 		{
-			name:    "empty logo is optional, does not lead to error",
-			wantErr: false,
-			project: ossProject{
-				Id:          "1",
-				Version:     "1.0.0",
-				Name:        "Dex",
-				Description: "A Federated OpenID Connect Provider with pluggable connectors",
-				Link:        "https://github.com/dexidp/dex",
-				License:     "Apache License 2.0",
+			name: "oss.yaml empty projects",
+			setupFiles: map[string]string{
+				"oss.yaml": "[]",
 			},
+			wantErrors: []string{"no projects described"},
 		},
 		{
-			name:    "empty license leads to error",
-			wantErr: true,
-			project: ossProject{
-				Id:          "1",
-				Version:     "1.0.0",
-				Name:        "Dex",
-				Description: "A Federated OpenID Connect Provider with pluggable connectors",
-				Link:        "https://github.com/dexidp/dex",
-				Logo:        "https://dexidp.io/img/logos/dex-horizontal-color.png",
+			name: "valid single project",
+			setupFiles: map[string]string{
+				"oss.yaml": `
+- id: "dexidp/dex"
+  version: "2.0.0"
+  name: "Dex"
+  description: "A Federated OpenID Connect Provider with pluggable connectors"
+  link: "https://github.com/dexidp/dex"
+  license: "Apache License 2.0"
+`,
 			},
+			wantErrors: nil,
 		},
 		{
-			name:    "malformed link leads to error",
-			wantErr: true,
-			project: ossProject{
-				Id:          "1",
-				Version:     "1.0.0",
-				Name:        "Dex",
-				Description: "A Federated OpenID Connect Provider with pluggable connectors",
-				Link:        "zazaz",
-				Logo:        "https://dexidp.io/img/logos/dex-horizontal-color.png",
-				License:     "Apache License 2.0",
+			name: "valid project with logo",
+			setupFiles: map[string]string{
+				"oss.yaml": `
+- id: "dexidp/dex"
+  version: "2.0.0"
+  name: "Dex"
+  description: "A Federated OpenID Connect Provider with pluggable connectors"
+  link: "https://github.com/dexidp/dex"
+  logo: "https://dexidp.io/img/logos/dex-horizontal-color.png"
+  license: "Apache License 2.0"
+`,
 			},
+			wantErrors: nil,
 		},
 		{
-			name:    "malformed logo link leads to error",
-			wantErr: true,
-			project: ossProject{
-				Id:          "1",
-				Version:     "1.0.0",
-				Name:        "Dex",
-				Description: "A Federated OpenID Connect Provider with pluggable connectors",
-				Link:        "https://github.com/dexidp/dex",
-				Logo:        "xoxoxo",
-				License:     "Apache License 2.0",
+			name: "project with empty id",
+			setupFiles: map[string]string{
+				"oss.yaml": `
+- id: ""
+  version: "2.0.0"
+  name: "Dex"
+  description: "A Federated OpenID Connect Provider with pluggable connectors"
+  link: "https://github.com/dexidp/dex"
+  license: "Apache License 2.0"
+`,
 			},
+			wantErrors: []string{"id must not be empty"},
 		},
 		{
-			name:    "empty id leads to error",
-			wantErr: true,
-			project: ossProject{
-				Version:     "1.0.0",
-				Name:        "Dex",
-				Description: "A Federated OpenID Connect Provider with pluggable connectors",
-				Link:        "https://github.com/dexidp/dex",
-				Logo:        "https://dexidp.io/img/logos/dex-horizontal-color.png",
-				License:     "Apache License 2.0",
+			name: "project with empty version",
+			setupFiles: map[string]string{
+				"oss.yaml": `
+- id: "dexidp/dex"
+  version: ""
+  name: "Dex"
+  description: "A Federated OpenID Connect Provider with pluggable connectors"
+  link: "https://github.com/dexidp/dex"
+  license: "Apache License 2.0"
+`,
 			},
+			wantErrors: []string{"version must not be empty. Please fill in the parameter and configure CI (werf files for module images) to use these setting. See ADR \"platform-security/2026-01-21-oss-yaml-werf.md\""},
 		},
 		{
-			name:    "empty version leads to error",
-			wantErr: true,
-			project: ossProject{
-				Id:          "1",
-				Name:        "Dex",
-				Description: "A Federated OpenID Connect Provider with pluggable connectors",
-				Link:        "https://github.com/dexidp/dex",
-				Logo:        "https://dexidp.io/img/logos/dex-horizontal-color.png",
-				License:     "Apache License 2.0",
+			name: "project with invalid semver version",
+			setupFiles: map[string]string{
+				"oss.yaml": `
+- id: "dexidp/dex"
+  version: "invalid-version"
+  name: "Dex"
+  description: "A Federated OpenID Connect Provider with pluggable connectors"
+  link: "https://github.com/dexidp/dex"
+  license: "Apache License 2.0"
+`,
 			},
+			wantWarns: []string{"version must be valid semver"},
+		},
+		{
+			name: "project with empty name",
+			setupFiles: map[string]string{
+				"oss.yaml": `
+- id: "dexidp/dex"
+  version: "2.0.0"
+  name: ""
+  description: "A Federated OpenID Connect Provider with pluggable connectors"
+  link: "https://github.com/dexidp/dex"
+  license: "Apache License 2.0"
+`,
+			},
+			wantErrors: []string{"name must not be empty"},
+		},
+		{
+			name: "project with empty description",
+			setupFiles: map[string]string{
+				"oss.yaml": `
+- id: "dexidp/dex"
+  version: "2.0.0"
+  name: "Dex"
+  description: ""
+  link: "https://github.com/dexidp/dex"
+  license: "Apache License 2.0"
+`,
+			},
+			wantErrors: []string{"description must not be empty"},
+		},
+		{
+			name: "project with empty link",
+			setupFiles: map[string]string{
+				"oss.yaml": `
+- id: "dexidp/dex"
+  version: "2.0.0"
+  name: "Dex"
+  description: "A Federated OpenID Connect Provider with pluggable connectors"
+  link: ""
+  license: "Apache License 2.0"
+`,
+			},
+			wantErrors: []string{"link must not be empty"},
+		},
+		{
+			name: "project with invalid link URL",
+			setupFiles: map[string]string{
+				"oss.yaml": `
+- id: "dexidp/dex"
+  version: "2.0.0"
+  name: "Dex"
+  description: "A Federated OpenID Connect Provider with pluggable connectors"
+  link: "not-a-url"
+  license: "Apache License 2.0"
+`,
+			},
+			wantErrors: []string{"link URL is malformed"},
+		},
+		{
+			name: "project with empty license",
+			setupFiles: map[string]string{
+				"oss.yaml": `
+- id: "dexidp/dex"
+  version: "2.0.0"
+  name: "Dex"
+  description: "A Federated OpenID Connect Provider with pluggable connectors"
+  link: "https://github.com/dexidp/dex"
+  license: ""
+`,
+			},
+			wantErrors: []string{"License must not be empty"},
+		},
+		{
+			name: "project with invalid logo URL",
+			setupFiles: map[string]string{
+				"oss.yaml": `
+- id: "dexidp/dex"
+  version: "2.0.0"
+  name: "Dex"
+  description: "A Federated OpenID Connect Provider with pluggable connectors"
+  link: "https://github.com/dexidp/dex"
+  logo: "invalid-logo-url"
+  license: "Apache License 2.0"
+`,
+			},
+			wantErrors: []string{"project logo URL is malformed"},
+		},
+		{
+			name: "multiple projects, one invalid",
+			setupFiles: map[string]string{
+				"oss.yaml": `
+- id: "dexidp/dex"
+  version: "2.0.0"
+  name: "Dex"
+  description: "A Federated OpenID Connect Provider with pluggable connectors"
+  link: "https://github.com/dexidp/dex"
+  license: "Apache License 2.0"
+- id: ""
+  version: "1.0.0"
+  name: "Invalid"
+  description: "Invalid project"
+  link: "https://example.com"
+  license: "MIT"
+`,
+			},
+			wantErrors: []string{"id must not be empty"},
 		},
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			err := assertOssProject(0, &test.project)
-			if test.wantErr {
-				if err == nil {
-					t.Errorf("expected error, not nil")
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create temp dir
+			tempDir := t.TempDir()
+
+			// Setup files
+			for filename, content := range tt.setupFiles {
+				path := filepath.Join(tempDir, filename)
+				if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+					t.Fatalf("failed to write file %s: %v", filename, err)
+				}
+			}
+
+			// Create rule
+			rule := NewOSSRule(tt.disable)
+			errorList := errors.NewLintRuleErrorsList()
+
+			// Run the rule
+			rule.OssModuleRule(tempDir, errorList)
+
+			// Check errors
+			errs := errorList.GetErrors()
+			var errorTexts []string
+			var warnTexts []string
+			for _, e := range errs {
+				if e.Level == pkg.Error {
+					errorTexts = append(errorTexts, e.Text)
+				} else if e.Level == pkg.Warn {
+					warnTexts = append(warnTexts, e.Text)
+				}
+			}
+
+			// Check expected errors
+			if len(tt.wantErrors) == 0 {
+				for _, et := range errorTexts {
+					if !containsSubstring(tt.wantErrors, et) {
+						t.Errorf("unexpected error: %s", et)
+					}
 				}
 			} else {
-				if err != nil {
-					t.Errorf("unexpected error: %v", err)
+				for _, wantErr := range tt.wantErrors {
+					found := false
+					for _, et := range errorTexts {
+						if containsSubstring([]string{wantErr}, et) {
+							found = true
+							break
+						}
+					}
+					if !found {
+						t.Errorf("expected error containing %q, but not found in %v", wantErr, errorTexts)
+					}
+				}
+			}
+
+			// Check expected warnings
+			if len(tt.wantWarns) == 0 {
+				if len(warnTexts) > 0 {
+					t.Errorf("unexpected warnings: %v", warnTexts)
+				}
+			} else {
+				for _, wantWarn := range tt.wantWarns {
+					found := false
+					for _, wt := range warnTexts {
+						if containsSubstring([]string{wantWarn}, wt) {
+							found = true
+							break
+						}
+					}
+					if !found {
+						t.Errorf("expected warning containing %q, but not found in %v", wantWarn, warnTexts)
+					}
 				}
 			}
 		})
 	}
 }
 
-func Test_projectList(t *testing.T) {
+func containsSubstring(slice []string, s string) bool {
+	for _, item := range slice {
+		if strings.Contains(s, item) {
+			return true
+		}
+	}
+	return false
+}
+
+func Test_parseProjectList(t *testing.T) {
 	tests := []struct {
 		name      string
 		yaml      string
 		wantCount int
+		wantErr   bool
 	}{
 		{
 			name:      "empty",
 			yaml:      "",
 			wantCount: 0,
+			wantErr:   false,
 		},
 		{
 			name:      "one",
 			wantCount: 1,
+			wantErr:   false,
 			yaml: `
 - id: "1"
   version: "1.0.0"
   name: a
   description: a
   link: https://example.com
-  license: Opachke 2.0
+  license: Apache 2.0
 `,
 		},
 		{
 			name:      "two",
 			wantCount: 2,
+			wantErr:   false,
 			yaml: `
 - id: "1"
   version: "1.0.0"
   name: a
   description: a
   link: https://example.com
-  license: Opachke 2.0
+  license: Apache 2.0
 - id: "2"
   version: "1.0.1"
   name: b
   description: b
   link: https://example.com
-  license: Opachke 2.0
+  license: Apache 2.0
 `,
+		},
+		{
+			name:    "invalid yaml",
+			yaml:    "invalid: yaml: [",
+			wantErr: true,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			projects, err := parseProjectList([]byte(test.yaml))
+			if test.wantErr {
+				if err == nil {
+					t.Errorf("expected error, got nil")
+				}
+				return
+			}
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
