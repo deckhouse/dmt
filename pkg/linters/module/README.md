@@ -144,22 +144,42 @@ Validates the `oss.yaml` file containing open-source software attribution.
 - ✅ Valid YAML structure
 - ✅ At least one project is described
 - ✅ Each project has required fields:
-  - `name` - Project name
-  - `description` - Project description
-  - `link` - Valid project URL
-  - `license` - Valid license identifier
-  - `logo` (optional) - Valid logo URL
+  - `id` - Project identifier (must not be empty)
+  - `version` - Project version (must not be empty, should be valid semver) See ADR "platform-security/2026-01-21-oss-yaml-werf.md"
+  - `name` - Project name (must not be empty)
+  - `description` - Project description (must not be empty)
+  - `link` - Valid project URL (must not be empty, must be valid URL)
+  - `license` - Valid license identifier (must not be empty)
+  - `logo` (optional) - Valid logo URL (must be valid URL if provided)
+
+**Error Messages:**
+- `Module should have oss.yaml` - File is missing from module root
+- `Invalid oss.yaml: <error>` - File exists but contains invalid YAML or structure
+- `no projects described` - File exists but contains an empty list
+- `id must not be empty` - Project entry is missing the `id` field
+- `version must not be empty. Please fill in the parameter and configure CI (werf files for module images) to use these setting.` - Project entry is missing the `version` field
+- `version must be valid semver: <error>` (Warning) - Version is provided but not in valid semantic versioning format
+- `name must not be empty` - Project entry is missing the `name` field
+- `description must not be empty` - Project entry is missing the `description` field
+- `link must not be empty` - Project entry is missing the `link` field
+- `link URL is malformed ("<url>")` - Link is provided but is not a valid URL
+- `License must not be empty` - Project entry is missing the `license` field
+- `project logo URL is malformed ("<url>")` - Logo is provided but is not a valid URL
 
 **Example:**
 ```yaml
 # oss.yaml
-- name: nginx
+- id: nginx/nginx
+  version: 1.25.3
+  name: nginx
   description: High performance web server
   link: https://nginx.org/
   license: BSD-2-Clause
   logo: https://nginx.org/nginx.png
 
-- name: prometheus
+- id: prometheus/prometheus
+  version: 2.48.0
+  name: prometheus
   description: Monitoring system and time series database
   link: https://prometheus.io/
   license: Apache-2.0
