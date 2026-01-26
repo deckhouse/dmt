@@ -74,7 +74,7 @@ func ossFileErrorMessage(err error) string {
 func verifyOssFile(moduleRoot string, errorList *errors.LintRuleErrorsList) {
 	projects, err := readOssFile(moduleRoot)
 	if err != nil {
-		errorList.Error(err.Error())
+		errorList.Error(ossFileErrorMessage(err))
 
 		return
 	}

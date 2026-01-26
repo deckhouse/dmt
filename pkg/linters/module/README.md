@@ -169,7 +169,7 @@ Validates the `oss.yaml` file containing open-source software attribution.
 **Example:**
 ```yaml
 # oss.yaml
-- id: nginx/nginx
+- id: ingress-nginx
   version: 1.25.3
   name: nginx
   description: High performance web server
@@ -177,7 +177,7 @@ Validates the `oss.yaml` file containing open-source software attribution.
   license: BSD-2-Clause
   logo: https://nginx.org/nginx.png
 
-- id: prometheus/prometheus
+- id: observability-prometheus
   version: 2.48.0
   name: prometheus
   description: Monitoring system and time series database
