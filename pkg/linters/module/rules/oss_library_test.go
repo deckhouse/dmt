@@ -53,7 +53,7 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 		{
 			name:       "oss.yaml missing",
 			setupFiles: map[string]string{},
-			wantErrors: []string{"no such file or directory"},
+			wantErrors: []string{"module should have oss.yaml"},
 		},
 		{
 			name: "oss.yaml invalid yaml",
@@ -124,7 +124,7 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
   license: "Apache License 2.0"
 `,
 			},
-			wantErrors: []string{"version must not be empty. Please fill in the parameter and configure CI (werf files for module images) to use these setting. See ADR \"platform-security/2026-01-21-oss-yaml-werf.md\""},
+			wantErrors: []string{"version must not be empty. Please fill in the parameter and configure CI (werf files for module images) to use these setting."},
 		},
 		{
 			name: "project with invalid semver version",

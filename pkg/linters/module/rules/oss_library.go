@@ -66,10 +66,10 @@ func (r *OSSRule) OssModuleRule(moduleRoot string, errorList *errors.LintRuleErr
 
 func ossFileErrorMessage(err error) string {
 	if os.IsNotExist(err) {
-		return "Module should have " + ossFilename
+		return "module should have " + ossFilename
 	}
 
-	return fmt.Sprintf("Invalid %s: %s", ossFilename, err.Error())
+	return fmt.Sprintf("invalid %s: %s", ossFilename, err.Error())
 }
 
 func verifyOssFile(moduleRoot string, errorList *errors.LintRuleErrorsList) {
