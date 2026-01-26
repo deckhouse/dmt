@@ -53,7 +53,7 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 		{
 			name:       "oss.yaml missing",
 			setupFiles: map[string]string{},
-			wantErrors: []string{"no such file or directory"},
+			wantErrors: []string{"module should have oss.yaml"},
 		},
 		{
 			name: "oss.yaml invalid yaml",
@@ -124,7 +124,7 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
   license: "Apache License 2.0"
 `,
 			},
-			wantErrors: []string{"version must not be empty. Please fill in the parameter and configure CI (werf files for module images) to use these setting. See ADR \"platform-security/2026-01-21-oss-yaml-werf.md\""},
+			wantErrors: []string{"version must not be empty. Please fill in the parameter and configure CI (werf files for module images) to use these setting."},
 		},
 		{
 			name: "project with invalid semver version",
@@ -255,7 +255,7 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 			// Setup files
 			for filename, content := range tt.setupFiles {
 				path := filepath.Join(tempDir, filename)
-				if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+				if err := os.WriteFile(path, []byte(content), 0644); err != nil { //nolint:gosec // resolve when bump lint
 					t.Fatalf("failed to write file %s: %v", filename, err)
 				}
 			}
@@ -272,9 +272,10 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 			var errorTexts []string
 			var warnTexts []string
 			for _, e := range errs {
-				if e.Level == pkg.Error {
+				switch e.Level {
+				case pkg.Error:
 					errorTexts = append(errorTexts, e.Text)
-				} else if e.Level == pkg.Warn {
+				case pkg.Warn:
 					warnTexts = append(warnTexts, e.Text)
 				}
 			}
