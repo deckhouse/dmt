@@ -255,7 +255,7 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 			// Setup files
 			for filename, content := range tt.setupFiles {
 				path := filepath.Join(tempDir, filename)
-				if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+				if err := os.WriteFile(path, []byte(content), 0644); err != nil { //nolint:gosec
 					t.Fatalf("failed to write file %s: %v", filename, err)
 				}
 			}
