@@ -94,7 +94,7 @@ func assertOssProject(i int, p *ossProject, errorList *errors.LintRuleErrorsList
 	// prefix to make it easier navigate among errors
 	prefix := fmt.Sprintf("#%d", i)
 
-	// Id
+	// ID
 	if strings.TrimSpace(p.ID) == "" {
 		errorList.WithObjectID("index=" + prefix + ";").Error("id must not be empty")
 	} else {
