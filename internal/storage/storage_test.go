@@ -199,7 +199,7 @@ func TestStoreObject_GetInitContainers(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				var containerNames []string
+				var containerNames []string //nolint:prealloc // Must return nil when no containers
 				for _, container := range initContainers {
 					containerNames = append(containerNames, container.Name)
 				}
@@ -283,7 +283,7 @@ func TestStoreObject_GetContainers(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				var containerNames []string
+				var containerNames []string //nolint:prealloc // Must return nil when no containers
 				for _, container := range containers {
 					containerNames = append(containerNames, container.Name)
 				}
@@ -387,7 +387,7 @@ func TestStoreObject_GetAllContainers(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				var containerNames []string
+				var containerNames []string //nolint:prealloc // Must return nil when no containers
 				for _, container := range allContainers {
 					containerNames = append(containerNames, container.Name)
 				}

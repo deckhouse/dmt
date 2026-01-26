@@ -406,7 +406,7 @@ func (*LicenseParser) normalizeText(text string) string {
 
 	// Remove common comment line prefixes
 	lines := strings.Split(text, "\n")
-	var normalized []string
+	normalized := make([]string, 0, len(lines))
 
 	for _, line := range lines {
 		line = strings.TrimSpace(line)

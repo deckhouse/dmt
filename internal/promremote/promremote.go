@@ -26,7 +26,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/proto" //nolint:staticcheck // Required for prompb compatibility
 	"github.com/golang/snappy"
 	"github.com/prometheus/prometheus/prompb"
 )

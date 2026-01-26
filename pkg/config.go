@@ -292,7 +292,7 @@ func (l PrefixRuleExcludeList) Get() []PrefixRuleExclude {
 type ContainerLinterRules struct {
 	RecommendedLabelsRule         RuleConfig
 	NamespaceLabelsRule           RuleConfig
-	ApiVersionRule                RuleConfig
+	APIVersionRule                RuleConfig
 	PriorityClassRule             RuleConfig
 	DNSPolicyRule                 RuleConfig
 	ControllerSecurityContextRule RuleConfig
