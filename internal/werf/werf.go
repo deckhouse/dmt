@@ -30,7 +30,6 @@ import (
 	"time"
 
 	"github.com/Masterminds/sprig/v3"
-
 	"sigs.k8s.io/yaml"
 
 	"github.com/deckhouse/dmt/internal/fsutils"

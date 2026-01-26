@@ -17,18 +17,17 @@ limitations under the License.
 package rules
 
 import (
-	"github.com/tidwall/gjson"
+	"os"
+	"path/filepath"
+	"strings"
 
+	"github.com/tidwall/gjson"
 	"k8s.io/utils/ptr"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
-
-	"os"
-	"path/filepath"
-	"strings"
 )
 
 const (
