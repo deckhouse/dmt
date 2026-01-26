@@ -95,10 +95,10 @@ func assertOssProject(i int, p *ossProject, errorList *errors.LintRuleErrorsList
 	prefix := fmt.Sprintf("#%d", i)
 
 	// Id
-	if strings.TrimSpace(p.Id) == "" {
+	if strings.TrimSpace(p.ID) == "" {
 		errorList.WithObjectID("index=" + prefix + ";").Error("id must not be empty")
 	} else {
-		prefix = fmt.Sprintf("#%d (id=%s)", i, p.Id)
+		prefix = fmt.Sprintf("#%d (id=%s)", i, p.ID)
 	}
 
 	// Version
@@ -165,6 +165,6 @@ type ossProject struct {
 	Link        string `json:"link"`           // example: https://github.com/dexidp/dex
 	Logo        string `json:"logo,omitempty"` // example: https://dexidp.io/img/logos/dex-horizontal-color.png
 	License     string `json:"license"`        // example: Apache License 2.0
-	Id          string `json:"id"`             // example: dexidp/dex
+	ID          string `json:"id"`             // example: dexidp/dex
 	Version     string `json:"version"`        // example: 2.0.0
 }
