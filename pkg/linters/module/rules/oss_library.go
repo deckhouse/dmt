@@ -103,7 +103,7 @@ func assertOssProject(i int, p *ossProject, errorList *errors.LintRuleErrorsList
 
 	// Version
 	if strings.TrimSpace(p.Version) == "" {
-		errorList.WithObjectID("index=" + prefix + ";").Error("version must not be empty. Please fill in the parameter and configure CI (werf files for module images) to use these setting. See ADR \"platform-security/2026-01-21-oss-yaml-werf.md\"")
+		errorList.WithObjectID("index=" + prefix + ";").Error("version must not be empty. Please fill in the parameter and configure CI (werf files for module images) to use these setting.")
 	} else {
 		_, err := semver.NewVersion(p.Version)
 		if err != nil {
