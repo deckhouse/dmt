@@ -272,9 +272,10 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 			var errorTexts []string
 			var warnTexts []string
 			for _, e := range errs {
-				if e.Level == pkg.Error {
+				switch e.Level {
+				case pkg.Error:
 					errorTexts = append(errorTexts, e.Text)
-				} else if e.Level == pkg.Warn {
+				case pkg.Warn:
 					warnTexts = append(warnTexts, e.Text)
 				}
 			}
