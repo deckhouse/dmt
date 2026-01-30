@@ -51,7 +51,10 @@ type OSSRule struct {
 	pkg.BoolRule
 }
 
-const ossFilename = "oss.yaml"
+const (
+	ossFilename = "oss.yaml"
+	imagesDir   = "images"
+)
 
 func (r *OSSRule) OssModuleRule(moduleRoot string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
@@ -60,12 +63,18 @@ func (r *OSSRule) OssModuleRule(moduleRoot string, errorList *errors.LintRuleErr
 		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
 	}
 
+	imagesPath := filepath.Join(moduleRoot, imagesDir)
+	info, err := os.Stat(imagesPath)
+	if err != nil || !info.IsDir() {
+		return
+	}
+
 	verifyOssFile(moduleRoot, errorList)
 }
 
 func ossFileErrorMessage(err error) string {
 	if os.IsNotExist(err) {
-		return "module should have " + ossFilename
+		return fmt.Sprintf("module has %s folder, so it likely should have %s", imagesDir, ossFilename)
 	}
 
 	return fmt.Sprintf("invalid %s: %s", ossFilename, err.Error())
@@ -74,7 +83,11 @@ func ossFileErrorMessage(err error) string {
 func verifyOssFile(moduleRoot string, errorList *errors.LintRuleErrorsList) {
 	projects, err := readOssFile(moduleRoot)
 	if err != nil {
-		errorList.Error(ossFileErrorMessage(err))
+		if os.IsNotExist(err) {
+			errorList.Warn(ossFileErrorMessage(err))
+		} else {
+			errorList.Error(ossFileErrorMessage(err))
+		}
 
 		return
 	}
