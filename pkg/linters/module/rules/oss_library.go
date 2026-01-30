@@ -84,7 +84,7 @@ func verifyOssFile(moduleRoot string, errorList *errors.LintRuleErrorsList) {
 	projects, err := readOssFile(moduleRoot)
 	if err != nil {
 		if os.IsNotExist(err) {
-			errorList.Warn(ossFileErrorMessage(err))
+			errorList.WithFilePath(moduleRoot).Warn(ossFileErrorMessage(err))
 		} else {
 			errorList.Error(ossFileErrorMessage(err))
 		}
