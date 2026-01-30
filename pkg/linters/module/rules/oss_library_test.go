@@ -28,49 +28,62 @@ import (
 
 func TestOSSRule_OssModuleRule(t *testing.T) {
 	tests := []struct {
-		name       string
-		disable    bool
-		setupFiles map[string]string
-		wantErrors []string
-		wantWarns  []string
+		name            string
+		disable         bool
+		createImagesDir bool
+		setupFiles      map[string]string
+		wantErrors      []string
+		wantWarns       []string
 	}{
 		{
-			name:       "rule disabled, no oss.yaml",
-			disable:    true,
-			setupFiles: map[string]string{},
-			wantErrors: nil,
-			wantWarns:  nil,
+			name:            "rule disabled, no oss.yaml",
+			disable:         true,
+			createImagesDir: true,
+			setupFiles:      map[string]string{},
+			wantErrors:      nil,
+			wantWarns:       nil,
 		},
 		{
-			name:    "rule disabled, invalid oss.yaml",
-			disable: true,
+			name:            "NO images dir, ignore missing oss.yaml",
+			createImagesDir: false,
+			setupFiles:      map[string]string{},
+			wantErrors:      nil,
+			wantWarns:       nil,
+		},
+		{
+			name:            "NO images dir, ignore invalid oss.yaml",
+			createImagesDir: false,
 			setupFiles: map[string]string{
-				"oss.yaml": "invalid yaml: [",
+				"oss.yaml": "invalid: yaml: [",
 			},
 			wantErrors: nil,
 			wantWarns:  nil,
 		},
 		{
-			name:       "oss.yaml missing",
-			setupFiles: map[string]string{},
-			wantErrors: []string{"module should have oss.yaml"},
+			name:            "images dir exists, oss.yaml missing (WARN)",
+			createImagesDir: true,
+			setupFiles:      map[string]string{},
+			wantWarns:       []string{"module has images folder, so it likely should have oss.yaml"},
 		},
 		{
-			name: "oss.yaml invalid yaml",
+			name:            "oss.yaml invalid yaml",
+			createImagesDir: true,
 			setupFiles: map[string]string{
 				"oss.yaml": "invalid: yaml: content",
 			},
 			wantErrors: []string{"error converting YAML to JSON"},
 		},
 		{
-			name: "oss.yaml empty projects",
+			name:            "oss.yaml empty projects",
+			createImagesDir: true,
 			setupFiles: map[string]string{
 				"oss.yaml": "[]",
 			},
 			wantErrors: []string{"no projects described"},
 		},
 		{
-			name: "valid single project",
+			name:            "valid single project",
+			createImagesDir: true,
 			setupFiles: map[string]string{
 				"oss.yaml": `
 - id: "dexidp/dex"
@@ -84,7 +97,8 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 			wantErrors: nil,
 		},
 		{
-			name: "valid project with logo",
+			name:            "valid project with logo",
+			createImagesDir: true,
 			setupFiles: map[string]string{
 				"oss.yaml": `
 - id: "dexidp/dex"
@@ -99,7 +113,8 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 			wantErrors: nil,
 		},
 		{
-			name: "project with empty id",
+			name:            "project with empty id",
+			createImagesDir: true,
 			setupFiles: map[string]string{
 				"oss.yaml": `
 - id: ""
@@ -113,7 +128,8 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 			wantErrors: []string{"id must not be empty"},
 		},
 		{
-			name: "project with empty version",
+			name:            "project with empty version",
+			createImagesDir: true,
 			setupFiles: map[string]string{
 				"oss.yaml": `
 - id: "dexidp/dex"
@@ -127,7 +143,8 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 			wantErrors: []string{"version must not be empty. Please fill in the parameter and configure CI (werf files for module images) to use these setting."},
 		},
 		{
-			name: "project with invalid semver version",
+			name:            "project with invalid semver version",
+			createImagesDir: true,
 			setupFiles: map[string]string{
 				"oss.yaml": `
 - id: "dexidp/dex"
@@ -141,7 +158,8 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 			wantWarns: []string{"version must be valid semver"},
 		},
 		{
-			name: "project with empty name",
+			name:            "project with empty name",
+			createImagesDir: true,
 			setupFiles: map[string]string{
 				"oss.yaml": `
 - id: "dexidp/dex"
@@ -155,7 +173,8 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 			wantErrors: []string{"name must not be empty"},
 		},
 		{
-			name: "project with empty description",
+			name:            "project with empty description",
+			createImagesDir: true,
 			setupFiles: map[string]string{
 				"oss.yaml": `
 - id: "dexidp/dex"
@@ -169,7 +188,8 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 			wantErrors: []string{"description must not be empty"},
 		},
 		{
-			name: "project with empty link",
+			name:            "project with empty link",
+			createImagesDir: true,
 			setupFiles: map[string]string{
 				"oss.yaml": `
 - id: "dexidp/dex"
@@ -183,7 +203,8 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 			wantErrors: []string{"link must not be empty"},
 		},
 		{
-			name: "project with invalid link URL",
+			name:            "project with invalid link URL",
+			createImagesDir: true,
 			setupFiles: map[string]string{
 				"oss.yaml": `
 - id: "dexidp/dex"
@@ -197,7 +218,8 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 			wantErrors: []string{"link URL is malformed"},
 		},
 		{
-			name: "project with empty license",
+			name:            "project with empty license",
+			createImagesDir: true,
 			setupFiles: map[string]string{
 				"oss.yaml": `
 - id: "dexidp/dex"
@@ -211,7 +233,8 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 			wantErrors: []string{"License must not be empty"},
 		},
 		{
-			name: "project with invalid logo URL",
+			name:            "project with invalid logo URL",
+			createImagesDir: true,
 			setupFiles: map[string]string{
 				"oss.yaml": `
 - id: "dexidp/dex"
@@ -226,7 +249,8 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 			wantErrors: []string{"project logo URL is malformed"},
 		},
 		{
-			name: "multiple projects, one invalid",
+			name:            "multiple projects, one invalid",
+			createImagesDir: true,
 			setupFiles: map[string]string{
 				"oss.yaml": `
 - id: "dexidp/dex"
@@ -251,6 +275,12 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create temp dir
 			tempDir := t.TempDir()
+			// Create images dir if needed
+			if tt.createImagesDir {
+				if err := os.Mkdir(filepath.Join(tempDir, "images"), 0755); err != nil {
+					t.Fatalf("failed to create images dir: %v", err)
+				}
+			}
 
 			// Setup files
 			for filename, content := range tt.setupFiles {
@@ -280,58 +310,31 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 				}
 			}
 
-			// Check expected errors
-			if len(tt.wantErrors) == 0 {
-				for _, et := range errorTexts {
-					if !containsSubstring(tt.wantErrors, et) {
-						t.Errorf("unexpected error: %s", et)
-					}
-				}
-			} else {
-				for _, wantErr := range tt.wantErrors {
-					found := false
-					for _, et := range errorTexts {
-						if containsSubstring([]string{wantErr}, et) {
-							found = true
-							break
-						}
-					}
-					if !found {
-						t.Errorf("expected error containing %q, but not found in %v", wantErr, errorTexts)
-					}
-				}
-			}
-
-			// Check expected warnings
-			if len(tt.wantWarns) == 0 {
-				if len(warnTexts) > 0 {
-					t.Errorf("unexpected warnings: %v", warnTexts)
-				}
-			} else {
-				for _, wantWarn := range tt.wantWarns {
-					found := false
-					for _, wt := range warnTexts {
-						if containsSubstring([]string{wantWarn}, wt) {
-							found = true
-							break
-						}
-					}
-					if !found {
-						t.Errorf("expected warning containing %q, but not found in %v", wantWarn, warnTexts)
-					}
-				}
-			}
+			checkMessages(t, "error", tt.wantErrors, errorTexts)
+			checkMessages(t, "warning", tt.wantWarns, warnTexts)
 		})
 	}
 }
 
-func containsSubstring(slice []string, s string) bool {
-	for _, item := range slice {
-		if strings.Contains(s, item) {
-			return true
+func checkMessages(t *testing.T, msgType string, want []string, got []string) {
+	if len(want) == 0 {
+		if len(got) > 0 {
+			t.Errorf("unexpected %ss: %v", msgType, got)
+		}
+	} else {
+		for _, w := range want {
+			found := false
+			for _, g := range got {
+				if strings.Contains(g, w) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("expected %s containing %q, but not found in %v", msgType, w, got)
+			}
 		}
 	}
-	return false
 }
 
 func Test_parseProjectList(t *testing.T) {
