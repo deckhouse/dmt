@@ -57,7 +57,7 @@ const (
 )
 
 func (r *OSSRule) OssModuleRule(moduleRoot string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+	errorList = errorList.WithRule(r.GetName()).WithFilePath(filepath.Join(moduleRoot, ossFilename))
 
 	if !r.Enabled() {
 		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
@@ -84,9 +84,9 @@ func verifyOssFile(moduleRoot string, errorList *errors.LintRuleErrorsList) {
 	projects, err := readOssFile(moduleRoot)
 	if err != nil {
 		if os.IsNotExist(err) {
-			errorList.WithFilePath(moduleRoot).Warn(ossFileErrorMessage(err))
+			errorList.Warn(ossFileErrorMessage(err))
 		} else {
-			errorList.WithFilePath(moduleRoot).Error(ossFileErrorMessage(err))
+			errorList.Error(ossFileErrorMessage(err))
 		}
 
 		return
