@@ -468,7 +468,7 @@ ${FMT_BOLD}Documentation:${FMT_RESET}
 ${FMT_BOLD}Quick Commands:${FMT_RESET}
 
   ${FMT_BLUE}dmt lint${FMT_RESET}      - Lint a Deckhouse module
-  ${FMT_BLUE}dmt version${FMT_RESET}   - Show version information
+  ${FMT_BLUE}dmt --version${FMT_RESET}   - Show version information
 
 EOF
 }

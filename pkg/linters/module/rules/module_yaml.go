@@ -25,11 +25,10 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/Masterminds/semver/v3"
 	"gopkg.in/ini.v1"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
-
-	"github.com/Masterminds/semver/v3"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/logger"

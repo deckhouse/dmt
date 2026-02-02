@@ -8,13 +8,12 @@ import (
 
 	"dario.cat/mergo"
 	"github.com/flant/addon-operator/pkg/utils"
+	"github.com/go-openapi/spec"
 	"helm.sh/helm/v3/pkg/chartutil"
+	"sigs.k8s.io/yaml"
 
 	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/module/schema"
-
-	"github.com/go-openapi/spec"
-	"sigs.k8s.io/yaml"
 )
 
 type SchemaType string

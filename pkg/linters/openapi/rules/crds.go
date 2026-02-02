@@ -23,11 +23,11 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/deckhouse/dmt/pkg"
-	"github.com/deckhouse/dmt/pkg/errors"
-
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"sigs.k8s.io/yaml"
+
+	"github.com/deckhouse/dmt/pkg"
+	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 type DeckhouseCRDsRule struct {

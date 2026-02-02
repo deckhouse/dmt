@@ -193,7 +193,7 @@ func (m *metricStorage) registerHistogram(metric string, labels map[string]strin
 
 // labelNames returns sorted label keys
 func labelNames(labels map[string]string) []string {
-	names := make([]string, 0)
+	names := make([]string, 0, len(labels))
 	for labelName := range labels {
 		names = append(names, labelName)
 	}
