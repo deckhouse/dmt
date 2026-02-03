@@ -50,6 +50,11 @@ var (
 	BootstrapModule         string
 )
 
+var (
+	TestVerbose bool
+	TestType    string
+)
+
 func InitDefaultFlagSet() *pflag.FlagSet {
 	defaults := pflag.NewFlagSet("defaults for all commands", pflag.ExitOnError)
 
@@ -107,4 +112,14 @@ func InitBootstrapFlagSet() *pflag.FlagSet {
 	bootstrap.StringVarP(&BootstrapDirectory, "directory", "d", ".", "directory to bootstrap")
 
 	return bootstrap
+}
+
+func InitTestFlagSet() *pflag.FlagSet {
+	testFlags := pflag.NewFlagSet("test", pflag.ContinueOnError)
+
+	testFlags.BoolVarP(&TestVerbose, "verbose", "v", false, "verbose output")
+	testFlags.StringVarP(&TestType, "type", "t", "", "test type to run (e.g., conversions)")
+	testFlags.StringVarP(&LogLevel, "log-level", "l", "INFO", "log-level [DEBUG | INFO | WARN | ERROR]")
+
+	return testFlags
 }
