@@ -282,6 +282,10 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 	if yml.Critical && yml.Weight == 0 {
 		errorList.Error("Field 'weight' must not be zero for critical modules")
 	}
+
+	if !yml.Critical && yml.Weight > 0 {
+		errorList.Warn("Field 'weight' is ignored for non-critical modules")
+	}
 }
 
 func (m ModuleRequirements) validateRequirements(errorList *errors.LintRuleErrorsList) {
