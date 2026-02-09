@@ -275,7 +275,7 @@ descriptions:
 
 	found := false
 	for _, e := range errorList.GetErrors() {
-		if e.Level == pkg.Warn && e.Text == "Field 'weight' is ignored for non-critical modules" {
+		if e.Level == pkg.Warn && e.Text == "Unnecessary field 'weight' must be removed for non-critical module" {
 			found = true
 			break
 		}
