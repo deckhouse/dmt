@@ -284,7 +284,7 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 	}
 
 	if !yml.Critical && yml.Weight > 0 {
-		errorList.Warn("Field 'weight' is ignored for non-critical modules")
+		errorList.Warn("Unnecessary field 'weight' must be removed for non-critical module")
 	}
 }
 
