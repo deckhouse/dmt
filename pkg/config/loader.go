@@ -29,6 +29,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+
 	"github.com/deckhouse/dmt/internal/fsutils"
 )
 

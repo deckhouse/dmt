@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
+
 	"github.com/deckhouse/dmt/internal/promremote"
 )
 
