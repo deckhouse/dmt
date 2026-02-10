@@ -72,7 +72,7 @@ func runLint(dir string) error {
 
 	cfg, err := config.NewDefaultRootConfig(dir)
 	if err != nil {
-		log.Fatal("default root config", log.Err(err))
+		log.Fatal("default root config", log.Err(err)) //nolint:gocritic
 	}
 
 	// init metrics storage, should be done before running manager
