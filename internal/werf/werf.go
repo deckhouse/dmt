@@ -22,6 +22,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -32,8 +33,8 @@ import (
 	"github.com/Masterminds/sprig/v3"
 	"sigs.k8s.io/yaml"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/deckhouse/dmt/internal/fsutils"
-	"github.com/deckhouse/dmt/internal/logger"
 )
 
 const (
@@ -84,7 +85,7 @@ func GetWerfConfig(dir string) (string, error) {
 func getRootWerfFile(dir string) string {
 	absPath, err := filepath.Abs(dir)
 	if err != nil {
-		logger.WarnF("Can't make abs path for %q: %s", dir, err)
+		log.Warn("Can't make abs path", slog.String("path", dir), log.Err(err))
 		absPath = filepath.Clean(dir)
 	}
 

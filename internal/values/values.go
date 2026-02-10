@@ -3,6 +3,7 @@ package values
 import (
 	_ "embed"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -12,7 +13,7 @@ import (
 	"helm.sh/helm/v3/pkg/chartutil"
 	"sigs.k8s.io/yaml"
 
-	"github.com/deckhouse/dmt/internal/logger"
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/deckhouse/dmt/internal/module/schema"
 )
 
@@ -92,7 +93,7 @@ func GetGlobalValues(rootDir string) (*spec.Schema, error) {
 		if err != nil {
 			return nil, err
 		}
-		logger.InfoF("Using global values from `%s` directory", rootDir)
+		log.Info("Using global values", slog.String("directory", rootDir))
 		configBytes = configBytesT
 		valuesBytes = valuesBytesT
 	}

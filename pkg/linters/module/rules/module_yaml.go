@@ -30,8 +30,8 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/deckhouse/dmt/internal/fsutils"
-	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
@@ -135,13 +135,13 @@ func getModuleNameFromRepository(dir string) string {
 
 	cfg, err := ini.Load(configFile)
 	if err != nil {
-		logger.ErrorF("Failed to load config file: %v", err)
+		log.Error("Failed to load config file", log.Err(err))
 		return ""
 	}
 
 	sec, err := cfg.GetSection("remote \"origin\"")
 	if err != nil {
-		logger.ErrorF("Failed to get remote \"origin\": %v", err)
+		log.Error("Failed to get remote origin", log.Err(err))
 		return ""
 	}
 

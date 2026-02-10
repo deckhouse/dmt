@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"cmp"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -32,9 +33,9 @@ import (
 	"github.com/mitchellh/go-wordwrap"
 	"helm.sh/helm/v3/pkg/chartutil"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/fsutils"
-	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/metrics"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/values"
@@ -94,24 +95,24 @@ func NewManager(dir string, rootConfig *config.RootConfig) *Manager {
 func (m *Manager) initManager(dir string) *Manager {
 	paths, err := getModulePaths(dir)
 	if err != nil {
-		logger.ErrorF("Error getting module paths: %v", err)
+		log.Error("Error getting module paths", log.Err(err))
 		return m
 	}
 
 	vals, err := decodeValuesFile(flags.ValuesFile)
 	if err != nil {
-		logger.ErrorF("Failed to decode values file: %v", err)
+		log.Error("Failed to decode values file", log.Err(err))
 	}
 
 	globalValues, err := values.GetGlobalValues(getRootDirectory(dir))
 	if err != nil {
-		logger.ErrorF("Failed to get global values: %v", err)
+		log.Error("Failed to get global values", log.Err(err))
 		return m
 	}
 	errorList := m.errors.WithLinterID("manager")
 	for i := range paths {
 		moduleName := filepath.Base(paths[i])
-		logger.DebugF("Found `%s` module", moduleName)
+		log.Debug("Found module", slog.String("module", moduleName))
 		if err := m.validateModule(paths[i]); err != nil {
 			// linting errors are already logged
 			continue
@@ -128,7 +129,7 @@ func (m *Manager) initManager(dir string) *Manager {
 		m.Modules = append(m.Modules, mdl)
 	}
 
-	logger.InfoF("Found %d modules", len(m.Modules))
+	log.Info("Found modules", slog.Int("count", len(m.Modules)))
 
 	return m
 }
@@ -160,14 +161,14 @@ func (m *Manager) Run() {
 				wg.Done()
 			}()
 
-			logger.InfoF("Run linters for `%s` module", module.GetName())
+			log.Info("Run linters for module", slog.String("module", module.GetName()))
 
 			for _, linter := range getLintersForModule(module.GetModuleConfig(), m.errors) {
 				if flags.LinterName != "" && linter.Name() != flags.LinterName {
 					continue
 				}
 
-				logger.DebugF("Running linter `%s` on module `%s`", linter.Name(), module.GetName())
+				log.Debug("Running linter", slog.String("linter", linter.Name()), slog.String("module", module.GetName()))
 
 				linter.Run(module)
 			}
