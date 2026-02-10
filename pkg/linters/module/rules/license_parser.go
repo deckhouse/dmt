@@ -204,7 +204,7 @@ func (p *LicenseParser) ParseFile(filename string) (*LicenseInfo, error) {
 	// Get file type configuration
 	config := p.getFileConfig(filename)
 	if config == nil {
-		return nil, ErrUnsupportedFileType
+		return nil, fmt.Errorf("%w: %s", ErrUnsupportedFileType, filename)
 	}
 
 	// Read file header
