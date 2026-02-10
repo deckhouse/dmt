@@ -18,6 +18,7 @@ package rules
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -49,10 +50,8 @@ type FileTypeConfig struct {
 
 // LicenseInfo contains information about parsed license
 type LicenseInfo struct {
-	Type  string // "CE", "EE", or empty
-	Year  string // Extracted year
-	Valid bool   // Whether license is valid
-	Error string // Error message if invalid
+	Type string // "CE", "EE", or empty
+	Year string // Extracted year
 }
 
 // LicenseParser handles license parsing and validation
@@ -198,15 +197,14 @@ func initFileConfigs() map[string]FileTypeConfig {
 	return configs
 }
 
+var ErrUnsupportedFileType = fmt.Errorf("unsupported file type")
+
 // ParseFile parses a file and extracts license information
 func (p *LicenseParser) ParseFile(filename string) (*LicenseInfo, error) {
 	// Get file type configuration
 	config := p.getFileConfig(filename)
 	if config == nil {
-		return &LicenseInfo{
-			Valid: false,
-			Error: fmt.Sprintf("unsupported file type: %s", filename),
-		}, nil
+		return nil, ErrUnsupportedFileType
 	}
 
 	// Read file header
@@ -215,35 +213,29 @@ func (p *LicenseParser) ParseFile(filename string) (*LicenseInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
+
 	// Check for generated file markers
 	if isHeaderMarkedAsGenerated(header) {
-		return &LicenseInfo{Valid: true}, nil
+		return &LicenseInfo{}, nil
 	}
 
 	// Try to extract license text from header
 	licenseText := p.extractLicenseText(header, config)
 	if licenseText == "" {
-		return &LicenseInfo{
-			Valid: false,
-			Error: "no license header found",
-		}, nil
+		return nil, errors.New("no license header found")
 	}
 
 	// Match against known licenses
 	for _, license := range p.licenses {
 		if matched, year := p.matchLicense(licenseText, license); matched {
 			return &LicenseInfo{
-				Type:  license.Type,
-				Year:  year,
-				Valid: true,
+				Type: license.Type,
+				Year: year,
 			}, nil
 		}
 	}
 
-	return &LicenseInfo{
-		Valid: false,
-		Error: "license header does not match any known license",
-	}, nil
+	return nil, errors.New("license header does not match any known license")
 }
 
 // getFileConfig returns the configuration for a given file

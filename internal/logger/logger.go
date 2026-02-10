@@ -52,21 +52,25 @@ func InitLogger(w io.Writer, logLevel string) {
 	log.SetOutput(io.Discard)
 }
 
+// Deprecated: use slog directly instead of these wrapper functions
 func DebugF(format string, a ...any) {
 	slog.Debug(
 		fmt.Sprintf(format, a...))
 }
 
+// Deprecated: use slog directly instead of these wrapper functions
 func InfoF(format string, a ...any) {
 	slog.Info(
 		fmt.Sprintf(format, a...))
 }
 
+// Deprecated: use slog directly instead of these wrapper functions
 func WarnF(format string, a ...any) {
 	slog.Warn(
 		fmt.Sprintf(format, a...))
 }
 
+// Deprecated: use slog directly instead of these wrapper functions
 func ErrorF(format string, a ...any) {
 	slog.Error(
 		fmt.Sprintf(format, a...))
