@@ -310,7 +310,7 @@ limitations under the License.
 ```go
 /*
 Copyright 2010 SomeAuthor
-Copyright 2925 Flant JSC
+Copyright 2025 Flant JSC
 
 Modifications made by Flant JSC as part of the Deckhouse project.
 
