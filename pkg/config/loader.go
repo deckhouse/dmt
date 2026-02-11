@@ -19,6 +19,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -27,8 +28,9 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/viper"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
+
 	"github.com/deckhouse/dmt/internal/fsutils"
-	"github.com/deckhouse/dmt/internal/logger"
 )
 
 type LoaderOptions struct {
@@ -69,7 +71,7 @@ func (l *Loader) setConfigFile() error {
 
 	configSearchPaths := l.getConfigSearchPaths()
 
-	logger.DebugF("Config search paths: %s", configSearchPaths)
+	log.Debug("Config search paths", slog.Any("paths", configSearchPaths))
 
 	for _, p := range configSearchPaths {
 		l.viper.AddConfigPath(p)
@@ -86,7 +88,7 @@ func (l *Loader) getConfigSearchPaths() []string {
 
 	absPath, err := filepath.Abs(firstArg)
 	if err != nil {
-		logger.WarnF("Can't make abs path for %q: %s", firstArg, err)
+		log.Warn("Can't make abs path", slog.String("path", firstArg), log.Err(err))
 		absPath = filepath.Clean(firstArg)
 	}
 
@@ -114,7 +116,7 @@ func (l *Loader) getConfigSearchPaths() []string {
 
 	// find home directory for global config
 	if home, err := homedir.Dir(); err != nil {
-		logger.WarnF("Can't get user's home directory: %v", err)
+		log.Warn("Can't get user's home directory", log.Err(err))
 	} else if !slices.Contains(searchPaths, home) {
 		searchPaths = append(searchPaths, home)
 	}
@@ -159,10 +161,10 @@ func (l *Loader) setConfigDir() error {
 
 	if usedConfigFile == os.Stdin.Name() {
 		usedConfigFile = ""
-		logger.InfoF("Reading config file stdin")
+		log.Info("Reading config file stdin")
 	}
 
-	logger.DebugF("Used config file %s", usedConfigFile)
+	log.Debug("Used config file", slog.String("file", usedConfigFile))
 
 	return nil
 }

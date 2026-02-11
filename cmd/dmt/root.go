@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"regexp"
 	"strings"
@@ -28,10 +29,11 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
+
 	"github.com/deckhouse/dmt/internal/bootstrap"
 	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/fsutils"
-	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/version"
 )
 
@@ -49,7 +51,12 @@ func execute() {
 		PersistentPreRun: func(_ *cobra.Command, _ []string) {
 			// TODO: move to separate package
 			flags.Version = version.Version
-			logger.InitLogger(os.Stdout, flags.LogLevel)
+			lvl := log.LogLevelFromStr(flags.LogLevel)
+			logger := log.NewLogger(
+				log.WithLevel(slog.Level(lvl)),
+				log.WithHandlerType(log.TextHandlerType),
+			)
+			log.SetDefault(logger)
 		},
 	}
 
@@ -170,15 +177,15 @@ func runLintMultiple(dirs []string) error {
 	for _, dir := range dirs {
 		expandedDir, err := fsutils.ExpandDir(dir)
 		if err != nil {
-			logger.ErrorF("Error expanding directory %s: %v", dir, err)
+			log.Error("Error expanding directory", slog.String("dir", dir), log.Err(err))
 			continue
 		}
 
-		logger.InfoF("Processing directory: %s", expandedDir)
+		log.Info("Processing directory", slog.String("directory", expandedDir))
 
 		// Run lint for this directory as a separate execution
 		if err := runLint(expandedDir); err != nil {
-			logger.ErrorF("Error processing directory %s: %v", expandedDir, err)
+			log.Error("Error processing directory", slog.String("directory", expandedDir), log.Err(err))
 			hasErrors = true
 			// Continue processing other directories even if one fails
 		}

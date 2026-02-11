@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -30,8 +31,9 @@ import (
 	"github.com/iancoleman/strcase"
 	"gopkg.in/yaml.v3"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
+
 	"github.com/deckhouse/dmt/internal/fsutils"
-	"github.com/deckhouse/dmt/internal/logger"
 )
 
 const (
@@ -61,7 +63,7 @@ type BootstrapConfig struct {
 
 // RunBootstrap initializes a new module with the given configuration
 func RunBootstrap(config BootstrapConfig) error {
-	logger.InfoF("Bootstrap type: %s", config.RepositoryType)
+	log.Info("Bootstrap type", slog.String("type", config.RepositoryType))
 
 	// if config.Directory does not exist, create it
 	if _, err := os.Stat(config.Directory); os.IsNotExist(err) {
@@ -75,7 +77,7 @@ func RunBootstrap(config BootstrapConfig) error {
 		return fmt.Errorf("failed to get absolute directory path: %w", err)
 	}
 
-	logger.InfoF("Using directory: %s", absDirectory)
+	log.Info("Using directory", slog.String("directory", absDirectory))
 
 	// Check if directory is empty
 	if err := checkDirectoryEmpty(absDirectory); err != nil {
@@ -114,7 +116,7 @@ func RunBootstrap(config BootstrapConfig) error {
 		}
 	}
 
-	logger.InfoF("Bootstrap completed successfully")
+	log.Info("Bootstrap completed successfully")
 
 	return nil
 }
@@ -145,7 +147,7 @@ func checkDirectoryEmpty(absDirectory string) error {
 		return fmt.Errorf("directory is not empty. Please run bootstrap in an empty directory")
 	}
 
-	logger.DebugF("Directory is empty, proceeding with bootstrap")
+	log.Debug("Directory is empty, proceeding with bootstrap")
 
 	return nil
 }
@@ -266,7 +268,7 @@ func downloadAndExtractTemplate(repositoryURL, directory string) error {
 
 // downloadFile downloads a file from URL to local path with timeout
 func downloadFile(url, targetPath string) error {
-	logger.InfoF("Downloading template from: %s", url)
+	log.Info("Downloading template", slog.String("url", url))
 
 	ctx, cancel := context.WithTimeout(context.Background(), downloadTimeout)
 	defer cancel()
@@ -299,13 +301,13 @@ func downloadFile(url, targetPath string) error {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 
-	logger.InfoF("Template downloaded successfully")
+	log.Info("Template downloaded successfully")
 	return nil
 }
 
 // extractZip extracts a zip file to the specified directory
 func extractZip(zipPath, extractDir string) error {
-	logger.DebugF("Extracting template archive")
+	log.Debug("Extracting template archive")
 
 	reader, err := zip.OpenReader(zipPath)
 	if err != nil {
@@ -380,7 +382,7 @@ func extractZip(zipPath, extractDir string) error {
 		}
 	}
 
-	logger.DebugF("Template extracted successfully")
+	log.Debug("Template extracted successfully")
 	return nil
 }
 
@@ -418,7 +420,7 @@ func moveExtractedContent(tempDir, directory string) error {
 		}
 	}
 
-	logger.DebugF("Template files moved to current directory")
+	log.Debug("Template files moved to current directory")
 	return nil
 }
 

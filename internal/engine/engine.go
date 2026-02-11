@@ -19,6 +19,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -29,7 +30,7 @@ import (
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 
-	"github.com/deckhouse/dmt/internal/logger"
+	"github.com/deckhouse/deckhouse/pkg/log"
 )
 
 // Engine is an implementation of the Helm rendering implementation for templates.
@@ -177,7 +178,7 @@ func (e Engine) initFuncMap(t *template.Template) {
 		if val == nil {
 			if e.LintMode {
 				// Don't fail on missing required values when linting
-				logger.WarnF("[WARNING] Missing required value: %s", warn)
+				log.Warn("[WARNING] Missing required value", slog.String("value", warn))
 				return "", nil
 			}
 			return val, errors.New(warnWrap(warn))
@@ -185,7 +186,7 @@ func (e Engine) initFuncMap(t *template.Template) {
 			if val == "" {
 				if e.LintMode {
 					// Don't fail on missing required values when linting
-					logger.ErrorF("[ERROR] Missing required value: %s", warn)
+					log.Error("[ERROR] Missing required value", slog.String("value", warn))
 					return "", nil
 				}
 				return val, errors.New(warnWrap(warn))
@@ -198,7 +199,7 @@ func (e Engine) initFuncMap(t *template.Template) {
 	funcMap["fail"] = func(msg string) (string, error) {
 		if e.LintMode {
 			// Don't fail when linting
-			logger.WarnF("[WARNING] Fail: %s", msg)
+			log.Warn("[WARNING] Fail", slog.String("message", msg))
 			return "", nil
 		}
 		return "", errors.New(warnWrap(msg))
@@ -287,7 +288,7 @@ func (e Engine) render(tpls map[string]renderable) (rendered map[string]string, 
 			}
 
 			if e.LintMode && isRecoverableNilError {
-				logger.ErrorF("[LINT] Template %s encountered a nil pointer access during execution: %v. Using partially rendered output.", filename, executeErr)
+				log.Error("[LINT] Template encountered a nil pointer access during execution. Using partially rendered output", slog.String("template", filename), slog.Any("error", executeErr))
 				rendered[filename] = getRenderedContent(&buf)
 			} else {
 				// For other errors, or if not in LintMode, this is a hard error.
