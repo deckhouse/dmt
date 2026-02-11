@@ -68,6 +68,7 @@ linters:
         - all
         - '-ST1003' # waiting for package name will be fixed (underscores)
         - '-QF1008' # not need to fix; we understand how to call nested structs
+        - '-SA1019' # remove when fix logger
     revive:
       rules:
         - name: var-naming # waiting for package name will be fixed (incorrect naming)

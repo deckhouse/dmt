@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"errors"
 	"os"
 	"regexp"
 
@@ -24,7 +25,7 @@ import (
 	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg"
-	"github.com/deckhouse/dmt/pkg/errors"
+	pkgerrors "github.com/deckhouse/dmt/pkg/errors"
 )
 
 const (
@@ -59,7 +60,7 @@ type LicenseRule struct {
 	pkg.PathRule
 }
 
-func (r *LicenseRule) CheckFiles(mod *module.Module, errorList *errors.LintRuleErrorsList) {
+func (r *LicenseRule) CheckFiles(mod *module.Module, errorList *pkgerrors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
 	// Use new parser if available
@@ -74,15 +75,15 @@ func (r *LicenseRule) CheckFiles(mod *module.Module, errorList *errors.LintRuleE
 			continue
 		}
 
-		licenseInfo, parseErr := parser.ParseFile(fileName)
-		if parseErr != nil {
-			errorList.WithFilePath(name).Error(parseErr.Error())
+		_, parseErr := parser.ParseFile(fileName)
+		if errors.Is(parseErr, ErrUnsupportedFileType) {
+			logger.DebugF("Skipping unsupported file type: %s", name)
 			continue
 		}
 
-		// Handle parsed license info
-		if !licenseInfo.Valid {
-			errorList.WithFilePath(name).Error(licenseInfo.Error)
+		if parseErr != nil {
+			errorList.WithFilePath(name).Error(parseErr.Error())
+			continue
 		}
 	}
 }
