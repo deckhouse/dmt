@@ -34,7 +34,6 @@ import (
 	"github.com/deckhouse/dmt/internal/bootstrap"
 	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/fsutils"
-	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/test"
 	"github.com/deckhouse/dmt/internal/test/conversions"
 	"github.com/deckhouse/dmt/internal/version"
@@ -231,7 +230,7 @@ func testCmdFunc(_ *cobra.Command, args []string) error {
 }
 
 func runTests(dir string) error {
-	logger.InfoF("Running tests for: %s", dir)
+	log.Info("Running tests", slog.String("directory", dir))
 
 	// Create test runner and register testers
 	runner := test.NewRunner()
@@ -251,7 +250,8 @@ func runTests(dir string) error {
 	// Run tests
 	summary, err := runner.Run(opts)
 	if err != nil {
-		logger.ErrorF("Test execution failed: %v", err)
+		log.Error("Test execution failed", log.Err(err))
+
 		return err
 	}
 
