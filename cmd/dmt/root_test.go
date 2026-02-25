@@ -25,3 +25,19 @@ func TestLintCmdFunc(_ *testing.T) {
 	// This is a basic test to ensure the function doesn't panic
 	// In a real test, we would need to mock the dependencies
 }
+
+func TestRunTestsMultiple(t *testing.T) {
+	// Similar style to lint tests: ensure empty and multiple directories are handled
+	err := runTestsMultiple([]string{})
+	require.NoError(t, err, "Should handle empty directories list")
+
+	err = runTestsMultiple([]string{"."})
+	require.NoError(t, err, "Should handle single directory")
+
+	err = runTestsMultiple([]string{".", "."})
+	require.NoError(t, err, "Should handle multiple directories")
+}
+
+func TestTestCmdFunc(_ *testing.T) {
+	// Stubbed basic invocation; real tests would require mocking runTestsMultiple or os.Exit
+}

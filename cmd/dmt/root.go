@@ -65,10 +65,16 @@ func execute() {
 	rootCmd.SetVersionTemplate("dmt version: {{.Version}}\n")
 
 	lintCmd := &cobra.Command{
-		Use:   "lint",
+		Use:   "lint [module-path ...]",
 		Short: "linter for Deckhouse modules",
-		Long:  `A lot of useful linters to check your modules`,
-		Run:   lintCmdFunc,
+		Long: `A lot of useful linters to check your modules
+
+Example:
+  dmt lint
+  dmt lint .
+  dmt lint ./my-module
+  dmt lint /path/to/module --type conversions`,
+		Run: lintCmdFunc,
 	}
 
 	bootstrapCmd := &cobra.Command{
@@ -147,7 +153,7 @@ func execute() {
 	}
 
 	testCmd := &cobra.Command{
-		Use:   "test <module-path>",
+		Use:   "test [module-path ...]",
 		Short: "run tests for Deckhouse modules",
 		Long: `Run various tests for Deckhouse modules.
 
@@ -157,11 +163,11 @@ Currently supported test types:
 To run conversion tests, create openapi/conversions/conversions_test.yaml in your module.
 
 Example:
+  dmt test
+  dmt test .
   dmt test ./my-module
   dmt test /path/to/module --type conversions`,
-		Args:         cobra.ExactArgs(1),
-		SilenceUsage: true,
-		RunE:         testCmdFunc,
+		Run: testCmdFunc,
 	}
 
 	lintCmd.Flags().AddFlagSet(flags.InitLintFlagSet())
@@ -220,13 +226,47 @@ func runLintMultiple(dirs []string) error {
 	return nil
 }
 
-func testCmdFunc(_ *cobra.Command, args []string) error {
-	modulePath, err := fsutils.ExpandDir(args[0])
-	if err != nil {
-		return fmt.Errorf("error expanding path %s: %w", args[0], err)
+// runTestsMultiple processes several module paths, just like runLintMultiple.
+// Each path is expanded and runTests is invoked. Errors from individual
+// directories are logged and aggregated; the final error indicates if any
+// execution failed.
+func runTestsMultiple(dirs []string) error {
+	var hasErrors bool
+
+	for _, dir := range dirs {
+		expandedDir, err := fsutils.ExpandDir(dir)
+		if err != nil {
+			log.Error("Error expanding directory", slog.String("dir", dir), log.Err(err))
+			continue
+		}
+
+		log.Info("Processing directory", slog.String("directory", expandedDir))
+
+		if err := runTests(expandedDir); err != nil {
+			log.Error("Error processing directory", slog.String("directory", expandedDir), log.Err(err))
+			hasErrors = true
+			// Continue processing other directories even if one fails
+		}
 	}
 
-	return runTests(modulePath)
+	if hasErrors {
+		return fmt.Errorf("critical errors found")
+	}
+
+	return nil
+}
+
+func testCmdFunc(_ *cobra.Command, args []string) {
+	var dirs = args
+
+	if len(dirs) == 0 {
+		dirs = []string{"."}
+	}
+
+	// Process all directories and combine results
+	if err := runTestsMultiple(dirs); err != nil {
+		os.Exit(1)
+	}
 }
 
 func runTests(dir string) error {
