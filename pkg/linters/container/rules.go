@@ -29,7 +29,7 @@ func (l *Container) applyContainerRules(object storage.StoreObject, storageMap m
 
 	rules.NewRecommendedLabelsRule().ObjectRecommendedLabels(object, errorList.WithMaxLevel(l.cfg.Rules.RecommendedLabelsRule.GetLevel()))
 	rules.NewNamespaceLabelsRule().ObjectNamespaceLabels(object, storageMap, errorList.WithMaxLevel(l.cfg.Rules.NamespaceLabelsRule.GetLevel()))
-	rules.NewAPIVersionRule().ObjectAPIVersion(object, errorList.WithMaxLevel(l.cfg.Rules.ApiVersionRule.GetLevel()))
+	rules.NewAPIVersionRule().ObjectAPIVersion(object, errorList.WithMaxLevel(l.cfg.Rules.APIVersionRule.GetLevel()))
 	rules.NewPriorityClassRule().ObjectPriorityClass(object, errorList.WithMaxLevel(l.cfg.Rules.PriorityClassRule.GetLevel()))
 	rules.NewDNSPolicyRule(l.cfg.ExcludeRules.DNSPolicy.Get()).
 		ObjectDNSPolicy(object, errorList.WithMaxLevel(l.cfg.Rules.DNSPolicyRule.GetLevel()))

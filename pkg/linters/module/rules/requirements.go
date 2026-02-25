@@ -43,23 +43,19 @@ const (
 	// MinimalDeckhouseVersionForOptionalModules defines the minimum required Deckhouse version for optional modules usage
 	MinimalDeckhouseVersionForOptionalModules = "1.73.0"
 
-	// MinimalModuleSDKVersionForReadiness defines the minimum module-sdk version for readiness probes
-	MinimalModuleSDKVersionForReadiness = "0.3"
 	// MinimalModuleSDKVersionRequiresDeckhouse171 defines the minimum module-sdk version that requires Deckhouse >= 1.71
-	MinimalModuleSDKVersionRequiresDeckhouse171 = "1.3.0"
-	// MinimalDeckhouseVersionForModuleSDK13 defines the minimum Deckhouse version required for Module-SDK >= 1.3
-	MinimalDeckhouseVersionForModuleSDK13 = "1.71.0"
+	MinimalModuleSDKVersionRequiresDeckhouse171 = "0.3.0"
+	// MinimalDeckhouseVersionForModuleSDK03 defines the minimum Deckhouse version required for Module-SDK >= 0.3
+	MinimalDeckhouseVersionForModuleSDK03 = "1.71.0"
 
 	// Common patterns used in Go files
-	ReadinessProbePattern = `(\w+)\.WithReadiness`
-	AppRunPattern         = `\w+\.Run\(`
+	AppRunPattern = `\w+\.Run\(`
 )
 
 // Precompiled regex patterns for better performance
 var (
-	readinessProbeRegex    = regexp.MustCompile(ReadinessProbePattern)
 	appRunRegex            = regexp.MustCompile(AppRunPattern)
-	versionConstraintRegex = regexp.MustCompile(`([><=]=?|!=)\s*v?(\d+\.\d+\.\d+)`)
+	versionConstraintRegex = regexp.MustCompile(`([><=]=?|!=)\s*v?(\d+(?:\.\d+){0,2})`)
 )
 
 func NewRequirementsRule() *RequirementsRule {
@@ -142,22 +138,6 @@ func NewRequirementsRegistry() *RequirementsRegistry {
 		},
 	})
 
-	// Readiness probes check - checks for app.WithReadiness with module-sdk >= 0.3
-	registry.RegisterCheck(RequirementCheck{
-		Name: "readiness_probes",
-		Requirements: []ComponentRequirement{
-			{
-				ComponentType: ComponentDeckhouse,
-				MinVersion:    MinimalDeckhouseVersionForReadinessProbes,
-				Description:   "Readiness probes usage requires minimum Deckhouse version",
-			},
-		},
-		Description: "Readiness probes usage requires minimum Deckhouse version",
-		Detector: func(modulePath string, _ *DeckhouseModule) bool {
-			return hasReadinessProbes(modulePath)
-		},
-	})
-
 	// Optional modules check - checks for !optional flag usage
 	registry.RegisterCheck(RequirementCheck{
 		Name: "optional_modules",
@@ -180,11 +160,11 @@ func NewRequirementsRegistry() *RequirementsRegistry {
 		Requirements: []ComponentRequirement{
 			{
 				ComponentType: ComponentDeckhouse,
-				MinVersion:    MinimalDeckhouseVersionForModuleSDK13,
-				Description:   "Module-SDK version >= 1.3.0 requires minimum Deckhouse version",
+				MinVersion:    MinimalDeckhouseVersionForModuleSDK03,
+				Description:   "Module-SDK version >= 0.3.0 requires minimum Deckhouse version",
 			},
 		},
-		Description: "Module-SDK version >= 1.3.0 requires Deckhouse version >= 1.71.0",
+		Description: "Module-SDK version >= 0.3.0 requires Deckhouse version >= 1.71.0",
 		Detector: func(modulePath string, _ *DeckhouseModule) bool {
 			return hasModuleSDK13(modulePath)
 		},
@@ -348,16 +328,6 @@ func findPatternInGoFiles(dirs []string, pattern *regexp.Regexp) bool {
 	return false
 }
 
-// hasReadinessProbes determines if readiness probes (app.WithReadiness) and module-sdk >= 0.3 are used
-func hasReadinessProbes(modulePath string) bool {
-	validGoModDirs := findGoModFilesWithModuleSDK(modulePath, MinimalModuleSDKVersionForReadiness)
-	if len(validGoModDirs) == 0 {
-		return false
-	}
-
-	return findPatternInGoFiles(validGoModDirs, readinessProbeRegex)
-}
-
 // hasGoHooks determines if there are go hooks with module-sdk dependency and app.Run calls
 func hasGoHooks(modulePath string) bool {
 	// Check that there's module-sdk dependency in go.mod files (any version)
@@ -370,7 +340,7 @@ func hasGoHooks(modulePath string) bool {
 	return findPatternInGoFiles(validGoModDirs, appRunRegex)
 }
 
-// hasModuleSDK13 determines if Module-SDK version >= 1.3.0 is used
+// hasModuleSDK13 determines if Module-SDK version >= 0.3.0 is used
 func hasModuleSDK13(modulePath string) bool {
 	validGoModDirs := findGoModFilesWithModuleSDK(modulePath, MinimalModuleSDKVersionRequiresDeckhouse171)
 	return len(validGoModDirs) > 0

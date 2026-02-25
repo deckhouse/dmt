@@ -254,6 +254,35 @@ descriptions:
 	assert.Contains(t, errorList.GetErrors()[0].Text, "Field 'weight' must not be zero for critical modules")
 }
 
+func TestCheckDefinitionFile_NonCriticalModuleWithWeight(t *testing.T) {
+	tempDir := t.TempDir()
+	moduleFilePath := filepath.Join(tempDir, ModuleConfigFilename)
+
+	err := os.WriteFile(moduleFilePath, []byte(`
+name: test-non-critical
+weight: 10
+stage: Experimental
+descriptions:
+  en: "Test description"
+`), 0600)
+	require.NoError(t, err)
+
+	rule := NewDefinitionFileRule(false)
+	errorList := errors.NewLintRuleErrorsList()
+	rule.CheckDefinitionFile(tempDir, errorList)
+
+	assert.False(t, errorList.ContainsErrors(), "Expected no errors for non-critical module with weight")
+
+	found := false
+	for _, e := range errorList.GetErrors() {
+		if e.Level == pkg.Warn && e.Text == "Unnecessary field 'weight' must be removed for non-critical module" {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "Expected warning for non-critical module with weight")
+}
+
 func TestCheckDefinitionFile_InvalidStage(t *testing.T) {
 	tempDir := t.TempDir()
 	moduleFilePath := filepath.Join(tempDir, ModuleConfigFilename)
@@ -308,15 +337,15 @@ stage: Experimental
 	errorList := errors.NewLintRuleErrorsList()
 	rule.CheckDefinitionFile(tempDir, errorList)
 
-	got_errors := []string{}
+	gotErrors := []string{}
 	for _, e := range errorList.GetErrors() {
 		if e.Level == pkg.Error {
-			got_errors = append(got_errors, e.Text)
+			gotErrors = append(gotErrors, e.Text)
 		}
 	}
-	assert.NotEmpty(t, got_errors, "Expected error for missing descriptions.en")
+	assert.NotEmpty(t, gotErrors, "Expected error for missing descriptions.en")
 	found := false
-	for _, w := range got_errors {
+	for _, w := range gotErrors {
 		if w == "Module `descriptions.en` field is required" {
 			found = true
 		}
@@ -633,7 +662,7 @@ update:
 	rule.CheckDefinitionFile(tempDir, errorList)
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for missing from/to fields")
 
-	errorTexts := []string{}
+	errorTexts := make([]string, 0, 10) // Preallocate with reasonable capacity
 	for _, e := range errorList.GetErrors() {
 		errorTexts = append(errorTexts, e.Text)
 	}
@@ -685,7 +714,7 @@ update:
 	rule.CheckDefinitionFile(tempDir, errorList)
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for patch versions")
 
-	errorTexts := []string{}
+	errorTexts := make([]string, 0, 10) // Preallocate with reasonable capacity
 	for _, e := range errorList.GetErrors() {
 		errorTexts = append(errorTexts, e.Text)
 	}

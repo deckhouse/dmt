@@ -19,15 +19,17 @@ package main
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"runtime"
 	"runtime/pprof"
 
 	"github.com/fatih/color"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
+
 	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/fsutils"
-	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/internal/manager"
 	"github.com/deckhouse/dmt/internal/metrics"
 	"github.com/deckhouse/dmt/internal/version"
@@ -40,17 +42,17 @@ func main() {
 
 func runLint(dir string) error {
 	if flags.PprofFile != "" {
-		logger.InfoF("Profiling enabled. Profile file: %s", flags.PprofFile)
+		log.Info("Profiling enabled", slog.String("file", flags.PprofFile))
 		defer func() {
 			pproFile, err := fsutils.ExpandDir(flags.PprofFile)
 			if err != nil {
-				logger.ErrorF("could not get current working directory: %s", err)
+				log.Error("could not get current working directory", log.Err(err))
 				return
 			}
-			logger.InfoF("Writing memory profile to %s", pproFile)
+			log.Info("Writing memory profile", slog.String("file", pproFile))
 			f, err := os.Create(pproFile)
 			if err != nil {
-				logger.ErrorF("could not create memory profile: %s", err)
+				log.Error("could not create memory profile", log.Err(err))
 				return
 			}
 			defer f.Close()
@@ -59,17 +61,19 @@ func runLint(dir string) error {
 			// Alternatively, use Lookup("heap") for a profile
 			// that has inuse_space as the default index.
 			if err := pprof.Lookup("allocs").WriteTo(f, 0); err != nil {
-				logger.ErrorF("could not write memory profile: %s", err)
+				log.Error("could not write memory profile", log.Err(err))
 				return
 			}
 		}()
 	}
 	// enable color output for Github actions, do not remove it
 	color.NoColor = false
-	logger.InfoF("DMT version: %s, Commit: %s, Date: %s", version.Version, version.Commit, version.Date)
+	log.Info("DMT version", slog.String("version", version.Version), slog.String("commit", version.Commit), slog.String("date", version.Date))
 
 	cfg, err := config.NewDefaultRootConfig(dir)
-	logger.CheckErr(err)
+	if err != nil {
+		log.Fatal("default root config", log.Err(err)) //nolint:gocritic
+	}
 
 	// init metrics storage, should be done before running manager
 	metrics.GetClient(dir)

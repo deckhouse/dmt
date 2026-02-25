@@ -44,11 +44,12 @@ func ConvertMetric(metric prometheus.Metric, name string) TimeSeries {
 	var value float64
 	var timestamp time.Time
 
-	if dtoMetric.Gauge != nil {
+	switch {
+	case dtoMetric.Gauge != nil:
 		value = dtoMetric.Gauge.GetValue()
-	} else if dtoMetric.Counter != nil {
+	case dtoMetric.Counter != nil:
 		value = dtoMetric.Counter.GetValue()
-	} else if dtoMetric.Untyped != nil {
+	case dtoMetric.Untyped != nil:
 		value = dtoMetric.Untyped.GetValue()
 	}
 

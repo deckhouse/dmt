@@ -53,14 +53,14 @@ func CheckRules(data []byte) error {
 	rgs, errs := rulefmt.Parse(data, ls.ignoreUnknownFields)
 	var ruleErrors, checkGroupErrors error
 	if errs != nil {
-		errStr := make([]string, len(errs))
+		errStr := make([]string, 0, len(errs))
 		for _, e := range errs {
 			errStr = append(errStr, e.Error())
 		}
 		ruleErrors = fmt.Errorf("%s", strings.Join(errStr, "\n"))
 	}
 	if errs := checkRuleGroups(rgs, ls); errs != nil {
-		errStr := make([]string, len(errs))
+		errStr := make([]string, 0, len(errs))
 		for _, e := range errs {
 			errStr = append(errStr, e.Error())
 		}
@@ -118,7 +118,7 @@ func compare(a, b compareRuleType) int {
 
 func checkDuplicates(groups []rulefmt.RuleGroup) []compareRuleType {
 	var duplicates []compareRuleType
-	var cRules compareRuleTypes
+	cRules := make(compareRuleTypes, 0, 100) // Preallocate with reasonable capacity
 
 	for _, group := range groups {
 		for _, rule := range group.Rules {

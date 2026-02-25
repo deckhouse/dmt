@@ -26,7 +26,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/proto" //nolint:staticcheck // Required for prompb compatibility
 	"github.com/golang/snappy"
 	"github.com/prometheus/prometheus/prompb"
 )
@@ -122,7 +122,7 @@ func (c *Client) WriteProto(
 	encoded := snappy.Encode(nil, data)
 
 	body := bytes.NewReader(encoded)
-	req, err := http.NewRequestWithContext(ctx, "POST", c.writeURL, body)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.writeURL, body)
 	if err != nil {
 		return result, writeError{err: err}
 	}

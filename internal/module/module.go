@@ -201,8 +201,8 @@ func mapContainerRules(linterSettings *pkg.LintersSettings, configSettings *conf
 		globalConfig.Container.Rules.NamespaceLabelsRule.Impact,
 		configSettings.Container.Impact,
 	)
-	linterSettings.Container.Rules.ApiVersionRule.SetLevel(
-		globalConfig.Container.Rules.ApiVersionRule.Impact,
+	linterSettings.Container.Rules.APIVersionRule.SetLevel(
+		globalConfig.Container.Rules.APIVersionRule.Impact,
 		configSettings.Container.Impact,
 	)
 	linterSettings.Container.Rules.PriorityClassRule.SetLevel(
@@ -311,7 +311,6 @@ func mapModuleRules(linterSettings *pkg.LintersSettings, configSettings *config.
 	rules.LicenseRule.SetLevel(globalRules.LicenseRule.Impact, fallbackImpact)
 	rules.RequarementsRule.SetLevel(globalRules.RequarementsRule.Impact, fallbackImpact)
 	rules.LegacyReleaseFileRule.SetLevel(globalRules.LegacyReleaseFileRule.Impact, fallbackImpact)
-	rules.ChangelogRule.SetLevel(globalRules.ChangelogRule.Impact, fallbackImpact)
 }
 
 // mapTemplatesRules configures Templates linter rules

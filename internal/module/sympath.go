@@ -19,12 +19,11 @@ package module
 // fork from helmv3: internal/sympath/walk.go
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
-
-	"errors"
 )
 
 // Walk walks the file tree rooted at root, calling walkFn for each file or directory

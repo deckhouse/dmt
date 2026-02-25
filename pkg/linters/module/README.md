@@ -8,7 +8,7 @@ The Module linter performs automated checks on Deckhouse modules to validate con
 
 ## Rules
 
-The Module linter includes **8 validation rules**:
+The Module linter includes **7 validation rules**:
 
 | Rule | Description | Configurable |
 |------|-------------|--------------|
@@ -19,7 +19,6 @@ The Module linter includes **8 validation rules**:
 | [**license**](#license) | Validates license headers in source files | ✅ Yes |
 | [**requirements**](#requirements) | Validates version requirements for features | ❌ No |
 | [**legacy-release-file**](#legacy-release-file) | Checks for deprecated `release.yaml` file | ❌ No |
-| [**changelog**](#changelog) | Validates changelog file presence and content | ❌ No |
 
 ---
 
@@ -145,22 +144,42 @@ Validates the `oss.yaml` file containing open-source software attribution.
 - ✅ Valid YAML structure
 - ✅ At least one project is described
 - ✅ Each project has required fields:
-  - `name` - Project name
-  - `description` - Project description
-  - `link` - Valid project URL
-  - `license` - Valid license identifier
-  - `logo` (optional) - Valid logo URL
+  - `id` - Project identifier (must not be empty)
+  - `version` - Project version (must not be empty, should be valid semver) See ADR "platform-security/2026-01-21-oss-yaml-werf.md"
+  - `name` - Project name (must not be empty)
+  - `description` - Project description (must not be empty)
+  - `link` - Valid project URL (must not be empty, must be valid URL)
+  - `license` - Valid license identifier (must not be empty)
+  - `logo` (optional) - Valid logo URL (must be valid URL if provided)
+
+**Error Messages:**
+- `Module should have oss.yaml` - File is missing from module root
+- `Invalid oss.yaml: <error>` - File exists but contains invalid YAML or structure
+- `no projects described` - File exists but contains an empty list
+- `id must not be empty` - Project entry is missing the `id` field
+- `version must not be empty. Please fill in the parameter and configure CI (werf files for module images) to use these setting.` - Project entry is missing the `version` field
+- `version must be valid semver: <error>` (Warning) - Version is provided but not in valid semantic versioning format
+- `name must not be empty` - Project entry is missing the `name` field
+- `description must not be empty` - Project entry is missing the `description` field
+- `link must not be empty` - Project entry is missing the `link` field
+- `link URL is malformed ("<url>")` - Link is provided but is not a valid URL
+- `License must not be empty` - Project entry is missing the `license` field
+- `project logo URL is malformed ("<url>")` - Logo is provided but is not a valid URL
 
 **Example:**
 ```yaml
 # oss.yaml
-- name: nginx
+- id: nginx/nginx
+  version: 1.25.3
+  name: nginx
   description: High performance web server
   link: https://nginx.org/
   license: BSD-2-Clause
   logo: https://nginx.org/nginx.png
 
-- name: prometheus
+- id: prometheus/prometheus
+  version: 2.48.0
+  name: prometheus
   description: Monitoring system and time series database
   link: https://prometheus.io/
   license: Apache-2.0
@@ -291,7 +310,7 @@ limitations under the License.
 ```go
 /*
 Copyright 2010 SomeAuthor
-Copyright 2925 Flant JSC
+Copyright 2025 Flant JSC
 
 Modifications made by Flant JSC as part of the Deckhouse project.
 
@@ -359,8 +378,7 @@ This rule automatically detects feature usage and ensures proper version constra
 |---------|----------------------|-------------------|
 | **Stage Field** | ≥ 1.68.0 | `stage` field present in `module.yaml` |
 | **Go Hooks** | ≥ 1.68.0 | `go.mod` with `module-sdk` + `app.Run()` calls |
-| **Readiness Probes** | ≥ 1.71.0 | `module-sdk ≥ 0.3` + `app.WithReadiness()` calls |
-| **Module-SDK ≥ 1.3** | ≥ 1.71.0 | `module-sdk ≥ 1.3.0` in `go.mod` |
+| **Module-SDK ≥ 0.3** | ≥ 1.71.0 | `module-sdk ≥ 0.3.0` in `go.mod` |
 | **Optional Modules** | ≥ 1.73.0 | `!optional` flag in module requirements |
 
 **Validation:**
@@ -531,53 +549,4 @@ update:
       to: "1.25"
     - from: "1.17"
       to: "1.20"
-```
-
----
-
-### Changelog
-
-Validates changelog.yaml file presence and content in modules.
-
-**Purpose:** Ensures modules have a changelog file that documents changes and version history. This maintains transparency about module evolution and helps users understand what changes are included in each version.
-
-**Checks:**
-- ✅ `changelog.yaml` file must exist in module root
-- ✅ File must not be empty (size > 0 bytes)
-
-**Validation Logic:**
-- File `changelog.yaml` is required in the module root directory
-- File must contain content (not be empty)
-- Missing or empty files generate appropriate error messages
-
-**Examples:**
-
-```yaml
-# changelog.yaml - Valid changelog
----
-features:
-  Linting:
-    Module:
-      - Added new changelog validation rule to ensure proper changelog format
-      - Enhanced module YAML file checking with additional validation rules
-      - Improved license checking functionality with better error reporting
-      - Added support for restricting UpdateMode to Auto in module configurations
-fixes:
-  Linting:
-    Module:
-      - Fixed install output formatting issues
-      - Corrected changelog rule validation logic
-      - Resolved false positives in module YAML validation
-chore:
-  Dependencies:
-    - Updated helm.sh/helm/v3 dependency from 3.18.4 to 3.18.5
-  Linting:
-    - Refactored changelog validation code for better maintainability
-
-```
-
-**Error Examples:**
-```
-❌ changelog.yaml file is missing
-❌ changelog.yaml file is empty
 ```

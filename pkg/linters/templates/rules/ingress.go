@@ -17,12 +17,14 @@ limitations under the License.
 package rules
 
 import (
+	"log/slog"
 	"strings"
 
 	v1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/deckhouse/dmt/internal/logger"
+	"github.com/deckhouse/deckhouse/pkg/log"
+
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -57,7 +59,7 @@ func (r *IngressRule) CheckSnippetsRule(object storage.StoreObject, errorList *e
 	}
 
 	if !r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {
-		logger.InfoF("⚠️ Skip Ingress %q due to exclusion rule.\n", object.Unstructured.GetName())
+		log.Info("⚠️ Skip Ingress due to exclusion rule", slog.String("name", object.Unstructured.GetName()))
 		return
 	}
 

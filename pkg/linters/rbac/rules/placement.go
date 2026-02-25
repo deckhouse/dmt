@@ -22,12 +22,12 @@ import (
 	"slices"
 	"strings"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -142,20 +142,27 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 			return
 		}
 
-		if isDeckhouseSystemNamespace(namespace) {
-			if objectName != expectedServiceAccountName {
-				errorList.Errorf("Name of ServiceAccount in %q in namespace %q should be equal to %q. If the name is correct, change the namespace to %q", shortPath, namespace, expectedServiceAccountName, m.GetNamespace())
-				return
+		switch objectName {
+		case serviceAccountName:
+			if m.GetNamespace() != namespace {
+				if isDeckhouseSystemNamespace(namespace) {
+					errorList.Errorf("Service account namespace should be equal to %q namespace. If the namespace is correct, change name to %q", m.GetNamespace(), expectedServiceAccountName)
+					return
+				}
+
+				errorList.Errorf("Service account namespace should be equal to %q namespace", m.GetNamespace())
 			}
-		} else {
-			if objectName != serviceAccountName {
-				errorList.Errorf("Name of ServiceAccount in %q should be equal to %q. If the name is correct, change the namespace to system like \"d8-system\" or \"d8-monitoring\"", shortPath, serviceAccountName)
-				return
+			return
+		case expectedServiceAccountName:
+			if !isDeckhouseSystemNamespace(namespace) {
+				if m.GetNamespace() == namespace {
+					errorList.Errorf("Service account namespace should be equal to deckhouse namespaces like \"d8-system\" or \"d8-monitoring\". If this namespaces is correct, change name to %q", serviceAccountName)
+					return
+				}
+
+				errorList.Errorf("Service account namespace should be equal to deckhouse namespaces like \"d8-system\" or \"d8-monitoring\"")
 			}
-			if namespace != m.GetNamespace() {
-				errorList.Errorf("ServiceAccount in %q should be deployed in namespace %q or change namespace to system like \"d8-system\" or \"d8-monitoring\"", shortPath, m.GetNamespace())
-				return
-			}
+			return
 		}
 
 		if strings.HasPrefix(objectName, "istiod") && namespace == "d8-istio" {

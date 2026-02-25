@@ -25,14 +25,14 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/Masterminds/semver/v3"
 	"gopkg.in/ini.v1"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 
-	"github.com/Masterminds/semver/v3"
+	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
-	"github.com/deckhouse/dmt/internal/logger"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
@@ -136,13 +136,13 @@ func getModuleNameFromRepository(dir string) string {
 
 	cfg, err := ini.Load(configFile)
 	if err != nil {
-		logger.ErrorF("Failed to load config file: %v", err)
+		log.Error("Failed to load config file", log.Err(err))
 		return ""
 	}
 
 	sec, err := cfg.GetSection("remote \"origin\"")
 	if err != nil {
-		logger.ErrorF("Failed to get remote \"origin\": %v", err)
+		log.Error("Failed to get remote origin", log.Err(err))
 		return ""
 	}
 
@@ -282,6 +282,10 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 
 	if yml.Critical && yml.Weight == 0 {
 		errorList.Error("Field 'weight' must not be zero for critical modules")
+	}
+
+	if !yml.Critical && yml.Weight > 0 {
+		errorList.Warn("Unnecessary field 'weight' must be removed for non-critical module")
 	}
 }
 

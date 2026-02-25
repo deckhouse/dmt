@@ -35,12 +35,13 @@ Validates that every pod controller has a VPA targeting it, and that the VPA's c
 
 1. Every Deployment, DaemonSet, and StatefulSet has a corresponding VPA
 2. VPA `targetRef` correctly references the controller (kind, name, namespace)
-3. VPA has `resourcePolicy.containerPolicies` for all containers (except when `updateMode: "Off"`)
-4. Each container policy specifies:
+3. VPA `updateMode` cannot be "Auto"
+4. VPA has `resourcePolicy.containerPolicies` for all containers (except when `updateMode: "Off"`)
+5. Each container policy specifies:
    - `minAllowed.cpu` and `minAllowed.memory`
    - `maxAllowed.cpu` and `maxAllowed.memory`
-5. Min values are less than max values
-6. Container names in VPA match container names in the controller
+6. Min values are less than max values
+7. Container names in VPA match container names in the controller
 
 **Why it matters:**
 
@@ -109,7 +110,7 @@ spec:
     kind: Deployment
     name: my-app
   updatePolicy:
-    updateMode: Auto
+    updateMode: Recreate
   resourcePolicy:
     containerPolicies:
       - containerName: app  # ❌ Missing sidecar container
@@ -141,7 +142,7 @@ spec:
     kind: Deployment
     name: my-app
   updatePolicy:
-    updateMode: Auto
+    updateMode: Recreate
   resourcePolicy:
     containerPolicies:
       - containerName: app
@@ -157,6 +158,50 @@ spec:
 ```
 Error: MinAllowed.cpu for container app should be less than maxAllowed.cpu
 ```
+
+❌ **Incorrect** - VPA with updateMode Auto:
+
+```yaml
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: my-app
+  namespace: d8-my-module
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: my-app
+  updatePolicy:
+    updateMode: Auto  # ❌ updateMode cannot be "Auto"
+  resourcePolicy:
+    containerPolicies:
+      - containerName: app
+        minAllowed:
+          cpu: 10m
+          memory: 50Mi
+        maxAllowed:
+          cpu: 100m
+          memory: 200Mi
+```
+
+**Error:**
+```
+Error: VPA updateMode cannot be 'Auto' as it is deprecated. Please use 'InPlaceOrRecreate' instead
+```
+
+**Why updateMode: Auto is no longer supported:**
+
+The `updateMode: Auto` is no longer supported (considered deprecated) because in the upstream `Vertical Pod Autoscaler`, this mode has been deprecated since `VPA 1.5.1` and is now an alias for `Recreate` - that is, it always works through eviction/recreation of Pods and does not provide the advantages of in-place resizing. 
+In `Deckhouse`, this has been fixed with a change: all `Deckhouse-managed VPAs` have been switched from `Auto` to `InPlaceOrRecreate` so that, if Kubernetes support is available, in-place resource updates are performed, and if it is not available, a fallback to eviction is performed. 
+
+**Which mode to use instead of Auto**
+
+Use `InPlaceOrRecreate` — the preferred mode: it attempts to update resources without restarting the Pod and falls back to eviction (`Recreate`) if necessary. 
+Use `Recreate` if you only need an eviction-based approach and are consciously prepared for Pod restarts. 
+`Off` and `Initial` remain unchanged.
+
+See [PR 17011](https://github.com/deckhouse/deckhouse/pull/17011) for more details.
 
 ✅ **Correct** - Deployment with proper VPA:
 
@@ -197,7 +242,7 @@ spec:
     kind: Deployment
     name: my-app
   updatePolicy:
-    updateMode: Auto
+    updateMode: Recreate
   resourcePolicy:
     containerPolicies:
       - containerName: app
@@ -238,7 +283,7 @@ spec:
     kind: Deployment
     name: web-app
   updatePolicy:
-    updateMode: Auto
+    updateMode: Recreate
   resourcePolicy:
     containerPolicies:
       - containerName: nginx
@@ -1685,7 +1730,7 @@ Error: No VPA is found for object
        kind: Deployment
        name: my-app
      updatePolicy:
-       updateMode: Auto
+       updateMode: Recreate
      resourcePolicy:
        containerPolicies:
          - containerName: "*"

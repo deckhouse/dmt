@@ -220,7 +220,6 @@ type ModuleLinterRules struct {
 	LicenseRule           RuleConfig
 	RequarementsRule      RuleConfig
 	LegacyReleaseFileRule RuleConfig
-	ChangelogRule         RuleConfig
 }
 type OSSRuleSettings struct {
 	Disable bool
@@ -293,7 +292,7 @@ func (l PrefixRuleExcludeList) Get() []PrefixRuleExclude {
 type ContainerLinterRules struct {
 	RecommendedLabelsRule         RuleConfig
 	NamespaceLabelsRule           RuleConfig
-	ApiVersionRule                RuleConfig
+	APIVersionRule                RuleConfig
 	PriorityClassRule             RuleConfig
 	DNSPolicyRule                 RuleConfig
 	ControllerSecurityContextRule RuleConfig

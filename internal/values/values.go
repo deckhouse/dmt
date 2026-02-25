@@ -3,18 +3,19 @@ package values
 import (
 	_ "embed"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
 	"dario.cat/mergo"
 	"github.com/flant/addon-operator/pkg/utils"
-	"helm.sh/helm/v3/pkg/chartutil"
-
-	"github.com/deckhouse/dmt/internal/logger"
-	"github.com/deckhouse/dmt/internal/module/schema"
-
 	"github.com/go-openapi/spec"
+	"helm.sh/helm/v3/pkg/chartutil"
 	"sigs.k8s.io/yaml"
+
+	"github.com/deckhouse/deckhouse/pkg/log"
+
+	"github.com/deckhouse/dmt/internal/module/schema"
 )
 
 type SchemaType string
@@ -93,7 +94,7 @@ func GetGlobalValues(rootDir string) (*spec.Schema, error) {
 		if err != nil {
 			return nil, err
 		}
-		logger.InfoF("Using global values from `%s` directory", rootDir)
+		log.Info("Using global values", slog.String("directory", rootDir))
 		configBytes = configBytesT
 		valuesBytes = valuesBytesT
 	}

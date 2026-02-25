@@ -19,7 +19,8 @@ package metrics
 import (
 	"context"
 
-	"github.com/deckhouse/dmt/internal/logger"
+	"github.com/deckhouse/deckhouse/pkg/log"
+
 	"github.com/deckhouse/dmt/internal/promremote"
 )
 
@@ -61,6 +62,6 @@ func (p *PrometheusMetricsService) Send(ctx context.Context) {
 		promremote.WriteOptions{},
 	)
 	if err != nil {
-		logger.ErrorF("error in sending metrics: %v", err)
+		log.Error("error in sending metrics", log.Err(err))
 	}
 }
