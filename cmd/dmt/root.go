@@ -65,7 +65,7 @@ func execute() {
 	rootCmd.SetVersionTemplate("dmt version: {{.Version}}\n")
 
 	lintCmd := &cobra.Command{
-		Use:   "lint [module-path ...]",
+		Use:   "lint",
 		Short: "linter for Deckhouse modules",
 		Long: `A lot of useful linters to check your modules
 
