@@ -108,10 +108,11 @@ type OpenAPILinterConfig struct {
 	ExcludeRules OpenAPIExcludeRules
 }
 type OpenAPILinterRules struct {
-	EnumRule RuleConfig
-	HARule   RuleConfig
-	CRDsRule RuleConfig
-	KeysRule RuleConfig
+	EnumRule      RuleConfig
+	HARule        RuleConfig
+	CRDsRule      RuleConfig
+	KeysRule      RuleConfig
+	BilingualRule RuleConfig
 }
 
 type OpenAPIExcludeRules struct {
