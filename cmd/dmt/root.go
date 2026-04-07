@@ -161,6 +161,17 @@ func execute() {
 		Long:         `Validates that conversion specifications match the OpenAPI config versions.`,
 		Args:         cobra.RangeArgs(0, 1),
 		SilenceUsage: true,
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			normalized := strings.ToUpper(flags.LogLevel)
+			validLogLevels := []string{"DEBUG", "INFO", "WARN", "ERROR"}
+			for _, lvl := range validLogLevels {
+				if normalized == lvl {
+					flags.LogLevel = normalized
+					return nil
+				}
+			}
+			return fmt.Errorf("invalid log-level: %q (valid: DEBUG, INFO, WARN, ERROR)", flags.LogLevel)
+		},
 		RunE: func(_ *cobra.Command, args []string) error {
 			var dir = "."
 			if len(args) > 0 {
@@ -170,7 +181,6 @@ func execute() {
 		},
 	}
 
-	conversionsCmd.Flags().StringVar(&flags.TestConversionsFixturesPath, "test-conversions-fixtures", "", "path to conversions test fixtures directory")
 	conversionsCmd.Flags().StringVarP(&flags.LogLevel, "log-level", "l", "INFO", "log-level [DEBUG | INFO | WARN | ERROR]")
 
 	testCmd.AddCommand(conversionsCmd)
@@ -190,11 +200,6 @@ func runTestConversions(dir string) error {
 	cfg, err := config.NewDefaultRootConfig(dir)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
-	}
-
-	// Override fixtures path from flag if provided
-	if flags.TestConversionsFixturesPath != "" {
-		cfg.LinterSettings.Test.TestConversions.FixturesPath = flags.TestConversionsFixturesPath
 	}
 
 	expandedDir, err := fsutils.ExpandDir(dir)
