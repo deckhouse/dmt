@@ -27,3 +27,10 @@ type LinterError struct {
 	LineNumber  int
 	Level       Level
 }
+
+type TestError struct {
+	TestID   string
+	ModuleID string
+	Text     string
+	Level    Level
+}
