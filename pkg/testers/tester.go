@@ -16,11 +16,16 @@ limitations under the License.
 
 package testers
 
+import "errors"
+
+var ErrNotApplicable = errors.New("not applicable")
+
 // Tester is the interface that all module testers must implement.
 // Each tester validates a specific aspect of a module (conversions, values, render, etc.)
 type Tester interface {
 	// Run executes the test on the given module path.
 	// Returns nil if test passed, returns error describing the failure.
+	// Returns ErrNotApplicable if the test is not applicable to this module.
 	Run(modulePath string) error
 
 	// Name returns the test name (e.g., "conversions", "values").
