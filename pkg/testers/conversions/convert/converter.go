@@ -34,14 +34,14 @@ type conversionFile struct {
 }
 
 type Converter struct {
-	latest      int
-	conversions map[int]string
+	latestVersion int
+	conversions   map[int]string
 }
 
 func newConverter(path string) (*Converter, error) {
 	c := &Converter{
-		conversions: make(map[int]string),
-		latest:      1,
+		conversions:   make(map[int]string),
+		latestVersion: 1,
 	}
 
 	entries, err := os.ReadDir(path)
@@ -50,10 +50,7 @@ func newConverter(path string) (*Converter, error) {
 	}
 
 	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".yaml" {
-			continue
-		}
-		if entry.Name() == "testcases.yaml" {
+		if entry.IsDir() || !isConversionFile(entry.Name()) {
 			continue
 		}
 
@@ -62,8 +59,8 @@ func newConverter(path string) (*Converter, error) {
 			return nil, err
 		}
 
-		if conv.Version > c.latest {
-			c.latest = conv.Version
+		if conv.Version > c.latestVersion {
+			c.latestVersion = conv.Version
 		}
 		c.conversions[conv.Version] = strings.Join(conv.Conversions, " | ")
 	}
@@ -72,7 +69,7 @@ func newConverter(path string) (*Converter, error) {
 }
 
 func (c *Converter) ConvertTo(currentVersion, targetVersion int, settings map[string]interface{}) (map[string]interface{}, error) {
-	if currentVersion >= c.latest || settings == nil {
+	if currentVersion >= c.latestVersion || settings == nil {
 		return settings, nil
 	}
 
@@ -88,9 +85,9 @@ func (c *Converter) ConvertTo(currentVersion, targetVersion int, settings map[st
 }
 
 func (c *Converter) applyConversion(version int, settings map[string]interface{}) (map[string]interface{}, error) {
-	rule := c.conversions[version]
-	if rule == "" {
-		return nil, errors.New("conversion not found")
+	rule, ok := c.conversions[version]
+	if !ok {
+		return nil, fmt.Errorf("conversion for version %d not found", version)
 	}
 
 	query, err := gojq.Parse(rule)
@@ -98,10 +95,12 @@ func (c *Converter) applyConversion(version int, settings map[string]interface{}
 		return nil, fmt.Errorf("parse jq query: %w", err)
 	}
 
-	result, ok := query.Run(settings).Next()
+	iter := query.Run(settings)
+	result, ok := iter.Next()
 	if !ok {
 		return nil, nil
 	}
+
 	if err, ok := result.(error); ok {
 		return nil, err
 	}
@@ -156,6 +155,7 @@ func parseConversionFile(path string) (conversionFile, error) {
 	if conv.Version < 1 {
 		return conversionFile{}, fmt.Errorf("invalid conversion version %d in %s: must be >= 1", conv.Version, path)
 	}
+
 	if len(conv.Conversions) == 0 {
 		return conversionFile{}, fmt.Errorf("empty conversions array in %s", path)
 	}
@@ -177,4 +177,8 @@ func mapsEqual(a, b map[string]interface{}) bool {
 
 func must[T any](v T, _ error) T {
 	return v
+}
+
+func isConversionFile(name string) bool {
+	return filepath.Ext(name) == ".yaml" && name != "testcases.yaml"
 }
