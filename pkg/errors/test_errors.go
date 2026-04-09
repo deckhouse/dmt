@@ -19,7 +19,6 @@ package errors
 import (
 	"fmt"
 	"strings"
-	"sync"
 
 	"github.com/deckhouse/dmt/pkg"
 )
@@ -30,27 +29,6 @@ type TestErrorsList struct {
 
 	testID   string
 	moduleID string
-}
-
-type testErrStorage struct {
-	mu      sync.Mutex
-	errList []pkg.TestError
-}
-
-func (s *testErrStorage) GetErrors() []pkg.TestError {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	result := make([]pkg.TestError, 0, len(s.errList))
-	result = append(result, s.errList...)
-
-	return result
-}
-
-func (s *testErrStorage) add(err *pkg.TestError) {
-	s.mu.Lock()
-	s.errList = append(s.errList, *err)
-	s.mu.Unlock()
 }
 
 func NewTestErrorsList() *TestErrorsList {
