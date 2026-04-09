@@ -161,17 +161,6 @@ func execute() {
 		Long:         `Validates that conversion specifications match the OpenAPI config versions.`,
 		Args:         cobra.RangeArgs(0, 1),
 		SilenceUsage: true,
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			normalized := strings.ToUpper(flags.LogLevel)
-			validLogLevels := []string{"DEBUG", "INFO", "WARN", "ERROR"}
-			for _, lvl := range validLogLevels {
-				if normalized == lvl {
-					flags.LogLevel = normalized
-					return nil
-				}
-			}
-			return fmt.Errorf("invalid log-level: %q (valid: DEBUG, INFO, WARN, ERROR)", flags.LogLevel)
-		},
 		RunE: func(_ *cobra.Command, args []string) error {
 			var dir = "."
 			if len(args) > 0 {
