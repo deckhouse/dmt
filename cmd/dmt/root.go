@@ -207,12 +207,15 @@ func runTestConversions(dir string) error {
 		return fmt.Errorf("failed to expand directory: %w", err)
 	}
 
-	manager := test.NewManager(expandedDir, cfg)
+	manager, err := test.NewManager(expandedDir, cfg)
+	if err != nil {
+		return fmt.Errorf("failed to create test manager: %w", err)
+	}
 	manager.Run()
 	manager.PrintResult()
 
 	if manager.HasCriticalErrors() {
-		return fmt.Errorf("test failures found")
+		os.Exit(1)
 	}
 
 	return nil
