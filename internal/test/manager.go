@@ -29,12 +29,19 @@ import (
 	"github.com/deckhouse/dmt/pkg/testers/conversions/tester"
 )
 
+type moduleResult struct {
+	name   string
+	failed bool
+	err    error
+}
+
 type Manager struct {
 	cfg     *config.RootConfig
 	modules []string
 
 	errors  *pkgerrors.TestErrorsList
 	testers []testers.Tester
+	results []moduleResult
 }
 
 func NewManager(dir string, rootConfig *config.RootConfig) (*Manager, error) {
@@ -60,24 +67,20 @@ func (m *Manager) Run() {
 	}
 
 	for _, modulePath := range m.modules {
-		m.runModuleTests(modulePath)
+		result := m.runModuleTests(modulePath)
+		m.results = append(m.results, result)
 	}
 }
 
-func (m *Manager) runModuleTests(modulePath string) {
+func (m *Manager) runModuleTests(modulePath string) moduleResult {
 	moduleName := extractModuleName(modulePath)
 	failed, lastErr := m.runTesters(modulePath)
 
 	if errors.Is(lastErr, testers.ErrNotApplicable) {
-		fmt.Fprintf(os.Stderr, "⚠️ %s: %s\n", moduleName, lastErr.Error())
-		return
+		return moduleResult{name: moduleName, err: lastErr}
 	}
 
-	if failed {
-		fmt.Fprintf(os.Stderr, "❌ %s: %s\n", moduleName, lastErr.Error())
-	} else {
-		fmt.Printf("✅ %s\n", moduleName)
-	}
+	return moduleResult{name: moduleName, failed: failed, err: lastErr}
 }
 
 func (m *Manager) runTesters(modulePath string) (bool, error) {
@@ -112,7 +115,18 @@ func (m *Manager) runTesters(modulePath string) (bool, error) {
 }
 
 func (m *Manager) PrintResult() {
-	// Errors are printed immediately during Run()
+	for _, result := range m.results {
+		if result.err != nil && errors.Is(result.err, testers.ErrNotApplicable) {
+			fmt.Fprintf(os.Stderr, "⚠️ %s: %s\n", result.name, result.err.Error())
+			continue
+		}
+
+		if result.failed {
+			fmt.Fprintf(os.Stderr, "❌ %s: %s\n", result.name, result.err.Error())
+		} else {
+			fmt.Printf("✅ %s\n", result.name)
+		}
+	}
 }
 
 func (m *Manager) HasCriticalErrors() bool {
