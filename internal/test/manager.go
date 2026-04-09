@@ -69,6 +69,7 @@ func (m *Manager) runModuleTests(modulePath string) {
 	failed, lastErr := m.runTesters(modulePath)
 
 	if errors.Is(lastErr, testers.ErrNotApplicable) {
+		fmt.Fprintf(os.Stderr, "⚠️ %s: %s\n", moduleName, lastErr.Error())
 		return
 	}
 
@@ -82,14 +83,29 @@ func (m *Manager) runModuleTests(modulePath string) {
 func (m *Manager) runTesters(modulePath string) (bool, error) {
 	moduleName := extractModuleName(modulePath)
 	var lastErr error
+	anyTesterRan := false
 
 	for _, tester := range m.testers {
-		if err := tester.Run(modulePath); err != nil {
+		err := tester.Run(modulePath)
+		if err != nil {
+			if errors.Is(err, testers.ErrNotApplicable) {
+				if lastErr == nil {
+					lastErr = err
+				}
+				continue
+			}
+			anyTesterRan = true
 			lastErr = err
 			m.errors.WithTestID("test").
 				WithModule(moduleName).
 				Errorf("%s", err.Error())
+		} else {
+			anyTesterRan = true
 		}
+	}
+
+	if !anyTesterRan {
+		return false, lastErr
 	}
 
 	return lastErr != nil, lastErr
