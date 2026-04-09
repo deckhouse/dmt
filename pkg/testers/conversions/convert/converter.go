@@ -68,7 +68,8 @@ func newConverter(path string) (*Converter, error) {
 	return c, nil
 }
 
-func (c *Converter) ConvertTo(currentVersion, targetVersion int, settings map[string]interface{}) (map[string]interface{}, error) {
+func (c *Converter) ConvertTo(currentVersion, targetVersion int,
+	settings map[string]interface{}) (map[string]interface{}, error) {
 	if currentVersion >= c.latestVersion || settings == nil {
 		return settings, nil
 	}
