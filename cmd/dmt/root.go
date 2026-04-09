@@ -170,8 +170,6 @@ func execute() {
 		},
 	}
 
-	conversionsCmd.Flags().StringVarP(&flags.LogLevel, "log-level", "l", "INFO", "log-level [DEBUG | INFO | WARN | ERROR]")
-
 	testCmd.AddCommand(conversionsCmd)
 
 	rootCmd.AddCommand(lintCmd)
