@@ -95,7 +95,7 @@ func (c *Converter) applyConversion(version int, settings map[string]interface{}
 		return nil, fmt.Errorf("parse jq query: %w", err)
 	}
 
-	result, ok := query.Run(settings).Next()
+	result, _ := query.Run(settings).Next()
 	if result == nil {
 		return nil, nil
 	}
