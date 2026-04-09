@@ -41,20 +41,6 @@ type testcasesFile struct {
 	Testcases []testcase `json:"testcases"`
 }
 
-func parseTestcases(path string) ([]testcase, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read testcases file: %w", err)
-	}
-
-	var tc testcasesFile
-	if err := yaml.Unmarshal(data, &tc); err != nil {
-		return nil, fmt.Errorf("cannot decode testcases file: %w", err)
-	}
-
-	return tc.Testcases, nil
-}
-
 func Run(modulePath string) error {
 	testcasesPath := filepath.Join(modulePath, conversionsFolder, "testcases.yaml")
 
@@ -79,4 +65,18 @@ func Run(modulePath string) error {
 	}
 
 	return nil
+}
+
+func parseTestcases(path string) ([]testcase, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read testcases file: %w", err)
+	}
+
+	var tc testcasesFile
+	if err := yaml.Unmarshal(data, &tc); err != nil {
+		return nil, fmt.Errorf("cannot decode testcases file: %w", err)
+	}
+
+	return tc.Testcases, nil
 }
