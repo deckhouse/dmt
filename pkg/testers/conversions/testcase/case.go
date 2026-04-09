@@ -23,6 +23,7 @@ import (
 
 	"sigs.k8s.io/yaml"
 
+	"github.com/deckhouse/dmt/pkg/testers"
 	"github.com/deckhouse/dmt/pkg/testers/conversions/convert"
 )
 
@@ -59,7 +60,7 @@ func Run(modulePath string) error {
 
 	_, err := os.Stat(testcasesPath)
 	if os.IsNotExist(err) {
-		return fmt.Errorf("conversions folder exists but testcases.yaml is missing: add openapi/conversions/testcases.yaml with conversion tests")
+		return testers.NotApplicable("testcases.yaml is missing")
 	}
 	if err != nil {
 		return fmt.Errorf("cannot stat testcases file: %w", err)

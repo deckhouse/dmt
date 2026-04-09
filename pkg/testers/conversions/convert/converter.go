@@ -53,6 +53,9 @@ func newConverter(path string) (*Converter, error) {
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".yaml" {
 			continue
 		}
+		if entry.Name() == "testcases.yaml" {
+			continue
+		}
 
 		conv, err := parseConversionFile(filepath.Join(path, entry.Name()))
 		if err != nil {
@@ -95,8 +98,8 @@ func (c *Converter) applyConversion(version int, settings map[string]interface{}
 		return nil, fmt.Errorf("parse jq query: %w", err)
 	}
 
-	result, _ := query.Run(settings).Next()
-	if result == nil {
+	result, ok := query.Run(settings).Next()
+	if !ok {
 		return nil, nil
 	}
 	if err, ok := result.(error); ok {
@@ -148,6 +151,13 @@ func parseConversionFile(path string) (conversionFile, error) {
 	var conv conversionFile
 	if err := yaml.Unmarshal(data, &conv); err != nil {
 		return conversionFile{}, fmt.Errorf("unmarshal: %w", err)
+	}
+
+	if conv.Version < 1 {
+		return conversionFile{}, fmt.Errorf("invalid conversion version %d in %s: must be >= 1", conv.Version, path)
+	}
+	if len(conv.Conversions) == 0 {
+		return conversionFile{}, fmt.Errorf("empty conversions array in %s", path)
 	}
 
 	return conv, nil

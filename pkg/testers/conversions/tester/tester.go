@@ -54,7 +54,7 @@ func (t *Tester) Run(modulePath string) error {
 	}
 
 	if configVersion == 0 {
-		return testers.ErrNotApplicable
+		return testers.NotApplicable("x-config-version is 0 or not set")
 	}
 
 	convFolder := filepath.Join(modulePath, conversionsFolder)
@@ -62,7 +62,48 @@ func (t *Tester) Run(modulePath string) error {
 		return err
 	}
 
+	latestVersion, err := t.getLatestConversionVersion(convFolder)
+	if err != nil {
+		return err
+	}
+
+	if latestVersion > 0 && configVersion != latestVersion {
+		return fmt.Errorf("x-config-version mismatch: config-values.yaml has x-config-version %d, but latest conversion version is %d", configVersion, latestVersion)
+	}
+
 	return testcase.Run(modulePath)
+}
+
+func (t *Tester) getLatestConversionVersion(convFolder string) (int, error) {
+	entries, err := os.ReadDir(convFolder)
+	if err != nil {
+		return 0, fmt.Errorf("read conversions dir: %w", err)
+	}
+
+	latest := 0
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".yaml" || entry.Name() == "testcases.yaml" {
+			continue
+		}
+
+		data, err := os.ReadFile(filepath.Join(convFolder, entry.Name()))
+		if err != nil {
+			return 0, fmt.Errorf("read conversion file %s: %w", entry.Name(), err)
+		}
+
+		var conv struct {
+			Version int `json:"version"`
+		}
+		if err := yaml.Unmarshal(data, &conv); err != nil {
+			return 0, fmt.Errorf("unmarshal conversion file %s: %w", entry.Name(), err)
+		}
+
+		if conv.Version > latest {
+			latest = conv.Version
+		}
+	}
+
+	return latest, nil
 }
 
 func (t *Tester) getConfigVersion(modulePath string) (int, error) {

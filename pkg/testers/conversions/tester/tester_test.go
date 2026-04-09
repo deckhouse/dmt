@@ -159,8 +159,7 @@ description:
 	tester := New()
 	err = tester.Run(tempDir)
 
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "testcases.yaml is missing")
+	assert.ErrorIs(t, err, testers.ErrNotApplicable)
 }
 
 func TestConversionsTester_RunsTestcases(t *testing.T) {
@@ -208,6 +207,147 @@ description:
 	tester := New()
 	err = tester.Run(tmpDir)
 	assert.NoError(t, err)
+}
+
+func TestConversionsTester_ChainConversion(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	openapiDir := filepath.Join(tmpDir, "openapi")
+	err := os.MkdirAll(openapiDir, 0755)
+	require.NoError(t, err)
+
+	configValuesYAML := `x-config-version: 3`
+	err = os.WriteFile(filepath.Join(openapiDir, "config-values.yaml"), []byte(configValuesYAML), 0644)
+	require.NoError(t, err)
+
+	convDir := filepath.Join(openapiDir, "conversions")
+	err = os.MkdirAll(convDir, 0755)
+	require.NoError(t, err)
+
+	v2yaml := `version: 2
+conversions:
+  - del(.auth.password)
+description:
+  ru: "v2"
+  en: "v2"
+`
+	err = os.WriteFile(filepath.Join(convDir, "v2.yaml"), []byte(v2yaml), 0644)
+	require.NoError(t, err)
+
+	v3yaml := `version: 3
+conversions:
+  - del(.auth)
+description:
+  ru: "v3"
+  en: "v3"
+`
+	err = os.WriteFile(filepath.Join(convDir, "v3.yaml"), []byte(v3yaml), 0644)
+	require.NoError(t, err)
+
+	testcasesYAML := `testcases:
+  - name: "should convert from 1 to 3 (chain 1->2->3)"
+    currentVersion: 1
+    expectedVersion: 3
+    settings: |
+      auth:
+        password: secret
+    expected: |
+      {}
+`
+	err = os.WriteFile(filepath.Join(convDir, "testcases.yaml"), []byte(testcasesYAML), 0644)
+	require.NoError(t, err)
+
+	tester := New()
+	err = tester.Run(tmpDir)
+	assert.NoError(t, err)
+}
+
+func TestConversionsTester_InvalidVersion(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	openapiDir := filepath.Join(tmpDir, "openapi")
+	err := os.MkdirAll(openapiDir, 0755)
+	require.NoError(t, err)
+
+	configValuesYAML := `x-config-version: 2`
+	err = os.WriteFile(filepath.Join(openapiDir, "config-values.yaml"), []byte(configValuesYAML), 0644)
+	require.NoError(t, err)
+
+	convDir := filepath.Join(openapiDir, "conversions")
+	err = os.MkdirAll(convDir, 0755)
+	require.NoError(t, err)
+
+	invalidYaml := `version: 0
+conversions:
+  - del(.auth.password)
+description:
+  ru: "invalid"
+  en: "invalid"
+`
+	err = os.WriteFile(filepath.Join(convDir, "v0.yaml"), []byte(invalidYaml), 0644)
+	require.NoError(t, err)
+
+	testcasesYAML := `testcases:
+  - name: "test"
+    currentVersion: 1
+    expectedVersion: 2
+    settings: |
+      auth:
+        password: secret
+    expected: |
+      auth: {}
+`
+	err = os.WriteFile(filepath.Join(convDir, "testcases.yaml"), []byte(testcasesYAML), 0644)
+	require.NoError(t, err)
+
+	tester := New()
+	err = tester.Run(tmpDir)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid conversion version")
+}
+
+func TestConversionsTester_VersionMismatch(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	openapiDir := filepath.Join(tmpDir, "openapi")
+	err := os.MkdirAll(openapiDir, 0755)
+	require.NoError(t, err)
+
+	configValuesYAML := `x-config-version: 3`
+	err = os.WriteFile(filepath.Join(openapiDir, "config-values.yaml"), []byte(configValuesYAML), 0644)
+	require.NoError(t, err)
+
+	convDir := filepath.Join(openapiDir, "conversions")
+	err = os.MkdirAll(convDir, 0755)
+	require.NoError(t, err)
+
+	v2yaml := `version: 2
+conversions:
+  - del(.auth.password)
+description:
+  ru: "v2"
+  en: "v2"
+`
+	err = os.WriteFile(filepath.Join(convDir, "v2.yaml"), []byte(v2yaml), 0644)
+	require.NoError(t, err)
+
+	testcasesYAML := `testcases:
+  - name: "test"
+    currentVersion: 1
+    expectedVersion: 2
+    settings: |
+      auth:
+        password: secret
+    expected: |
+      auth: {}
+`
+	err = os.WriteFile(filepath.Join(convDir, "testcases.yaml"), []byte(testcasesYAML), 0644)
+	require.NoError(t, err)
+
+	tester := New()
+	err = tester.Run(tmpDir)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "x-config-version mismatch")
 }
 
 func TestConversionsTester_ReportsTestcaseFailure(t *testing.T) {

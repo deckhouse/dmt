@@ -16,9 +16,28 @@ limitations under the License.
 
 package testers
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 var ErrNotApplicable = errors.New("not applicable")
+
+type notApplicableError struct {
+	reason string
+}
+
+func (e *notApplicableError) Error() string {
+	return fmt.Sprintf("not applicable: %s", e.reason)
+}
+
+func (e *notApplicableError) Is(target error) bool {
+	return target == ErrNotApplicable
+}
+
+func NotApplicable(reason string) error {
+	return &notApplicableError{reason: reason}
+}
 
 // Tester is the interface that all module testers must implement.
 // Each tester validates a specific aspect of a module (conversions, values, render, etc.)
