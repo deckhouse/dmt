@@ -1,0 +1,10 @@
+testcases:
+  - name: "incorrect expected - should fail"
+    currentVersion: 1
+    expectedVersion: 2
+    settings: |
+      auth:
+        password: secret
+    expected: |
+      auth: 
+        password: secret
