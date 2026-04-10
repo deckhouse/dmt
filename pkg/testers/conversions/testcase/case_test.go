@@ -64,7 +64,7 @@ testcases:
 		t.Fatal(err)
 	}
 
-	err = Run(tmpDir)
+	err = New().Run(tmpDir)
 	if err != nil {
 		t.Errorf("Run failed: %v", err)
 	}

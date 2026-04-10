@@ -41,7 +41,18 @@ type testcasesFile struct {
 	Testcases []testcase `json:"testcases"`
 }
 
-func Run(modulePath string) error {
+type Tester struct {
+	modulePath string
+	testcases  []testcase
+}
+
+func New() *Tester {
+	return &Tester{}
+}
+
+func (t *Tester) Run(modulePath string) error {
+	t.modulePath = modulePath
+
 	testcasesPath := filepath.Join(modulePath, conversionsFolder, "testcases.yaml")
 
 	_, err := os.Stat(testcasesPath)
@@ -52,12 +63,11 @@ func Run(modulePath string) error {
 		return fmt.Errorf("cannot stat testcases file: %w", err)
 	}
 
-	tc, err := parseTestcases(testcasesPath)
-	if err != nil {
+	if err := t.parseTestcases(testcasesPath); err != nil {
 		return err
 	}
 
-	for _, c := range tc {
+	for _, c := range t.testcases {
 		err := convert.TestConvert(c.Name, c.Settings, c.Expected, filepath.Join(modulePath, conversionsFolder), c.CurrentVersion, c.ExpectedVersion)
 		if err != nil {
 			return err
@@ -67,16 +77,17 @@ func Run(modulePath string) error {
 	return nil
 }
 
-func parseTestcases(path string) ([]testcase, error) {
+func (t *Tester) parseTestcases(path string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read testcases file: %w", err)
+		return fmt.Errorf("cannot read testcases file: %w", err)
 	}
 
 	var tc testcasesFile
 	if err := yaml.Unmarshal(data, &tc); err != nil {
-		return nil, fmt.Errorf("cannot decode testcases file: %w", err)
+		return fmt.Errorf("cannot decode testcases file: %w", err)
 	}
 
-	return tc.Testcases, nil
+	t.testcases = tc.Testcases
+	return nil
 }
