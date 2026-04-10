@@ -68,8 +68,7 @@ func newConverter(path string) (*Converter, error) {
 	return c, nil
 }
 
-func (c *Converter) ConvertTo(currentVersion, targetVersion int,
-	settings map[string]interface{}) (map[string]interface{}, error) {
+func (c *Converter) ConvertTo(currentVersion, targetVersion int, settings map[string]any) (map[string]any, error) {
 	if currentVersion >= c.latestVersion || settings == nil {
 		return settings, nil
 	}
@@ -85,7 +84,7 @@ func (c *Converter) ConvertTo(currentVersion, targetVersion int,
 	return settings, nil
 }
 
-func (c *Converter) applyConversion(version int, settings map[string]interface{}) (map[string]interface{}, error) {
+func (c *Converter) applyConversion(version int, settings map[string]any) (map[string]any, error) {
 	rule, ok := c.conversions[version]
 	if !ok {
 		return nil, fmt.Errorf("conversion for version %d not found", version)
@@ -106,7 +105,7 @@ func (c *Converter) applyConversion(version int, settings map[string]interface{}
 		return nil, err
 	}
 
-	filtered, ok := result.(map[string]interface{})
+	filtered, ok := result.(map[string]any)
 	if !ok {
 		return nil, errors.New("conversion result is not a map")
 	}
@@ -164,15 +163,15 @@ func parseConversionFile(path string) (conversionFile, error) {
 	return conv, nil
 }
 
-func parseYAML(data string) (map[string]interface{}, error) {
-	var result map[string]interface{}
+func parseYAML(data string) (map[string]any, error) {
+	var result map[string]any
 	if err := yaml.Unmarshal([]byte(data), &result); err != nil {
 		return nil, fmt.Errorf("unmarshal: %w", err)
 	}
 	return result, nil
 }
 
-func mapsEqual(a, b map[string]interface{}) bool {
+func mapsEqual(a, b map[string]any) bool {
 	return string(must(json.Marshal(a))) == string(must(json.Marshal(b)))
 }
 
