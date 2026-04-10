@@ -58,9 +58,9 @@ func Run(modulePath string) error {
 	}
 
 	for _, c := range tc {
-		err := convert.TestConvert(c.Settings, c.Expected, filepath.Join(modulePath, conversionsFolder), c.CurrentVersion, c.ExpectedVersion)
+		err := convert.TestConvert(c.Name, c.Settings, c.Expected, filepath.Join(modulePath, conversionsFolder), c.CurrentVersion, c.ExpectedVersion)
 		if err != nil {
-			return fmt.Errorf("testcase %q: %w", c.Name, err)
+			return err
 		}
 	}
 

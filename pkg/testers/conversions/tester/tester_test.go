@@ -392,5 +392,7 @@ description:
 	tester := New()
 	err = tester.Run(tmpDir)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "expected:")
+	assert.Contains(t, err.Error(), "incorrect expected output")
+	assert.Contains(t, err.Error(), "Test expects")
+	assert.Contains(t, err.Error(), "Conversion produced")
 }

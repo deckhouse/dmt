@@ -17,13 +17,13 @@ limitations under the License.
 package convert
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/itchyny/gojq"
 	"sigs.k8s.io/yaml"
 )
@@ -113,7 +113,7 @@ func (c *Converter) applyConversion(version int, settings map[string]any) (map[s
 	return filtered, nil
 }
 
-func TestConvert(rawSettings, rawExpected, pathToConversions string, fromVersion, toVersion int) error {
+func TestConvert(name, rawSettings, rawExpected, pathToConversions string, fromVersion, toVersion int) error {
 	converter, err := newConverter(pathToConversions)
 	if err != nil {
 		return err
@@ -135,10 +135,30 @@ func TestConvert(rawSettings, rawExpected, pathToConversions string, fromVersion
 	}
 
 	if !mapsEqual(converted, expected) {
-		return fmt.Errorf("expected: %v got: %v", expected, converted)
+		return fmt.Errorf(`
+%s:
+  Test expects (from testcases.yaml):
+%s
+  Conversion produced:
+%s`, name, formatYAML(expected), formatYAML(converted))
 	}
 
 	return nil
+}
+
+func formatYAML(data map[string]any) string {
+	if data == nil {
+		return "{}\n"
+	}
+	out, err := yaml.Marshal(data)
+	if err != nil {
+		return fmt.Sprintf("<error formatting yaml: %v>\n", err)
+	}
+	return string(out)
+}
+
+func mapsEqual(a, b map[string]any) bool {
+	return cmp.Equal(a, b)
 }
 
 func parseConversionFile(path string) (conversionFile, error) {
@@ -169,14 +189,6 @@ func parseYAML(data string) (map[string]any, error) {
 		return nil, fmt.Errorf("unmarshal: %w", err)
 	}
 	return result, nil
-}
-
-func mapsEqual(a, b map[string]any) bool {
-	return string(must(json.Marshal(a))) == string(must(json.Marshal(b)))
-}
-
-func must[T any](v T, _ error) T {
-	return v
 }
 
 func isConversionFile(name string) bool {
