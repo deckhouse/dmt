@@ -78,7 +78,7 @@ func (m *Manager) Run() {
 
 func (m *Manager) runModuleTests(modulePath string) moduleResult {
 	moduleName := extractModuleName(modulePath)
-	failed, lastErr, testerName := m.runTesters(modulePath)
+	failed, testerName, lastErr := m.runTesters(modulePath)
 
 	if errors.Is(lastErr, testers.ErrNotApplicable) {
 		return moduleResult{name: moduleName, skipped: true}
@@ -87,7 +87,7 @@ func (m *Manager) runModuleTests(modulePath string) moduleResult {
 	return moduleResult{name: moduleName, tester: testerName, failed: failed, err: lastErr}
 }
 
-func (m *Manager) runTesters(modulePath string) (bool, error, string) {
+func (m *Manager) runTesters(modulePath string) (bool, string, error) {
 	moduleName := extractModuleName(modulePath)
 	var lastErr error
 	anyTesterRan := false
@@ -114,10 +114,10 @@ func (m *Manager) runTesters(modulePath string) (bool, error, string) {
 	}
 
 	if !anyTesterRan {
-		return false, lastErr, ""
+		return false, "", lastErr
 	}
 
-	return lastErr != nil, lastErr, lastTesterName
+	return lastErr != nil, lastTesterName, lastErr
 }
 
 func (m *Manager) PrintResult() {
