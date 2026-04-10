@@ -30,9 +30,10 @@ import (
 )
 
 type moduleResult struct {
-	name   string
-	failed bool
-	err    error
+	name    string
+	failed  bool
+	skipped bool
+	err     error
 }
 
 type Manager struct {
@@ -77,7 +78,7 @@ func (m *Manager) runModuleTests(modulePath string) moduleResult {
 	failed, lastErr := m.runTesters(modulePath)
 
 	if errors.Is(lastErr, testers.ErrNotApplicable) {
-		return moduleResult{name: moduleName, err: lastErr}
+		return moduleResult{name: moduleName, skipped: true}
 	}
 
 	return moduleResult{name: moduleName, failed: failed, err: lastErr}
@@ -116,8 +117,7 @@ func (m *Manager) runTesters(modulePath string) (bool, error) {
 
 func (m *Manager) PrintResult() {
 	for _, result := range m.results {
-		if result.err != nil && errors.Is(result.err, testers.ErrNotApplicable) {
-			fmt.Fprintf(os.Stderr, "⚠️ %s: %s\n", result.name, result.err.Error())
+		if result.skipped {
 			continue
 		}
 
