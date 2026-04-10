@@ -22,12 +22,13 @@ import (
 	"os"
 	"strings"
 
+	"github.com/fatih/color"
+
 	"github.com/deckhouse/dmt/internal/moduleloader"
 	"github.com/deckhouse/dmt/pkg/config"
 	pkgerrors "github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/testers"
 	"github.com/deckhouse/dmt/pkg/testers/conversions/tester"
-	"github.com/fatih/color"
 )
 
 type moduleResult struct {
