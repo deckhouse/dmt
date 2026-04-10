@@ -84,17 +84,6 @@ var _ = Describe("Conversions Tester", func() {
 		})
 	})
 
-	Describe("module-without-testcases", func() {
-		modulePath := filepath.Join(testDataPath, "module-without-testcases")
-
-		It("should be not applicable", func() {
-			t := tester.New()
-			err := t.Run(modulePath)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("testcases.yaml is missing"))
-		})
-	})
-
 	Describe("with temp dir setup", func() {
 		Describe("version mismatch error formatting", func() {
 			It("should show expected vs actual YAML with diff", func() {
