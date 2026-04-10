@@ -71,8 +71,8 @@ func (t *Tester) Run(modulePath string) error {
 		return &testers.TestError{
 			TestName: ID,
 			Message:  "x-config-version mismatch",
-			Expected: fmt.Sprintf("%d", latestVersion),
-			Got:      fmt.Sprintf("%d", configVersion),
+			Expected: fmt.Sprintf("latest conversion version is %d", latestVersion),
+			Got:      fmt.Sprintf("x-config-version %d", configVersion),
 		}
 	}
 
