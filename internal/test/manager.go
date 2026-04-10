@@ -27,6 +27,7 @@ import (
 	pkgerrors "github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/testers"
 	"github.com/deckhouse/dmt/pkg/testers/conversions/tester"
+	"github.com/fatih/color"
 )
 
 type moduleResult struct {
@@ -116,15 +117,19 @@ func (m *Manager) runTesters(modulePath string) (bool, error) {
 }
 
 func (m *Manager) PrintResult() {
+	red := color.New(color.FgRed).SprintFunc()
+	green := color.New(color.FgGreen).SprintFunc()
+	boldRed := color.New(color.FgRed, color.Bold).SprintFunc()
+
 	for _, result := range m.results {
 		if result.skipped {
 			continue
 		}
 
 		if result.failed {
-			fmt.Fprintf(os.Stderr, "❌ %s: %s\n", result.name, result.err.Error())
+			fmt.Fprintf(os.Stderr, "%s %s: %s\n", red("❌"), result.name, boldRed(result.err.Error()))
 		} else {
-			fmt.Printf("✅ %s\n", result.name)
+			fmt.Printf("%s %s\n", green("✅"), result.name)
 		}
 	}
 }
