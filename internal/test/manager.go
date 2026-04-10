@@ -33,6 +33,7 @@ import (
 
 type moduleResult struct {
 	name    string
+	tester  string
 	failed  bool
 	skipped bool
 	err     error
@@ -77,21 +78,23 @@ func (m *Manager) Run() {
 
 func (m *Manager) runModuleTests(modulePath string) moduleResult {
 	moduleName := extractModuleName(modulePath)
-	failed, lastErr := m.runTesters(modulePath)
+	failed, lastErr, testerName := m.runTesters(modulePath)
 
 	if errors.Is(lastErr, testers.ErrNotApplicable) {
 		return moduleResult{name: moduleName, skipped: true}
 	}
 
-	return moduleResult{name: moduleName, failed: failed, err: lastErr}
+	return moduleResult{name: moduleName, tester: testerName, failed: failed, err: lastErr}
 }
 
-func (m *Manager) runTesters(modulePath string) (bool, error) {
+func (m *Manager) runTesters(modulePath string) (bool, error, string) {
 	moduleName := extractModuleName(modulePath)
 	var lastErr error
 	anyTesterRan := false
+	var lastTesterName string
 
 	for _, tester := range m.testers {
+		lastTesterName = tester.Name()
 		err := tester.Run(modulePath)
 		if err != nil {
 			if errors.Is(err, testers.ErrNotApplicable) {
@@ -102,7 +105,7 @@ func (m *Manager) runTesters(modulePath string) (bool, error) {
 			}
 			anyTesterRan = true
 			lastErr = err
-			m.errors.WithTestID("test").
+			m.errors.WithTestID(tester.Name()).
 				WithModule(moduleName).
 				Errorf("%s", err.Error())
 		} else {
@@ -111,10 +114,10 @@ func (m *Manager) runTesters(modulePath string) (bool, error) {
 	}
 
 	if !anyTesterRan {
-		return false, lastErr
+		return false, lastErr, ""
 	}
 
-	return lastErr != nil, lastErr
+	return lastErr != nil, lastErr, lastTesterName
 }
 
 func (m *Manager) PrintResult() {
@@ -128,9 +131,9 @@ func (m *Manager) PrintResult() {
 		}
 
 		if result.failed {
-			fmt.Fprintf(os.Stderr, "%s %s: %s\n", red("❌"), result.name, boldRed(result.err.Error()))
+			fmt.Fprintf(os.Stderr, "%s [%s] %s: %s\n", red("❌"), result.tester, result.name, boldRed(result.err.Error()))
 		} else {
-			fmt.Printf("%s %s\n", green("✅"), result.name)
+			fmt.Printf("%s [%s] %s\n", green("✅"), result.tester, result.name)
 		}
 	}
 }
