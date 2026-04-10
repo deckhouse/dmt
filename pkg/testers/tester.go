@@ -39,6 +39,20 @@ func NotApplicable(reason string) error {
 	return &notApplicableError{reason: reason}
 }
 
+type TestError struct {
+	TestName string
+	Message  string
+	Expected string
+	Got      string
+}
+
+func (e *TestError) Error() string {
+	if e.Expected != "" && e.Got != "" {
+		return fmt.Sprintf("%s: %s; expected: %s; got: %s", e.TestName, e.Message, e.Expected, e.Got)
+	}
+	return fmt.Sprintf("%s: %s", e.TestName, e.Message)
+}
+
 // Tester is the interface that all module testers must implement.
 // Each tester validates a specific aspect of a module (conversions, values, render, etc.)
 type Tester interface {
