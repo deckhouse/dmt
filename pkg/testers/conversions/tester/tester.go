@@ -76,7 +76,7 @@ func (t *Tester) Run(modulePath string) error {
 		}
 	}
 
-	return testcase.Run(modulePath)
+	return testcase.New().Run(modulePath)
 }
 
 func (t *Tester) getLatestConversionVersion(convFolder string) (int, error) {
