@@ -68,8 +68,12 @@ func (t *Tester) Run(modulePath string) error {
 	}
 
 	if latestVersion > 0 && configVersion != latestVersion {
-		return fmt.Errorf(`
-x-config-version mismatch: config-values.yaml has x-config-version %d, but latest conversion version is %d`, configVersion, latestVersion)
+		return &testers.TestError{
+			TestName: ID,
+			Message:  "x-config-version mismatch",
+			Expected: fmt.Sprintf("%d", latestVersion),
+			Got:      fmt.Sprintf("%d", configVersion),
+		}
 	}
 
 	return testcase.Run(modulePath)
