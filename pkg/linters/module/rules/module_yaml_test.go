@@ -273,7 +273,31 @@ requirements:
 	errorList := errors.NewLintRuleErrorsList()
 	rule.CheckDefinitionFile(tempDir, errorList)
 
-	assert.False(t, errorList.ContainsErrors(), "Expected no errors for non-critical module with weight and deckhouse requirement >= 1.72")
+	assert.True(t, errorList.ContainsErrors(), "Expected error for non-critical module with weight and deckhouse requirement >= 1.72")
+	assert.Contains(t, errorList.GetErrors()[0].Text, "Field 'weight' must be removed for non-critical module")
+}
+
+func TestCheckDefinitionFile_NonCriticalModuleWithWeightOldDeckhouse(t *testing.T) {
+	tempDir := t.TempDir()
+	moduleFilePath := filepath.Join(tempDir, ModuleConfigFilename)
+
+	err := os.WriteFile(moduleFilePath, []byte(`
+name: test-non-critical
+weight: 10
+stage: Experimental
+descriptions:
+  en: "Test description"
+requirements:
+  deckhouse: "< 1.72"
+`), 0600)
+	require.NoError(t, err)
+
+	rule := NewDefinitionFileRule(false)
+	errorList := errors.NewLintRuleErrorsList()
+	rule.CheckDefinitionFile(tempDir, errorList)
+
+	assert.True(t, errorList.ContainsErrors(), "Expected error for non-critical module with weight and deckhouse requirement < 1.72")
+	assert.Contains(t, errorList.GetErrors()[0].Text, "requires 'requirements.deckhouse: \">= 1.72\"' or higher")
 }
 
 func TestCheckDefinitionFile_InvalidStage(t *testing.T) {
