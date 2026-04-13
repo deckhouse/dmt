@@ -40,7 +40,6 @@ import (
 const (
 	DefinitionFileRuleName    = "definition-file"
 	MinDeckhouseVersionWeight = "1.72.0"
-	BelowMinDeckhouseVersion  = "1.71.0"
 )
 
 // Valid edition values
@@ -287,11 +286,11 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 	}
 
 	if !yml.Critical && yml.Weight > 0 {
-		yml.validateVersionForWeight(errorList)
+		yml.validateModuleWithWeight(errorList)
 	}
 }
 
-func (m *DeckhouseModule) validateVersionForWeight(errorList *errors.LintRuleErrorsList) {
+func (m *DeckhouseModule) validateModuleWithWeight(errorList *errors.LintRuleErrorsList) {
 	deckhouseReq := ""
 	if m.Requirements != nil {
 		deckhouseReq = m.Requirements.Deckhouse
@@ -314,7 +313,6 @@ func (m *DeckhouseModule) validateVersionForWeight(errorList *errors.LintRuleErr
 			MinDeckhouseVersionWeight,
 			deckhouseReq)
 	}
-
 }
 
 func (m ModuleRequirements) validateRequirements(errorList *errors.LintRuleErrorsList) {
