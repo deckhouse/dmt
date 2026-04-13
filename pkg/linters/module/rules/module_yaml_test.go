@@ -264,6 +264,8 @@ weight: 10
 stage: Experimental
 descriptions:
   en: "Test description"
+requirements:
+  deckhouse: ">= 1.72"
 `), 0600)
 	require.NoError(t, err)
 
@@ -271,16 +273,7 @@ descriptions:
 	errorList := errors.NewLintRuleErrorsList()
 	rule.CheckDefinitionFile(tempDir, errorList)
 
-	assert.False(t, errorList.ContainsErrors(), "Expected no errors for non-critical module with weight")
-
-	found := false
-	for _, e := range errorList.GetErrors() {
-		if e.Level == pkg.Warn && e.Text == "Unnecessary field 'weight' must be removed for non-critical module" {
-			found = true
-			break
-		}
-	}
-	assert.True(t, found, "Expected warning for non-critical module with weight")
+	assert.False(t, errorList.ContainsErrors(), "Expected no errors for non-critical module with weight and deckhouse requirement >= 1.72")
 }
 
 func TestCheckDefinitionFile_InvalidStage(t *testing.T) {
