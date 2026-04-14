@@ -38,8 +38,7 @@ import (
 )
 
 const (
-	DefinitionFileRuleName    = "definition-file"
-	MinDeckhouseVersionWeight = "1.72.0"
+	DefinitionFileRuleName = "definition-file"
 )
 
 // Valid edition values
@@ -283,35 +282,6 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 
 	if yml.Critical && yml.Weight == 0 {
 		errorList.Error("Field 'weight' must not be zero for critical modules")
-	}
-
-	if !yml.Critical && yml.Weight > 0 {
-		yml.validateModuleWithWeight(errorList)
-	}
-}
-
-func (m *DeckhouseModule) validateModuleWithWeight(errorList *errors.LintRuleErrorsList) {
-	deckhouseReq := ""
-	if m.Requirements != nil {
-		deckhouseReq = m.Requirements.Deckhouse
-	}
-
-	if deckhouseReq == "" {
-		errorList.Errorf("Non-critical module with 'weight' field requires 'requirements.deckhouse: \">= 1.72\"' or higher")
-		return
-	}
-
-	constraint, err := semver.NewConstraint(deckhouseReq)
-	if err != nil {
-		errorList.Errorf("Invalid deckhouse requirement %q: %s", deckhouseReq, err)
-		return
-	}
-
-	minVersion := semver.MustParse(MinDeckhouseVersionWeight)
-	if constraint.Check(minVersion) {
-		errorList.Errorf("Field `weight` must be removed for non-critical module when 'requirements.deckhouse' allows >= %s (current: %q)",
-			MinDeckhouseVersionWeight,
-			deckhouseReq)
 	}
 }
 
