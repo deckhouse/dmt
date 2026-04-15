@@ -48,6 +48,11 @@ const (
 	// MinimalDeckhouseVersionForModuleSDK03 defines the minimum Deckhouse version required for Module-SDK >= 0.3
 	MinimalDeckhouseVersionForModuleSDK03 = "1.71.0"
 
+	// MinimalDeckhouseVersionForWeightDeprecation defines the version where weight became irrelevant for non-critical modules
+	MinimalDeckhouseVersionForWeightDeprecation = "1.72.0"
+	// MinimalDeckhouseVersionForBootstrappedDeprecation defines the version where bootstrapped was deprecated
+	MinimalDeckhouseVersionForBootstrappedDeprecation = "1.72.0"
+
 	// Common patterns used in Go files
 	AppRunPattern = `\w+\.Run\(`
 )
@@ -90,11 +95,13 @@ type ComponentRequirement struct {
 // Detector returns true if the rule should be applied to the module
 // Requirements defines the minimum versions required for this rule
 // Description is the rule description
+// Validator is a custom validation function; when set, RunAllChecks calls it instead of validateRequirement
 type RequirementCheck struct {
 	Name         string
 	Requirements []ComponentRequirement
 	Description  string
 	Detector     func(modulePath string, module *DeckhouseModule) bool
+	Validator    func(modulePath string, module *DeckhouseModule, errorList *errors.LintRuleErrorsList)
 }
 
 // RequirementsRegistry holds all requirement checks
@@ -170,6 +177,38 @@ func NewRequirementsRegistry() *RequirementsRegistry {
 		},
 	})
 
+	// Bootstrapped deprecation check - bootstrapped must be removed for Deckhouse >= 1.72
+	registry.RegisterCheck(RequirementCheck{
+		Name:        "bootstrapped_deprecated",
+		Description: "requirements.bootstrapped must be removed for Deckhouse >= " + MinimalDeckhouseVersionForBootstrappedDeprecation,
+		Detector: func(_ string, module *DeckhouseModule) bool {
+			return module != nil &&
+				module.Requirements != nil &&
+				module.Requirements.Bootstrapped &&
+				deckhouseVersionAtLeast(module, MinimalDeckhouseVersionForBootstrappedDeprecation)
+		},
+		Validator: func(_ string, _ *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
+			errorList.Errorf("requirements [bootstrapped_deprecated]: requirements.bootstrapped must be removed for Deckhouse >= %s",
+				MinimalDeckhouseVersionForBootstrappedDeprecation)
+		},
+	})
+
+	// Weight deprecation check - weight must be removed for non-critical modules when Deckhouse >= 1.72
+	registry.RegisterCheck(RequirementCheck{
+		Name:        "weight_deprecated",
+		Description: "weight must be removed for non-critical modules when Deckhouse >= " + MinimalDeckhouseVersionForWeightDeprecation,
+		Detector: func(_ string, module *DeckhouseModule) bool {
+			return module != nil &&
+				module.Weight > 0 &&
+				!module.Critical &&
+				deckhouseVersionAtLeast(module, MinimalDeckhouseVersionForWeightDeprecation)
+		},
+		Validator: func(_ string, _ *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
+			errorList.Errorf("requirements [weight_deprecated]: weight must be removed for non-critical modules when Deckhouse >= %s",
+				MinimalDeckhouseVersionForWeightDeprecation)
+		},
+	})
+
 	return registry
 }
 
@@ -178,12 +217,20 @@ func (r *RequirementsRegistry) RegisterCheck(check RequirementCheck) {
 	r.checks = append(r.checks, check)
 }
 
-// RunAllChecks executes all registered requirement checks
+// RunAllChecks executes all registered requirement checks.
+// When Validator is set, it is called instead of validateRequirement.
 func (r *RequirementsRegistry) RunAllChecks(modulePath string, module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
 	for _, check := range r.checks {
-		if check.Detector(modulePath, module) {
-			r.validateRequirement(check, modulePath, module, errorList)
+		if !check.Detector(modulePath, module) {
+			continue
 		}
+
+		if check.Validator != nil {
+			check.Validator(modulePath, module, errorList)
+			continue
+		}
+
+		r.validateRequirement(check, modulePath, module, errorList)
 	}
 }
 
@@ -358,6 +405,31 @@ func hasOptionalModules(module *DeckhouseModule) bool {
 		}
 	}
 	return false
+}
+
+// deckhouseVersionAtLeast checks if the module's deckhouse version constraint starts at or above minVersion.
+// Returns false if there is no deckhouse requirement or the constraint cannot be parsed.
+func deckhouseVersionAtLeast(module *DeckhouseModule, minVersion string) bool {
+	if module == nil || module.Requirements == nil || module.Requirements.Deckhouse == "" {
+		return false
+	}
+
+	constraint, err := semver.NewConstraint(module.Requirements.Deckhouse)
+	if err != nil {
+		return false
+	}
+
+	minAllowed := findMinimalAllowedVersion(constraint)
+	if minAllowed == nil {
+		return false
+	}
+
+	minVer, err := semver.NewVersion(minVersion)
+	if err != nil {
+		return false
+	}
+
+	return !minAllowed.LessThan(minVer)
 }
 
 func (r *RequirementsRule) CheckRequirements(modulePath string, errorList *errors.LintRuleErrorsList) {
