@@ -38,6 +38,16 @@ type Converter struct {
 	conversions   map[int]string
 }
 
+// ConvertResult holds the structured outcome of a test conversion.
+// Error is nil when the conversion infrastructure works correctly.
+// Passed indicates whether the conversion output matches the expected output.
+type ConvertResult struct {
+	Passed   bool
+	Name     string
+	Got      string // YAML of actual conversion result
+	Expected string // YAML of expected conversion result
+}
+
 func newConverter(path string) (*Converter, error) {
 	c := &Converter{
 		conversions:   make(map[int]string),
@@ -113,37 +123,40 @@ func (c *Converter) applyConversion(version int, settings map[string]any) (map[s
 	return filtered, nil
 }
 
-func TestConvert(name, rawSettings, rawExpected, pathToConversions string, fromVersion, toVersion int) error {
+func TestConvert(name, rawSettings, rawExpected, pathToConversions string, fromVersion, toVersion int) (*ConvertResult, error) {
 	converter, err := newConverter(pathToConversions)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	settings, err := parseYAML(rawSettings)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	converted, err := converter.ConvertTo(fromVersion, toVersion, settings)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	expected, err := parseYAML(rawExpected)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if !mapsEqual(converted, expected) {
-		return fmt.Errorf(`
-%s:
-  Test expects (from testcases.yaml):
-%s
-  Conversion produced:
-%s`, name, formatYAML(expected), formatYAML(converted))
+		return &ConvertResult{
+			Passed:   false,
+			Name:     name,
+			Got:      formatYAML(converted),
+			Expected: formatYAML(expected),
+		}, nil
 	}
 
-	return nil
+	return &ConvertResult{
+		Passed: true,
+		Name:   name,
+	}, nil
 }
 
 func formatYAML(data map[string]any) string {
@@ -159,6 +172,34 @@ func formatYAML(data map[string]any) string {
 
 func mapsEqual(a, b map[string]any) bool {
 	return cmp.Equal(a, b)
+}
+
+// ValidateConversions validates all conversion files in the given directory
+// and returns the latest version found. Returns an error if any file is invalid
+// (e.g., missing or empty conversions array, invalid version).
+func ValidateConversions(convFolder string) (int, error) {
+	entries, err := os.ReadDir(convFolder)
+	if err != nil {
+		return 0, fmt.Errorf("read conversions dir: %w", err)
+	}
+
+	latest := 0
+	for _, entry := range entries {
+		if entry.IsDir() || !isConversionFile(entry.Name()) {
+			continue
+		}
+
+		conv, err := parseConversionFile(filepath.Join(convFolder, entry.Name()))
+		if err != nil {
+			return 0, err
+		}
+
+		if conv.Version > latest {
+			latest = conv.Version
+		}
+	}
+
+	return latest, nil
 }
 
 func parseConversionFile(path string) (conversionFile, error) {
