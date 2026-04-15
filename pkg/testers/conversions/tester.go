@@ -140,19 +140,37 @@ func (t *Tester) runConversions(convFolder string, errorList *pkgerrors.TestErro
 		return true
 	}
 
+	converter, err := convert.NewConverter(convFolder)
+	if err != nil {
+		errorList.Errorf("%s", err.Error())
+		return true
+	}
+
 	for _, tc := range testcases {
-		result, err := convert.TestConvert(tc.Name, tc.Settings, tc.Expected, convFolder, tc.CurrentVersion, tc.ExpectedVersion)
+		settings, err := convert.ParseYAML(tc.Settings)
 		if err != nil {
-			errorList.Errorf("%s", err.Error())
+			errorList.Errorf("testcase %q: %s", tc.Name, err.Error())
 			continue
 		}
 
-		if !result.Passed {
+		converted, err := converter.ConvertTo(tc.CurrentVersion, tc.ExpectedVersion, settings)
+		if err != nil {
+			errorList.Errorf("testcase %q: %s", tc.Name, err.Error())
+			continue
+		}
+
+		expected, err := convert.ParseYAML(tc.Expected)
+		if err != nil {
+			errorList.Errorf("testcase %q: %s", tc.Name, err.Error())
+			continue
+		}
+
+		if !convert.MapsEqual(converted, expected) {
 			errorList.AddTestResult(
-				fmt.Sprintf("testcase %q: conversion mismatch", result.Name),
-				result.Name,
-				result.Got,
-				result.Expected,
+				fmt.Sprintf("testcase %q: conversion mismatch", tc.Name),
+				tc.Name,
+				convert.FormatYAML(converted),
+				convert.FormatYAML(expected),
 			)
 		}
 	}

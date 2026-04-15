@@ -38,17 +38,7 @@ type Converter struct {
 	conversions   map[int]string
 }
 
-// ConvertResult holds the structured outcome of a test conversion.
-// Error is nil when the conversion infrastructure works correctly.
-// Passed indicates whether the conversion output matches the expected output.
-type ConvertResult struct {
-	Passed   bool
-	Name     string
-	Got      string // YAML of actual conversion result
-	Expected string // YAML of expected conversion result
-}
-
-func newConverter(path string) (*Converter, error) {
+func NewConverter(path string) (*Converter, error) {
 	c := &Converter{
 		conversions:   make(map[int]string),
 		latestVersion: 1,
@@ -123,57 +113,6 @@ func (c *Converter) applyConversion(version int, settings map[string]any) (map[s
 	return filtered, nil
 }
 
-func TestConvert(name, rawSettings, rawExpected, pathToConversions string, fromVersion, toVersion int) (*ConvertResult, error) {
-	converter, err := newConverter(pathToConversions)
-	if err != nil {
-		return nil, err
-	}
-
-	settings, err := parseYAML(rawSettings)
-	if err != nil {
-		return nil, err
-	}
-
-	converted, err := converter.ConvertTo(fromVersion, toVersion, settings)
-	if err != nil {
-		return nil, err
-	}
-
-	expected, err := parseYAML(rawExpected)
-	if err != nil {
-		return nil, err
-	}
-
-	if !mapsEqual(converted, expected) {
-		return &ConvertResult{
-			Passed:   false,
-			Name:     name,
-			Got:      formatYAML(converted),
-			Expected: formatYAML(expected),
-		}, nil
-	}
-
-	return &ConvertResult{
-		Passed: true,
-		Name:   name,
-	}, nil
-}
-
-func formatYAML(data map[string]any) string {
-	if data == nil {
-		return "{}\n"
-	}
-	out, err := yaml.Marshal(data)
-	if err != nil {
-		return fmt.Sprintf("<error formatting yaml: %v>\n", err)
-	}
-	return string(out)
-}
-
-func mapsEqual(a, b map[string]any) bool {
-	return cmp.Equal(a, b)
-}
-
 // ValidateConversions validates all conversion files in the given directory
 // and returns the latest version found. Returns an error if any file is invalid
 // (e.g., missing or empty conversions array, invalid version).
@@ -202,6 +141,29 @@ func ValidateConversions(convFolder string) (int, error) {
 	return latest, nil
 }
 
+func ParseYAML(data string) (map[string]any, error) {
+	var result map[string]any
+	if err := yaml.Unmarshal([]byte(data), &result); err != nil {
+		return nil, fmt.Errorf("unmarshal: %w", err)
+	}
+	return result, nil
+}
+
+func FormatYAML(data map[string]any) string {
+	if data == nil {
+		return "{}\n"
+	}
+	out, err := yaml.Marshal(data)
+	if err != nil {
+		return fmt.Sprintf("<error formatting yaml: %v>\n", err)
+	}
+	return string(out)
+}
+
+func MapsEqual(a, b map[string]any) bool {
+	return cmp.Equal(a, b)
+}
+
 func parseConversionFile(path string) (conversionFile, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -222,14 +184,6 @@ func parseConversionFile(path string) (conversionFile, error) {
 	}
 
 	return conv, nil
-}
-
-func parseYAML(data string) (map[string]any, error) {
-	var result map[string]any
-	if err := yaml.Unmarshal([]byte(data), &result); err != nil {
-		return nil, fmt.Errorf("unmarshal: %w", err)
-	}
-	return result, nil
 }
 
 func isConversionFile(name string) bool {
