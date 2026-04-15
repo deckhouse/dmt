@@ -546,6 +546,324 @@ func TestHasOptionalModules(t *testing.T) {
 	}
 }
 
+func TestDeckhouseVersionAtLeast(t *testing.T) {
+	tests := []struct {
+		name       string
+		module     *DeckhouseModule
+		minVersion string
+		expected   bool
+	}{
+		{
+			name:       "nil module",
+			module:     nil,
+			minVersion: "1.72.0",
+			expected:   false,
+		},
+		{
+			name: "nil requirements",
+			module: &DeckhouseModule{
+				Name: "test",
+			},
+			minVersion: "1.72.0",
+			expected:   false,
+		},
+		{
+			name: "empty deckhouse constraint",
+			module: &DeckhouseModule{
+				Name:         "test",
+				Requirements: &ModuleRequirements{},
+			},
+			minVersion: "1.72.0",
+			expected:   false,
+		},
+		{
+			name: "deckhouse >= 1.72 with min 1.72",
+			module: &DeckhouseModule{
+				Name: "test",
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: ">= 1.72.0",
+					},
+				},
+			},
+			minVersion: "1.72.0",
+			expected:   true,
+		},
+		{
+			name: "deckhouse >= 1.73 with min 1.72",
+			module: &DeckhouseModule{
+				Name: "test",
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: ">= 1.73.0",
+					},
+				},
+			},
+			minVersion: "1.72.0",
+			expected:   true,
+		},
+		{
+			name: "deckhouse >= 1.71 with min 1.72",
+			module: &DeckhouseModule{
+				Name: "test",
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: ">= 1.71.0",
+					},
+				},
+			},
+			minVersion: "1.72.0",
+			expected:   false,
+		},
+		{
+			name: "deckhouse >= 1.68, < 1.72 with min 1.72",
+			module: &DeckhouseModule{
+				Name: "test",
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: ">= 1.68.0, < 1.72.0",
+					},
+				},
+			},
+			minVersion: "1.72.0",
+			expected:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := deckhouseVersionAtLeast(tt.module, tt.minVersion)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestBootstrappedDeprecationCheck(t *testing.T) {
+	helper := NewTestHelper(t)
+
+	tests := []struct {
+		name           string
+		module         *DeckhouseModule
+		expectedErrors []string
+		description    string
+	}{
+		{
+			name: "deckhouse >= 1.72 with bootstrapped true - error",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+				Stage:     "Experimental",
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse:    ">= 1.72.0",
+						Bootstrapped: true,
+					},
+				},
+			},
+			expectedErrors: []string{"requirements [bootstrapped_deprecated]: requirements.bootstrapped must be removed for Deckhouse >= 1.72.0"},
+			description:    "Should error when bootstrapped is true and deckhouse >= 1.72",
+		},
+		{
+			name: "deckhouse >= 1.73 with bootstrapped true - error",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+				Stage:     "Experimental",
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse:    ">= 1.73.0",
+						Bootstrapped: true,
+					},
+				},
+			},
+			expectedErrors: []string{"requirements [bootstrapped_deprecated]: requirements.bootstrapped must be removed for Deckhouse >= 1.72.0"},
+			description:    "Should error when bootstrapped is true and deckhouse >= 1.73",
+		},
+		{
+			name: "deckhouse >= 1.71 with bootstrapped true - no error",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+				Stage:     "Experimental",
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse:    ">= 1.71.0",
+						Bootstrapped: true,
+					},
+				},
+			},
+			expectedErrors: []string{},
+			description:    "Should not error when deckhouse < 1.72 even with bootstrapped true",
+		},
+		{
+			name: "deckhouse >= 1.72 without bootstrapped - no error",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+				Stage:     "Experimental",
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: ">= 1.72.0",
+					},
+				},
+			},
+			expectedErrors: []string{},
+			description:    "Should not error when bootstrapped is not set",
+		},
+		{
+			name: "no deckhouse requirement with bootstrapped true - no error",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Bootstrapped: true,
+					},
+				},
+			},
+			expectedErrors: []string{},
+			description:    "Should not error when no deckhouse requirement is specified",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(_ *testing.T) {
+			registry := NewRequirementsRegistry()
+			errorList := errors.NewLintRuleErrorsList()
+			registry.RunAllChecks("", tt.module, errorList)
+			helper.AssertErrors(errorList, tt.expectedErrors)
+		})
+	}
+}
+
+func TestWeightDeprecationCheck(t *testing.T) {
+	helper := NewTestHelper(t)
+
+	tests := []struct {
+		name           string
+		module         *DeckhouseModule
+		expectedErrors []string
+		description    string
+	}{
+		{
+			name: "deckhouse >= 1.72 non-critical with weight - error",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+				Stage:     "Experimental",
+				Weight:    950,
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: ">= 1.72.0",
+					},
+				},
+			},
+			expectedErrors: []string{"requirements [weight_deprecated]: weight must be removed for non-critical modules when Deckhouse >= 1.72.0"},
+			description:    "Should error when non-critical module has weight and deckhouse >= 1.72",
+		},
+		{
+			name: "deckhouse >= 1.73 non-critical with weight - error",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+				Stage:     "Experimental",
+				Weight:    950,
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: ">= 1.73.0",
+					},
+				},
+			},
+			expectedErrors: []string{"requirements [weight_deprecated]: weight must be removed for non-critical modules when Deckhouse >= 1.72.0"},
+			description:    "Should error when non-critical module has weight and deckhouse >= 1.73",
+		},
+		{
+			name: "deckhouse >= 1.71 non-critical with weight - no error",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+				Stage:     "Experimental",
+				Weight:    950,
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: ">= 1.71.0",
+					},
+				},
+			},
+			expectedErrors: []string{},
+			description:    "Should not error when deckhouse < 1.72",
+		},
+		{
+			name: "deckhouse >= 1.71 non-critical with weight and bootstrapped - no error",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+				Stage:     "Experimental",
+				Weight:    950,
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse:    ">= 1.71",
+						Bootstrapped: true,
+					},
+				},
+			},
+			expectedErrors: []string{},
+			description:    "Should not error for pre-1.72 module with weight and bootstrapped (real-world production case)",
+		},
+		{
+			name: "deckhouse >= 1.72 critical with weight - no error",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+				Stage:     "Experimental",
+				Critical:  true,
+				Weight:    10,
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: ">= 1.72.0",
+					},
+				},
+			},
+			expectedErrors: []string{},
+			description:    "Should not error for critical modules regardless of deckhouse version",
+		},
+		{
+			name: "no deckhouse requirement non-critical with weight - no error",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+				Weight:    950,
+			},
+			expectedErrors: []string{},
+			description:    "Should not error when no deckhouse requirement is specified",
+		},
+		{
+			name: "no deckhouse requirement with requirements section non-critical with weight - no error",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+				Weight:    950,
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Kubernetes: ">= 1.20.0",
+					},
+				},
+			},
+			expectedErrors: []string{},
+			description:    "Should not error when deckhouse requirement is empty",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(_ *testing.T) {
+			registry := NewRequirementsRegistry()
+			errorList := errors.NewLintRuleErrorsList()
+			registry.RunAllChecks("", tt.module, errorList)
+			helper.AssertErrors(errorList, tt.expectedErrors)
+		})
+	}
+}
+
 func TestOptionalModulesRequirementCheck(t *testing.T) {
 	helper := NewTestHelper(t)
 
