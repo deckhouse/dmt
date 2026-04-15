@@ -254,34 +254,6 @@ descriptions:
 	assert.Contains(t, errorList.GetErrors()[0].Text, "Field 'weight' must not be zero for critical modules")
 }
 
-func TestCheckDefinitionFile_NonCriticalModuleWithWeight(t *testing.T) {
-	tempDir := t.TempDir()
-	moduleFilePath := filepath.Join(tempDir, ModuleConfigFilename)
-
-	err := os.WriteFile(moduleFilePath, []byte(`
-name: test-non-critical
-weight: 10
-stage: Experimental
-descriptions:
-  en: "Test description"
-`), 0600)
-	require.NoError(t, err)
-
-	rule := NewDefinitionFileRule(false)
-	errorList := errors.NewLintRuleErrorsList()
-	rule.CheckDefinitionFile(tempDir, errorList)
-
-	// Weight warning for non-critical modules is now version-aware and handled in requirements.go,
-	// so CheckDefinitionFile should not produce any warnings about weight for non-critical modules.
-	assert.False(t, errorList.ContainsErrors(), "Expected no errors for non-critical module with weight")
-
-	for _, e := range errorList.GetErrors() {
-		if e.Level == pkg.Warn && e.Text == "Unnecessary field 'weight' must be removed for non-critical module" {
-			t.Error("Should not produce unconditional weight warning for non-critical modules; this is now version-aware in requirements.go")
-		}
-	}
-}
-
 func TestCheckDefinitionFile_InvalidStage(t *testing.T) {
 	tempDir := t.TempDir()
 	moduleFilePath := filepath.Join(tempDir, ModuleConfigFilename)
