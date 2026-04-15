@@ -91,17 +91,15 @@ type ComponentRequirement struct {
 	Description   string
 }
 
-// RequirementCheck defines a single requirement check configuration
-// Detector returns true if the rule should be applied to the module
-// Requirements defines the minimum versions required for this rule
-// Description is the rule description
-// Validator is a custom validation function; when set, RunAllChecks calls it instead of validateRequirement
+// RequirementCheck defines a single requirement check configuration.
+// Detector returns true if the check should be applied to the module.
+// When Requirements is non-empty, validateRequirement verifies version constraints.
+// When Requirements is empty, the Description is emitted as the error.
 type RequirementCheck struct {
 	Name         string
 	Requirements []ComponentRequirement
 	Description  string
 	Detector     func(modulePath string, module *DeckhouseModule) bool
-	Validator    func(modulePath string, module *DeckhouseModule, errorList *errors.LintRuleErrorsList)
 }
 
 // RequirementsRegistry holds all requirement checks
@@ -187,10 +185,6 @@ func NewRequirementsRegistry() *RequirementsRegistry {
 				module.Requirements.Bootstrapped &&
 				deckhouseVersionAtLeast(module, MinimalDeckhouseVersionForBootstrappedDeprecation)
 		},
-		Validator: func(_ string, _ *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
-			errorList.Errorf("requirements [bootstrapped_deprecated]: requirements.bootstrapped must be removed for Deckhouse >= %s",
-				MinimalDeckhouseVersionForBootstrappedDeprecation)
-		},
 	})
 
 	// Weight deprecation check - weight must be removed for non-critical modules when Deckhouse >= 1.72
@@ -203,10 +197,6 @@ func NewRequirementsRegistry() *RequirementsRegistry {
 				!module.Critical &&
 				deckhouseVersionAtLeast(module, MinimalDeckhouseVersionForWeightDeprecation)
 		},
-		Validator: func(_ string, _ *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
-			errorList.Errorf("requirements [weight_deprecated]: weight must be removed for non-critical modules when Deckhouse >= %s",
-				MinimalDeckhouseVersionForWeightDeprecation)
-		},
 	})
 
 	return registry
@@ -218,15 +208,9 @@ func (r *RequirementsRegistry) RegisterCheck(check RequirementCheck) {
 }
 
 // RunAllChecks executes all registered requirement checks.
-// When Validator is set, it is called instead of validateRequirement.
 func (r *RequirementsRegistry) RunAllChecks(modulePath string, module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
 	for _, check := range r.checks {
 		if !check.Detector(modulePath, module) {
-			continue
-		}
-
-		if check.Validator != nil {
-			check.Validator(modulePath, module, errorList)
 			continue
 		}
 
@@ -234,8 +218,14 @@ func (r *RequirementsRegistry) RunAllChecks(modulePath string, module *Deckhouse
 	}
 }
 
-// validateRequirement validates a single requirement check
+// validateRequirement validates a single requirement check.
+// When Requirements is empty the check is a pure detection rule and the Description is emitted as the error.
 func (r *RequirementsRegistry) validateRequirement(check RequirementCheck, modulePath string, module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
+	if len(check.Requirements) == 0 {
+		errorList.Errorf("requirements [%s]: %s", check.Name, check.Description)
+		return
+	}
+
 	if module == nil {
 		errorList.Errorf("requirements [%s]: %s, module is not defined", check.Name, check.Description)
 		return
