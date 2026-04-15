@@ -1,0 +1,24 @@
+testcases:
+  - name: "should delete auth.password on 1 to 2"
+    currentVersion: 1
+    expectedVersion: 2
+    settings: |
+      auth:
+        password: secret
+        allowedUserGroups:
+          - group1
+    expected: |
+      auth:
+        allowedUserGroups:
+          - group1
+  - name: "should keep auth without password"
+    currentVersion: 1
+    expectedVersion: 2
+    settings: |
+      auth:
+        allowedUserGroups:
+          - group1
+    expected: |
+      auth:
+        allowedUserGroups:
+          - group1

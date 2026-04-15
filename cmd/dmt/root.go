@@ -34,7 +34,9 @@ import (
 	"github.com/deckhouse/dmt/internal/bootstrap"
 	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/fsutils"
+	"github.com/deckhouse/dmt/internal/test"
 	"github.com/deckhouse/dmt/internal/version"
+	"github.com/deckhouse/dmt/pkg/config"
 )
 
 var kebabCaseRegex = regexp.MustCompile(`^([a-z][a-z0-9]*)(-[a-z0-9]+)*$`)
@@ -147,14 +149,63 @@ func execute() {
 	lintCmd.Flags().AddFlagSet(flags.InitLintFlagSet())
 	bootstrapCmd.Flags().AddFlagSet(flags.InitBootstrapFlagSet())
 
+	testCmd := &cobra.Command{
+		Use:   "test",
+		Short: "Tests for Deckhouse modules",
+		Long:  `Run tests on module conversions and other components`,
+	}
+
+	conversionsCmd := &cobra.Command{
+		Use:          "conversions [module-path]",
+		Short:        "Test module conversion specifications",
+		Long:         `Validates that conversion specifications match the OpenAPI config versions.`,
+		Args:         cobra.RangeArgs(0, 1),
+		SilenceUsage: true,
+		RunE: func(_ *cobra.Command, args []string) error {
+			var dir = "."
+			if len(args) > 0 {
+				dir = args[0]
+			}
+			return runTestConversions(dir)
+		},
+	}
+
+	testCmd.AddCommand(conversionsCmd)
+
 	rootCmd.AddCommand(lintCmd)
 	rootCmd.AddCommand(bootstrapCmd)
+	rootCmd.AddCommand(testCmd)
 	rootCmd.Flags().AddFlagSet(flags.InitDefaultFlagSet())
 
 	err := rootCmd.Execute()
 	if err != nil {
 		os.Exit(1)
 	}
+}
+
+func runTestConversions(dir string) error {
+	cfg, err := config.NewDefaultRootConfig(dir)
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	expandedDir, err := fsutils.ExpandDir(dir)
+	if err != nil {
+		return fmt.Errorf("failed to expand directory: %w", err)
+	}
+
+	manager, err := test.NewManager(expandedDir, cfg)
+	if err != nil {
+		return fmt.Errorf("failed to create test manager: %w", err)
+	}
+	manager.Run()
+	manager.PrintResult()
+
+	if manager.HasCriticalErrors() {
+		os.Exit(1)
+	}
+
+	return nil
 }
 
 func lintCmdFunc(_ *cobra.Command, args []string) {

@@ -27,3 +27,16 @@ type LinterError struct {
 	LineNumber  int
 	Level       Level
 }
+
+type TestError struct {
+	TestID   string
+	ModuleID string
+	Text     string
+	Level    Level
+
+	// Structured fields for domain-level error info.
+	// The printer uses these to format output instead of parsing Text.
+	TestName string // e.g., "should delete auth.password on 1 to 2"
+	Got      string // actual conversion result (YAML)
+	Expected string // expected conversion result (YAML)
+}

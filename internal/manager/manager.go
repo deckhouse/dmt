@@ -21,7 +21,6 @@ import (
 	"cmp"
 	"fmt"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -39,6 +38,7 @@ import (
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/metrics"
 	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/internal/moduleloader"
 	"github.com/deckhouse/dmt/internal/values"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
@@ -55,12 +55,7 @@ import (
 )
 
 const (
-	ChartConfigFilename = "Chart.yaml"
-	ModuleYamlFilename  = "module.yaml"
-	HooksDir            = "hooks"
-	ImagesDir           = "images"
-	OpenAPIDir          = "openapi"
-	baseRepoURL         = "https://github.com/deckhouse/dmt/tree/main"
+	baseRepoURL = "https://github.com/deckhouse/dmt/tree/main"
 )
 
 func generateDocumentationURL(linterID, ruleID string) string {
@@ -94,7 +89,7 @@ func NewManager(dir string, rootConfig *config.RootConfig) *Manager {
 }
 
 func (m *Manager) initManager(dir string) *Manager {
-	paths, err := getModulePaths(dir)
+	paths, err := moduleloader.GetModulePaths(dir)
 	if err != nil {
 		log.Error("Error getting module paths", log.Err(err))
 		return m
@@ -291,46 +286,6 @@ func (m *Manager) PrintResult() {
 
 func (m *Manager) HasCriticalErrors() bool {
 	return m.errors.ContainsErrors()
-}
-
-func isExistsOnFilesystem(parts ...string) bool {
-	_, err := os.Stat(filepath.Join(parts...))
-	return err == nil
-}
-
-// getModulePaths returns all paths with Chart.yaml
-// modulesDir can be a module directory or a directory that contains helm in subdirectories.
-func getModulePaths(modulesDir string) ([]string, error) {
-	var chartDirs = make([]string, 0)
-
-	// Here we find all dirs and check for Chart.yaml in them.
-	err := filepath.Walk(modulesDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return fmt.Errorf("file access '%s': %w", path, err)
-		}
-
-		// Ignore non-dirs
-		if !info.IsDir() {
-			return nil
-		}
-
-		// Check if first level subdirectory has a helm chart configuration file
-		if isExistsOnFilesystem(path, ModuleYamlFilename) ||
-			(isExistsOnFilesystem(path, ChartConfigFilename) &&
-				(isExistsOnFilesystem(path, HooksDir) ||
-					isExistsOnFilesystem(path, ImagesDir) ||
-					isExistsOnFilesystem(path, OpenAPIDir))) {
-			chartDirs = append(chartDirs, path)
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return chartDirs, nil
 }
 
 // prepareString handle ussual string and prepare it for tablewriter

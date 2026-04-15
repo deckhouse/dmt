@@ -1,0 +1,9 @@
+testcases:
+  - name: "should delete auth.password on 1 to 2"
+    currentVersion: 1
+    expectedVersion: 2
+    settings: |
+      auth:
+        password: secret
+    expected: |
+      auth: {}
