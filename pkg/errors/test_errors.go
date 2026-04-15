@@ -27,7 +27,7 @@ import (
 type TestErrorsList struct {
 	storage *testErrStorage
 
-	testID   string
+	group    string
 	moduleID string
 	testName string
 }
@@ -50,9 +50,9 @@ func (l *TestErrorsList) copy() *TestErrorsList {
 	return &t
 }
 
-func (l *TestErrorsList) WithTestID(testID string) *TestErrorsList {
+func (l *TestErrorsList) WithTestGroup(group string) *TestErrorsList {
 	list := l.copy()
-	list.testID = testID
+	list.group = group
 
 	return list
 }
@@ -80,17 +80,17 @@ func (l *TestErrorsList) Errorf(template string, a ...any) *TestErrorsList {
 }
 
 // AddTestResult adds a structured test failure with got/expected comparison data.
-func (l *TestErrorsList) AddTestResult(text, testName, got, expected string) *TestErrorsList {
+func (l *TestErrorsList) AddTestResult(text, got, expected string) *TestErrorsList {
 	if l.storage == nil {
 		l.storage = &testErrStorage{}
 	}
 
 	e := pkg.TestError{
-		TestID:   strings.ToLower(l.testID),
+		TestID:   strings.ToLower(l.group),
 		ModuleID: l.moduleID,
+		TestName: l.testName,
 		Text:     text,
 		Level:    pkg.Error,
-		TestName: testName,
 		Got:      got,
 		Expected: expected,
 	}
@@ -106,7 +106,7 @@ func (l *TestErrorsList) add(str string, level pkg.Level) *TestErrorsList {
 	}
 
 	e := pkg.TestError{
-		TestID:   strings.ToLower(l.testID),
+		TestID:   strings.ToLower(l.group),
 		ModuleID: l.moduleID,
 		TestName: l.testName,
 		Text:     str,

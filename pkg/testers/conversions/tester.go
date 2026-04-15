@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"sigs.k8s.io/yaml"
 
@@ -54,7 +55,7 @@ func New(errorList *pkgerrors.TestErrorsList) *Tester {
 	return &Tester{
 		name:      ID,
 		desc:      "Tests module conversion specifications against OpenAPI configs",
-		ErrorList: errorList.WithTestID(ID),
+		ErrorList: errorList.WithTestGroup(ID),
 	}
 }
 
@@ -79,7 +80,10 @@ func (t *Tester) Run(modulePath string) bool {
 	}
 
 	if latestVersion > 0 && configVersion != latestVersion {
-		errorList.Errorf("x-config-version mismatch: expected latest conversion version %d, got x-config-version %d", latestVersion, configVersion)
+		errorList.WithTestName("config values version mismatch").
+			AddTestResult("x-config-version with latest conversion version mismatch",
+				strconv.Itoa(latestVersion),
+				strconv.Itoa(configVersion))
 		return true
 	}
 
@@ -129,6 +133,7 @@ func (t *Tester) runConversions(convFolder string, errorList *pkgerrors.TestErro
 	if os.IsNotExist(err) {
 		return false
 	}
+
 	if err != nil {
 		errorList.Errorf("cannot stat testcases file: %s", err.Error())
 		return true
@@ -166,12 +171,13 @@ func (t *Tester) runConversions(convFolder string, errorList *pkgerrors.TestErro
 		}
 
 		if !convert.MapsEqual(converted, expected) {
-			errorList.AddTestResult(
-				fmt.Sprintf("testcase %q: conversion mismatch", tc.Name),
-				tc.Name,
-				convert.FormatYAML(converted),
-				convert.FormatYAML(expected),
-			)
+			errorList.
+				WithTestName(tc.Name).
+				AddTestResult(
+					fmt.Sprintf("testcase %q: conversion mismatch", tc.Name),
+					convert.FormatYAML(converted),
+					convert.FormatYAML(expected),
+				)
 		}
 	}
 

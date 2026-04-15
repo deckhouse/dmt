@@ -357,7 +357,7 @@ description:
 	tester := New(errorList)
 	tester.Run(tmpDir)
 	assert.True(t, errorList.ContainsErrors())
-	assert.Contains(t, errorList.GetErrors()[0].Text, "x-config-version mismatch")
+	assert.Contains(t, errorList.GetErrors()[0].Text, "x-config-version")
 }
 
 func TestConversionsTester_ReportsTestcaseFailure(t *testing.T) {

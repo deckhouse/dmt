@@ -7,4 +7,5 @@ testcases:
         password: secret
     expected: |
       auth: 
+        pass: secret
         password: secret
