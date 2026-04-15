@@ -24,26 +24,29 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/deckhouse/dmt/pkg/testers"
+	pkgerrors "github.com/deckhouse/dmt/pkg/errors"
 )
 
 func TestTester_Name(t *testing.T) {
-	tester := New()
+	errorList := pkgerrors.NewTestErrorsList()
+	tester := New(errorList)
 	assert.Equal(t, "conversions", tester.Name())
 }
 
 func TestTester_Desc(t *testing.T) {
-	tester := New()
+	errorList := pkgerrors.NewTestErrorsList()
+	tester := New(errorList)
 	assert.NotEmpty(t, tester.Desc())
 }
 
 func TestTester_NoConfigValues(t *testing.T) {
 	tempDir := t.TempDir()
 
-	tester := New()
-	err := tester.Run(tempDir)
+	errorList := pkgerrors.NewTestErrorsList()
+	tester := New(errorList)
+	tester.Run(tempDir)
 
-	assert.ErrorIs(t, err, testers.ErrNotApplicable)
+	assert.False(t, errorList.ContainsErrors())
 }
 
 func TestTester_ConfigVersionZero(t *testing.T) {
@@ -58,10 +61,11 @@ func TestTester_ConfigVersionZero(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	tester := New()
-	err = tester.Run(tempDir)
+	errorList := pkgerrors.NewTestErrorsList()
+	tester := New(errorList)
+	tester.Run(tempDir)
 
-	assert.ErrorIs(t, err, testers.ErrNotApplicable)
+	assert.False(t, errorList.ContainsErrors())
 }
 
 func TestTester_ValidConversions(t *testing.T) {
@@ -108,10 +112,11 @@ description:
 	err = os.WriteFile(filepath.Join(tempDir, "openapi", "conversions", "testcases.yaml"), []byte(testcases), 0644)
 	require.NoError(t, err)
 
-	tester := New()
-	err = tester.Run(tempDir)
+	errorList := pkgerrors.NewTestErrorsList()
+	tester := New(errorList)
+	tester.Run(tempDir)
 
-	assert.NoError(t, err)
+	assert.False(t, errorList.ContainsErrors())
 }
 
 func TestTester_MissingConversionsFolder(t *testing.T) {
@@ -127,11 +132,11 @@ func TestTester_MissingConversionsFolder(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	tester := New()
-	err = tester.Run(tempDir)
+	errorList := pkgerrors.NewTestErrorsList()
+	tester := New(errorList)
+	tester.Run(tempDir)
 
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "conversions folder")
+	assert.False(t, errorList.ContainsErrors())
 }
 
 func TestTester_MissingTestcases(t *testing.T) {
@@ -156,10 +161,11 @@ description:
 	err = os.WriteFile(filepath.Join(tempDir, "openapi", "conversions", "v2.yaml"), []byte(v2), 0644)
 	require.NoError(t, err)
 
-	tester := New()
-	err = tester.Run(tempDir)
+	errorList := pkgerrors.NewTestErrorsList()
+	tester := New(errorList)
+	tester.Run(tempDir)
 
-	assert.ErrorIs(t, err, testers.ErrNotApplicable)
+	assert.False(t, errorList.ContainsErrors())
 }
 
 func TestConversionsTester_RunsTestcases(t *testing.T) {
@@ -204,9 +210,10 @@ description:
 	err = os.WriteFile(filepath.Join(convDir, "testcases.yaml"), []byte(testcasesYAML), 0644)
 	require.NoError(t, err)
 
-	tester := New()
-	err = tester.Run(tmpDir)
-	assert.NoError(t, err)
+	errorList := pkgerrors.NewTestErrorsList()
+	tester := New(errorList)
+	tester.Run(tmpDir)
+	assert.False(t, errorList.ContainsErrors())
 }
 
 func TestConversionsTester_ChainConversion(t *testing.T) {
@@ -257,9 +264,10 @@ description:
 	err = os.WriteFile(filepath.Join(convDir, "testcases.yaml"), []byte(testcasesYAML), 0644)
 	require.NoError(t, err)
 
-	tester := New()
-	err = tester.Run(tmpDir)
-	assert.NoError(t, err)
+	errorList := pkgerrors.NewTestErrorsList()
+	tester := New(errorList)
+	tester.Run(tmpDir)
+	assert.False(t, errorList.ContainsErrors())
 }
 
 func TestConversionsTester_InvalidVersion(t *testing.T) {
@@ -300,10 +308,11 @@ description:
 	err = os.WriteFile(filepath.Join(convDir, "testcases.yaml"), []byte(testcasesYAML), 0644)
 	require.NoError(t, err)
 
-	tester := New()
-	err = tester.Run(tmpDir)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid conversion version")
+	errorList := pkgerrors.NewTestErrorsList()
+	tester := New(errorList)
+	tester.Run(tmpDir)
+	assert.True(t, errorList.ContainsErrors())
+	assert.Contains(t, errorList.GetErrors()[0].Text, "invalid conversion version")
 }
 
 func TestConversionsTester_VersionMismatch(t *testing.T) {
@@ -344,10 +353,11 @@ description:
 	err = os.WriteFile(filepath.Join(convDir, "testcases.yaml"), []byte(testcasesYAML), 0644)
 	require.NoError(t, err)
 
-	tester := New()
-	err = tester.Run(tmpDir)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "x-config-version mismatch")
+	errorList := pkgerrors.NewTestErrorsList()
+	tester := New(errorList)
+	tester.Run(tmpDir)
+	assert.True(t, errorList.ContainsErrors())
+	assert.Contains(t, errorList.GetErrors()[0].Text, "x-config-version mismatch")
 }
 
 func TestConversionsTester_ReportsTestcaseFailure(t *testing.T) {
@@ -389,10 +399,23 @@ description:
 	err = os.WriteFile(filepath.Join(convDir, "testcases.yaml"), []byte(testcasesYAML), 0644)
 	require.NoError(t, err)
 
-	tester := New()
-	err = tester.Run(tmpDir)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "incorrect expected output")
-	assert.Contains(t, err.Error(), "Test expects")
-	assert.Contains(t, err.Error(), "Conversion produced")
+	errorList := pkgerrors.NewTestErrorsList()
+	tester := New(errorList)
+	tester.Run(tmpDir)
+	assert.True(t, errorList.ContainsErrors())
+
+	errors := errorList.GetErrors()
+	assert.GreaterOrEqual(t, len(errors), 1)
+
+	// With structured errors, check the domain fields instead of parsing formatted text
+	foundMismatch := false
+	for _, e := range errors {
+		if e.TestName == "incorrect expected output" {
+			foundMismatch = true
+			assert.NotEmpty(t, e.Got, "expected Got field to be populated")
+			assert.NotEmpty(t, e.Expected, "expected Expected field to be populated")
+			assert.Contains(t, e.Text, "conversion mismatch")
+		}
+	}
+	assert.True(t, foundMismatch, "expected error with TestName 'incorrect expected output'")
 }
