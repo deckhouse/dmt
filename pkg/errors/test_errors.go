@@ -29,6 +29,7 @@ type TestErrorsList struct {
 
 	testID   string
 	moduleID string
+	testName string
 }
 
 func NewTestErrorsList() *TestErrorsList {
@@ -63,12 +64,40 @@ func (l *TestErrorsList) WithModule(moduleID string) *TestErrorsList {
 	return list
 }
 
+func (l *TestErrorsList) WithTestName(testName string) *TestErrorsList {
+	list := l.copy()
+	list.testName = testName
+
+	return list
+}
+
 func (l *TestErrorsList) Error(str string) *TestErrorsList {
 	return l.add(str, pkg.Error)
 }
 
 func (l *TestErrorsList) Errorf(template string, a ...any) *TestErrorsList {
 	return l.add(fmt.Sprintf(template, a...), pkg.Error)
+}
+
+// AddTestResult adds a structured test failure with got/expected comparison data.
+func (l *TestErrorsList) AddTestResult(text, testName, got, expected string) *TestErrorsList {
+	if l.storage == nil {
+		l.storage = &testErrStorage{}
+	}
+
+	e := pkg.TestError{
+		TestID:   strings.ToLower(l.testID),
+		ModuleID: l.moduleID,
+		Text:     text,
+		Level:    pkg.Error,
+		TestName: testName,
+		Got:      got,
+		Expected: expected,
+	}
+
+	l.storage.add(&e)
+
+	return l
 }
 
 func (l *TestErrorsList) add(str string, level pkg.Level) *TestErrorsList {
@@ -79,6 +108,7 @@ func (l *TestErrorsList) add(str string, level pkg.Level) *TestErrorsList {
 	e := pkg.TestError{
 		TestID:   strings.ToLower(l.testID),
 		ModuleID: l.moduleID,
+		TestName: l.testName,
 		Text:     str,
 		Level:    level,
 	}
