@@ -27,6 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"text/template"
 	"time"
 
@@ -168,6 +169,14 @@ func funcMap(tmpl *template.Template) template.FuncMap {
 		}
 
 		return m, nil
+	}
+	funcMap["toYaml"] = func(v any) string {
+		data, err := yaml.Marshal(v)
+		if err != nil {
+			return ""
+		}
+
+		return strings.TrimSuffix(string(data), "\n")
 	}
 	funcMap["include"] = func(name string, data any) (string, error) {
 		return executeTemplate(tmpl, name, data)

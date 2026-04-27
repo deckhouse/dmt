@@ -17,6 +17,7 @@ limitations under the License.
 package werf
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -89,5 +90,58 @@ func TestGetWerfConfigWithFilesExists(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestGetWerfConfigWithToYaml(t *testing.T) {
+	tmpDir := t.TempDir()
+	werfPath := filepath.Join(tmpDir, "werf.yaml")
+
+	werfConfig := `{{- $m := dict "foo" "bar" -}}
+{{- toYaml $m -}}`
+
+	err := os.WriteFile(werfPath, []byte(werfConfig), 0o644)
+	if err != nil {
+		t.Fatalf("write werf.yaml: %v", err)
+	}
+
+	config, err := GetWerfConfig(tmpDir)
+	if err != nil {
+		t.Fatalf("GetWerfConfig() error = %v", err)
+	}
+
+	if config != "foo: bar" {
+		t.Fatalf("GetWerfConfig() config = %q, want %q", config, "foo: bar")
+	}
+}
+
+func TestGetWerfConfigWithToYamlFromYamlRoundTrip(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	err := os.WriteFile(filepath.Join(tmpDir, "editions.yaml"), []byte("editions:\n  - name: EE\n"), 0o644)
+	if err != nil {
+		t.Fatalf("write editions.yaml: %v", err)
+	}
+
+	werfConfig := `{{- $editionsSettings := (.Files.Get "editions.yaml" | fromYaml) -}}
+{{- $editionsToSet := list -}}
+{{- range $_, $rawEdition := $editionsSettings.editions -}}
+  {{- $editionsToSet = append $editionsToSet ($rawEdition | toYaml | fromYaml) -}}
+{{- end -}}
+{{- $_ := set . "Editions" $editionsToSet -}}
+{{- (index .Editions 0).name -}}`
+
+	err = os.WriteFile(filepath.Join(tmpDir, "werf.yaml"), []byte(werfConfig), 0o644)
+	if err != nil {
+		t.Fatalf("write werf.yaml: %v", err)
+	}
+
+	config, err := GetWerfConfig(tmpDir)
+	if err != nil {
+		t.Fatalf("GetWerfConfig() error = %v", err)
+	}
+
+	if config != "EE" {
+		t.Fatalf("GetWerfConfig() config = %q, want %q", config, "EE")
 	}
 }
