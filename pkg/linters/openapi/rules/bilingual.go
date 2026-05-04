@@ -17,7 +17,6 @@ limitations under the License.
 package rules
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -69,6 +68,6 @@ func (r *BilingualRule) Run(path string, errorList *errors.LintRuleErrorsList) {
 
 	if _, err := os.Stat(docRuPath); os.IsNotExist(err) {
 		errorList.WithFilePath(shortPath).
-			Errorf("translation file is missing: expected %q in the same directory", fmt.Sprintf("%s%s", docRuPrefix, filename))
+			Errorf("translation file is missing: expected %q in the same directory", docRuPrefix+filename)
 	}
 }

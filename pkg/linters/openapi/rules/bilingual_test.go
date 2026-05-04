@@ -70,6 +70,15 @@ func TestBilingualRule(t *testing.T) {
 			checkFile:  "my-crd.yaml",
 			wantErrors: nil,
 		},
+		{
+			name: "file in subdirectory with translation",
+			files: map[string]string{
+				"crds/sub/my-crd.yaml":        "apiVersion: apiextensions.k8s.io/v1",
+				"crds/sub/doc-ru-my-crd.yaml": "apiVersion: apiextensions.k8s.io/v1",
+			},
+			checkFile:  "crds/sub/my-crd.yaml",
+			wantErrors: nil,
+		},
 	}
 
 	for _, tt := range tests {
@@ -77,7 +86,10 @@ func TestBilingualRule(t *testing.T) {
 			dir := t.TempDir()
 
 			for name, content := range tt.files {
-				err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600)
+				fullPath := filepath.Join(dir, name)
+				err := os.MkdirAll(filepath.Dir(fullPath), 0o755)
+				require.NoError(t, err)
+				err = os.WriteFile(fullPath, []byte(content), 0o600)
 				require.NoError(t, err)
 			}
 

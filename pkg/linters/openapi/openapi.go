@@ -148,6 +148,9 @@ func filterDocRuOpenAPIFiles(rootPath, path string) bool {
 	if !strings.HasPrefix(filename, "doc-ru-") {
 		return false
 	}
+	if strings.HasSuffix(filename, "-tests.yaml") {
+		return false
+	}
 
 	return openapiYamlRegex.MatchString(relPath)
 }
@@ -157,6 +160,9 @@ func filterDocRuCRDFiles(rootPath, path string) bool {
 	filename := filepath.Base(relPath)
 
 	if !strings.HasPrefix(filename, "doc-ru-") {
+		return false
+	}
+	if strings.HasSuffix(filename, "-tests.yaml") {
 		return false
 	}
 
