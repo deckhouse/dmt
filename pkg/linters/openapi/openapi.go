@@ -68,6 +68,34 @@ func (o *OpenAPI) Run(m *module.Module) {
 		keyValidator.Run(file, errorLists)
 		crdValidator.Run(m.GetName(), file, errorLists)
 	}
+
+	// bilingual check: ensure doc-ru- translation files exist
+	bilingualErrorList := errorLists.WithMaxLevel(o.cfg.Rules.BilingualRule.GetLevel())
+	bilingualValidator := rules.NewBilingualRule(o.cfg, m.GetPath())
+
+	// check openAPI files have translations (excluding values.yaml)
+	for _, file := range openAPIFiles {
+		if isValuesFile(file) {
+			continue
+		}
+		bilingualValidator.Run(file, bilingualErrorList)
+	}
+
+	// check CRD files have translations
+	for _, file := range crdFiles {
+		bilingualValidator.Run(file, bilingualErrorList)
+	}
+
+	// check orphaned doc-ru- files (translation without base file)
+	docRuOpenAPIFiles := fsutils.GetFiles(m.GetPath(), true, filterDocRuOpenAPIFiles)
+	for _, file := range docRuOpenAPIFiles {
+		bilingualValidator.Run(file, bilingualErrorList)
+	}
+
+	docRuCRDFiles := fsutils.GetFiles(m.GetPath(), true, filterDocRuCRDFiles)
+	for _, file := range docRuCRDFiles {
+		bilingualValidator.Run(file, bilingualErrorList)
+	}
 }
 
 func (o *OpenAPI) Name() string {
@@ -106,4 +134,37 @@ func filterCRDsfiles(rootPath, path string) bool {
 	}
 
 	return crdsYamlRegex.MatchString(path)
+}
+
+func isValuesFile(path string) bool {
+	filename := filepath.Base(path)
+	return filename == "values.yaml" || filename == "values.yml"
+}
+
+func filterDocRuOpenAPIFiles(rootPath, path string) bool {
+	relPath := fsutils.Rel(rootPath, path)
+	filename := filepath.Base(relPath)
+
+	if !strings.HasPrefix(filename, "doc-ru-") {
+		return false
+	}
+	if strings.HasSuffix(filename, "-tests.yaml") {
+		return false
+	}
+
+	return openapiYamlRegex.MatchString(relPath)
+}
+
+func filterDocRuCRDFiles(rootPath, path string) bool {
+	relPath := fsutils.Rel(rootPath, path)
+	filename := filepath.Base(relPath)
+
+	if !strings.HasPrefix(filename, "doc-ru-") {
+		return false
+	}
+	if strings.HasSuffix(filename, "-tests.yaml") {
+		return false
+	}
+
+	return crdsYamlRegex.MatchString(relPath)
 }
