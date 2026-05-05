@@ -8,5 +8,6 @@ func (*CopyTransformer) Transform(s *spec.Schema) *spec.Schema {
 	tmpBytes, _ := s.MarshalJSON()
 	res := new(spec.Schema)
 	_ = res.UnmarshalJSON(tmpBytes)
+
 	return res
 }

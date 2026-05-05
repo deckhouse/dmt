@@ -17,9 +17,10 @@ linters:
     - staticcheck
     - unconvert
     - unparam
-    - whitespace
     - unused
     - usestdlibvars
+    - whitespace
+    - wsl_v5
   settings:
     depguard:
       rules:

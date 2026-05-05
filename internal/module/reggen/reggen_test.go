@@ -9,6 +9,7 @@ func TestGenerate(t *testing.T) {
 		regex string
 		limit int
 	}
+
 	tests := []struct {
 		name    string
 		args    args
@@ -84,10 +85,12 @@ func TestGenerate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := Generate(tt.args.regex, tt.args.limit)
 			t.Logf("Generate() got = %v, want %v", got, tt.want)
+
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Generate() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
+
 			if got != tt.want {
 				t.Errorf("Generate() got = %v, want %v", got, tt.want)
 			}

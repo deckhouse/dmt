@@ -77,6 +77,7 @@ func isImageNameUnacceptable(imageName string) (bool, string) {
 			return true, ciVariable
 		}
 	}
+
 	return false, ""
 }
 
@@ -94,6 +95,7 @@ func (r *ImageRule) CheckImageNamesInDockerFiles(modulePath string, errorList *e
 		if !r.Enabled(fsutils.Rel(imagesPath, path)) {
 			continue
 		}
+
 		r.lintOneDockerfile(path, imagesPath, errorList)
 	}
 }
@@ -112,9 +114,11 @@ func (*ImageRule) lintOneDockerfile(path, imagesPath string, errorList *errors.L
 
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	linePos := 0
+
 	for scanner.Scan() {
 		line := scanner.Text()
 		linePos++
+
 		ers, ciVariable := isImageNameUnacceptable(line)
 		if ers {
 			errorList.WithObjectID(fmt.Sprintf("image = %s", relativeFilePath)).

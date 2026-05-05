@@ -217,6 +217,7 @@ func TestHasModuleSDKDependencyEdgeCases(t *testing.T) {
 			setup: func() error {
 				content := `module test
 require github.com/deckhouse/module-sdk invalid-version`
+
 				return os.WriteFile(filepath.Join(tempDir, "invalid-version.go.mod"), []byte(content), 0600)
 			},
 			expected:    false,
@@ -229,6 +230,7 @@ require github.com/deckhouse/module-sdk invalid-version`
 			setup: func() error {
 				content := `module test
 require github.com/deckhouse/module-sdk`
+
 				return os.WriteFile(filepath.Join(tempDir, "empty-version.go.mod"), []byte(content), 0600)
 			},
 			expected:    false,
@@ -286,7 +288,9 @@ func TestFindPatternInGoFilesEdgeCases(t *testing.T) {
 				if err := os.MkdirAll(dir, 0755); err != nil {
 					return err
 				}
+
 				content := `package main`
+
 				return os.WriteFile(filepath.Join(dir, "main.txt"), []byte(content), 0600)
 			},
 			expected:    false,
@@ -301,11 +305,14 @@ func TestFindPatternInGoFilesEdgeCases(t *testing.T) {
 				if err := os.MkdirAll(dir, 0755); err != nil {
 					return err
 				}
+
 				content := `package main\nfunc main() { app.Run() }`
+
 				goFile := filepath.Join(dir, "main.go")
 				if err := os.WriteFile(goFile, []byte(content), 0600); err != nil {
 					return err
 				}
+
 				return os.Chmod(goFile, 0000)
 			},
 			expected:    false,
@@ -343,6 +350,7 @@ func TestGetDeckhouseModuleEdgeCases(t *testing.T) {
 			setup: func(path string) error {
 				content := `name: test-module\nnamespace: test`
 				moduleFile := filepath.Join(path, ModuleConfigFilename)
+
 				err := os.WriteFile(moduleFile, []byte(content), 0600)
 				if err != nil {
 					return err

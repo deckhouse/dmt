@@ -26,6 +26,7 @@ func New(xs ...string) Set {
 	for _, x := range xs {
 		s.Add(x)
 	}
+
 	return s
 }
 
@@ -36,6 +37,7 @@ func (s Set) Add(xs ...string) Set {
 	for _, x := range xs {
 		s[x] = struct{}{}
 	}
+
 	return s
 }
 
@@ -43,6 +45,7 @@ func (s Set) AddSet(o Set) Set {
 	for x := range o {
 		s.Add(x)
 	}
+
 	return s
 }
 
@@ -60,6 +63,7 @@ func (s Set) Intersection(o Set) Set {
 			n.Add(x)
 		}
 	}
+
 	return n
 }
 
@@ -78,7 +82,9 @@ func (s Set) Slice() []string {
 	for x := range s {
 		xs = append(xs, x)
 	}
+
 	sort.Strings(xs)
+
 	return xs
 }
 

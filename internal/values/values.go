@@ -51,11 +51,13 @@ func LoadSchemaFromBytes(openAPIContent []byte) (*spec.Schema, error) {
 // prepareSchemas loads schemas for config values, values and helm values.
 func prepareSchemas(configBytes, valuesBytes []byte) (Schemas, error) {
 	schemas := make(Schemas)
+
 	if len(configBytes) > 0 {
 		schemaObj, err := LoadSchemaFromBytes(configBytes)
 		if err != nil {
 			return nil, fmt.Errorf("load '%s' schema: %w", ConfigValuesSchema, err)
 		}
+
 		schemas[ConfigValuesSchema] = schema.TransformSchema(
 			schemaObj,
 			&schema.AdditionalPropertiesTransformer{},
@@ -67,6 +69,7 @@ func prepareSchemas(configBytes, valuesBytes []byte) (Schemas, error) {
 		if err != nil {
 			return nil, fmt.Errorf("load '%s' schema: %w", ValuesSchema, err)
 		}
+
 		schemas[ValuesSchema] = schema.TransformSchema(
 			schemaObj,
 			&schema.ExtendTransformer{Parent: schemas[ConfigValuesSchema]},
@@ -94,7 +97,9 @@ func GetGlobalValues(rootDir string) (*spec.Schema, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		log.Info("Using global values", slog.String("directory", rootDir))
+
 		configBytes = configBytesT
 		valuesBytes = valuesBytesT
 	}
@@ -130,6 +135,7 @@ func readConfigFiles(rootDir string) ([]byte, []byte, error) {
 
 func GetModuleValues(modulePath string) (*spec.Schema, error) {
 	openAPIPath := filepath.Join(modulePath, "openapi")
+
 	configBytes, valuesBytes, err := utils.ReadOpenAPIFiles(openAPIPath)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read openAPI schemas: %w", err)
@@ -155,5 +161,6 @@ func OverrideValues(values, vals *chartutil.Values) error {
 	v := &chartutil.Values{
 		"Values": *vals,
 	}
+
 	return mergo.Merge(values, v, mergo.WithOverride)
 }

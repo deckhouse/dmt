@@ -81,6 +81,7 @@ func (r *PDBRule) ControllerMustHavePDB(md *module.Module, errorList *errors.Lin
 			errorList.WithObjectID(object.Identity()).
 				WithFilePath(object.GetPath()).
 				Error("No PodDisruptionBudget found for controller")
+
 			return
 		}
 
@@ -140,6 +141,7 @@ func parsePDBSelector(pdbObj storage.StoreObject, errorList *errors.LintRuleErro
 	errorListObj := errorList.WithObjectID(pdbObj.Identity())
 
 	pdb := &policyv1.PodDisruptionBudget{}
+
 	err := converter.FromUnstructured(content, pdb)
 	if err != nil {
 		errorListObj.Errorf("Cannot parse PodDisruptionBudget: %s", err)

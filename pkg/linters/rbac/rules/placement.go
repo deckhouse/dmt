@@ -113,6 +113,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 			if objectName != "d8-"+m.GetName() {
 				errorList.Errorf("Name of ServiceAccount in %q in namespace %q should be equal to d8- + Chart Name (d8-%s)", RootRBACForUsPath, namespace, m.GetName())
 			}
+
 			return
 		}
 
@@ -139,6 +140,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 			if objectName != "d8-"+expectedServiceAccountName {
 				errorList.Errorf("Name of ServiceAccount in %q in namespace %q should be equal to d8-%s", shortPath, namespace, expectedServiceAccountName)
 			}
+
 			return
 		}
 
@@ -152,6 +154,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 
 				errorList.Errorf("Service account namespace should be equal to %q namespace", m.GetNamespace())
 			}
+
 			return
 		case expectedServiceAccountName:
 			if !isDeckhouseSystemNamespace(namespace) {
@@ -162,6 +165,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 
 				errorList.Errorf("Service account namespace should be equal to deckhouse namespaces like \"d8-system\" or \"d8-monitoring\"")
 			}
+
 			return
 		}
 
@@ -174,6 +178,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 		}
 
 		errorList.Errorf("Name of ServiceAccount should be equal to %q or %q", serviceAccountName, expectedServiceAccountName)
+
 		return
 	}
 
@@ -187,6 +192,7 @@ func objectRBACPlacementClusterRole(m *module.Module, object storage.StoreObject
 	errorList = errorList.WithFilePath(shortPath)
 
 	name := "d8:" + m.GetName()
+
 	switch {
 	case shortPath == RootRBACForUsPath:
 		if !strings.HasPrefix(objectName, name) {

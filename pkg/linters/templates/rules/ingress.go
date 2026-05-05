@@ -64,6 +64,7 @@ func (r *IngressRule) CheckSnippetsRule(object storage.StoreObject, errorList *e
 	}
 
 	converter := runtime.DefaultUnstructuredConverter
+
 	ingress := new(v1.Ingress)
 	if err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), ingress); err != nil {
 		errorList.WithObjectID(object.Unstructured.GetName()).

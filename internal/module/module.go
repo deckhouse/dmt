@@ -86,6 +86,7 @@ func (m *Module) GetNamespace() string {
 	if m == nil {
 		return ""
 	}
+
 	return m.namespace
 }
 
@@ -93,6 +94,7 @@ func (m *Module) GetPath() string {
 	if m == nil {
 		return ""
 	}
+
 	return m.path
 }
 
@@ -100,6 +102,7 @@ func (m *Module) GetChart() *chart.Chart {
 	if m == nil {
 		return nil
 	}
+
 	return m.chart
 }
 
@@ -115,6 +118,7 @@ func (m *Module) GetObjectStore() *storage.UnstructuredObjectStore {
 	if m == nil {
 		return nil
 	}
+
 	return m.objectStore
 }
 
@@ -122,6 +126,7 @@ func (m *Module) GetStorage() map[storage.ResourceIndex]storage.StoreObject {
 	if m == nil || m.objectStore == nil {
 		return nil
 	}
+
 	return m.objectStore.Storage
 }
 
@@ -129,6 +134,7 @@ func (m *Module) GetWerfFile() string {
 	if m == nil {
 		return ""
 	}
+
 	return m.werfFile
 }
 
@@ -136,6 +142,7 @@ func (m *Module) GetModuleConfig() *pkg.LintersSettings {
 	if m == nil {
 		return nil
 	}
+
 	return m.linterConfig
 }
 
@@ -483,16 +490,19 @@ func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, r
 	}
 
 	objectStore := storage.NewUnstructuredObjectStore()
+
 	err = RunRender(module, schemas, objectStore, errorList)
 	if err != nil {
 		return nil, err
 	}
+
 	module.objectStore = objectStore
 
 	werfFile, err := werf.GetWerfConfig(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get werf config: %w", err)
 	}
+
 	if werfFile != "" {
 		module.werfFile = werfFile
 	}
@@ -512,6 +522,7 @@ func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, r
 
 func remapChart(ch *chart.Chart) {
 	remapTemplates(ch)
+
 	for _, dependency := range ch.Dependencies() {
 		remapChart(dependency)
 	}
@@ -539,12 +550,14 @@ func newModuleFromPath(path string) (*Module, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	chartYamlConfig, err := ParseChartFile(path)
 	if err != nil {
 		return nil, err
 	}
 
 	var info ModuleYaml
+
 	info.Name = GetModuleName(moduleYamlConfig, chartYamlConfig)
 	if moduleYamlConfig != nil && moduleYamlConfig.Namespace != "" {
 		info.Namespace = moduleYamlConfig.Namespace
@@ -556,6 +569,7 @@ func newModuleFromPath(path string) (*Module, error) {
 		if namespace == "" {
 			return nil, fmt.Errorf("module %q has no namespace", info.Name)
 		}
+
 		info.Namespace = namespace
 	}
 
@@ -563,6 +577,7 @@ func newModuleFromPath(path string) (*Module, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	remapChart(moduleChart)
 
 	resultModule := &Module{
@@ -586,14 +601,18 @@ func getNamespace(path string) string {
 
 func ParseModuleConfigFile(path string) (*ModuleYaml, error) {
 	moduleFilename := filepath.Join(path, ModuleConfigFilename)
+
 	yamlFile, err := os.ReadFile(moduleFilename)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
+
 	if err != nil {
 		return nil, err
 	}
+
 	var moduleConfig ModuleYaml
+
 	err = yaml.Unmarshal(yamlFile, &moduleConfig)
 	if err != nil {
 		return nil, err
@@ -604,14 +623,18 @@ func ParseModuleConfigFile(path string) (*ModuleYaml, error) {
 
 func ParseChartFile(path string) (*ChartYaml, error) {
 	chartFilename := filepath.Join(path, ChartConfigFilename)
+
 	yamlFile, err := os.ReadFile(chartFilename)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
+
 	if err != nil {
 		return nil, err
 	}
+
 	var chartYaml ChartYaml
+
 	err = yaml.Unmarshal(yamlFile, &chartYaml)
 	if err != nil {
 		return nil, err
@@ -624,8 +647,10 @@ func GetModuleName(moduleYamlFile *ModuleYaml, chartYamlFile *ChartYaml) string 
 	if moduleYamlFile != nil && moduleYamlFile.Name != "" {
 		return moduleYamlFile.Name
 	}
+
 	if chartYamlFile != nil && chartYamlFile.Name != "" {
 		return chartYamlFile.Name
 	}
+
 	return ""
 }

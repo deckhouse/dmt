@@ -104,9 +104,11 @@ func (l *Templates) Desc() string {
 
 func dirExists(modulePath string, path ...string) error {
 	searchPath := filepath.Join(append([]string{modulePath}, path...)...)
+
 	_, err := os.Stat(searchPath)
 	if err != nil {
 		return err
 	}
+
 	return nil
 }

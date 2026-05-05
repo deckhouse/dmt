@@ -60,10 +60,12 @@ func NewManager(dir string, rootConfig *config.RootConfig) (*Manager, error) {
 	}
 
 	var err error
+
 	m.modules, err = moduleloader.GetModulePaths(dir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get module paths: %w", err)
 	}
+
 	m.registerTesters()
 
 	return m, nil
@@ -93,11 +95,14 @@ func (m *Manager) runModuleTests(modulePath string) moduleResult {
 }
 
 func (m *Manager) runTesters(modulePath, moduleName string) (bool, string) {
-	var lastTesterName string
-	var anyApplicable bool
+	var (
+		lastTesterName string
+		anyApplicable  bool
+	)
 
 	for _, t := range m.testers {
 		lastTesterName = t.Name()
+
 		applicable := t.Run(modulePath)
 		if applicable {
 			anyApplicable = true
@@ -110,6 +115,7 @@ func (m *Manager) runTesters(modulePath, moduleName string) (bool, string) {
 
 	// Check errors specific to this module
 	hasErrors := false
+
 	for _, err := range m.errors.GetErrors() {
 		if err.ModuleID == moduleName && err.Level == pkg.Error {
 			hasErrors = true
@@ -222,6 +228,7 @@ func extractModuleName(path string) string {
 	if idx := strings.LastIndex(path, "/"); idx >= 0 && idx < len(path)-1 {
 		return path[idx+1:]
 	}
+
 	return path
 }
 

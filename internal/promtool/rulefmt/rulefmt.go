@@ -44,12 +44,15 @@ func (err *Error) Error() string {
 	if err.Err.err == nil {
 		return ""
 	}
+
 	if err.Err.nodeAlt != nil {
 		return fmt.Sprintf("%d:%d: %d:%d: group %q, rule %d, %q: %v", err.Err.node.Line, err.Err.node.Column, err.Err.nodeAlt.Line, err.Err.nodeAlt.Column, err.Group, err.Rule, err.RuleName, err.Err.err)
 	}
+
 	if err.Err.node != nil {
 		return fmt.Sprintf("%d:%d: group %q, rule %d, %q: %v", err.Err.node.Line, err.Err.node.Column, err.Group, err.Rule, err.RuleName, err.Err.err)
 	}
+
 	return fmt.Sprintf("group %q, rule %d, %q: %v", err.Group, err.Rule, err.RuleName, err.Err.err)
 }
 
@@ -71,12 +74,15 @@ func (we *WrappedError) Error() string {
 	if we.err == nil {
 		return ""
 	}
+
 	if we.nodeAlt != nil {
 		return fmt.Sprintf("%d:%d: %d:%d: %v", we.node.Line, we.node.Column, we.nodeAlt.Line, we.nodeAlt.Column, we.err)
 	}
+
 	if we.node != nil {
 		return fmt.Sprintf("%d:%d: %v", we.node.Line, we.node.Column, we.err)
 	}
+
 	return we.err.Error()
 }
 
@@ -136,6 +142,7 @@ func (g *RuleGroups) Validate(node ruleGroups) (errs []error) {
 				} else {
 					ruleName = r.Record
 				}
+
 				errs = append(errs, &Error{
 					Group:    g.Name,
 					Rule:     i + 1,
@@ -203,6 +210,7 @@ func (r *Rule) Validate(node RuleNode) (nodes []WrappedError) {
 			nodeAlt: &node.Alert,
 		})
 	}
+
 	if r.Record == "" && r.Alert == "" {
 		nodes = append(nodes, WrappedError{
 			err:     errors.New("one of 'record' or 'alert' must be set"),
@@ -222,6 +230,7 @@ func (r *Rule) Validate(node RuleNode) (nodes []WrappedError) {
 			node: &node.Expr,
 		})
 	}
+
 	if r.Record != "" {
 		if len(r.Annotations) > 0 {
 			nodes = append(nodes, WrappedError{
@@ -229,18 +238,21 @@ func (r *Rule) Validate(node RuleNode) (nodes []WrappedError) {
 				node: &node.Record,
 			})
 		}
+
 		if r.For != 0 {
 			nodes = append(nodes, WrappedError{
 				err:  errors.New("invalid field 'for' in recording rule"),
 				node: &node.Record,
 			})
 		}
+
 		if r.KeepFiringFor != 0 {
 			nodes = append(nodes, WrappedError{
 				err:  errors.New("invalid field 'keep_firing_for' in recording rule"),
 				node: &node.Record,
 			})
 		}
+
 		if !model.IsValidMetricName(model.LabelValue(r.Record)) {
 			nodes = append(nodes, WrappedError{
 				err:  fmt.Errorf("invalid recording rule name: %s", r.Record),
@@ -315,6 +327,7 @@ func testTemplateParsing(rl *Rule) (errs []error) {
 			nil,
 			nil,
 		)
+
 		return tmpl.ParseTest()
 	}
 
@@ -349,11 +362,13 @@ func Parse(content []byte, ignoreUnknownFields bool) (*RuleGroups, []error) {
 	if !ignoreUnknownFields {
 		decoder.KnownFields(true)
 	}
+
 	err := decoder.Decode(&groups)
 	// Ignore io.EOF which happens with empty input.
 	if err != nil && !errors.Is(err, io.EOF) {
 		errs = append(errs, err)
 	}
+
 	err = yaml.Unmarshal(content, &node)
 	if err != nil {
 		errs = append(errs, err)
@@ -372,9 +387,11 @@ func ParseFile(file string, ignoreUnknownFields bool) (*RuleGroups, []error) {
 	if err != nil {
 		return nil, []error{fmt.Errorf("%s: %w", file, err)}
 	}
+
 	rgs, errs := Parse(b, ignoreUnknownFields)
 	for i := range errs {
 		errs[i] = fmt.Errorf("%s: %w", file, errs[i])
 	}
+
 	return rgs, errs
 }

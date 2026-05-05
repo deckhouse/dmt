@@ -62,6 +62,7 @@ func (*UserAuthZRule) ObjectUserAuthzClusterRolePath(m *module.Module, errorList
 			}
 
 			objectName := object.Unstructured.GetName()
+
 			accessLevel, ok := object.Unstructured.GetAnnotations()["user-authz.deckhouse.io/access-level"]
 			if !ok {
 				errorListObj.Error(`User-authz access ClusterRoles should have annotation "user-authz.deckhouse.io/access-level"`)

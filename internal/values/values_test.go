@@ -12,10 +12,12 @@ import (
 func TestOverrideValues(t *testing.T) {
 	// Test nil vals
 	values := &chartutil.Values{"foo": "bar"}
+
 	err := OverrideValues(values, nil)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
+
 	if (*values)["foo"] != "bar" {
 		t.Errorf("expected values to be unchanged when vals is nil")
 	}
@@ -23,10 +25,12 @@ func TestOverrideValues(t *testing.T) {
 	// Test override
 	values = &chartutil.Values{"foo": "bar"}
 	vals := &chartutil.Values{"baz": "qux"}
+
 	err = OverrideValues(values, vals)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
+
 	if v, ok := (*values)["Values"]; !ok {
 		t.Errorf("expected 'Values' key to be present after override")
 	} else {
@@ -34,6 +38,7 @@ func TestOverrideValues(t *testing.T) {
 		if !ok {
 			t.Errorf("expected 'Values' to be of type chartutil.Values")
 		}
+
 		if !reflect.DeepEqual(valsMap, *vals) {
 			t.Errorf("expected 'Values' to equal vals, got: %v", valsMap)
 		}
@@ -43,15 +48,18 @@ func TestOverrideValues(t *testing.T) {
 // Test for LoadSchemaFromBytes
 func TestLoadSchemaFromBytes(t *testing.T) {
 	validYAML := []byte("type: object\nproperties:\n  foo:\n    type: string\n")
+
 	schema, err := LoadSchemaFromBytes(validYAML)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
+
 	if schema == nil {
 		t.Fatalf("expected schema, got nil")
 	}
 
 	invalidYAML := []byte("type: object\nproperties: [bad]")
+
 	_, err = LoadSchemaFromBytes(invalidYAML)
 	if err == nil {
 		t.Errorf("expected error for invalid YAML, got nil")
@@ -61,10 +69,12 @@ func TestLoadSchemaFromBytes(t *testing.T) {
 // Test for prepareSchemas
 func TestPrepareSchemas(t *testing.T) {
 	validYAML := []byte("type: object\nproperties:\n  foo:\n    type: string\n")
+
 	schemas, err := prepareSchemas(validYAML, nil)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
+
 	if schemas[ConfigValuesSchema] == nil {
 		t.Errorf("expected config schema to be present")
 	}
@@ -73,9 +83,11 @@ func TestPrepareSchemas(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
+
 	if schemas[ValuesSchema] == nil {
 		t.Errorf("expected values schema to be present")
 	}
+
 	if schemas[HelmValuesSchema] == nil {
 		t.Errorf("expected helm values schema to be present")
 	}
@@ -84,6 +96,7 @@ func TestPrepareSchemas(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
+
 	if schemas[ConfigValuesSchema] == nil || schemas[ValuesSchema] == nil || schemas[HelmValuesSchema] == nil {
 		t.Errorf("expected all schemas to be present")
 	}
@@ -100,6 +113,7 @@ func TestGetGlobalValues(t *testing.T) {
 	_ = os.MkdirAll(filepath.Join(dir, "global-hooks", "openapi"), 0o755)
 	_ = os.WriteFile(filepath.Join(dir, "global-hooks", "openapi", "config-values.yaml"), []byte("type: object\n"), 0o600)
 	_ = os.WriteFile(filepath.Join(dir, "global-hooks", "openapi", "values.yaml"), []byte("type: object\n"), 0o600)
+
 	_, err = GetGlobalValues(dir)
 	if err != nil {
 		t.Errorf("expected no error for valid files, got: %v", err)
@@ -116,6 +130,7 @@ func TestGetGlobalValues(t *testing.T) {
 	dir3 := t.TempDir()
 	_ = os.MkdirAll(filepath.Join(dir3, "global-hooks", "openapi"), 0o755)
 	_ = os.WriteFile(filepath.Join(dir3, "global-hooks", "openapi", "config-values.yaml"), []byte("type: object\n"), 0o600)
+
 	_, err = GetGlobalValues(dir3)
 	if err == nil {
 		t.Errorf("expected error if one file is missing, got nil")
@@ -128,15 +143,18 @@ func TestReadConfigFiles(t *testing.T) {
 	_ = os.MkdirAll(filepath.Join(dir, "global-hooks", "openapi"), 0o755)
 	_ = os.WriteFile(filepath.Join(dir, "global-hooks", "openapi", "config-values.yaml"), []byte("foo"), 0o600)
 	_ = os.WriteFile(filepath.Join(dir, "global-hooks", "openapi", "values.yaml"), []byte("bar"), 0o600)
+
 	cfg, vals, err := readConfigFiles(dir)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
+
 	if string(cfg) != "foo" || string(vals) != "bar" {
 		t.Errorf("unexpected file contents: %s, %s", cfg, vals)
 	}
 
 	dir2 := t.TempDir()
+
 	_, _, err = readConfigFiles(dir2)
 	if err == nil {
 		t.Errorf("expected error for missing config, got nil")
@@ -149,12 +167,14 @@ func TestGetModuleValues(t *testing.T) {
 	_ = os.MkdirAll(filepath.Join(dir, "openapi"), 0o755)
 	_ = os.WriteFile(filepath.Join(dir, "openapi", "config-values.yaml"), []byte("type: object\n"), 0o600)
 	_ = os.WriteFile(filepath.Join(dir, "openapi", "values.yaml"), []byte("type: object\n"), 0o600)
+
 	_, err := GetModuleValues(dir)
 	if err != nil {
 		t.Errorf("expected no error for valid files, got: %v", err)
 	}
 
 	dir2 := t.TempDir()
+
 	_, err = GetModuleValues(dir2)
 	if err == nil {
 		t.Errorf("expected error for missing files, got nil")

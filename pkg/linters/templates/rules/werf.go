@@ -57,15 +57,18 @@ func checkGitSection(moduleName string, manifests []string, errorList *errors.Li
 			errorList.Errorf("parsing Werf file, document %d failed: %s", i+1, err)
 			continue
 		}
+
 		imageName := gjson.GetBytes(jsonData, "image").String()
 		if !strings.Contains(imageName, moduleName+"/") {
 			continue
 		}
+
 		gjson.GetBytes(jsonData, "git").ForEach(func(_, value gjson.Result) bool {
 			if !value.Get("stageDependencies").Exists() {
 				errorList.Errorf("parsing Werf file, document %d (image: %s) failed: 'git.stageDependencies' is required", i+1, imageName)
 				return false
 			}
+
 			return true
 		})
 	}

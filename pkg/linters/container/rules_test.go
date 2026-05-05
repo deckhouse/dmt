@@ -30,18 +30,23 @@ func TestApplyContainerRules_NoContainers(t *testing.T) {
 	linter.applyContainerRules(obj, make(map[storage.ResourceIndex]storage.StoreObject), errList)
 	errs := errList.GetErrors()
 	assert.NotEmpty(t, errs, "Should report errors for missing labels and security context")
+
 	var foundModule, foundHeritage, foundSecurityContext bool
+
 	for _, e := range errs {
 		if e.Text == "Object does not have the label \"module\"" {
 			foundModule = true
 		}
+
 		if e.Text == "Object does not have the label \"heritage\"" {
 			foundHeritage = true
 		}
+
 		if e.Text == "Object's SecurityContext is not defined" {
 			foundSecurityContext = true
 		}
 	}
+
 	assert.True(t, foundModule, "Should report missing 'module' label")
 	assert.True(t, foundHeritage, "Should report missing 'heritage' label")
 	assert.True(t, foundSecurityContext, "Should report missing SecurityContext")
@@ -114,32 +119,41 @@ func TestApplyContainerRules_AllRules(t *testing.T) {
 
 	linter.applyContainerRules(obj, make(map[storage.ResourceIndex]storage.StoreObject), errList)
 	errs := errList.GetErrors()
+
 	var (
 		foundModule, foundHeritage, foundNameDup, foundEnvDup, foundSecCtx, foundLiveness, foundReadiness bool
 	)
+
 	for _, e := range errs {
 		if e.Text == "Object does not have the label \"module\"" {
 			foundModule = true
 		}
+
 		if e.Text == "Object does not have the label \"heritage\"" {
 			foundHeritage = true
 		}
+
 		if e.Text == "Duplicate container name" {
 			foundNameDup = true
 		}
+
 		if e.Text == "Container has two env variables with same name" {
 			foundEnvDup = true
 		}
+
 		if e.Text == "Object's SecurityContext is not defined" {
 			foundSecCtx = true
 		}
+
 		if e.Text == "Container does not contain liveness-probe" {
 			foundLiveness = true
 		}
+
 		if e.Text == "Container does not contain readiness-probe" {
 			foundReadiness = true
 		}
 	}
+
 	assert.True(t, foundModule, "Should report missing 'module' label")
 	assert.True(t, foundHeritage, "Should report missing 'heritage' label")
 	assert.True(t, foundNameDup, "Should report duplicate container name")

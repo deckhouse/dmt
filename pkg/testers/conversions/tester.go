@@ -84,6 +84,7 @@ func (t *Tester) Run(modulePath string) bool {
 			AddTestResult("x-config-version with latest conversion version mismatch",
 				strconv.Itoa(latestVersion),
 				strconv.Itoa(configVersion))
+
 		return true
 	}
 
@@ -190,8 +191,10 @@ func hasConversionsFolder(convFolder string) (bool, error) {
 		if os.IsNotExist(err) {
 			return false, nil
 		}
+
 		return false, fmt.Errorf("cannot stat conversions folder: %w", err)
 	}
+
 	return stat.IsDir(), nil
 }
 
@@ -211,11 +214,13 @@ func parseTestcases(path string) ([]testcase, error) {
 
 func getConfigVersion(modulePath string) (int, error) {
 	configFilePath := filepath.Join(modulePath, configValuesFile)
+
 	data, err := os.ReadFile(configFilePath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return 0, nil
 		}
+
 		return 0, fmt.Errorf("cannot read config-values.yaml: %w", err)
 	}
 

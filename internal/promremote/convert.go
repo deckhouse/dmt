@@ -25,6 +25,7 @@ import (
 
 func ConvertMetric(metric prometheus.Metric, name string) TimeSeries {
 	var dtoMetric dto.Metric
+
 	err := metric.Write(&dtoMetric)
 	if err != nil {
 		return TimeSeries{}
@@ -41,8 +42,10 @@ func ConvertMetric(metric prometheus.Metric, name string) TimeSeries {
 		})
 	}
 
-	var value float64
-	var timestamp time.Time
+	var (
+		value     float64
+		timestamp time.Time
+	)
 
 	switch {
 	case dtoMetric.Gauge != nil:

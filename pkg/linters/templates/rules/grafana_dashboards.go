@@ -39,6 +39,7 @@ func NewGrafanaRule(cfg *pkg.TemplatesLinterConfig) *GrafanaRule {
 	if cfg != nil {
 		exclude = cfg.GrafanaDashboardsSettings.Disable
 	}
+
 	return &GrafanaRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: GrafanaRuleName,
@@ -65,6 +66,7 @@ func (r *GrafanaRule) ValidateGrafanaDashboards(m *module.Module, errorList *err
 	if info, _ := os.Stat(monitoringFilePath); info == nil {
 		errorList.WithFilePath(monitoringFilePath).
 			Error("Module with the 'monitoring' folder should have the 'templates/monitoring.yaml' file")
+
 		return
 	}
 
@@ -72,10 +74,12 @@ func (r *GrafanaRule) ValidateGrafanaDashboards(m *module.Module, errorList *err
 	if err != nil {
 		errorList.WithFilePath(monitoringFilePath).
 			Errorf("Cannot read 'templates/monitoring.yaml' file: %s", err)
+
 		return
 	}
 
 	searchPath := filepath.Join(m.GetPath(), "monitoring", "grafana-dashboards")
+
 	_, err = os.Stat(searchPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -94,6 +98,7 @@ func (r *GrafanaRule) ValidateGrafanaDashboards(m *module.Module, errorList *err
 	if isContentMatching(content, desiredContent) {
 		return
 	}
+
 	if strings.Contains(string(content), `include "helm_lib_grafana_dashboard_definitions_recursion" (list .`) {
 		return
 	}
@@ -246,6 +251,7 @@ func (*GrafanaRule) checkLegacyAlertRules(panel *gjson.Result, panelTitle, fileP
 		if alertRuleName == "" {
 			alertRuleName = "unnamed"
 		}
+
 		errorList.WithFilePath(filePath).Errorf(
 			"Panel '%s' contains legacy alert rule '%s', consider using external alertmanager",
 			panelTitle, alertRuleName,
@@ -265,12 +271,14 @@ func (*GrafanaRule) checkDatasourceValidation(panel *gjson.Result, panelTitle, f
 		}
 
 		var uidStr string
+
 		uid := datasource.Get("uid")
 		if uid.Exists() {
 			uidStr = uid.String()
 		} else {
 			// Legacy format - datasource UID is stored as string
 			uidStr = datasource.String()
+
 			errorList.WithFilePath(filePath).Errorf(
 				"Panel '%s' uses legacy datasource format, consider resaving dashboard using newer Grafana version",
 				panelTitle,
@@ -289,6 +297,7 @@ func (*GrafanaRule) checkDatasourceValidation(panel *gjson.Result, panelTitle, f
 		datasourceType := datasource.Get("type")
 		if datasourceType.Exists() && datasourceType.String() == "prometheus" {
 			isRecommended := false
+
 			for _, recommendedUID := range recommendedPrometheusUIDs {
 				if uidStr == recommendedUID {
 					isRecommended = true
@@ -348,6 +357,7 @@ func (*GrafanaRule) isPrometheusDatasourceTemplateVariable(template *gjson.Resul
 	}
 
 	templateName := template.Get("name")
+
 	return templateName.Exists() && templateName.String() == "ds_prometheus"
 }
 

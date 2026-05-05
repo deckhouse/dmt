@@ -62,6 +62,7 @@ func NewConverter(path string) (*Converter, error) {
 		if conv.Version > c.latestVersion {
 			c.latestVersion = conv.Version
 		}
+
 		c.conversions[conv.Version] = strings.Join(conv.Conversions, " | ")
 	}
 
@@ -78,6 +79,7 @@ func (c *Converter) ConvertTo(currentVersion, targetVersion int, settings map[st
 		if err != nil {
 			return nil, err
 		}
+
 		settings = result
 	}
 
@@ -96,6 +98,7 @@ func (c *Converter) applyConversion(version int, settings map[string]any) (map[s
 	}
 
 	iter := query.Run(settings)
+
 	result, ok := iter.Next()
 	if !ok {
 		return nil, nil
@@ -123,6 +126,7 @@ func ValidateConversions(convFolder string) (int, error) {
 	}
 
 	latest := 0
+
 	for _, entry := range entries {
 		if entry.IsDir() || !isConversionFile(entry.Name()) {
 			continue
@@ -146,6 +150,7 @@ func ParseYAML(data string) (map[string]any, error) {
 	if err := yaml.Unmarshal([]byte(data), &result); err != nil {
 		return nil, fmt.Errorf("unmarshal: %w", err)
 	}
+
 	return result, nil
 }
 
@@ -153,10 +158,12 @@ func FormatYAML(data map[string]any) string {
 	if data == nil {
 		return "{}\n"
 	}
+
 	out, err := yaml.Marshal(data)
 	if err != nil {
 		return fmt.Sprintf("<error formatting yaml: %v>\n", err)
 	}
+
 	return string(out)
 }
 

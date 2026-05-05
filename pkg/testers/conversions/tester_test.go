@@ -409,13 +409,16 @@ description:
 
 	// With structured errors, check the domain fields instead of parsing formatted text
 	foundMismatch := false
+
 	for _, e := range errors {
 		if e.TestName == "incorrect expected output" {
 			foundMismatch = true
+
 			assert.NotEmpty(t, e.Got, "expected Got field to be populated")
 			assert.NotEmpty(t, e.Expected, "expected Expected field to be populated")
 			assert.Contains(t, e.Text, "conversion mismatch")
 		}
 	}
+
 	assert.True(t, foundMismatch, "expected error with TestName 'incorrect expected output'")
 }

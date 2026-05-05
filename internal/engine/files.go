@@ -35,6 +35,7 @@ func newFiles(from []*chart.File) files {
 	for _, f := range from {
 		files[f.Name] = f.Data
 	}
+
 	return files
 }
 
@@ -49,6 +50,7 @@ func (f files) GetBytes(name string) []byte {
 	if v, ok := f[name]; ok {
 		return v
 	}
+
 	return []byte{}
 }
 
@@ -77,6 +79,7 @@ func (f files) Glob(pattern string) files {
 	}
 
 	nf := newFiles(nil)
+
 	for name, contents := range f {
 		if g.Match(name) {
 			nf[name] = contents
@@ -156,10 +159,12 @@ func (f files) Lines(filePath string) []string {
 	if f == nil || f[filePath] == nil {
 		return []string{}
 	}
+
 	s := string(f[filePath])
 	if s != "" && s[len(s)-1] == '\n' {
 		s = s[:len(s)-1]
 	}
+
 	return strings.Split(s, "\n")
 }
 
@@ -174,6 +179,8 @@ func (f files) Exists(filePath string) bool {
 	if f == nil {
 		return false
 	}
+
 	_, exists := f[filePath]
+
 	return exists
 }

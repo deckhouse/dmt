@@ -60,6 +60,7 @@ func ExtractExtendSettings(s *spec.Schema) *ExtendSettings {
 	res := new(ExtendSettings)
 
 	_ = json.Unmarshal(tmpBytes, res)
+
 	return res
 }
 
@@ -114,6 +115,7 @@ func mergeExtensions(s, parent *spec.Schema) spec.Extensions {
 	for k, v := range parent.Extensions {
 		ext.Add(k, v)
 	}
+
 	for k, v := range s.Extensions {
 		ext.Add(k, v)
 	}
@@ -125,6 +127,7 @@ func mergeTitle(s, parent *spec.Schema) string {
 	if s.Title != "" {
 		return s.Title
 	}
+
 	return parent.Title
 }
 
@@ -132,5 +135,6 @@ func mergeDescription(s, parent *spec.Schema) string {
 	if s.Description != "" {
 		return s.Description
 	}
+
 	return parent.Description
 }

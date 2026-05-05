@@ -38,9 +38,11 @@ func Walk(root string, walkFn filepath.WalkFunc) error {
 	} else {
 		err = symwalk(root, info, walkFn)
 	}
+
 	if errors.Is(err, filepath.SkipDir) {
 		return nil
 	}
+
 	return err
 }
 
@@ -51,12 +53,16 @@ func readDirNames(dirname string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	names, err := f.Readdirnames(-1)
 	f.Close()
+
 	if err != nil {
 		return nil, err
 	}
+
 	sort.Strings(names)
+
 	return names, nil
 }
 
@@ -68,12 +74,15 @@ func symwalk(path string, info os.FileInfo, walkFn filepath.WalkFunc) error {
 		if err != nil {
 			return fmt.Errorf("failed to evaluate symlink %s: %w", path, err)
 		}
+
 		if info, err = os.Lstat(resolved); err != nil {
 			return err
 		}
+
 		if err := symwalk(path, info, walkFn); err != nil && !errors.Is(err, filepath.SkipDir) {
 			return err
 		}
+
 		return nil
 	}
 
@@ -92,6 +101,7 @@ func symwalk(path string, info os.FileInfo, walkFn filepath.WalkFunc) error {
 
 	for _, name := range names {
 		filename := filepath.Join(path, name)
+
 		fileInfo, err := os.Lstat(filename)
 		if err != nil {
 			if err = walkFn(filename, fileInfo, err); err != nil && !errors.Is(err, filepath.SkipDir) {
@@ -106,6 +116,7 @@ func symwalk(path string, info os.FileInfo, walkFn filepath.WalkFunc) error {
 			}
 		}
 	}
+
 	return nil
 }
 
