@@ -166,6 +166,7 @@ func execute() {
 			if len(args) > 0 {
 				dir = args[0]
 			}
+
 			return runTestConversions(dir)
 		},
 	}
@@ -198,6 +199,7 @@ func runTestConversions(dir string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create test manager: %w", err)
 	}
+
 	manager.Run()
 	manager.PrintResult()
 
@@ -237,6 +239,7 @@ func runLintMultiple(dirs []string) error {
 		// Run lint for this directory as a separate execution
 		if err := runLint(expandedDir); err != nil {
 			log.Error("Error processing directory", slog.String("directory", expandedDir), log.Err(err))
+
 			hasErrors = true
 			// Continue processing other directories even if one fails
 		}

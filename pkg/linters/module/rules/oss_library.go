@@ -64,6 +64,7 @@ func (r *OSSRule) OssModuleRule(moduleRoot string, errorList *errors.LintRuleErr
 	}
 
 	imagesPath := filepath.Join(moduleRoot, imagesDir)
+
 	info, err := os.Stat(imagesPath)
 	if err != nil || !info.IsDir() {
 		return
@@ -165,10 +166,12 @@ func readOssFile(moduleRoot string) ([]ossProject, error) {
 
 func parseProjectList(b []byte) ([]ossProject, error) {
 	var projects []ossProject
+
 	err := yaml.UnmarshalStrict(b, &projects)
 	if err != nil {
 		return nil, err
 	}
+
 	return projects, nil
 }
 

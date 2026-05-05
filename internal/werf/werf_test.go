@@ -25,7 +25,6 @@ import (
 
 func TestGetWerfConfig(t *testing.T) {
 	// Setup temporary directory for testing
-
 	tests := []struct {
 		name    string
 		dir     string
@@ -77,12 +76,14 @@ func TestGetWerfConfigWithFilesExists(t *testing.T) {
 				t.Errorf("GetWerfConfig() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
+
 			if !tt.wantErr {
 				for _, expected := range tt.expectedContains {
 					if !strings.Contains(config, expected) {
 						t.Errorf("GetWerfConfig() config = %v, expected to contain %v", config, expected)
 					}
 				}
+
 				for _, unexpected := range tt.unexpectedContains {
 					if strings.Contains(config, unexpected) {
 						t.Errorf("GetWerfConfig() config = %v, should not contain %v", config, unexpected)

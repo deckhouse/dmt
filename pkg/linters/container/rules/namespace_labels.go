@@ -50,6 +50,7 @@ func (r *NamespaceLabelsRule) ObjectNamespaceLabels(object storage.StoreObject, 
 	namespaceName := object.Unstructured.GetName()
 
 	hasPrometheusRules := false
+
 	for _, obj := range storageMap {
 		if obj.Unstructured.GetKind() == "PrometheusRule" {
 			if obj.Unstructured.GetNamespace() == namespaceName {

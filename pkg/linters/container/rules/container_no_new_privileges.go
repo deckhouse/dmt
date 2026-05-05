@@ -67,12 +67,14 @@ func (r *NoNewPrivilegesRule) ContainerNoNewPrivileges(object storage.StoreObjec
 		if c.SecurityContext == nil {
 			errorList.WithObjectID(object.Identity() + " ; container = " + c.Name).
 				Error("Container's SecurityContext is missing - cannot verify allowPrivilegeEscalation setting")
+
 			continue
 		}
 
 		if c.SecurityContext.AllowPrivilegeEscalation == nil {
 			errorList.WithObjectID(object.Identity() + " ; container = " + c.Name).
 				Error("Container's SecurityContext missing parameter AllowPrivilegeEscalation - should be set to false to prevent privilege escalation")
+
 			continue
 		}
 

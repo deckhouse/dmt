@@ -112,11 +112,13 @@ type fileParser struct {
 
 func (fp *fileParser) parseMap(upperKey string, m map[any]any) error {
 	var err error
+
 	for k, v := range m {
 		absKey := fmt.Sprintf("%s.%s", upperKey, k)
 		if _, ok := k.(string); ok {
 			err = errors.Join(err, fp.parser(absKey, v))
 		}
+
 		err = errors.Join(err, fp.parseValue(absKey, v))
 	}
 
@@ -136,19 +138,23 @@ func (fp *fileParser) parseValue(upperKey string, v any) error {
 	if v == nil {
 		return nil
 	}
+
 	typ := reflect.TypeOf(v).Kind()
 
 	var err error
+
 	switch typ {
 	case reflect.Map:
 		if m, ok := v.(map[any]any); ok {
 			err = errors.Join(err, fp.parseMap(upperKey, m))
 		}
+
 		if m, ok := v.(map[string]any); ok {
 			nm := make(map[any]any)
 			for k, v := range m {
 				nm[k] = v
 			}
+
 			err = errors.Join(err, fp.parseMap(upperKey, nm))
 		}
 	case reflect.Slice:

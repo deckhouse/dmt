@@ -71,6 +71,7 @@ func GetResourceIndex(object StoreObject) ResourceIndex {
 
 func (s *StoreObject) GetInitContainers() ([]v1.Container, error) {
 	var containers []v1.Container
+
 	converter := runtime.DefaultUnstructuredConverter
 
 	switch s.Unstructured.GetKind() {
@@ -129,11 +130,13 @@ func (s *StoreObject) GetInitContainers() ([]v1.Container, error) {
 
 		containers = cronJob.Spec.JobTemplate.Spec.Template.Spec.InitContainers
 	}
+
 	return containers, nil
 }
 
 func (s *StoreObject) GetContainers() ([]v1.Container, error) {
 	var containers []v1.Container
+
 	converter := runtime.DefaultUnstructuredConverter
 
 	switch s.Unstructured.GetKind() {
@@ -193,6 +196,7 @@ func (s *StoreObject) GetContainers() ([]v1.Container, error) {
 		containers = cronJob.Spec.JobTemplate.Spec.Template.Spec.Containers
 	case replicaSetString:
 		replicaSet := new(appsv1.ReplicaSet)
+
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), replicaSet)
 		if err != nil {
 			return []v1.Container{}, fmt.Errorf("convert Unstructured to ReplicaSet failed: %w", err)
@@ -200,6 +204,7 @@ func (s *StoreObject) GetContainers() ([]v1.Container, error) {
 
 		containers = replicaSet.Spec.Template.Spec.Containers
 	}
+
 	return containers, nil
 }
 
@@ -277,6 +282,7 @@ func (s *StoreObject) GetPodSecurityContext() (*v1.PodSecurityContext, error) {
 		return cronJob.Spec.JobTemplate.Spec.Template.Spec.SecurityContext, nil
 	case replicaSetString:
 		replicaSet := new(appsv1.ReplicaSet)
+
 		err := converter.FromUnstructured(s.Unstructured.UnstructuredContent(), replicaSet)
 		if err != nil {
 			return nil, fmt.Errorf("convert Unstructured to ReplicaSet failed: %w", err)
@@ -284,6 +290,7 @@ func (s *StoreObject) GetPodSecurityContext() (*v1.PodSecurityContext, error) {
 
 		return replicaSet.Spec.Template.Spec.SecurityContext, nil
 	}
+
 	return nil, nil
 }
 
@@ -346,6 +353,7 @@ func (s *StoreObject) IsHostNetwork() (bool, error) {
 
 		return cronJob.Spec.JobTemplate.Spec.Template.Spec.HostNetwork, nil
 	}
+
 	return false, nil
 }
 
@@ -369,6 +377,7 @@ func (s *StoreObject) Identity() string {
 	if namespace == "" {
 		return fmt.Sprintf("kind = %s ; name = %s", kind, name)
 	}
+
 	return fmt.Sprintf("kind = %s ; name = %s ; namespace = %s", kind, name, namespace)
 }
 
@@ -387,6 +396,7 @@ func (s *UnstructuredObjectStore) Put(path, shortPath string, object map[string]
 	storeObject := StoreObject{AbsPath: path, shortPath: shortPath, Unstructured: u, Hash: NewSHA256(raw)}
 
 	var err error
+
 	index := GetResourceIndex(storeObject)
 	if _, ok := s.Storage[index]; ok {
 		// for cert-manager migration we have duplicated resources for legacy version
@@ -394,10 +404,12 @@ func (s *UnstructuredObjectStore) Put(path, shortPath string, object map[string]
 		if strings.Contains(index.AsString(), "ClusterIssuer") || strings.HasPrefix(index.AsString(), "d8-cert-manager") {
 			return nil
 		}
+
 		err = fmt.Errorf("object %q already exists", index.AsString())
 	}
 
 	s.Storage[index] = storeObject
+
 	return err
 }
 
@@ -417,5 +429,6 @@ func (s *UnstructuredObjectStore) Close() {
 func NewSHA256(data []byte) string {
 	h := sha256.New()
 	h.Write(data)
+
 	return fmt.Sprintf("%x", h.Sum(nil))
 }

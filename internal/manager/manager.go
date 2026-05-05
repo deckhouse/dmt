@@ -62,6 +62,7 @@ func generateDocumentationURL(linterID, ruleID string) string {
 	if linterID == "" || ruleID == "" {
 		return "Not ready"
 	}
+
 	return fmt.Sprintf("%s/pkg/linters/%s#%s", baseRepoURL, linterID, ruleID)
 }
 
@@ -105,20 +106,25 @@ func (m *Manager) initManager(dir string) *Manager {
 		log.Error("Failed to get global values", log.Err(err))
 		return m
 	}
+
 	errorList := m.errors.WithLinterID("manager")
+
 	for i := range paths {
 		moduleName := filepath.Base(paths[i])
 		log.Debug("Found module", slog.String("module", moduleName))
+
 		if err := m.validateModule(paths[i]); err != nil {
 			// linting errors are already logged
 			continue
 		}
+
 		mdl, err := module.NewModule(paths[i], &vals, globalValues, m.cfg, errorList)
 		if err != nil {
 			errorList.
 				WithFilePath(paths[i]).WithModule(moduleName).
 				WithValue(err.Error()).
 				Errorf("cannot create module `%s`", moduleName)
+
 			continue
 		}
 
@@ -149,6 +155,7 @@ func (m *Manager) Run() {
 
 	for _, module := range m.Modules {
 		processingCh <- struct{}{}
+
 		wg.Add(1)
 
 		go func() {
@@ -316,6 +323,7 @@ func getRootDirectory(dir string) string {
 			fsutils.IsFile(filepath.Join(dir, "global-hooks", "openapi", "values.yaml")) {
 			return dir
 		}
+
 		parent := filepath.Dir(dir)
 		if dir == parent || parent == "" {
 			break

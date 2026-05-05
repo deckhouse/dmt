@@ -29,6 +29,7 @@ func checkCyrillicLetters(in string) (string, bool) {
 	if strings.Contains(in, "\n") {
 		return checkCyrillicLettersInArray(strings.Split(in, "\n"))
 	}
+
 	return checkCyrillicLettersInString(in)
 }
 
@@ -54,10 +55,12 @@ func checkCyrillicLettersInArray(lines []string) (string, bool) {
 	res := make([]string, 0)
 
 	hasCyr := false
+
 	for _, line := range lines {
 		msg, has := checkCyrillicLettersInString(line)
 		if has {
 			hasCyr = true
+
 			res = append(res, msg)
 		}
 	}

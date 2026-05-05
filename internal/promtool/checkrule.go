@@ -51,19 +51,24 @@ var ls = rulesLintConfig{
 // CheckRules validates rule files.
 func CheckRules(data []byte) error {
 	rgs, errs := rulefmt.Parse(data, ls.ignoreUnknownFields)
+
 	var ruleErrors, checkGroupErrors error
+
 	if errs != nil {
 		errStr := make([]string, 0, len(errs))
 		for _, e := range errs {
 			errStr = append(errStr, e.Error())
 		}
+
 		ruleErrors = fmt.Errorf("%s", strings.Join(errStr, "\n"))
 	}
+
 	if errs := checkRuleGroups(rgs, ls); errs != nil {
 		errStr := make([]string, 0, len(errs))
 		for _, e := range errs {
 			errStr = append(errStr, e.Error())
 		}
+
 		checkGroupErrors = fmt.Errorf("%s", strings.Join(errStr, "\n"))
 	}
 
@@ -74,6 +79,7 @@ func checkRuleGroups(rgs *rulefmt.RuleGroups, lintSettings rulesLintConfig) []er
 	if rgs == nil || len(rgs.Groups) == 0 {
 		return []error{fmt.Errorf("%w: no rule groups found", errLint)}
 	}
+
 	numRules := 0
 	for _, rg := range rgs.Groups {
 		numRules += len(rg.Rules)
@@ -89,7 +95,9 @@ func checkRuleGroups(rgs *rulefmt.RuleGroups, lintSettings rulesLintConfig) []er
 					errMessage += fmt.Sprintf("\t%s: %s\n", l.Name, l.Value)
 				})
 			}
+
 			errMessage += "Might cause inconsistency while recording expressions"
+
 			return []error{fmt.Errorf("%w %s", errLint, errMessage)}
 		}
 	}
@@ -118,6 +126,7 @@ func compare(a, b compareRuleType) int {
 
 func checkDuplicates(groups []rulefmt.RuleGroup) []compareRuleType {
 	var duplicates []compareRuleType
+
 	cRules := make(compareRuleTypes, 0, 100) // Preallocate with reasonable capacity
 
 	for _, group := range groups {
@@ -128,9 +137,11 @@ func checkDuplicates(groups []rulefmt.RuleGroup) []compareRuleType {
 			})
 		}
 	}
+
 	if len(cRules) < 2 {
 		return duplicates
 	}
+
 	sort.Sort(cRules)
 
 	last := cRules[0]
@@ -141,6 +152,7 @@ func checkDuplicates(groups []rulefmt.RuleGroup) []compareRuleType {
 				duplicates = append(duplicates, cRules[i])
 			}
 		}
+
 		last = cRules[i]
 	}
 
@@ -152,5 +164,6 @@ func ruleMetric(rule rulefmt.Rule) string {
 	if rule.Alert != "" {
 		return rule.Alert
 	}
+
 	return rule.Record
 }

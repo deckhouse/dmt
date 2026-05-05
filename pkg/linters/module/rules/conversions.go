@@ -82,6 +82,7 @@ func (r *ConversionsRule) CheckConversions(modulePath string, errorList *errors.
 	}
 
 	configFilePath := filepath.Join(modulePath, configValuesFile)
+
 	_, err := os.Stat(configFilePath)
 	if err != nil && os.IsNotExist(err) {
 		return
@@ -96,6 +97,7 @@ func (r *ConversionsRule) CheckConversions(modulePath string, errorList *errors.
 	}
 
 	var cv configValues
+
 	err = yaml.Unmarshal(f, &cv)
 	if err != nil {
 		errorList.WithFilePath(configValuesFile).
@@ -187,6 +189,7 @@ func parseConversion(path string) (*conversion, error) {
 	}
 
 	c := new(conversion)
+
 	err = yaml.Unmarshal(file, c)
 	if err != nil {
 		return nil, fmt.Errorf("cannot decode yaml %q: %w", conversionsFolder, err)

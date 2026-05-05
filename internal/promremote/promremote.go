@@ -114,6 +114,7 @@ func (c *Client) WriteProto(
 	opts WriteOptions,
 ) (WriteResult, WriteError) {
 	var result WriteResult
+
 	data, err := proto.Marshal(promWR)
 	if err != nil {
 		return result, writeError{err: fmt.Errorf("unable to marshal protobuf: %w", err)}
@@ -122,6 +123,7 @@ func (c *Client) WriteProto(
 	encoded := snappy.Encode(nil, data)
 
 	body := bytes.NewReader(encoded)
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.writeURL, body)
 	if err != nil {
 		return result, writeError{err: err}
@@ -161,6 +163,7 @@ func (c *Client) WriteProto(
 		}
 
 		writeErr.err = fmt.Errorf("%w, body=%s", writeErr.err, body)
+
 		return result, writeErr
 	}
 

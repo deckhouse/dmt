@@ -33,6 +33,7 @@ import (
 
 func RunRender(m *Module, values chartutil.Values, objectStore *storage.UnstructuredObjectStore, errorList *dmtErrors.LintRuleErrorsList) error {
 	var renderer helm.Renderer
+
 	renderer.Name = m.GetName()
 	renderer.Namespace = m.GetNamespace()
 	renderer.LintMode = true
@@ -43,10 +44,12 @@ func RunRender(m *Module, values chartutil.Values, objectStore *storage.Unstruct
 	}
 
 	var resultErr error
+
 	for path, bigFile := range files {
 		// path example: module/templates/file.yaml
 		// short path example: templates/file.yaml
 		shortPath := path
+
 		elements := strings.Split(path, string(os.PathSeparator))
 		if len(elements) > 0 {
 			shortPath = strings.Join(elements[1:], string(os.PathSeparator))
@@ -68,7 +71,9 @@ func RunRender(m *Module, values chartutil.Values, objectStore *storage.Unstruct
 			if len(docBytes) == 0 {
 				continue
 			}
+
 			node := make(map[string]any)
+
 			err = yaml.UnmarshalStrict(docBytes, &node)
 			if err != nil {
 				return fmt.Errorf(manifestErrorMessage, strings.TrimPrefix(path, m.GetName()+"/"), err)
@@ -99,8 +104,10 @@ const (
 )
 
 func splitYAMLDocuments(content string) []string {
-	var docs []string
-	var current strings.Builder
+	var (
+		docs    []string
+		current strings.Builder
+	)
 
 	lines := strings.Split(content, "\n")
 	inMultiLine := false
@@ -136,6 +143,7 @@ func splitYAMLDocuments(content string) []string {
 				docs = append(docs, strings.TrimSpace(current.String()))
 				current.Reset()
 			}
+
 			continue
 		}
 
@@ -143,6 +151,7 @@ func splitYAMLDocuments(content string) []string {
 		if current.Len() > 0 {
 			current.WriteString("\n")
 		}
+
 		current.WriteString(line)
 	}
 

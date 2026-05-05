@@ -139,6 +139,7 @@ func TestNoNewPrivilegesRule_ContainerNoNewPrivileges(t *testing.T) {
 				assert.Empty(t, errs, "Expected no errors")
 			} else {
 				assert.Len(t, errs, len(tt.expectedErrors), "Expected %d errors", len(tt.expectedErrors))
+
 				for i, expectedError := range tt.expectedErrors {
 					assert.Contains(t, errs[i].Text, expectedError, "Error %d should contain expected text", i)
 				}

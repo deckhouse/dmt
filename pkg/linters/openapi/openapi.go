@@ -62,6 +62,7 @@ func (o *OpenAPI) Run(m *module.Module) {
 	crdFiles := fsutils.GetFiles(m.GetPath(), true, filterCRDsfiles)
 	crdValidator := rules.NewDeckhouseCRDsRule(o.cfg, m.GetPath())
 	keyValidator := rules.NewKeysRule(o.cfg, m.GetPath())
+
 	for _, file := range crdFiles {
 		enumValidator.Run(file, errorLists)
 		haValidator.Run(file, errorLists)
@@ -78,6 +79,7 @@ func (o *OpenAPI) Run(m *module.Module) {
 		if isValuesFile(file) {
 			continue
 		}
+
 		bilingualValidator.Run(file, bilingualErrorList)
 	}
 
@@ -110,10 +112,12 @@ var openapiYamlRegex = regexp.MustCompile(`^openapi/.*\.ya?ml$`)
 
 func filterOpenAPIfiles(rootPath, path string) bool {
 	path = fsutils.Rel(rootPath, path)
+
 	filename := filepath.Base(path)
 	if strings.HasSuffix(filename, "-tests.yaml") {
 		return false
 	}
+
 	if strings.HasPrefix(filename, "doc-ru-") {
 		return false
 	}
@@ -125,10 +129,12 @@ var crdsYamlRegex = regexp.MustCompile(`^crds/.*\.ya?ml$`)
 
 func filterCRDsfiles(rootPath, path string) bool {
 	path = fsutils.Rel(rootPath, path)
+
 	filename := filepath.Base(path)
 	if strings.HasSuffix(filename, "-tests.yaml") {
 		return false
 	}
+
 	if strings.HasPrefix(filename, "doc-ru-") {
 		return false
 	}
@@ -148,6 +154,7 @@ func filterDocRuOpenAPIFiles(rootPath, path string) bool {
 	if !strings.HasPrefix(filename, "doc-ru-") {
 		return false
 	}
+
 	if strings.HasSuffix(filename, "-tests.yaml") {
 		return false
 	}
@@ -162,6 +169,7 @@ func filterDocRuCRDFiles(rootPath, path string) bool {
 	if !strings.HasPrefix(filename, "doc-ru-") {
 		return false
 	}
+
 	if strings.HasSuffix(filename, "-tests.yaml") {
 		return false
 	}

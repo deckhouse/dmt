@@ -43,6 +43,7 @@ func NewPrometheusRule(cfg *pkg.TemplatesLinterConfig) *PrometheusRule {
 	if cfg != nil {
 		exclude = cfg.PrometheusRuleSettings.Disable
 	}
+
 	return &PrometheusRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: PrometheusRuleName,
@@ -85,6 +86,7 @@ func (*rulesCacheStruct) Get(hash string) (checkResult, bool) {
 	defer rulesCache.mu.RUnlock()
 
 	res, ok := rulesCache.cache[hash]
+
 	return res, ok
 }
 
@@ -113,11 +115,13 @@ func (r *PrometheusRule) ValidatePrometheusRules(m pkg.Module, errorList *errors
 	}
 
 	searchPath := filepath.Join(modulePath, "monitoring", "prometheus-rules")
+
 	_, err = os.Stat(searchPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return
 		}
+
 		errorList.Errorf("reading the 'monitoring/prometheus-rules' folder failed: %s", err)
 
 		return
@@ -136,6 +140,7 @@ func (r *PrometheusRule) ValidatePrometheusRules(m pkg.Module, errorList *errors
 
 func isContentMatching(content []byte, desiredContent string) bool {
 	foundIncludeLine := false
+
 	scanner := bufio.NewScanner(bytes.NewReader(content))
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -175,6 +180,7 @@ func (r *PrometheusRule) PromtoolRuleCheck(m pkg.Module, object storage.StoreObj
 		if !res.success {
 			errorList.Errorf("Promtool check failed for Prometheus rule: %s", res.errMsg)
 		}
+
 		return
 	}
 
@@ -191,6 +197,7 @@ func (r *PrometheusRule) PromtoolRuleCheck(m pkg.Module, object storage.StoreObj
 			errMsg:  err.Error(),
 		})
 		errorList.Errorf("Promtool check failed for Prometheus rule: %s", err.Error())
+
 		return
 	}
 
@@ -202,13 +209,16 @@ func marshalStorageObject(object storage.StoreObject) ([]byte, error) {
 	if !ok {
 		return nil, fmt.Errorf("spec field not found in object 'PrometheusRule'")
 	}
+
 	spec, ok := ispec.(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("spec field is not a map[string]any")
 	}
+
 	marshal, err := yaml.Marshal(spec)
 	if err != nil {
 		return nil, err
 	}
+
 	return marshal, nil
 }

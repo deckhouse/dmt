@@ -59,6 +59,7 @@ func TestGetFiles(t *testing.T) {
 	assertEqualFiles(t, files, expectedFiles)
 
 	nonExistentPath := filepath.Join(rootDir, "does_not_exist")
+
 	files = GetFiles(nonExistentPath, false)
 	if len(files) != 0 {
 		t.Errorf("expected no files for nonexistent path, got %d files", len(files))

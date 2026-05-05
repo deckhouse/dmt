@@ -113,6 +113,7 @@ spec:
 				if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
 					t.Fatalf("Failed to create template dir: %v", err)
 				}
+
 				if err := os.WriteFile(fullPath, []byte(content), 0600); err != nil {
 					t.Fatalf("Failed to write template file: %v", err)
 				}
@@ -144,6 +145,7 @@ spec:
 					t.Errorf("Expected error at index %d: %s", i, expectedError)
 					continue
 				}
+
 				if !contains(errs[i].Text, expectedError) {
 					t.Errorf("Expected error to contain '%s', got: %s", expectedError, errs[i].Text)
 				}
@@ -162,5 +164,6 @@ func containsSubstring(s, substr string) bool {
 			return true
 		}
 	}
+
 	return false
 }

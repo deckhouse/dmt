@@ -178,6 +178,7 @@ func TestValidatePrometheusRules(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup mock file system
 			tmpDir := t.TempDir()
+
 			modulePath := filepath.Join(tmpDir, tt.modulePath)
 			for path, content := range tt.files {
 				filePath := filepath.Join(tmpDir, path)
@@ -186,6 +187,7 @@ func TestValidatePrometheusRules(t *testing.T) {
 				err = os.WriteFile(filePath, []byte(content), 0600)
 				require.NoError(t, err)
 			}
+
 			defer func() {
 				_ = os.RemoveAll(modulePath)
 			}()
@@ -206,6 +208,7 @@ func TestValidatePrometheusRules(t *testing.T) {
 				assert.Empty(t, errorList.GetErrors())
 			} else {
 				assert.Len(t, errorList.GetErrors(), len(tt.expectedErrors))
+
 				for i, expectedError := range tt.expectedErrors {
 					assert.Contains(t, errorList.GetErrors()[i].Text, expectedError)
 				}
