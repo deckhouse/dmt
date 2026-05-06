@@ -57,7 +57,7 @@ func (r *BilingualRule) Run(path string, errorList *errors.LintRuleErrorsList) {
 
 		if _, err := os.Stat(basePath); os.IsNotExist(err) {
 			errorList.WithFilePath(shortPath).
-				Warnf("translation file has no corresponding base file: expected %q", baseFilename)
+				Errorf("translation file has no corresponding base file: expected %q", baseFilename)
 		}
 
 		return
@@ -68,6 +68,6 @@ func (r *BilingualRule) Run(path string, errorList *errors.LintRuleErrorsList) {
 
 	if _, err := os.Stat(docRuPath); os.IsNotExist(err) {
 		errorList.WithFilePath(shortPath).
-			Warnf("translation file is missing: expected %q in the same directory", docRuPrefix+filename)
+			Errorf("translation file is missing: expected %q in the same directory", docRuPrefix+filename)
 	}
 }
