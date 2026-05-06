@@ -21,7 +21,7 @@ func Test_SetLinterWarningsMetrics_AddsWarningsForAllLinters(t *testing.T) {
 			License:       global.LinterConfig{Impact: pkg.Warn.String()},
 			Module:        global.ModuleLinterConfig{},
 			NoCyrillic:    global.LinterConfig{Impact: pkg.Warn.String()},
-			OpenAPI:       global.LinterConfig{Impact: pkg.Warn.String()},
+			OpenAPI:       global.OpenAPILinterConfig{LinterConfig: global.LinterConfig{Impact: pkg.Warn.String()}},
 			Rbac:          global.LinterConfig{Impact: pkg.Warn.String()},
 			Templates:     global.TemplatesLinterConfig{},
 			Documentation: global.DocumentationLinterConfig{},
