@@ -17,6 +17,7 @@ limitations under the License.
 package openapi
 
 import (
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -73,13 +74,7 @@ func (o *OpenAPI) Run(m *module.Module) {
 	bilingualErrorList := errorLists.WithMaxLevel(o.cfg.Rules.BilingualRule.GetLevel())
 	bilingualValidator := rules.NewBilingualRule(o.cfg, m.GetPath())
 
-	crdTopLevelFiles := fsutils.GetFiles(m.GetPath(), true, filterCRDsTopLevel)
-	for _, file := range crdTopLevelFiles {
-		bilingualValidator.Run(file, bilingualErrorList)
-	}
-
-	docRuCRDTopLevelFiles := fsutils.GetFiles(m.GetPath(), true, filterDocRuCRDsTopLevel)
-	for _, file := range docRuCRDTopLevelFiles {
+	for _, file := range bilingualCRDFiles(m.GetPath()) {
 		bilingualValidator.Run(file, bilingualErrorList)
 	}
 }
@@ -108,7 +103,6 @@ func filterOpenAPIfiles(rootPath, path string) bool {
 }
 
 var crdsYamlRegex = regexp.MustCompile(`^crds/.*\.ya?ml$`)
-var crdsTopLevelRegex = regexp.MustCompile(`^crds/[^/]+\.ya?ml$`)
 
 func filterCRDsfiles(rootPath, path string) bool {
 	path = fsutils.Rel(rootPath, path)
@@ -123,29 +117,29 @@ func filterCRDsfiles(rootPath, path string) bool {
 	return crdsYamlRegex.MatchString(path)
 }
 
-func filterCRDsTopLevel(rootPath, path string) bool {
-	relPath := fsutils.Rel(rootPath, path)
-	filename := filepath.Base(relPath)
-	if strings.HasSuffix(filename, "-tests.yaml") {
-		return false
-	}
-	if strings.HasPrefix(filename, "doc-ru-") {
-		return false
+func bilingualCRDFiles(rootPath string) []string {
+	crdsPath := filepath.Join(rootPath, "crds")
+	entries, err := os.ReadDir(crdsPath)
+	if err != nil {
+		return nil
 	}
 
-	return crdsTopLevelRegex.MatchString(relPath)
-}
+	result := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.Type().IsRegular() {
+			continue
+		}
 
-func filterDocRuCRDsTopLevel(rootPath, path string) bool {
-	relPath := fsutils.Rel(rootPath, path)
-	filename := filepath.Base(relPath)
+		filename := entry.Name()
+		if !strings.HasSuffix(filename, ".yaml") && !strings.HasSuffix(filename, ".yml") {
+			continue
+		}
+		if strings.HasSuffix(filename, "-tests.yaml") {
+			continue
+		}
 
-	if !strings.HasPrefix(filename, "doc-ru-") {
-		return false
+		result = append(result, filepath.Join(crdsPath, filename))
 	}
-	if strings.HasSuffix(filename, "-tests.yaml") {
-		return false
-	}
 
-	return crdsTopLevelRegex.MatchString(relPath)
+	return result
 }
