@@ -29,7 +29,7 @@ type Linters struct {
 	License       LinterConfig              `mapstructure:"license"`
 	Module        ModuleLinterConfig        `mapstructure:"module"`
 	NoCyrillic    LinterConfig              `mapstructure:"no-cyrillic"`
-	OpenAPI       LinterConfig              `mapstructure:"openapi"`
+	OpenAPI       OpenAPILinterConfig       `mapstructure:"openapi"`
 	Rbac          LinterConfig              `mapstructure:"rbac"`
 	Templates     TemplatesLinterConfig     `mapstructure:"templates"`
 	Documentation DocumentationLinterConfig `mapstructure:"documentation"`
@@ -94,6 +94,15 @@ type DocumentationRules struct {
 	BilingualRule          RuleConfig `mapstructure:"bilingual"`
 	ReadmeRule             RuleConfig `mapstructure:"readme"`
 	NoCyrillicExcludeRules RuleConfig `mapstructure:"cyrillic-in-english"`
+}
+
+type OpenAPILinterConfig struct {
+	LinterConfig `mapstructure:",squash"`
+	Rules        OpenAPIRules `mapstructure:"rules"`
+}
+
+type OpenAPIRules struct {
+	BilingualRule RuleConfig `mapstructure:"bilingual"`
 }
 
 type ModuleLinterConfig struct {

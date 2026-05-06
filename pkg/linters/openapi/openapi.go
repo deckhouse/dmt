@@ -68,6 +68,20 @@ func (o *OpenAPI) Run(m *module.Module) {
 		keyValidator.Run(file, errorLists)
 		crdValidator.Run(m.GetName(), file, errorLists)
 	}
+
+	// bilingual check: ensure top-level crds/ files have doc-ru- translation
+	bilingualErrorList := errorLists.WithMaxLevel(o.cfg.Rules.BilingualRule.GetLevel())
+	bilingualValidator := rules.NewBilingualRule(o.cfg, m.GetPath())
+
+	crdTopLevelFiles := fsutils.GetFiles(m.GetPath(), true, filterCRDsTopLevel)
+	for _, file := range crdTopLevelFiles {
+		bilingualValidator.Run(file, bilingualErrorList)
+	}
+
+	docRuCRDTopLevelFiles := fsutils.GetFiles(m.GetPath(), true, filterDocRuCRDsTopLevel)
+	for _, file := range docRuCRDTopLevelFiles {
+		bilingualValidator.Run(file, bilingualErrorList)
+	}
 }
 
 func (o *OpenAPI) Name() string {
@@ -94,6 +108,7 @@ func filterOpenAPIfiles(rootPath, path string) bool {
 }
 
 var crdsYamlRegex = regexp.MustCompile(`^crds/.*\.ya?ml$`)
+var crdsTopLevelRegex = regexp.MustCompile(`^crds/[^/]+\.ya?ml$`)
 
 func filterCRDsfiles(rootPath, path string) bool {
 	path = fsutils.Rel(rootPath, path)
@@ -106,4 +121,31 @@ func filterCRDsfiles(rootPath, path string) bool {
 	}
 
 	return crdsYamlRegex.MatchString(path)
+}
+
+func filterCRDsTopLevel(rootPath, path string) bool {
+	relPath := fsutils.Rel(rootPath, path)
+	filename := filepath.Base(relPath)
+	if strings.HasSuffix(filename, "-tests.yaml") {
+		return false
+	}
+	if strings.HasPrefix(filename, "doc-ru-") {
+		return false
+	}
+
+	return crdsTopLevelRegex.MatchString(relPath)
+}
+
+func filterDocRuCRDsTopLevel(rootPath, path string) bool {
+	relPath := fsutils.Rel(rootPath, path)
+	filename := filepath.Base(relPath)
+
+	if !strings.HasPrefix(filename, "doc-ru-") {
+		return false
+	}
+	if strings.HasSuffix(filename, "-tests.yaml") {
+		return false
+	}
+
+	return crdsTopLevelRegex.MatchString(relPath)
 }

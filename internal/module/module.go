@@ -187,6 +187,9 @@ func mapRuleSettings(linterSettings *pkg.LintersSettings, configSettings *config
 	// Templates rules (uses global rule config + local fallback)
 	mapTemplatesRules(linterSettings, configSettings, globalConfig)
 
+	// OpenAPI rules (uses global rule config + local fallback)
+	mapOpenAPIRules(linterSettings, configSettings, globalConfig)
+
 	// Other linter rules (use local linter-level impact)
 	mapSimpleLinterRules(linterSettings, configSettings)
 }
@@ -328,6 +331,15 @@ func mapTemplatesRules(linterSettings *pkg.LintersSettings, configSettings *conf
 	rules.ServicePortRule.SetLevel(globalRules.ServicePortRule.Impact, fallbackImpact)
 	rules.ClusterDomainRule.SetLevel(globalRules.ClusterDomainRule.Impact, fallbackImpact)
 	rules.RegistryRule.SetLevel(globalRules.RegistryRule.Impact, fallbackImpact)
+}
+
+// mapOpenAPIRules configures OpenAPI linter rules
+func mapOpenAPIRules(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings, globalConfig *global.Linters) {
+	rules := &linterSettings.OpenAPI.Rules
+	globalRules := &globalConfig.OpenAPI.Rules
+	fallbackImpact := configSettings.OpenAPI.Impact
+
+	rules.BilingualRule.SetLevel(globalRules.BilingualRule.Impact, fallbackImpact)
 }
 
 // mapSimpleLinterRules configures rules that use linter-level impact without global overrides
