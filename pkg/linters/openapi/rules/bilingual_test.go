@@ -108,8 +108,26 @@ func TestBilingualRule(t *testing.T) {
 
 				for i, err := range errs {
 					assert.Contains(t, err.Text, tt.wantErrors[i])
+					assert.Equal(t, pkg.Error, err.Level)
 				}
 			}
 		})
 	}
+}
+
+func TestBilingualRuleRespectsMaxLevel(t *testing.T) {
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "my-crd.yaml")
+	require.NoError(t, os.WriteFile(filePath, []byte("apiVersion: apiextensions.k8s.io/v1"), 0o600))
+
+	rule := NewBilingualRule(&pkg.OpenAPILinterConfig{}, dir)
+	warnLevel := pkg.Warn
+	errorList := errors.NewLintRuleErrorsList().WithMaxLevel(&warnLevel)
+
+	rule.Run(filePath, errorList)
+
+	errs := errorList.GetErrors()
+	require.Len(t, errs, 1)
+	assert.Equal(t, pkg.Warn, errs[0].Level)
+	assert.Contains(t, errs[0].Text, "translation file is missing")
 }

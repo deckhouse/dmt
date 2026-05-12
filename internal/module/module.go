@@ -194,6 +194,9 @@ func mapRuleSettings(linterSettings *pkg.LintersSettings, configSettings *config
 	// Templates rules (uses global rule config + local fallback)
 	mapTemplatesRules(linterSettings, configSettings, globalConfig)
 
+	// OpenAPI rules (uses global rule config + local fallback)
+	mapOpenAPIRules(linterSettings, configSettings, globalConfig)
+
 	// Other linter rules (use local linter-level impact)
 	mapSimpleLinterRules(linterSettings, configSettings)
 }
@@ -337,6 +340,15 @@ func mapTemplatesRules(linterSettings *pkg.LintersSettings, configSettings *conf
 	rules.RegistryRule.SetLevel(globalRules.RegistryRule.Impact, fallbackImpact)
 }
 
+// mapOpenAPIRules configures OpenAPI linter rules
+func mapOpenAPIRules(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings, globalConfig *global.Linters) {
+	rules := &linterSettings.OpenAPI.Rules
+	globalRules := &globalConfig.OpenAPI.Rules
+	fallbackImpact := configSettings.OpenAPI.Impact
+
+	rules.BilingualRule.SetLevel(globalRules.BilingualRule.Impact, fallbackImpact)
+}
+
 // mapSimpleLinterRules configures rules that use linter-level impact without global overrides
 func mapSimpleLinterRules(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings) {
 	// NoCyrillic rules
@@ -348,7 +360,6 @@ func mapSimpleLinterRules(linterSettings *pkg.LintersSettings, configSettings *c
 	linterSettings.OpenAPI.Rules.HARule.SetLevel("", openAPIImpact)
 	linterSettings.OpenAPI.Rules.CRDsRule.SetLevel("", openAPIImpact)
 	linterSettings.OpenAPI.Rules.KeysRule.SetLevel("", openAPIImpact)
-	linterSettings.OpenAPI.Rules.BilingualRule.SetLevel("", openAPIImpact)
 
 	// RBAC rules
 	rbacImpact := configSettings.Rbac.Impact
