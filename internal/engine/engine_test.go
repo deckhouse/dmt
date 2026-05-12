@@ -43,6 +43,7 @@ func TestRender(t *testing.T) {
 	require.NoError(t, err, "Failed to render chart")
 
 	expectedContent := "bar"
+
 	require.Len(t, out, 1, "Expected one rendered template")
 	require.Contains(t, out, "test-chart/templates/NOTES.txt", "Expected rendered output to contain the template")
 	require.Equal(t, expectedContent, out["test-chart/templates/NOTES.txt"], "Rendered content does not match expected output")
@@ -339,6 +340,7 @@ func TestGetRenderedContent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var buf strings.Builder
 			buf.WriteString(tt.input)
+
 			result := getRenderedContent(&buf)
 			if result != tt.expected {
 				t.Errorf("getRenderedContent() = %q, want %q", result, tt.expected)

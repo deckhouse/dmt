@@ -340,6 +340,7 @@ func (l StringRuleExcludeList) Get() []StringRuleExclude {
 	for idx := range l {
 		result = append(result, StringRuleExclude(l[idx]))
 	}
+
 	return result
 }
 
@@ -350,6 +351,7 @@ func (l KindRuleExcludeList) Get() []KindRuleExclude {
 	for idx := range l {
 		result = append(result, l[idx])
 	}
+
 	return result
 }
 
@@ -361,5 +363,6 @@ func (l ContainerRuleExcludeList) Get() []ContainerRuleExclude {
 	for idx := range l {
 		result = append(result, l[idx])
 	}
+
 	return result
 }

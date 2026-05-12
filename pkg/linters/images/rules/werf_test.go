@@ -334,6 +334,7 @@ imageSpec:
 
 			if tc.expectError {
 				assert.True(t, errorList.ContainsErrors(), "Expected errors for non-empty imageSpec.config.user")
+
 				if tc.errorText != "" {
 					assert.Contains(t, errorList.GetErrors()[0].Text, tc.errorText)
 				}

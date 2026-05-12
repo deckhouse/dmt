@@ -52,10 +52,12 @@ func getDmtInfo(dir string) (string, string) {
 	}
 
 	repositoryElements := strings.Split(repository, "/")
+
 	repositoryID := repository
 	if len(repositoryElements) > 1 {
 		repositoryID = repositoryElements[len(repositoryElements)-1]
 	}
+
 	id := cmp.Or(os.Getenv("DMT_METRICS_ID"), repositoryID)
 
 	return id, repository
@@ -89,6 +91,7 @@ func processLinterConfig(parent string, v reflect.Value) {
 			if parent == "" {
 				name = fType.Name
 			}
+
 			fmt.Println(strings.ToLower(name))
 
 			metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{

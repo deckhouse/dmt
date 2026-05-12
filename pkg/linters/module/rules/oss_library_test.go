@@ -299,8 +299,12 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 
 			// Check errors
 			errs := errorList.GetErrors()
-			var errorTexts []string
-			var warnTexts []string
+
+			var (
+				errorTexts []string
+				warnTexts  []string
+			)
+
 			for _, e := range errs {
 				switch e.Level {
 				case pkg.Error:
@@ -324,12 +328,14 @@ func checkMessages(t *testing.T, msgType string, want []string, got []string) {
 	} else {
 		for _, w := range want {
 			found := false
+
 			for _, g := range got {
 				if strings.Contains(g, w) {
 					found = true
 					break
 				}
 			}
+
 			if !found {
 				t.Errorf("expected %s containing %q, but not found in %v", msgType, w, got)
 			}
@@ -395,11 +401,14 @@ func Test_parseProjectList(t *testing.T) {
 				if err == nil {
 					t.Errorf("expected error, got nil")
 				}
+
 				return
 			}
+
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
+
 			if len(projects) != test.wantCount {
 				t.Errorf("unexpected project count: got=%d, want=%d", len(projects), test.wantCount)
 			}

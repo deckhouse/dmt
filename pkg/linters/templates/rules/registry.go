@@ -81,6 +81,7 @@ func (r *RegistryRule) CheckRegistrySecret(md *module.Module, errorList *errors.
 		// Check if module has its own registry.dockercfg configuration
 		// Convert module name to camelCase for Kubernetes values
 		camelCaseModuleName := module.ToLowerCamel(moduleName)
+
 		modulePattern := fmt.Appendf(nil, ".Values.%s.registry.dockercfg", camelCaseModuleName)
 		if !bytes.Contains(fileContent, modulePattern) {
 			errorList.Errorf("registry-secret.yaml file contains .Values.global.modulesImages.registry.dockercfg but missing %s", modulePattern)
@@ -107,6 +108,7 @@ func getModuleNameFromRepository(dir string) string {
 	}
 
 	repositoryURL := sec.Key("url").String()
+
 	return convertURLToModuleName(repositoryURL)
 }
 
@@ -116,6 +118,7 @@ func getGitConfigFile(dir string) string {
 			fsutils.IsFile(filepath.Join(dir, ".git", "config")) {
 			return filepath.Join(dir, ".git", "config")
 		}
+
 		parent := filepath.Dir(dir)
 		if dir == parent || parent == "" {
 			break

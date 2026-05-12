@@ -146,8 +146,8 @@ func parseVPAResourcePolicyContainers(vpaObject storage.StoreObject, errorList *
 	containers := set.New()
 
 	v := &VerticalPodAutoscaler{}
-	err := sdk.FromUnstructured(&vpaObject.Unstructured, v)
 
+	err := sdk.FromUnstructured(&vpaObject.Unstructured, v)
 	if err != nil {
 		errorListObj.Errorf("Cannot unmarshal VPA object: %v", err)
 
@@ -209,6 +209,7 @@ func parseVPATargetIndex(vpaObject storage.StoreObject, errorList *errors.LintRu
 	errorListObj := errorList.WithObjectID(vpaObject.Identity()).WithFilePath(vpaObject.ShortPath())
 
 	target := storage.ResourceIndex{}
+
 	specs, ok := vpaObject.Unstructured.Object["spec"].(map[string]any)
 	if !ok {
 		errorListObj.Error("No VPA specs is found for object")

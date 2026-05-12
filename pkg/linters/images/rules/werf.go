@@ -69,6 +69,7 @@ func isModuleExcluded(moduleName string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -86,12 +87,14 @@ func (r *WerfRule) LintWerfFile(moduleName, data string, errorList *errors.LintR
 	// Process each document
 	for i, doc := range werfDocs {
 		var w werfFile
+
 		err := yaml.Unmarshal([]byte(doc), &w)
 		if err != nil {
 			// Log invalid YAML but continue processing other documents
 			errorList.WithObjectID(fmt.Sprintf("werf.yaml:manifest-%d", i+1)).
 				WithValue("yaml_error").
 				Error(fmt.Sprintf("Invalid YAML document: %v", err))
+
 			continue
 		}
 
@@ -169,6 +172,7 @@ func splitManifests(bigFile string) []string {
 	}
 
 	docs := sep.Split(bigFileTmp, -1)
+
 	var result []string
 
 	for _, doc := range docs {

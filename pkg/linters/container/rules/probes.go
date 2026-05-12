@@ -66,15 +66,19 @@ func probeHandlerIsNotValid(probe v1.ProbeHandler) bool {
 	if probe.Exec != nil {
 		count++
 	}
+
 	if probe.GRPC != nil {
 		count++
 	}
+
 	if probe.HTTPGet != nil {
 		count++
 	}
+
 	if probe.TCPSocket != nil {
 		count++
 	}
+
 	if count != 1 {
 		return true
 	}

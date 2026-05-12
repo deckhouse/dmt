@@ -59,6 +59,7 @@ func (m *metricStorage) GaugeSet(metric string, value float64, labels map[string
 	if m == nil {
 		return
 	}
+
 	m.gauge(metric, labels).With(labels).Set(value)
 }
 
@@ -66,6 +67,7 @@ func (m *metricStorage) GaugeAdd(metric string, value float64, labels map[string
 	if m == nil {
 		return
 	}
+
 	m.gauge(metric, labels).With(labels).Add(value)
 }
 
@@ -73,6 +75,7 @@ func (m *metricStorage) gauge(metric string, labels map[string]string) *promethe
 	m.gaugesLock.RLock()
 	vec, ok := m.Gauges[metric]
 	m.gaugesLock.RUnlock()
+
 	if ok {
 		return vec
 	}
@@ -98,6 +101,7 @@ func (m *metricStorage) registerGauge(metric string, labels map[string]string) *
 	)
 	m.Registerer.MustRegister(vec)
 	m.Gauges[metric] = vec
+
 	return vec
 }
 
@@ -107,6 +111,7 @@ func (m *metricStorage) CounterAdd(metric string, value float64, labels map[stri
 	if m == nil {
 		return
 	}
+
 	m.counter(metric, labels).With(labels).Add(value)
 }
 
@@ -114,6 +119,7 @@ func (m *metricStorage) counter(metric string, labels map[string]string) *promet
 	m.countersLock.RLock()
 	vec, ok := m.Counters[metric]
 	m.countersLock.RUnlock()
+
 	if ok {
 		return vec
 	}
@@ -139,6 +145,7 @@ func (m *metricStorage) registerCounter(metric string, labels map[string]string)
 	)
 	m.Registerer.MustRegister(vec)
 	m.Counters[metric] = vec
+
 	return vec
 }
 
@@ -148,6 +155,7 @@ func (m *metricStorage) HistogramObserve(metric string, value float64, labels ma
 	if m == nil {
 		return
 	}
+
 	m.histogram(metric, labels, buckets).With(labels).Observe(value)
 }
 
@@ -155,9 +163,11 @@ func (m *metricStorage) histogram(metric string, labels map[string]string, bucke
 	m.histogramsLock.RLock()
 	vec, ok := m.Histograms[metric]
 	m.histogramsLock.RUnlock()
+
 	if ok {
 		return vec
 	}
+
 	return m.registerHistogram(metric, labels, buckets)
 }
 
@@ -188,6 +198,7 @@ func (m *metricStorage) registerHistogram(metric string, labels map[string]strin
 
 	m.Registerer.MustRegister(vec)
 	m.Histograms[metric] = vec
+
 	return vec
 }
 
@@ -197,6 +208,8 @@ func labelNames(labels map[string]string) []string {
 	for labelName := range labels {
 		names = append(names, labelName)
 	}
+
 	sort.Strings(names)
+
 	return names
 }

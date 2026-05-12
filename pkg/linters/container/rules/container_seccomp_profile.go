@@ -61,6 +61,7 @@ func (r *SeccompProfileRule) ContainerSeccompProfile(object storage.StoreObject,
 	if err != nil {
 		errorList.WithObjectID(object.Identity()).
 			Errorf("Failed to get pod seccomp profile: %v", err)
+
 		return
 	}
 
@@ -117,6 +118,7 @@ func (*SeccompProfileRule) validateSeccompProfile(profile *corev1.SeccompProfile
 		// RuntimeDefault profile in newer versions, but we'll warn for explicit configuration
 		errorList.WithObjectID(objectID).
 			Warn("No seccomp profile specified - consider explicitly setting seccompProfile.type to 'RuntimeDefault' for better security posture")
+
 		return
 	}
 

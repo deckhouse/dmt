@@ -67,9 +67,11 @@ func (r *DNSPolicyRule) ObjectDNSPolicy(object storage.StoreObject, errorList *e
 func getDNSPolicyAndHostNetwork(object storage.StoreObject) (string, bool, error) {
 	converter := runtime.DefaultUnstructuredConverter
 
-	var dnsPolicy string
-	var hostNetwork bool
-	var err error
+	var (
+		dnsPolicy   string
+		hostNetwork bool
+		err         error
+	)
 
 	switch object.Unstructured.GetKind() {
 	case "Deployment":

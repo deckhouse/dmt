@@ -85,6 +85,7 @@ func (kn keyValidator) run(absoluteKey string, value any) error {
 		}
 	case reflect.Map:
 		m := make(map[any]any)
+
 		for _, key := range rv.MapKeys() {
 			v := rv.MapIndex(key)
 			m[key.Interface()] = v.Interface()
@@ -106,12 +107,14 @@ func checkMapForBannedKey(m map[any]any, banned []string) error {
 				return fmt.Errorf("%s is invalid name for property %s", ban, k)
 			}
 		}
+
 		if nestedMap, ok := v.(map[any]any); ok {
 			err := checkMapForBannedKey(nestedMap, banned)
 			if err != nil {
 				return err
 			}
 		}
+
 		if nestedSlise, ok := v.([]any); ok {
 			for _, item := range nestedSlise {
 				if strKey, ok := item.(string); ok {
@@ -121,6 +124,7 @@ func checkMapForBannedKey(m map[any]any, banned []string) error {
 						}
 					}
 				}
+
 				if nestedMap, ok := item.(map[any]any); ok {
 					err := checkMapForBannedKey(nestedMap, banned)
 					if err != nil {
@@ -130,5 +134,6 @@ func checkMapForBannedKey(m map[any]any, banned []string) error {
 			}
 		}
 	}
+
 	return nil
 }

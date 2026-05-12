@@ -161,6 +161,7 @@ func (l *Loader) setConfigDir() error {
 
 	if usedConfigFile == os.Stdin.Name() {
 		usedConfigFile = ""
+
 		log.Info("Reading config file stdin")
 	}
 

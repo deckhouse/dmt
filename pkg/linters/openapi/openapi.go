@@ -17,7 +17,6 @@ limitations under the License.
 package openapi
 
 import (
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -63,6 +62,7 @@ func (o *OpenAPI) Run(m *module.Module) {
 	crdFiles := fsutils.GetFiles(m.GetPath(), true, filterCRDsfiles)
 	crdValidator := rules.NewDeckhouseCRDsRule(o.cfg, m.GetPath())
 	keyValidator := rules.NewKeysRule(o.cfg, m.GetPath())
+
 	for _, file := range crdFiles {
 		enumValidator.Run(file, errorLists)
 		haValidator.Run(file, errorLists)
@@ -70,11 +70,32 @@ func (o *OpenAPI) Run(m *module.Module) {
 		crdValidator.Run(m.GetName(), file, errorLists)
 	}
 
-	// bilingual check: ensure top-level crds/ files have doc-ru- translation
+	// bilingual check: ensure doc-ru- translation files exist
 	bilingualErrorList := errorLists.WithMaxLevel(o.cfg.Rules.BilingualRule.GetLevel())
 	bilingualValidator := rules.NewBilingualRule(o.cfg, m.GetPath())
 
-	for _, file := range bilingualCRDFiles(m.GetPath()) {
+	// check openAPI files have translations (excluding values.yaml)
+	for _, file := range openAPIFiles {
+		if isValuesFile(file) {
+			continue
+		}
+
+		bilingualValidator.Run(file, bilingualErrorList)
+	}
+
+	// check CRD files have translations
+	for _, file := range crdFiles {
+		bilingualValidator.Run(file, bilingualErrorList)
+	}
+
+	// check orphaned doc-ru- files (translation without base file)
+	docRuOpenAPIFiles := fsutils.GetFiles(m.GetPath(), true, filterDocRuOpenAPIFiles)
+	for _, file := range docRuOpenAPIFiles {
+		bilingualValidator.Run(file, bilingualErrorList)
+	}
+
+	docRuCRDFiles := fsutils.GetFiles(m.GetPath(), true, filterDocRuCRDFiles)
+	for _, file := range docRuCRDFiles {
 		bilingualValidator.Run(file, bilingualErrorList)
 	}
 }
@@ -91,10 +112,12 @@ var openapiYamlRegex = regexp.MustCompile(`^openapi/.*\.ya?ml$`)
 
 func filterOpenAPIfiles(rootPath, path string) bool {
 	path = fsutils.Rel(rootPath, path)
+
 	filename := filepath.Base(path)
 	if strings.HasSuffix(filename, "-tests.yaml") {
 		return false
 	}
+
 	if strings.HasPrefix(filename, "doc-ru-") {
 		return false
 	}
@@ -106,10 +129,12 @@ var crdsYamlRegex = regexp.MustCompile(`^crds/.*\.ya?ml$`)
 
 func filterCRDsfiles(rootPath, path string) bool {
 	path = fsutils.Rel(rootPath, path)
+
 	filename := filepath.Base(path)
 	if strings.HasSuffix(filename, "-tests.yaml") {
 		return false
 	}
+
 	if strings.HasPrefix(filename, "doc-ru-") {
 		return false
 	}
@@ -117,29 +142,37 @@ func filterCRDsfiles(rootPath, path string) bool {
 	return crdsYamlRegex.MatchString(path)
 }
 
-func bilingualCRDFiles(rootPath string) []string {
-	crdsPath := filepath.Join(rootPath, "crds")
-	entries, err := os.ReadDir(crdsPath)
-	if err != nil {
-		return nil
+func isValuesFile(path string) bool {
+	filename := filepath.Base(path)
+	return filename == "values.yaml" || filename == "values.yml"
+}
+
+func filterDocRuOpenAPIFiles(rootPath, path string) bool {
+	relPath := fsutils.Rel(rootPath, path)
+	filename := filepath.Base(relPath)
+
+	if !strings.HasPrefix(filename, "doc-ru-") {
+		return false
 	}
 
-	result := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if !entry.Type().IsRegular() {
-			continue
-		}
-
-		filename := entry.Name()
-		if !strings.HasSuffix(filename, ".yaml") && !strings.HasSuffix(filename, ".yml") {
-			continue
-		}
-		if strings.HasSuffix(filename, "-tests.yaml") {
-			continue
-		}
-
-		result = append(result, filepath.Join(crdsPath, filename))
+	if strings.HasSuffix(filename, "-tests.yaml") {
+		return false
 	}
 
-	return result
+	return openapiYamlRegex.MatchString(relPath)
+}
+
+func filterDocRuCRDFiles(rootPath, path string) bool {
+	relPath := fsutils.Rel(rootPath, path)
+	filename := filepath.Base(relPath)
+
+	if !strings.HasPrefix(filename, "doc-ru-") {
+		return false
+	}
+
+	if strings.HasSuffix(filename, "-tests.yaml") {
+		return false
+	}
+
+	return crdsYamlRegex.MatchString(relPath)
 }

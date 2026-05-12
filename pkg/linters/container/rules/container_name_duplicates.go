@@ -51,12 +51,15 @@ func (r *NameDuplicatesRule) ContainerNameDuplicates(object storage.StoreObject,
 
 func hasDuplicates[T any](items []T, keyFunc func(T) string) bool {
 	seen := make(map[string]struct{})
+
 	for _, item := range items {
 		key := keyFunc(item)
 		if _, ok := seen[key]; ok {
 			return true
 		}
+
 		seen[key] = struct{}{}
 	}
+
 	return false
 }

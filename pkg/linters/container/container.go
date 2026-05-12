@@ -48,6 +48,7 @@ func (l *Container) Run(m *module.Module) {
 	}
 
 	errorList := l.ErrorList.WithModule(m.GetName())
+
 	storage := m.GetStorage()
 	for _, object := range storage {
 		l.applyContainerRules(object, storage, errorList)

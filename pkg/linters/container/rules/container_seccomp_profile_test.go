@@ -143,6 +143,7 @@ func TestSeccompProfileRule_ContainerSeccompProfile(t *testing.T) {
 				assert.Empty(t, errs, "Expected no messages")
 			} else {
 				assert.Len(t, errs, len(tt.expectedMessages), "Expected %d messages", len(tt.expectedMessages))
+
 				for i, expectedMessage := range tt.expectedMessages {
 					assert.Contains(t, errs[i].Text, expectedMessage, "Message %d should contain expected text", i)
 				}
