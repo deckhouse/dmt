@@ -105,6 +105,7 @@ func TestBilingualRule(t *testing.T) {
 				assert.Empty(t, errs)
 			} else {
 				assert.Len(t, errs, len(tt.wantErrors))
+
 				for i, err := range errs {
 					assert.Contains(t, err.Text, tt.wantErrors[i])
 					assert.Equal(t, pkg.Error, err.Level)

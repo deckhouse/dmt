@@ -360,7 +360,6 @@ func mapSimpleLinterRules(linterSettings *pkg.LintersSettings, configSettings *c
 	linterSettings.OpenAPI.Rules.HARule.SetLevel("", openAPIImpact)
 	linterSettings.OpenAPI.Rules.CRDsRule.SetLevel("", openAPIImpact)
 	linterSettings.OpenAPI.Rules.KeysRule.SetLevel("", openAPIImpact)
-	linterSettings.OpenAPI.Rules.BilingualRule.SetLevel("", openAPIImpact)
 
 	// RBAC rules
 	rbacImpact := configSettings.Rbac.Impact
