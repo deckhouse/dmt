@@ -145,13 +145,14 @@ Validates the `oss.yaml` file containing open-source software attribution.
 - ✅ At least one project is described
 - ✅ Each project has required fields:
   - `id` - Project identifier (must not be empty and must be unique within the file)
-  - `version` or `versions` - Project version definition (must not be empty, should be valid semver) See ADR "platform-security/2026-01-21-oss-yaml-werf.md"
+  - `version` or `versions` - Project version definition (must not be empty; may use any format used by the OSS project)
   - `name` - Project name (must not be empty)
   - `description` - Project description (must not be empty)
   - `link` - Valid project URL (must not be empty, must be valid URL)
   - `license` - Valid license identifier (must not be empty)
   - `logo` (optional) - Valid logo URL (must be valid URL if provided)
 - ✅ A project may use `versions` instead of `version` when the component has several context-dependent versions. Each `versions[]` item must contain a non-empty `version` value.
+- ✅ dmt checks version values for semver compatibility because semver is the most common format. If the OSS project uses another version format and the value is correct, ignore the warning.
 
 **Error Messages:**
 - `Module should have oss.yaml` - File is missing from module root
@@ -160,10 +161,10 @@ Validates the `oss.yaml` file containing open-source software attribution.
 - `id must not be empty` - Project entry is missing the `id` field
 - `id must be unique; duplicate id "<id>" already used by project #<n>` - Project id is duplicated
 - `version must not be empty. Please fill in the parameter and configure CI (werf files for module images) to use these setting.` - Project entry is missing the `version` field
-- `version should be valid semver: <error>` (Warning) - Version is provided but not in valid semantic versioning format
+- `version "<version>" is not semver-compatible; if this version is correct for the OSS project, ignore this warning: <error>` (Warning) - Version is provided but not in valid semantic versioning format
 - `version and versions must not be used together` - Project entry contains both simple and conditional version definitions
 - `versions[].version must not be empty. Please fill in the parameter and configure CI (werf files for module images) to use these setting.` - Conditional version entry is missing the `version` field
-- `versions[].version should be valid semver: <error>` (Warning) - Conditional version is provided but not in valid semantic versioning format
+- `versions[].version "<version>" is not semver-compatible; if this version is correct for the OSS project, ignore this warning: <error>` (Warning) - Conditional version is provided but not in valid semantic versioning format
 - `name must not be empty` - Project entry is missing the `name` field
 - `description must not be empty` - Project entry is missing the `description` field
 - `link must not be empty` - Project entry is missing the `link` field
