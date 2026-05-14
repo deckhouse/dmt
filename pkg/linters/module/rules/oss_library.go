@@ -180,6 +180,7 @@ func assertOssProjectVersion(prefix string, p *ossProject, errorList *errors.Lin
 
 	for i, versionItem := range p.Versions {
 		versionPrefix := fmt.Sprintf("%s.versions[%d]", prefix, i)
+
 		versionValue := strings.TrimSpace(versionItem.Version)
 		if versionValue == "" {
 			errorList.WithObjectID("index=" + versionPrefix + ";").
