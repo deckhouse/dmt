@@ -35,6 +35,7 @@ const (
 	OSSRuleName = "oss"
 )
 
+// NewOSSRule creates an OSS attribution rule instance.
 func NewOSSRule(disable bool) *OSSRule {
 	return &OSSRule{
 		RuleMeta: pkg.RuleMeta{
@@ -56,6 +57,7 @@ const (
 	imagesDir   = "images"
 )
 
+// OssModuleRule validates oss.yaml only for modules that contain image build sources.
 func (r *OSSRule) OssModuleRule(moduleRoot string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName()).WithFilePath(filepath.Join(moduleRoot, ossFilename))
 
@@ -73,6 +75,7 @@ func (r *OSSRule) OssModuleRule(moduleRoot string, errorList *errors.LintRuleErr
 	verifyOssFile(moduleRoot, errorList)
 }
 
+// ossFileErrorMessage formats user-facing errors for missing or invalid oss.yaml.
 func ossFileErrorMessage(err error) string {
 	if os.IsNotExist(err) {
 		return fmt.Sprintf("module has %s folder, so it likely should have %s", imagesDir, ossFilename)
@@ -81,6 +84,7 @@ func ossFileErrorMessage(err error) string {
 	return fmt.Sprintf("invalid %s: %s", ossFilename, err.Error())
 }
 
+// verifyOssFile reads oss.yaml and validates every described OSS project.
 func verifyOssFile(moduleRoot string, errorList *errors.LintRuleErrorsList) {
 	projects, err := readOssFile(moduleRoot)
 	if err != nil {
@@ -116,6 +120,7 @@ func verifyOssFile(moduleRoot string, errorList *errors.LintRuleErrorsList) {
 	}
 }
 
+// assertOssProject validates required attribution fields for one OSS project.
 func assertOssProject(i int, p *ossProject, errorList *errors.LintRuleErrorsList) {
 	// prefix to make it easier navigate among errors
 	prefix := fmt.Sprintf("#%d", i)
@@ -159,6 +164,7 @@ func assertOssProject(i int, p *ossProject, errorList *errors.LintRuleErrorsList
 	}
 }
 
+// assertOssProjectVersion validates simple and conditional version definitions.
 func assertOssProjectVersion(prefix string, p *ossProject, errorList *errors.LintRuleErrorsList) {
 	version := strings.TrimSpace(p.Version)
 	hasVersions := len(p.Versions) > 0
@@ -193,6 +199,7 @@ func assertOssProjectVersion(prefix string, p *ossProject, errorList *errors.Lin
 	}
 }
 
+// assertOssVersionValue warns when a non-empty version is not semver-compatible.
 func assertOssVersionValue(prefix, fieldPath, version string, errorList *errors.LintRuleErrorsList) {
 	if _, err := semver.NewVersion(version); err != nil {
 		errorList.WithObjectID("index=" + prefix + ";").
@@ -200,6 +207,7 @@ func assertOssVersionValue(prefix, fieldPath, version string, errorList *errors.
 	}
 }
 
+// readOssFile loads oss.yaml from the module root and parses its project list.
 func readOssFile(moduleRoot string) ([]ossProject, error) {
 	b, err := os.ReadFile(filepath.Join(moduleRoot, ossFilename))
 	if err != nil {
@@ -209,6 +217,7 @@ func readOssFile(moduleRoot string) ([]ossProject, error) {
 	return parseProjectList(b)
 }
 
+// parseProjectList parses oss.yaml content using strict YAML decoding.
 func parseProjectList(b []byte) ([]ossProject, error) {
 	var projects []ossProject
 
