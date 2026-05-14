@@ -113,6 +113,31 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 			wantErrors: nil,
 		},
 		{
+			name:            "valid project with conditional versions",
+			createImagesDir: true,
+			setupFiles: map[string]string{
+				"oss.yaml": `
+- id: "example-service"
+  name: "Example service"
+  description: "Example service used in module images"
+  link: "https://github.com/example/example-service"
+  license: "Apache License 2.0"
+  versions:
+    - condition:
+        k8s: "1.31"
+      name: "version for k8s 1.31"
+      version: "1.2.1"
+    - condition:
+        k8s:
+          - "1.32"
+          - "1.33"
+      name: "version for k8s 1.32 and 1.33"
+      version: "1.2.2"
+`,
+			},
+			wantErrors: nil,
+		},
+		{
 			name:            "project with empty id",
 			createImagesDir: true,
 			setupFiles: map[string]string{
@@ -143,6 +168,24 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 			wantErrors: []string{"version must not be empty. Please fill in the parameter and configure CI (werf files for module images) to use these setting."},
 		},
 		{
+			name:            "project with empty conditional version",
+			createImagesDir: true,
+			setupFiles: map[string]string{
+				"oss.yaml": `
+- id: "example-service"
+  name: "Example service"
+  description: "Example service used in module images"
+  link: "https://github.com/example/example-service"
+  license: "Apache License 2.0"
+  versions:
+    - condition:
+        k8s: "1.31"
+      version: ""
+`,
+			},
+			wantErrors: []string{"versions[].version must not be empty"},
+		},
+		{
 			name:            "project with invalid semver version",
 			createImagesDir: true,
 			setupFiles: map[string]string{
@@ -156,6 +199,43 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 `,
 			},
 			wantWarns: []string{"version must be valid semver"},
+		},
+		{
+			name:            "project with invalid conditional semver version",
+			createImagesDir: true,
+			setupFiles: map[string]string{
+				"oss.yaml": `
+- id: "example-service"
+  name: "Example service"
+  description: "Example service used in module images"
+  link: "https://github.com/example/example-service"
+  license: "Apache License 2.0"
+  versions:
+    - condition:
+        k8s: "1.31"
+      version: "ccm/v30.1.4"
+`,
+			},
+			wantWarns: []string{"versions[].version must be valid semver"},
+		},
+		{
+			name:            "project with version and versions",
+			createImagesDir: true,
+			setupFiles: map[string]string{
+				"oss.yaml": `
+- id: "example-service"
+  version: "1.2.0"
+  name: "Example service"
+  description: "Example service used in module images"
+  link: "https://github.com/example/example-service"
+  license: "Apache License 2.0"
+  versions:
+    - condition:
+        k8s: "1.31"
+      version: "1.2.1"
+`,
+			},
+			wantErrors: []string{"version and versions must not be used together"},
 		},
 		{
 			name:            "project with empty name",
@@ -268,6 +348,27 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 `,
 			},
 			wantErrors: []string{"id must not be empty"},
+		},
+		{
+			name:            "duplicate project id",
+			createImagesDir: true,
+			setupFiles: map[string]string{
+				"oss.yaml": `
+- id: "dexidp/dex"
+  version: "2.0.0"
+  name: "Dex"
+  description: "A Federated OpenID Connect Provider with pluggable connectors"
+  link: "https://github.com/dexidp/dex"
+  license: "Apache License 2.0"
+- id: "dexidp/dex"
+  version: "2.1.0"
+  name: "Dex"
+  description: "A Federated OpenID Connect Provider with pluggable connectors"
+  link: "https://github.com/dexidp/dex"
+  license: "Apache License 2.0"
+`,
+			},
+			wantErrors: []string{"id must be unique; duplicate id \"dexidp/dex\" already used by project #1"},
 		},
 	}
 

@@ -144,21 +144,26 @@ Validates the `oss.yaml` file containing open-source software attribution.
 - ✅ Valid YAML structure
 - ✅ At least one project is described
 - ✅ Each project has required fields:
-  - `id` - Project identifier (must not be empty)
-  - `version` - Project version (must not be empty, should be valid semver) See ADR "platform-security/2026-01-21-oss-yaml-werf.md"
+  - `id` - Project identifier (must not be empty and must be unique within the file)
+  - `version` or `versions` - Project version definition (must not be empty, should be valid semver) See ADR "platform-security/2026-01-21-oss-yaml-werf.md"
   - `name` - Project name (must not be empty)
   - `description` - Project description (must not be empty)
   - `link` - Valid project URL (must not be empty, must be valid URL)
   - `license` - Valid license identifier (must not be empty)
   - `logo` (optional) - Valid logo URL (must be valid URL if provided)
+- ✅ A project may use `versions` instead of `version` when the component has several context-dependent versions. Each `versions[]` item must contain a non-empty `version` value.
 
 **Error Messages:**
 - `Module should have oss.yaml` - File is missing from module root
 - `Invalid oss.yaml: <error>` - File exists but contains invalid YAML or structure
 - `no projects described` - File exists but contains an empty list
 - `id must not be empty` - Project entry is missing the `id` field
+- `id must be unique; duplicate id "<id>" already used by project #<n>` - Project id is duplicated
 - `version must not be empty. Please fill in the parameter and configure CI (werf files for module images) to use these setting.` - Project entry is missing the `version` field
 - `version must be valid semver: <error>` (Warning) - Version is provided but not in valid semantic versioning format
+- `version and versions must not be used together` - Project entry contains both simple and conditional version definitions
+- `versions[].version must not be empty. Please fill in the parameter and configure CI (werf files for module images) to use these setting.` - Conditional version entry is missing the `version` field
+- `versions[].version must be valid semver: <error>` (Warning) - Conditional version is provided but not in valid semantic versioning format
 - `name must not be empty` - Project entry is missing the `name` field
 - `description must not be empty` - Project entry is missing the `description` field
 - `link must not be empty` - Project entry is missing the `link` field
@@ -183,6 +188,21 @@ Validates the `oss.yaml` file containing open-source software attribution.
   description: Monitoring system and time series database
   link: https://prometheus.io/
   license: Apache-2.0
+
+- id: example-service
+  name: Example service
+  description: Example service used in module images
+  link: https://github.com/example/example-service
+  license: Apache-2.0
+  versions:
+    - condition:
+        k8s: "1.31"
+      name: version for k8s 1.31
+      version: 1.2.1
+    - condition:
+        k8s: "1.32"
+      name: version for k8s 1.32
+      version: 1.2.2
 ```
 
 ---
