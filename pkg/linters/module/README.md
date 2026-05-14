@@ -8,7 +8,7 @@ The Module linter performs automated checks on Deckhouse modules to validate con
 
 ## Rules
 
-The Module linter includes **7 validation rules**:
+The Module linter includes **8 validation rules**:
 
 | Rule | Description | Configurable |
 |------|-------------|--------------|
@@ -18,6 +18,7 @@ The Module linter includes **7 validation rules**:
 | [**helmignore**](#helmignore) | Validates `.helmignore` file presence and content | ✅ Yes |
 | [**license**](#license) | Validates license headers in source files | ✅ Yes |
 | [**requirements**](#requirements) | Validates version requirements for features | ❌ No |
+| [**package-yaml**](#package-yaml) | Validates `package.yaml` metadata and new requirements schema | ✅ Yes |
 | [**legacy-release-file**](#legacy-release-file) | Checks for deprecated `release.yaml` file | ❌ No |
 
 ---
@@ -417,6 +418,70 @@ requirements:
 
 ---
 
+### Package YAML
+
+Validates the optional `package.yaml` file in the module root.
+
+**Purpose:** Ensures modules that use the new package requirements schema declare a compatible Deckhouse version and keep dependency constraints parseable as plain semantic version constraints. This prevents modules from publishing v2 package metadata that older Deckhouse versions cannot read.
+
+**Checks:**
+- ✅ If `package.yaml` exists, it must be valid YAML
+- ✅ `apiVersion` is required
+- ✅ `name` is required
+- ✅ All non-empty version constraints must be parsed as-is by the semver library
+- ✅ The new requirements schema requires `requirements.deckhouse.constraint >= 1.77.0`
+- ✅ Old markers such as `!optional` are rejected when placed inside a new `constraint` field
+
+**New Requirements Schema Detection:**
+The rule treats `package.yaml` as using the new requirements schema when any of these fields are present:
+- `requirements.kubernetes.constraint`
+- `requirements.modules.mandatory`
+- `requirements.modules.conditional`
+- `requirements.modules.anyOf`
+
+**Example:**
+```yaml
+# package.yaml
+apiVersion: v2
+name: stronghold
+
+requirements:
+  kubernetes:
+    constraint: ">= 1.26"
+  deckhouse:
+    constraint: ">= 1.77.0"
+  modules:
+    mandatory:
+      - name: cloud-provider-yandex
+        constraint: ">= 1.5.0"
+    conditional:
+      - name: observability
+        constraint: ">= 1.0.0"
+    anyOf:
+      - description: "One of the following cloud providers must be installed"
+        modules:
+          - name: cloud-provider-gcp
+            constraint: ">= 1.5.0"
+          - name: cloud-provider-aws
+            constraint: ">= 2.0.0"
+
+subscribe:
+  apis:
+    - autoscaling.k8s.io/v1/VerticalPodAutoscaler
+  values:
+    - module: stronghold
+      value: .someValues.strField
+```
+
+**Error Examples:**
+```
+❌ package.yaml apiVersion is required
+❌ Invalid package.yaml requirements.modules.conditional[0].constraint version constraint ">= 1.0.0 !optional"
+❌ package.yaml requirements.deckhouse.constraint version range should start no lower than 1.77.0
+```
+
+---
+
 ### Legacy release file
 
 Checks for the deprecated `release.yaml` file.
@@ -459,6 +524,10 @@ linters-settings:
     
     helmignore:
       disable: false              # Enable/disable .helmignore validation
+
+    rules:
+      package-yaml:
+        impact: error             # Override package.yaml validation level
     
     # License exclusions
     exclude-rules:
@@ -532,6 +601,24 @@ linters-settings:
 stage: "General Availability"
 requirements:
   deckhouse: ">= 1.68.0"
+```
+
+### ❌ package.yaml Uses New Requirements Without Deckhouse 1.77
+
+**Error:** `package.yaml requirements.deckhouse.constraint version range should start no lower than 1.77.0`
+
+**Solution:** Raise the package-level Deckhouse requirement:
+```yaml
+# package.yaml
+apiVersion: v2
+name: my-module
+requirements:
+  deckhouse:
+    constraint: ">= 1.77.0"
+  modules:
+    mandatory:
+      - name: dependency-module
+        constraint: ">= 1.0.0"
 ```
 
 ### ❌ Update Versions Not Sorted

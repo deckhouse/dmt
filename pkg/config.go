@@ -220,6 +220,7 @@ type ModuleLinterRules struct {
 	HelmignoreRule        RuleConfig
 	LicenseRule           RuleConfig
 	RequarementsRule      RuleConfig
+	PackageYAMLRule       RuleConfig
 	LegacyReleaseFileRule RuleConfig
 }
 type OSSRuleSettings struct {

@@ -108,6 +108,7 @@ type ModuleLinterRules struct {
 	HelmignoreRule        RuleConfig `mapstructure:"helmignore"`
 	LicenseRule           RuleConfig `mapstructure:"license"`
 	RequarementsRule      RuleConfig `mapstructure:"requarements"`
+	PackageYAMLRule       RuleConfig `mapstructure:"package-yaml"`
 	LegacyReleaseFileRule RuleConfig `mapstructure:"legacy-release-file"`
 }
 
