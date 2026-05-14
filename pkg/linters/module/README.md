@@ -160,10 +160,10 @@ Validates the `oss.yaml` file containing open-source software attribution.
 - `id must not be empty` - Project entry is missing the `id` field
 - `id must be unique; duplicate id "<id>" already used by project #<n>` - Project id is duplicated
 - `version must not be empty. Please fill in the parameter and configure CI (werf files for module images) to use these setting.` - Project entry is missing the `version` field
-- `version must be valid semver: <error>` (Warning) - Version is provided but not in valid semantic versioning format
+- `version should be valid semver: <error>` (Warning) - Version is provided but not in valid semantic versioning format
 - `version and versions must not be used together` - Project entry contains both simple and conditional version definitions
 - `versions[].version must not be empty. Please fill in the parameter and configure CI (werf files for module images) to use these setting.` - Conditional version entry is missing the `version` field
-- `versions[].version must be valid semver: <error>` (Warning) - Conditional version is provided but not in valid semantic versioning format
+- `versions[].version should be valid semver: <error>` (Warning) - Conditional version is provided but not in valid semantic versioning format
 - `name must not be empty` - Project entry is missing the `name` field
 - `description must not be empty` - Project entry is missing the `description` field
 - `link must not be empty` - Project entry is missing the `link` field

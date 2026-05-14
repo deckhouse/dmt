@@ -203,7 +203,7 @@ func assertOssProjectVersion(prefix string, p *ossProject, errorList *errors.Lin
 func assertOssVersionValue(prefix, fieldPath, version string, errorList *errors.LintRuleErrorsList) {
 	if _, err := semver.NewVersion(version); err != nil {
 		errorList.WithObjectID("index=" + prefix + ";").
-			Warn(fmt.Sprintf("%s must be valid semver: %v", fieldPath, err))
+			Warn(fmt.Sprintf("%s should be valid semver: %v", fieldPath, err))
 	}
 }
 

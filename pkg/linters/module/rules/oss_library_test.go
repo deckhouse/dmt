@@ -198,7 +198,7 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
   license: "Apache License 2.0"
 `,
 			},
-			wantWarns: []string{"version must be valid semver"},
+			wantWarns: []string{"version should be valid semver"},
 		},
 		{
 			name:            "project with invalid conditional semver version",
@@ -216,7 +216,7 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
       version: "ccm/v30.1.4"
 `,
 			},
-			wantWarns: []string{"versions[].version must be valid semver"},
+			wantWarns: []string{"versions[].version should be valid semver"},
 		},
 		{
 			name:            "project with version and versions",
