@@ -42,6 +42,8 @@ func (l *Documentation) Run(m *module.Module) {
 	rules.NewBilingualRule().CheckBilingual(m, errorList.WithMaxLevel(l.cfg.Rules.BilingualRule.GetLevel()))
 
 	rules.NewCyrillicInEnglishRule().CheckFiles(m, errorList.WithMaxLevel(l.cfg.Rules.CyrillicInEnglishRule.GetLevel()))
+
+	rules.NewNoLangKeyRule().CheckFiles(m, errorList.WithMaxLevel(l.cfg.Rules.NoLangKeyRule.GetLevel()))
 }
 
 func (l *Documentation) Name() string {
