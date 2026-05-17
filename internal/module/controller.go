@@ -116,12 +116,12 @@ func splitYAMLDocuments(content string) []string {
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 
-		// Check if we're starting a multi-line value (|-, |, >-, >)
+		// Check if we're starting a multi-line value.
 		if !inMultiLine && strings.Contains(line, ":") {
 			parts := strings.SplitN(line, ":", 2)
 			if len(parts) == 2 {
 				value := strings.TrimSpace(parts[1])
-				if value == "|-" || value == "|" || value == ">-" || value == ">" {
+				if strings.HasPrefix(value, "|") || strings.HasPrefix(value, ">") {
 					inMultiLine = true
 					indentLevel = len(line) - len(strings.TrimLeft(line, " \t"))
 				}
