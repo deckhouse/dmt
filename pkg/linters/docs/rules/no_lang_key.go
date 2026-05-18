@@ -1,4 +1,4 @@
-// Copyright 2025 Flant JSC
+// Copyright 2026 Flant JSC
 // Licensed under the Apache License, Version 2.0
 
 package rules
