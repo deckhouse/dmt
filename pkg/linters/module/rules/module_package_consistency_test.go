@@ -36,6 +36,7 @@ func runConsistencyCheck(modulePath string) *errors.LintRuleErrorsList {
 
 func writeFile(t *testing.T, dir, name, content string) {
 	t.Helper()
+
 	if content == "" {
 		return
 	}
