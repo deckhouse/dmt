@@ -502,9 +502,8 @@ func TestConsistencyInvalidModuleYAMLIgnoresConsistency(t *testing.T) {
 	writeFile(t, modulePath, ModuleConfigFilename, `invalid: yaml: [[[`)
 	writeFile(t, modulePath, PackageConfigFilename, "name: stronghold\napiVersion: v2\n")
 	errorList := runConsistencyCheck(modulePath)
-	// The parse error is reported but consistency checks are skipped
 	errs := errorList.GetErrors()
-	// The module.yaml parse error goes through errorList (getDeckhouseModule returns err)
+	// broken module.yaml -> parse error, consistency checks are skipped
 	require.Len(t, errs, 1)
 	assert.Contains(t, errs[0].Text, `Cannot parse file "module.yaml"`)
 }

@@ -25,6 +25,7 @@ import (
 
 const ModulePackageConsistencyRuleName = "module-package-consistency"
 
+// NewModulePackageConsistencyRule creates a rule for cross-validating module.yaml against package.yaml.
 func NewModulePackageConsistencyRule() *ModulePackageConsistencyRule {
 	return &ModulePackageConsistencyRule{
 		RuleMeta: pkg.RuleMeta{
@@ -33,10 +34,14 @@ func NewModulePackageConsistencyRule() *ModulePackageConsistencyRule {
 	}
 }
 
+// ModulePackageConsistencyRule checks that module.yaml and package.yaml do not diverge
+// when both files exist in the module directory.
 type ModulePackageConsistencyRule struct {
 	pkg.RuleMeta
 }
 
+// CheckModulePackageConsistency compares overlapping fields between module.yaml and package.yaml.
+// Skips modules that have only one of the two files — without both there is nothing to cross-validate.
 func (r *ModulePackageConsistencyRule) CheckModulePackageConsistency(modulePath string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName()).WithFilePath(ModuleConfigFilename)
 
@@ -45,7 +50,7 @@ func (r *ModulePackageConsistencyRule) CheckModulePackageConsistency(modulePath 
 		return
 	}
 
-	// package.yaml errors are reported under its own file path
+	// load package.yaml separately so its parse errors are reported under its own file path
 	pkgErrorList := errorList.WithFilePath(PackageConfigFilename)
 
 	pkg, err := getModulePackage(modulePath, pkgErrorList)
@@ -63,6 +68,7 @@ func (r *ModulePackageConsistencyRule) CheckModulePackageConsistency(modulePath 
 	compareModules(module, pkg, errorList)
 }
 
+// compareNames ensures module.yaml name matches package.yaml name.
 func compareNames(module *DeckhouseModule, pkg *ModulePackage, errorList *errors.LintRuleErrorsList) {
 	if module.Name == "" {
 		return
@@ -73,6 +79,7 @@ func compareNames(module *DeckhouseModule, pkg *ModulePackage, errorList *errors
 	}
 }
 
+// compareDeckhouse ensures requirements.deckhouse in module.yaml matches requirements.deckhouse.constraint in package.yaml.
 func compareDeckhouse(module *DeckhouseModule, pkg *ModulePackage, errorList *errors.LintRuleErrorsList) {
 	if module.Requirements == nil || module.Requirements.Deckhouse == "" {
 		return
@@ -88,6 +95,7 @@ func compareDeckhouse(module *DeckhouseModule, pkg *ModulePackage, errorList *er
 	}
 }
 
+// compareKubernetes ensures requirements.kubernetes in module.yaml matches requirements.kubernetes.constraint in package.yaml.
 func compareKubernetes(module *DeckhouseModule, pkg *ModulePackage, errorList *errors.LintRuleErrorsList) {
 	if module.Requirements == nil || module.Requirements.Kubernetes == "" {
 		return
@@ -103,9 +111,11 @@ func compareKubernetes(module *DeckhouseModule, pkg *ModulePackage, errorList *e
 	}
 }
 
+// compareModules cross-validates module dependency lists between module.yaml and package.yaml.
+// In module.yaml dependencies are a flat map (optional ones carry the "!optional" suffix),
+// while package.yaml splits them into mandatory and conditional groups.
 func compareModules(module *DeckhouseModule, pkg *ModulePackage, errorList *errors.LintRuleErrorsList) {
 	if module.Requirements == nil || len(module.Requirements.ParentModules) == 0 {
-		// If module.yaml has no module deps but package.yaml does, that's a discrepancy
 		if pkg.Requirements != nil && (len(pkg.Requirements.Modules.Mandatory) > 0 || len(pkg.Requirements.Modules.Conditional) > 0) {
 			checkPackageModulesNotInModule(module, pkg, errorList)
 		}
@@ -142,7 +152,7 @@ func compareModules(module *DeckhouseModule, pkg *ModulePackage, errorList *erro
 		pkgConditional[m.Name] = m.Constraint
 	}
 
-	// Check module.yaml mandatory → package.yaml mandatory
+	// module.yaml mandatory -> package.yaml mandatory
 	for name, constraint := range moduleMandatory {
 		pkgConstraint, exists := pkgMandatory[name]
 		if !exists {
@@ -160,7 +170,7 @@ func compareModules(module *DeckhouseModule, pkg *ModulePackage, errorList *erro
 		}
 	}
 
-	// Check module.yaml conditional → package.yaml conditional
+	// module.yaml conditional -> package.yaml conditional
 	for name, constraint := range moduleConditional {
 		pkgConstraint, exists := pkgConditional[name]
 		if !exists {
@@ -178,33 +188,34 @@ func compareModules(module *DeckhouseModule, pkg *ModulePackage, errorList *erro
 		}
 	}
 
-	// Check package.yaml mandatory → module.yaml
+	// package.yaml mandatory -> module.yaml
 	for name := range pkgMandatory {
 		if _, exists := moduleMandatory[name]; exists {
-			continue // already checked above
+			continue
 		}
 
 		if _, exists := moduleConditional[name]; exists {
-			continue // already reported as "optional but listed as mandatory"
+			continue
 		}
 
 		errorList.Errorf("package.yaml module %q is mandatory but not found in module.yaml requirements.modules", name)
 	}
 
-	// Check package.yaml conditional → module.yaml
+	// package.yaml conditional -> module.yaml
 	for name := range pkgConditional {
 		if _, exists := moduleConditional[name]; exists {
-			continue // already checked above
+			continue
 		}
 
 		if _, exists := moduleMandatory[name]; exists {
-			continue // already reported as "mandatory but listed as conditional"
+			continue
 		}
 
 		errorList.Errorf("package.yaml module %q is conditional but not found in module.yaml requirements.modules", name)
 	}
 }
 
+// checkPackageModulesNotInModule reports package.yaml modules that are missing from module.yaml.
 func checkPackageModulesNotInModule(module *DeckhouseModule, pkg *ModulePackage, errorList *errors.LintRuleErrorsList) {
 	for _, m := range pkg.Requirements.Modules.Mandatory {
 		if module.Requirements == nil || module.Requirements.ParentModules == nil {
