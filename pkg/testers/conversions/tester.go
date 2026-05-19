@@ -79,7 +79,7 @@ func (t *Tester) Run(modulePath string) bool {
 		return true
 	}
 
-	if latestVersion > 0 && configVersion != latestVersion {
+	if configVersion > 0 && latestVersion > 0 && configVersion != latestVersion {
 		errorList.WithTestName("config values version mismatch").
 			AddTestResult("x-config-version with latest conversion version mismatch",
 				strconv.Itoa(latestVersion),
@@ -113,7 +113,8 @@ func (t *Tester) checkConversions(modulePath string, errorList *pkgerrors.TestEr
 	}
 
 	if configVersion == 0 {
-		return "", 0, false
+		errorList.Errorf("x-config-version is not set in config-values.yaml, but conversions exist")
+		return convFolder, 0, true
 	}
 
 	return convFolder, configVersion, true
