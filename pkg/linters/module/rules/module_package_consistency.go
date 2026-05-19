@@ -47,6 +47,7 @@ func (r *ModulePackageConsistencyRule) CheckModulePackageConsistency(modulePath 
 
 	// package.yaml errors are reported under its own file path
 	pkgErrorList := errorList.WithFilePath(PackageConfigFilename)
+
 	pkg, err := getModulePackage(modulePath, pkgErrorList)
 	if err != nil {
 		return
@@ -108,6 +109,7 @@ func compareModules(module *DeckhouseModule, pkg *ModulePackage, errorList *erro
 		if pkg.Requirements != nil && (len(pkg.Requirements.Modules.Mandatory) > 0 || len(pkg.Requirements.Modules.Conditional) > 0) {
 			checkPackageModulesNotInModule(module, pkg, errorList)
 		}
+
 		return
 	}
 
@@ -115,6 +117,7 @@ func compareModules(module *DeckhouseModule, pkg *ModulePackage, errorList *erro
 		for name := range module.Requirements.ParentModules {
 			errorList.Errorf("module.yaml module %q has requirement but package.yaml has no requirements section", name)
 		}
+
 		return
 	}
 
@@ -148,6 +151,7 @@ func compareModules(module *DeckhouseModule, pkg *ModulePackage, errorList *erro
 			} else {
 				errorList.Errorf("module.yaml module %q is mandatory but not found in package.yaml requirements.modules.mandatory", name)
 			}
+
 			continue
 		}
 
@@ -165,6 +169,7 @@ func compareModules(module *DeckhouseModule, pkg *ModulePackage, errorList *erro
 			} else {
 				errorList.Errorf("module.yaml module %q is optional but not found in package.yaml requirements.modules.conditional", name)
 			}
+
 			continue
 		}
 
@@ -178,9 +183,11 @@ func compareModules(module *DeckhouseModule, pkg *ModulePackage, errorList *erro
 		if _, exists := moduleMandatory[name]; exists {
 			continue // already checked above
 		}
+
 		if _, exists := moduleConditional[name]; exists {
 			continue // already reported as "optional but listed as mandatory"
 		}
+
 		errorList.Errorf("package.yaml module %q is mandatory but not found in module.yaml requirements.modules", name)
 	}
 
@@ -189,9 +196,11 @@ func compareModules(module *DeckhouseModule, pkg *ModulePackage, errorList *erro
 		if _, exists := moduleConditional[name]; exists {
 			continue // already checked above
 		}
+
 		if _, exists := moduleMandatory[name]; exists {
 			continue // already reported as "mandatory but listed as conditional"
 		}
+
 		errorList.Errorf("package.yaml module %q is conditional but not found in module.yaml requirements.modules", name)
 	}
 }
@@ -202,6 +211,7 @@ func checkPackageModulesNotInModule(module *DeckhouseModule, pkg *ModulePackage,
 			errorList.Errorf("package.yaml module %q is mandatory but module.yaml has no requirements.modules", m.Name)
 			continue
 		}
+
 		if _, exists := module.Requirements.ParentModules[m.Name]; !exists {
 			errorList.Errorf("package.yaml module %q is mandatory but not found in module.yaml requirements.modules", m.Name)
 		}
@@ -212,6 +222,7 @@ func checkPackageModulesNotInModule(module *DeckhouseModule, pkg *ModulePackage,
 			errorList.Errorf("package.yaml module %q is conditional but module.yaml has no requirements.modules", m.Name)
 			continue
 		}
+
 		if _, exists := module.Requirements.ParentModules[m.Name]; !exists {
 			errorList.Errorf("package.yaml module %q is conditional but not found in module.yaml requirements.modules", m.Name)
 		}

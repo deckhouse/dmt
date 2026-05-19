@@ -30,6 +30,7 @@ import (
 func runConsistencyCheck(modulePath string) *errors.LintRuleErrorsList {
 	errorList := errors.NewLintRuleErrorsList()
 	NewModulePackageConsistencyRule().CheckModulePackageConsistency(modulePath, errorList)
+
 	return errorList
 }
 
@@ -38,6 +39,7 @@ func writeFile(t *testing.T, dir, name, content string) {
 	if content == "" {
 		return
 	}
+
 	require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(content), DefaultFilePerm))
 }
 
