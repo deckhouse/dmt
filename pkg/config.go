@@ -220,8 +220,9 @@ type ModuleLinterRules struct {
 	HelmignoreRule        RuleConfig
 	LicenseRule           RuleConfig
 	RequarementsRule      RuleConfig
-	PackageYAMLRule       RuleConfig
-	LegacyReleaseFileRule RuleConfig
+	PackageYAMLRule               RuleConfig
+	ModulePackageConsistencyRule  RuleConfig
+	LegacyReleaseFileRule         RuleConfig
 }
 type OSSRuleSettings struct {
 	Disable bool
