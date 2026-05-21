@@ -431,6 +431,7 @@ Validates the optional `package.yaml` file in the module root.
 - ✅ All non-empty version constraints must be parsed as-is by the semver library
 - ✅ The new requirements schema requires `requirements.deckhouse.constraint >= 1.77.0`
 - ✅ Old markers such as `!optional` are rejected when placed inside a new `constraint` field
+- ✅ `subscribe.apis` entries must use `<group>/<version>/<Kind>` with an explicit API group and UpperCamelCase `Kind`
 
 **New Requirements Schema Detection:**
 The rule treats `package.yaml` as using the new requirements schema when any of these fields are present:
@@ -478,6 +479,8 @@ subscribe:
 ❌ package.yaml apiVersion is required
 ❌ Invalid package.yaml requirements.modules.conditional[0].constraint version constraint ">= 1.0.0 !optional"
 ❌ package.yaml requirements.deckhouse.constraint version range should start no lower than 1.77.0
+❌ package.yaml subscribe.apis[0] must use "<group>/<version>/<Kind>" format with a non-empty API group
+❌ package.yaml subscribe.apis[0] kind must be UpperCamelCase and start with an uppercase letter
 ```
 
 ---
