@@ -38,7 +38,7 @@ import (
 
 const (
 	defaultHTTPClientTimeout = 30 * time.Second
-	defaultClientName        = "dmt"
+	defaultClientName        = "promremote-go/1.0.0"
 )
 
 // Label is a metric label.
