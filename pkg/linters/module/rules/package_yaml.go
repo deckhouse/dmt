@@ -21,8 +21,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 
 	"github.com/Masterminds/semver/v3"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/yaml"
 
 	"github.com/deckhouse/dmt/pkg"
@@ -34,6 +37,8 @@ const (
 	PackageConfigFilename                         = "package.yaml"
 	MinimalDeckhouseVersionForPackageRequirements = "1.77.0"
 )
+
+var subscribeAPIKindRegex = regexp.MustCompile(`^[A-Z][A-Za-z0-9]*$`)
 
 // NewPackageYAMLRule creates a rule for validating package.yaml.
 func NewPackageYAMLRule() *PackageYAMLRule {
@@ -157,6 +162,7 @@ func checkModulePackageRequirements(modulePackage *ModulePackage, errorList *err
 	validatePackageMetadata(modulePackage, errorList)
 	validatePackageConstraints(modulePackage, errorList)
 	validatePackageDeckhouseRequirement(modulePackage, errorList)
+	validatePackageSubscribeAPIs(modulePackage, errorList)
 }
 
 // validatePackageMetadata validates required package.yaml metadata fields.
@@ -263,4 +269,46 @@ func validatePackageDeckhouseRequirement(modulePackage *ModulePackage, errorList
 
 		errorList.Errorf("package.yaml requirements.deckhouse.constraint version range should start no lower than %s (currently: %s)", MinimalDeckhouseVersionForPackageRequirements, minAllowed.String())
 	}
+}
+
+// validatePackageSubscribeAPIs validates subscribed API references in package.yaml.
+func validatePackageSubscribeAPIs(modulePackage *ModulePackage, errorList *errors.LintRuleErrorsList) {
+	if modulePackage == nil || modulePackage.Subscribe == nil {
+		return
+	}
+
+	errorList = errorList.WithFilePath(PackageConfigFilename)
+
+	for idx, api := range modulePackage.Subscribe.APIs {
+		validatePackageSubscribeAPI(fmt.Sprintf("subscribe.apis[%d]", idx), api, errorList)
+	}
+}
+
+// validatePackageSubscribeAPI validates a single subscribe.apis entry.
+func validatePackageSubscribeAPI(fieldPath, value string, errorList *errors.LintRuleErrorsList) {
+	parts := strings.Split(value, "/")
+	if len(parts) != 3 {
+		errorList.Errorf("package.yaml %s must use %q format with a non-empty API group", fieldPath, "<group>/<version>/<Kind>")
+		return
+	}
+
+	group, version, kind := parts[0], parts[1], parts[2]
+	if group == "" || version == "" || kind == "" {
+		errorList.Errorf("package.yaml %s must use %q format with a non-empty API group", fieldPath, "<group>/<version>/<Kind>")
+		return
+	}
+
+	groupVersion := fmt.Sprintf("%s/%s", group, version)
+	if _, err := schema.ParseGroupVersion(groupVersion); err != nil {
+		errorList.Errorf("package.yaml %s has invalid Kubernetes group/version %q: %s", fieldPath, groupVersion, err)
+		return
+	}
+
+	if !isValidSubscribeAPIKind(kind) {
+		errorList.Errorf("package.yaml %s kind must be UpperCamelCase and start with an uppercase letter", fieldPath)
+	}
+}
+
+func isValidSubscribeAPIKind(kind string) bool {
+	return subscribeAPIKindRegex.MatchString(kind)
 }
