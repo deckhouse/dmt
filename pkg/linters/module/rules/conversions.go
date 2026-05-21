@@ -106,10 +106,6 @@ func (r *ConversionsRule) CheckConversions(modulePath string, errorList *errors.
 		return
 	}
 
-	if cv.ConfigVersion == 0 {
-		return
-	}
-
 	folder := filepath.Join(modulePath, conversionsFolder)
 
 	stat, err := os.Stat(folder)
@@ -120,9 +116,11 @@ func (r *ConversionsRule) CheckConversions(modulePath string, errorList *errors.
 		return
 	}
 
-	if os.IsNotExist(err) || !stat.IsDir() {
-		errorList.WithFilePath(conversionsFolder).
-			Error("Conversions folder is not exist")
+	if err != nil || !stat.IsDir() {
+		if cv.ConfigVersion > 0 {
+			errorList.WithFilePath(conversionsFolder).
+				Error("Conversions folder is not exist")
+		}
 
 		return
 	}
@@ -164,12 +162,27 @@ func (r *ConversionsRule) CheckConversions(modulePath string, errorList *errors.
 	})
 
 	if len(versions) == 0 {
-		errorList.Errorf("No versions in folder: %q", folder)
+		if cv.ConfigVersion > 0 {
+			errorList.Errorf("No versions in folder: %q", folder)
+		}
+
+		return
+	}
+
+	if cv.ConfigVersion == 0 {
+		errorList.WithFilePath(configValuesFile).
+			Error("x-config-version is not set in config-values.yaml, but conversions exist")
 
 		return
 	}
 
 	slices.Sort(versions)
+
+	latestVersion := versions[len(versions)-1]
+	if cv.ConfigVersion != latestVersion {
+		errorList.WithFilePath(configValuesFile).
+			Errorf("x-config-version (%d) does not match latest conversion version (%d)", cv.ConfigVersion, latestVersion)
+	}
 
 	if versions[0] != 2 {
 		errorList.Errorf("You need to start with version number: 2")

@@ -360,6 +360,36 @@ description:
 	assert.Contains(t, errorList.GetErrors()[0].Text, "x-config-version")
 }
 
+func TestTester_ConversionsExistButConfigVersionZero(t *testing.T) {
+	tempDir := t.TempDir()
+
+	err := os.MkdirAll(filepath.Join(tempDir, "openapi", "conversions"), 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(
+		filepath.Join(tempDir, "openapi", "config-values.yaml"),
+		[]byte("x-config-version: 0"),
+		0644,
+	)
+	require.NoError(t, err)
+
+	v2 := `version: 2
+conversions:
+  - del(.auth.password)
+description:
+  en: "v2"
+  ru: "v2 ru"`
+	err = os.WriteFile(filepath.Join(tempDir, "openapi", "conversions", "v2.yaml"), []byte(v2), 0644)
+	require.NoError(t, err)
+
+	errorList := pkgerrors.NewTestErrorsList()
+	tester := New(errorList)
+	tester.Run(tempDir)
+
+	assert.True(t, errorList.ContainsErrors())
+	assert.Contains(t, errorList.GetErrors()[0].Text, "x-config-version is not set")
+}
+
 func TestConversionsTester_ReportsTestcaseFailure(t *testing.T) {
 	tmpDir := t.TempDir()
 
