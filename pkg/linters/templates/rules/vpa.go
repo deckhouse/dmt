@@ -19,7 +19,7 @@ package rules
 import (
 	"fmt"
 
-	"github.com/flant/addon-operator/sdk"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/set"
@@ -147,7 +147,7 @@ func parseVPAResourcePolicyContainers(vpaObject storage.StoreObject, errorList *
 
 	v := &VerticalPodAutoscaler{}
 
-	err := sdk.FromUnstructured(&vpaObject.Unstructured, v)
+	err := runtime.DefaultUnstructuredConverter.FromUnstructured(vpaObject.Unstructured.UnstructuredContent(), v)
 	if err != nil {
 		errorListObj.Errorf("Cannot unmarshal VPA object: %v", err)
 

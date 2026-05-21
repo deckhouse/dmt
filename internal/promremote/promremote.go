@@ -14,26 +14,31 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package promremote is a package to write timeseries data to a Prometheus remote write endpoint.
-// copied from https://github.com/m3dbx/prometheus_remote_client_golang/blob/master/promremote/client.go
+// Package promremote writes timeseries to a Prometheus remote-write endpoint.
+//
+// It is a thin wrapper around the upstream Prometheus remote-write client
+// (github.com/prometheus/prometheus/storage/remote.NewWriteClient) that
+// preserves the historical TSList/TimeSeries surface used elsewhere in dmt.
 package promremote
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"net/http"
+	"net/url"
 	"time"
 
-	"github.com/golang/protobuf/proto" //nolint:staticcheck // Required for prompb compatibility
+	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
+	config_util "github.com/prometheus/common/config"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/prompb"
+	"github.com/prometheus/prometheus/storage/remote"
 )
 
 const (
 	defaultHTTPClientTimeout = 30 * time.Second
-	defaultUserAgent         = "promremote-go/1.0.0"
+	defaultClientName        = "promremote-go/1.0.0"
 )
 
 // Label is a metric label.
@@ -42,7 +47,7 @@ type Label struct {
 	Value string
 }
 
-// TimeSeries are made of labels and a datapoint.
+// TimeSeries is a labelled datapoint.
 type TimeSeries struct {
 	Labels    []Label
 	Datapoint Datapoint
@@ -51,15 +56,16 @@ type TimeSeries struct {
 // TSList is a slice of TimeSeries.
 type TSList []TimeSeries
 
-// A Datapoint is a single data value reported at a given time.
+// Datapoint is a single value reported at a given time.
 type Datapoint struct {
 	Timestamp time.Time
 	Value     float64
 }
 
-// WriteOptions specifies additional write options.
+// WriteOptions specifies additional write options. Reserved for future use;
+// the upstream client manages its headers (Content-Type/Encoding, User-Agent,
+// X-Prometheus-Remote-Write-Version, Authorization) internally.
 type WriteOptions struct {
-	// Headers to append or override the outgoing headers.
 	Headers map[string]string
 }
 
@@ -68,106 +74,77 @@ type WriteResult struct {
 	StatusCode int
 }
 
-// WriteError is an error that can also return the HTTP status code
-// if the response is what caused an error.
+// WriteError is an error that can also report an HTTP status code when the
+// failure was caused by the response.
 type WriteError interface {
 	error
 	StatusCode() int
 }
 
+// Client wraps an upstream Prometheus remote.WriteClient.
 type Client struct {
-	writeURL   string
-	token      string
-	httpClient *http.Client
-	userAgent  string
+	inner remote.WriteClient
 }
 
-// NewClient creates a new remote write coordinator client.
-func NewClient(url, token string) *Client {
-	if url == "" || token == "" {
+// NewClient creates a remote-write client backed by the default upstream
+// Prometheus client. Returns nil when url or token is empty, matching the
+// previous behaviour relied on by callers.
+func NewClient(rawURL, token string) *Client {
+	if rawURL == "" || token == "" {
 		return nil
 	}
 
-	httpClient := &http.Client{
-		Timeout: defaultHTTPClientTimeout,
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return nil
 	}
 
-	return &Client{
-		token:      token,
-		writeURL:   url,
-		httpClient: httpClient,
-		userAgent:  defaultUserAgent,
+	inner, err := remote.NewWriteClient(defaultClientName, &remote.ClientConfig{
+		URL:     &config_util.URL{URL: parsed},
+		Timeout: model.Duration(defaultHTTPClientTimeout),
+		HTTPClientConfig: config_util.HTTPClientConfig{
+			BearerToken: config_util.Secret(token),
+		},
+	})
+	if err != nil {
+		return nil
 	}
+
+	return &Client{inner: inner}
 }
 
+// WriteTimeSeries serialises seriesList to the Prometheus remote-write v1
+// protobuf, snappy-encodes it, and POSTs it to the configured endpoint.
 func (c *Client) WriteTimeSeries(
 	ctx context.Context,
 	seriesList TSList,
-	opts WriteOptions,
+	_ WriteOptions,
 ) (WriteResult, WriteError) {
-	return c.WriteProto(ctx, seriesList.toPromWriteRequest(), opts)
+	return c.WriteProto(ctx, seriesList.toPromWriteRequest())
 }
 
+// WriteProto sends an already-built prompb.WriteRequest to the configured
+// endpoint.
 func (c *Client) WriteProto(
 	ctx context.Context,
 	promWR *prompb.WriteRequest,
-	opts WriteOptions,
 ) (WriteResult, WriteError) {
-	var result WriteResult
+	if c == nil || c.inner == nil {
+		return WriteResult{}, &writeError{err: fmt.Errorf("promremote client is not configured")}
+	}
 
 	data, err := proto.Marshal(promWR)
 	if err != nil {
-		return result, writeError{err: fmt.Errorf("unable to marshal protobuf: %w", err)}
+		return WriteResult{}, &writeError{err: fmt.Errorf("marshal write request: %w", err)}
 	}
 
 	encoded := snappy.Encode(nil, data)
 
-	body := bytes.NewReader(encoded)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.writeURL, body)
-	if err != nil {
-		return result, writeError{err: err}
+	if _, err = c.inner.Store(ctx, encoded, 0); err != nil {
+		return WriteResult{}, &writeError{err: err}
 	}
 
-	req.Header.Set("Content-Type", "application/x-protobuf")
-	req.Header.Set("Content-Encoding", "snappy")
-	req.Header.Set("User-Agent", c.userAgent)
-	req.Header.Set("X-Prometheus-Remote-Write-Version", "0.1.0")
-	req.Header.Set("Authorization", "Bearer "+c.token)
-
-	if opts.Headers != nil {
-		for k, v := range opts.Headers {
-			req.Header.Set(k, v)
-		}
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return result, writeError{err: err}
-	}
-
-	result.StatusCode = resp.StatusCode
-
-	defer resp.Body.Close()
-
-	if result.StatusCode/100 != 2 {
-		writeErr := writeError{
-			err:  fmt.Errorf("expected HTTP 200 status code: actual=%d", resp.StatusCode),
-			code: result.StatusCode,
-		}
-
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			writeErr.err = fmt.Errorf("%w, body_read_error=%w", writeErr.err, err)
-			return result, writeErr
-		}
-
-		writeErr.err = fmt.Errorf("%w, body=%s", writeErr.err, body)
-
-		return result, writeErr
-	}
-
-	return result, nil
+	return WriteResult{StatusCode: http.StatusOK}, nil
 }
 
 // toPromWriteRequest converts a list of timeseries to a Prometheus proto write request.
@@ -198,12 +175,12 @@ type writeError struct {
 	code int
 }
 
-func (e writeError) Error() string {
+func (e *writeError) Error() string {
 	return e.err.Error()
 }
 
-// StatusCode returns the HTTP status code of the error if error
-// was caused by the response, otherwise it will be just zero.
-func (e writeError) StatusCode() int {
+// StatusCode returns the HTTP status code of the error if the error was caused
+// by the response, otherwise zero.
+func (e *writeError) StatusCode() int {
 	return e.code
 }
