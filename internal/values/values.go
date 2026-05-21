@@ -29,7 +29,7 @@ const (
 //
 //	/modules/XXX-module-name/openapi/config-values.yaml
 //	/modules/XXX-module-name/openapi/values.yaml
-func readOpenAPIFiles(openAPIDir string) (configValuesBytes, valuesBytes []byte, err error) {
+func readOpenAPIFiles(openAPIDir string) ([]byte, []byte, error) {
 	if openAPIDir == "" {
 		return nil, nil, nil
 	}
@@ -38,16 +38,24 @@ func readOpenAPIFiles(openAPIDir string) (configValuesBytes, valuesBytes []byte,
 		return nil, nil, nil
 	}
 
+	var configValuesBytes []byte
+
 	configPath := filepath.Join(openAPIDir, configValuesFileName)
 	if _, statErr := os.Stat(configPath); !os.IsNotExist(statErr) {
+		var err error
+
 		configValuesBytes, err = os.ReadFile(configPath)
 		if err != nil {
 			return nil, nil, fmt.Errorf("read file %q: %w", configPath, err)
 		}
 	}
 
+	var valuesBytes []byte
+
 	valuesPath := filepath.Join(openAPIDir, valuesFileName)
 	if _, statErr := os.Stat(valuesPath); !os.IsNotExist(statErr) {
+		var err error
+
 		valuesBytes, err = os.ReadFile(valuesPath)
 		if err != nil {
 			return nil, nil, fmt.Errorf("read file %q: %w", valuesPath, err)
