@@ -25,7 +25,7 @@ import (
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
-	"k8s.io/apimachinery/pkg/runtime/schema"
+	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"sigs.k8s.io/yaml"
 
 	"github.com/deckhouse/dmt/pkg"
@@ -39,6 +39,7 @@ const (
 )
 
 var subscribeAPIKindRegex = regexp.MustCompile(`^[A-Z][A-Za-z0-9]*$`)
+var subscribeAPIVersionRegex = regexp.MustCompile(`^v[0-9]+(?:(alpha|beta)[0-9]+)?$`)
 
 // NewPackageYAMLRule creates a rule for validating package.yaml.
 func NewPackageYAMLRule() *PackageYAMLRule {
@@ -298,15 +299,27 @@ func validatePackageSubscribeAPI(fieldPath, value string, errorList *errors.Lint
 		return
 	}
 
-	groupVersion := fmt.Sprintf("%s/%s", group, version)
-	if _, err := schema.ParseGroupVersion(groupVersion); err != nil {
-		errorList.Errorf("package.yaml %s has invalid Kubernetes group/version %q: %s", fieldPath, groupVersion, err)
+	if !isValidSubscribeAPIGroup(group) {
+		errorList.Errorf("package.yaml %s has invalid Kubernetes API group %q", fieldPath, group)
+		return
+	}
+
+	if !isValidSubscribeAPIVersion(version) {
+		errorList.Errorf("package.yaml %s has invalid Kubernetes API version %q", fieldPath, version)
 		return
 	}
 
 	if !isValidSubscribeAPIKind(kind) {
 		errorList.Errorf("package.yaml %s kind must be UpperCamelCase and start with an uppercase letter", fieldPath)
 	}
+}
+
+func isValidSubscribeAPIGroup(group string) bool {
+	return len(utilvalidation.IsDNS1123Subdomain(group)) == 0
+}
+
+func isValidSubscribeAPIVersion(version string) bool {
+	return subscribeAPIVersionRegex.MatchString(version)
 }
 
 func isValidSubscribeAPIKind(kind string) bool {

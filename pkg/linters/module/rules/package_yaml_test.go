@@ -550,6 +550,39 @@ func TestValidatePackageSubscribeAPIs(t *testing.T) {
 			},
 		},
 		{
+			name: "uppercase group is invalid",
+			modulePackage: &ModulePackage{
+				Subscribe: &PackageSubscribe{
+					APIs: []string{"Apps/v1/Pod"},
+				},
+			},
+			expectedErrors: []string{
+				`package.yaml subscribe.apis[0] has invalid Kubernetes API group "Apps"`,
+			},
+		},
+		{
+			name: "space in group is invalid",
+			modulePackage: &ModulePackage{
+				Subscribe: &PackageSubscribe{
+					APIs: []string{"bad group/v1/Pod"},
+				},
+			},
+			expectedErrors: []string{
+				`package.yaml subscribe.apis[0] has invalid Kubernetes API group "bad group"`,
+			},
+		},
+		{
+			name: "uppercase version is invalid",
+			modulePackage: &ModulePackage{
+				Subscribe: &PackageSubscribe{
+					APIs: []string{"apps/V1/Pod"},
+				},
+			},
+			expectedErrors: []string{
+				`package.yaml subscribe.apis[0] has invalid Kubernetes API version "V1"`,
+			},
+		},
+		{
 			name: "missing kind",
 			modulePackage: &ModulePackage{
 				Subscribe: &PackageSubscribe{
