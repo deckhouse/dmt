@@ -131,12 +131,9 @@ func compareKubernetes(module *DeckhouseModule, packageYAML *ModulePackage, erro
 // In module.yaml dependencies are a flat map (optional ones carry the "!optional" suffix),
 // while package.yaml splits them into mandatory and conditional groups.
 func compareModules(module *DeckhouseModule, packageYAML *ModulePackage, errorList *errors.LintRuleErrorsList) {
-	moduleErr := errorList.WithFilePath(ModuleConfigFilename)
-	pkgErr := errorList.WithFilePath(PackageConfigFilename)
-
 	if module.Requirements == nil || len(module.Requirements.ParentModules) == 0 {
 		if packageYAML.Requirements != nil && (len(packageYAML.Requirements.Modules.Mandatory) > 0 || len(packageYAML.Requirements.Modules.Conditional) > 0) {
-			checkPackageModulesNotInModule(module, packageYAML, pkgErr)
+			checkPackageModulesNotInModule(module, packageYAML, errorList.WithFilePath(PackageConfigFilename))
 		}
 
 		return
@@ -144,7 +141,7 @@ func compareModules(module *DeckhouseModule, packageYAML *ModulePackage, errorLi
 
 	if packageYAML.Requirements == nil {
 		for name := range module.Requirements.ParentModules {
-			moduleErr.Errorf("module.yaml module %q has requirement but package.yaml has no requirements section", name)
+			errorList.WithFilePath(ModuleConfigFilename).Errorf("module.yaml module %q has requirement but package.yaml has no requirements section", name)
 		}
 
 		return
@@ -178,16 +175,16 @@ func compareModules(module *DeckhouseModule, packageYAML *ModulePackage, errorLi
 		pkgConstraint, exists := pkgMandatory[name]
 		if !exists {
 			if _, isConditional := pkgConditional[name]; isConditional {
-				moduleErr.Errorf("module.yaml module %q is mandatory but package.yaml lists it as conditional", name)
+				errorList.WithFilePath(ModuleConfigFilename).Errorf("module.yaml module %q is mandatory but package.yaml lists it as conditional", name)
 			} else {
-				moduleErr.Errorf("module.yaml module %q is mandatory but not found in package.yaml requirements.modules.mandatory", name)
+				errorList.WithFilePath(ModuleConfigFilename).Errorf("module.yaml module %q is mandatory but not found in package.yaml requirements.modules.mandatory", name)
 			}
 
 			continue
 		}
 
 		if constraint != pkgConstraint {
-			moduleErr.Errorf("module.yaml module %q constraint %q does not match package.yaml constraint %q", name, constraint, pkgConstraint)
+			errorList.WithFilePath(ModuleConfigFilename).Errorf("module.yaml module %q constraint %q does not match package.yaml constraint %q", name, constraint, pkgConstraint)
 		}
 	}
 
@@ -196,16 +193,16 @@ func compareModules(module *DeckhouseModule, packageYAML *ModulePackage, errorLi
 		pkgConstraint, exists := pkgConditional[name]
 		if !exists {
 			if _, isMandatory := pkgMandatory[name]; isMandatory {
-				moduleErr.Errorf("module.yaml module %q is optional but package.yaml lists it as mandatory", name)
+				errorList.WithFilePath(ModuleConfigFilename).Errorf("module.yaml module %q is optional but package.yaml lists it as mandatory", name)
 			} else {
-				moduleErr.Errorf("module.yaml module %q is optional but not found in package.yaml requirements.modules.conditional", name)
+				errorList.WithFilePath(ModuleConfigFilename).Errorf("module.yaml module %q is optional but not found in package.yaml requirements.modules.conditional", name)
 			}
 
 			continue
 		}
 
 		if constraint != pkgConstraint {
-			moduleErr.Errorf("module.yaml module %q constraint %q does not match package.yaml constraint %q", name, constraint, pkgConstraint)
+			errorList.WithFilePath(ModuleConfigFilename).Errorf("module.yaml module %q constraint %q does not match package.yaml constraint %q", name, constraint, pkgConstraint)
 		}
 	}
 
@@ -219,7 +216,7 @@ func compareModules(module *DeckhouseModule, packageYAML *ModulePackage, errorLi
 			continue
 		}
 
-		pkgErr.Errorf("package.yaml module %q is mandatory but not found in module.yaml requirements.modules", name)
+		errorList.WithFilePath(PackageConfigFilename).Errorf("package.yaml module %q is mandatory but not found in module.yaml requirements.modules", name)
 	}
 
 	// package.yaml conditional -> module.yaml
@@ -232,7 +229,7 @@ func compareModules(module *DeckhouseModule, packageYAML *ModulePackage, errorLi
 			continue
 		}
 
-		pkgErr.Errorf("package.yaml module %q is conditional but not found in module.yaml requirements.modules", name)
+		errorList.WithFilePath(PackageConfigFilename).Errorf("package.yaml module %q is conditional but not found in module.yaml requirements.modules", name)
 	}
 }
 
