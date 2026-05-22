@@ -522,6 +522,9 @@ func TestValidatePackageSubscribeAPIs(t *testing.T) {
 					APIs: []string{
 						"autoscaling.k8s.io/v1/VerticalPodAutoscaler",
 						"deckhouse.io/v1alpha1/ModuleRelease",
+						"apiregistration.k8s.io/v1/APIService",
+						"example.io/v1/MyAPI",
+						"example.io/v1/ServiceDNS",
 					},
 				},
 			},
@@ -535,7 +538,7 @@ func TestValidatePackageSubscribeAPIs(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				`package.yaml subscribe.apis[0] must use "<group>/<version>/<Kind>" format with a non-empty API group`,
+				`package.yaml subscribe.apis[0] must use "<group>/<version>/<Kind>" format with non-empty group, version, and Kind`,
 			},
 		},
 		{
@@ -546,7 +549,18 @@ func TestValidatePackageSubscribeAPIs(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				"package.yaml subscribe.apis[0] kind must be UpperCamelCase and start with an uppercase letter",
+				`package.yaml subscribe.apis[0] kind "pod" must be UpperCamelCase`,
+			},
+		},
+		{
+			name: "uppercase acronym-only kind is invalid",
+			modulePackage: &ModulePackage{
+				Subscribe: &PackageSubscribe{
+					APIs: []string{"apps/v1/POD"},
+				},
+			},
+			expectedErrors: []string{
+				`package.yaml subscribe.apis[0] kind "POD" must be UpperCamelCase`,
 			},
 		},
 		{
@@ -590,7 +604,7 @@ func TestValidatePackageSubscribeAPIs(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				`package.yaml subscribe.apis[0] must use "<group>/<version>/<Kind>" format with a non-empty API group`,
+				`package.yaml subscribe.apis[0] must use "<group>/<version>/<Kind>" format with non-empty group, version, and Kind`,
 			},
 		},
 		{
@@ -601,7 +615,7 @@ func TestValidatePackageSubscribeAPIs(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				`package.yaml subscribe.apis[0] must use "<group>/<version>/<Kind>" format with a non-empty API group`,
+				`package.yaml subscribe.apis[0] must use "<group>/<version>/<Kind>" format with non-empty group, version, and Kind`,
 			},
 		},
 		{
@@ -612,7 +626,7 @@ func TestValidatePackageSubscribeAPIs(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				`package.yaml subscribe.apis[0] must use "<group>/<version>/<Kind>" format with a non-empty API group`,
+				`package.yaml subscribe.apis[0] must use "<group>/<version>/<Kind>" format with non-empty group, version, and Kind`,
 			},
 		},
 		{
@@ -623,7 +637,7 @@ func TestValidatePackageSubscribeAPIs(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				`package.yaml subscribe.apis[0] must use "<group>/<version>/<Kind>" format with a non-empty API group`,
+				`package.yaml subscribe.apis[0] must use "<group>/<version>/<Kind>" format with non-empty group, version, and Kind`,
 			},
 		},
 		{
@@ -634,7 +648,7 @@ func TestValidatePackageSubscribeAPIs(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				`package.yaml subscribe.apis[0] must use "<group>/<version>/<Kind>" format with a non-empty API group`,
+				`package.yaml subscribe.apis[0] must use "<group>/<version>/<Kind>" format with non-empty group, version, and Kind`,
 			},
 		},
 		{
@@ -645,7 +659,7 @@ func TestValidatePackageSubscribeAPIs(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				`package.yaml subscribe.apis[0] must use "<group>/<version>/<Kind>" format with a non-empty API group`,
+				`package.yaml subscribe.apis[0] must use "<group>/<version>/<Kind>" format with non-empty group, version, and Kind`,
 			},
 		},
 		{
@@ -656,7 +670,7 @@ func TestValidatePackageSubscribeAPIs(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				"package.yaml subscribe.apis[0] kind must be UpperCamelCase and start with an uppercase letter",
+				`package.yaml subscribe.apis[0] kind "pod-name" must be UpperCamelCase`,
 			},
 		},
 		{
@@ -667,7 +681,7 @@ func TestValidatePackageSubscribeAPIs(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				"package.yaml subscribe.apis[0] kind must be UpperCamelCase and start with an uppercase letter",
+				`package.yaml subscribe.apis[0] kind "Pod-Name" must be UpperCamelCase`,
 			},
 		},
 	}
@@ -723,6 +737,8 @@ requirements:
 subscribe:
   apis:
     - autoscaling.k8s.io/v1/VerticalPodAutoscaler
+    - example.io/v1/MyAPI
+    - example.io/v1/ServiceDNS
 `,
 			expectedErrors: []string{},
 		},
@@ -803,7 +819,7 @@ subscribe:
     - v1/Pod
 `,
 			expectedErrors: []string{
-				`package.yaml subscribe.apis[0] must use "<group>/<version>/<Kind>" format with a non-empty API group`,
+				`package.yaml subscribe.apis[0] must use "<group>/<version>/<Kind>" format with non-empty group, version, and Kind`,
 			},
 		},
 		{
@@ -815,7 +831,19 @@ subscribe:
     - apps/v1/pod
 `,
 			expectedErrors: []string{
-				"package.yaml subscribe.apis[0] kind must be UpperCamelCase and start with an uppercase letter",
+				`package.yaml subscribe.apis[0] kind "pod" must be UpperCamelCase`,
+			},
+		},
+		{
+			name: "subscribe api uppercase acronym-only kind",
+			packageContent: `apiVersion: v2
+name: stronghold
+subscribe:
+  apis:
+    - apps/v1/POD
+`,
+			expectedErrors: []string{
+				`package.yaml subscribe.apis[0] kind "POD" must be UpperCamelCase`,
 			},
 		},
 		{
@@ -825,12 +853,13 @@ name: stronghold
 subscribe:
   apis:
     - autoscaling.k8s.io/v1/VerticalPodAutoscaler
+    - apiregistration.k8s.io/v1/APIService
     - v1/Pod
     - apps/v1/pod
 `,
 			expectedErrors: []string{
-				`package.yaml subscribe.apis[1] must use "<group>/<version>/<Kind>" format with a non-empty API group`,
-				"package.yaml subscribe.apis[2] kind must be UpperCamelCase and start with an uppercase letter",
+				`package.yaml subscribe.apis[2] must use "<group>/<version>/<Kind>" format with non-empty group, version, and Kind`,
+				`package.yaml subscribe.apis[3] kind "pod" must be UpperCamelCase`,
 			},
 		},
 	}

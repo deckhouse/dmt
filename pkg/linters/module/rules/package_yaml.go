@@ -38,7 +38,7 @@ const (
 	MinimalDeckhouseVersionForPackageRequirements = "1.77.0"
 )
 
-var subscribeAPIKindRegex = regexp.MustCompile(`^[A-Z][A-Za-z0-9]*$`)
+var subscribeAPIKindRegex = regexp.MustCompile(`^[A-Z]+[a-z0-9]+(?:[A-Z]+[a-z0-9]+)*[A-Z]*$`)
 var subscribeAPIVersionRegex = regexp.MustCompile(`^v[0-9]+(?:(alpha|beta)[0-9]+)?$`)
 
 // NewPackageYAMLRule creates a rule for validating package.yaml.
@@ -289,13 +289,13 @@ func validatePackageSubscribeAPIs(modulePackage *ModulePackage, errorList *error
 func validatePackageSubscribeAPI(fieldPath, value string, errorList *errors.LintRuleErrorsList) {
 	parts := strings.Split(value, "/")
 	if len(parts) != 3 {
-		errorList.Errorf("package.yaml %s must use %q format with a non-empty API group", fieldPath, "<group>/<version>/<Kind>")
+		errorList.Errorf("package.yaml %s must use %q format with non-empty group, version, and Kind (got %q)", fieldPath, "<group>/<version>/<Kind>", value)
 		return
 	}
 
 	group, version, kind := parts[0], parts[1], parts[2]
 	if group == "" || version == "" || kind == "" {
-		errorList.Errorf("package.yaml %s must use %q format with a non-empty API group", fieldPath, "<group>/<version>/<Kind>")
+		errorList.Errorf("package.yaml %s must use %q format with non-empty group, version, and Kind (got %q)", fieldPath, "<group>/<version>/<Kind>", value)
 		return
 	}
 
@@ -310,7 +310,7 @@ func validatePackageSubscribeAPI(fieldPath, value string, errorList *errors.Lint
 	}
 
 	if !isValidSubscribeAPIKind(kind) {
-		errorList.Errorf("package.yaml %s kind must be UpperCamelCase and start with an uppercase letter", fieldPath)
+		errorList.Errorf("package.yaml %s kind %q must be UpperCamelCase", fieldPath, kind)
 	}
 }
 
