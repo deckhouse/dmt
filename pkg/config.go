@@ -129,6 +129,13 @@ type TemplatesLinterConfig struct {
 	ExcludeRules              TemplatesExcludeRules
 	PrometheusRuleSettings    PrometheusRuleSettings
 	GrafanaDashboardsSettings GrafanaDashboardsSettings
+	SourceLabelSettings       SourceLabelSettings
+}
+
+type SourceLabelSettings struct {
+	Disable            bool
+	AllowedMetrics     []string
+	RecordingRuleNames map[string]struct{}
 }
 type TemplatesLinterRules struct {
 	VPARule            RuleConfig
@@ -141,6 +148,7 @@ type TemplatesLinterRules struct {
 	ClusterDomainRule  RuleConfig
 	RegistryRule       RuleConfig
 	EnabledModulesRule RuleConfig
+	SourceLabelRule    RuleConfig
 }
 
 type PrometheusRuleSettings struct {
