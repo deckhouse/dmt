@@ -157,6 +157,7 @@ func (m *Manager) Run() {
 
 	for _, module := range m.Modules {
 		module.SetRecordingRuleNames(recordNames)
+
 		processingCh <- struct{}{}
 
 		wg.Add(1)
@@ -200,45 +201,55 @@ func getLintersForModule(cfg *pkg.LintersSettings, errList *errors.LintRuleError
 
 func collectRecordingRuleNames(modules []*module.Module) map[string]struct{} {
 	names := make(map[string]struct{})
+
 	for _, m := range modules {
 		for _, obj := range m.GetStorage() {
 			if obj.Unstructured.GetKind() != "PrometheusRule" {
 				continue
 			}
+
 			ispec, ok := obj.Unstructured.Object["spec"]
 			if !ok {
 				continue
 			}
+
 			spec, ok := ispec.(map[string]any)
 			if !ok {
 				continue
 			}
+
 			igroups, ok := spec["groups"]
 			if !ok {
 				continue
 			}
+
 			groups, ok := igroups.([]any)
 			if !ok {
 				continue
 			}
+
 			for _, ig := range groups {
 				group, ok := ig.(map[string]any)
 				if !ok {
 					continue
 				}
+
 				irules, ok := group["rules"]
 				if !ok {
 					continue
 				}
+
 				rules, ok := irules.([]any)
 				if !ok {
 					continue
 				}
+
 				for _, ir := range rules {
 					rule, ok := ir.(map[string]any)
 					if !ok {
 						continue
 					}
+
 					record, ok := rule["record"].(string)
 					if ok && record != "" {
 						names[record] = struct{}{}
@@ -247,6 +258,7 @@ func collectRecordingRuleNames(modules []*module.Module) map[string]struct{} {
 			}
 		}
 	}
+
 	return names
 }
 

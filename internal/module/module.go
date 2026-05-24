@@ -154,7 +154,6 @@ func (m *Module) SetRecordingRuleNames(names map[string]struct{}) {
 	m.linterConfig.Templates.SourceLabelSettings.RecordingRuleNames = names
 }
 
-
 // remapLinterSettings converts configuration settings from the config package format
 // to the pkg package format, mapping both rule-level configurations and exclusion rules
 // across all linter domains (Container, Image, NoCyrillic, OpenAPI, Templates, RBAC, Hooks, Module).

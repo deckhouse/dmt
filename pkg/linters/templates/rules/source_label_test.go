@@ -43,9 +43,9 @@ func TestCheckExprWithSourceLabel(t *testing.T) {
 			expectedErrors: 1,
 		},
 		{
-			name:        	"recording rule name is allowed without source",
-			expr:        	`my_recording_rule`,
-			recordNames: 	map[string]struct{}{"my_recording_rule": {}},
+			name:           "recording rule name is allowed without source",
+			expr:           `my_recording_rule`,
+			recordNames:    map[string]struct{}{"my_recording_rule": {}},
 			expectedErrors: 0,
 		},
 		{
@@ -67,6 +67,7 @@ func TestCheckExprWithSourceLabel(t *testing.T) {
 			if recordNames == nil {
 				recordNames = make(map[string]struct{})
 			}
+
 			allowedMetrics := tt.allowedMetrics
 			if allowedMetrics == nil {
 				allowedMetrics = make(map[string]struct{})

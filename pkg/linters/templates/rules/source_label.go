@@ -47,13 +47,16 @@ type SourceLabelRule struct {
 
 func NewSourceLabelRule(cfg *pkg.TemplatesLinterConfig) *SourceLabelRule {
 	var exclude bool
+
 	allowedMetrics := make(map[string]struct{})
 	recordNames := make(map[string]struct{})
+
 	if cfg != nil {
 		exclude = cfg.SourceLabelSettings.Disable
 		for _, m := range cfg.SourceLabelSettings.AllowedMetrics {
 			allowedMetrics[m] = struct{}{}
 		}
+
 		if cfg.SourceLabelSettings.RecordingRuleNames != nil {
 			recordNames = cfg.SourceLabelSettings.RecordingRuleNames
 		}
@@ -86,6 +89,7 @@ func (r *SourceLabelRule) SourceLabelCheck(m pkg.Module, object storage.StoreObj
 	if !ok {
 		return
 	}
+
 	spec, ok := ispec.(map[string]any)
 	if !ok {
 		return
@@ -101,10 +105,12 @@ func (r *SourceLabelRule) SourceLabelCheck(m pkg.Module, object storage.StoreObj
 		Alert  string `yaml:"alert,omitempty"`
 		Expr   string `yaml:"expr"`
 	}
+
 	type ruleGroup struct {
 		Name  string `yaml:"name"`
 		Rules []rule `yaml:"rules"`
 	}
+
 	type ruleGroups struct {
 		Groups []ruleGroup `yaml:"groups"`
 	}
@@ -119,10 +125,12 @@ func (r *SourceLabelRule) SourceLabelCheck(m pkg.Module, object storage.StoreObj
 			if rl.Expr == "" {
 				continue
 			}
+
 			ruleName := rl.Alert
 			if ruleName == "" {
 				ruleName = rl.Record
 			}
+
 			r.checkExpr(rl.Expr, ruleName, group.Name, object.GetPath(), errorList)
 		}
 	}
@@ -157,11 +165,13 @@ func (r *SourceLabelRule) checkExpr(expr, ruleName, groupName, filePath string, 
 		if _, ok := r.recordingRuleNames[metricName]; ok {
 			return nil
 		}
+
 		if _, ok := r.allowedMetrics[metricName]; ok {
 			return nil
 		}
 
 		hasSourceLabel := false
+
 		for _, m := range vs.LabelMatchers {
 			if m.Name == "source" && m.Type == labels.MatchEqual && m.Value == "deckhouse" {
 				hasSourceLabel = true
@@ -193,8 +203,10 @@ func sanitizeGrafanaExpr(expr string) string {
 		if name == "source" {
 			return match
 		}
+
 		return "__placeholder__"
 	})
+
 	return result
 }
 
@@ -245,6 +257,7 @@ func (r *SourceLabelRule) checkPanel(panel *gjson.Result, filePath string, error
 		if expr == "" {
 			continue
 		}
+
 		sanitized := sanitizeGrafanaExpr(expr)
 		r.checkExpr(sanitized, fmt.Sprintf("panel '%s'", panelTitle), "dashboard", filePath, errorList)
 	}
@@ -265,6 +278,7 @@ func (r *SourceLabelRule) checkTemplateVariables(dashboard *gjson.Result, filePa
 		if query == "" {
 			query = tmpl.Get("query").String()
 		}
+
 		if query == "" {
 			continue
 		}
