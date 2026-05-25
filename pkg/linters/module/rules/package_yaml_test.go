@@ -483,6 +483,223 @@ func TestValidatePackageDeckhouseRequirement(t *testing.T) {
 	}
 }
 
+func TestValidatePackageSubscribeAPIs(t *testing.T) {
+	tests := []struct {
+		name           string
+		modulePackage  *ModulePackage
+		expectedErrors []string
+	}{
+		{
+			name:           "nil package",
+			modulePackage:  nil,
+			expectedErrors: []string{},
+		},
+		{
+			name:           "nil subscribe",
+			modulePackage:  &ModulePackage{},
+			expectedErrors: []string{},
+		},
+		{
+			name: "empty apis",
+			modulePackage: &ModulePackage{
+				Subscribe: &PackageSubscribe{},
+			},
+			expectedErrors: []string{},
+		},
+		{
+			name: "valid single api",
+			modulePackage: &ModulePackage{
+				Subscribe: &PackageSubscribe{
+					APIs: []string{"autoscaling.k8s.io/v1/VerticalPodAutoscaler"},
+				},
+			},
+			expectedErrors: []string{},
+		},
+		{
+			name: "valid multiple apis",
+			modulePackage: &ModulePackage{
+				Subscribe: &PackageSubscribe{
+					APIs: []string{
+						"autoscaling.k8s.io/v1/VerticalPodAutoscaler",
+						"deckhouse.io/v1alpha1/ModuleRelease",
+						"apiregistration.k8s.io/v1/APIService",
+						"example.io/v1/MyAPI",
+						"example.io/v1/ServiceDNS",
+					},
+				},
+			},
+			expectedErrors: []string{},
+		},
+		{
+			name: "missing group",
+			modulePackage: &ModulePackage{
+				Subscribe: &PackageSubscribe{
+					APIs: []string{"v1/Pod"},
+				},
+			},
+			expectedErrors: []string{
+				`package.yaml subscribe.apis[0] must use "<group>/<version>/<Kind>" format with non-empty group, version, and Kind`,
+			},
+		},
+		{
+			name: "lowercase kind",
+			modulePackage: &ModulePackage{
+				Subscribe: &PackageSubscribe{
+					APIs: []string{"apps/v1/pod"},
+				},
+			},
+			expectedErrors: []string{
+				`package.yaml subscribe.apis[0] kind "pod" must start with an uppercase letter and contain only letters and digits`,
+			},
+		},
+		{
+			name: "uppercase acronym-only kind is valid",
+			modulePackage: &ModulePackage{
+				Subscribe: &PackageSubscribe{
+					APIs: []string{"apps/v1/POD"},
+				},
+			},
+			expectedErrors: []string{},
+		},
+		{
+			name: "uppercase group is invalid",
+			modulePackage: &ModulePackage{
+				Subscribe: &PackageSubscribe{
+					APIs: []string{"Apps/v1/Pod"},
+				},
+			},
+			expectedErrors: []string{
+				`package.yaml subscribe.apis[0] has invalid Kubernetes API group "Apps"`,
+			},
+		},
+		{
+			name: "space in group is invalid",
+			modulePackage: &ModulePackage{
+				Subscribe: &PackageSubscribe{
+					APIs: []string{"bad group/v1/Pod"},
+				},
+			},
+			expectedErrors: []string{
+				`package.yaml subscribe.apis[0] has invalid Kubernetes API group "bad group"`,
+			},
+		},
+		{
+			name: "uppercase version is invalid",
+			modulePackage: &ModulePackage{
+				Subscribe: &PackageSubscribe{
+					APIs: []string{"apps/V1/Pod"},
+				},
+			},
+			expectedErrors: []string{
+				`package.yaml subscribe.apis[0] has invalid Kubernetes API version "V1"`,
+			},
+		},
+		{
+			name: "missing kind",
+			modulePackage: &ModulePackage{
+				Subscribe: &PackageSubscribe{
+					APIs: []string{"apps/v1/"},
+				},
+			},
+			expectedErrors: []string{
+				`package.yaml subscribe.apis[0] must use "<group>/<version>/<Kind>" format with non-empty group, version, and Kind`,
+			},
+		},
+		{
+			name: "missing version",
+			modulePackage: &ModulePackage{
+				Subscribe: &PackageSubscribe{
+					APIs: []string{"apps//Pod"},
+				},
+			},
+			expectedErrors: []string{
+				`package.yaml subscribe.apis[0] must use "<group>/<version>/<Kind>" format with non-empty group, version, and Kind`,
+			},
+		},
+		{
+			name: "missing group with three parts",
+			modulePackage: &ModulePackage{
+				Subscribe: &PackageSubscribe{
+					APIs: []string{"/v1/Pod"},
+				},
+			},
+			expectedErrors: []string{
+				`package.yaml subscribe.apis[0] must use "<group>/<version>/<Kind>" format with non-empty group, version, and Kind`,
+			},
+		},
+		{
+			name: "malformed part count short",
+			modulePackage: &ModulePackage{
+				Subscribe: &PackageSubscribe{
+					APIs: []string{"apps/v1"},
+				},
+			},
+			expectedErrors: []string{
+				`package.yaml subscribe.apis[0] must use "<group>/<version>/<Kind>" format with non-empty group, version, and Kind`,
+			},
+		},
+		{
+			name: "malformed part count long",
+			modulePackage: &ModulePackage{
+				Subscribe: &PackageSubscribe{
+					APIs: []string{"apps/v1/Pod/Extra"},
+				},
+			},
+			expectedErrors: []string{
+				`package.yaml subscribe.apis[0] must use "<group>/<version>/<Kind>" format with non-empty group, version, and Kind`,
+			},
+		},
+		{
+			name: "empty string",
+			modulePackage: &ModulePackage{
+				Subscribe: &PackageSubscribe{
+					APIs: []string{""},
+				},
+			},
+			expectedErrors: []string{
+				`package.yaml subscribe.apis[0] must use "<group>/<version>/<Kind>" format with non-empty group, version, and Kind`,
+			},
+		},
+		{
+			name: "invalid kind characters lowercase dash",
+			modulePackage: &ModulePackage{
+				Subscribe: &PackageSubscribe{
+					APIs: []string{"apps/v1/pod-name"},
+				},
+			},
+			expectedErrors: []string{
+				`package.yaml subscribe.apis[0] kind "pod-name" must start with an uppercase letter and contain only letters and digits`,
+			},
+		},
+		{
+			name: "invalid kind characters uppercase dash",
+			modulePackage: &ModulePackage{
+				Subscribe: &PackageSubscribe{
+					APIs: []string{"apps/v1/Pod-Name"},
+				},
+			},
+			expectedErrors: []string{
+				`package.yaml subscribe.apis[0] kind "Pod-Name" must start with an uppercase letter and contain only letters and digits`,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errorList := errors.NewLintRuleErrorsList()
+			validatePackageSubscribeAPIs(tt.modulePackage, errorList)
+
+			errs := errorList.GetErrors()
+			require.Len(t, errs, len(tt.expectedErrors))
+
+			for idx, expectedError := range tt.expectedErrors {
+				assert.Contains(t, errs[idx].Text, expectedError)
+				assert.Equal(t, PackageConfigFilename, errs[idx].FilePath)
+			}
+		})
+	}
+}
+
 func TestPackageYAMLRule(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -515,6 +732,11 @@ requirements:
         modules:
           - name: cloud-provider-gcp
             constraint: ">= 1.5.0"
+subscribe:
+  apis:
+    - autoscaling.k8s.io/v1/VerticalPodAutoscaler
+    - example.io/v1/MyAPI
+    - example.io/v1/ServiceDNS
 `,
 			expectedErrors: []string{},
 		},
@@ -585,6 +807,56 @@ requirements:
     constraint: ">= 1.77 !optional"
 `,
 			expectedErrors: []string{"Invalid package.yaml requirements.deckhouse.constraint version constraint \">= 1.77 !optional\""},
+		},
+		{
+			name: "subscribe api missing group",
+			packageContent: `apiVersion: v2
+name: stronghold
+subscribe:
+  apis:
+    - v1/Pod
+`,
+			expectedErrors: []string{
+				`package.yaml subscribe.apis[0] must use "<group>/<version>/<Kind>" format with non-empty group, version, and Kind`,
+			},
+		},
+		{
+			name: "subscribe api lowercase kind",
+			packageContent: `apiVersion: v2
+name: stronghold
+subscribe:
+  apis:
+    - apps/v1/pod
+`,
+			expectedErrors: []string{
+				`package.yaml subscribe.apis[0] kind "pod" must start with an uppercase letter and contain only letters and digits`,
+			},
+		},
+		{
+			name: "subscribe api uppercase acronym-only kind is valid",
+			packageContent: `apiVersion: v2
+name: stronghold
+subscribe:
+  apis:
+    - apps/v1/POD
+`,
+			expectedErrors: []string{},
+		},
+		{
+			name: "mixed subscribe apis keep order",
+			packageContent: `apiVersion: v2
+name: stronghold
+subscribe:
+  apis:
+    - autoscaling.k8s.io/v1/VerticalPodAutoscaler
+    - apiregistration.k8s.io/v1/APIService
+    - v1/Pod
+    - apps/v1/pod
+`,
+			expectedErrors: []string{
+				`package.yaml subscribe.apis[2] must use "<group>/<version>/<Kind>" format with non-empty group, version, and Kind`,
+				`package.yaml subscribe.apis[3] kind "pod" must start with an uppercase letter and contain only letters and digits`,
+			},
 		},
 	}
 
