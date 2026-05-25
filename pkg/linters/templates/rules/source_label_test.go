@@ -113,10 +113,12 @@ func TestCheckExprWithSourceLabel(t *testing.T) {
 				recordNames = make(map[string]struct{})
 			}
 
-			var compiled []*regexp.Regexp
+			compiled := make([]*regexp.Regexp, 0, len(tt.allowedMetrics))
+
 			for _, m := range tt.allowedMetrics {
 				re, err := globToRegexp(m)
 				assert.NoError(t, err)
+
 				compiled = append(compiled, re)
 			}
 
