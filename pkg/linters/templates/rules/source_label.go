@@ -296,7 +296,16 @@ func (r *SourceLabelRule) checkDashboardFile(filePath string, errorList *errors.
 	r.checkTemplateVariables(&dashboard, filePath, errorList)
 }
 
+func isPrometheusDatasource(obj *gjson.Result) bool {
+	dsType := obj.Get("datasource.type").String()
+	return dsType == "" || dsType == "prometheus"
+}
+
 func (r *SourceLabelRule) checkPanel(panel *gjson.Result, filePath string, errorList *errors.LintRuleErrorsList) {
+	if !isPrometheusDatasource(panel) {
+		return
+	}
+
 	panelTitle := panel.Get("title").String()
 	if panelTitle == "" {
 		panelTitle = "unnamed"
@@ -304,6 +313,10 @@ func (r *SourceLabelRule) checkPanel(panel *gjson.Result, filePath string, error
 
 	targets := panel.Get("targets").Array()
 	for _, target := range targets {
+		if !isPrometheusDatasource(&target) {
+			continue
+		}
+
 		expr := target.Get("expr").String()
 		if expr == "" {
 			continue
@@ -322,6 +335,10 @@ func (r *SourceLabelRule) checkTemplateVariables(dashboard *gjson.Result, filePa
 
 	for _, tmpl := range templating.Array() {
 		if tmpl.Get("type").String() != "query" {
+			continue
+		}
+
+		if !isPrometheusDatasource(&tmpl) {
 			continue
 		}
 
