@@ -38,6 +38,16 @@ const (
 	SourceLabelRuleName = "source-label"
 )
 
+// prometheusSyntheticMetrics contains Prometheus built-in metrics that are generated
+// internally by the engine and never receive scrape-time labels like source="deckhouse".
+// This set is intentionally separate from allowedMetrics (per-module config) and
+// recordingRuleNames (computed at runtime) because these metrics are universally
+// synthetic regardless of module or deployment.
+var prometheusSyntheticMetrics = map[string]struct{}{
+	"ALERTS":           {},
+	"ALERTS_FOR_STATE": {},
+}
+
 type SourceLabelRule struct {
 	pkg.RuleMeta
 	pkg.BoolRule
@@ -167,6 +177,10 @@ func (r *SourceLabelRule) checkExpr(expr, ruleName, groupName, filePath string, 
 		}
 
 		if _, ok := r.allowedMetrics[metricName]; ok {
+			return nil
+		}
+
+		if _, ok := prometheusSyntheticMetrics[metricName]; ok {
 			return nil
 		}
 
