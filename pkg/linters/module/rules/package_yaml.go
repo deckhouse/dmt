@@ -38,7 +38,7 @@ const (
 	MinimalDeckhouseVersionForPackageRequirements = "1.77.0"
 )
 
-var subscribeAPIKindRegex = regexp.MustCompile(`^[A-Z]+[a-z0-9]+(?:[A-Z]+[a-z0-9]+)*[A-Z]*$`)
+var subscribeAPIKindRegex = regexp.MustCompile(`^[A-Z][a-zA-Z0-9]*$`)
 var subscribeAPIVersionRegex = regexp.MustCompile(`^v[0-9]+(?:(alpha|beta)[0-9]+)?$`)
 
 // NewPackageYAMLRule creates a rule for validating package.yaml.
@@ -310,7 +310,7 @@ func validatePackageSubscribeAPI(fieldPath, value string, errorList *errors.Lint
 	}
 
 	if !isValidSubscribeAPIKind(kind) {
-		errorList.Errorf("package.yaml %s kind %q must be UpperCamelCase", fieldPath, kind)
+		errorList.Errorf("package.yaml %s kind %q must start with an uppercase letter and contain only letters and digits", fieldPath, kind)
 	}
 }
 

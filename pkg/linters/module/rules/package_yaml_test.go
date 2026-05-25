@@ -549,19 +549,17 @@ func TestValidatePackageSubscribeAPIs(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				`package.yaml subscribe.apis[0] kind "pod" must be UpperCamelCase`,
+				`package.yaml subscribe.apis[0] kind "pod" must start with an uppercase letter and contain only letters and digits`,
 			},
 		},
 		{
-			name: "uppercase acronym-only kind is invalid",
+			name: "uppercase acronym-only kind is valid",
 			modulePackage: &ModulePackage{
 				Subscribe: &PackageSubscribe{
 					APIs: []string{"apps/v1/POD"},
 				},
 			},
-			expectedErrors: []string{
-				`package.yaml subscribe.apis[0] kind "POD" must be UpperCamelCase`,
-			},
+			expectedErrors: []string{},
 		},
 		{
 			name: "uppercase group is invalid",
@@ -670,7 +668,7 @@ func TestValidatePackageSubscribeAPIs(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				`package.yaml subscribe.apis[0] kind "pod-name" must be UpperCamelCase`,
+				`package.yaml subscribe.apis[0] kind "pod-name" must start with an uppercase letter and contain only letters and digits`,
 			},
 		},
 		{
@@ -681,7 +679,7 @@ func TestValidatePackageSubscribeAPIs(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				`package.yaml subscribe.apis[0] kind "Pod-Name" must be UpperCamelCase`,
+				`package.yaml subscribe.apis[0] kind "Pod-Name" must start with an uppercase letter and contain only letters and digits`,
 			},
 		},
 	}
@@ -831,20 +829,18 @@ subscribe:
     - apps/v1/pod
 `,
 			expectedErrors: []string{
-				`package.yaml subscribe.apis[0] kind "pod" must be UpperCamelCase`,
+				`package.yaml subscribe.apis[0] kind "pod" must start with an uppercase letter and contain only letters and digits`,
 			},
 		},
 		{
-			name: "subscribe api uppercase acronym-only kind",
+			name: "subscribe api uppercase acronym-only kind is valid",
 			packageContent: `apiVersion: v2
 name: stronghold
 subscribe:
   apis:
     - apps/v1/POD
 `,
-			expectedErrors: []string{
-				`package.yaml subscribe.apis[0] kind "POD" must be UpperCamelCase`,
-			},
+			expectedErrors: []string{},
 		},
 		{
 			name: "mixed subscribe apis keep order",
@@ -859,7 +855,7 @@ subscribe:
 `,
 			expectedErrors: []string{
 				`package.yaml subscribe.apis[2] must use "<group>/<version>/<Kind>" format with non-empty group, version, and Kind`,
-				`package.yaml subscribe.apis[3] kind "pod" must be UpperCamelCase`,
+				`package.yaml subscribe.apis[3] kind "pod" must start with an uppercase letter and contain only letters and digits`,
 			},
 		},
 	}
