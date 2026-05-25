@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -29,7 +30,7 @@ func TestCheckExprWithSourceLabel(t *testing.T) {
 		name           string
 		expr           string
 		recordNames    map[string]struct{}
-		allowedMetrics map[string]struct{}
+		allowedMetrics []string
 		expectedErrors int
 	}{
 		{
@@ -54,10 +55,54 @@ func TestCheckExprWithSourceLabel(t *testing.T) {
 			expectedErrors: 1,
 		},
 		{
-			name:           "allowed metric does not produce error",
+			name:           "exact allowed metric does not produce error",
 			expr:           `allowed_metric`,
-			allowedMetrics: map[string]struct{}{"allowed_metric": {}},
+			allowedMetrics: []string{"allowed_metric"},
 			expectedErrors: 0,
+		},
+		{
+			name:           "glob pattern matches metric prefix",
+			expr:           `coredns_panics_total + coredns_dns_requests_total`,
+			allowedMetrics: []string{"coredns_*"},
+			expectedErrors: 0,
+		},
+		{
+			name:           "glob pattern does not match unrelated metric",
+			expr:           `kube_pod_info`,
+			allowedMetrics: []string{"coredns_*"},
+			expectedErrors: 1,
+		},
+		{
+			name:           "glob pattern with question mark",
+			expr:           `metric_v1_total + metric_v2_total`,
+			allowedMetrics: []string{"metric_v?_total"},
+			expectedErrors: 0,
+		},
+		{
+			name:           "mixed exact and glob",
+			expr:           `exact_metric + coredns_cache_hits_total + unknown_metric`,
+			allowedMetrics: []string{"exact_metric", "coredns_*"},
+			expectedErrors: 1,
+		},
+		{
+			name:           "ALERTS synthetic metric is allowed without source",
+			expr:           `ALERTS{alertname="SomeAlert"}`,
+			expectedErrors: 0,
+		},
+		{
+			name:           "ALERTS_FOR_STATE synthetic metric is allowed without source",
+			expr:           `ALERTS_FOR_STATE{alertname="SomeAlert"}`,
+			expectedErrors: 0,
+		},
+		{
+			name:           "ALERTS in complex expr does not produce error",
+			expr:           `ALERTS{alertname="KubeQuotaExceeded"} == 1 and on(namespace) kube_pod_info{source="deckhouse"}`,
+			expectedErrors: 0,
+		},
+		{
+			name:           "ALERTS without source but regular metric also without source",
+			expr:           `ALERTS{alertname="X"} * on() some_metric`,
+			expectedErrors: 1,
 		},
 	}
 
@@ -68,20 +113,71 @@ func TestCheckExprWithSourceLabel(t *testing.T) {
 				recordNames = make(map[string]struct{})
 			}
 
-			allowedMetrics := tt.allowedMetrics
-			if allowedMetrics == nil {
-				allowedMetrics = make(map[string]struct{})
+			var compiled []*regexp.Regexp
+			for _, m := range tt.allowedMetrics {
+				re, err := globToRegexp(m)
+				assert.NoError(t, err)
+				compiled = append(compiled, re)
 			}
 
 			rule := &SourceLabelRule{
 				recordingRuleNames: recordNames,
-				allowedMetrics:     allowedMetrics,
+				allowedMetrics:     compiled,
 			}
 
 			errorList := errors.NewLintRuleErrorsList()
 			rule.checkExpr(tt.expr, "test-rule", "test-group", "/test/file.yaml", errorList)
 
 			assert.Len(t, errorList.GetErrors(), tt.expectedErrors)
+		})
+	}
+}
+
+func TestGlobToRegexp(t *testing.T) {
+	tests := []struct {
+		pattern string
+		match   []string
+		noMatch []string
+	}{
+		{
+			pattern: "coredns_*",
+			match:   []string{"coredns_panics_total", "coredns_dns_requests_total", "coredns_"},
+			noMatch: []string{"xcoredns_foo", "kube_pod_info", "coredns"},
+		},
+		{
+			pattern: "metric_v?_total",
+			match:   []string{"metric_v1_total", "metric_vX_total"},
+			noMatch: []string{"metric_v12_total", "metric_v_total"},
+		},
+		{
+			pattern: "exact_metric",
+			match:   []string{"exact_metric"},
+			noMatch: []string{"exact_metric_extra", "xexact_metric", "exact_metricx"},
+		},
+		{
+			pattern: "ingress_nginx_*_responses_*",
+			match:   []string{"ingress_nginx_detail_responses_total", "ingress_nginx_overall_responses_5xx"},
+			noMatch: []string{"ingress_nginx_connections", "nginx_responses_total"},
+		},
+		{
+			pattern: "*.total",
+			match:   []string{"foo.total", "bar_baz.total"},
+			noMatch: []string{"foo_total", "total"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.pattern, func(t *testing.T) {
+			re, err := globToRegexp(tt.pattern)
+			assert.NoError(t, err)
+
+			for _, s := range tt.match {
+				assert.True(t, re.MatchString(s), "expected %q to match pattern %q", s, tt.pattern)
+			}
+
+			for _, s := range tt.noMatch {
+				assert.False(t, re.MatchString(s), "expected %q NOT to match pattern %q", s, tt.pattern)
+			}
 		})
 	}
 }

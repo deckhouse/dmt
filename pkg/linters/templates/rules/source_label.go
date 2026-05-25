@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/promql/parser"
@@ -52,19 +53,45 @@ type SourceLabelRule struct {
 	pkg.RuleMeta
 	pkg.BoolRule
 	recordingRuleNames map[string]struct{}
-	allowedMetrics     map[string]struct{}
+	allowedMetrics     []*regexp.Regexp
+}
+
+// globToRegexp converts a simple glob pattern (supporting * and ?) to a regexp.
+// Plain strings without wildcards are compiled as ^exact_name$, behaving like exact match.
+func globToRegexp(pattern string) (*regexp.Regexp, error) {
+	var b strings.Builder
+	b.WriteString("^")
+
+	for _, ch := range pattern {
+		switch ch {
+		case '*':
+			b.WriteString(".*")
+		case '?':
+			b.WriteString(".")
+		default:
+			b.WriteString(regexp.QuoteMeta(string(ch)))
+		}
+	}
+
+	b.WriteString("$")
+
+	return regexp.Compile(b.String())
 }
 
 func NewSourceLabelRule(cfg *pkg.TemplatesLinterConfig) *SourceLabelRule {
 	var exclude bool
 
-	allowedMetrics := make(map[string]struct{})
+	var allowedMetrics []*regexp.Regexp
+
 	recordNames := make(map[string]struct{})
 
 	if cfg != nil {
 		exclude = cfg.SourceLabelSettings.Disable
+
 		for _, m := range cfg.SourceLabelSettings.AllowedMetrics {
-			allowedMetrics[m] = struct{}{}
+			if re, err := globToRegexp(m); err == nil {
+				allowedMetrics = append(allowedMetrics, re)
+			}
 		}
 
 		if cfg.SourceLabelSettings.RecordingRuleNames != nil {
@@ -176,7 +203,7 @@ func (r *SourceLabelRule) checkExpr(expr, ruleName, groupName, filePath string, 
 			return nil
 		}
 
-		if _, ok := r.allowedMetrics[metricName]; ok {
+		if r.isAllowedMetric(metricName) {
 			return nil
 		}
 
@@ -201,6 +228,16 @@ func (r *SourceLabelRule) checkExpr(expr, ruleName, groupName, filePath string, 
 
 		return nil
 	})
+}
+
+func (r *SourceLabelRule) isAllowedMetric(metricName string) bool {
+	for _, re := range r.allowedMetrics {
+		if re.MatchString(metricName) {
+			return true
+		}
+	}
+
+	return false
 }
 
 var (
