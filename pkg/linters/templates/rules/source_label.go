@@ -195,7 +195,7 @@ func (r *SourceLabelRule) checkExpr(expr, ruleName, groupName, filePath string, 
 			}
 		}
 
-		if metricName == "" || metricName == "__placeholder__" {
+		if metricName == "" || strings.Contains(metricName, "__placeholder__") {
 			return nil
 		}
 

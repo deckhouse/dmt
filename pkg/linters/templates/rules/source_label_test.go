@@ -111,6 +111,11 @@ func TestCheckExprWithSourceLabel(t *testing.T) {
 			expectedErrors: 0,
 		},
 		{
+			name:           "placeholder embedded in metric name is skipped",
+			expr:           `__placeholder___requests_total{some="label"}`,
+			expectedErrors: 0,
+		},
+		{
 			name:           "invalid PromQL is silently skipped",
 			expr:           `label_values(kube_pod_info, namespace)`,
 			expectedErrors: 0,
