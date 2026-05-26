@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/tidwall/gjson"
 
 	"github.com/deckhouse/dmt/pkg/errors"
 )
@@ -104,6 +105,26 @@ func TestCheckExprWithSourceLabel(t *testing.T) {
 			expr:           `ALERTS{alertname="X"} * on() some_metric`,
 			expectedErrors: 1,
 		},
+		{
+			name:           "placeholder metric name is skipped",
+			expr:           `__placeholder__{some="label"}`,
+			expectedErrors: 0,
+		},
+		{
+			name:           "invalid PromQL is silently skipped",
+			expr:           `label_values(kube_pod_info, namespace)`,
+			expectedErrors: 0,
+		},
+		{
+			name:           "expression with $source variable is accepted",
+			expr:           `m{source="$source"}`,
+			expectedErrors: 0,
+		},
+		{
+			name:           "expression with ${source} variable is accepted",
+			expr:           `m{source="${source}"}`,
+			expectedErrors: 0,
+		},
 	}
 
 	for _, tt := range tests {
@@ -184,6 +205,112 @@ func TestGlobToRegexp(t *testing.T) {
 	}
 }
 
+func TestIsPrometheusDataSource(t *testing.T) {
+	tests := []struct {
+		name     string
+		json     string
+		expected bool
+	}{
+		{
+			name:     "no datasource field defaults to prometheus",
+			json:     `{"title": "panel"}`,
+			expected: true,
+		},
+		{
+			name:     "datasource type prometheus",
+			json:     `{"datasource": {"type": "prometheus", "uid": "$ds"}}`,
+			expected: true,
+		},
+		{
+			name:     "datasource type empty defaults to prometheus",
+			json:     `{"datasource": {"uid": "$ds"}}`,
+			expected: true,
+		},
+		{
+			name:     "datasource is plain string",
+			json:     `{"datasource": "Graphite"}`,
+			expected: false,
+		},
+		{
+			name:     "datasource type loki",
+			json:     `{"datasource": {"type": "loki", "uid": "$ds_loki"}}`,
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := gjson.Parse(tt.json)
+			assert.Equal(t, tt.expected, isPrometheusDataSource(&result))
+		})
+	}
+}
+
+func TestCollectPanelsRecursive(t *testing.T) {
+	tests := []struct {
+		name           string
+		json           string
+		expectedTitles []string
+	}{
+		{
+			name: "flat panels",
+			json: `[
+				{"type": "graph", "title": "A"},
+				{"type": "stat", "title": "B"}
+			]`,
+			expectedTitles: []string{"A", "B"},
+		},
+		{
+			name: "one level of row nesting",
+			json: `[
+				{"type": "row", "panels": [
+					{"type": "graph", "title": "A"}
+				]},
+				{"type": "stat", "title": "B"}
+			]`,
+			expectedTitles: []string{"A", "B"},
+		},
+		{
+			name: "two levels of row nesting",
+			json: `[
+				{"type": "row", "panels": [
+					{"type": "row", "panels": [
+						{"type": "graph", "title": "deep"}
+					]}
+				]}
+			]`,
+			expectedTitles: []string{"deep"},
+		},
+		{
+			name: "three levels of row nesting",
+			json: `[
+				{"type": "row", "panels": [
+					{"type": "row", "panels": [
+						{"type": "row", "panels": [
+							{"type": "graph", "title": "very-deep"}
+						]}
+					]}
+				]}
+			]`,
+			expectedTitles: []string{"very-deep"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			items := gjson.Parse(tt.json).Array()
+			panels := collectPanelsRecursive(items)
+
+			titles := make([]string, 0, len(panels))
+			for _, p := range panels {
+				titles = append(titles, p.Get("title").String())
+			}
+
+			assert.Equal(t, tt.expectedTitles, titles)
+		})
+	}
+}
+
 func TestSanitizeGrafanaExpr(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -214,6 +341,21 @@ func TestSanitizeGrafanaExpr(t *testing.T) {
 			name:     "replaces $__range with 5m",
 			input:    `increase(m[$__range])`,
 			expected: `increase(m[5m])`,
+		},
+		{
+			name:     "does not replace ${source}",
+			input:    `m{source="${source}"}`,
+			expected: `m{source="${source}"}`,
+		},
+		{
+			name:     "does not replace ${source:json}",
+			input:    `m{source="${source:json}"}`,
+			expected: `m{source="${source:json}"}`,
+		},
+		{
+			name:     "replaces ${other_var} with __placeholder__",
+			input:    `m{ns="${namespace}"}`,
+			expected: `m{ns="__placeholder__"}`,
 		},
 	}
 

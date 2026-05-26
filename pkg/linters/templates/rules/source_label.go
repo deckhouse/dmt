@@ -195,7 +195,7 @@ func (r *SourceLabelRule) checkExpr(expr, ruleName, groupName, filePath string, 
 			}
 		}
 
-		if metricName == "" {
+		if metricName == "" || metricName == "__placeholder__" {
 			return nil
 		}
 
@@ -214,7 +214,8 @@ func (r *SourceLabelRule) checkExpr(expr, ruleName, groupName, filePath string, 
 		hasSourceLabel := false
 
 		for _, m := range vs.LabelMatchers {
-			if m.Name == "source" && m.Type == labels.MatchEqual && m.Value == "deckhouse" {
+			if m.Name == "source" && m.Type == labels.MatchEqual &&
+				(m.Value == "deckhouse" || strings.HasPrefix(m.Value, "$")) {
 				hasSourceLabel = true
 				break
 			}
@@ -248,7 +249,14 @@ var (
 
 func sanitizeGrafanaExpr(expr string) string {
 	result := grafanaBuiltinVarRe.ReplaceAllString(expr, "5m")
-	result = grafanaVarBracesRe.ReplaceAllString(result, "__placeholder__")
+	result = grafanaVarBracesRe.ReplaceAllStringFunc(result, func(match string) string {
+		sub := grafanaVarBracesRe.FindStringSubmatch(match)
+		if len(sub) > 1 && sub[1] == "source" {
+			return match
+		}
+
+		return "__placeholder__"
+	})
 	result = grafanaVarSimpleRe.ReplaceAllStringFunc(result, func(match string) string {
 		name := match[1:]
 		if name == "source" {
@@ -296,13 +304,23 @@ func (r *SourceLabelRule) checkDashboardFile(filePath string, errorList *errors.
 	r.checkTemplateVariables(&dashboard, filePath, errorList)
 }
 
-func isPrometheusDatasource(obj *gjson.Result) bool {
-	dsType := obj.Get("datasource.type").String()
+func isPrometheusDataSource(obj *gjson.Result) bool {
+	ds := obj.Get("datasource")
+	if !ds.Exists() {
+		return true
+	}
+
+	if ds.Type == gjson.String {
+		return false
+	}
+
+	dsType := ds.Get("type").String()
+
 	return dsType == "" || dsType == "prometheus"
 }
 
 func (r *SourceLabelRule) checkPanel(panel *gjson.Result, filePath string, errorList *errors.LintRuleErrorsList) {
-	if !isPrometheusDatasource(panel) {
+	if !isPrometheusDataSource(panel) {
 		return
 	}
 
@@ -313,7 +331,7 @@ func (r *SourceLabelRule) checkPanel(panel *gjson.Result, filePath string, error
 
 	targets := panel.Get("targets").Array()
 	for _, target := range targets {
-		if !isPrometheusDatasource(&target) {
+		if !isPrometheusDataSource(&target) {
 			continue
 		}
 
@@ -338,7 +356,7 @@ func (r *SourceLabelRule) checkTemplateVariables(dashboard *gjson.Result, filePa
 			continue
 		}
 
-		if !isPrometheusDatasource(&tmpl) {
+		if !isPrometheusDataSource(&tmpl) {
 			continue
 		}
 
@@ -358,7 +376,7 @@ func (r *SourceLabelRule) checkTemplateVariables(dashboard *gjson.Result, filePa
 }
 
 func (r *SourceLabelRule) extractDashboardPanels(dashboard *gjson.Result) []gjson.Result {
-	panels := make([]gjson.Result, 0)
+	var panels []gjson.Result
 
 	rows := dashboard.Get("rows").Array()
 	for _, row := range rows {
@@ -367,15 +385,22 @@ func (r *SourceLabelRule) extractDashboardPanels(dashboard *gjson.Result) []gjso
 	}
 
 	directPanels := dashboard.Get("panels").Array()
-	for _, panel := range directPanels {
-		panelType := panel.Get("type").String()
-		if panelType == "row" {
-			rowPanels := panel.Get("panels").Array()
-			panels = append(panels, rowPanels...)
+	panels = append(panels, collectPanelsRecursive(directPanels)...)
+
+	return panels
+}
+
+func collectPanelsRecursive(items []gjson.Result) []gjson.Result {
+	var result []gjson.Result
+
+	for _, item := range items {
+		if item.Get("type").String() == "row" {
+			nested := item.Get("panels").Array()
+			result = append(result, collectPanelsRecursive(nested)...)
 		} else {
-			panels = append(panels, panel)
+			result = append(result, item)
 		}
 	}
 
-	return panels
+	return result
 }

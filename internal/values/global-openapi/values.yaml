@@ -276,10 +276,10 @@ properties:
     items:
       type: string
     x-examples:
-      - ["cert-manager", "vertical-pod-autoscaler", "vertical-pod-autoscaler-crd", "prometheus", "priority-class", "prometheus-crd", "operator-prometheus", "operator-prometheus"]
+      - ["cert-manager", "vertical-pod-autoscaler", "vertical-pod-autoscaler-crd", "prometheus", "priority-class", "prometheus-crd", "operator-prometheus", "operator-prometheus-crd"]
       - ["cert-manager", "prometheus", "priority-class"]
     x-dmt-default:
-      ["cert-manager", "vertical-pod-autoscaler", "vertical-pod-autoscaler-crd", "prometheus", "priority-class", "prometheus-crd", "operator-prometheus", "operator-prometheus"]
+      ["cert-manager", "vertical-pod-autoscaler", "vertical-pod-autoscaler-crd", "prometheus", "priority-class", "prometheus-crd", "operator-prometheus", "operator-prometheus-crd"]
   discovery:
     additionalProperties: true
     type: object
