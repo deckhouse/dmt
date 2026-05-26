@@ -376,22 +376,22 @@ func (r *SourceLabelRule) checkTemplateVariables(dashboard *gjson.Result, filePa
 }
 
 func (r *SourceLabelRule) extractDashboardPanels(dashboard *gjson.Result) []gjson.Result {
-	panels := make([]gjson.Result, 0)
-
 	rows := dashboard.Get("rows").Array()
+	directPanels := dashboard.Get("panels").Array()
+	panels := make([]gjson.Result, 0, len(rows)+len(directPanels))
+
 	for _, row := range rows {
 		rowPanels := row.Get("panels").Array()
 		panels = append(panels, rowPanels...)
 	}
 
-	directPanels := dashboard.Get("panels").Array()
 	panels = append(panels, collectPanelsRecursive(directPanels)...)
 
 	return panels
 }
 
 func collectPanelsRecursive(items []gjson.Result) []gjson.Result {
-	var result []gjson.Result
+	result := make([]gjson.Result, 0, len(items))
 
 	for _, item := range items {
 		if item.Get("type").String() == "row" {
