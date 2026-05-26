@@ -227,9 +227,19 @@ func TestIsPrometheusDataSource(t *testing.T) {
 			expected: true,
 		},
 		{
-			name:     "datasource is plain string",
+			name:     "datasource is plain string Graphite",
 			json:     `{"datasource": "Graphite"}`,
 			expected: false,
+		},
+		{
+			name:     "datasource is plain string with prometheus in name",
+			json:     `{"datasource": "$ds_prometheus"}`,
+			expected: true,
+		},
+		{
+			name:     "datasource is plain string Prometheus capitalized",
+			json:     `{"datasource": "Prometheus"}`,
+			expected: true,
 		},
 		{
 			name:     "datasource type loki",

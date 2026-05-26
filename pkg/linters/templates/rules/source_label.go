@@ -311,7 +311,7 @@ func isPrometheusDataSource(obj *gjson.Result) bool {
 	}
 
 	if ds.Type == gjson.String {
-		return false
+		return strings.Contains(strings.ToLower(ds.String()), "prometheus")
 	}
 
 	dsType := ds.Get("type").String()
