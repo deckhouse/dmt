@@ -140,6 +140,7 @@ type TemplatesLinterRules struct {
 	ServicePortRule   RuleConfig
 	ClusterDomainRule RuleConfig
 	RegistryRule      RuleConfig
+	HTTPRouteRule     RuleConfig
 }
 
 type PrometheusRuleSettings struct {
@@ -155,6 +156,7 @@ type TemplatesExcludeRules struct {
 	ServicePort   ServicePortExcludeList
 	KubeRBACProxy StringRuleExcludeList
 	Ingress       KindRuleExcludeList
+	HTTPRoute     KindRuleExcludeList
 }
 
 type ServicePortExcludeList []ServicePortExclude
