@@ -376,7 +376,7 @@ func (r *SourceLabelRule) checkTemplateVariables(dashboard *gjson.Result, filePa
 }
 
 func (r *SourceLabelRule) extractDashboardPanels(dashboard *gjson.Result) []gjson.Result {
-	var panels []gjson.Result
+	panels := make([]gjson.Result, 0)
 
 	rows := dashboard.Get("rows").Array()
 	for _, row := range rows {
