@@ -116,6 +116,26 @@ func TestCheckExprWithSourceLabel(t *testing.T) {
 			expectedErrors: 0,
 		},
 		{
+			name:           "selector without metric name is skipped",
+			expr:           `{job="foo"}`,
+			expectedErrors: 0,
+		},
+		{
+			name:           "exact __name__ matcher requires source label",
+			expr:           `{__name__="kube_pod_info"}`,
+			expectedErrors: 1,
+		},
+		{
+			name:           "exact __name__ matcher with source is ok",
+			expr:           `{__name__="kube_pod_info", source="deckhouse"}`,
+			expectedErrors: 0,
+		},
+		{
+			name:           "regex __name__ matcher is skipped",
+			expr:           `{__name__=~"kube_.*"}`,
+			expectedErrors: 0,
+		},
+		{
 			name:           "invalid PromQL is silently skipped",
 			expr:           `label_values(kube_pod_info, namespace)`,
 			expectedErrors: 0,
