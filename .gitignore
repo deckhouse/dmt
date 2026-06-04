@@ -31,3 +31,9 @@ Thumbs.db
 *.log
 logs/
 *.tmp
+
+.docs
+.kilo
+.claude
+openspec
+opencode

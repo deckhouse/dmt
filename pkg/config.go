@@ -138,8 +138,9 @@ type TemplatesLinterRules struct {
 	GrafanaRule       RuleConfig
 	KubeRBACProxyRule RuleConfig
 	ServicePortRule   RuleConfig
-	ClusterDomainRule RuleConfig
-	RegistryRule      RuleConfig
+	ClusterDomainRule   RuleConfig
+	RegistryRule        RuleConfig
+	EnabledModulesRule  RuleConfig
 }
 
 type PrometheusRuleSettings struct {

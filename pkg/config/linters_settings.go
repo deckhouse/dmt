@@ -202,8 +202,9 @@ type TemplatesLinterRules struct {
 	GrafanaRule       RuleConfig `mapstructure:"grafana-dashboards"`
 	KubeRBACProxyRule RuleConfig `mapstructure:"kube-rbac-proxy"`
 	ServicePortRule   RuleConfig `mapstructure:"service-port"`
-	ClusterDomainRule RuleConfig `mapstructure:"cluster-domain"`
-	RegistryRule      RuleConfig `mapstructure:"registry"`
+	ClusterDomainRule   RuleConfig `mapstructure:"cluster-domain"`
+	RegistryRule        RuleConfig `mapstructure:"registry"`
+	EnabledModulesRule  RuleConfig `mapstructure:"enabled-modules"`
 }
 
 type TemplatesExcludeRules struct {
