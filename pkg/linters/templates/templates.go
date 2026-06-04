@@ -92,6 +92,9 @@ func (l *Templates) Run(m *module.Module) {
 	// rules.NewWerfRule().ValidateWerfTemplates(m, errorList.WithMaxLevel(l.cfg.Rules.WerfRule.GetLevel()))
 
 	rules.NewRegistryRule().CheckRegistrySecret(m, errorList.WithMaxLevel(l.cfg.Rules.RegistryRule.GetLevel()))
+
+	// EnabledModules rule
+	rules.NewEnabledModulesRule().CheckEnabledModules(m, errorList.WithMaxLevel(l.cfg.Rules.EnabledModulesRule.GetLevel()))
 }
 
 func (l *Templates) Name() string {

@@ -131,15 +131,16 @@ type TemplatesLinterConfig struct {
 	GrafanaDashboardsSettings GrafanaDashboardsSettings
 }
 type TemplatesLinterRules struct {
-	VPARule           RuleConfig
-	PDBRule           RuleConfig
-	IngressRule       RuleConfig
-	PrometheusRule    RuleConfig
-	GrafanaRule       RuleConfig
-	KubeRBACProxyRule RuleConfig
-	ServicePortRule   RuleConfig
-	ClusterDomainRule RuleConfig
-	RegistryRule      RuleConfig
+	VPARule            RuleConfig
+	PDBRule            RuleConfig
+	IngressRule        RuleConfig
+	PrometheusRule     RuleConfig
+	GrafanaRule        RuleConfig
+	KubeRBACProxyRule  RuleConfig
+	ServicePortRule    RuleConfig
+	ClusterDomainRule  RuleConfig
+	RegistryRule       RuleConfig
+	EnabledModulesRule RuleConfig
 }
 
 type PrometheusRuleSettings struct {
