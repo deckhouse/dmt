@@ -214,14 +214,15 @@ type ModuleLinterConfig struct {
 	ExcludeRules               ModuleExcludeRules
 }
 type ModuleLinterRules struct {
-	DefinitionFileRule    RuleConfig
-	OSSRule               RuleConfig
-	ConversionRule        RuleConfig
-	HelmignoreRule        RuleConfig
-	LicenseRule           RuleConfig
-	RequarementsRule      RuleConfig
-	PackageYAMLRule       RuleConfig
-	LegacyReleaseFileRule RuleConfig
+	DefinitionFileRule           RuleConfig
+	OSSRule                      RuleConfig
+	ConversionRule               RuleConfig
+	HelmignoreRule               RuleConfig
+	LicenseRule                  RuleConfig
+	RequarementsRule             RuleConfig
+	PackageYAMLRule              RuleConfig
+	ModulePackageConsistencyRule RuleConfig
+	LegacyReleaseFileRule        RuleConfig
 }
 type OSSRuleSettings struct {
 	Disable bool
