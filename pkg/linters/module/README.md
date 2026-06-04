@@ -524,10 +524,6 @@ linters-settings:
     
     helmignore:
       disable: false              # Enable/disable .helmignore validation
-
-    rules:
-      package-yaml:
-        impact: error             # Override package.yaml validation level
     
     # License exclusions
     exclude-rules:
