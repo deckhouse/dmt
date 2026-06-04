@@ -112,13 +112,15 @@ type ModuleLinterConfig struct {
 }
 
 type ModuleLinterRules struct {
-	DefinitionFileRule    RuleConfig `mapstructure:"definition-file"`
-	OSSRule               RuleConfig `mapstructure:"oss"`
-	ConversionRule        RuleConfig `mapstructure:"conversion"`
-	HelmignoreRule        RuleConfig `mapstructure:"helmignore"`
-	LicenseRule           RuleConfig `mapstructure:"license"`
-	RequarementsRule      RuleConfig `mapstructure:"requarements"`
-	LegacyReleaseFileRule RuleConfig `mapstructure:"legacy-release-file"`
+	DefinitionFileRule           RuleConfig `mapstructure:"definition-file"`
+	OSSRule                      RuleConfig `mapstructure:"oss"`
+	ConversionRule               RuleConfig `mapstructure:"conversion"`
+	HelmignoreRule               RuleConfig `mapstructure:"helmignore"`
+	LicenseRule                  RuleConfig `mapstructure:"license"`
+	RequarementsRule             RuleConfig `mapstructure:"requarements"`
+	PackageYAMLRule              RuleConfig `mapstructure:"package-yaml"`
+	ModulePackageConsistencyRule RuleConfig `mapstructure:"module-package-consistency"`
+	LegacyReleaseFileRule        RuleConfig `mapstructure:"legacy-release-file"`
 }
 
 type TemplatesLinterConfig struct {
