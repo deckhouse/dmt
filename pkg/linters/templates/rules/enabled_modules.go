@@ -56,7 +56,7 @@ func (r *EnabledModulesRule) CheckEnabledModules(m pkg.Module, errorList *errors
 	}
 
 	// Get all files in templates directory
-	files := fsutils.GetFiles(templatesPath, true, fsutils.FilterFileByExtensions(".yaml", ".yml", ".tpl", ".tpl.yaml", ".tpl.yml"))
+	files := fsutils.GetFiles(templatesPath, true, fsutils.FilterFileByExtensions(".yaml", ".yml", ".tpl"))
 
 	for _, filePath := range files {
 		// Get relative path for error reporting
@@ -86,7 +86,7 @@ func (r *EnabledModulesRule) CheckEnabledModules(m pkg.Module, errorList *errors
 			errorList.WithRule(r.GetName()).
 				WithFilePath(relPath).
 				WithLineNumber(line).
-				Errorf("Found usage of .Values.global.enabledModules | has \"%s\".\nConsider using (.Capabilities.APIVersions.Has \"crd-domain/crd-version/crd-name\") instead.", moduleName)
+				Errorf("Found usage of .Values.global.enabledModules | has \"%s\".\nConsider using (.Capabilities.APIVersions.Has \"group/version/Kind\") instead.", moduleName)
 		}
 	}
 }
