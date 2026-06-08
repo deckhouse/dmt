@@ -140,6 +140,7 @@ type TemplatesLinterRules struct {
 	ServicePortRule    RuleConfig
 	ClusterDomainRule  RuleConfig
 	RegistryRule       RuleConfig
+	// TODO: change to Error after migration period
 	EnabledModulesRule RuleConfig
 }
 

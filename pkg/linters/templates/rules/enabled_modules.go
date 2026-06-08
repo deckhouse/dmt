@@ -86,7 +86,7 @@ func (r *EnabledModulesRule) CheckEnabledModules(m pkg.Module, errorList *errors
 			errorList.WithRule(r.GetName()).
 				WithFilePath(relPath).
 				WithLineNumber(line).
-				Errorf("Found usage of .Values.global.enabledModules | has \"%s\".\nConsider using (.Capabilities.APIVersions.Has \"group/version/Kind\") instead.", moduleName)
+				Warnf("Found usage of .Values.global.enabledModules | has \"%s\".\nConsider using (.Capabilities.APIVersions.Has \"group/version/Kind\") instead.", moduleName)
 		}
 	}
 }
