@@ -83,6 +83,7 @@ func (r *EnabledModulesRule) CheckEnabledModules(m pkg.Module, errorList *errors
 
 			line := strings.Count(string(content[:matchStart]), "\n") + 1
 
+			// TODO: change to Error after migration period
 			errorList.WithRule(r.GetName()).
 				WithFilePath(relPath).
 				WithLineNumber(line).

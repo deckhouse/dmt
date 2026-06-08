@@ -204,7 +204,6 @@ type TemplatesLinterRules struct {
 	ServicePortRule    RuleConfig `mapstructure:"service-port"`
 	ClusterDomainRule  RuleConfig `mapstructure:"cluster-domain"`
 	RegistryRule       RuleConfig `mapstructure:"registry"`
-	// TODO: change to Error after migration period
 	EnabledModulesRule RuleConfig `mapstructure:"enabled-modules"`
 }
 
