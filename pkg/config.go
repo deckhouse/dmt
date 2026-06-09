@@ -195,13 +195,18 @@ type RBACExcludeRules struct {
 }
 type HooksLinterConfig struct {
 	LinterConfig
-	Rules               HooksLinterRules
-	IngressRuleSettings IngressRuleSettings
+	Rules                      HooksLinterRules
+	IngressRuleSettings        IngressRuleSettings
+	TLSCertificateRuleSettings TLSCertificateRuleSettings
 }
 type HooksLinterRules struct {
-	HooksRule RuleConfig
+	HooksRule          RuleConfig
+	TLSCertificateRule RuleConfig
 }
 type IngressRuleSettings struct {
+	Disable bool
+}
+type TLSCertificateRuleSettings struct {
 	Disable bool
 }
 

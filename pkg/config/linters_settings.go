@@ -74,13 +74,19 @@ type ContainerExcludeRules struct {
 }
 
 type HooksSettings struct {
-	Ingress HooksIngressRuleSetting `mapstructure:"ingress"`
+	Ingress        HooksIngressRuleSetting        `mapstructure:"ingress"`
+	TLSCertificate HooksTLSCertificateRuleSetting `mapstructure:"tls-certificate"`
 
 	Impact string `mapstructure:"impact"`
 }
 
 type HooksIngressRuleSetting struct {
 	// disable ingress rule completely
+	Disable bool `mapstructure:"disable"`
+}
+
+type HooksTLSCertificateRuleSetting struct {
+	// disable tls-certificate rule completely
 	Disable bool `mapstructure:"disable"`
 }
 
