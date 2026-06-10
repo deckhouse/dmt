@@ -37,11 +37,13 @@ func writeTempFile(t *testing.T, content string) string {
 	_, err = f.WriteString(content)
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
+
 	return f.Name()
 }
 
 func makeStoreObj(t *testing.T, content string) storage.StoreObject {
 	t.Helper()
+
 	return storage.StoreObject{
 		AbsPath: writeTempFile(t, content),
 		Unstructured: unstructured.Unstructured{
@@ -171,6 +173,7 @@ image: {{ include "helm_lib_module_image" . "another_bad_one" }}`,
 				assert.Empty(t, errs, "Expected no errors")
 			} else {
 				assert.Len(t, errs, len(tt.expectedErrors), "Expected %d errors", len(tt.expectedErrors))
+
 				for i, expectedError := range tt.expectedErrors {
 					assert.Contains(t, errs[i].Text, expectedError, "Error %d should contain expected text", i)
 				}

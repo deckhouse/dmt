@@ -16,6 +16,7 @@ import (
 
 func TestValidateWerfTemplates(t *testing.T) {
 	dir := t.TempDir()
+
 	filePath := filepath.Join(dir, "test-image")
 	if err := os.WriteFile(filePath, []byte(`image: {{ include "helm_lib_module_image" . "mock-module/test-image" }}`), 0644); err != nil {
 		t.Fatal(err)
@@ -31,7 +32,7 @@ func TestValidateWerfTemplates(t *testing.T) {
 	mock.GetPathMock.Return("/mock/path")
 	mock.GetNameMock.Return("mock-module")
 	mock.GetStorageMock.Return(map[storage.ResourceIndex]storage.StoreObject{
-		storage.ResourceIndex{
+		{
 			Kind:      "Deployment",
 			Name:      "test-deployment",
 			Namespace: "test-namespace",
@@ -66,7 +67,7 @@ git:
 
 `)
 	mockModuleWerfInvalid.GetStorageMock.Return(map[storage.ResourceIndex]storage.StoreObject{
-		storage.ResourceIndex{
+		{
 			Kind:      "Deployment",
 			Name:      "test-deployment",
 			Namespace: "test-namespace",
@@ -130,6 +131,7 @@ git:
 
 func TestCheckTemplatesUsingRenderedImages(t *testing.T) {
 	dir := t.TempDir()
+
 	filePath := filepath.Join(dir, "test-image")
 	if err := os.WriteFile(filePath, []byte(`image: {{ include "helm_lib_module_image" . "mock-module/test-image" }}`), 0644); err != nil {
 		t.Fatal(err)
@@ -142,7 +144,7 @@ func TestCheckTemplatesUsingRenderedImages(t *testing.T) {
 
 	mock := mocks.NewModuleMock(mc)
 	mock.GetStorageMock.Return(map[storage.ResourceIndex]storage.StoreObject{
-		storage.ResourceIndex{
+		{
 			Kind:      "Deployment",
 			Name:      "test-deployment",
 			Namespace: "test-namespace",
@@ -168,6 +170,7 @@ git:
 	for _, object := range mock.GetStorage() {
 		checkTemplatesUsingRenderedImages(object, []string{mock.GetWerfFile()}, errorList)
 	}
+
 	assert.False(t, errorList.ContainsErrors(), "Expected no errors for valid manifest")
 
 	// Invalid manifest
@@ -186,6 +189,7 @@ git:
 	for _, object := range mock.GetStorage() {
 		checkTemplatesUsingRenderedImages(object, invalidManifests, errorList)
 	}
+
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for invalid manifest")
 	assert.Contains(t, errorList.GetErrors()[0].Text, "image mock-module/test-image is not found in the manifests")
 }
