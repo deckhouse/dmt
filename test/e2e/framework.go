@@ -194,6 +194,7 @@ func initLintFlagsOnce() {
 		if flags.LintersLimit <= 0 {
 			flags.LintersLimit = 10
 		}
+
 		flags.LinterName = ""
 		flags.ValuesFile = ""
 	})
