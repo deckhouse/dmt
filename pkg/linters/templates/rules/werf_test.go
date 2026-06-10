@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/deckhouse/dmt/internal/mocks"
+	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
@@ -20,6 +21,15 @@ func TestValidateWerfTemplates(t *testing.T) {
 	mock := mocks.NewModuleMock(mc)
 	mock.GetPathMock.Return("/mock/path")
 	mock.GetNameMock.Return("mock-module")
+	mock.GetStorageMock.Return(map[storage.ResourceIndex]storage.StoreObject{
+		storage.ResourceIndex{
+			Kind:      "Deployment",
+			Name:      "test-deployment",
+			Namespace: "test-namespace",
+		}: {
+			AbsPath: "/mock/path/test-image",
+		},
+	})
 	mock.GetWerfFileMock.Return(`
 image: mock-module/test-image
 git:
@@ -46,6 +56,15 @@ git:
 # Missing stageDependencies
 
 `)
+	mockModuleWerfInvalid.GetStorageMock.Return(map[storage.ResourceIndex]storage.StoreObject{
+		storage.ResourceIndex{
+			Kind:      "Deployment",
+			Name:      "test-deployment",
+			Namespace: "test-namespace",
+		}: {
+			AbsPath: "/mock/path/test-image",
+		},
+	})
 
 	rule.ValidateWerfTemplates(mockModuleWerfInvalid, errorList)
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for invalid Werf file")
