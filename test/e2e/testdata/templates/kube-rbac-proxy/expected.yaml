@@ -1,0 +1,9 @@
+description: >
+  A system (d8-*) namespace that does not contain a kube-rbac-proxy CA
+  certificate ConfigMap must be flagged by the kube-rbac-proxy rule.
+module: module
+expect:
+  - linter: templates
+    rule: kube-rbac-proxy
+    level: error
+    textContains: "All system namespaces should contain kube-rbac-proxy CA certificate"

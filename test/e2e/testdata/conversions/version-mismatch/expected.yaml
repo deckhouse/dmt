@@ -1,0 +1,7 @@
+description: >-
+  The x-config-version in config-values.yaml does not match the latest
+  conversion version. The conversions tester must flag the mismatch.
+kind: conversions
+expect:
+  - linter: conversions
+    textContains: "x-config-version with latest conversion version mismatch"

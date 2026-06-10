@@ -1,0 +1,9 @@
+description: >
+  An Ingress whose configuration-snippet annotation does not include the
+  required HSTS snippet must be flagged by the ingress-rules rule.
+module: module
+expect:
+  - linter: templates
+    rule: ingress-rules
+    level: error
+    textContains: "does not contain required snippet"
