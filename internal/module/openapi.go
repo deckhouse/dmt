@@ -59,8 +59,11 @@ func applyDigests(moduleName string, digests, helmValues map[string]any) {
 }
 
 func helmFormatModuleImages(m *Module, rawValues map[string]any) (chartutil.Values, error) {
-	caps := chartutil.DefaultCapabilities
-	vers := []string(caps.APIVersions)
+	// DefaultCapabilities is a process-global pointer; copy the struct and its
+	// APIVersions slice so concurrent callers don't mutate the shared value.
+	capsCopy := *chartutil.DefaultCapabilities
+	caps := &capsCopy
+	vers := append([]string{}, caps.APIVersions...)
 	vers = append(vers, "autoscaling.k8s.io/v1/VerticalPodAutoscaler", "cert-manager.io/v1")
 	caps.APIVersions = vers
 

@@ -40,6 +40,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"gopkg.in/yaml.v3"
 
@@ -164,13 +165,10 @@ func Lint(moduleDir string) ([]pkg.LinterError, error) {
 	}
 
 	// The lint manager relies on a couple of process-global knobs that are
-	// normally set by cobra flags. Set sane defaults for the in-process run.
-	if flags.LintersLimit <= 0 {
-		flags.LintersLimit = 10
-	}
-
-	flags.LinterName = ""
-	flags.ValuesFile = ""
+	// normally set by cobra flags. They are shared across the whole process and
+	// read by the manager during a run, so set them exactly once to avoid data
+	// races between parallel cases (every case wants the same values anyway).
+	initLintFlagsOnce()
 
 	cfg, err := config.NewDefaultRootConfig(target)
 	if err != nil {
@@ -184,6 +182,21 @@ func Lint(moduleDir string) ([]pkg.LinterError, error) {
 	mng.Run()
 
 	return mng.GetErrors(), nil
+}
+
+// lintFlagsOnce guards the one-time initialization of the process-global lint
+// flags. Setting them once (before any concurrent manager read) keeps parallel
+// cases free of data races on these shared variables.
+var lintFlagsOnce sync.Once
+
+func initLintFlagsOnce() {
+	lintFlagsOnce.Do(func() {
+		if flags.LintersLimit <= 0 {
+			flags.LintersLimit = 10
+		}
+		flags.LinterName = ""
+		flags.ValuesFile = ""
+	})
 }
 
 // RunConversions runs the `dmt test conversions` testers against a module
