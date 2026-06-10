@@ -28,6 +28,10 @@ limitations under the License.
 // the real lint pipeline (config loading, helm render, every linter) rather
 // than a single rule in isolation, while still letting each case assert on
 // concrete, human-readable outcomes.
+//
+// A case may instead set "kind: conversions" to run the `dmt test conversions`
+// testers; those results are adapted into the same finding shape (linter ID
+// "conversions") so the same expectation matching applies.
 package e2e
 
 import (
@@ -42,8 +46,16 @@ import (
 	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/manager"
 	"github.com/deckhouse/dmt/internal/metrics"
+	"github.com/deckhouse/dmt/internal/test"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
+)
+
+// Case kinds. A case either lints a module (KindLint, the default) or runs the
+// `dmt test conversions` testers against it (KindConversions).
+const (
+	KindLint        = "lint"
+	KindConversions = "conversions"
 )
 
 // Finding declares one expected lint finding for a case.
@@ -80,6 +92,11 @@ func (f Finding) String() string {
 type CaseSpec struct {
 	// Description is a human-readable summary of what the case verifies.
 	Description string `yaml:"description"`
+	// Kind selects what to run against the module: "lint" (default) runs the
+	// full lint pipeline, "conversions" runs the `dmt test conversions` testers.
+	// For conversions cases, findings are exposed with linter ID "conversions"
+	// and ObjectID set to the test name, so the same expectations apply.
+	Kind string `yaml:"kind"`
 	// Module is the subdirectory (relative to the case dir) that gets linted.
 	// Defaults to "module".
 	Module string `yaml:"module"`
@@ -108,7 +125,24 @@ func LoadCaseSpec(caseDir string) (*CaseSpec, error) {
 		spec.Module = "module"
 	}
 
+	if spec.Kind == "" {
+		spec.Kind = KindLint
+	}
+
 	return spec, nil
+}
+
+// Run executes a case (lint or conversions) against a module directory and
+// returns the produced findings.
+func Run(kind, moduleDir string) ([]pkg.LinterError, error) {
+	switch kind {
+	case KindConversions:
+		return RunConversions(moduleDir)
+	case KindLint, "":
+		return Lint(moduleDir)
+	default:
+		return nil, fmt.Errorf("unknown case kind %q", kind)
+	}
 }
 
 // Lint runs the dmt lint pipeline against a module directory and returns all
@@ -147,6 +181,52 @@ func Lint(moduleDir string) ([]pkg.LinterError, error) {
 	mng.Run()
 
 	return mng.GetErrors(), nil
+}
+
+// RunConversions runs the `dmt test conversions` testers against a module
+// directory and returns the results adapted to the common finding shape
+// (LinterID "conversions", ObjectID set to the test name).
+func RunConversions(moduleDir string) ([]pkg.LinterError, error) {
+	tmpRoot, err := os.MkdirTemp("", "dmt-e2e-conv-*")
+	if err != nil {
+		return nil, fmt.Errorf("create temp dir: %w", err)
+	}
+	defer os.RemoveAll(tmpRoot)
+
+	target := filepath.Join(tmpRoot, filepath.Base(moduleDir))
+	if err := copyDir(moduleDir, target); err != nil {
+		return nil, fmt.Errorf("copy module: %w", err)
+	}
+
+	cfg, err := config.NewDefaultRootConfig(target)
+	if err != nil {
+		return nil, fmt.Errorf("load config: %w", err)
+	}
+
+	mng, err := test.NewManager(target, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("create test manager: %w", err)
+	}
+
+	mng.Run()
+
+	return adaptTestErrors(mng.GetErrors()), nil
+}
+
+func adaptTestErrors(errs []pkg.TestError) []pkg.LinterError {
+	out := make([]pkg.LinterError, 0, len(errs))
+
+	for i := range errs {
+		out = append(out, pkg.LinterError{
+			LinterID: "conversions",
+			ModuleID: errs[i].ModuleID,
+			ObjectID: errs[i].TestName,
+			Text:     errs[i].Text,
+			Level:    errs[i].Level,
+		})
+	}
+
+	return out
 }
 
 // MatchResult describes the outcome of matching findings against expectations.

@@ -86,8 +86,8 @@ func runCase(t *testing.T, caseDir string) {
 	moduleDir := filepath.Join(caseDir, spec.Module)
 	require.DirExists(t, moduleDir, "module dir %q must exist", moduleDir)
 
-	findings, err := Lint(moduleDir)
-	require.NoError(t, err, "run lint")
+	findings, err := Run(spec.Kind, moduleDir)
+	require.NoError(t, err, "run case")
 
 	result := Match(spec, findings)
 	if !result.OK() {

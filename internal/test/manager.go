@@ -218,6 +218,13 @@ func (m *Manager) HasCriticalErrors() bool {
 	return m.errors.ContainsErrors()
 }
 
+// GetErrors returns all test errors collected during the run.
+// It is primarily intended for tests (e.g. the e2e framework) that need to
+// assert on the structured results produced by the testers.
+func (m *Manager) GetErrors() []pkg.TestError {
+	return m.errors.GetErrors()
+}
+
 func (m *Manager) registerTesters() {
 	m.testers = []testers.Tester{
 		tester.New(m.errors),

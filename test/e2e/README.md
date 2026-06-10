@@ -1,10 +1,15 @@
 # dmt end-to-end test framework
 
-This package runs the **full `dmt lint` pipeline** against concrete module
-fixtures and asserts on the structured findings it produces. Unlike the
-per-rule unit tests (which call a single rule in isolation), each case here
-exercises config loading, the helm render, and every linter together — the same
-path a user hits when running `dmt lint <module>`.
+This package runs **dmt** against concrete module fixtures and asserts on the
+structured findings it produces. Unlike the per-rule unit tests (which call a
+single rule in isolation), each case here exercises config loading, the helm
+render, and every linter together — the same path a user hits when running
+`dmt lint <module>`.
+
+Most cases run the full `dmt lint` pipeline. Cases can also run the
+`dmt test conversions` testers by setting `kind: conversions` in
+`expected.yaml`; their results are surfaced through the same matching machinery
+under the linter ID `conversions`.
 
 ## How it works
 
@@ -17,7 +22,8 @@ contains an `expected.yaml` file. For each case it:
 1. copies the case's `module/` directory into an isolated temp dir (so the run
    is hermetic — no `.dmtlint.yaml` inherited from parent dirs, no artifacts
    written back into `testdata/`),
-2. runs the lint `manager` against the copy,
+2. runs the lint `manager` (or, for `kind: conversions`, the conversions
+   testers) against the copy,
 3. matches the collected findings against the expectations in `expected.yaml`.
 
 ## Adding a case
@@ -48,6 +54,7 @@ A minimal lint-able module needs at least:
 ```yaml
 description: >
   Human-readable summary of what this case verifies.
+kind: lint              # "lint" (default) or "conversions"
 module: module          # subdir to lint, defaults to "module"
 expectClean: false      # assert the run produced zero findings
 exhaustive: false       # assert there are NO findings beyond those listed
@@ -92,6 +99,18 @@ go test ./test/e2e/ -run 'TestE2E/<linter>/<your-case>' -v
 | `hooks/ingress` | hooks linter (Ingress without copy_custom_certificate hook) |
 | `openapi/bilingual` | openapi linter (missing doc-ru- translation, missing CRD module label) |
 | `images/werf` | images linter (werf fromImage not under base/) |
+| `documentation/missing-readme` | documentation linter `readme` (no docs/README.md) |
+| `documentation/cyrillic-in-english` | documentation linter `cyrillic-in-english` (Cyrillic in English docs) |
+| `documentation/missing-russian` | documentation linter `bilingual` (English doc without a .ru.md counterpart) |
+
+### conversions tester (`kind: conversions`)
+
+| Case | Exercises |
+|------|-----------|
+| `conversions/passing` | conversion testcases that match the converter output (no errors) |
+| `conversions/with-conversions` | conversions with multiple passing testcases incl. a no-op (no errors) |
+| `conversions/failing` | a testcase whose expected result does not match the conversion output |
+| `conversions/version-mismatch` | `x-config-version` does not match the latest conversion version |
 
 ### templates linter (comprehensive)
 

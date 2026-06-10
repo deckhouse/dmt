@@ -1,0 +1,7 @@
+description: >-
+  The English docs/README.md contains cyrillic characters. The documentation
+  linter's cyrillic-in-english rule must flag it.
+expect:
+  - linter: documentation
+    rule: cyrillic-in-english
+    textContains: "English documentation contains cyrillic characters"
