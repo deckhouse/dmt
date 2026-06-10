@@ -48,6 +48,7 @@ func (r *WerfRule) ValidateWerfTemplates(m pkg.Module, errorList *errors.LintRul
 
 	manifests := fsutils.SplitManifests(m.GetWerfFile())
 	checkGitSection(m.GetName(), manifests, errorList)
+	checkUsingImages(m.GetName(), manifests, errorList)
 }
 
 func checkGitSection(moduleName string, manifests []string, errorList *errors.LintRuleErrorsList) {
@@ -71,5 +72,35 @@ func checkGitSection(moduleName string, manifests []string, errorList *errors.Li
 
 			return true
 		})
+	}
+}
+
+func checkUsingImages(moduleName string, manifests []string, errorList *errors.LintRuleErrorsList) {
+	// get all images used in the manifests (templates folder)
+	// image: {{ include "helm_lib_module_image" (list . "podReloader") }}
+	// get all images in the werf templates (render werf.yaml template? use .werf files?)
+	// image: release-channel-version
+	// image: images/{{ $ctx.ImageName }} # what to do with this?
+	// image: bundle
+	for i, manifest := range manifests {
+		jsonData, err := yaml.YAMLToJSON([]byte(manifest))
+		if err != nil {
+			errorList.Errorf("parsing Werf file, document %d failed: %s", i+1, err)
+			continue
+		}
+
+		imageName := gjson.GetBytes(jsonData, "image").String()
+		if !strings.Contains(imageName, moduleName+"/") {
+			continue
+		}
+
+		gjson.GetBytes(jsonData, "fromImage").ForEach(func(_, value gjson.Result) bool {
+			if value.String() == "" {
+				errorList.Errorf("parsing Werf file, document %d (image: %s) failed: 'fromImage' is required", i+1, imageName)
+			}
+			return true
+		})
+
+		// TODO: check if the image is used in the manifest
 	}
 }
