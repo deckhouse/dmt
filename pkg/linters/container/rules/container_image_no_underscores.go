@@ -33,7 +33,7 @@ const (
 	ImageNoUnderscoresRuleName = "image-no-underscores"
 )
 
-var imageRawRegex = regexp.MustCompile(`.*image:.*"(.*)".*`)
+var imageRawRegex = regexp.MustCompile(`.*image:.*helm_lib_module_image.*"(.*)".*`)
 
 func NewImageNoUnderscoresRule(excludeRules []pkg.ContainerRuleExclude) *ImageNoUnderscoresRule {
 	return &ImageNoUnderscoresRule{
@@ -54,22 +54,9 @@ type ImageNoUnderscoresRule struct {
 func (r *ImageNoUnderscoresRule) ContainerImageNoUnderscoresCheck(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
-	file, err := os.Open(object.AbsPath)
+	images, err := FindObjectRawImages(object)
 	if err != nil {
-		errorList.Errorf("opening file %s failed: %s", object.GetPath(), err)
-		return
-	}
-	defer file.Close()
-
-	content, err := io.ReadAll(file)
-	if err != nil {
-		errorList.Errorf("reading file %s failed: %s", object.GetPath(), err)
-		return
-	}
-
-	images, err := FindContainerRawImages(string(content))
-	if err != nil {
-		errorList.Errorf("finding container raw images failed: %s", err)
+		errorList.Errorf("finding object raw images failed: %s", err)
 		return
 	}
 
@@ -81,8 +68,22 @@ func (r *ImageNoUnderscoresRule) ContainerImageNoUnderscoresCheck(object storage
 
 }
 
-func FindContainerRawImages(content string) ([]string, error) {
-	matches := imageRawRegex.FindAllStringSubmatch(content, -1)
+func FindObjectRawImages(object storage.StoreObject) ([]string, error) {
+	file, err := os.Open(object.AbsPath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	content, err := io.ReadAll(file)
+	if err != nil {
+		return nil, err
+	}
+
+	matches := imageRawRegex.FindAllStringSubmatch(string(content), -1)
+	if len(matches) == 0 {
+		return []string{}, nil
+	}
 
 	images := make([]string, 0, len(matches))
 	for _, match := range matches {

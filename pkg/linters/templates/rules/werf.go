@@ -19,6 +19,7 @@ package rules
 import (
 	"strings"
 
+	"github.com/iancoleman/strcase"
 	"github.com/tidwall/gjson"
 	"sigs.k8s.io/yaml"
 
@@ -26,6 +27,7 @@ import (
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters/container/rules"
 )
 
 const (
@@ -89,8 +91,16 @@ func checkTemplatesUsingRenderedImages(moduleName string, object storage.StoreOb
 		return
 	}
 
-	for _, container := range containers {
+	images, err := rules.FindObjectRawImages(object)
+	if err != nil {
+		errorList.Errorf("finding object raw images failed: %s", err)
+		return
+	}
+
+	for _, image := range images {
+		kebabCaseImage := strcase.ToKebab(image)
 		isContainerFound := false
+
 		for _, manifest := range manifests {
 			jsonData, err := yaml.YAMLToJSON([]byte(manifest))
 			if err != nil {
@@ -99,18 +109,16 @@ func checkTemplatesUsingRenderedImages(moduleName string, object storage.StoreOb
 
 			imageName := gjson.GetBytes(jsonData, "image").String()
 
-			if imageName == container.Image {
+			if imageName == kebabCaseImage {
 				isContainerFound = true
 				break
 			}
 		}
 
 		if !isContainerFound {
-			errorList.Errorf("container %s is not found in the manifests", moduleName+"/"+container.Name)
+			errorList.Errorf("image %s is not found in the manifests", image)
 		}
 	}
-
-	// TODO: check if the image is used in the manifest
 }
 
 func checkUnderscoredImages(moduleName string, manifests []string, errorList *errors.LintRuleErrorsList) {
