@@ -17,7 +17,6 @@ limitations under the License.
 package rules
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/tidwall/gjson"
@@ -81,13 +80,6 @@ func checkGitSection(moduleName string, manifests []string, errorList *errors.Li
 }
 
 func checkTemplatesUsingRenderedImages(moduleName string, object storage.StoreObject, manifests []string, errorList *errors.LintRuleErrorsList) {
-	// get all images used in the manifests (templates folder)
-	// image: {{ include "helm_lib_module_image" (list . "podReloader") }}
-	// get all images in the werf templates (render werf.yaml template? use .werf files?)
-	// image: release-channel-version
-	// image: images/{{ $ctx.ImageName }} # what to do with this?
-	// image: bundle
-	fmt.Println("object", object.AbsPath)
 	containers, err := object.GetAllContainers()
 	if err != nil {
 		errorList.Errorf("getting containers from object %s failed: %s", object.Identity(), err)
@@ -98,7 +90,6 @@ func checkTemplatesUsingRenderedImages(moduleName string, object storage.StoreOb
 	}
 
 	for _, container := range containers {
-		fmt.Println("container", container.Name, container.Image)
 		isContainerFound := false
 		for _, manifest := range manifests {
 			jsonData, err := yaml.YAMLToJSON([]byte(manifest))
@@ -107,7 +98,6 @@ func checkTemplatesUsingRenderedImages(moduleName string, object storage.StoreOb
 			}
 
 			imageName := gjson.GetBytes(jsonData, "image").String()
-			fmt.Println("imageName", imageName)
 
 			if imageName == container.Image {
 				isContainerFound = true

@@ -75,6 +75,9 @@ func (l *Container) applyContainerRules(object storage.StoreObject, storageMap m
 			rules.NewImageDigestRule(l.cfg.ExcludeRules.ImageDigest.Get()).ContainerImageDigestCheck(object, containers, errorList.WithMaxLevel(l.cfg.Rules.ImageDigestRule.GetLevel()))
 		},
 		func(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
+			rules.NewImageNoUnderscoresRule(l.cfg.ExcludeRules.ImageNoUnderscores.Get()).ContainerImageNoUnderscoresCheck(object, containers, errorList.WithMaxLevel(l.cfg.Rules.ImageNoUnderscoresRule.GetLevel()))
+		},
+		func(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 			rules.NewImagePullPolicyRule().ContainersImagePullPolicy(object, containers, errorList.WithMaxLevel(l.cfg.Rules.ImagePullPolicyRule.GetLevel()))
 		},
 		func(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
