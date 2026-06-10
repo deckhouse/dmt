@@ -49,6 +49,7 @@ func (r *WerfRule) ValidateWerfTemplates(m pkg.Module, errorList *errors.LintRul
 	manifests := fsutils.SplitManifests(m.GetWerfFile())
 	checkGitSection(m.GetName(), manifests, errorList)
 	checkUsingImages(m.GetName(), manifests, errorList)
+	checkUnderscoredImages(m.GetName(), manifests, errorList)
 }
 
 func checkGitSection(moduleName string, manifests []string, errorList *errors.LintRuleErrorsList) {
@@ -98,9 +99,25 @@ func checkUsingImages(moduleName string, manifests []string, errorList *errors.L
 			if value.String() == "" {
 				errorList.Errorf("parsing Werf file, document %d (image: %s) failed: 'fromImage' is required", i+1, imageName)
 			}
+
 			return true
 		})
 
 		// TODO: check if the image is used in the manifest
+	}
+}
+
+func checkUnderscoredImages(moduleName string, manifests []string, errorList *errors.LintRuleErrorsList) {
+	for i, manifest := range manifests {
+		jsonData, err := yaml.YAMLToJSON([]byte(manifest))
+		if err != nil {
+			errorList.Errorf("parsing Werf file, document %d failed: %s", i+1, err)
+			continue
+		}
+
+		imageName := gjson.GetBytes(jsonData, "image").String()
+		if strings.Contains(imageName, "_") {
+			errorList.Errorf("parsing Werf file, document %d (image: %s) failed: image name should not contain underscores", i+1, moduleName+"/"+imageName)
+		}
 	}
 }
