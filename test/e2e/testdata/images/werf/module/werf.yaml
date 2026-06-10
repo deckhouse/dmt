@@ -1,0 +1,4 @@
+---
+image: e2e-images/app
+fromImage: notbase/foo
+final: true

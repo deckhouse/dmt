@@ -1,0 +1,11 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: e2e-rules
+  namespace: e2e-prometheus
+spec:
+  groups:
+    - name: e2e.rules
+      rules:
+        - alert: BrokenAlert
+          expr: "rate(some_metric["

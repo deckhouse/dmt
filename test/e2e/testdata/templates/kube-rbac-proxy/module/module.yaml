@@ -1,0 +1,2 @@
+name: e2e-kube-rbac-proxy
+namespace: d8-e2e-krp

@@ -1,0 +1,9 @@
+description: >
+  A controller whose pod labels are not covered by any PodDisruptionBudget
+  selector must be flagged by the pdb rule.
+module: module
+expect:
+  - linter: templates
+    rule: pdb
+    level: error
+    textContains: "No PodDisruptionBudget matches pod labels of the controller"

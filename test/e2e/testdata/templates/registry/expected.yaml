@@ -1,0 +1,9 @@
+description: >
+  A registry-secret.yaml that references the global registry dockercfg but does
+  not define the module-specific override must be flagged by the registry rule.
+module: module
+expect:
+  - linter: templates
+    rule: registry
+    level: error
+    textContains: "registry-secret.yaml file contains .Values.global.modulesImages.registry.dockercfg but missing"

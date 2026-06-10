@@ -1,0 +1,14 @@
+description: >
+  A Grafana dashboard JSON that uses a deprecated panel type and is missing the
+  required prometheus datasource variable must be flagged by the
+  grafana-dashboards rule.
+module: module
+expect:
+  - linter: templates
+    rule: grafana-dashboards
+    level: error
+    textContains: "uses deprecated type 'graph'"
+  - linter: templates
+    rule: grafana-dashboards
+    level: error
+    textContains: "Dashboard must contain prometheus variable"

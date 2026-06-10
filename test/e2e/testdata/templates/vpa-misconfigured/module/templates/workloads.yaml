@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auto-app
+  namespace: e2e-vpa-misconfigured
+spec:
+  selector:
+    matchLabels:
+      app: auto-app
+  template:
+    metadata:
+      labels:
+        app: auto-app
+    spec:
+      containers:
+        - name: app
+          image: registry.example.com/app@sha256:0000000000000000000000000000000000000000000000000000000000000000
+---
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: auto-app
+  namespace: e2e-vpa-misconfigured
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: auto-app
+  updatePolicy:
+    updateMode: Auto
+  resourcePolicy:
+    containerPolicies:
+      - containerName: app
+        minAllowed:
+          cpu: 10m
+          memory: 10Mi
+        maxAllowed:
+          cpu: 100m
+          memory: 100Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: initial-app
+  namespace: e2e-vpa-misconfigured
+spec:
+  selector:
+    matchLabels:
+      app: initial-app
+  template:
+    metadata:
+      labels:
+        app: initial-app
+    spec:
+      containers:
+        - name: app
+          image: registry.example.com/app@sha256:0000000000000000000000000000000000000000000000000000000000000000
+---
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: initial-app
+  namespace: e2e-vpa-misconfigured
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: initial-app
+  updatePolicy:
+    updateMode: Initial
