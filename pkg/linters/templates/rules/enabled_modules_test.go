@@ -213,7 +213,7 @@ spec:
 			errorList := errors.NewLintRuleErrorsList()
 
 			// Create rule
-			rule := NewEnabledModulesRule()
+			rule := NewEnabledModulesRule(nil, nil)
 
 			// Run validation
 			rule.CheckEnabledModules(mockModule, errorList)

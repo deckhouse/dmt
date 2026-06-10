@@ -453,6 +453,8 @@ func mapTemplatesExclusionsAndSettings(linterSettings *pkg.LintersSettings, conf
 	excludes.ServicePort = configExcludes.ServicePort.Get()
 	excludes.KubeRBACProxy = pkg.StringRuleExcludeList(configExcludes.KubeRBACProxy)
 	excludes.Ingress = configExcludes.Ingress.Get()
+	excludes.EnabledModules.Files = pkg.StringRuleExcludeList(configExcludes.EnabledModules.Files)
+	excludes.EnabledModules.Directories = pkg.PrefixRuleExcludeList(configExcludes.EnabledModules.Directories)
 
 	// Additional settings
 	linterSettings.Templates.PrometheusRuleSettings.Disable = configSettings.Templates.PrometheusRules.Disable

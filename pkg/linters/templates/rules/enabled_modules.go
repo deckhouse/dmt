@@ -35,12 +35,18 @@ var enabledModulesRe = regexp.MustCompile(`\.Values\.global\.enabledModules\s*\|
 
 type EnabledModulesRule struct {
 	pkg.RuleMeta
+	pkg.PathRule
 }
 
-func NewEnabledModulesRule() *EnabledModulesRule {
+func NewEnabledModulesRule(excludeFileRules []pkg.StringRuleExclude,
+	excludeDirectoryRules []pkg.PrefixRuleExclude) *EnabledModulesRule {
 	return &EnabledModulesRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: EnabledModulesRuleName,
+		},
+		PathRule: pkg.PathRule{
+			ExcludeStringRules: excludeFileRules,
+			ExcludePrefixRules: excludeDirectoryRules,
 		},
 	}
 }
@@ -59,10 +65,9 @@ func (r *EnabledModulesRule) CheckEnabledModules(m pkg.Module, errorList *errors
 	files := fsutils.GetFiles(templatesPath, true, fsutils.FilterFileByExtensions(".yaml", ".yml", ".tpl"))
 
 	for _, filePath := range files {
-		// Get relative path for error reporting
-		relPath, err := filepath.Rel(m.GetPath(), filePath)
-		if err != nil {
-			errorList.Errorf("Failed to get relative path for file %s: %v", filePath, err)
+		relPath := fsutils.Rel(m.GetPath(), filePath)
+
+		if !r.Enabled(relPath) {
 			continue
 		}
 

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2e-cyrillic-skip-names-config
+  namespace: e2e-cyrillic-skip-names
+data:
+  greeting: "Привет, мир"

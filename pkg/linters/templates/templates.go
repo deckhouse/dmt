@@ -94,7 +94,10 @@ func (l *Templates) Run(m *module.Module) {
 	rules.NewRegistryRule().CheckRegistrySecret(m, errorList.WithMaxLevel(l.cfg.Rules.RegistryRule.GetLevel()))
 
 	// EnabledModules rule
-	rules.NewEnabledModulesRule().CheckEnabledModules(m, errorList.WithMaxLevel(l.cfg.Rules.EnabledModulesRule.GetLevel()))
+	rules.NewEnabledModulesRule(
+		l.cfg.ExcludeRules.EnabledModules.Files.Get(),
+		l.cfg.ExcludeRules.EnabledModules.Directories.Get(),
+	).CheckEnabledModules(m, errorList.WithMaxLevel(l.cfg.Rules.EnabledModulesRule.GetLevel()))
 }
 
 func (l *Templates) Name() string {
