@@ -65,7 +65,6 @@ func (r *ImageNoUnderscoresRule) ContainerImageNoUnderscoresCheck(object storage
 			errorList.Errorf("image %s contains underscores", image)
 		}
 	}
-
 }
 
 func FindObjectRawImages(object storage.StoreObject) ([]string, error) {
@@ -90,6 +89,7 @@ func FindObjectRawImages(object storage.StoreObject) ([]string, error) {
 		if len(match) < 2 {
 			continue
 		}
+
 		images = append(images, match[1])
 	}
 
