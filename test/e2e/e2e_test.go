@@ -125,6 +125,7 @@ func discoverCases(t *testing.T, root string) []string {
 
 func joinFailures(failures []string) string {
 	out := ""
+
 	for i, f := range failures {
 		if i > 0 {
 			out += "\n  "

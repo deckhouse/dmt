@@ -78,9 +78,11 @@ func (f Finding) String() string {
 	if f.Rule != "" {
 		parts = append(parts, "rule="+f.Rule)
 	}
+
 	if f.Level != "" {
 		parts = append(parts, "level="+f.Level)
 	}
+
 	if f.TextContains != "" {
 		parts = append(parts, fmt.Sprintf("textContains=%q", f.TextContains))
 	}
@@ -166,6 +168,7 @@ func Lint(moduleDir string) ([]pkg.LinterError, error) {
 	if flags.LintersLimit <= 0 {
 		flags.LintersLimit = 10
 	}
+
 	flags.LinterName = ""
 	flags.ValuesFile = ""
 
