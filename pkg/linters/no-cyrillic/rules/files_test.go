@@ -106,6 +106,7 @@ func TestFilesRule_CheckFile_SkipPatterns(t *testing.T) {
 			if err := os.MkdirAll(filepath.Dir(testFile), 0700); err != nil {
 				t.Fatalf("failed to create dir: %v", err)
 			}
+
 			if err := os.WriteFile(testFile, []byte(content), 0600); err != nil {
 				t.Fatalf("failed to create test file: %v", err)
 			}
@@ -119,6 +120,7 @@ func TestFilesRule_CheckFile_SkipPatterns(t *testing.T) {
 			if tt.wantSkipped && len(errs) > 0 {
 				t.Errorf("expected %q to be skipped, but got %d error(s)", tt.relPath, len(errs))
 			}
+
 			if !tt.wantSkipped && len(errs) == 0 {
 				t.Errorf("expected %q to be reported, but got no errors", tt.relPath)
 			}
@@ -167,6 +169,7 @@ func TestFilesRule_CheckFile_ExcludeDirectories(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(testFile), 0700); err != nil {
 		t.Fatalf("failed to create dir: %v", err)
 	}
+
 	if err := os.WriteFile(testFile, []byte(cyrillicYAML), 0600); err != nil {
 		t.Fatalf("failed to create test file: %v", err)
 	}
