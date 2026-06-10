@@ -95,6 +95,8 @@ go test ./test/e2e/ -run 'TestE2E/<linter>/<your-case>' -v
 | `container/bad-deployment` | container linter (labels, security context, probes, resources, image digest, duplicate env, seccomp) |
 | `module/missing-metadata` | module linter (definition-file, helmignore) + documentation linter (readme) |
 | `no-cyrillic/in-template` | no-cyrillic linter (Cyrillic characters in a yaml file) |
+| `no-cyrillic/skip-russian-files` | no-cyrillic linter skips Russian localized files (`*.ru.yml`, `*.ru.yaml`, `*.ru.json`, `doc-ru-*.yml`) while still reporting a regular Cyrillic template |
+| `no-cyrillic/skip-filenames-extensions` | no-cyrillic linter skips every filename/path pattern (`doc-ru-*`, `*.ru.{yaml,yml,json,md,html}`, `*_RU.md`, `docs/site/_*`, `docs/documentation/_*`, `tools/spelling/*`, `openapi/conversions/*`, `module.yaml`, `i18n/*`, `ru.*`) and non-scanned extensions (`.txt`), reporting only one genuine Cyrillic template |
 | `rbac/wildcards` | rbac linter (wildcards in a Role) |
 | `hooks/ingress` | hooks linter (Ingress without copy_custom_certificate hook) |
 | `openapi/bilingual` | openapi linter (missing doc-ru- translation, missing CRD module label) |

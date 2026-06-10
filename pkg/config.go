@@ -151,11 +151,17 @@ type GrafanaDashboardsSettings struct {
 	Disable bool
 }
 type TemplatesExcludeRules struct {
-	VPAAbsent     KindRuleExcludeList
-	PDBAbsent     KindRuleExcludeList
-	ServicePort   ServicePortExcludeList
-	KubeRBACProxy StringRuleExcludeList
-	Ingress       KindRuleExcludeList
+	VPAAbsent      KindRuleExcludeList
+	PDBAbsent      KindRuleExcludeList
+	ServicePort    ServicePortExcludeList
+	KubeRBACProxy  StringRuleExcludeList
+	Ingress        KindRuleExcludeList
+	EnabledModules EnabledModulesExcludeRule
+}
+
+type EnabledModulesExcludeRule struct {
+	Files       StringRuleExcludeList
+	Directories PrefixRuleExcludeList
 }
 
 type ServicePortExcludeList []ServicePortExclude

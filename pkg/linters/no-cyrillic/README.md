@@ -35,6 +35,7 @@ The linter intelligently skips files where cyrillic is expected or acceptable:
 
 - **Russian documentation**: Files matching patterns:
   - `doc-ru-*.yaml` or `doc-ru-*.yml` - Russian documentation files
+  - `*.ru.yaml`, `*.ru.yml`, `*.ru.json`, `*.ru.md`, `*.ru.html` - Russian localized files (e.g. `CHANGELOG/v0.3.21.ru.yml`)
   - `*_RU.md` - Russian markdown files
   - `*_ru.html` - Russian HTML files
   - Files in `docs/site/` or `docs/documentation/`
@@ -45,6 +46,7 @@ The linter intelligently skips files where cyrillic is expected or acceptable:
 
 - **Module definitions**:
   - `module.yaml` - Contains Russian descriptions and labels
+  - `ru.*` - Files prefixed with `ru.` (e.g. `ru.meta.deckhouse.io/description`) carrying Russian metadata
 
 - **Internationalization**:
   - Files in `/i18n/` directories - Translation files
