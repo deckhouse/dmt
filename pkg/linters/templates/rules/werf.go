@@ -17,12 +17,14 @@ limitations under the License.
 package rules
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/tidwall/gjson"
 	"sigs.k8s.io/yaml"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
+	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
@@ -48,7 +50,9 @@ func (r *WerfRule) ValidateWerfTemplates(m pkg.Module, errorList *errors.LintRul
 
 	manifests := fsutils.SplitManifests(m.GetWerfFile())
 	checkGitSection(m.GetName(), manifests, errorList)
-	checkUsingImages(m.GetName(), manifests, errorList)
+	for _, object := range m.GetStorage() {
+		checkTemplatesUsingRenderedImages(m.GetName(), object, manifests, errorList)
+	}
 	checkUnderscoredImages(m.GetName(), manifests, errorList)
 }
 
@@ -76,35 +80,47 @@ func checkGitSection(moduleName string, manifests []string, errorList *errors.Li
 	}
 }
 
-func checkUsingImages(moduleName string, manifests []string, errorList *errors.LintRuleErrorsList) {
+func checkTemplatesUsingRenderedImages(moduleName string, object storage.StoreObject, manifests []string, errorList *errors.LintRuleErrorsList) {
 	// get all images used in the manifests (templates folder)
 	// image: {{ include "helm_lib_module_image" (list . "podReloader") }}
 	// get all images in the werf templates (render werf.yaml template? use .werf files?)
 	// image: release-channel-version
 	// image: images/{{ $ctx.ImageName }} # what to do with this?
 	// image: bundle
-	for i, manifest := range manifests {
-		jsonData, err := yaml.YAMLToJSON([]byte(manifest))
-		if err != nil {
-			errorList.Errorf("parsing Werf file, document %d failed: %s", i+1, err)
-			continue
-		}
+	fmt.Println("object", object.AbsPath)
+	containers, err := object.GetAllContainers()
+	if err != nil {
+		errorList.Errorf("getting containers from object %s failed: %s", object.Identity(), err)
+		return
+	}
+	if len(containers) == 0 {
+		return
+	}
 
-		imageName := gjson.GetBytes(jsonData, "image").String()
-		if !strings.Contains(imageName, moduleName+"/") {
-			continue
-		}
-
-		gjson.GetBytes(jsonData, "fromImage").ForEach(func(_, value gjson.Result) bool {
-			if value.String() == "" {
-				errorList.Errorf("parsing Werf file, document %d (image: %s) failed: 'fromImage' is required", i+1, imageName)
+	for _, container := range containers {
+		fmt.Println("container", container.Name, container.Image)
+		isContainerFound := false
+		for _, manifest := range manifests {
+			jsonData, err := yaml.YAMLToJSON([]byte(manifest))
+			if err != nil {
+				continue
 			}
 
-			return true
-		})
+			imageName := gjson.GetBytes(jsonData, "image").String()
+			fmt.Println("imageName", imageName)
 
-		// TODO: check if the image is used in the manifest
+			if imageName == container.Image {
+				isContainerFound = true
+				break
+			}
+		}
+
+		if !isContainerFound {
+			errorList.Errorf("container %s is not found in the manifests", moduleName+"/"+container.Name)
+		}
 	}
+
+	// TODO: check if the image is used in the manifest
 }
 
 func checkUnderscoredImages(moduleName string, manifests []string, errorList *errors.LintRuleErrorsList) {
@@ -116,6 +132,9 @@ func checkUnderscoredImages(moduleName string, manifests []string, errorList *er
 		}
 
 		imageName := gjson.GetBytes(jsonData, "image").String()
+		if imageName == "" {
+			continue
+		}
 		if strings.Contains(imageName, "_") {
 			errorList.Errorf("parsing Werf file, document %d (image: %s) failed: image name should not contain underscores", i+1, moduleName+"/"+imageName)
 		}
