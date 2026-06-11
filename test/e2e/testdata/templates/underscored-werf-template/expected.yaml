@@ -1,0 +1,8 @@
+description: >
+  A werf.yaml file that contains an image with underscores should be flagged by the werf test rule.
+module: module
+expect:
+  - linter: templates
+    rule: werf
+    level: error
+    textContains: "image name should not contain underscores"
