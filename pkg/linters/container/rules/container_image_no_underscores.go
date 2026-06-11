@@ -84,12 +84,14 @@ func FindObjectRawImages(path string) ([]string, error) {
 	defer file.Close()
 
 	var images []string
+
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		if match := imageRawRegex.FindStringSubmatch(scanner.Text()); len(match) >= 2 {
 			images = append(images, match[1])
 		}
 	}
+
 	if err := scanner.Err(); err != nil {
 		return nil, err
 	}
