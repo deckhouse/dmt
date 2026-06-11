@@ -20,6 +20,7 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [cluster-domain](#cluster-domain) | Validates cluster domain configuration is dynamic | ❌ | enabled |
 | [registry](#registry) | Validates registry secret configuration | ❌ | enabled |
 | [werf](#werf) | Validates werf.yaml templates for git stage dependencies | ❌ | enabled |
+| [enabled-modules](#enabled-modules) | Detects usage of `.Values.global.enabledModules` in templates | ✅ | enabled |
 
 ## Rule Details
 
@@ -1580,6 +1581,74 @@ git:
         - "**/*.yaml"
 ```
 
+---
+
+### enabled-modules
+
+**Purpose:** Detects usage of `.Values.global.enabledModules` in templates and encourages using `.Capabilities.APIVersions.Has` instead. Relying on the list of enabled modules couples a module to the presence of other modules, while capability checks are more robust and portable.
+
+**Description:**
+
+Scans all template files (`.yaml`, `.yml`, `.tpl`) in the `templates/` directory for the pattern `.Values.global.enabledModules | has "..."` and reports each occurrence as a warning.
+
+**What it checks:**
+
+1. All files in the `templates/` directory
+2. Usage of `.Values.global.enabledModules | has "<module-name>"`
+
+**Why it matters:**
+
+Checking `enabledModules`:
+- Couples modules to the presence of other modules
+- Breaks when modules are renamed or split
+- Is less reliable than checking for the actual API capabilities a module needs
+
+**Examples:**
+
+❌ **Incorrect** - Checking enabled modules:
+
+```yaml
+# templates/deployment.yaml
+{{- if .Values.global.enabledModules | has "cni-cilium" }}
+        env:
+        - name: CILIUM_ENABLED
+          value: "true"
+{{- end }}
+```
+
+**Warning:**
+```
+Found usage of .Values.global.enabledModules | has "cni-cilium".
+Consider using (.Capabilities.APIVersions.Has "group/version/Kind") instead.
+```
+
+✅ **Correct** - Checking API capabilities:
+
+```yaml
+# templates/deployment.yaml
+{{- if .Capabilities.APIVersions.Has "cilium.io/v2/CiliumNetworkPolicy" }}
+        env:
+        - name: CILIUM_ENABLED
+          value: "true"
+{{- end }}
+```
+
+**Configuration:**
+
+The rule supports excluding specific files and directories (paths are relative to the module root):
+
+```yaml
+# .dmt.yaml
+linters-settings:
+  templates:
+    exclude-rules:
+      enabled-modules:
+        files:
+          - templates/legacy-deployment.yaml  # Exclude specific file
+        directories:
+          - templates/vendor/                 # Exclude entire directory
+```
+
 ## Configuration
 
 The Templates linter can be configured at the module level with rule-specific settings and exclusions.
@@ -1642,6 +1711,13 @@ linters-settings:
       kube-rbac-proxy:
         - d8-system
         - d8-test-namespace
+
+      # enabled-modules exclusions (by file and directory, relative to module root)
+      enabled-modules:
+        files:
+          - templates/legacy-deployment.yaml
+        directories:
+          - templates/vendor/
 ```
 
 ### Complete Configuration Example

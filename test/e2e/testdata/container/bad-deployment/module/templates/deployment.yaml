@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: e2e-app
+  namespace: e2e-container-issues
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: e2e-app
+  template:
+    metadata:
+      labels:
+        app: e2e-app
+    spec:
+      containers:
+        - name: app
+          image: nginx:latest
+          env:
+            - name: FOO
+              value: "1"
+            - name: FOO
+              value: "2"

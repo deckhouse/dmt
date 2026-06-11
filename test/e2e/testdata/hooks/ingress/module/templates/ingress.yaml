@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: e2e-ingress
+  namespace: e2e-hooks
+spec:
+  rules:
+    - host: e2e.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: e2e-svc
+                port:
+                  number: 80

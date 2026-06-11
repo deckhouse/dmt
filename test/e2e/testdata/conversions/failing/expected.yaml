@@ -1,0 +1,7 @@
+description: >-
+  A conversion testcase whose expected result does not match the converter
+  output. The conversions tester must report a mismatch.
+kind: conversions
+expect:
+  - linter: conversions
+    textContains: "conversion mismatch"

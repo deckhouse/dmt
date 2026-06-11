@@ -131,15 +131,16 @@ type TemplatesLinterConfig struct {
 	GrafanaDashboardsSettings GrafanaDashboardsSettings
 }
 type TemplatesLinterRules struct {
-	VPARule           RuleConfig
-	PDBRule           RuleConfig
-	IngressRule       RuleConfig
-	PrometheusRule    RuleConfig
-	GrafanaRule       RuleConfig
-	KubeRBACProxyRule RuleConfig
-	ServicePortRule   RuleConfig
-	ClusterDomainRule RuleConfig
-	RegistryRule      RuleConfig
+	VPARule            RuleConfig
+	PDBRule            RuleConfig
+	IngressRule        RuleConfig
+	PrometheusRule     RuleConfig
+	GrafanaRule        RuleConfig
+	KubeRBACProxyRule  RuleConfig
+	ServicePortRule    RuleConfig
+	ClusterDomainRule  RuleConfig
+	RegistryRule       RuleConfig
+	EnabledModulesRule RuleConfig
 }
 
 type PrometheusRuleSettings struct {
@@ -150,11 +151,17 @@ type GrafanaDashboardsSettings struct {
 	Disable bool
 }
 type TemplatesExcludeRules struct {
-	VPAAbsent     KindRuleExcludeList
-	PDBAbsent     KindRuleExcludeList
-	ServicePort   ServicePortExcludeList
-	KubeRBACProxy StringRuleExcludeList
-	Ingress       KindRuleExcludeList
+	VPAAbsent      KindRuleExcludeList
+	PDBAbsent      KindRuleExcludeList
+	ServicePort    ServicePortExcludeList
+	KubeRBACProxy  StringRuleExcludeList
+	Ingress        KindRuleExcludeList
+	EnabledModules EnabledModulesExcludeRule
+}
+
+type EnabledModulesExcludeRule struct {
+	Files       StringRuleExcludeList
+	Directories PrefixRuleExcludeList
 }
 
 type ServicePortExcludeList []ServicePortExclude

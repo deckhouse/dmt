@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: e2e-app
+  namespace: e2e-pdb-mismatch
+spec:
+  selector:
+    matchLabels:
+      app: e2e-app
+  template:
+    metadata:
+      labels:
+        app: e2e-app
+    spec:
+      containers:
+        - name: app
+          image: registry.example.com/app@sha256:0000000000000000000000000000000000000000000000000000000000000000
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: other
+  namespace: e2e-pdb-mismatch
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: some-other-app

@@ -1,0 +1,2 @@
+# This module renders rules via include "helm_lib_prometheus_rules" (list . "ns")
+# (kept as a comment so the e2e fixture renders without helm_lib being available)

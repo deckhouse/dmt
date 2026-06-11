@@ -1,0 +1,9 @@
+description: >
+  A Role in rbac-for-us.yaml that uses "*" wildcards for apiGroups, resources
+  and verbs must be flagged by the rbac wildcards rule.
+module: module
+expect:
+  - linter: rbac
+    rule: wildcards
+    level: error
+    textContains: "contains a wildcards"

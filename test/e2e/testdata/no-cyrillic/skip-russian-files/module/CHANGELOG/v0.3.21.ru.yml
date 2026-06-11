@@ -1,0 +1,4 @@
+csi-nfs:
+  fixes:
+    - summary: Изменения в CI и доработки CVE-сканов.
+      pull_request: https://example.com/pr/1

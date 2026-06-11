@@ -1,0 +1,5 @@
+groups:
+  - name: e2e
+    rules:
+      - alert: E2EAlert
+        expr: vector(1)

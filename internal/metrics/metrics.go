@@ -22,6 +22,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -32,10 +33,14 @@ import (
 
 var (
 	metrics   *PrometheusMetricsService
+	metricsMu sync.Mutex
 	startTime = time.Now()
 )
 
 func GetClient(dir string) *PrometheusMetricsService {
+	metricsMu.Lock()
+	defer metricsMu.Unlock()
+
 	if metrics != nil {
 		return metrics
 	}

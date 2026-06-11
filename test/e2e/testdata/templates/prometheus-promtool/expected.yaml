@@ -1,0 +1,9 @@
+description: >
+  A PrometheusRule object with an invalid PromQL expression must be flagged by
+  the prometheus-rules rule via promtool.
+module: module
+expect:
+  - linter: templates
+    rule: prometheus-rules
+    level: error
+    textContains: "Promtool check failed for Prometheus rule"

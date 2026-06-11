@@ -195,23 +195,30 @@ type TemplatesSettings struct {
 }
 
 type TemplatesLinterRules struct {
-	VPARule           RuleConfig `mapstructure:"vpa"`
-	PDBRule           RuleConfig `mapstructure:"pdb"`
-	IngressRule       RuleConfig `mapstructure:"ingress"`
-	PrometheusRule    RuleConfig `mapstructure:"prometheus-rules"`
-	GrafanaRule       RuleConfig `mapstructure:"grafana-dashboards"`
-	KubeRBACProxyRule RuleConfig `mapstructure:"kube-rbac-proxy"`
-	ServicePortRule   RuleConfig `mapstructure:"service-port"`
-	ClusterDomainRule RuleConfig `mapstructure:"cluster-domain"`
-	RegistryRule      RuleConfig `mapstructure:"registry"`
+	VPARule            RuleConfig `mapstructure:"vpa"`
+	PDBRule            RuleConfig `mapstructure:"pdb"`
+	IngressRule        RuleConfig `mapstructure:"ingress"`
+	PrometheusRule     RuleConfig `mapstructure:"prometheus-rules"`
+	GrafanaRule        RuleConfig `mapstructure:"grafana-dashboards"`
+	KubeRBACProxyRule  RuleConfig `mapstructure:"kube-rbac-proxy"`
+	ServicePortRule    RuleConfig `mapstructure:"service-port"`
+	ClusterDomainRule  RuleConfig `mapstructure:"cluster-domain"`
+	RegistryRule       RuleConfig `mapstructure:"registry"`
+	EnabledModulesRule RuleConfig `mapstructure:"enabled-modules"`
 }
 
 type TemplatesExcludeRules struct {
-	VPAAbsent     KindRuleExcludeList    `mapstructure:"vpa"`
-	PDBAbsent     KindRuleExcludeList    `mapstructure:"pdb"`
-	ServicePort   ServicePortExcludeList `mapstructure:"service-port"`
-	KubeRBACProxy StringRuleExcludeList  `mapstructure:"kube-rbac-proxy"`
-	Ingress       KindRuleExcludeList    `mapstructure:"ingress"`
+	VPAAbsent      KindRuleExcludeList       `mapstructure:"vpa"`
+	PDBAbsent      KindRuleExcludeList       `mapstructure:"pdb"`
+	ServicePort    ServicePortExcludeList    `mapstructure:"service-port"`
+	KubeRBACProxy  StringRuleExcludeList     `mapstructure:"kube-rbac-proxy"`
+	Ingress        KindRuleExcludeList       `mapstructure:"ingress"`
+	EnabledModules EnabledModulesExcludeRule `mapstructure:"enabled-modules"`
+}
+
+type EnabledModulesExcludeRule struct {
+	Files       StringRuleExcludeList `mapstructure:"files"`
+	Directories PrefixRuleExcludeList `mapstructure:"directories"`
 }
 
 type GrafanaDashboardsExcludeList struct {

@@ -1,0 +1,9 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: d8:e2e-rbac:wildcard
+  namespace: e2e-rbac
+rules:
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["*"]
