@@ -26,7 +26,6 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/tidwall/gjson"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
@@ -51,7 +50,6 @@ var prometheusSyntheticMetrics = map[string]struct{}{
 
 type SourceLabelRule struct {
 	pkg.RuleMeta
-	pkg.BoolRule
 	recordingRuleNames map[string]struct{}
 	allowedMetrics     []*regexp.Regexp
 }
@@ -79,15 +77,11 @@ func globToRegexp(pattern string) (*regexp.Regexp, error) {
 }
 
 func NewSourceLabelRule(cfg *pkg.TemplatesLinterConfig) *SourceLabelRule {
-	var exclude bool
-
 	var allowedMetrics []*regexp.Regexp
 
 	recordNames := make(map[string]struct{})
 
 	if cfg != nil {
-		exclude = cfg.SourceLabelSettings.Disable
-
 		for _, m := range cfg.SourceLabelSettings.AllowedMetrics {
 			if re, err := globToRegexp(m); err == nil {
 				allowedMetrics = append(allowedMetrics, re)
@@ -103,19 +97,12 @@ func NewSourceLabelRule(cfg *pkg.TemplatesLinterConfig) *SourceLabelRule {
 		RuleMeta: pkg.RuleMeta{
 			Name: SourceLabelRuleName,
 		},
-		BoolRule: pkg.BoolRule{
-			Exclude: exclude,
-		},
 		recordingRuleNames: recordNames,
 		allowedMetrics:     allowedMetrics,
 	}
 }
 
 func (r *SourceLabelRule) SourceLabelCheck(m pkg.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	if !r.Enabled() {
-		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
-	}
-
 	errorList = errorList.WithFilePath(m.GetPath()).WithRule(r.GetName())
 
 	if object.Unstructured.GetKind() != "PrometheusRule" {
@@ -270,10 +257,6 @@ func sanitizeGrafanaExpr(expr string) string {
 }
 
 func (r *SourceLabelRule) SourceLabelCheckDashboards(m pkg.Module, errorList *errors.LintRuleErrorsList) {
-	if !r.Enabled() {
-		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
-	}
-
 	errorList = errorList.WithRule(r.GetName())
 
 	searchPath := filepath.Join(m.GetPath(), "monitoring", "grafana-dashboards")

@@ -196,7 +196,6 @@ type TemplatesSettings struct {
 }
 
 type SourceLabelSettings struct {
-	Disable        bool     `mapstructure:"disable"`
 	AllowedMetrics []string `mapstructure:"allowed-metrics"`
 }
 

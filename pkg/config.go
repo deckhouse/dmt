@@ -133,7 +133,6 @@ type TemplatesLinterConfig struct {
 }
 
 type SourceLabelSettings struct {
-	Disable            bool
 	AllowedMetrics     []string
 	RecordingRuleNames map[string]struct{}
 }

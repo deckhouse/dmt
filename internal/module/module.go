@@ -468,7 +468,6 @@ func mapTemplatesExclusionsAndSettings(linterSettings *pkg.LintersSettings, conf
 	// Additional settings
 	linterSettings.Templates.PrometheusRuleSettings.Disable = configSettings.Templates.PrometheusRules.Disable
 	linterSettings.Templates.GrafanaDashboardsSettings.Disable = configSettings.Templates.GrafanaDashboards.Disable
-	linterSettings.Templates.SourceLabelSettings.Disable = configSettings.Templates.SourceLabel.Disable
 	linterSettings.Templates.SourceLabelSettings.AllowedMetrics = configSettings.Templates.SourceLabel.AllowedMetrics
 }
 
