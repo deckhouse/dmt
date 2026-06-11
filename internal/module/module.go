@@ -146,6 +146,14 @@ func (m *Module) GetModuleConfig() *pkg.LintersSettings {
 	return m.linterConfig
 }
 
+func (m *Module) SetRecordingRuleNames(names map[string]struct{}) {
+	if m == nil || m.linterConfig == nil {
+		return
+	}
+
+	m.linterConfig.Templates.SourceLabelSettings.RecordingRuleNames = names
+}
+
 // remapLinterSettings converts configuration settings from the config package format
 // to the pkg package format, mapping both rule-level configurations and exclusion rules
 // across all linter domains (Container, Image, NoCyrillic, OpenAPI, Templates, RBAC, Hooks, Module).
@@ -342,6 +350,7 @@ func mapTemplatesRules(linterSettings *pkg.LintersSettings, configSettings *conf
 	rules.ClusterDomainRule.SetLevel(globalRules.ClusterDomainRule.Impact, fallbackImpact)
 	rules.RegistryRule.SetLevel(globalRules.RegistryRule.Impact, fallbackImpact)
 	rules.EnabledModulesRule.SetLevel(globalRules.EnabledModulesRule.Impact, fallbackImpact)
+	rules.SourceLabelRule.SetLevel(globalRules.SourceLabelRule.Impact, fallbackImpact)
 }
 
 // mapOpenAPIRules configures OpenAPI linter rules
@@ -459,6 +468,7 @@ func mapTemplatesExclusionsAndSettings(linterSettings *pkg.LintersSettings, conf
 	// Additional settings
 	linterSettings.Templates.PrometheusRuleSettings.Disable = configSettings.Templates.PrometheusRules.Disable
 	linterSettings.Templates.GrafanaDashboardsSettings.Disable = configSettings.Templates.GrafanaDashboards.Disable
+	linterSettings.Templates.SourceLabelSettings.AllowedMetrics = configSettings.Templates.SourceLabel.AllowedMetrics
 }
 
 // mapRBACExclusions maps RBAC linter exclusion rules
