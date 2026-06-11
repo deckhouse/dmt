@@ -5,4 +5,4 @@ expect:
   - linter: templates
     rule: werf
     level: error
-    textContains: "image name should not contain underscores"
+    textContains: "must not contain underscores"

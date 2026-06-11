@@ -6,4 +6,4 @@ expect:
   - linter: templates
     rule: werf
     level: error
-    textContains: "image e2eapp is not found in the manifests"
+    textContains: "Template references image \"e2eapp\" which is not defined in werf.yaml"

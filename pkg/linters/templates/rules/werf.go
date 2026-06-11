@@ -62,7 +62,7 @@ func checkGitSection(moduleName string, manifests []string, errorList *errors.Li
 	for i, manifest := range manifests {
 		jsonData, err := yaml.YAMLToJSON([]byte(manifest))
 		if err != nil {
-			errorList.Errorf("parsing Werf file, document %d failed: %s", i+1, err)
+			errorList.Errorf("Failed to parse werf.yaml document %d: %s", i+1, err)
 			continue
 		}
 
@@ -73,7 +73,7 @@ func checkGitSection(moduleName string, manifests []string, errorList *errors.Li
 
 		gjson.GetBytes(jsonData, "git").ForEach(func(_, value gjson.Result) bool {
 			if !value.Get("stageDependencies").Exists() {
-				errorList.Errorf("parsing Werf file, document %d (image: %s) failed: 'git.stageDependencies' is required", i+1, imageName)
+				errorList.Errorf("Image %q in werf.yaml (document %d) is missing required 'git.stageDependencies' field", imageName, i+1)
 				return false
 			}
 
@@ -85,7 +85,7 @@ func checkGitSection(moduleName string, manifests []string, errorList *errors.Li
 func checkTemplatesUsingRenderedImages(object storage.StoreObject, manifests []string, errorList *errors.LintRuleErrorsList) {
 	images, err := rules.FindObjectRawImages(object.AbsPath)
 	if err != nil {
-		errorList.Errorf("finding object raw images failed: %s", err)
+		errorList.Errorf("Failed to read images from template file: %s", err)
 		return
 	}
 
@@ -108,7 +108,7 @@ func checkTemplatesUsingRenderedImages(object storage.StoreObject, manifests []s
 		}
 
 		if !isContainerFound {
-			errorList.Errorf("image %s is not found in the manifests", image)
+			errorList.Errorf("Template references image %q which is not defined in werf.yaml", image)
 		}
 	}
 }
@@ -117,7 +117,7 @@ func checkUnderscoredImages(manifests []string, errorList *errors.LintRuleErrors
 	for i, manifest := range manifests {
 		jsonData, err := yaml.YAMLToJSON([]byte(manifest))
 		if err != nil {
-			errorList.Errorf("parsing Werf file, document %d failed: %s", i+1, err)
+			errorList.Errorf("Failed to parse werf.yaml document %d: %s", i+1, err)
 			continue
 		}
 
@@ -127,7 +127,7 @@ func checkUnderscoredImages(manifests []string, errorList *errors.LintRuleErrors
 		}
 
 		if strings.Contains(imageName, "_") {
-			errorList.Errorf("parsing Werf file, document %d (image: %s) failed: image name should not contain underscores", i+1, imageName)
+			errorList.Errorf("Image name %q in werf.yaml (document %d) must not contain underscores", imageName, i+1)
 		}
 	}
 }

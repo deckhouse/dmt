@@ -60,13 +60,13 @@ func (r *ImageNoUnderscoresRule) ContainerImageNoUnderscoresCheck(object storage
 
 	images, err := FindObjectRawImages(object.AbsPath)
 	if err != nil {
-		errorList.Errorf("finding object raw images failed: %s", err)
+		errorList.Errorf("Failed to read images from template file: %s", err)
 		return
 	}
 
 	for _, image := range images {
 		if strings.Contains(image, "_") {
-			errorList.Errorf("image %s contains underscores", image)
+			errorList.Errorf("Image name %q must not contain underscores", image)
 		}
 	}
 }

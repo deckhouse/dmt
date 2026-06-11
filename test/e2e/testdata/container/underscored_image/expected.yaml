@@ -6,4 +6,4 @@ expect:
   - linter: container
     rule: image-no-underscores
     level: error
-    textContains: 'image e2e_app contains underscores'
+    textContains: 'Image name "e2e_app" must not contain underscores'

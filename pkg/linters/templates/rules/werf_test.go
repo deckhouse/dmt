@@ -78,7 +78,7 @@ git:
 
 	rule.ValidateWerfTemplates(mockModuleWerfInvalid, errorList)
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for invalid Werf file")
-	assert.Contains(t, errorList.GetErrors()[0].Text, "'git.stageDependencies' is required")
+	assert.Contains(t, errorList.GetErrors()[0].Text, "is missing required 'git.stageDependencies' field")
 }
 
 func TestCheckGitSection(t *testing.T) {
@@ -113,7 +113,7 @@ git:
 
 	checkGitSection("mock-module", invalidManifests, errorList)
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for invalid manifest")
-	assert.Contains(t, errorList.GetErrors()[0].Text, "'git.stageDependencies' is required")
+	assert.Contains(t, errorList.GetErrors()[0].Text, "is missing required 'git.stageDependencies' field")
 
 	// Malformed YAML
 	malformedManifests := []string{
@@ -126,7 +126,7 @@ git:
 
 	checkGitSection("mock-module", malformedManifests, errorList)
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for malformed YAML")
-	assert.Contains(t, errorList.GetErrors()[0].Text, "parsing Werf file, document 1 (image: mock-module/test-image) failed")
+	assert.Contains(t, errorList.GetErrors()[0].Text, "mock-module/test-image")
 }
 
 func TestCheckTemplatesUsingRenderedImages(t *testing.T) {
@@ -191,7 +191,7 @@ git:
 	}
 
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for invalid manifest")
-	assert.Contains(t, errorList.GetErrors()[0].Text, "image mock-module/test-image is not found in the manifests")
+	assert.Contains(t, errorList.GetErrors()[0].Text, `Template references image "mock-module/test-image" which is not defined in werf.yaml`)
 }
 
 func TestCheckUnderscoredImages(t *testing.T) {
@@ -228,5 +228,5 @@ git:
 
 	checkUnderscoredImages(invalidManifests, errorList)
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for invalid manifest")
-	assert.Contains(t, errorList.GetErrors()[0].Text, "image name should not contain underscores")
+	assert.Contains(t, errorList.GetErrors()[0].Text, "must not contain underscores")
 }

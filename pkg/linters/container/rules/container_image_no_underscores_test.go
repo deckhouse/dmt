@@ -281,7 +281,7 @@ func TestImageNoUnderscoresRule_ContainerImageNoUnderscoresCheck(t *testing.T) {
 			name:           "image with underscore should error",
 			fileContent:    `image: {{ include "helm_lib_module_image" . "invalid_image" }}`,
 			containers:     []corev1.Container{{Name: "test"}},
-			expectedErrors: []string{"image invalid_image contains underscores"},
+			expectedErrors: []string{`Image name "invalid_image" must not contain underscores`},
 		},
 		{
 			name: "multiple images, some with underscores",
@@ -290,8 +290,8 @@ image: {{ include "helm_lib_module_image" . "bad_image" }}
 image: {{ include "helm_lib_module_image" . "another_bad_one" }}`,
 			containers: []corev1.Container{{Name: "test"}},
 			expectedErrors: []string{
-				"image bad_image contains underscores",
-				"image another_bad_one contains underscores",
+				`Image name "bad_image" must not contain underscores`,
+				`Image name "another_bad_one" must not contain underscores`,
 			},
 		},
 		{
@@ -343,7 +343,7 @@ func TestImageNoUnderscoresRule_FileReadError(t *testing.T) {
 	errs := errorList.GetErrors()
 
 	assert.Len(t, errs, 1, "Should have one error for file read failure")
-	assert.Contains(t, errs[0].Text, "finding object raw images failed")
+	assert.Contains(t, errs[0].Text, "Failed to read images from template file")
 }
 
 func TestImageNoUnderscoresRule_Enabled(t *testing.T) {
