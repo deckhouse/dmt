@@ -17,7 +17,7 @@ limitations under the License.
 package rules
 
 import (
-	"io"
+	"bufio"
 	"os"
 	"regexp"
 	"strings"
@@ -33,7 +33,11 @@ const (
 	ImageNoUnderscoresRuleName = "image-no-underscores"
 )
 
-var imageRawRegex = regexp.MustCompile(`.*image:.*helm_lib_module_image.*"(.*)".*`)
+// Captures the last quoted argument of helm_lib_module_image on a line, supporting both:
+//
+//	image: {{ include "helm_lib_module_image" . "imageName" }}
+//	image: {{ include "helm_lib_module_image" (list . "imageName") }}
+var imageRawRegex = regexp.MustCompile(`image:.*helm_lib_module_image.*"([^"]+)"[^"]*$`)
 
 func NewImageNoUnderscoresRule(excludeRules []pkg.ContainerRuleExclude) *ImageNoUnderscoresRule {
 	return &ImageNoUnderscoresRule{
@@ -54,7 +58,7 @@ type ImageNoUnderscoresRule struct {
 func (r *ImageNoUnderscoresRule) ContainerImageNoUnderscoresCheck(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
-	images, err := FindObjectRawImages(object)
+	images, err := FindObjectRawImages(object.AbsPath)
 	if err != nil {
 		errorList.Errorf("finding object raw images failed: %s", err)
 		return
@@ -67,30 +71,26 @@ func (r *ImageNoUnderscoresRule) ContainerImageNoUnderscoresCheck(object storage
 	}
 }
 
-func FindObjectRawImages(object storage.StoreObject) ([]string, error) {
-	file, err := os.Open(object.AbsPath)
+func FindObjectRawImages(path string) ([]string, error) {
+	file, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
 
-	content, err := io.ReadAll(file)
-	if err != nil {
+	var images []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		if match := imageRawRegex.FindStringSubmatch(scanner.Text()); len(match) >= 2 {
+			images = append(images, match[1])
+		}
+	}
+	if err := scanner.Err(); err != nil {
 		return nil, err
 	}
 
-	matches := imageRawRegex.FindAllStringSubmatch(string(content), -1)
-	if len(matches) == 0 {
+	if images == nil {
 		return []string{}, nil
-	}
-
-	images := make([]string, 0, len(matches))
-	for _, match := range matches {
-		if len(match) < 2 {
-			continue
-		}
-
-		images = append(images, match[1])
 	}
 
 	return images, nil

@@ -72,14 +72,157 @@ func TestFindObjectRawImages(t *testing.T) {
 			expectedImages: []string{"someImage"},
 		},
 		{
-			name:           "single image with underscore",
-			fileContent:    `image: {{ include "helm_lib_module_image" . "some_image" }}`,
+			name: "single image with underscore",
+			fileContent: `
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-name
+  namespace: d8-{{ $.Chart.Name }}
+  {{- include "helm_lib_module_labels" (list . (dict "app" $.Chart.Name)) | nindent 2 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-name
+  template:
+    metadata:
+      labels:
+        app: app-name
+    spec:
+      serviceAccountName: {{ $.Chart.Name }}
+      automountServiceAccountToken: true
+      {{- include "helm_lib_node_selector" (tuple . "system") | nindent 6 }}
+      {{- include "helm_lib_tolerations" (tuple . "system") | nindent 6 }}
+      {{- include "helm_lib_priority_class" (tuple . "cluster-low") | nindent 6 }}
+      {{- include "helm_lib_module_pod_security_context_run_as_user_deckhouse" . | nindent 6 }}
+      containers:
+        - name: manager
+		  image: {{ include "helm_lib_module_image" . "some_image" }}`,
 			expectedImages: []string{"some_image"},
 		},
 		{
 			name: "multiple images mixed",
-			fileContent: `image: {{ include "helm_lib_module_image" . "firstImage" }}
-image: {{ include "helm_lib_module_image" . "second_image" }}`,
+			fileContent: `
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-name
+  namespace: d8-{{ $.Chart.Name }}
+  {{- include "helm_lib_module_labels" (list . (dict "app" $.Chart.Name)) | nindent 2 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-name
+  template:
+    metadata:
+      labels:
+        app: app-name
+    spec:
+      serviceAccountName: {{ $.Chart.Name }}
+      automountServiceAccountToken: true
+      {{- include "helm_lib_node_selector" (tuple . "system") | nindent 6 }}
+      {{- include "helm_lib_tolerations" (tuple . "system") | nindent 6 }}
+      {{- include "helm_lib_priority_class" (tuple . "cluster-low") | nindent 6 }}
+      {{- include "helm_lib_module_pod_security_context_run_as_user_deckhouse" . | nindent 6 }}
+      containers:
+        - name: manager
+		  image: {{ include "helm_lib_module_image" . "firstImage" }}
+        - name: manager2
+		  image: {{ include "helm_lib_module_image" . "second_image" }}`,
+			expectedImages: []string{"firstImage", "second_image"},
+		},
+		{
+			name: "list syntax without underscores",
+			fileContent: `
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-name
+  namespace: d8-{{ $.Chart.Name }}
+  {{- include "helm_lib_module_labels" (list . (dict "app" $.Chart.Name)) | nindent 2 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-name
+  template:
+    metadata:
+      labels:
+        app: app-name
+    spec:
+      serviceAccountName: {{ $.Chart.Name }}
+      automountServiceAccountToken: true
+      {{- include "helm_lib_node_selector" (tuple . "system") | nindent 6 }}
+      {{- include "helm_lib_tolerations" (tuple . "system") | nindent 6 }}
+      {{- include "helm_lib_priority_class" (tuple . "cluster-low") | nindent 6 }}
+      {{- include "helm_lib_module_pod_security_context_run_as_user_deckhouse" . | nindent 6 }}
+      containers:
+        - name: manager
+		  image: {{ include "helm_lib_module_image" (list . "podReloader") }}`,
+			expectedImages: []string{"podReloader"},
+		},
+		{
+			name: "list syntax with underscore",
+			fileContent: `
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-name
+  namespace: d8-{{ $.Chart.Name }}
+  {{- include "helm_lib_module_labels" (list . (dict "app" $.Chart.Name)) | nindent 2 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-name
+  template:
+    metadata:
+      labels:
+        app: app-name
+    spec:
+      serviceAccountName: {{ $.Chart.Name }}
+      automountServiceAccountToken: true
+      {{- include "helm_lib_node_selector" (tuple . "system") | nindent 6 }}
+      {{- include "helm_lib_tolerations" (tuple . "system") | nindent 6 }}
+      {{- include "helm_lib_priority_class" (tuple . "cluster-low") | nindent 6 }}
+      {{- include "helm_lib_module_pod_security_context_run_as_user_deckhouse" . | nindent 6 }}
+      containers:
+        - name: manager
+		  image: {{ include "helm_lib_module_image" (list . "pod_reloader") }}`,
+			expectedImages: []string{"pod_reloader"},
+		},
+		{
+			name: "mixed dot and list syntax",
+			fileContent: `
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-name
+  namespace: d8-{{ $.Chart.Name }}
+  {{- include "helm_lib_module_labels" (list . (dict "app" $.Chart.Name)) | nindent 2 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-name
+  template:
+    metadata:
+      labels:
+        app: app-name
+    spec:
+      serviceAccountName: {{ $.Chart.Name }}
+      automountServiceAccountToken: true
+      {{- include "helm_lib_node_selector" (tuple . "system") | nindent 6 }}
+      {{- include "helm_lib_tolerations" (tuple . "system") | nindent 6 }}
+      {{- include "helm_lib_priority_class" (tuple . "cluster-low") | nindent 6 }}
+      {{- include "helm_lib_module_pod_security_context_run_as_user_deckhouse" . | nindent 6 }}
+      containers:
+        - name: manager
+		  image: {{ include "helm_lib_module_image" . "firstImage" }}
+		- name: manager2
+          image: {{ include "helm_lib_module_image" (list . "second_image") }}`,
 			expectedImages: []string{"firstImage", "second_image"},
 		},
 		{
@@ -92,7 +235,7 @@ image: {{ include "helm_lib_module_image" . "second_image" }}`,
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			obj := makeStoreObj(t, tt.fileContent)
-			images, err := FindObjectRawImages(obj)
+			images, err := FindObjectRawImages(obj.AbsPath)
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectedImages, images)
 		})
@@ -110,7 +253,7 @@ func TestFindObjectRawImages_FileNotFound(t *testing.T) {
 		},
 	}
 
-	images, err := FindObjectRawImages(obj)
+	images, err := FindObjectRawImages(obj.AbsPath)
 	assert.Nil(t, images)
 	assert.Error(t, err)
 }

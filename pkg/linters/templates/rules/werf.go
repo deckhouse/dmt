@@ -83,7 +83,7 @@ func checkGitSection(moduleName string, manifests []string, errorList *errors.Li
 }
 
 func checkTemplatesUsingRenderedImages(object storage.StoreObject, manifests []string, errorList *errors.LintRuleErrorsList) {
-	images, err := rules.FindObjectRawImages(object)
+	images, err := rules.FindObjectRawImages(object.AbsPath)
 	if err != nil {
 		errorList.Errorf("finding object raw images failed: %s", err)
 		return
