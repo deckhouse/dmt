@@ -304,12 +304,12 @@ image: {{ include "helm_lib_module_image" . "another_bad_one" }}`,
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rule := NewImageNoUnderscoresRule([]pkg.ContainerRuleExclude{})
+			rule := NewContainerImageNameRule([]pkg.ContainerRuleExclude{})
 			errorList := errors.NewLintRuleErrorsList()
 
 			obj := makeStoreObj(t, tt.fileContent)
 
-			rule.ContainerImageNoUnderscoresCheck(obj, tt.containers, errorList)
+			rule.ContainerImageNameCheck(obj, tt.containers, errorList)
 			errs := errorList.GetErrors()
 
 			if len(tt.expectedErrors) == 0 {
@@ -326,7 +326,7 @@ image: {{ include "helm_lib_module_image" . "another_bad_one" }}`,
 }
 
 func TestImageNoUnderscoresRule_FileReadError(t *testing.T) {
-	rule := NewImageNoUnderscoresRule([]pkg.ContainerRuleExclude{})
+	rule := NewContainerImageNameRule([]pkg.ContainerRuleExclude{})
 	errorList := errors.NewLintRuleErrorsList()
 
 	obj := storage.StoreObject{
@@ -339,7 +339,7 @@ func TestImageNoUnderscoresRule_FileReadError(t *testing.T) {
 		},
 	}
 
-	rule.ContainerImageNoUnderscoresCheck(obj, []corev1.Container{{Name: "test"}}, errorList)
+	rule.ContainerImageNameCheck(obj, []corev1.Container{{Name: "test"}}, errorList)
 	errs := errorList.GetErrors()
 
 	assert.Len(t, errs, 1, "Should have one error for file read failure")
@@ -355,7 +355,7 @@ func TestImageNoUnderscoresRule_Enabled(t *testing.T) {
 		},
 	}
 
-	rule := NewImageNoUnderscoresRule(excludeRules)
+	rule := NewContainerImageNameRule(excludeRules)
 
 	excludedObj := storage.StoreObject{
 		AbsPath: "test.yaml",

@@ -317,7 +317,7 @@ type ContainerLinterRules struct {
 	HostNetworkPortsRule         RuleConfig
 	EnvVariablesDuplicatesRule   RuleConfig
 	ImageDigestRule              RuleConfig
-	ImageNoUnderscoresRule       RuleConfig
+	ContainerImageNameRule       RuleConfig
 	ImagePullPolicyRule          RuleConfig
 	ResourcesRule                RuleConfig
 	ContainerSecurityContextRule RuleConfig
@@ -336,7 +336,7 @@ type ContainerExcludeRules struct {
 	NoNewPrivileges        ContainerRuleExcludeList
 	SeccompProfile         ContainerRuleExcludeList
 	ImageDigest            ContainerRuleExcludeList
-	ImageNoUnderscores     ContainerRuleExcludeList
+	ContainerImageName     ContainerRuleExcludeList
 	Resources              ContainerRuleExcludeList
 	SecurityContext        ContainerRuleExcludeList
 	Liveness               ContainerRuleExcludeList

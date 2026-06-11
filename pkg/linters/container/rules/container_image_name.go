@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	ImageNoUnderscoresRuleName = "image-no-underscores"
+	ContainerImageNameRuleName = "container-image-name"
 )
 
 // Captures the last quoted argument of helm_lib_module_image on a line, supporting both:
@@ -39,10 +39,10 @@ const (
 //	image: {{ include "helm_lib_module_image" (list . "imageName") }}
 var imageRawRegex = regexp.MustCompile(`image:.*helm_lib_module_image.*"([^"]+)"[^"]*$`)
 
-func NewImageNoUnderscoresRule(excludeRules []pkg.ContainerRuleExclude) *ImageNoUnderscoresRule {
-	return &ImageNoUnderscoresRule{
+func NewContainerImageNameRule(excludeRules []pkg.ContainerRuleExclude) *ContainerImageNameRule {
+	return &ContainerImageNameRule{
 		RuleMeta: pkg.RuleMeta{
-			Name: ImageNoUnderscoresRuleName,
+			Name: ContainerImageNameRuleName,
 		},
 		ContainerRule: pkg.ContainerRule{
 			ExcludeRules: excludeRules,
@@ -50,12 +50,12 @@ func NewImageNoUnderscoresRule(excludeRules []pkg.ContainerRuleExclude) *ImageNo
 	}
 }
 
-type ImageNoUnderscoresRule struct {
+type ContainerImageNameRule struct {
 	pkg.RuleMeta
 	pkg.ContainerRule
 }
 
-func (r *ImageNoUnderscoresRule) ContainerImageNoUnderscoresCheck(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
+func (r *ContainerImageNameRule) ContainerImageNameCheck(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
 	images, err := FindObjectRawImages(object.AbsPath)
@@ -103,7 +103,7 @@ func FindObjectRawImages(path string) ([]string, error) {
 	return images, nil
 }
 
-func (r *ImageNoUnderscoresRule) Enabled(object storage.StoreObject, container *corev1.Container) bool {
+func (r *ContainerImageNameRule) Enabled(object storage.StoreObject, container *corev1.Container) bool {
 	for _, rule := range r.ExcludeRules {
 		if !rule.Enabled(object, container) {
 			return false

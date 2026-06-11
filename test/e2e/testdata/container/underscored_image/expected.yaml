@@ -1,9 +1,9 @@
 description: >
   A deployment with an image name containing underscores should be flagged by the
-  container linter on the image-no-underscores rule.
+  container linter on the container-image-name rule.
 module: module
 expect:
   - linter: container
-    rule: image-no-underscores
+    rule: container-image-name
     level: error
     textContains: 'Image name "e2e_app" must not contain underscores'
