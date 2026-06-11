@@ -295,6 +295,12 @@ func (m *Manager) HasCriticalErrors() bool {
 	return m.errors.ContainsErrors()
 }
 
+// ApplyFixes resolves every finding that carries an automatic fix and removes it
+// from the reported results. It is the single entry point for the --fix flag.
+func (m *Manager) ApplyFixes() errors.FixResult {
+	return m.errors.ApplyFixes()
+}
+
 // GetErrors returns all findings collected during the run.
 // It is primarily intended for tests (e.g. the e2e framework) that need to
 // assert on the structured findings produced by the linters.
