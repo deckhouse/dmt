@@ -71,6 +71,11 @@ func (r *ImageNoUnderscoresRule) ContainerImageNoUnderscoresCheck(object storage
 	}
 }
 
+// FindObjectRawImages finds all strings that match the imageRawRegex pattern in the given file.
+// The returned strings are the last quoted arguments of helm_lib_module_image on a line, supporting both:
+//
+//	image: {{ include "helm_lib_module_image" . "imageName" }}
+//	image: {{ include "helm_lib_module_image" (list . "imageName") }}
 func FindObjectRawImages(path string) ([]string, error) {
 	file, err := os.Open(path)
 	if err != nil {
