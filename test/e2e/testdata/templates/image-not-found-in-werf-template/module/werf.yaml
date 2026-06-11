@@ -1,4 +1,4 @@
-project: e2e-underscored-template
+project: e2e-image-not-found
 configVersion: 1
 build:
   imageSpec:

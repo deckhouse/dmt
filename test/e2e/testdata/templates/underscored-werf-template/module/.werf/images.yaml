@@ -3,9 +3,11 @@
 {{- $ImagesBuildFiles := .Files.Glob "images/*/{Dockerfile,werf.inc.yaml}" }}
 
 {{- range $path, $content := $ImagesBuildFiles  }}
+  {{- $imageName := base (dir $path) }}
   {{- $ctx := dict }}
   {{- $_ := set $ctx "Root" $ }}
-  {{- $_ := set $ctx "ImagePath" (printf "/images/%s" $ctx.ImageName) }}
+  {{- $_ := set $ctx "ImageName" $imageName }}
+  {{- $_ := set $ctx "ImagePath" (printf "/images/%s" $imageName) }}
   {{- $_ := set $ctx "ModuleNamePrefix" "" }}
   {{- $_ := set $ctx "ModuleDir" "/" }}
   {{- $_ := set $ctx "GOPROXY" (env "GOPROXY" "https://proxy.golang.org,direct") }}
