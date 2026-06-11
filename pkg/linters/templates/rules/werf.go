@@ -19,12 +19,15 @@ package rules
 import (
 	"strings"
 
+	"github.com/iancoleman/strcase"
 	"github.com/tidwall/gjson"
 	"sigs.k8s.io/yaml"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
+	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters/container/rules"
 )
 
 const (
@@ -48,13 +51,18 @@ func (r *WerfRule) ValidateWerfTemplates(m pkg.Module, errorList *errors.LintRul
 
 	manifests := fsutils.SplitManifests(m.GetWerfFile())
 	checkGitSection(m.GetName(), manifests, errorList)
+	checkUnderscoredImages(manifests, errorList)
+
+	for _, object := range m.GetStorage() {
+		checkTemplatesUsingRenderedImages(object, manifests, errorList)
+	}
 }
 
 func checkGitSection(moduleName string, manifests []string, errorList *errors.LintRuleErrorsList) {
 	for i, manifest := range manifests {
 		jsonData, err := yaml.YAMLToJSON([]byte(manifest))
 		if err != nil {
-			errorList.Errorf("parsing Werf file, document %d failed: %s", i+1, err)
+			errorList.Errorf("Failed to parse werf.yaml document %d: %s", i+1, err)
 			continue
 		}
 
@@ -65,11 +73,61 @@ func checkGitSection(moduleName string, manifests []string, errorList *errors.Li
 
 		gjson.GetBytes(jsonData, "git").ForEach(func(_, value gjson.Result) bool {
 			if !value.Get("stageDependencies").Exists() {
-				errorList.Errorf("parsing Werf file, document %d (image: %s) failed: 'git.stageDependencies' is required", i+1, imageName)
+				errorList.Errorf("Image %q in werf.yaml (document %d) is missing required 'git.stageDependencies' field", imageName, i+1)
 				return false
 			}
 
 			return true
 		})
+	}
+}
+
+func checkTemplatesUsingRenderedImages(object storage.StoreObject, manifests []string, errorList *errors.LintRuleErrorsList) {
+	images, err := rules.FindObjectRawImages(object.AbsPath)
+	if err != nil {
+		errorList.Errorf("Failed to read images from template file: %s", err)
+		return
+	}
+
+	for _, image := range images {
+		kebabCaseImage := strcase.ToKebab(image)
+		isContainerFound := false
+
+		for _, manifest := range manifests {
+			jsonData, err := yaml.YAMLToJSON([]byte(manifest))
+			if err != nil {
+				continue
+			}
+
+			imageName := gjson.GetBytes(jsonData, "image").String()
+
+			if imageName == kebabCaseImage {
+				isContainerFound = true
+				break
+			}
+		}
+
+		if !isContainerFound {
+			errorList.Errorf("Template references image %q which is not defined in werf.yaml", image)
+		}
+	}
+}
+
+func checkUnderscoredImages(manifests []string, errorList *errors.LintRuleErrorsList) {
+	for i, manifest := range manifests {
+		jsonData, err := yaml.YAMLToJSON([]byte(manifest))
+		if err != nil {
+			errorList.Errorf("Failed to parse werf.yaml document %d: %s", i+1, err)
+			continue
+		}
+
+		imageName := gjson.GetBytes(jsonData, "image").String()
+		if imageName == "" {
+			continue
+		}
+
+		if strings.Contains(imageName, "_") {
+			errorList.Errorf("Image name %q in werf.yaml (document %d) must not contain underscores", imageName, i+1)
+		}
 	}
 }

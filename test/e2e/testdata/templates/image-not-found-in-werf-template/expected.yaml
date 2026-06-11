@@ -1,0 +1,9 @@
+description: >
+  A Helm template that references an image name (e2eapp) not defined in werf.yaml
+  should be flagged by the templates linter on the werf rule.
+module: module
+expect:
+  - linter: templates
+    rule: werf
+    level: error
+    textContains: "Template references image \"e2eapp\" which is not defined in werf.yaml"
