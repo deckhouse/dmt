@@ -1,0 +1,24 @@
+{
+  "title": "E2E Allowed Dashboard",
+  "panels": [
+    {
+      "type": "graph",
+      "title": "RabbitMQ Memory",
+      "targets": [
+        {
+          "expr": "rabbitmq_node_mem_used{job=\"rabbitmq\"}"
+        }
+      ],
+      "datasource": {"type": "prometheus", "uid": "${ds_prometheus}"}
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "ds_prometheus",
+        "type": "datasource",
+        "query": "prometheus"
+      }
+    ]
+  }
+}

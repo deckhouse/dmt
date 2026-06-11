@@ -155,12 +155,12 @@ func (r *SourceLabelRule) SourceLabelCheck(m pkg.Module, object storage.StoreObj
 				ruleName = rl.Record
 			}
 
-			r.checkExpr(rl.Expr, ruleName, group.Name, object.GetPath(), errorList)
+			r.checkExpr(rl.Expr, fmt.Sprintf("rule '%s' (group '%s')", ruleName, group.Name), object.GetPath(), errorList)
 		}
 	}
 }
 
-func (r *SourceLabelRule) checkExpr(expr, ruleName, groupName, filePath string, errorList *errors.LintRuleErrorsList) {
+func (r *SourceLabelRule) checkExpr(expr, context, filePath string, errorList *errors.LintRuleErrorsList) {
 	ast, err := parser.ParseExpr(expr)
 	if err != nil {
 		return
@@ -210,8 +210,8 @@ func (r *SourceLabelRule) checkExpr(expr, ruleName, groupName, filePath string, 
 
 		if !hasSourceLabel {
 			errorList.WithFilePath(filePath).
-				Errorf("metric '%s' in rule '%s' (group '%s') must have source=\"deckhouse\" selector",
-					metricName, ruleName, groupName)
+				Errorf("metric '%s' in %s must have source=\"deckhouse\" selector",
+					metricName, context)
 		}
 
 		return nil
@@ -324,7 +324,7 @@ func (r *SourceLabelRule) checkPanel(panel *gjson.Result, filePath string, error
 		}
 
 		sanitized := sanitizeGrafanaExpr(expr)
-		r.checkExpr(sanitized, fmt.Sprintf("panel '%s'", panelTitle), "dashboard", filePath, errorList)
+		r.checkExpr(sanitized, fmt.Sprintf("panel '%s'", panelTitle), filePath, errorList)
 	}
 }
 
@@ -354,7 +354,7 @@ func (r *SourceLabelRule) checkTemplateVariables(dashboard *gjson.Result, filePa
 
 		sanitized := sanitizeGrafanaExpr(query)
 		tmplName := tmpl.Get("name").String()
-		r.checkExpr(sanitized, fmt.Sprintf("template variable '%s'", tmplName), "dashboard", filePath, errorList)
+		r.checkExpr(sanitized, fmt.Sprintf("template variable '%s'", tmplName), filePath, errorList)
 	}
 }
 

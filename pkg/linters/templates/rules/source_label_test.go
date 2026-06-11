@@ -174,7 +174,7 @@ func TestCheckExprWithSourceLabel(t *testing.T) {
 			}
 
 			errorList := errors.NewLintRuleErrorsList()
-			rule.checkExpr(tt.expr, "test-rule", "test-group", "/test/file.yaml", errorList)
+			rule.checkExpr(tt.expr, "rule 'test-rule' (group 'test-group')", "/test/file.yaml", errorList)
 
 			assert.Len(t, errorList.GetErrors(), tt.expectedErrors)
 		})
