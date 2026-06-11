@@ -19,15 +19,12 @@ package rules
 import (
 	"strings"
 
-	"github.com/iancoleman/strcase"
 	"github.com/tidwall/gjson"
 	"sigs.k8s.io/yaml"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
-	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/linters/container/rules"
 )
 
 const (
@@ -52,10 +49,6 @@ func (r *WerfRule) ValidateWerfTemplates(m pkg.Module, errorList *errors.LintRul
 	manifests := fsutils.SplitManifests(m.GetWerfFile())
 	checkGitSection(m.GetName(), manifests, errorList)
 	checkUnderscoredImages(manifests, errorList)
-
-	for _, object := range m.GetStorage() {
-		checkTemplatesUsingRenderedImages(object, manifests, errorList)
-	}
 }
 
 func checkGitSection(moduleName string, manifests []string, errorList *errors.LintRuleErrorsList) {
@@ -79,37 +72,6 @@ func checkGitSection(moduleName string, manifests []string, errorList *errors.Li
 
 			return true
 		})
-	}
-}
-
-func checkTemplatesUsingRenderedImages(object storage.StoreObject, manifests []string, errorList *errors.LintRuleErrorsList) {
-	images, err := rules.FindObjectRawImages(object.AbsPath)
-	if err != nil {
-		errorList.Errorf("Failed to read images from template file: %s", err)
-		return
-	}
-
-	for _, image := range images {
-		kebabCaseImage := strcase.ToKebab(image)
-		isContainerFound := false
-
-		for _, manifest := range manifests {
-			jsonData, err := yaml.YAMLToJSON([]byte(manifest))
-			if err != nil {
-				continue
-			}
-
-			imageName := gjson.GetBytes(jsonData, "image").String()
-
-			if imageName == kebabCaseImage {
-				isContainerFound = true
-				break
-			}
-		}
-
-		if !isContainerFound {
-			errorList.Errorf("Template references image %q which is not defined in werf.yaml", image)
-		}
 	}
 }
 
