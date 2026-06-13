@@ -85,6 +85,17 @@ func runLint(dir string) error {
 
 	mng := manager.NewManager(dir, cfg)
 	mng.Run()
+
+	if flags.Fix {
+		fixResult := mng.ApplyFixes()
+
+		log.Info("Applied automatic fixes", slog.Int("fixed", fixResult.Applied))
+
+		for _, fixErr := range fixResult.Failed {
+			log.Error("Failed to apply automatic fix", log.Err(fixErr))
+		}
+	}
+
 	mng.PrintResult()
 
 	metrics.SetDmtInfo()

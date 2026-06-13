@@ -1,0 +1,12 @@
+apiVersion: v2
+name: correct-name
+requirements:
+  deckhouse:
+    constraint: ">=0.1.0"
+  modules:
+    mandatory:
+      - name: stronghold
+        constraint: ">=0.1.0"
+    conditional:
+      - name: prompp
+        constraint: ">=0.1.0"
