@@ -57,6 +57,7 @@ import (
 const (
 	KindLint        = "lint"
 	KindConversions = "conversions"
+	KindFix         = "fix"
 )
 
 // Finding declares one expected lint finding for a case.
@@ -141,6 +142,8 @@ func Run(kind, moduleDir string) ([]pkg.LinterError, error) {
 	switch kind {
 	case KindConversions:
 		return RunConversions(moduleDir)
+	case KindFix:
+		return RunFix(moduleDir)
 	case KindLint, "":
 		return Lint(moduleDir)
 	default:
@@ -182,6 +185,44 @@ func Lint(moduleDir string) ([]pkg.LinterError, error) {
 	mng.Run()
 
 	return mng.GetErrors(), nil
+}
+
+// RunFix runs the lint pipeline with --fix: first pass collects findings with
+// deferred fixes, then ApplyFixes patches module.yaml on disk, and a second
+// pass verifies that no findings remain.
+func RunFix(moduleDir string) ([]pkg.LinterError, error) {
+	tmpRoot, err := os.MkdirTemp("", "dmt-e2e-fix-*")
+	if err != nil {
+		return nil, fmt.Errorf("create temp dir: %w", err)
+	}
+	defer os.RemoveAll(tmpRoot)
+
+	target := filepath.Join(tmpRoot, filepath.Base(moduleDir))
+	if err := copyDir(moduleDir, target); err != nil {
+		return nil, fmt.Errorf("copy module: %w", err)
+	}
+
+	initLintFlagsOnce()
+
+	cfg, err := config.NewDefaultRootConfig(target)
+	if err != nil {
+		return nil, fmt.Errorf("load config: %w", err)
+	}
+
+	metrics.GetClient(target)
+
+	mng := manager.NewManager(target, cfg)
+	mng.Run()
+
+	fixResult := mng.ApplyFixes()
+	if len(fixResult.Failed) > 0 {
+		return nil, fmt.Errorf("fixes failed: %v", fixResult.Failed)
+	}
+
+	mng2 := manager.NewManager(target, cfg)
+	mng2.Run()
+
+	return mng2.GetErrors(), nil
 }
 
 // lintFlagsOnce guards the one-time initialization of the process-global lint
