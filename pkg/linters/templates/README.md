@@ -36,13 +36,13 @@ Validates that every pod controller has a VPA targeting it, and that the VPA's c
 
 1. Every Deployment, DaemonSet, and StatefulSet has a corresponding VPA
 2. VPA `targetRef` correctly references the controller (kind, name, namespace)
-3. VPA `updateMode` cannot be "Auto"
+3. VPA `updateMode` must be one of `Off`, `Initial`, `Recreate`, or `InPlaceOrRecreate` (the legacy `Auto` mode is deprecated and reported as an error)
 4. VPA has `resourcePolicy.containerPolicies` for all containers (except when `updateMode: "Off"`)
 5. Each container policy specifies:
    - `minAllowed.cpu` and `minAllowed.memory`
    - `maxAllowed.cpu` and `maxAllowed.memory`
 6. Min values are less than max values
-7. Container names in VPA match container names in the controller
+7. Container names match in both directions: every controller container has a VPA policy, and every VPA policy references an existing controller container
 
 **Why it matters:**
 
@@ -1278,7 +1278,7 @@ monitoring/
 # .dmt.yaml
 linters-settings:
   templates:
-    grafana:
+    grafana-dashboards:
       disable: true  # Disable rule completely
 ```
 
@@ -1290,7 +1290,7 @@ linters-settings:
 
 **Description:**
 
-Scans all template files (`.yaml`, `.yml`, `.tpl`) for hardcoded `cluster.local` strings and recommends using the dynamic `.Values.global.clusterConfiguration.clusterDomain` value instead.
+Scans all template files (`.yaml`, `.yml`, `.tpl`, `.tpl.yaml`, `.tpl.yml`) for hardcoded `cluster.local` strings and recommends using the dynamic `.Values.global.clusterConfiguration.clusterDomain` value instead.
 
 **What it checks:**
 
@@ -1665,6 +1665,37 @@ linters-settings:
       disable: true
 ```
 
+### Per-Rule Impact Levels
+
+Each rule can override the overall impact level individually via the `rules` block:
+
+```yaml
+# .dmt.yaml
+linters-settings:
+  templates:
+    rules:
+      vpa:
+        impact: warning
+      pdb:
+        impact: error
+      ingress:
+        impact: warning
+      prometheus-rules:
+        impact: info
+      grafana-dashboards:
+        impact: info
+      kube-rbac-proxy:
+        impact: error
+      service-port:
+        impact: warning
+      cluster-domain:
+        impact: warning
+      registry:
+        impact: error
+      enabled-modules:
+        impact: warning
+```
+
 ### Rule-Level Exclusions
 
 Configure exclusions for specific rules:
@@ -1689,16 +1720,18 @@ linters-settings:
           name: test-database
       
       # Ingress exclusions (by kind and name)
-      ingress-rules:
+      ingress:
         - kind: Ingress
           name: dashboard
         - kind: Ingress
           name: legacy-api
       
-      # Service port exclusions (by service name)
+      # Service port exclusions (by service name and port name)
       service-port:
-        - d8-control-plane-apiserver
-        - legacy-service
+        - name: d8-control-plane-apiserver
+          port: https
+        - name: legacy-service
+          port: http
       
       # kube-rbac-proxy exclusions (by namespace)
       kube-rbac-proxy:
@@ -1741,13 +1774,15 @@ linters-settings:
         - kind: Deployment
           name: single-pod-app
       
-      ingress-rules:
+      ingress:
         - kind: Ingress
           name: internal-dashboard
       
       service-port:
-        - apiserver
-        - webhook-service
+        - name: apiserver
+          port: https
+        - name: webhook-service
+          port: webhook
       
       kube-rbac-proxy:
         - d8-development
@@ -2033,7 +2068,7 @@ Error: Ingress annotation "nginx.ingress.kubernetes.io/configuration-snippet" do
    linters-settings:
      templates:
        exclude-rules:
-         ingress-rules:
+         ingress:
            - kind: Ingress
              name: dashboard
    ```
