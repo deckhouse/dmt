@@ -1,0 +1,9 @@
+description: >
+  A PodDisruptionBudget carrying helm hook annotations must be flagged by the
+  pdb rule.
+module: module
+expect:
+  - linter: templates
+    rule: pdb
+    level: error
+    textContains: "PDB must have no helm hook annotations"

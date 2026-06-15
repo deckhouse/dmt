@@ -1,0 +1,5 @@
+description: >-
+  A module whose conversion testcases all match the converter output. The
+  conversions tester must report no errors.
+kind: conversions
+expectClean: true

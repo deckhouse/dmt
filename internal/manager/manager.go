@@ -295,6 +295,13 @@ func (m *Manager) HasCriticalErrors() bool {
 	return m.errors.ContainsErrors()
 }
 
+// GetErrors returns all findings collected during the run.
+// It is primarily intended for tests (e.g. the e2e framework) that need to
+// assert on the structured findings produced by the linters.
+func (m *Manager) GetErrors() []pkg.LinterError {
+	return m.errors.GetErrors()
+}
+
 // prepareString handle ussual string and prepare it for tablewriter
 func prepareString(input string) string {
 	// magic wrap const

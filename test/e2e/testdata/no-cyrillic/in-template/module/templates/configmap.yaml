@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2e-cyrillic-config
+  namespace: e2e-cyrillic
+data:
+  greeting: "Привет, мир"

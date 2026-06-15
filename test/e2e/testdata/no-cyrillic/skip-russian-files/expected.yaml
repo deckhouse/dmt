@@ -1,0 +1,12 @@
+description: >
+  Russian localized files (.ru.yml, .ru.yaml, .ru.json, doc-ru-*.yml) are
+  skipped by the no-cyrillic linter even though they contain Cyrillic, while a
+  regular template with Cyrillic is still reported. Asserting exactly one
+  no-cyrillic finding proves the .ru.* files were skipped.
+module: module
+expect:
+  - linter: no-cyrillic
+    rule: files
+    level: error
+    textContains: "has cyrillic letters"
+    count: 1

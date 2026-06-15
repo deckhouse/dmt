@@ -1,0 +1,7 @@
+description: >-
+  A module with English docs/README.md but no Russian counterpart. The
+  documentation linter's bilingual rule must flag the missing .ru.md.
+expect:
+  - linter: documentation
+    rule: bilingual
+    textContains: "Russian counterpart is missing"

@@ -1,0 +1,14 @@
+description: >
+  A VPA with updateMode 'Auto' is deprecated, and a VPA without
+  resourcePolicy.containerPolicies (for a non-Off updateMode) is incomplete.
+  Both must be flagged by the vpa rule.
+module: module
+expect:
+  - linter: templates
+    rule: vpa
+    level: error
+    textContains: "VPA updateMode cannot be 'Auto'"
+  - linter: templates
+    rule: vpa
+    level: error
+    textContains: "No VPA specs resourcePolicy.containerPolicies is found for object"

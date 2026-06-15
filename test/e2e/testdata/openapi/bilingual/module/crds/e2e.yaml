@@ -1,0 +1,21 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: e2es.deckhouse.io
+spec:
+  group: deckhouse.io
+  scope: Namespaced
+  names:
+    plural: e2es
+    singular: e2e
+    kind: E2E
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object

@@ -19,7 +19,8 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [grafana-dashboards](#grafana-dashboards) | Validates Grafana dashboard templates | ✅ | enabled |
 | [cluster-domain](#cluster-domain) | Validates cluster domain configuration is dynamic | ❌ | enabled |
 | [registry](#registry) | Validates registry secret configuration | ❌ | enabled |
-| [werf](#werf) | Validates werf.yaml templates for git stage dependencies | ❌ | enabled |
+| [werf](#werf) | Validates image names in `werf.yaml` do not contain underscores | ❌ | enabled |
+| [enabled-modules](#enabled-modules) | Detects usage of `.Values.global.enabledModules` in templates | ✅ | enabled |
 
 ## Rule Details
 
@@ -35,13 +36,13 @@ Validates that every pod controller has a VPA targeting it, and that the VPA's c
 
 1. Every Deployment, DaemonSet, and StatefulSet has a corresponding VPA
 2. VPA `targetRef` correctly references the controller (kind, name, namespace)
-3. VPA `updateMode` cannot be "Auto"
+3. VPA `updateMode` must be one of `Off`, `Initial`, `Recreate`, or `InPlaceOrRecreate` (the legacy `Auto` mode is deprecated and reported as an error)
 4. VPA has `resourcePolicy.containerPolicies` for all containers (except when `updateMode: "Off"`)
 5. Each container policy specifies:
    - `minAllowed.cpu` and `minAllowed.memory`
    - `maxAllowed.cpu` and `maxAllowed.memory`
 6. Min values are less than max values
-7. Container names in VPA match container names in the controller
+7. Container names match in both directions: every controller container has a VPA policy, and every VPA policy references an existing controller container
 
 **Why it matters:**
 
@@ -867,8 +868,10 @@ linters-settings:
   templates:
     exclude-rules:
       service-port:
-        - d8-control-plane-apiserver  # Exclude specific service
-        - legacy-service
+        - name: web-service       # Exclude a specific service port
+          port: http
+        - name: legacy-service
+          port: metrics
 ```
 
 ---
@@ -997,7 +1000,7 @@ spec:
 linters-settings:
   templates:
     exclude-rules:
-      ingress-rules:
+      ingress:
         - kind: Ingress
           name: dashboard  # Exclude specific Ingress
         - kind: Ingress
@@ -1275,7 +1278,7 @@ monitoring/
 # .dmt.yaml
 linters-settings:
   templates:
-    grafana:
+    grafana-dashboards:
       disable: true  # Disable rule completely
 ```
 
@@ -1287,7 +1290,7 @@ linters-settings:
 
 **Description:**
 
-Scans all template files (`.yaml`, `.yml`, `.tpl`) for hardcoded `cluster.local` strings and recommends using the dynamic `.Values.global.clusterConfiguration.clusterDomain` value instead.
+Scans all template files (`.yaml`, `.yml`, `.tpl`, `.tpl.yaml`, `.tpl.yml`) for hardcoded `cluster.local` strings and recommends using the dynamic `.Values.global.clusterConfiguration.clusterDomain` value instead.
 
 **What it checks:**
 
@@ -1509,44 +1512,43 @@ Module names are converted to camelCase for values:
 
 ### werf
 
-**Purpose:** Validates werf.yaml templates to ensure proper git stage dependencies are configured. This ensures consistent and reproducible image builds.
+**Purpose:** Validates that image names defined in `werf.yaml` do not contain underscores. Underscores in image names break OCI/Docker image reference rules and can cause push/pull failures in some registries and tooling.
 
 **Description:**
 
-Scans the werf.yaml file for image definitions that belong to the module and validates that git sections have proper `stageDependencies` configured.
+Splits the module's `werf.yaml` into individual documents and, for every document that defines an `image`, checks that the image name does not contain an underscore (`_`).
 
 **What it checks:**
 
-1. Image definitions in werf.yaml that match the module name
-2. Git sections have `stageDependencies` configured
+1. Every document in `werf.yaml` that has an `image` field
+2. The `image` name does not contain the `_` character
 
 **Why it matters:**
 
-Missing stage dependencies:
-- Can cause inconsistent builds
-- May skip rebuilds when source files change
-- Lead to stale images being used
-- Create debugging difficulties
+Underscores in image names:
+- Are not valid in many container registry naming conventions
+- Cause inconsistent behavior between registries and build tools
+- Can lead to failed image pushes or pulls
+- Make image references harder to predict and reuse
 
 **Examples:**
 
-❌ **Incorrect** - Missing stageDependencies:
+❌ **Incorrect** - Image name with underscore:
 
 ```yaml
 # werf.yaml
-image: my-module/app
+image: my_module/app
 git:
   - add: /src
     to: /app
-    # ❌ Missing stageDependencies
 ```
 
 **Error:**
 ```
-Error: parsing Werf file, document 1 (image: my-module/app) failed: 'git.stageDependencies' is required
+Error: Image name "my_module/app" in werf.yaml (document 1) must not contain underscores
 ```
 
-✅ **Correct** - With stageDependencies:
+✅ **Correct** - Image name without underscores:
 
 ```yaml
 # werf.yaml
@@ -1554,30 +1556,90 @@ image: my-module/app
 git:
   - add: /src
     to: /app
-    stageDependencies:
-      install:
-        - "**/*"
-      beforeSetup:
-        - "go.mod"
-        - "go.sum"
 ```
 
-✅ **Correct** - Multiple git sources:
+✅ **Correct** - Multiple images:
 
 ```yaml
 # werf.yaml
+---
 image: my-module/app
 git:
   - add: /src
     to: /app/src
-    stageDependencies:
-      install:
-        - "**/*.go"
-  - add: /config
-    to: /app/config
-    stageDependencies:
-      beforeSetup:
-        - "**/*.yaml"
+---
+image: my-module/exporter
+git:
+  - add: /exporter
+    to: /app/exporter
+```
+
+---
+
+### enabled-modules
+
+**Purpose:** Detects usage of `.Values.global.enabledModules` in templates and encourages using `.Capabilities.APIVersions.Has` instead. Relying on the list of enabled modules couples a module to the presence of other modules, while capability checks are more robust and portable.
+
+**Description:**
+
+Scans all template files (`.yaml`, `.yml`, `.tpl`) in the `templates/` directory for the pattern `.Values.global.enabledModules | has "..."` and reports each occurrence as a warning.
+
+**What it checks:**
+
+1. All files in the `templates/` directory
+2. Usage of `.Values.global.enabledModules | has "<module-name>"`
+
+**Why it matters:**
+
+Checking `enabledModules`:
+- Couples modules to the presence of other modules
+- Breaks when modules are renamed or split
+- Is less reliable than checking for the actual API capabilities a module needs
+
+**Examples:**
+
+❌ **Incorrect** - Checking enabled modules:
+
+```yaml
+# templates/deployment.yaml
+{{- if .Values.global.enabledModules | has "cni-cilium" }}
+        env:
+        - name: CILIUM_ENABLED
+          value: "true"
+{{- end }}
+```
+
+**Warning:**
+```
+Found usage of .Values.global.enabledModules | has "cni-cilium".
+Consider using (.Capabilities.APIVersions.Has "group/version/Kind") instead.
+```
+
+✅ **Correct** - Checking API capabilities:
+
+```yaml
+# templates/deployment.yaml
+{{- if .Capabilities.APIVersions.Has "cilium.io/v2/CiliumNetworkPolicy" }}
+        env:
+        - name: CILIUM_ENABLED
+          value: "true"
+{{- end }}
+```
+
+**Configuration:**
+
+The rule supports excluding specific files and directories (paths are relative to the module root):
+
+```yaml
+# .dmt.yaml
+linters-settings:
+  templates:
+    exclude-rules:
+      enabled-modules:
+        files:
+          - templates/legacy-deployment.yaml  # Exclude specific file
+        directories:
+          - templates/vendor/                 # Exclude entire directory
 ```
 
 ## Configuration
@@ -1601,6 +1663,37 @@ linters-settings:
     
     prometheus-rules:
       disable: true
+```
+
+### Per-Rule Impact Levels
+
+Each rule can override the overall impact level individually via the `rules` block:
+
+```yaml
+# .dmt.yaml
+linters-settings:
+  templates:
+    rules:
+      vpa:
+        impact: warning
+      pdb:
+        impact: error
+      ingress:
+        impact: warning
+      prometheus-rules:
+        impact: info
+      grafana-dashboards:
+        impact: info
+      kube-rbac-proxy:
+        impact: error
+      service-port:
+        impact: warning
+      cluster-domain:
+        impact: warning
+      registry:
+        impact: error
+      enabled-modules:
+        impact: warning
 ```
 
 ### Rule-Level Exclusions
@@ -1627,21 +1720,30 @@ linters-settings:
           name: test-database
       
       # Ingress exclusions (by kind and name)
-      ingress-rules:
+      ingress:
         - kind: Ingress
           name: dashboard
         - kind: Ingress
           name: legacy-api
       
-      # Service port exclusions (by service name)
+      # Service port exclusions (by service name and port name)
       service-port:
-        - d8-control-plane-apiserver
-        - legacy-service
+        - name: d8-control-plane-apiserver
+          port: https
+        - name: legacy-service
+          port: http
       
       # kube-rbac-proxy exclusions (by namespace)
       kube-rbac-proxy:
         - d8-system
         - d8-test-namespace
+
+      # enabled-modules exclusions (by file and directory, relative to module root)
+      enabled-modules:
+        files:
+          - templates/legacy-deployment.yaml
+        directories:
+          - templates/vendor/
 ```
 
 ### Complete Configuration Example
@@ -1672,13 +1774,15 @@ linters-settings:
         - kind: Deployment
           name: single-pod-app
       
-      ingress-rules:
+      ingress:
         - kind: Ingress
           name: internal-dashboard
       
       service-port:
-        - apiserver
-        - webhook-service
+        - name: apiserver
+          port: https
+        - name: webhook-service
+          port: webhook
       
       kube-rbac-proxy:
         - d8-development
@@ -1964,7 +2068,7 @@ Error: Ingress annotation "nginx.ingress.kubernetes.io/configuration-snippet" do
    linters-settings:
      templates:
        exclude-rules:
-         ingress-rules:
+         ingress:
            - kind: Ingress
              name: dashboard
    ```

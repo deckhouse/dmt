@@ -1,0 +1,3 @@
+name: e2e-cyrillic-skip-names
+namespace: e2e-cyrillic-skip-names
+# Описание модуля на русском языке (module.yaml is skipped).

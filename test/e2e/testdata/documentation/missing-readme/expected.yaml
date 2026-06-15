@@ -1,0 +1,7 @@
+description: >-
+  A module without a docs/README.md. The documentation linter's readme rule
+  must flag the missing file.
+expect:
+  - linter: documentation
+    rule: readme
+    textContains: "README.md file is missing in docs/ directory"

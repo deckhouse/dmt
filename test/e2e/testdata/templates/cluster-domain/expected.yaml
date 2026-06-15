@@ -1,0 +1,9 @@
+description: >
+  A template that hardcodes the 'cluster.local' domain must be flagged by the
+  cluster-domain rule.
+module: module
+expect:
+  - linter: templates
+    rule: cluster-domain
+    level: error
+    textContains: "File contains hardcoded 'cluster.local' substring"

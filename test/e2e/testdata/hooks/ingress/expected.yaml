@@ -1,0 +1,9 @@
+description: >
+  A module that ships an Ingress resource but has no copy_custom_certificate
+  hook must be flagged by the hooks ingress rule.
+module: module
+expect:
+  - linter: hooks
+    rule: ingress
+    level: error
+    textContains: "module does not have copy_custom_certificate hook"

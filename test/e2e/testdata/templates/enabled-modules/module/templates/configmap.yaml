@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+{{- if .Values.global.enabledModules | has "cni-cilium" }}
+  name: e2e-config
+{{- else }}
+  name: e2e-config-disabled
+{{- end }}
+  namespace: e2e-enabled-modules
+data: {}
