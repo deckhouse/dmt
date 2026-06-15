@@ -48,6 +48,17 @@ var prometheusSyntheticMetrics = map[string]struct{}{
 	"ALERTS_FOR_STATE": {},
 }
 
+// SourceLabelRule enforces that every Deckhouse-owned metric referenced in
+// PromQL expressions (PrometheusRule objects and Grafana dashboards) is selected
+// with an explicit source="deckhouse" label matcher.
+//
+// The following metrics are exempt from the check:
+//   - metrics produced by recording rules within the module (recordingRuleNames),
+//     since those are computed by us and already scoped;
+//   - metrics matching the per-module allowed-metrics globs (allowedMetrics),
+//     used for intentionally foreign metrics such as third-party exporters;
+//   - Prometheus synthetic metrics (ALERTS, ALERTS_FOR_STATE) that never carry
+//     scrape-time labels.
 type SourceLabelRule struct {
 	pkg.RuleMeta
 	recordingRuleNames map[string]struct{}
@@ -76,6 +87,10 @@ func globToRegexp(pattern string) (*regexp.Regexp, error) {
 	return regexp.Compile(b.String())
 }
 
+// NewSourceLabelRule builds the rule from the templates linter config. The
+// allowed-metrics patterns (globs supporting * and ?) are compiled into regexps,
+// and the runtime-collected recording rule names are stored so that metrics they
+// produce are not required to carry a source selector.
 func NewSourceLabelRule(cfg *pkg.TemplatesLinterConfig) *SourceLabelRule {
 	var allowedMetrics []*regexp.Regexp
 
@@ -102,6 +117,10 @@ func NewSourceLabelRule(cfg *pkg.TemplatesLinterConfig) *SourceLabelRule {
 	}
 }
 
+// SourceLabelCheck inspects a single PrometheusRule object and verifies that the
+// PromQL expressions of all its alerting and recording rules select Deckhouse
+// metrics with a source="deckhouse" matcher. Non-PrometheusRule objects are
+// ignored.
 func (r *SourceLabelRule) SourceLabelCheck(m pkg.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithFilePath(m.GetPath()).WithRule(r.GetName())
 
@@ -160,6 +179,10 @@ func (r *SourceLabelRule) SourceLabelCheck(m pkg.Module, object storage.StoreObj
 	}
 }
 
+// checkExpr parses a PromQL expression and reports every vector selector over a
+// Deckhouse metric that lacks a source="deckhouse" matcher. Exempt metrics
+// (recording rule outputs, allowed-metrics, synthetic metrics and placeholder
+// names produced by Grafana variable sanitization) are skipped.
 func (r *SourceLabelRule) checkExpr(expr, context, filePath string, errorList *errors.LintRuleErrorsList) {
 	ast, err := parser.ParseExpr(expr)
 	if err != nil {
@@ -234,6 +257,12 @@ var (
 	grafanaVarSimpleRe  = regexp.MustCompile(`\$([a-zA-Z_]\w*)`)
 )
 
+// sanitizeGrafanaExpr makes a Grafana panel/template expression parseable as
+// plain PromQL by replacing Grafana variables with neutral placeholders:
+// built-in variables (e.g. $__rate_interval) become a dummy duration, while
+// other variables become "__placeholder__" so they are ignored by checkExpr.
+// The "source" variable is preserved so a source=$source matcher still counts
+// as an explicit source selector.
 func sanitizeGrafanaExpr(expr string) string {
 	result := grafanaBuiltinVarRe.ReplaceAllString(expr, "5m")
 	result = grafanaVarBracesRe.ReplaceAllStringFunc(result, func(match string) string {
@@ -256,6 +285,10 @@ func sanitizeGrafanaExpr(expr string) string {
 	return result
 }
 
+// SourceLabelCheckDashboards walks every Grafana dashboard file under
+// monitoring/grafana-dashboards and verifies that the PromQL queries in their
+// panels and template variables select Deckhouse metrics with a
+// source="deckhouse" matcher.
 func (r *SourceLabelRule) SourceLabelCheckDashboards(m pkg.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
