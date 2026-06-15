@@ -19,7 +19,7 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [grafana-dashboards](#grafana-dashboards) | Validates Grafana dashboard templates | ✅ | enabled |
 | [cluster-domain](#cluster-domain) | Validates cluster domain configuration is dynamic | ❌ | enabled |
 | [registry](#registry) | Validates registry secret configuration | ❌ | enabled |
-| [werf](#werf) | Validates werf.yaml templates for git stage dependencies | ❌ | enabled |
+| [werf](#werf) | Validates image names in `werf.yaml` do not contain underscores | ❌ | enabled |
 | [enabled-modules](#enabled-modules) | Detects usage of `.Values.global.enabledModules` in templates | ✅ | enabled |
 
 ## Rule Details
@@ -868,8 +868,10 @@ linters-settings:
   templates:
     exclude-rules:
       service-port:
-        - d8-control-plane-apiserver  # Exclude specific service
-        - legacy-service
+        - name: web-service       # Exclude a specific service port
+          port: http
+        - name: legacy-service
+          port: metrics
 ```
 
 ---
@@ -998,7 +1000,7 @@ spec:
 linters-settings:
   templates:
     exclude-rules:
-      ingress-rules:
+      ingress:
         - kind: Ingress
           name: dashboard  # Exclude specific Ingress
         - kind: Ingress
@@ -1510,44 +1512,43 @@ Module names are converted to camelCase for values:
 
 ### werf
 
-**Purpose:** Validates werf.yaml templates to ensure proper git stage dependencies are configured. This ensures consistent and reproducible image builds.
+**Purpose:** Validates that image names defined in `werf.yaml` do not contain underscores. Underscores in image names break OCI/Docker image reference rules and can cause push/pull failures in some registries and tooling.
 
 **Description:**
 
-Scans the werf.yaml file for image definitions that belong to the module and validates that git sections have proper `stageDependencies` configured.
+Splits the module's `werf.yaml` into individual documents and, for every document that defines an `image`, checks that the image name does not contain an underscore (`_`).
 
 **What it checks:**
 
-1. Image definitions in werf.yaml that match the module name
-2. Git sections have `stageDependencies` configured
+1. Every document in `werf.yaml` that has an `image` field
+2. The `image` name does not contain the `_` character
 
 **Why it matters:**
 
-Missing stage dependencies:
-- Can cause inconsistent builds
-- May skip rebuilds when source files change
-- Lead to stale images being used
-- Create debugging difficulties
+Underscores in image names:
+- Are not valid in many container registry naming conventions
+- Cause inconsistent behavior between registries and build tools
+- Can lead to failed image pushes or pulls
+- Make image references harder to predict and reuse
 
 **Examples:**
 
-❌ **Incorrect** - Missing stageDependencies:
+❌ **Incorrect** - Image name with underscore:
 
 ```yaml
 # werf.yaml
-image: my-module/app
+image: my_module/app
 git:
   - add: /src
     to: /app
-    # ❌ Missing stageDependencies
 ```
 
 **Error:**
 ```
-Error: parsing Werf file, document 1 (image: my-module/app) failed: 'git.stageDependencies' is required
+Error: Image name "my_module/app" in werf.yaml (document 1) must not contain underscores
 ```
 
-✅ **Correct** - With stageDependencies:
+✅ **Correct** - Image name without underscores:
 
 ```yaml
 # werf.yaml
@@ -1555,30 +1556,22 @@ image: my-module/app
 git:
   - add: /src
     to: /app
-    stageDependencies:
-      install:
-        - "**/*"
-      beforeSetup:
-        - "go.mod"
-        - "go.sum"
 ```
 
-✅ **Correct** - Multiple git sources:
+✅ **Correct** - Multiple images:
 
 ```yaml
 # werf.yaml
+---
 image: my-module/app
 git:
   - add: /src
     to: /app/src
-    stageDependencies:
-      install:
-        - "**/*.go"
-  - add: /config
-    to: /app/config
-    stageDependencies:
-      beforeSetup:
-        - "**/*.yaml"
+---
+image: my-module/exporter
+git:
+  - add: /exporter
+    to: /app/exporter
 ```
 
 ---
