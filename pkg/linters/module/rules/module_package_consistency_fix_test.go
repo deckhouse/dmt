@@ -27,18 +27,24 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
-// checkAndFix mirrors the production flow: collect findings, then apply the
-// fixes that were attached to them in a single pass.
-func checkAndFix(t *testing.T, modulePath string) errors.FixResult {
+// checkAndFix mirrors the production flow: collect findings, then run the fixes
+// that were attached to them in a single pass. It returns the number of fixes
+// that were run and asserts that none of them failed (a failed fix leaves its
+// finding unresolved, so ContainsErrors would still be true afterwards).
+func checkAndFix(t *testing.T, modulePath string) int {
 	t.Helper()
 
 	errorList := errors.NewLintRuleErrorsList()
 	NewModulePackageConsistencyRule().CheckModulePackageConsistency(modulePath, errorList)
 
-	result := errorList.ApplyFixes()
-	require.Empty(t, result.Failed, "autofix should not fail")
+	fixes := errorList.GetFixes()
+	for _, fix := range fixes {
+		fix()
+	}
 
-	return result
+	require.False(t, errorList.ContainsErrors(), "autofix should not fail")
+
+	return len(fixes)
 }
 
 func readModuleYAML(t *testing.T, modulePath string) string {
@@ -89,8 +95,8 @@ requirements:
 	// before fix: there are findings
 	require.True(t, runConsistencyCheck(modulePath).ContainsErrors())
 
-	result := checkAndFix(t, modulePath)
-	assert.Positive(t, result.Applied)
+	applied := checkAndFix(t, modulePath)
+	assert.Positive(t, applied)
 
 	// after fix: no findings remain
 	assert.False(t, runConsistencyCheck(modulePath).ContainsErrors())
@@ -198,8 +204,8 @@ requirements:
     constraint: ">= 1.77"
 `)
 
-	result := checkAndFix(t, modulePath)
-	assert.Zero(t, result.Applied)
+	applied := checkAndFix(t, modulePath)
+	assert.Zero(t, applied)
 
 	// already consistent module.yaml is left byte-for-byte unchanged
 	assert.Equal(t, moduleContent, readModuleYAML(t, modulePath))

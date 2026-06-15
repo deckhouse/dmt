@@ -39,9 +39,11 @@ type lintRuleError struct {
 	FilePath    string
 	LineNumber  int
 	Level       pkg.Level
+	Fixed       bool
+	FixError    error
 
 	// fix, when set, knows how to automatically resolve this finding.
-	// It is applied by LintRuleErrorsList.ApplyFixes when dmt runs with --fix.
+	// It is applied through the closures returned by GetFixes when dmt runs with --fix.
 	fix AutofixFunc
 }
 
@@ -57,12 +59,24 @@ type errStorage struct {
 	errList []lintRuleError
 }
 
+// GetErrors returns a copy of the findings that are still unresolved. Findings
+// whose automatic fix succeeded (Fixed) are dropped, because --fix already
+// removed them from the source. A finding whose fix failed is kept, with its
+// FixError preserved so the caller (PrintResult) can report that the autofix
+// could not be applied.
 func (s *errStorage) GetErrors() []lintRuleError {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	result := make([]lintRuleError, 0, len(s.errList))
-	result = append(result, s.errList...)
+
+	for idx := range s.errList {
+		if s.errList[idx].Fixed {
+			continue
+		}
+
+		result = append(result, s.errList[idx])
+	}
 
 	return result
 }
@@ -71,12 +85,6 @@ func (s *errStorage) add(err *lintRuleError) {
 	s.mu.Lock()
 	s.errList = append(s.errList, *err)
 	s.mu.Unlock()
-}
-
-// FixResult summarizes the outcome of ApplyFixes.
-type FixResult struct {
-	Applied int     // number of findings resolved automatically
-	Failed  []error // errors returned by fixes that could not be applied
 }
 
 type LintRuleErrorsList struct {
@@ -172,7 +180,7 @@ func (l *LintRuleErrorsList) WithLineNumber(lineNumber int) *LintRuleErrorsList 
 }
 
 // WithFix attaches an automatic fix to the next emitted finding.
-// Findings that carry a fix are resolved by ApplyFixes when dmt runs with --fix.
+// Findings that carry a fix are resolved through GetFixes when dmt runs with --fix.
 func (l *LintRuleErrorsList) WithFix(fix AutofixFunc) *LintRuleErrorsList {
 	list := l.copy()
 	list.fix = fix
@@ -227,45 +235,45 @@ func (l *LintRuleErrorsList) GetErrors() []pkg.LinterError {
 	return remapErrorsToLinterErrors(l.storage.GetErrors()...)
 }
 
-// ApplyFixes runs every fix attached to a collected finding and drops the
-// findings that were resolved successfully from the list. Findings without a
-// fix, or whose fix failed, are kept so they are still reported.
+// GetFixes returns one closure per collected finding that carries an automatic
+// fix; findings without a fix are skipped. Each closure runs its fix and records
+// the outcome back onto the stored finding: on success the finding is marked
+// Fixed (so GetErrors drops it), on failure the error is stored in FixError (so
+// GetErrors reports that the autofix could not be applied).
 //
-// This is the single entry point used by --fix: each rule attaches a fix to the
-// findings it produces, and ApplyFixes processes all of them in one place.
-func (l *LintRuleErrorsList) ApplyFixes() FixResult {
+// The closures are returned rather than executed so the caller — Manager.ApplyFixes,
+// the single --fix entry point — controls when and in what order they run.
+func (l *LintRuleErrorsList) GetFixes() []func() {
 	if l.storage == nil {
-		return FixResult{}
+		return nil
 	}
 
 	l.storage.mu.Lock()
 	defer l.storage.mu.Unlock()
 
-	var result FixResult
-
-	remaining := make([]lintRuleError, 0, len(l.storage.errList))
+	var fixes []func()
 
 	for idx := range l.storage.errList {
-		e := l.storage.errList[idx]
-
-		if e.fix == nil {
-			remaining = append(remaining, e)
+		if l.storage.errList[idx].fix == nil {
 			continue
 		}
 
-		if err := e.fix(); err != nil {
-			result.Failed = append(result.Failed, fmt.Errorf("%s: %w", e.Text, err))
-			remaining = append(remaining, e)
+		fixes = append(fixes, func() {
+			l.storage.mu.Lock()
+			defer l.storage.mu.Unlock()
 
-			continue
-		}
+			e := &l.storage.errList[idx]
 
-		result.Applied++
+			if err := e.fix(); err != nil {
+				e.FixError = err
+				return
+			}
+
+			e.Fixed = true
+		})
 	}
 
-	l.storage.errList = remaining
-
-	return result
+	return fixes
 }
 
 func (l *LintRuleErrorsList) ContainsErrors() bool {
@@ -307,5 +315,6 @@ func remapErrorToLinterError(err *lintRuleError) *pkg.LinterError {
 		LineNumber:  err.LineNumber,
 		Text:        err.Text,
 		Level:       err.Level,
+		FixError:    err.FixError,
 	}
 }

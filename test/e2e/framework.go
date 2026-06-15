@@ -187,9 +187,10 @@ func Lint(moduleDir string) ([]pkg.LinterError, error) {
 	return mng.GetErrors(), nil
 }
 
-// RunFix runs the lint pipeline with --fix: first pass collects findings with
-// deferred fixes, then ApplyFixes patches module.yaml on disk, and a second
-// pass verifies that no findings remain.
+// RunFix runs the lint pipeline with --fix: the run collects findings with
+// deferred fixes, ApplyFixes patches module.yaml on disk, and GetErrors then
+// returns only the findings that remain unresolved (successfully fixed ones are
+// dropped), so callers can assert on what --fix could not resolve.
 func RunFix(moduleDir string) ([]pkg.LinterError, error) {
 	tmpRoot, err := os.MkdirTemp("", "dmt-e2e-fix-*")
 	if err != nil {
@@ -198,7 +199,7 @@ func RunFix(moduleDir string) ([]pkg.LinterError, error) {
 	defer os.RemoveAll(tmpRoot)
 
 	target := filepath.Join(tmpRoot, filepath.Base(moduleDir))
-	if err := copyDir(moduleDir, target); err != nil {
+	if err = copyDir(moduleDir, target); err != nil {
 		return nil, fmt.Errorf("copy module: %w", err)
 	}
 
@@ -214,15 +215,9 @@ func RunFix(moduleDir string) ([]pkg.LinterError, error) {
 	mng := manager.NewManager(target, cfg)
 	mng.Run()
 
-	fixResult := mng.ApplyFixes()
-	if len(fixResult.Failed) > 0 {
-		return nil, fmt.Errorf("fixes failed: %v", fixResult.Failed)
-	}
+	mng.ApplyFixes()
 
-	mng2 := manager.NewManager(target, cfg)
-	mng2.Run()
-
-	return mng2.GetErrors(), nil
+	return mng.GetErrors(), nil
 }
 
 // lintFlagsOnce guards the one-time initialization of the process-global lint
