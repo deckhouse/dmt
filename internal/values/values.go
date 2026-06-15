@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 
 	"dario.cat/mergo"
-	"github.com/flant/addon-operator/pkg/utils"
 	"github.com/go-openapi/spec"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"sigs.k8s.io/yaml"
@@ -17,6 +16,54 @@ import (
 
 	"github.com/deckhouse/dmt/internal/module/schema"
 )
+
+const (
+	valuesFileName       = "values.yaml"
+	configValuesFileName = "config-values.yaml"
+)
+
+// readOpenAPIFiles reads config-values.yaml and values.yaml from the specified directory.
+// Mirrors the helper previously imported from github.com/flant/addon-operator/pkg/utils.
+//
+// Module schemas:
+//
+//	/modules/XXX-module-name/openapi/config-values.yaml
+//	/modules/XXX-module-name/openapi/values.yaml
+func readOpenAPIFiles(openAPIDir string) ([]byte, []byte, error) {
+	if openAPIDir == "" {
+		return nil, nil, nil
+	}
+
+	if _, err := os.Stat(openAPIDir); os.IsNotExist(err) {
+		return nil, nil, nil
+	}
+
+	var configValuesBytes []byte
+
+	configPath := filepath.Join(openAPIDir, configValuesFileName)
+	if _, statErr := os.Stat(configPath); !os.IsNotExist(statErr) {
+		var err error
+
+		configValuesBytes, err = os.ReadFile(configPath)
+		if err != nil {
+			return nil, nil, fmt.Errorf("read file %q: %w", configPath, err)
+		}
+	}
+
+	var valuesBytes []byte
+
+	valuesPath := filepath.Join(openAPIDir, valuesFileName)
+	if _, statErr := os.Stat(valuesPath); !os.IsNotExist(statErr) {
+		var err error
+
+		valuesBytes, err = os.ReadFile(valuesPath)
+		if err != nil {
+			return nil, nil, fmt.Errorf("read file %q: %w", valuesPath, err)
+		}
+	}
+
+	return configValuesBytes, valuesBytes, nil
+}
 
 type SchemaType string
 type Schemas map[SchemaType]*spec.Schema
@@ -51,11 +98,13 @@ func LoadSchemaFromBytes(openAPIContent []byte) (*spec.Schema, error) {
 // prepareSchemas loads schemas for config values, values and helm values.
 func prepareSchemas(configBytes, valuesBytes []byte) (Schemas, error) {
 	schemas := make(Schemas)
+
 	if len(configBytes) > 0 {
 		schemaObj, err := LoadSchemaFromBytes(configBytes)
 		if err != nil {
 			return nil, fmt.Errorf("load '%s' schema: %w", ConfigValuesSchema, err)
 		}
+
 		schemas[ConfigValuesSchema] = schema.TransformSchema(
 			schemaObj,
 			&schema.AdditionalPropertiesTransformer{},
@@ -67,6 +116,7 @@ func prepareSchemas(configBytes, valuesBytes []byte) (Schemas, error) {
 		if err != nil {
 			return nil, fmt.Errorf("load '%s' schema: %w", ValuesSchema, err)
 		}
+
 		schemas[ValuesSchema] = schema.TransformSchema(
 			schemaObj,
 			&schema.ExtendTransformer{Parent: schemas[ConfigValuesSchema]},
@@ -94,7 +144,9 @@ func GetGlobalValues(rootDir string) (*spec.Schema, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		log.Info("Using global values", slog.String("directory", rootDir))
+
 		configBytes = configBytesT
 		valuesBytes = valuesBytesT
 	}
@@ -130,7 +182,8 @@ func readConfigFiles(rootDir string) ([]byte, []byte, error) {
 
 func GetModuleValues(modulePath string) (*spec.Schema, error) {
 	openAPIPath := filepath.Join(modulePath, "openapi")
-	configBytes, valuesBytes, err := utils.ReadOpenAPIFiles(openAPIPath)
+
+	configBytes, valuesBytes, err := readOpenAPIFiles(openAPIPath)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read openAPI schemas: %w", err)
 	}
@@ -155,5 +208,6 @@ func OverrideValues(values, vals *chartutil.Values) error {
 	v := &chartutil.Values{
 		"Values": *vals,
 	}
+
 	return mergo.Merge(values, v, mergo.WithOverride)
 }

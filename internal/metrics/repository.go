@@ -46,6 +46,7 @@ func getRepositoryAddress(dir string) string {
 	}
 
 	repositoryULR := sec.Key("url").String()
+
 	return convertToHTTPS(repositoryULR)
 }
 
@@ -55,6 +56,7 @@ func getGitConfigFile(dir string) string {
 			fsutils.IsFile(filepath.Join(dir, ".git", "config")) {
 			return filepath.Join(dir, ".git", "config")
 		}
+
 		parent := filepath.Dir(dir)
 		if dir == parent || parent == "" {
 			break
@@ -73,11 +75,13 @@ func convertToHTTPS(repoURL string) string {
 		repoURL = strings.Replace(repoURL, "git@", "https://", 1)
 		repoURL = strings.TrimSuffix(repoURL, ".git")
 	}
+
 	if strings.HasPrefix(repoURL, "https://") && strings.Contains(repoURL, "@") {
 		// Remove token from HTTPS URL
 		repoURL = strings.Split(repoURL, "@")[1]
 		repoURL = strings.TrimSuffix(repoURL, ".git")
 		repoURL = "https://" + repoURL
 	}
+
 	return repoURL
 }

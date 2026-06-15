@@ -1,0 +1,14 @@
+description: >
+  A CRD under crds/ without a doc-ru- translation (and without the required
+  module label) must be flagged by the openapi bilingual and deckhouse-crds
+  rules.
+module: module
+expect:
+  - linter: openapi
+    rule: bilingual
+    level: error
+    textContains: 'translation file is missing: expected "doc-ru-e2e.yaml"'
+  - linter: openapi
+    rule: deckhouse-crds
+    level: error
+    textContains: 'CRD should contain "module = e2e-openapi" label'

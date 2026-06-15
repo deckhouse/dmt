@@ -63,6 +63,7 @@ func (h *TestHelper) CreateTempModule(name string) string {
 	modulePath := filepath.Join(h.t.TempDir(), name)
 	err := os.MkdirAll(modulePath, DefaultDirPerm)
 	require.NoError(h.t, err, "failed to create module dir")
+
 	return modulePath
 }
 
@@ -94,6 +95,7 @@ func RunRequirementsCheck(modulePath string) *errors.LintRuleErrorsList {
 	rule := NewRequirementsRule()
 	errorList := errors.NewLintRuleErrorsList()
 	rule.CheckRequirements(modulePath, errorList)
+
 	return errorList
 }
 

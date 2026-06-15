@@ -64,12 +64,14 @@ func (l *HookRule) CheckIngressCopyCustomCertificateRule(m *module.Module, objec
 	}
 
 	hooksDir := filepath.Join(m.GetPath(), "hooks")
+
 	files := fsutils.GetFiles(hooksDir, false, filterCopyCustomCertificateHook)
 	if len(files) > 0 {
 		return
 	}
 
 	var imports = make(map[string]struct{})
+
 	for _, hookPath := range fsutils.GetFiles(hooksDir, false, filterGoHooks) {
 		p, err := getImports(hookPath)
 		if err != nil {
@@ -103,6 +105,7 @@ func filterGoHooks(rootPath, path string) bool {
 	if strings.HasSuffix(filename, "test.go") {
 		return false
 	}
+
 	if strings.HasSuffix(filename, ".go") {
 		return true
 	}

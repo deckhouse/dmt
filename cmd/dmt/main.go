@@ -43,19 +43,23 @@ func main() {
 func runLint(dir string) error {
 	if flags.PprofFile != "" {
 		log.Info("Profiling enabled", slog.String("file", flags.PprofFile))
+
 		defer func() {
 			pproFile, err := fsutils.ExpandDir(flags.PprofFile)
 			if err != nil {
 				log.Error("could not get current working directory", log.Err(err))
 				return
 			}
+
 			log.Info("Writing memory profile", slog.String("file", pproFile))
+
 			f, err := os.Create(pproFile)
 			if err != nil {
 				log.Error("could not create memory profile", log.Err(err))
 				return
 			}
 			defer f.Close()
+
 			runtime.GC()
 			// Lookup("allocs") creates a profile similar to go test -memprofile.
 			// Alternatively, use Lookup("heap") for a profile
@@ -68,6 +72,7 @@ func runLint(dir string) error {
 	}
 	// enable color output for Github actions, do not remove it
 	color.NoColor = false
+
 	log.Info("DMT version", slog.String("version", version.Version), slog.String("commit", version.Commit), slog.String("date", version.Date))
 
 	cfg, err := config.NewDefaultRootConfig(dir)

@@ -29,7 +29,7 @@ type Linters struct {
 	License       LinterConfig              `mapstructure:"license"`
 	Module        ModuleLinterConfig        `mapstructure:"module"`
 	NoCyrillic    LinterConfig              `mapstructure:"no-cyrillic"`
-	OpenAPI       LinterConfig              `mapstructure:"openapi"`
+	OpenAPI       OpenAPILinterConfig       `mapstructure:"openapi"`
 	Rbac          LinterConfig              `mapstructure:"rbac"`
 	Templates     TemplatesLinterConfig     `mapstructure:"templates"`
 	Documentation DocumentationLinterConfig `mapstructure:"documentation"`
@@ -94,6 +94,16 @@ type DocumentationRules struct {
 	BilingualRule          RuleConfig `mapstructure:"bilingual"`
 	ReadmeRule             RuleConfig `mapstructure:"readme"`
 	NoCyrillicExcludeRules RuleConfig `mapstructure:"cyrillic-in-english"`
+	NoLangKeyRule          RuleConfig `mapstructure:"no-lang-key"`
+}
+
+type OpenAPILinterConfig struct {
+	LinterConfig `mapstructure:",squash"`
+	Rules        OpenAPIRules `mapstructure:"rules"`
+}
+
+type OpenAPIRules struct {
+	BilingualRule RuleConfig `mapstructure:"bilingual"`
 }
 
 type ModuleLinterConfig struct {
@@ -102,13 +112,15 @@ type ModuleLinterConfig struct {
 }
 
 type ModuleLinterRules struct {
-	DefinitionFileRule    RuleConfig `mapstructure:"definition-file"`
-	OSSRule               RuleConfig `mapstructure:"oss"`
-	ConversionRule        RuleConfig `mapstructure:"conversion"`
-	HelmignoreRule        RuleConfig `mapstructure:"helmignore"`
-	LicenseRule           RuleConfig `mapstructure:"license"`
-	RequarementsRule      RuleConfig `mapstructure:"requarements"`
-	LegacyReleaseFileRule RuleConfig `mapstructure:"legacy-release-file"`
+	DefinitionFileRule           RuleConfig `mapstructure:"definition-file"`
+	OSSRule                      RuleConfig `mapstructure:"oss"`
+	ConversionRule               RuleConfig `mapstructure:"conversion"`
+	HelmignoreRule               RuleConfig `mapstructure:"helmignore"`
+	LicenseRule                  RuleConfig `mapstructure:"license"`
+	RequarementsRule             RuleConfig `mapstructure:"requarements"`
+	PackageYAMLRule              RuleConfig `mapstructure:"package-yaml"`
+	ModulePackageConsistencyRule RuleConfig `mapstructure:"module-package-consistency"`
+	LegacyReleaseFileRule        RuleConfig `mapstructure:"legacy-release-file"`
 }
 
 type TemplatesLinterConfig struct {
@@ -117,15 +129,16 @@ type TemplatesLinterConfig struct {
 }
 
 type TemplatesLinterRules struct {
-	VPARule           RuleConfig `mapstructure:"vpa"`
-	PDBRule           RuleConfig `mapstructure:"pdb"`
-	IngressRule       RuleConfig `mapstructure:"ingress"`
-	PrometheusRule    RuleConfig `mapstructure:"prometheus-rules"`
-	GrafanaRule       RuleConfig `mapstructure:"grafana-dashboards"`
-	KubeRBACProxyRule RuleConfig `mapstructure:"kube-rbac-proxy"`
-	ServicePortRule   RuleConfig `mapstructure:"service-port"`
-	ClusterDomainRule RuleConfig `mapstructure:"cluster-domain"`
-	RegistryRule      RuleConfig `mapstructure:"registry"`
+	VPARule            RuleConfig `mapstructure:"vpa"`
+	PDBRule            RuleConfig `mapstructure:"pdb"`
+	IngressRule        RuleConfig `mapstructure:"ingress"`
+	PrometheusRule     RuleConfig `mapstructure:"prometheus-rules"`
+	GrafanaRule        RuleConfig `mapstructure:"grafana-dashboards"`
+	KubeRBACProxyRule  RuleConfig `mapstructure:"kube-rbac-proxy"`
+	ServicePortRule    RuleConfig `mapstructure:"service-port"`
+	ClusterDomainRule  RuleConfig `mapstructure:"cluster-domain"`
+	RegistryRule       RuleConfig `mapstructure:"registry"`
+	EnabledModulesRule RuleConfig `mapstructure:"enabled-modules"`
 }
 
 func (c LinterConfig) IsWarn() bool {

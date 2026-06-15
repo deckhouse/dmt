@@ -65,6 +65,7 @@ func (r *PatchesRule) CheckPatches(moduleDir string, errorList *errors.LintRuleE
 	errorList = errorList.WithRule(r.Name)
 
 	files := fsutils.GetFiles(moduleDir, false, fsutils.FilterFileByExtensions(".patch"))
+
 	patchDirs := set.New()
 	for _, file := range files {
 		patchDirs.Add(filepath.Dir(file))
@@ -75,6 +76,7 @@ func (r *PatchesRule) CheckPatches(moduleDir string, errorList *errors.LintRuleE
 		if !regexPatchDir.MatchString(path) {
 			errorList.WithFilePath(path).Errorf("Patch file should be in `images/<image_name>/patches/` directory")
 		}
+
 		if !fsutils.IsFile(filepath.Join(patchDir, "README.md")) {
 			errorList.WithFilePath(path).Errorf("Patch file should have a corresponding README file")
 		}
@@ -85,6 +87,7 @@ func (r *PatchesRule) CheckPatches(moduleDir string, errorList *errors.LintRuleE
 		if !regexPatchFile.MatchString(filepath.Base(file)) {
 			errorList.WithFilePath(path).Errorf("Patch file name should match pattern `XXX-<patch-name>.patch`")
 		}
+
 		if err := checkReadmeFile(file); err != nil {
 			errorList.WithFilePath(path).Errorf("%s", err.Error())
 		}
@@ -93,13 +96,16 @@ func (r *PatchesRule) CheckPatches(moduleDir string, errorList *errors.LintRuleE
 
 func checkReadmeFile(patchFile string) error {
 	readmeFile := filepath.Join(filepath.Dir(patchFile), "README.md")
+
 	content, err := os.ReadFile(readmeFile)
 	if os.IsNotExist(err) {
 		return nil
 	}
+
 	if err != nil {
 		return fmt.Errorf("error reading README.md file: %w", err)
 	}
+
 	if !strings.Contains(string(content), "# "+filepath.Base(patchFile)) {
 		return fmt.Errorf("%s", "README.md file does not contain # "+filepath.Base(patchFile))
 	}

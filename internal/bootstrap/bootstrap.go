@@ -218,6 +218,7 @@ func replaceInFile(filePath, oldString, newString string) error {
 // getModuleName extracts the module name from module.yaml file
 func getModuleName(directory string) (string, error) {
 	moduleYamlPath := filepath.Join(directory, "module.yaml")
+
 	moduleYaml, err := os.ReadFile(moduleYamlPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to read module.yaml: %w", err)
@@ -230,6 +231,7 @@ func getModuleName(directory string) (string, error) {
 	if err := yaml.Unmarshal(moduleYaml, &module); err != nil {
 		return "", fmt.Errorf("failed to unmarshal module.yaml: %w", err)
 	}
+
 	return module.Name, nil
 }
 
@@ -296,12 +298,14 @@ func downloadFile(url, targetPath string) error {
 
 	// Limit the size of the downloaded file to prevent DoS attacks
 	limitedReader := io.LimitReader(resp.Body, maxFileSize)
+
 	_, err = io.Copy(file, limitedReader)
 	if err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 
 	log.Info("Template downloaded successfully")
+
 	return nil
 }
 
@@ -317,6 +321,7 @@ func extractZip(zipPath, extractDir string) error {
 
 	// Find the root directory name (usually the first directory)
 	var rootDir string
+
 	for _, file := range reader.File {
 		if file.FileInfo().IsDir() {
 			rootDir = file.Name
@@ -347,6 +352,7 @@ func extractZip(zipPath, extractDir string) error {
 			if err := os.MkdirAll(filePath, dirPermissions); err != nil {
 				return fmt.Errorf("failed to create directory %s: %w", filePath, err)
 			}
+
 			continue
 		}
 
@@ -371,7 +377,9 @@ func extractZip(zipPath, extractDir string) error {
 		// Copy content with size limit to prevent DoS attacks
 		limitedReader := io.LimitReader(zipFile, maxFileSize)
 		_, err = io.Copy(outFile, limitedReader)
+
 		zipFile.Close()
+
 		if err != nil {
 			outFile.Close()
 			return fmt.Errorf("failed to copy file content %s: %w", filePath, err)
@@ -383,6 +391,7 @@ func extractZip(zipPath, extractDir string) error {
 	}
 
 	log.Debug("Template extracted successfully")
+
 	return nil
 }
 
@@ -395,12 +404,14 @@ func moveExtractedContent(tempDir, directory string) error {
 	}
 
 	var templateDir string
+
 	for _, entry := range entries {
 		if entry.IsDir() {
 			templateDir = filepath.Join(tempDir, entry.Name())
 			break
 		}
 	}
+
 	if templateDir == "" {
 		return fmt.Errorf("template directory not found in temp directory")
 	}
@@ -421,6 +432,7 @@ func moveExtractedContent(tempDir, directory string) error {
 	}
 
 	log.Debug("Template files moved to current directory")
+
 	return nil
 }
 
@@ -446,6 +458,7 @@ func copyAndRemove(src, dst string) error {
 	if info.IsDir() {
 		return copyDirectoryAndRemove(src, dst)
 	}
+
 	return copyFileAndRemove(src, dst)
 }
 

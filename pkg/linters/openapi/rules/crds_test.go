@@ -544,12 +544,14 @@ spec:
 				// Check that each expected error is present (order independent)
 				for _, expectedError := range tt.wantErrors {
 					found := false
+
 					for _, actualError := range actualErrors {
 						if strings.Contains(actualError, expectedError) {
 							found = true
 							break
 						}
 					}
+
 					assert.True(t, found, "Expected error not found: %s\nActual errors: %v", expectedError, actualErrors)
 				}
 			}

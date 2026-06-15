@@ -29,6 +29,7 @@ func GetFiles(rootPath string, skipSymlink bool, filters ...filterFn) []string {
 	if _, err := os.Stat(rootPath); os.IsNotExist(err) {
 		return result
 	}
+
 	_ = filepath.Walk(rootPath, func(path string, info os.FileInfo, _ error) error {
 		if skipSymlink && info.Mode()&os.ModeSymlink != 0 {
 			// Correct symlink handling: skip symlink directory, just skip symlink file

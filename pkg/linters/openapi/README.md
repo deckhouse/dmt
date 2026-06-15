@@ -14,6 +14,7 @@ Proper OpenAPI schema validation is critical for module configuration, ensuring 
 | [high-availability](#high-availability) | Validates highAvailability field has no default value | ✅ | enabled |
 | [keys](#keys) | Validates property names don't use banned names | ✅ | enabled |
 | [deckhouse-crds](#deckhouse-crds) | Validates Deckhouse CRD structure and metadata | ✅ | enabled |
+| [bilingual](#bilingual) | Validates translation files (`doc-ru-`) exist for OpenAPI and CRD files | ✅ | enabled |
 
 ## Rule Details
 
@@ -606,6 +607,90 @@ linters-settings:
 
 **Note:** Only CRDs with `deckhouse.io` in their name are validated by this rule. Third-party CRDs are automatically skipped.
 
+### bilingual
+
+**Purpose:** Ensures that OpenAPI schema files and CRD files have corresponding Russian translation files (`doc-ru-` prefix). This maintains bilingual documentation for all resource definitions, which is required for proper documentation generation in Deckhouse modules.
+
+**Description:**
+
+Validates that every resource file in `openapi/` and `crds/` directories has a corresponding translation file with the `doc-ru-` prefix. Also checks for orphaned translation files that have no corresponding base file.
+
+**What it checks:**
+
+1. For each YAML file in `openapi/` (except `values.yaml` and test files): checks that a `doc-ru-` prefixed counterpart exists in the same directory
+2. For each YAML file in `crds/` (except test files): checks that a `doc-ru-` prefixed counterpart exists in the same directory
+3. For each `doc-ru-` file: checks that the corresponding base file exists (detects orphaned translations)
+
+**Why it matters:**
+
+1. **Bilingual Documentation**: Deckhouse modules require documentation in both English and Russian
+2. **Documentation Completeness**: Missing translations lead to incomplete module documentation
+3. **Consistency**: Keeps resource files and their translations in sync
+4. **Orphan Detection**: Finds stale translation files that no longer have a base resource
+
+**Examples:**
+
+❌ **Incorrect** - Missing translation for OpenAPI config:
+
+```
+openapi/
+  config-values.yaml        # ❌ No doc-ru- counterpart
+  values.yaml               # Skipped (internal values)
+```
+
+**Error:**
+```
+Error: translation file is missing: expected "doc-ru-config-values.yaml" in the same directory
+```
+
+❌ **Incorrect** - Missing translation for CRD:
+
+```
+crds/
+  my-resource.yaml          # ❌ No doc-ru- counterpart
+```
+
+**Error:**
+```
+Error: translation file is missing: expected "doc-ru-my-resource.yaml" in the same directory
+```
+
+❌ **Incorrect** - Orphaned translation file:
+
+```
+crds/
+  doc-ru-old-resource.yaml  # ❌ No base file (old-resource.yaml is missing)
+```
+
+**Error:**
+```
+Error: translation file has no corresponding base file: expected "old-resource.yaml"
+```
+
+✅ **Correct** - All files have translations:
+
+```
+openapi/
+  config-values.yaml        # ✅ Has doc-ru- counterpart
+  doc-ru-config-values.yaml # ✅ Has base file
+  values.yaml               # Skipped (internal values)
+
+crds/
+  my-resource.yaml          # ✅ Has doc-ru- counterpart
+  doc-ru-my-resource.yaml   # ✅ Has base file
+```
+
+**Configuration:**
+
+```yaml
+# .dmt.yaml
+linters-settings:
+  openapi:
+    impact: error  # Controls the impact level for all openapi rules including bilingual
+```
+
+---
+
 ## Configuration
 
 The OpenAPI linter can be configured at the module level with rule-specific exclusions.
@@ -980,6 +1065,51 @@ Error: CRD contains "deprecated" key at path "spec.versions[].schema.openAPIV3Sc
        type: string
        description: Replacement for the deprecated oldField
    ```
+
+### Issue: Missing translation file for OpenAPI or CRD
+
+**Symptom:**
+```
+Error: translation file is missing: expected "doc-ru-config-values.yaml" in the same directory
+```
+
+**Cause:** A resource file in `openapi/` or `crds/` directory doesn't have a corresponding `doc-ru-` translation file.
+
+**Solutions:**
+
+1. **Create the translation file:**
+
+   ```bash
+   # For openapi files
+   cp openapi/config-values.yaml openapi/doc-ru-config-values.yaml
+   # Edit doc-ru-config-values.yaml to add Russian descriptions
+
+   # For CRD files
+   cp crds/my-resource.yaml crds/doc-ru-my-resource.yaml
+   # Edit doc-ru-my-resource.yaml to add Russian descriptions
+   ```
+
+2. **Translation file naming convention:**
+
+   | Base file | Translation file |
+   |-----------|-----------------|
+   | `config-values.yaml` | `doc-ru-config-values.yaml` |
+   | `instance_class.yaml` | `doc-ru-instance_class.yaml` |
+   | `crds/my-resource.yaml` | `crds/doc-ru-my-resource.yaml` |
+
+### Issue: Orphaned translation file
+
+**Symptom:**
+```
+Error: translation file has no corresponding base file: expected "old-resource.yaml"
+```
+
+**Cause:** A `doc-ru-` translation file exists without a corresponding base resource file. This typically happens when a resource file was renamed or deleted but its translation was not.
+
+**Solutions:**
+
+1. **Remove the orphaned translation file** if the base resource was intentionally deleted
+2. **Rename the translation file** to match the new base file name
 
 ### Issue: Enum validation in complex nested structures
 

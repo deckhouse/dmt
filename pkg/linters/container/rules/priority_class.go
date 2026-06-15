@@ -71,8 +71,10 @@ func isPriorityClassSupportedKind(kind string) bool {
 func getPriorityClass(object storage.StoreObject) (string, error) {
 	converter := runtime.DefaultUnstructuredConverter
 
-	var priorityClass string
-	var err error
+	var (
+		priorityClass string
+		err           error
+	)
 
 	switch object.Unstructured.GetKind() {
 	case "Deployment":

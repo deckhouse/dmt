@@ -31,6 +31,7 @@ func TestLoader_Load_WithConfigFile(t *testing.T) {
 	l.viper = viper.New()
 	l.viper.SetConfigType("yaml")
 	l.viper.SetConfigName("testconfig")
+
 	dir := t.TempDir()
 	l.viper.AddConfigPath(dir)
 
@@ -66,6 +67,7 @@ func TestLoader_Load_InvalidYaml(t *testing.T) {
 	l.viper = viper.New()
 	l.viper.SetConfigType("yaml")
 	l.viper.SetConfigName("invalidconfig")
+
 	dir := t.TempDir()
 	l.viper.AddConfigPath(dir)
 
@@ -85,15 +87,18 @@ func TestLoader_Load_NestedStruct(t *testing.T) {
 	type Nested struct {
 		SubField string `mapstructure:"sub_field"`
 	}
+
 	type nestedConfig struct {
 		Field1 string `mapstructure:"field1"`
 		Nested Nested `mapstructure:"nested"`
 	}
+
 	cfg := &nestedConfig{}
 	l := NewLoader(cfg, "")
 	l.viper = viper.New()
 	l.viper.SetConfigType("yaml")
 	l.viper.SetConfigName("nestedconfig")
+
 	dir := t.TempDir()
 	l.viper.AddConfigPath(dir)
 
@@ -118,6 +123,7 @@ func TestLoader_setConfigDir_Stdin(t *testing.T) {
 	// Create a temporary file to simulate stdin
 	tempFile, err := os.CreateTemp("", "stdin_mock")
 	require.NoError(t, err, "failed to create temp file")
+
 	defer os.Remove(tempFile.Name()) // Clean up the temp file
 	// Use the temporary file as the config file
 	l.viper.SetConfigFile(tempFile.Name())
@@ -134,7 +140,9 @@ func TestLoader_setConfigDir_Stdin_Content(t *testing.T) {
 	fileContent := []byte("field1: stdinval\nfield2: 99\n")
 	tempFile, err := os.CreateTemp("", "stdin_mock")
 	require.NoError(t, err, "failed to create temp file")
+
 	defer os.Remove(tempFile.Name())
+
 	_, err = tempFile.Write(fileContent)
 	require.NoError(t, err, "failed to write to temp file")
 	tempFile.Close()

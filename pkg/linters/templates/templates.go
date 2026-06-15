@@ -89,9 +89,15 @@ func (l *Templates) Run(m *module.Module) {
 	// werf file
 	// The following line is commented out because the Werf rule validation is not currently required.
 	// If needed in the future, uncomment and ensure the rule is properly configured.
-	// rules.NewWerfRule().ValidateWerfTemplates(m, errorList.WithMaxLevel(l.cfg.Rules.WerfRule.GetLevel()))
+	rules.NewWerfRule().ValidateWerfTemplates(m, errorList)
 
 	rules.NewRegistryRule().CheckRegistrySecret(m, errorList.WithMaxLevel(l.cfg.Rules.RegistryRule.GetLevel()))
+
+	// EnabledModules rule
+	rules.NewEnabledModulesRule(
+		l.cfg.ExcludeRules.EnabledModules.Files.Get(),
+		l.cfg.ExcludeRules.EnabledModules.Directories.Get(),
+	).CheckEnabledModules(m, errorList.WithMaxLevel(l.cfg.Rules.EnabledModulesRule.GetLevel()))
 }
 
 func (l *Templates) Name() string {
@@ -104,9 +110,11 @@ func (l *Templates) Desc() string {
 
 func dirExists(modulePath string, path ...string) error {
 	searchPath := filepath.Join(append([]string{modulePath}, path...)...)
+
 	_, err := os.Stat(searchPath)
 	if err != nil {
 		return err
 	}
+
 	return nil
 }

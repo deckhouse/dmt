@@ -64,6 +64,7 @@ func (r *BindingSubjectRule) ObjectBindingSubjectServiceAccountCheck(m *module.M
 				errorListObj.Errorf("Cannot convert object to %s: %v", object.Unstructured.GetKind(), err)
 				continue
 			}
+
 			subjects = clusterRoleBinding.Subjects
 
 		case "RoleBinding":
@@ -72,6 +73,7 @@ func (r *BindingSubjectRule) ObjectBindingSubjectServiceAccountCheck(m *module.M
 				errorListObj.Errorf("Cannot convert object to %s: %v", object.Unstructured.GetKind(), err)
 				continue
 			}
+
 			subjects = roleBinding.Subjects
 
 		default:

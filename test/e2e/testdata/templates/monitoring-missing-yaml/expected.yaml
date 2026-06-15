@@ -1,0 +1,13 @@
+description: >
+  A module that has a monitoring/ folder but no templates/monitoring.yaml must
+  be flagged by both the prometheus-rules and grafana-dashboards rules.
+module: module
+expect:
+  - linter: templates
+    rule: prometheus-rules
+    level: error
+    textContains: "should have the 'templates/monitoring.yaml' file"
+  - linter: templates
+    rule: grafana-dashboards
+    level: error
+    textContains: "should have the 'templates/monitoring.yaml' file"

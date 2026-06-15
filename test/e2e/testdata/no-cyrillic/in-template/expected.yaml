@@ -1,0 +1,9 @@
+description: >
+  A template file containing Cyrillic characters must be reported by the
+  no-cyrillic linter.
+module: module
+expect:
+  - linter: no-cyrillic
+    rule: files
+    level: error
+    textContains: "has cyrillic letters"

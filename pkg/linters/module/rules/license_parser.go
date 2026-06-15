@@ -209,6 +209,7 @@ func (p *LicenseParser) ParseFile(filename string) (*LicenseInfo, error) {
 
 	// Read file header
 	const maxHeaderSize = 2048
+
 	header, err := p.readFileHeader(filename, maxHeaderSize) // Read more bytes for better detection
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
@@ -289,6 +290,7 @@ func (*LicenseParser) readFileHeader(filename string, size int) (string, error) 
 	defer file.Close()
 
 	buf := make([]byte, size)
+
 	n, err := file.Read(buf)
 	if err != nil && err.Error() != "EOF" {
 		return "", err
@@ -324,6 +326,7 @@ func (p *LicenseParser) extractLicenseText(header string, config *FileTypeConfig
 			return text
 		}
 	}
+
 	return ""
 }
 
@@ -335,6 +338,7 @@ func (p *LicenseParser) extractWithStyle(header string, style CommentStyle) stri
 		if startIdx == -1 {
 			return ""
 		}
+
 		lastStartIdx := startIdx + len(style.BlockStart)
 
 		endIdx := strings.Index(header[lastStartIdx:], style.BlockEnd)
@@ -344,11 +348,14 @@ func (p *LicenseParser) extractWithStyle(header string, style CommentStyle) stri
 
 		// Extract content between markers
 		content := header[lastStartIdx : lastStartIdx+endIdx]
+
 		return p.normalizeText(content)
 	} else if style.LinePrefix != "" {
 		// Line comments
 		scanner := bufio.NewScanner(strings.NewReader(header))
+
 		var lines []string
+
 		inLicense := false
 
 		for scanner.Scan() {
@@ -438,8 +445,10 @@ func (p *LicenseParser) matchLicense(text string, license License) (bool, string
 	if match == nil {
 		return false, ""
 	}
+
 	if len(match) > 1 {
 		return true, match[1]
 	}
+
 	return true, "2025" // Default year if not captured
 }

@@ -42,6 +42,7 @@ func (r *ReadmeRule) CheckReadme(m pkg.Module, errorList *errors.LintRuleErrorsL
 		errorList.
 			WithFilePath(path).
 			Error("README.md file is missing in docs/ directory")
+
 		return
 	}
 
@@ -51,6 +52,7 @@ func (r *ReadmeRule) CheckReadme(m pkg.Module, errorList *errors.LintRuleErrorsL
 			WithFilePath(path).
 			WithValue(err.Error()).
 			Error("failed to check README.md file")
+
 		return
 	}
 

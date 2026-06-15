@@ -1,0 +1,12 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: e2e-pdb
+  namespace: e2e-pdb-helm-hook
+  annotations:
+    helm.sh/hook: post-install
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: e2e-app

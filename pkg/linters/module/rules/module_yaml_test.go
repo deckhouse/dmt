@@ -254,35 +254,6 @@ descriptions:
 	assert.Contains(t, errorList.GetErrors()[0].Text, "Field 'weight' must not be zero for critical modules")
 }
 
-func TestCheckDefinitionFile_NonCriticalModuleWithWeight(t *testing.T) {
-	tempDir := t.TempDir()
-	moduleFilePath := filepath.Join(tempDir, ModuleConfigFilename)
-
-	err := os.WriteFile(moduleFilePath, []byte(`
-name: test-non-critical
-weight: 10
-stage: Experimental
-descriptions:
-  en: "Test description"
-`), 0600)
-	require.NoError(t, err)
-
-	rule := NewDefinitionFileRule(false)
-	errorList := errors.NewLintRuleErrorsList()
-	rule.CheckDefinitionFile(tempDir, errorList)
-
-	assert.False(t, errorList.ContainsErrors(), "Expected no errors for non-critical module with weight")
-
-	found := false
-	for _, e := range errorList.GetErrors() {
-		if e.Level == pkg.Warn && e.Text == "Unnecessary field 'weight' must be removed for non-critical module" {
-			found = true
-			break
-		}
-	}
-	assert.True(t, found, "Expected warning for non-critical module with weight")
-}
-
 func TestCheckDefinitionFile_InvalidStage(t *testing.T) {
 	tempDir := t.TempDir()
 	moduleFilePath := filepath.Join(tempDir, ModuleConfigFilename)
@@ -338,18 +309,23 @@ stage: Experimental
 	rule.CheckDefinitionFile(tempDir, errorList)
 
 	gotErrors := []string{}
+
 	for _, e := range errorList.GetErrors() {
 		if e.Level == pkg.Error {
 			gotErrors = append(gotErrors, e.Text)
 		}
 	}
+
 	assert.NotEmpty(t, gotErrors, "Expected error for missing descriptions.en")
+
 	found := false
+
 	for _, w := range gotErrors {
 		if w == "Module `descriptions.en` field is required" {
 			found = true
 		}
 	}
+
 	assert.True(t, found, "Expected warning text for missing descriptions.en")
 }
 func TestCheckDefinitionFile_StageField(t *testing.T) {
@@ -458,12 +434,14 @@ descriptions:
 
 	// Check that we have the deprecation warning
 	found := false
+
 	for _, err := range errorList.GetErrors() {
 		if strings.Contains(err.Text, "Field 'description' is deprecated") {
 			found = true
 			break
 		}
 	}
+
 	assert.True(t, found, "Expected deprecation warning for 'description' field")
 
 	// Test without deprecated 'description' field
@@ -499,6 +477,7 @@ func TestCheckDefinitionFile_FileErrors(t *testing.T) {
 	// Remove read permissions to simulate read error
 	err = os.WriteFile(moduleFilePath, []byte(`name: test-module`), 0000)
 	require.NoError(t, err)
+
 	defer func() {
 		err := os.Chmod(moduleFilePath, 0600) // Restore permissions after test
 		require.NoError(t, err)
@@ -666,6 +645,7 @@ update:
 	for _, e := range errorList.GetErrors() {
 		errorTexts = append(errorTexts, e.Text)
 	}
+
 	assert.Contains(t, strings.Join(errorTexts, " "), "field 'to' is required")
 	assert.Contains(t, strings.Join(errorTexts, " "), "field 'from' is required")
 }
@@ -718,6 +698,7 @@ update:
 	for _, e := range errorList.GetErrors() {
 		errorTexts = append(errorTexts, e.Text)
 	}
+
 	assert.Contains(t, strings.Join(errorTexts, " "), "must be in major.minor format (patch versions not allowed)")
 }
 

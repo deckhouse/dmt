@@ -46,6 +46,7 @@ func (r *RecommendedLabelsRule) ObjectRecommendedLabels(object storage.StoreObje
 		errorList.WithObjectID(object.Identity()).WithValue(labels).
 			Error(`Object does not have the label "module"`)
 	}
+
 	if _, ok := labels["heritage"]; !ok {
 		errorList.WithObjectID(object.Identity()).WithValue(labels).
 			Error(`Object does not have the label "heritage"`)

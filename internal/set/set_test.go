@@ -162,6 +162,7 @@ func Test_AddSet(t *testing.T) {
 				if !tt.initial.Has(x) {
 					t.Errorf("missing expected item %s", x)
 				}
+
 				if len(tt.initial) != len(tt.uniqItems) {
 					t.Errorf("unexpected set zise: want=%d, got=%d", len(tt.uniqItems), len(tt.initial))
 				}
@@ -176,6 +177,7 @@ func Test_Delete(t *testing.T) {
 		s := New()
 		s.Add("")
 		s.Delete("")
+
 		if s.Size() > 0 {
 			t.Errorf("expected empty set")
 		}
@@ -185,6 +187,7 @@ func Test_Delete(t *testing.T) {
 		// deletion ignores absent items
 		s := New()
 		s.Delete("")
+
 		if s.Size() > 0 {
 			t.Errorf("expected empty set")
 		}

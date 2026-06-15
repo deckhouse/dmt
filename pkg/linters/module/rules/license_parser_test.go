@@ -253,6 +253,7 @@ function main() {}
 				t.Errorf("ParseFile() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
+
 			if tt.wantErr {
 				return
 			}
@@ -261,6 +262,7 @@ function main() {}
 			if got.Type != tt.want.Type {
 				t.Errorf("Type = %v, want %v", got.Type, tt.want.Type)
 			}
+
 			if got.Year != tt.want.Year {
 				t.Errorf("Year = %v, want %v", got.Year, tt.want.Year)
 			}
@@ -453,6 +455,7 @@ export function main() {}
 				t.Errorf("ParseFile() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
+
 			if tt.wantErr {
 				return
 			}
@@ -461,6 +464,7 @@ export function main() {}
 			if got.Type != tt.want.Type {
 				t.Errorf("Type = %v, want %v", got.Type, tt.want.Type)
 			}
+
 			if got.Year != tt.want.Year {
 				t.Errorf("Year = %v, want %v", got.Year, tt.want.Year)
 			}

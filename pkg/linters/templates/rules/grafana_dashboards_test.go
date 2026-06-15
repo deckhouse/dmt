@@ -265,6 +265,7 @@ func TestValidateDashboardFile(t *testing.T) {
 	// Create temporary test directory
 	tempDir, err := os.MkdirTemp("", "grafana-test")
 	require.NoError(t, err)
+
 	defer os.RemoveAll(tempDir)
 
 	// Create test dashboard file

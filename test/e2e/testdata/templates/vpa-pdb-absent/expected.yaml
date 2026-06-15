@@ -1,0 +1,13 @@
+description: >
+  A pod controller (Deployment) with neither a VerticalPodAutoscaler nor a
+  PodDisruptionBudget must be flagged by the vpa and pdb rules.
+module: module
+expect:
+  - linter: templates
+    rule: vpa
+    level: error
+    textContains: "No VPA is found for object"
+  - linter: templates
+    rule: pdb
+    level: error
+    textContains: "No PodDisruptionBudget found for controller"

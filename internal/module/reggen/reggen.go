@@ -84,46 +84,59 @@ func (*Generator) handleLiteral(re *syntax.Regexp) string {
 	for _, r := range re.Rune {
 		res += string(r)
 	}
+
 	return res
 }
 
 func (g *Generator) handleCharClass(_ *state, re *syntax.Regexp) string {
 	sum := 0
+
 	for i := 0; i < len(re.Rune); i += 2 {
 		if g.debug {
 			fmt.Printf("Range: %#U-%#U\n", re.Rune[i], re.Rune[i+1])
 		}
+
 		sum += int(re.Rune[i+1]-re.Rune[i]) + 1
 		if re.Rune[i+1] == runeRangeEnd {
 			sum = -1
 			break
 		}
 	}
+
 	if sum == -1 {
 		return g.handleInverseCharClass(re)
 	}
+
 	if g.debug {
 		fmt.Println("Char range: ", sum)
 	}
+
 	r := g.rand.Intn(sum)
+
 	var ru rune
+
 	sum = 0
+
 	for i := 0; i < len(re.Rune); i += 2 {
 		gap := int(re.Rune[i+1]-re.Rune[i]) + 1
 		if sum+gap > r {
 			ru = re.Rune[i] + rune(r-sum)
 			break
 		}
+
 		sum += gap
 	}
+
 	if g.debug {
 		fmt.Printf("Generated rune %c for range %v\n", ru, re)
 	}
+
 	return string(ru)
 }
 
 func (g *Generator) handleInverseCharClass(re *syntax.Regexp) string {
 	possibleChars := []uint8{}
+
 	for j := range printableChars {
 		c := printableChars[j]
 		for i := 0; i < len(re.Rune); i += 2 {
@@ -133,13 +146,16 @@ func (g *Generator) handleInverseCharClass(re *syntax.Regexp) string {
 			}
 		}
 	}
+
 	if len(possibleChars) > 0 {
 		c := possibleChars[g.rand.Intn(len(possibleChars))]
 		if g.debug {
 			fmt.Printf("Generated rune %c for inverse range %v\n", c, re)
 		}
+
 		return string([]byte{c})
 	}
+
 	return ""
 }
 
@@ -148,7 +164,9 @@ func (g *Generator) handleAnyChar(re *syntax.Regexp) string {
 	if re.Op == syntax.OpAnyCharNotNL {
 		chars = printableCharsNoNL
 	}
+
 	c := chars[g.rand.Intn(len(chars))]
+
 	return string([]byte{c})
 }
 
@@ -156,42 +174,50 @@ func (g *Generator) handleCapture(s *state, re *syntax.Regexp) string {
 	if g.debug {
 		fmt.Println("OpCapture", re.Sub, len(re.Sub))
 	}
+
 	return g.generate(s, re.Sub0[0])
 }
 
 func (g *Generator) handleStar(s *state, re *syntax.Regexp) string {
 	res := ""
+
 	count := int(math.Max(float64(s.limit), 1))
 	for range make([]struct{}, count) {
 		for _, r := range re.Sub {
 			res += g.generate(s, r)
 		}
 	}
+
 	return res
 }
 
 func (g *Generator) handlePlus(s *state, re *syntax.Regexp) string {
 	res := ""
+
 	count := int(math.Max(float64(s.limit), 1))
 	for range make([]struct{}, count) {
 		for _, r := range re.Sub {
 			res += g.generate(s, r)
 		}
 	}
+
 	return res
 }
 
 func (g *Generator) handleQuest(s *state, re *syntax.Regexp) string {
 	res := ""
+
 	count := 1
 	if g.debug {
 		fmt.Println("Quest", count)
 	}
+
 	for range make([]struct{}, count) {
 		for _, r := range re.Sub {
 			res += g.generate(s, r)
 		}
 	}
+
 	return res
 }
 
@@ -199,20 +225,25 @@ func (g *Generator) handleRepeat(s *state, re *syntax.Regexp) string {
 	if g.debug {
 		fmt.Println("OpRepeat", re.Min, re.Max)
 	}
+
 	res := ""
 	count := 0
+
 	re.Max = int(math.Min(float64(re.Max), float64(s.limit)))
 	if re.Max > re.Min {
 		count = re.Max - 1
 	}
+
 	if g.debug {
 		fmt.Println(re.Max, count)
 	}
+
 	for i := 0; i < re.Min || i < (re.Min+count); i++ {
 		for _, r := range re.Sub {
 			res += g.generate(s, r)
 		}
 	}
+
 	return res
 }
 
@@ -221,6 +252,7 @@ func (g *Generator) handleConcat(s *state, re *syntax.Regexp) string {
 	for _, r := range re.Sub {
 		res += g.generate(s, r)
 	}
+
 	return res
 }
 
@@ -228,7 +260,9 @@ func (g *Generator) handleAlternate(s *state, re *syntax.Regexp) string {
 	if g.debug {
 		fmt.Println("OpAlternative", re.Sub, len(re.Sub))
 	}
+
 	i := g.rand.Intn(len(re.Sub))
+
 	return g.generate(s, re.Sub[i])
 }
 
@@ -241,6 +275,7 @@ func NewGenerator(regex string) (*Generator, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &Generator{
 		re:   re,
 		rand: rand.New(rand.NewSource(time.Now().UnixNano())), //nolint:gosec  // seed is not used for security
@@ -261,6 +296,8 @@ func Generate(regex string, limit int) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	g.SetSeed(time.Now().UnixNano())
+
 	return g.Generate(limit), nil
 }

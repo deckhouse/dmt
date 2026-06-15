@@ -48,6 +48,11 @@ const (
 	// MinimalDeckhouseVersionForModuleSDK03 defines the minimum Deckhouse version required for Module-SDK >= 0.3
 	MinimalDeckhouseVersionForModuleSDK03 = "1.71.0"
 
+	// MinimalDeckhouseVersionForWeightDeprecation defines the version where weight became irrelevant for non-critical modules
+	MinimalDeckhouseVersionForWeightDeprecation = "1.72.0"
+	// MinimalDeckhouseVersionForBootstrappedDeprecation defines the version where bootstrapped was deprecated
+	MinimalDeckhouseVersionForBootstrappedDeprecation = "1.72.0"
+
 	// Common patterns used in Go files
 	AppRunPattern = `\w+\.Run\(`
 )
@@ -86,10 +91,10 @@ type ComponentRequirement struct {
 	Description   string
 }
 
-// RequirementCheck defines a single requirement check configuration
-// Detector returns true if the rule should be applied to the module
-// Requirements defines the minimum versions required for this rule
-// Description is the rule description
+// RequirementCheck defines a single requirement check configuration.
+// Detector returns true if the check should be applied to the module.
+// When Requirements is non-empty, validateRequirement verifies version constraints.
+// When Requirements is empty, the Description is emitted as the error.
 type RequirementCheck struct {
 	Name         string
 	Requirements []ComponentRequirement
@@ -170,6 +175,30 @@ func NewRequirementsRegistry() *RequirementsRegistry {
 		},
 	})
 
+	// Bootstrapped deprecation check - bootstrapped must be removed for Deckhouse >= 1.72
+	registry.RegisterCheck(RequirementCheck{
+		Name:        "bootstrapped_deprecated",
+		Description: "requirements.bootstrapped must be removed for Deckhouse >= " + MinimalDeckhouseVersionForBootstrappedDeprecation,
+		Detector: func(_ string, module *DeckhouseModule) bool {
+			return module != nil &&
+				module.Requirements != nil &&
+				module.Requirements.Bootstrapped &&
+				deckhouseVersionAtLeast(module, MinimalDeckhouseVersionForBootstrappedDeprecation)
+		},
+	})
+
+	// Weight deprecation check - weight must be removed for non-critical modules when Deckhouse >= 1.72
+	registry.RegisterCheck(RequirementCheck{
+		Name:        "weight_deprecated",
+		Description: "weight must be removed for non-critical modules when Deckhouse >= " + MinimalDeckhouseVersionForWeightDeprecation,
+		Detector: func(_ string, module *DeckhouseModule) bool {
+			return module != nil &&
+				module.Weight > 0 &&
+				!module.Critical &&
+				deckhouseVersionAtLeast(module, MinimalDeckhouseVersionForWeightDeprecation)
+		},
+	})
+
 	return registry
 }
 
@@ -178,17 +207,25 @@ func (r *RequirementsRegistry) RegisterCheck(check RequirementCheck) {
 	r.checks = append(r.checks, check)
 }
 
-// RunAllChecks executes all registered requirement checks
+// RunAllChecks executes all registered requirement checks.
 func (r *RequirementsRegistry) RunAllChecks(modulePath string, module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
 	for _, check := range r.checks {
-		if check.Detector(modulePath, module) {
-			r.validateRequirement(check, modulePath, module, errorList)
+		if !check.Detector(modulePath, module) {
+			continue
 		}
+
+		r.validateRequirement(check, modulePath, module, errorList)
 	}
 }
 
-// validateRequirement validates a single requirement check
+// validateRequirement validates a single requirement check.
+// When Requirements is empty the check is a pure detection rule and the Description is emitted as the error.
 func (r *RequirementsRegistry) validateRequirement(check RequirementCheck, modulePath string, module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
+	if len(check.Requirements) == 0 {
+		errorList.Errorf("requirements [%s]: %s", check.Name, check.Description)
+		return
+	}
+
 	if module == nil {
 		errorList.Errorf("requirements [%s]: %s, module is not defined", check.Name, check.Description)
 		return
@@ -201,8 +238,10 @@ func (r *RequirementsRegistry) validateRequirement(check RequirementCheck, modul
 
 // validateComponentRequirement validates a single component requirement
 func (*RequirementsRegistry) validateComponentRequirement(checkName string, req ComponentRequirement, modulePath string, module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
-	var constraintStr string
-	var constraintName string
+	var (
+		constraintStr  string
+		constraintName string
+	)
 
 	switch req.ComponentType {
 	case ComponentDeckhouse:
@@ -217,8 +256,10 @@ func (*RequirementsRegistry) validateComponentRequirement(checkName string, req 
 		if module.Requirements == nil || module.Requirements.Deckhouse == "" {
 			errorList.Errorf("requirements [%s]: %s, deckhouse version range should start no lower than %s",
 				checkName, req.Description, req.MinVersion)
+
 			return
 		}
+
 		constraintStr = module.Requirements.Deckhouse
 		constraintName = "deckhouse"
 	case ComponentK8s:
@@ -226,6 +267,7 @@ func (*RequirementsRegistry) validateComponentRequirement(checkName string, req 
 			errorList.Errorf("requirements [%s]: %s, kubernetes version constraint is required", checkName, req.Description)
 			return
 		}
+
 		constraintStr = module.Requirements.Kubernetes
 		constraintName = "kubernetes"
 	case ComponentModule:
@@ -244,6 +286,7 @@ func (*RequirementsRegistry) validateComponentRequirement(checkName string, req 
 	}
 
 	minAllowed := findMinimalAllowedVersion(constraint)
+
 	minimalVersion, err := semver.NewVersion(req.MinVersion)
 	if err != nil {
 		errorList.Errorf("requirements [%s]: invalid minimum version format %s: %s", checkName, req.MinVersion, err)
@@ -271,11 +314,13 @@ func findGoModFilesWithModuleSDK(modulePath, minVersion string) []string {
 	}
 
 	var validGoModDirs []string
+
 	for _, goModFile := range goModFiles {
 		if hasModuleSDKDependency(goModFile, minVersion) {
 			validGoModDirs = append(validGoModDirs, filepath.Dir(goModFile))
 		}
 	}
+
 	return validGoModDirs
 }
 
@@ -298,16 +343,19 @@ func hasModuleSDKDependency(goModFile, minVersion string) bool {
 				if err != nil {
 					continue
 				}
+
 				minVersionParsed, err := semver.NewVersion(minVersion)
 				if err != nil {
 					continue
 				}
+
 				if !sdkVersion.LessThan(minVersionParsed) {
 					return true
 				}
 			}
 		}
 	}
+
 	return false
 }
 
@@ -320,11 +368,13 @@ func findPatternInGoFiles(dirs []string, pattern *regexp.Regexp) bool {
 			if err != nil {
 				continue
 			}
+
 			if pattern.Match(content) {
 				return true
 			}
 		}
 	}
+
 	return false
 }
 
@@ -357,7 +407,33 @@ func hasOptionalModules(module *DeckhouseModule) bool {
 			return true
 		}
 	}
+
 	return false
+}
+
+// deckhouseVersionAtLeast checks if the module's deckhouse version constraint starts at or above minVersion.
+// Returns false if there is no deckhouse requirement or the constraint cannot be parsed.
+func deckhouseVersionAtLeast(module *DeckhouseModule, minVersion string) bool {
+	if module == nil || module.Requirements == nil || module.Requirements.Deckhouse == "" {
+		return false
+	}
+
+	constraint, err := semver.NewConstraint(module.Requirements.Deckhouse)
+	if err != nil {
+		return false
+	}
+
+	minAllowed := findMinimalAllowedVersion(constraint)
+	if minAllowed == nil {
+		return false
+	}
+
+	minVer, err := semver.NewVersion(minVersion)
+	if err != nil {
+		return false
+	}
+
+	return !minAllowed.LessThan(minVer)
 }
 
 func (r *RequirementsRule) CheckRequirements(modulePath string, errorList *errors.LintRuleErrorsList) {
@@ -372,29 +448,35 @@ func (r *RequirementsRule) CheckRequirements(modulePath string, errorList *error
 	registry.RunAllChecks(modulePath, moduleDescriptions, errorList)
 }
 
-// findMinimalAllowedVersion finds the minimum allowed version among all >=, >, =, != in constraint
-// Uses regex to extract versions and operators, returns the minimal version, or nil if only < or <= are present
+// findMinimalAllowedVersion finds the minimum allowed version among >=, >, = operators in constraint.
+// != is deliberately excluded — it means "not equal" and does not set a lower bound.
+// Returns the minimal version, or nil if only <, <=, or != are present.
 func findMinimalAllowedVersion(constraint *semver.Constraints) *semver.Version {
 	if constraint == nil {
 		return nil
 	}
 
 	matches := versionConstraintRegex.FindAllStringSubmatch(constraint.String(), -1)
+
 	var minVersion *semver.Version
+
 	foundMin := false
 
 	for _, m := range matches {
 		if len(m) < 3 {
 			continue
 		}
+
 		op := m[1]
+
 		verStr := m[2]
-		if op == ">=" || op == ">" || op == "=" || op == "!=" {
+		if op == ">=" || op == ">" || op == "=" {
 			v, err := semver.NewVersion(verStr)
 			if err == nil {
 				if minVersion == nil || v.LessThan(minVersion) {
 					minVersion = v
 				}
+
 				foundMin = true
 			}
 		}
@@ -403,9 +485,11 @@ func findMinimalAllowedVersion(constraint *semver.Constraints) *semver.Version {
 	if !foundMin {
 		return nil
 	}
+
 	if minVersion != nil && constraint.Check(minVersion) {
 		return minVersion
 	}
+
 	return minVersion
 }
 

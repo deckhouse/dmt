@@ -1,0 +1,6 @@
+version: 2
+conversions:
+  - del(.auth.password)
+description:
+  en: "v2"
+  ru: "v2"

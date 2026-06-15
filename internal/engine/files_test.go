@@ -86,6 +86,7 @@ bytes_len: {{ len $bytes }}`)},
 	// Test AsSecrets method
 	expected1 := base64.StdEncoding.EncodeToString([]byte("contents of file1"))
 	expected2 := base64.StdEncoding.EncodeToString([]byte("contents of file2"))
+
 	assert.Contains(t, out["test-files/templates/assecrets.yaml"], "file1.txt: "+expected1)
 	assert.Contains(t, out["test-files/templates/assecrets.yaml"], "file2.txt: "+expected2)
 }

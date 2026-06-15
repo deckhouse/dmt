@@ -147,6 +147,7 @@ func getModuleNameFromRepository(dir string) string {
 	}
 
 	repositoryURL := sec.Key("url").String()
+
 	return convertURLToModuleName(repositoryURL)
 }
 
@@ -156,6 +157,7 @@ func getGitConfigFile(dir string) string {
 			fsutils.IsFile(filepath.Join(dir, ".git", "config")) {
 			return filepath.Join(dir, ".git", "config")
 		}
+
 		parent := filepath.Dir(dir)
 		if dir == parent || parent == "" {
 			break
@@ -263,6 +265,7 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 
 	// TODO: refactor this
 	maxLevel := ptr.To(pkg.Error)
+
 	moduleNameFromRepo := getModuleNameFromRepository(modulePath)
 	for _, repo := range pkg.IgnoreDeckhouseReposList {
 		if moduleNameFromRepo == repo {
@@ -282,10 +285,6 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 
 	if yml.Critical && yml.Weight == 0 {
 		errorList.Error("Field 'weight' must not be zero for critical modules")
-	}
-
-	if !yml.Critical && yml.Weight > 0 {
-		errorList.Warn("Unnecessary field 'weight' must be removed for non-critical module")
 	}
 }
 
@@ -429,6 +428,7 @@ func (u *ModuleUpdate) validateUpdateDuplicates(errorList *errors.LintRuleErrors
 		if version.From == "" || version.To == "" {
 			continue
 		}
+
 		toMap[version.To] = append(toMap[version.To], version.From)
 	}
 

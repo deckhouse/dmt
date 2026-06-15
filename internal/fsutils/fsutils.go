@@ -84,6 +84,7 @@ func EvalSymlinks(path string) (string, error) {
 	}
 
 	var er evalSymlinkRes
+
 	er.path, er.err = filepath.EvalSymlinks(path)
 	evalSymlinkCache.Store(path, er)
 
@@ -138,6 +139,7 @@ func SplitManifests(data string) []string {
 
 	// Filter out empty parts
 	var nonEmptyParts []string
+
 	for _, part := range parts {
 		if part != "" {
 			nonEmptyParts = append(nonEmptyParts, part)

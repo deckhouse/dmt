@@ -48,6 +48,7 @@ func (r *PortsRule) ContainerPorts(object storage.StoreObject, containers []core
 	errorList = errorList.WithRule(r.GetName())
 
 	const t = 1024
+
 	for i := range containers {
 		c := &containers[i]
 

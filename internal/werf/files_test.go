@@ -41,6 +41,7 @@ func setupTestEnvironment(t *testing.T) (string, string, func()) {
 	for _, dir := range directories {
 		if err = os.MkdirAll(dir, 0755); err != nil {
 			_ = os.RemoveAll(tempDir)
+
 			t.Fatalf("cannot create directory %s: %v", dir, err)
 		}
 	}
@@ -56,6 +57,7 @@ func setupTestEnvironment(t *testing.T) (string, string, func()) {
 	for path, content := range testFiles {
 		if err = os.WriteFile(path, []byte(content), 0600); err != nil {
 			_ = os.RemoveAll(tempDir)
+
 			t.Fatalf("cannot create file %s: %v", path, err)
 		}
 	}
@@ -63,12 +65,14 @@ func setupTestEnvironment(t *testing.T) (string, string, func()) {
 	// Create symlink
 	if err = os.Symlink(filepath.Join(rootDirPath, "test.txt"), filepath.Join(rootDirPath, "test_symlink.txt")); err != nil {
 		_ = os.RemoveAll(tempDir)
+
 		t.Fatalf("cannot create symlink %s: %v", filepath.Join(rootDirPath, "test_symlink.txt"), err)
 	}
 
 	// Create directory
 	if err = os.Mkdir(filepath.Join(rootDirPath, "dir3"), 0700); err != nil {
 		_ = os.RemoveAll(tempDir)
+
 		t.Fatalf("cannot create directory %s: %v", filepath.Join(rootDirPath, "dir3"), err)
 	}
 
@@ -106,6 +110,7 @@ func TestGet(t *testing.T) {
 			t.Errorf("Get not called panic when reading non-existent file")
 		}
 	}()
+
 	_ = f.Get("non-existent.txt")
 }
 
@@ -121,6 +126,7 @@ func TestDoGlob(t *testing.T) {
 
 	expectedPaths := []string{"test.txt", "dir1/file1.txt", "dir2/file2.txt", "test_symlink.txt"}
 	require.Len(t, result, len(expectedPaths))
+
 	for _, path := range expectedPaths {
 		if _, ok := result[path]; !ok {
 			t.Errorf("file %s not found in results", path)
@@ -152,6 +158,7 @@ func TestGlob(t *testing.T) {
 			t.Errorf("glob did not call panic with incorrect pattern")
 		}
 	}()
+
 	_ = f.Glob("[")
 }
 

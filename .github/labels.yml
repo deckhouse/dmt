@@ -1,0 +1,3 @@
+- name: dmtlint-verify-skip
+  color: "fbca04"
+  description: "Skip the dmt-lint-verify CI check and allow merging despite lint failures on the deckhouse codebase."

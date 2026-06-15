@@ -1,0 +1,9 @@
+description: >
+  A Service whose port uses a numeric targetPort must be flagged by the
+  templates service-port rule.
+module: module
+expect:
+  - linter: templates
+    rule: service-port
+    level: error
+    textContains: "Service port must use a named (non-numeric) target port"

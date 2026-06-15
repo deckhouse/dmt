@@ -12,6 +12,7 @@ import (
 
 func (m *Manager) validateModule(path string) error {
 	var errs error
+
 	errorList := m.errors.WithLinterID("module").WithRule("definition-file").WithFilePath(path)
 	// validate module.yaml and Chart.yaml
 	chartYamlFile, err := module.ParseChartFile(path)
@@ -20,28 +21,33 @@ func (m *Manager) validateModule(path string) error {
 		errs = errors.Join(errs, err)
 		errorList.Error(err.Error())
 	}
+
 	moduleYamlFile, err := module.ParseModuleConfigFile(path)
 	if err != nil {
 		err = fmt.Errorf("failed to parse module.yaml: %w", err)
 		errs = errors.Join(errs, err)
 		errorList.Error(err.Error())
 	}
+
 	if chartYamlFile != nil {
 		if chartYamlFile.Name == "" {
 			err := errors.New("property `name` in Chart.yaml is empty")
 			errs = errors.Join(errs, err)
 			errorList.Error(err.Error())
 		}
+
 		if chartYamlFile.Version == "" {
 			err := errors.New("property `version` in Chart.yaml is empty")
 			errs = errors.Join(errs, err)
 			errorList.Error(err.Error())
 		}
 	}
+
 	if moduleYamlFile != nil {
 		if moduleYamlFile.Name == "" {
 			errorList.Warn("module.yaml `name` is empty")
 		}
+
 		if moduleYamlFile.Namespace == "" {
 			errorList.Warn("module.yaml `namespace` is empty")
 		}
@@ -81,6 +87,7 @@ func getNamespace(path string) string {
 	if err != nil {
 		return ""
 	}
+
 	return strings.TrimSpace(string(content))
 }
 
@@ -90,10 +97,12 @@ func validateOpenAPIDir(path string) error {
 		if errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("OpenAPI dir does not exist")
 		}
+
 		return fmt.Errorf("failed to access OpenAPI dir: %w", err)
 	}
 
 	var errs error
+
 	if _, err := os.Stat(filepath.Join(openAPIDir, "values.yaml")); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			errs = errors.Join(errs, fmt.Errorf("OpenAPI dir does not contain values.yaml"))

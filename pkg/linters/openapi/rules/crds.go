@@ -189,6 +189,7 @@ func checkDeprecatedInPropertiesRecursively(data any, errorList *errors.LintRule
 			} else {
 				newPath = fmt.Sprintf("%s.%s", currentPath, key)
 			}
+
 			checkDeprecatedInPropertiesRecursively(value, errorList, shortPath, kind, name, newPath)
 		}
 	case []any:
@@ -205,6 +206,7 @@ func (r *DeckhouseCRDsRule) Run(moduleName, path string, errorList *errors.LintR
 	errorList = errorList.WithRule(r.GetName())
 
 	shortPath, _ := filepath.Rel(r.rootPath, path)
+
 	fileContent, err := os.ReadFile(path)
 	if err != nil {
 		errorList.Errorf("Can't read file %s: %s", shortPath, err)

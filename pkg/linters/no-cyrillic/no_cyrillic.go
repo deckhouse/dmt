@@ -29,7 +29,9 @@ const (
 )
 
 var (
-	fileExtensions = []string{"yaml", "yml", "json", "go"}
+	// Extensions must include the leading dot to match filepath.Ext, which is
+	// what fsutils.FilterFileByExtensions compares against.
+	fileExtensions = []string{".yaml", ".yml", ".json", ".go"}
 )
 
 // NoCyrillic linter

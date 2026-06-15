@@ -21,7 +21,6 @@ import (
 	"cmp"
 	"fmt"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -39,6 +38,7 @@ import (
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/metrics"
 	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/internal/moduleloader"
 	"github.com/deckhouse/dmt/internal/values"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
@@ -55,18 +55,14 @@ import (
 )
 
 const (
-	ChartConfigFilename = "Chart.yaml"
-	ModuleYamlFilename  = "module.yaml"
-	HooksDir            = "hooks"
-	ImagesDir           = "images"
-	OpenAPIDir          = "openapi"
-	baseRepoURL         = "https://github.com/deckhouse/dmt/tree/main"
+	baseRepoURL = "https://github.com/deckhouse/dmt/tree/main"
 )
 
 func generateDocumentationURL(linterID, ruleID string) string {
 	if linterID == "" || ruleID == "" {
 		return "Not ready"
 	}
+
 	return fmt.Sprintf("%s/pkg/linters/%s#%s", baseRepoURL, linterID, ruleID)
 }
 
@@ -94,7 +90,7 @@ func NewManager(dir string, rootConfig *config.RootConfig) *Manager {
 }
 
 func (m *Manager) initManager(dir string) *Manager {
-	paths, err := getModulePaths(dir)
+	paths, err := moduleloader.GetModulePaths(dir)
 	if err != nil {
 		log.Error("Error getting module paths", log.Err(err))
 		return m
@@ -110,20 +106,25 @@ func (m *Manager) initManager(dir string) *Manager {
 		log.Error("Failed to get global values", log.Err(err))
 		return m
 	}
+
 	errorList := m.errors.WithLinterID("manager")
+
 	for i := range paths {
 		moduleName := filepath.Base(paths[i])
 		log.Debug("Found module", slog.String("module", moduleName))
+
 		if err := m.validateModule(paths[i]); err != nil {
 			// linting errors are already logged
 			continue
 		}
+
 		mdl, err := module.NewModule(paths[i], &vals, globalValues, m.cfg, errorList)
 		if err != nil {
 			errorList.
 				WithFilePath(paths[i]).WithModule(moduleName).
 				WithValue(err.Error()).
 				Errorf("cannot create module `%s`", moduleName)
+
 			continue
 		}
 
@@ -154,6 +155,7 @@ func (m *Manager) Run() {
 
 	for _, module := range m.Modules {
 		processingCh <- struct{}{}
+
 		wg.Add(1)
 
 		go func() {
@@ -293,44 +295,11 @@ func (m *Manager) HasCriticalErrors() bool {
 	return m.errors.ContainsErrors()
 }
 
-func isExistsOnFilesystem(parts ...string) bool {
-	_, err := os.Stat(filepath.Join(parts...))
-	return err == nil
-}
-
-// getModulePaths returns all paths with Chart.yaml
-// modulesDir can be a module directory or a directory that contains helm in subdirectories.
-func getModulePaths(modulesDir string) ([]string, error) {
-	var chartDirs = make([]string, 0)
-
-	// Here we find all dirs and check for Chart.yaml in them.
-	err := filepath.Walk(modulesDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return fmt.Errorf("file access '%s': %w", path, err)
-		}
-
-		// Ignore non-dirs
-		if !info.IsDir() {
-			return nil
-		}
-
-		// Check if first level subdirectory has a helm chart configuration file
-		if isExistsOnFilesystem(path, ModuleYamlFilename) ||
-			(isExistsOnFilesystem(path, ChartConfigFilename) &&
-				(isExistsOnFilesystem(path, HooksDir) ||
-					isExistsOnFilesystem(path, ImagesDir) ||
-					isExistsOnFilesystem(path, OpenAPIDir))) {
-			chartDirs = append(chartDirs, path)
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return chartDirs, nil
+// GetErrors returns all findings collected during the run.
+// It is primarily intended for tests (e.g. the e2e framework) that need to
+// assert on the structured findings produced by the linters.
+func (m *Manager) GetErrors() []pkg.LinterError {
+	return m.errors.GetErrors()
 }
 
 // prepareString handle ussual string and prepare it for tablewriter
@@ -361,6 +330,7 @@ func getRootDirectory(dir string) string {
 			fsutils.IsFile(filepath.Join(dir, "global-hooks", "openapi", "values.yaml")) {
 			return dir
 		}
+
 		parent := filepath.Dir(dir)
 		if dir == parent || parent == "" {
 			break

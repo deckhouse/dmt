@@ -86,6 +86,7 @@ type DocumentationLinterRules struct {
 	ReadmeRule            RuleConfig
 	BilingualRule         RuleConfig
 	CyrillicInEnglishRule RuleConfig
+	NoLangKeyRule         RuleConfig
 }
 
 type NoCyrillicLinterConfig struct {
@@ -108,10 +109,11 @@ type OpenAPILinterConfig struct {
 	ExcludeRules OpenAPIExcludeRules
 }
 type OpenAPILinterRules struct {
-	EnumRule RuleConfig
-	HARule   RuleConfig
-	CRDsRule RuleConfig
-	KeysRule RuleConfig
+	EnumRule      RuleConfig
+	HARule        RuleConfig
+	CRDsRule      RuleConfig
+	KeysRule      RuleConfig
+	BilingualRule RuleConfig
 }
 
 type OpenAPIExcludeRules struct {
@@ -129,15 +131,16 @@ type TemplatesLinterConfig struct {
 	GrafanaDashboardsSettings GrafanaDashboardsSettings
 }
 type TemplatesLinterRules struct {
-	VPARule           RuleConfig
-	PDBRule           RuleConfig
-	IngressRule       RuleConfig
-	PrometheusRule    RuleConfig
-	GrafanaRule       RuleConfig
-	KubeRBACProxyRule RuleConfig
-	ServicePortRule   RuleConfig
-	ClusterDomainRule RuleConfig
-	RegistryRule      RuleConfig
+	VPARule            RuleConfig
+	PDBRule            RuleConfig
+	IngressRule        RuleConfig
+	PrometheusRule     RuleConfig
+	GrafanaRule        RuleConfig
+	KubeRBACProxyRule  RuleConfig
+	ServicePortRule    RuleConfig
+	ClusterDomainRule  RuleConfig
+	RegistryRule       RuleConfig
+	EnabledModulesRule RuleConfig
 }
 
 type PrometheusRuleSettings struct {
@@ -148,11 +151,17 @@ type GrafanaDashboardsSettings struct {
 	Disable bool
 }
 type TemplatesExcludeRules struct {
-	VPAAbsent     KindRuleExcludeList
-	PDBAbsent     KindRuleExcludeList
-	ServicePort   ServicePortExcludeList
-	KubeRBACProxy StringRuleExcludeList
-	Ingress       KindRuleExcludeList
+	VPAAbsent      KindRuleExcludeList
+	PDBAbsent      KindRuleExcludeList
+	ServicePort    ServicePortExcludeList
+	KubeRBACProxy  StringRuleExcludeList
+	Ingress        KindRuleExcludeList
+	EnabledModules EnabledModulesExcludeRule
+}
+
+type EnabledModulesExcludeRule struct {
+	Files       StringRuleExcludeList
+	Directories PrefixRuleExcludeList
 }
 
 type ServicePortExcludeList []ServicePortExclude
@@ -213,13 +222,15 @@ type ModuleLinterConfig struct {
 	ExcludeRules               ModuleExcludeRules
 }
 type ModuleLinterRules struct {
-	DefinitionFileRule    RuleConfig
-	OSSRule               RuleConfig
-	ConversionRule        RuleConfig
-	HelmignoreRule        RuleConfig
-	LicenseRule           RuleConfig
-	RequarementsRule      RuleConfig
-	LegacyReleaseFileRule RuleConfig
+	DefinitionFileRule           RuleConfig
+	OSSRule                      RuleConfig
+	ConversionRule               RuleConfig
+	HelmignoreRule               RuleConfig
+	LicenseRule                  RuleConfig
+	RequarementsRule             RuleConfig
+	PackageYAMLRule              RuleConfig
+	ModulePackageConsistencyRule RuleConfig
+	LegacyReleaseFileRule        RuleConfig
 }
 type OSSRuleSettings struct {
 	Disable bool
@@ -306,6 +317,7 @@ type ContainerLinterRules struct {
 	HostNetworkPortsRule         RuleConfig
 	EnvVariablesDuplicatesRule   RuleConfig
 	ImageDigestRule              RuleConfig
+	ContainerImageNameRule       RuleConfig
 	ImagePullPolicyRule          RuleConfig
 	ResourcesRule                RuleConfig
 	ContainerSecurityContextRule RuleConfig
@@ -324,6 +336,7 @@ type ContainerExcludeRules struct {
 	NoNewPrivileges        ContainerRuleExcludeList
 	SeccompProfile         ContainerRuleExcludeList
 	ImageDigest            ContainerRuleExcludeList
+	ContainerImageName     ContainerRuleExcludeList
 	Resources              ContainerRuleExcludeList
 	SecurityContext        ContainerRuleExcludeList
 	Liveness               ContainerRuleExcludeList
@@ -339,6 +352,7 @@ func (l StringRuleExcludeList) Get() []StringRuleExclude {
 	for idx := range l {
 		result = append(result, StringRuleExclude(l[idx]))
 	}
+
 	return result
 }
 
@@ -349,6 +363,7 @@ func (l KindRuleExcludeList) Get() []KindRuleExclude {
 	for idx := range l {
 		result = append(result, l[idx])
 	}
+
 	return result
 }
 
@@ -360,5 +375,6 @@ func (l ContainerRuleExcludeList) Get() []ContainerRuleExclude {
 	for idx := range l {
 		result = append(result, l[idx])
 	}
+
 	return result
 }

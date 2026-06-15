@@ -1,0 +1,9 @@
+testcases:
+  - name: "test"
+    currentVersion: 1
+    expectedVersion: 2
+    settings: |
+      auth:
+        password: secret
+    expected: |
+      auth: {}
