@@ -47,32 +47,7 @@ func (r *WerfRule) ValidateWerfTemplates(m pkg.Module, errorList *errors.LintRul
 	errorList = errorList.WithFilePath(m.GetPath()).WithRule(r.GetName())
 
 	manifests := fsutils.SplitManifests(m.GetWerfFile())
-	checkGitSection(m.GetName(), manifests, errorList)
 	checkUnderscoredImages(manifests, errorList)
-}
-
-func checkGitSection(moduleName string, manifests []string, errorList *errors.LintRuleErrorsList) {
-	for i, manifest := range manifests {
-		jsonData, err := yaml.YAMLToJSON([]byte(manifest))
-		if err != nil {
-			errorList.Errorf("Failed to parse werf.yaml document %d: %s", i+1, err)
-			continue
-		}
-
-		imageName := gjson.GetBytes(jsonData, "image").String()
-		if !strings.Contains(imageName, moduleName+"/") {
-			continue
-		}
-
-		gjson.GetBytes(jsonData, "git").ForEach(func(_, value gjson.Result) bool {
-			if !value.Get("stageDependencies").Exists() {
-				errorList.Errorf("Image %q in werf.yaml (document %d) is missing required 'git.stageDependencies' field", imageName, i+1)
-				return false
-			}
-
-			return true
-		})
-	}
 }
 
 func checkUnderscoredImages(manifests []string, errorList *errors.LintRuleErrorsList) {

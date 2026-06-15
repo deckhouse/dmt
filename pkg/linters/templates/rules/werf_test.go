@@ -60,54 +60,6 @@ git:
 	assert.Contains(t, errorList.GetErrors()[0].Text, "is missing required 'git.stageDependencies' field")
 }
 
-func TestCheckGitSection(t *testing.T) {
-	errorList := errors.NewLintRuleErrorsList()
-
-	// Valid manifest
-	validManifests := []string{
-		`
-image: mock-module/test-image
-git:
-- add: /deckhouse/modules/910-test-module/images/test-image
-  to: /src
-  stageDependencies:
-    install:
-    - '**/*.sh'
-`,
-	}
-
-	checkGitSection("mock-module", validManifests, errorList)
-	assert.False(t, errorList.ContainsErrors(), "Expected no errors for valid manifest")
-
-	// Invalid manifest
-	invalidManifests := []string{
-		`
-image: mock-module/test-image
-git:
-- add: /deckhouse/modules/910-test-module/images/test-image
-  to: /src
-  # Missing stageDependencies
-`,
-	}
-
-	checkGitSection("mock-module", invalidManifests, errorList)
-	assert.True(t, errorList.ContainsErrors(), "Expected errors for invalid manifest")
-	assert.Contains(t, errorList.GetErrors()[0].Text, "is missing required 'git.stageDependencies' field")
-
-	// Malformed YAML
-	malformedManifests := []string{
-		`
-image: mock-module/test-image
-git:
-  - stageDependencies: [build: "file1", "file2"]
-`,
-	}
-
-	checkGitSection("mock-module", malformedManifests, errorList)
-	assert.True(t, errorList.ContainsErrors(), "Expected errors for malformed YAML")
-	assert.Contains(t, errorList.GetErrors()[0].Text, "mock-module/test-image")
-}
-
 func TestCheckUnderscoredImages(t *testing.T) {
 	errorList := errors.NewLintRuleErrorsList()
 
