@@ -25,19 +25,23 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// fixFilePerm is the permission used when rewriting module.yaml during autofix.
-const fixFilePerm = 0o644
-
 // patchModuleYAML reads module.yaml, applies mutate to its root mapping node and
 // writes it back if mutate reported a change. The YAML tree is edited in place,
 // so comments, key order and unrelated fields are preserved. mutate must be
 // idempotent: when nothing needs changing it must return false.
+// The file is written atomically via temp file + rename and the original file
+// permissions are preserved.
 func patchModuleYAML(modulePath string, mutate func(root *yaml.Node) bool) error {
 	path := filepath.Join(modulePath, ModuleConfigFilename)
 
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", ModuleConfigFilename, err)
+	}
+
+	fi, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("stat %s: %w", ModuleConfigFilename, err)
 	}
 
 	var doc yaml.Node
@@ -63,8 +67,14 @@ func patchModuleYAML(modulePath string, mutate func(root *yaml.Node) bool) error
 		return nil
 	}
 
-	if err := os.WriteFile(path, out, fixFilePerm); err != nil {
-		return fmt.Errorf("write %s: %w", ModuleConfigFilename, err)
+	tmpFile := path + ".fix.tmp"
+	if err := os.WriteFile(tmpFile, out, fi.Mode()); err != nil {
+		return fmt.Errorf("write temp %s: %w", ModuleConfigFilename, err)
+	}
+
+	if err := os.Rename(tmpFile, path); err != nil {
+		os.Remove(tmpFile)
+		return fmt.Errorf("rename temp %s: %w", ModuleConfigFilename, err)
 	}
 
 	return nil
