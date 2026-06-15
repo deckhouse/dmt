@@ -23,13 +23,20 @@
 #   SRC_DIR  - path to a checkout of the deckhouse repository
 # Optional:
 #   DMT_BIN  - dmt binary to use (default: "dmt" from PATH)
-#   WORK_DIR - scratch directory for the prepared structure (default: ${SRC_DIR}-prepared)
+#   WORK_DIR - directory for the prepared structure (default: /deckhouse)
+#
+# NOTE: WORK_DIR defaults to the absolute path /deckhouse on purpose. Deckhouse
+# OpenAPI schemas contain absolute $ref paths like
+# /deckhouse/candi/openapi/cluster_configuration.yaml, so the prepared tree must
+# live at /deckhouse for them to resolve — exactly as in deckhouse's own CI
+# (tools/dmt-lint.sh copies the sources to /deckhouse). WORK_DIR must already
+# exist and be writable by the current user (the workflow creates it).
 
 set -euo pipefail
 
 DMT_BIN="${DMT_BIN:-dmt}"
 SRC_DIR="${SRC_DIR:?SRC_DIR (path to a deckhouse checkout) is required}"
-WORK_DIR="${WORK_DIR:-${SRC_DIR}-prepared}"
+WORK_DIR="${WORK_DIR:-/deckhouse}"
 
 # structure_prepare mirrors deckhouse/tools/dmt-lint.sh: it folds the per-edition
 # module trees (ee, be, fe, se, se-plus) into a single modules/ directory and
@@ -39,8 +46,11 @@ structure_prepare() {
   local modules_dir=("ee/modules" "ee/be/modules" "ee/fe/modules" "ee/se/modules" "ee/se-plus/modules")
   local cloud_providers_glob="030-cloud-provider-*"
 
-  rm -rf "${WORK_DIR}"
-  cp -R "${SRC_DIR}" "${WORK_DIR}"
+  # Clean WORK_DIR contents but keep the directory itself: recreating a directory
+  # directly under / would require root, while WORK_DIR is pre-created for us.
+  mkdir -p "${WORK_DIR}"
+  find "${WORK_DIR}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+  cp -aT "${SRC_DIR}" "${WORK_DIR}"
   mkdir -p "${WORK_DIR}/candi/cloud-providers"
   mkdir -p "${WORK_DIR}/modules"
 

@@ -63,6 +63,15 @@ jobs:
         run: |
           git clone --depth 1 --branch "${DECKHOUSE_REF}" "${DECKHOUSE_REPO}" "${RUNNER_TEMP}/deckhouse-src"
 
+      # Deckhouse OpenAPI schemas use absolute $ref paths under /deckhouse, so the
+      # prepared tree must live there. Creating a dir under / needs root; hand it
+      # to the runner user so the lint step can populate it without sudo.
+      - name: Prepare /deckhouse
+        if: steps.ctx.outputs.skip != 'true'
+        run: |
+          sudo mkdir -p /deckhouse
+          sudo chown "$(id -u):$(id -g)" /deckhouse
+
       - name: Lint deckhouse with built dmt
         id: lint
         if: steps.ctx.outputs.skip != 'true'
@@ -70,7 +79,7 @@ jobs:
         env:
           DMT_BIN: ${{ github.workspace }}/dmt
           SRC_DIR: ${{ runner.temp }}/deckhouse-src
-          WORK_DIR: ${{ runner.temp }}/deckhouse-prepared
+          WORK_DIR: /deckhouse
         run: bash .github/scripts/dmt-lint-deckhouse.sh
 
       - name: Evaluate result
