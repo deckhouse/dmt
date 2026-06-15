@@ -28,7 +28,6 @@ func TestValidateWerfTemplates(t *testing.T) {
 
 	mock := mocks.NewModuleMock(mc)
 	mock.GetPathMock.Return("/mock/path")
-	mock.GetNameMock.Return("mock-module")
 	mock.GetWerfFileMock.Return(`
 image: mock-module/test-image
 git:
@@ -43,21 +42,18 @@ git:
 	assert.False(t, errorList.ContainsErrors(), "Expected no errors for valid Werf file")
 
 	errorList = errors.NewLintRuleErrorsList()
-	// Mock module with invalid Werf file
+	// Mock module with invalid Werf file (image name contains an underscore)
 	mockModuleWerfInvalid := mocks.NewModuleMock(mc)
 	mockModuleWerfInvalid.GetPathMock.Return("/mock/path")
-	mockModuleWerfInvalid.GetNameMock.Return("mock-module")
 	mockModuleWerfInvalid.GetWerfFileMock.Return(`
-image: mock-module/test-image
+image: mock-module/test_image
 git:
 - add: /deckhouse/modules/910-test-module/images/test-image
   to: /src
-# Missing stageDependencies
-
 `)
 	rule.ValidateWerfTemplates(mockModuleWerfInvalid, errorList)
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for invalid Werf file")
-	assert.Contains(t, errorList.GetErrors()[0].Text, "is missing required 'git.stageDependencies' field")
+	assert.Contains(t, errorList.GetErrors()[0].Text, "must not contain underscores")
 }
 
 func TestCheckUnderscoredImages(t *testing.T) {
