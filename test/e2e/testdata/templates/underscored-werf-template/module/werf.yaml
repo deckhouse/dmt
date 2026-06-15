@@ -1,0 +1,12 @@
+project: e2e-underscored-template
+configVersion: 1
+build:
+  imageSpec:
+    author: "Deckhouse Kubernetes Platform <contact@deckhouse.io>"
+    clearHistory: true
+    config:
+      keepEssentialWerfLabels: true
+      removeLabels:
+        - /.*/
+---
+{{ tpl (.Files.Get ".werf/images.yaml") $ }}

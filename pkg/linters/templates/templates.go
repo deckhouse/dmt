@@ -92,7 +92,7 @@ func (l *Templates) Run(m *module.Module) {
 	// werf file
 	// The following line is commented out because the Werf rule validation is not currently required.
 	// If needed in the future, uncomment and ensure the rule is properly configured.
-	// rules.NewWerfRule().ValidateWerfTemplates(m, errorList.WithMaxLevel(l.cfg.Rules.WerfRule.GetLevel()))
+	rules.NewWerfRule().ValidateWerfTemplates(m, errorList)
 
 	rules.NewRegistryRule().CheckRegistrySecret(m, errorList.WithMaxLevel(l.cfg.Rules.RegistryRule.GetLevel()))
 
