@@ -36,7 +36,6 @@ The linter intelligently skips files where cyrillic is expected or acceptable:
 - **Russian documentation**: Files matching patterns:
   - `doc-ru-*.yaml` or `doc-ru-*.yml` - Russian documentation files
   - `*.ru.yaml`, `*.ru.yml`, `*.ru.json`, `*.ru.md`, `*.ru.html` - Russian localized files (e.g. `CHANGELOG/v0.3.21.ru.yml`)
-  - `*_RU.md` - Russian markdown files
   - `*_ru.html` - Russian HTML files
   - Files in `docs/site/` or `docs/documentation/`
   - Files in `tools/spelling/`
