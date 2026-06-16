@@ -16,7 +16,6 @@ import (
 const (
 	BilingualRuleName = "bilingual"
 	RuSuffix          = ".ru.md"
-	RuFallbackSuffix  = "_ru.md"
 )
 
 func NewBilingualRule() *BilingualRule {
@@ -61,10 +60,6 @@ func (r *BilingualRule) CheckBilingual(m pkg.Module, errorList *errors.LintRuleE
 			continue
 		}
 
-		if strings.HasSuffix(strings.ToLower(rel), RuFallbackSuffix) {
-			rel = strings.ToLower(rel)
-		}
-
 		fileSet[rel] = struct{}{}
 	}
 
@@ -73,17 +68,11 @@ func (r *BilingualRule) CheckBilingual(m pkg.Module, errorList *errors.LintRuleE
 			continue
 		}
 
-		if !strings.HasSuffix(rel, ".md") || strings.HasSuffix(rel, RuFallbackSuffix) || strings.HasSuffix(rel, RuSuffix) {
+		if !strings.HasSuffix(rel, ".md") || strings.HasSuffix(rel, RuSuffix) {
 			continue
 		}
 
 		base := strings.TrimSuffix(rel, ".md")
-
-		// TODO: Delete it after renaming to .ru.md view
-		ruRelUpper := strings.ToLower(base) + RuFallbackSuffix
-		if _, fallbackOk := fileSet[ruRelUpper]; fallbackOk {
-			continue
-		}
 
 		ruRel := base + RuSuffix
 		if _, ok := fileSet[ruRel]; !ok {
