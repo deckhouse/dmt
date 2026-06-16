@@ -17,7 +17,6 @@ limitations under the License.
 package rules
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/deckhouse/dmt/internal/storage"
@@ -30,9 +29,6 @@ const (
 )
 
 func NewNamespaceLabelsRule(excludeRules []pkg.KindRuleExclude) *NamespaceLabelsRule {
-	for _, excludeRule := range excludeRules {
-		fmt.Println("excludeRule", excludeRule)
-	}
 	return &NamespaceLabelsRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: NamespaceLabelsRuleName,
@@ -56,8 +52,7 @@ func (r *NamespaceLabelsRule) ObjectNamespaceLabels(object storage.StoreObject, 
 	}
 
 	namespaceName := object.Unstructured.GetName()
-	fmt.Println("namespaceName", namespaceName)
-	fmt.Println("r.Enabled", r.Enabled(object.Unstructured.GetKind(), namespaceName))
+
 	if !r.Enabled(object.Unstructured.GetKind(), namespaceName) {
 		// TODO: add metrics
 		return
