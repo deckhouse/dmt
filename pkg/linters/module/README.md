@@ -153,7 +153,7 @@ Validates the `oss.yaml` file containing open-source software attribution.
   - `license` - Valid license identifier (must not be empty)
   - `logo` (optional) - Valid logo URL (must be valid URL if provided)
 - ✅ A project may use `versions` instead of `version` when the component has several context-dependent versions. Each `versions[]` item must contain a non-empty `version` value.
-- ✅ dmt checks version values for semver compatibility because semver is the most common format. If the OSS project uses another version format and the value is correct, ignore the warning.
+- ✅ dmt checks version values for semver compatibility because semver is the most common format. If the OSS project uses another version format and the value is correct, ignore the warning. You can also suppress this specific warning per project via the `version-not-semver` exclude rule (see below).
 
 **Error Messages:**
 - `Module should have oss.yaml` - File is missing from module root
@@ -206,6 +206,21 @@ Validates the `oss.yaml` file containing open-source software attribution.
       name: version for k8s 1.32
       version: 1.2.2
 ```
+
+**Excluding the semver warning per project:**
+
+The `version "..." is not semver-compatible` / `versions[].version "..." is not semver-compatible` warnings can be disabled for specific projects (matched by their `oss.yaml` `id`) without disabling the whole OSS rule. Use the `version-not-semver` subrule under `exclude-rules.oss`:
+
+```yaml
+linters-settings:
+  module:                       # linter name
+    exclude-rules:
+      oss:                      # rule name
+        version-not-semver:     # subrule name
+          - id: clickhouse      # oss.yaml id to exclude
+```
+
+With this configuration, the semver-compatibility warning will be skipped for the project whose `id` is `clickhouse`, while all other OSS validations (and the semver check for other projects) still run.
 
 ---
 
@@ -546,7 +561,7 @@ linters-settings:
     helmignore:
       disable: false              # Enable/disable .helmignore validation
     
-    # License exclusions
+    # Exclusions
     exclude-rules:
       license:
         files:                    # Exclude specific files
@@ -556,6 +571,9 @@ linters-settings:
           - hooks/venv/
           - third-party/
           - vendor/
+      oss:
+        version-not-semver:       # Skip semver warning for these oss.yaml ids
+          - id: clickhouse
     
     # Overall impact level
     impact: error                 # Level: error | warning | info

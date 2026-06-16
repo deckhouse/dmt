@@ -1,0 +1,6 @@
+linters-settings:
+  module:
+    exclude-rules:
+      oss:
+        version-not-semver:
+          - id: clickhouse

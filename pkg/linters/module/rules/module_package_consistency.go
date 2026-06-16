@@ -19,6 +19,8 @@ package rules
 import (
 	"strings"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
@@ -60,80 +62,126 @@ func (r *ModulePackageConsistencyRule) CheckModulePackageConsistency(modulePath 
 		return
 	}
 
-	compareNames(module, packageYAML, errorList)
-	compareDeckhouse(module, packageYAML, errorList)
-	compareKubernetes(module, packageYAML, errorList)
-	compareModules(module, packageYAML, errorList)
+	compareNames(modulePath, module, packageYAML, errorList)
+	compareDeckhouse(modulePath, module, packageYAML, errorList)
+	compareKubernetes(modulePath, module, packageYAML, errorList)
+	compareModules(modulePath, module, packageYAML, errorList)
 }
 
 // compareNames ensures module.yaml name matches package.yaml name.
-func compareNames(module *DeckhouseModule, packageYAML *ModulePackage, errorList *errors.LintRuleErrorsList) {
+func compareNames(modulePath string, module *DeckhouseModule, packageYAML *ModulePackage, errorList *errors.LintRuleErrorsList) {
 	if module.Name == "" {
 		return
 	}
 
 	if module.Name != packageYAML.Name {
-		errorList.WithFilePath(ModuleConfigFilename).Errorf("module.yaml name %q does not match package.yaml name %q", module.Name, packageYAML.Name)
+		name := packageYAML.Name
+		errorList.WithFilePath(ModuleConfigFilename).
+			WithFix(func() error {
+				return patchModuleYAML(modulePath, func(root *yaml.Node) bool {
+					return setScalar(root, "name", name)
+				})
+			}).
+			Errorf("module.yaml name %q does not match package.yaml name %q", module.Name, packageYAML.Name)
 	}
 }
 
 // compareDeckhouse ensures requirements.deckhouse in module.yaml matches requirements.deckhouse.constraint in package.yaml.
-func compareDeckhouse(module *DeckhouseModule, packageYAML *ModulePackage, errorList *errors.LintRuleErrorsList) {
-	if module.Requirements == nil || module.Requirements.Deckhouse == "" {
-		return
-	}
-
-	moduleConstraint := strings.TrimSpace(module.Requirements.Deckhouse)
-
-	if packageYAML.Requirements == nil {
-		errorList.WithFilePath(ModuleConfigFilename).Errorf("module.yaml requirements.deckhouse is %q but package.yaml has no requirements section", moduleConstraint)
-		return
-	}
-
-	pkgConstraint := strings.TrimSpace(packageYAML.Requirements.Deckhouse.Constraint)
-
-	if pkgConstraint == "" {
-		errorList.WithFilePath(ModuleConfigFilename).Errorf("module.yaml requirements.deckhouse is %q but package.yaml requirements.deckhouse.constraint is empty", moduleConstraint)
-		return
-	}
-
-	if moduleConstraint != pkgConstraint {
-		errorList.WithFilePath(ModuleConfigFilename).Errorf("module.yaml requirements.deckhouse %q does not match package.yaml requirements.deckhouse.constraint %q", moduleConstraint, pkgConstraint)
-	}
+func compareDeckhouse(modulePath string, module *DeckhouseModule, packageYAML *ModulePackage, errorList *errors.LintRuleErrorsList) {
+	compareVersionRequirement(modulePath, "deckhouse", module.Requirements, requirementDeckhouse(module), packageYAML, errorList)
 }
 
 // compareKubernetes ensures requirements.kubernetes in module.yaml matches requirements.kubernetes.constraint in package.yaml.
-func compareKubernetes(module *DeckhouseModule, packageYAML *ModulePackage, errorList *errors.LintRuleErrorsList) {
-	if module.Requirements == nil || module.Requirements.Kubernetes == "" {
+func compareKubernetes(modulePath string, module *DeckhouseModule, packageYAML *ModulePackage, errorList *errors.LintRuleErrorsList) {
+	compareVersionRequirement(modulePath, "kubernetes", module.Requirements, requirementKubernetes(module), packageYAML, errorList)
+}
+
+func requirementDeckhouse(module *DeckhouseModule) string {
+	if module.Requirements == nil {
+		return ""
+	}
+
+	return module.Requirements.Deckhouse
+}
+
+func requirementKubernetes(module *DeckhouseModule) string {
+	if module.Requirements == nil {
+		return ""
+	}
+
+	return module.Requirements.Kubernetes
+}
+
+// compareVersionRequirement validates a single platform version requirement
+// (deckhouse/kubernetes) and attaches an autofix that aligns module.yaml to
+// package.yaml. The "value" argument is the raw module.yaml constraint.
+func compareVersionRequirement(modulePath, key string, moduleReq *ModuleRequirements, value string, packageYAML *ModulePackage, errorList *errors.LintRuleErrorsList) {
+	if moduleReq == nil || value == "" {
 		return
 	}
 
-	moduleConstraint := strings.TrimSpace(module.Requirements.Kubernetes)
+	moduleConstraint := strings.TrimSpace(value)
+	errorList = errorList.WithFilePath(ModuleConfigFilename)
 
 	if packageYAML.Requirements == nil {
-		errorList.WithFilePath(ModuleConfigFilename).Errorf("module.yaml requirements.kubernetes is %q but package.yaml has no requirements section", moduleConstraint)
+		errorList.
+			WithFix(removeRequirementFix(modulePath, key)).
+			Errorf("module.yaml requirements.%s is %q but package.yaml has no requirements section", key, moduleConstraint)
+
 		return
 	}
 
-	pkgConstraint := strings.TrimSpace(packageYAML.Requirements.Kubernetes.Constraint)
+	pkgConstraint := strings.TrimSpace(packageVersionConstraint(packageYAML, key))
 
 	if pkgConstraint == "" {
-		errorList.WithFilePath(ModuleConfigFilename).Errorf("module.yaml requirements.kubernetes is %q but package.yaml requirements.kubernetes.constraint is empty", moduleConstraint)
+		errorList.
+			WithFix(removeRequirementFix(modulePath, key)).
+			Errorf("module.yaml requirements.%s is %q but package.yaml requirements.%s.constraint is empty", key, moduleConstraint, key)
+
 		return
 	}
 
 	if moduleConstraint != pkgConstraint {
-		errorList.WithFilePath(ModuleConfigFilename).Errorf("module.yaml requirements.kubernetes %q does not match package.yaml requirements.kubernetes.constraint %q", moduleConstraint, pkgConstraint)
+		errorList.
+			WithFix(setRequirementFix(modulePath, key, pkgConstraint)).
+			Errorf("module.yaml requirements.%s %q does not match package.yaml requirements.%s.constraint %q", key, moduleConstraint, key, pkgConstraint)
+	}
+}
+
+func packageVersionConstraint(packageYAML *ModulePackage, key string) string {
+	switch key {
+	case "deckhouse":
+		return packageYAML.Requirements.Deckhouse.Constraint
+	case "kubernetes":
+		return packageYAML.Requirements.Kubernetes.Constraint
+	default:
+		return ""
+	}
+}
+
+func setRequirementFix(modulePath, key, value string) errors.AutofixFunc {
+	return func() error {
+		return patchModuleYAML(modulePath, func(root *yaml.Node) bool {
+			return setRequirementScalar(root, key, value)
+		})
+	}
+}
+
+func removeRequirementFix(modulePath, key string) errors.AutofixFunc {
+	return func() error {
+		return patchModuleYAML(modulePath, func(root *yaml.Node) bool {
+			return removeRequirementKey(root, key)
+		})
 	}
 }
 
 // compareModules cross-validates module dependency lists between module.yaml and package.yaml.
 // In module.yaml dependencies are a flat map (optional ones carry the "!optional" suffix),
 // while package.yaml splits them into mandatory and conditional groups.
-func compareModules(module *DeckhouseModule, packageYAML *ModulePackage, errorList *errors.LintRuleErrorsList) {
+func compareModules(modulePath string, module *DeckhouseModule, packageYAML *ModulePackage, errorList *errors.LintRuleErrorsList) {
 	if module.Requirements == nil || len(module.Requirements.ParentModules) == 0 {
 		if packageYAML.Requirements != nil && (len(packageYAML.Requirements.Modules.Mandatory) > 0 || len(packageYAML.Requirements.Modules.Conditional) > 0) {
-			checkPackageModulesNotInModule(module, packageYAML, errorList.WithFilePath(PackageConfigFilename))
+			checkPackageModulesNotInModule(modulePath, module, packageYAML, errorList.WithFilePath(PackageConfigFilename))
 		}
 
 		return
@@ -141,7 +189,9 @@ func compareModules(module *DeckhouseModule, packageYAML *ModulePackage, errorLi
 
 	if packageYAML.Requirements == nil {
 		for name := range module.Requirements.ParentModules {
-			errorList.WithFilePath(ModuleConfigFilename).Errorf("module.yaml module %q has requirement but package.yaml has no requirements section", name)
+			errorList.WithFilePath(ModuleConfigFilename).
+				WithFix(removeModuleFix(modulePath, name)).
+				Errorf("module.yaml module %q has requirement but package.yaml has no requirements section", name)
 		}
 
 		return
@@ -170,21 +220,29 @@ func compareModules(module *DeckhouseModule, packageYAML *ModulePackage, errorLi
 		pkgConditional[m.Name] = strings.TrimSpace(m.Constraint)
 	}
 
+	moduleErrorList := errorList.WithFilePath(ModuleConfigFilename)
+
 	// module.yaml mandatory -> package.yaml mandatory
 	for name, constraint := range moduleMandatory {
 		pkgConstraint, exists := pkgMandatory[name]
 		if !exists {
-			if _, isConditional := pkgConditional[name]; isConditional {
-				errorList.WithFilePath(ModuleConfigFilename).Errorf("module.yaml module %q is mandatory but package.yaml lists it as conditional", name)
+			if pkgCond, isConditional := pkgConditional[name]; isConditional {
+				moduleErrorList.
+					WithFix(setModuleFix(modulePath, name, optionalModuleValue(pkgCond))).
+					Errorf("module.yaml module %q is mandatory but package.yaml lists it as conditional", name)
 			} else {
-				errorList.WithFilePath(ModuleConfigFilename).Errorf("module.yaml module %q is mandatory but not found in package.yaml requirements.modules.mandatory", name)
+				moduleErrorList.
+					WithFix(removeModuleFix(modulePath, name)).
+					Errorf("module.yaml module %q is mandatory but not found in package.yaml requirements.modules.mandatory", name)
 			}
 
 			continue
 		}
 
 		if constraint != pkgConstraint {
-			errorList.WithFilePath(ModuleConfigFilename).Errorf("module.yaml module %q constraint %q does not match package.yaml constraint %q", name, constraint, pkgConstraint)
+			moduleErrorList.
+				WithFix(setModuleFix(modulePath, name, pkgConstraint)).
+				Errorf("module.yaml module %q constraint %q does not match package.yaml constraint %q", name, constraint, pkgConstraint)
 		}
 	}
 
@@ -192,22 +250,28 @@ func compareModules(module *DeckhouseModule, packageYAML *ModulePackage, errorLi
 	for name, constraint := range moduleConditional {
 		pkgConstraint, exists := pkgConditional[name]
 		if !exists {
-			if _, isMandatory := pkgMandatory[name]; isMandatory {
-				errorList.WithFilePath(ModuleConfigFilename).Errorf("module.yaml module %q is optional but package.yaml lists it as mandatory", name)
+			if pkgMand, isMandatory := pkgMandatory[name]; isMandatory {
+				moduleErrorList.
+					WithFix(setModuleFix(modulePath, name, pkgMand)).
+					Errorf("module.yaml module %q is optional but package.yaml lists it as mandatory", name)
 			} else {
-				errorList.WithFilePath(ModuleConfigFilename).Errorf("module.yaml module %q is optional but not found in package.yaml requirements.modules.conditional", name)
+				moduleErrorList.
+					WithFix(removeModuleFix(modulePath, name)).
+					Errorf("module.yaml module %q is optional but not found in package.yaml requirements.modules.conditional", name)
 			}
 
 			continue
 		}
 
 		if constraint != pkgConstraint {
-			errorList.WithFilePath(ModuleConfigFilename).Errorf("module.yaml module %q constraint %q does not match package.yaml constraint %q", name, constraint, pkgConstraint)
+			moduleErrorList.
+				WithFix(setModuleFix(modulePath, name, optionalModuleValue(pkgConstraint))).
+				Errorf("module.yaml module %q constraint %q does not match package.yaml constraint %q", name, constraint, pkgConstraint)
 		}
 	}
 
 	// package.yaml mandatory -> module.yaml
-	for name := range pkgMandatory {
+	for name, constraint := range pkgMandatory {
 		if _, exists := moduleMandatory[name]; exists {
 			continue
 		}
@@ -216,11 +280,13 @@ func compareModules(module *DeckhouseModule, packageYAML *ModulePackage, errorLi
 			continue
 		}
 
-		errorList.WithFilePath(PackageConfigFilename).Errorf("package.yaml module %q is mandatory but not found in module.yaml requirements.modules", name)
+		errorList.WithFilePath(PackageConfigFilename).
+			WithFix(setModuleFix(modulePath, name, constraint)).
+			Errorf("package.yaml module %q is mandatory but not found in module.yaml requirements.modules", name)
 	}
 
 	// package.yaml conditional -> module.yaml
-	for name := range pkgConditional {
+	for name, constraint := range pkgConditional {
 		if _, exists := moduleConditional[name]; exists {
 			continue
 		}
@@ -229,31 +295,59 @@ func compareModules(module *DeckhouseModule, packageYAML *ModulePackage, errorLi
 			continue
 		}
 
-		errorList.WithFilePath(PackageConfigFilename).Errorf("package.yaml module %q is conditional but not found in module.yaml requirements.modules", name)
+		errorList.WithFilePath(PackageConfigFilename).
+			WithFix(setModuleFix(modulePath, name, optionalModuleValue(constraint))).
+			Errorf("package.yaml module %q is conditional but not found in module.yaml requirements.modules", name)
 	}
 }
 
 // checkPackageModulesNotInModule reports package.yaml modules that are missing from module.yaml.
-func checkPackageModulesNotInModule(module *DeckhouseModule, packageYAML *ModulePackage, errorList *errors.LintRuleErrorsList) {
+func checkPackageModulesNotInModule(modulePath string, module *DeckhouseModule, packageYAML *ModulePackage, errorList *errors.LintRuleErrorsList) {
 	for _, m := range packageYAML.Requirements.Modules.Mandatory {
 		if module.Requirements == nil || module.Requirements.ParentModules == nil {
-			errorList.Errorf("package.yaml module %q is mandatory but module.yaml has no requirements.modules", m.Name)
+			errorList.
+				WithFix(setModuleFix(modulePath, m.Name, strings.TrimSpace(m.Constraint))).
+				Errorf("package.yaml module %q is mandatory but module.yaml has no requirements.modules", m.Name)
+
 			continue
 		}
 
 		if _, exists := module.Requirements.ParentModules[m.Name]; !exists {
-			errorList.Errorf("package.yaml module %q is mandatory but not found in module.yaml requirements.modules", m.Name)
+			errorList.
+				WithFix(setModuleFix(modulePath, m.Name, strings.TrimSpace(m.Constraint))).
+				Errorf("package.yaml module %q is mandatory but not found in module.yaml requirements.modules", m.Name)
 		}
 	}
 
 	for _, m := range packageYAML.Requirements.Modules.Conditional {
 		if module.Requirements == nil || module.Requirements.ParentModules == nil {
-			errorList.Errorf("package.yaml module %q is conditional but module.yaml has no requirements.modules", m.Name)
+			errorList.
+				WithFix(setModuleFix(modulePath, m.Name, optionalModuleValue(strings.TrimSpace(m.Constraint)))).
+				Errorf("package.yaml module %q is conditional but module.yaml has no requirements.modules", m.Name)
+
 			continue
 		}
 
 		if _, exists := module.Requirements.ParentModules[m.Name]; !exists {
-			errorList.Errorf("package.yaml module %q is conditional but not found in module.yaml requirements.modules", m.Name)
+			errorList.
+				WithFix(setModuleFix(modulePath, m.Name, optionalModuleValue(strings.TrimSpace(m.Constraint)))).
+				Errorf("package.yaml module %q is conditional but not found in module.yaml requirements.modules", m.Name)
 		}
+	}
+}
+
+func setModuleFix(modulePath, name, value string) errors.AutofixFunc {
+	return func() error {
+		return patchModuleYAML(modulePath, func(root *yaml.Node) bool {
+			return setModuleEntry(root, name, value)
+		})
+	}
+}
+
+func removeModuleFix(modulePath, name string) errors.AutofixFunc {
+	return func() error {
+		return patchModuleYAML(modulePath, func(root *yaml.Node) bool {
+			return removeModuleEntry(root, name)
+		})
 	}
 }

@@ -276,6 +276,10 @@ func (m *Manager) PrintResult() {
 			fmt.Fprintf(w, "\t%s\t\t%d\n", "LineNumber:", err.LineNumber)
 		}
 
+		if err.FixError != nil {
+			fmt.Fprintf(w, "\t%s\t\t%s\n", "AutofixError:", color.New(color.FgHiYellow).Sprint(err.FixError.Error()))
+		}
+
 		if flags.ShowDocumentation {
 			docURL := generateDocumentationURL(err.LinterID, err.RuleID)
 			if docURL != "" {
@@ -293,6 +297,16 @@ func (m *Manager) PrintResult() {
 
 func (m *Manager) HasCriticalErrors() bool {
 	return m.errors.ContainsErrors()
+}
+
+// ApplyFixes is the single entry point for the --fix flag. It runs every fix
+// attached to a collected finding. Findings whose fix succeeds are marked Fixed
+// and subsequently dropped by GetErrors; findings whose fix fails are kept, and
+// PrintResult reports the failure via the finding's FixError.
+func (m *Manager) ApplyFixes() {
+	for _, fix := range m.errors.GetFixes() {
+		fix()
+	}
 }
 
 // GetErrors returns all findings collected during the run.
