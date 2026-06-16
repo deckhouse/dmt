@@ -1,0 +1,6 @@
+description: >
+  The same module as oss-version-not-semver, but with the OSS
+  version-not-semver exclude rule configured for the clickhouse project. The
+  semver-compatibility warning must be suppressed, leaving a clean run.
+module: module
+expectClean: true

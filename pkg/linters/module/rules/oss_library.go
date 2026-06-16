@@ -36,7 +36,7 @@ const (
 )
 
 // NewOSSRule creates an OSS attribution rule instance.
-func NewOSSRule(disable bool) *OSSRule {
+func NewOSSRule(disable bool, versionNotSemverExclude []pkg.StringRuleExclude) *OSSRule {
 	return &OSSRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: OSSRuleName,
@@ -44,12 +44,18 @@ func NewOSSRule(disable bool) *OSSRule {
 		BoolRule: pkg.BoolRule{
 			Exclude: disable,
 		},
+		versionNotSemver: pkg.StringRule{
+			ExcludeRules: versionNotSemverExclude,
+		},
 	}
 }
 
 type OSSRule struct {
 	pkg.RuleMeta
 	pkg.BoolRule
+
+	// versionNotSemver disables the semver-compatibility warning for projects matched by oss.yaml id
+	versionNotSemver pkg.StringRule
 }
 
 const (
@@ -72,7 +78,7 @@ func (r *OSSRule) OssModuleRule(moduleRoot string, errorList *errors.LintRuleErr
 		return
 	}
 
-	verifyOssFile(moduleRoot, errorList)
+	r.verifyOssFile(moduleRoot, errorList)
 }
 
 // ossFileErrorMessage formats user-facing errors for missing or invalid oss.yaml.
@@ -85,7 +91,7 @@ func ossFileErrorMessage(err error) string {
 }
 
 // verifyOssFile reads oss.yaml and validates every described OSS project.
-func verifyOssFile(moduleRoot string, errorList *errors.LintRuleErrorsList) {
+func (r *OSSRule) verifyOssFile(moduleRoot string, errorList *errors.LintRuleErrorsList) {
 	projects, err := readOssFile(moduleRoot)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -116,12 +122,12 @@ func verifyOssFile(moduleRoot string, errorList *errors.LintRuleErrorsList) {
 			}
 		}
 
-		assertOssProject(i+1, &p, errorList)
+		r.assertOssProject(i+1, &p, errorList)
 	}
 }
 
 // assertOssProject validates required attribution fields for one OSS project.
-func assertOssProject(i int, p *ossProject, errorList *errors.LintRuleErrorsList) {
+func (r *OSSRule) assertOssProject(i int, p *ossProject, errorList *errors.LintRuleErrorsList) {
 	// prefix to make it easier navigate among errors
 	prefix := fmt.Sprintf("#%d", i)
 
@@ -132,7 +138,9 @@ func assertOssProject(i int, p *ossProject, errorList *errors.LintRuleErrorsList
 		prefix = fmt.Sprintf("#%d (id=%s)", i, p.ID)
 	}
 
-	assertOssProjectVersion(prefix, p, errorList)
+	// skip the semver-compatibility warning when the project id is excluded via version-not-semver
+	checkSemver := r.versionNotSemver.Enabled(strings.TrimSpace(p.ID))
+	assertOssProjectVersion(prefix, p, checkSemver, errorList)
 
 	// Name
 	if strings.TrimSpace(p.Name) == "" {
@@ -165,7 +173,7 @@ func assertOssProject(i int, p *ossProject, errorList *errors.LintRuleErrorsList
 }
 
 // assertOssProjectVersion validates simple and conditional version definitions.
-func assertOssProjectVersion(prefix string, p *ossProject, errorList *errors.LintRuleErrorsList) {
+func assertOssProjectVersion(prefix string, p *ossProject, checkSemver bool, errorList *errors.LintRuleErrorsList) {
 	version := strings.TrimSpace(p.Version)
 	hasVersions := len(p.Versions) > 0
 
@@ -177,7 +185,7 @@ func assertOssProjectVersion(prefix string, p *ossProject, errorList *errors.Lin
 	}
 
 	if version != "" {
-		assertOssVersionValue(prefix, "version", version, errorList)
+		assertOssVersionValue(prefix, "version", version, checkSemver, errorList)
 	}
 
 	if version != "" && hasVersions {
@@ -195,12 +203,16 @@ func assertOssProjectVersion(prefix string, p *ossProject, errorList *errors.Lin
 			continue
 		}
 
-		assertOssVersionValue(versionPrefix, "versions[].version", versionValue, errorList)
+		assertOssVersionValue(versionPrefix, "versions[].version", versionValue, checkSemver, errorList)
 	}
 }
 
 // assertOssVersionValue warns when a non-empty version is not semver-compatible.
-func assertOssVersionValue(prefix, fieldPath, version string, errorList *errors.LintRuleErrorsList) {
+func assertOssVersionValue(prefix, fieldPath, version string, checkSemver bool, errorList *errors.LintRuleErrorsList) {
+	if !checkSemver {
+		return
+	}
+
 	if _, err := semver.NewVersion(version); err != nil {
 		errorList.WithObjectID("index=" + prefix + ";").
 			Warn(fmt.Sprintf("%s %q is not semver-compatible; if this version is correct for the OSS project, ignore this warning: %v", fieldPath, version, err))
