@@ -58,6 +58,9 @@ kind: lint              # "lint" (default) or "conversions"
 module: module          # subdir to lint, defaults to "module"
 expectClean: false      # assert the run produced zero findings
 exhaustive: false       # assert there are NO findings beyond those listed
+expectPass:             # rules that must not produce any matching findings
+  - linter: container
+    rule: object-namespace-labels
 expect:
   - linter: container             # required, matched case-insensitively
     rule: env-variables-duplicates # optional
@@ -74,6 +77,9 @@ Matching semantics:
 - `count` is the expected number of matching findings. `0` (or omitting it)
   means "at least one".
 - `expectClean: true` asserts the module produced no findings at all.
+- `expectPass` lists rules that must not produce any matching findings. `linter`
+  is required; `rule`, `level` and `textContains` are optional filters using the
+  same matching rules as `expect`.
 - `exhaustive: true` asserts that every produced finding is matched by some
   entry in `expect` (use it to lock down the complete output of a fixture).
 

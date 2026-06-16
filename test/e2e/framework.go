@@ -60,6 +60,36 @@ const (
 	KindFix         = "fix"
 )
 
+// RuleSelector identifies lint findings by linter and optional rule filters.
+//
+// Matching semantics:
+//   - linter is required and matched case-insensitively against LinterID.
+//   - rule, level and textContains are optional; when set they all must match.
+//   - textContains is a case-sensitive substring match against the message.
+type RuleSelector struct {
+	Linter       string `yaml:"linter"`
+	Rule         string `yaml:"rule"`
+	Level        string `yaml:"level"`
+	TextContains string `yaml:"textContains"`
+}
+
+func (s RuleSelector) String() string {
+	parts := []string{"linter=" + s.Linter}
+	if s.Rule != "" {
+		parts = append(parts, "rule="+s.Rule)
+	}
+
+	if s.Level != "" {
+		parts = append(parts, "level="+s.Level)
+	}
+
+	if s.TextContains != "" {
+		parts = append(parts, fmt.Sprintf("textContains=%q", s.TextContains))
+	}
+
+	return strings.Join(parts, " ")
+}
+
 // Finding declares one expected lint finding for a case.
 //
 // Matching semantics:
@@ -68,28 +98,12 @@ const (
 //   - textContains is a case-sensitive substring match against the message.
 //   - count is the expected number of matching findings; 0 means "at least one".
 type Finding struct {
-	Linter       string `yaml:"linter"`
-	Rule         string `yaml:"rule"`
-	Level        string `yaml:"level"`
-	TextContains string `yaml:"textContains"`
-	Count        int    `yaml:"count"`
+	RuleSelector `yaml:",inline"`
+	Count        int `yaml:"count"`
 }
 
 func (f Finding) String() string {
-	parts := []string{"linter=" + f.Linter}
-	if f.Rule != "" {
-		parts = append(parts, "rule="+f.Rule)
-	}
-
-	if f.Level != "" {
-		parts = append(parts, "level="+f.Level)
-	}
-
-	if f.TextContains != "" {
-		parts = append(parts, fmt.Sprintf("textContains=%q", f.TextContains))
-	}
-
-	return strings.Join(parts, " ")
+	return f.RuleSelector.String()
 }
 
 // CaseSpec is the schema of an expected.yaml file.
@@ -108,6 +122,8 @@ type CaseSpec struct {
 	ExpectClean bool `yaml:"expectClean"`
 	// Expect lists the findings that must be present.
 	Expect []Finding `yaml:"expect"`
+	// ExpectPass lists rules that must not produce any matching findings.
+	ExpectPass []RuleSelector `yaml:"expectPass"`
 	// Exhaustive, when true, asserts that there are no findings beyond those
 	// listed in Expect (every produced finding must be matched by some Finding).
 	Exhaustive bool `yaml:"exhaustive"`
@@ -309,7 +325,7 @@ func Match(spec *CaseSpec, findings []pkg.LinterError) MatchResult {
 		var hits int
 
 		for i := range findings {
-			if findingMatches(exp, findings[i]) {
+			if selectorMatches(exp.RuleSelector, findings[i]) {
 				hits++
 				matched[i] = true
 			}
@@ -325,6 +341,21 @@ func Match(spec *CaseSpec, findings []pkg.LinterError) MatchResult {
 		}
 	}
 
+	for _, pass := range spec.ExpectPass {
+		var hits int
+
+		for i := range findings {
+			if selectorMatches(pass, findings[i]) {
+				hits++
+			}
+		}
+
+		if hits > 0 {
+			res.Failures = append(res.Failures,
+				fmt.Sprintf("expected rule to pass for [%s], got %d finding(s)", pass, hits))
+		}
+	}
+
 	if spec.Exhaustive {
 		for i := range findings {
 			if !matched[i] {
@@ -337,20 +368,20 @@ func Match(spec *CaseSpec, findings []pkg.LinterError) MatchResult {
 	return res
 }
 
-func findingMatches(exp Finding, got pkg.LinterError) bool {
-	if !strings.EqualFold(exp.Linter, got.LinterID) {
+func selectorMatches(sel RuleSelector, got pkg.LinterError) bool {
+	if !strings.EqualFold(sel.Linter, got.LinterID) {
 		return false
 	}
 
-	if exp.Rule != "" && exp.Rule != got.RuleID {
+	if sel.Rule != "" && sel.Rule != got.RuleID {
 		return false
 	}
 
-	if exp.Level != "" && !strings.EqualFold(exp.Level, got.Level.String()) {
+	if sel.Level != "" && !strings.EqualFold(sel.Level, got.Level.String()) {
 		return false
 	}
 
-	if exp.TextContains != "" && !strings.Contains(got.Text, exp.TextContains) {
+	if sel.TextContains != "" && !strings.Contains(got.Text, sel.TextContains) {
 		return false
 	}
 
