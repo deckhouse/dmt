@@ -1,0 +1,9 @@
+description: >
+  A namespace with a name starting with "d8-" should be flagged by the
+  container linter on the object-namespace-labels rule.
+module: module
+expect:
+  - linter: container
+    rule: object-namespace-labels
+    level: error
+    textContains: 'Namespace object does not have the label "prometheus.deckhouse.io/rules-watcher-enabled"'
