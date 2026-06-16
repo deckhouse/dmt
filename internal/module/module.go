@@ -396,6 +396,7 @@ func mapContainerExclusions(linterSettings *pkg.LintersSettings, configSettings 
 	configExcludes := &configSettings.Container.ExcludeRules
 
 	excludes.ControllerSecurityContext = configExcludes.ControllerSecurityContext.Get()
+	excludes.NamespaceLabelsRule = configExcludes.NamespaceLabelsRule.Get()
 	excludes.DNSPolicy = configExcludes.DNSPolicy.Get()
 	excludes.HostNetworkPorts = configExcludes.HostNetworkPorts.Get()
 	excludes.Ports = configExcludes.Ports.Get()

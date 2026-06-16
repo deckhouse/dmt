@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/deckhouse/dmt/internal/storage"
@@ -28,16 +29,23 @@ const (
 	NamespaceLabelsRuleName = "object-namespace-labels"
 )
 
-func NewNamespaceLabelsRule() *NamespaceLabelsRule {
+func NewNamespaceLabelsRule(excludeRules []pkg.KindRuleExclude) *NamespaceLabelsRule {
+	for _, excludeRule := range excludeRules {
+		fmt.Println("excludeRule", excludeRule)
+	}
 	return &NamespaceLabelsRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: NamespaceLabelsRuleName,
+		},
+		KindRule: pkg.KindRule{
+			ExcludeRules: excludeRules,
 		},
 	}
 }
 
 type NamespaceLabelsRule struct {
 	pkg.RuleMeta
+	pkg.KindRule
 }
 
 func (r *NamespaceLabelsRule) ObjectNamespaceLabels(object storage.StoreObject, storageMap map[storage.ResourceIndex]storage.StoreObject, errorList *errors.LintRuleErrorsList) {
@@ -48,6 +56,12 @@ func (r *NamespaceLabelsRule) ObjectNamespaceLabels(object storage.StoreObject, 
 	}
 
 	namespaceName := object.Unstructured.GetName()
+	fmt.Println("namespaceName", namespaceName)
+	fmt.Println("r.Enabled", r.Enabled(object.Unstructured.GetKind(), namespaceName))
+	if !r.Enabled(object.Unstructured.GetKind(), namespaceName) {
+		// TODO: add metrics
+		return
+	}
 
 	hasPrometheusRules := false
 
