@@ -24,7 +24,7 @@ Proper container configuration is critical for cluster stability, security, and 
 | Rule | Description | Configurable | Default |
 |------|-------------|--------------|---------|
 | [object-recommended-labels](#object-recommended-labels) | Validates required labels (module, heritage) | ❌ | enabled |
-| [object-namespace-labels](#object-namespace-labels) | Validates Prometheus watcher label on d8-* namespaces | ❌ | enabled |
+| [object-namespace-labels](#object-namespace-labels) | Validates Prometheus watcher label on d8-* namespaces | ✅ | enabled |
 | [object-api-version](#object-api-version) | Validates API versions are not deprecated | ❌ | enabled |
 | [object-priority-class](#object-priority-class) | Validates PriorityClass is set and allowed | ❌ | enabled |
 | [dns-policy](#dns-policy) | Validates DNS policy for hostNetwork pods | ✅ | enabled |
@@ -173,6 +173,22 @@ metadata:
     module: my-module
     heritage: deckhouse
 ```
+
+**Configuration:**
+
+Exclude specific `d8-*` namespaces from this check when the Prometheus watcher label is intentionally omitted:
+
+```yaml
+# .dmt.yaml
+linters-settings:
+  container:
+    exclude-rules:
+      object-namespace-labels:
+        - kind: Namespace
+          name: d8-my-module
+```
+
+Each entry matches by Kubernetes object `kind` and `name`. When a namespace is excluded, the rule is not applied even if `PrometheusRule` resources exist in that namespace.
 
 ---
 
