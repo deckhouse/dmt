@@ -483,6 +483,7 @@ func mapModuleExclusionsAndSettings(linterSettings *pkg.LintersSettings, configS
 	configExcludes := &configSettings.Module.ExcludeRules
 	excludes.License.Files = pkg.StringRuleExcludeList(configExcludes.License.Files)
 	excludes.License.Directories = pkg.PrefixRuleExcludeList(configExcludes.License.Directories)
+	excludes.OSS.VersionNotSemver = configExcludes.OSS.VersionNotSemver.Get()
 
 	// Additional settings
 	linterSettings.Module.OSSRuleSettings.Disable = configSettings.Module.OSS.Disable

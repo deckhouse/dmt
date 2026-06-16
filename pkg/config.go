@@ -247,6 +247,11 @@ type HelmignoreRuleSettings struct {
 }
 type ModuleExcludeRules struct {
 	License LicenseExcludeRule
+	OSS     OSSExcludeRules
+}
+
+type OSSExcludeRules struct {
+	VersionNotSemver []StringRuleExclude
 }
 
 type LicenseExcludeRule struct {

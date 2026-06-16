@@ -1,0 +1,6 @@
+- id: clickhouse
+  version: "stable-23.8"
+  name: ClickHouse
+  description: An open-source column-oriented DBMS for online analytical processing.
+  link: https://github.com/ClickHouse/ClickHouse
+  license: Apache License 2.0

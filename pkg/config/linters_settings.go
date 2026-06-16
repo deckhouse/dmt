@@ -112,6 +112,28 @@ type ModuleSettings struct {
 
 type ModuleExcludeRules struct {
 	License LicenseExcludeRule `mapstructure:"license"`
+	OSS     OSSExcludeRules    `mapstructure:"oss"`
+}
+
+type OSSExcludeRules struct {
+	// version-not-semver disables the semver-compatibility warning for the listed oss.yaml projects (matched by id)
+	VersionNotSemver OSSVersionNotSemverExcludeList `mapstructure:"version-not-semver"`
+}
+
+type OSSVersionNotSemverExcludeList []OSSVersionNotSemverExclude
+
+type OSSVersionNotSemverExclude struct {
+	ID string `mapstructure:"id"`
+}
+
+func (l OSSVersionNotSemverExcludeList) Get() []pkg.StringRuleExclude {
+	result := make([]pkg.StringRuleExclude, 0, len(l))
+
+	for idx := range l {
+		result = append(result, pkg.StringRuleExclude(l[idx].ID))
+	}
+
+	return result
 }
 
 type ModuleOSSRuleSettings struct {

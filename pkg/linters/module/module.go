@@ -49,7 +49,7 @@ func (l *Module) Run(m *module.Module) {
 	errorList := l.ErrorList.WithModule(m.GetName())
 
 	rules.NewDefinitionFileRule(l.cfg.DefinitionFileRuleSettings.Disable).CheckDefinitionFile(m.GetPath(), errorList.WithMaxLevel(l.cfg.Rules.DefinitionFileRule.GetLevel()))
-	rules.NewOSSRule(l.cfg.OSSRuleSettings.Disable).OssModuleRule(m.GetPath(), errorList.WithMaxLevel(l.cfg.Rules.OSSRule.GetLevel()))
+	rules.NewOSSRule(l.cfg.OSSRuleSettings.Disable, l.cfg.ExcludeRules.OSS.VersionNotSemver).OssModuleRule(m.GetPath(), errorList.WithMaxLevel(l.cfg.Rules.OSSRule.GetLevel()))
 	rules.NewConversionsRule(l.cfg.ConversionsRuleSettings.Disable).CheckConversions(m.GetPath(), errorList.WithMaxLevel(l.cfg.Rules.ConversionRule.GetLevel()))
 	rules.NewHelmignoreRule(l.cfg.HelmignoreRuleSettings.Disable).CheckHelmignore(m.GetPath(), errorList.WithMaxLevel(l.cfg.Rules.HelmignoreRule.GetLevel()))
 	rules.NewLicenseRule(l.cfg.ExcludeRules.License.Files.Get(), l.cfg.ExcludeRules.License.Directories.Get()).
