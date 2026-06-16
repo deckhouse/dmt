@@ -32,13 +32,16 @@ import (
 )
 
 func RunRender(m *Module, values chartutil.Values, objectStore *storage.UnstructuredObjectStore, errorList *dmtErrors.LintRuleErrorsList) error {
-	var renderer helm.Renderer
+	renderer := helm.Renderer{
+		Name:      m.GetName(),
+		Namespace: m.GetNamespace(),
+		LintMode:  true,
+		// Inject dmt's deterministic helm_lib helper stubs so image and
+		// module-name references resolve to stable values during linting.
+		HelmLibOverrides: helmLibOverrides(),
+	}
 
-	renderer.Name = m.GetName()
-	renderer.Namespace = m.GetNamespace()
-	renderer.LintMode = true
-
-	files, err := renderer.RenderChartFromRawValues(m.GetChart(), values)
+	files, err := renderer.RenderChartFromDir(m.GetPath(), values)
 	if err != nil {
 		return fmt.Errorf("helm chart render: %w", err)
 	}
