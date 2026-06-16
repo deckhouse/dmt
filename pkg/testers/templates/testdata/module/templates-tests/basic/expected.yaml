@@ -1,0 +1,10 @@
+---
+# Source: e2e-templates/templates/configmap.yaml
+apiVersion: v1
+data:
+  greeting: hello
+  replicas: "3"
+kind: ConfigMap
+metadata:
+  name: demo
+  namespace: d8-e2e-templates
