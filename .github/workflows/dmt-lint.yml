@@ -32,7 +32,7 @@ concurrency:
 env:
   SKIP_LABEL: dmtlint-verify-skip
   DECKHOUSE_REPO: https://github.com/deckhouse/deckhouse.git
-  DECKHOUSE_REF: ${{ inputs.deckhouse_branch }}
+  DECKHOUSE_REF: ${{ inputs.deckhouse_branch:-main }}
 
 jobs:
   dmt-lint-verify:
