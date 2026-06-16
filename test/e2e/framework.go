@@ -57,6 +57,7 @@ import (
 const (
 	KindLint        = "lint"
 	KindConversions = "conversions"
+	KindFix         = "fix"
 )
 
 // Finding declares one expected lint finding for a case.
@@ -141,6 +142,8 @@ func Run(kind, moduleDir string) ([]pkg.LinterError, error) {
 	switch kind {
 	case KindConversions:
 		return RunConversions(moduleDir)
+	case KindFix:
+		return RunFix(moduleDir)
 	case KindLint, "":
 		return Lint(moduleDir)
 	default:
@@ -180,6 +183,39 @@ func Lint(moduleDir string) ([]pkg.LinterError, error) {
 
 	mng := manager.NewManager(target, cfg)
 	mng.Run()
+
+	return mng.GetErrors(), nil
+}
+
+// RunFix runs the lint pipeline with --fix: the run collects findings with
+// deferred fixes, ApplyFixes patches module.yaml on disk, and GetErrors then
+// returns only the findings that remain unresolved (successfully fixed ones are
+// dropped), so callers can assert on what --fix could not resolve.
+func RunFix(moduleDir string) ([]pkg.LinterError, error) {
+	tmpRoot, err := os.MkdirTemp("", "dmt-e2e-fix-*")
+	if err != nil {
+		return nil, fmt.Errorf("create temp dir: %w", err)
+	}
+	defer os.RemoveAll(tmpRoot)
+
+	target := filepath.Join(tmpRoot, filepath.Base(moduleDir))
+	if err = copyDir(moduleDir, target); err != nil {
+		return nil, fmt.Errorf("copy module: %w", err)
+	}
+
+	initLintFlagsOnce()
+
+	cfg, err := config.NewDefaultRootConfig(target)
+	if err != nil {
+		return nil, fmt.Errorf("load config: %w", err)
+	}
+
+	metrics.GetClient(target)
+
+	mng := manager.NewManager(target, cfg)
+	mng.Run()
+
+	mng.ApplyFixes()
 
 	return mng.GetErrors(), nil
 }
