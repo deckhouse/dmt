@@ -17,7 +17,7 @@ on:
     inputs:
       deckhouse_branch:
         description: 'Deckhouse branch or tag to run dmt lint on'
-        required: false
+        required: true
         default: 'main'
         type: string
 
