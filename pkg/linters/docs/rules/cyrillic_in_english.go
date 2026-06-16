@@ -24,7 +24,6 @@ var (
 	cyrPointerRe       = regexp.MustCompile(`[А-Яа-яЁё]`)
 	cyrFillerRe        = regexp.MustCompile(`[^А-Яа-яЁё]`)
 	russianDocRe       = regexp.MustCompile(`\.ru\.md$`)
-	russianDocUpperRe  = regexp.MustCompile(`(?i)_ru\.md$`)
 	markdownExtensions = []string{".md", ".markdown"}
 )
 
@@ -71,11 +70,6 @@ func (r *CyrillicInEnglishRule) checkFile(m pkg.Module, fileName string, errorLi
 	}
 
 	if russianDocRe.MatchString(fileName) {
-		return
-	}
-
-	// TODO: Delete it after renaming to .ru.md view
-	if russianDocUpperRe.MatchString(fileName) {
 		return
 	}
 
