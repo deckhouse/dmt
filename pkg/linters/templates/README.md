@@ -1711,7 +1711,12 @@ linters-settings:
     exclude-rules:
       mount-points:
         - /etc/ignore-this-dir  # Exclude specific directory
+        - /run/secrets/         # Exclude entire tree (pod managed outside Helm)
+        - /var/run/secrets/istiod  # Exclude single path
 ```
+
+**When to exclude:** Pods managed outside Helm (operators, mutating webhooks, static pods, bashible) have `volumeMounts` that are not present in Helm templates. Directories from `mount-points.yaml` for these containers will produce false positives — exclude them with the corresponding paths.
+
 
 ## Configuration
 
