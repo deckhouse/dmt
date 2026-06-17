@@ -255,7 +255,7 @@ type OSSExcludeRules struct {
 }
 
 type LicenseExcludeRule struct {
-	Files       StringRuleExcludeList   `mapstructure:"files"`
+	Files       StringRuleExcludeList    `mapstructure:"files"`
 	Directories DirectoryRuleExcludeList `mapstructure:"directories"`
 }
 

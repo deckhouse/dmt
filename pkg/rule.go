@@ -129,6 +129,7 @@ func (e DirectoryRuleExclude) Enabled(str string) bool {
 	if str == dir {
 		return false
 	}
+
 	return !strings.HasPrefix(str, dir+"/")
 }
 
