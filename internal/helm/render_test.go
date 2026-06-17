@@ -77,4 +77,30 @@ func TestRenderChartFromDir(t *testing.T) {
 		assert.Contains(t, manifest, "name: test-configmap")
 		assert.Contains(t, manifest, "key: value")
 	})
+
+	t.Run("should not panic on chart with external dependencies", func(t *testing.T) {
+		renderer := Renderer{
+			Name:      "test-chart",
+			Namespace: "default",
+		}
+
+		dir := writeChart(t, map[string]string{
+			"Chart.yaml": "apiVersion: v2\nname: test-chart\nversion: 0.1.0\ndependencies:\n  - name: external-dep\n    version: 1.0.0\n    repository: https://example.com/charts\n",
+			"Chart.lock": "apiVersion: v2\ndependencies:\n  - name: external-dep\n    repository: https://example.com/charts\n    version: 1.0.0\ndigest: sha256:0000000000000000000000000000000000000000000000000000000000000000\ngenerated: \"2025-01-01T00:00:00.000000000Z\"\n",
+			"templates/test.yaml": "apiVersion: v1\n" +
+				"kind: ConfigMap\n" +
+				"metadata:\n" +
+				"  name: test-configmap\n" +
+				"data:\n" +
+				"  key: {{ .Values.key }}\n",
+		})
+
+		// Before the fix this panicked with a nil pointer dereference because
+		// RenderChartFromDir did not set ChartLoadOpts.DepDownloader.
+		output, err := renderer.RenderChartFromDir(dir, map[string]any{
+			"Values": map[string]any{"key": "value"},
+		})
+		require.NoError(t, err)
+		require.Contains(t, output, "test-chart/templates/test.yaml")
+	})
 }
