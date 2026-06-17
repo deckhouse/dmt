@@ -39,14 +39,14 @@ type EnabledModulesRule struct {
 }
 
 func NewEnabledModulesRule(excludeFileRules []pkg.StringRuleExclude,
-	excludeDirectoryRules []pkg.PrefixRuleExclude) *EnabledModulesRule {
+	excludeDirectoryRules []pkg.DirectoryRuleExclude) *EnabledModulesRule {
 	return &EnabledModulesRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: EnabledModulesRuleName,
 		},
 		PathRule: pkg.PathRule{
-			ExcludeStringRules: excludeFileRules,
-			ExcludePrefixRules: excludeDirectoryRules,
+			ExcludeStringRules:    excludeFileRules,
+			ExcludeDirectoryRules: excludeDirectoryRules,
 		},
 	}
 }

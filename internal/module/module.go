@@ -428,7 +428,7 @@ func mapNoCyrillicExclusions(linterSettings *pkg.LintersSettings, configSettings
 	configExcludes := &configSettings.NoCyrillic.NoCyrillicExcludeRules
 
 	excludes.Files = pkg.StringRuleExcludeList(configExcludes.Files)
-	excludes.Directories = pkg.PrefixRuleExcludeList(configExcludes.Directories)
+	excludes.Directories = pkg.DirectoryRuleExcludeList(configExcludes.Directories)
 }
 
 // mapOpenAPIExclusions maps OpenAPI linter exclusion rules
@@ -453,7 +453,7 @@ func mapTemplatesExclusionsAndSettings(linterSettings *pkg.LintersSettings, conf
 	excludes.KubeRBACProxy = pkg.StringRuleExcludeList(configExcludes.KubeRBACProxy)
 	excludes.Ingress = configExcludes.Ingress.Get()
 	excludes.EnabledModules.Files = pkg.StringRuleExcludeList(configExcludes.EnabledModules.Files)
-	excludes.EnabledModules.Directories = pkg.PrefixRuleExcludeList(configExcludes.EnabledModules.Directories)
+	excludes.EnabledModules.Directories = pkg.DirectoryRuleExcludeList(configExcludes.EnabledModules.Directories)
 
 	// Additional settings
 	linterSettings.Templates.PrometheusRuleSettings.Disable = configSettings.Templates.PrometheusRules.Disable
@@ -481,7 +481,7 @@ func mapModuleExclusionsAndSettings(linterSettings *pkg.LintersSettings, configS
 	excludes := &linterSettings.Module.ExcludeRules
 	configExcludes := &configSettings.Module.ExcludeRules
 	excludes.License.Files = pkg.StringRuleExcludeList(configExcludes.License.Files)
-	excludes.License.Directories = pkg.PrefixRuleExcludeList(configExcludes.License.Directories)
+	excludes.License.Directories = pkg.DirectoryRuleExcludeList(configExcludes.License.Directories)
 	excludes.OSS.VersionNotSemver = configExcludes.OSS.VersionNotSemver.Get()
 
 	// Additional settings

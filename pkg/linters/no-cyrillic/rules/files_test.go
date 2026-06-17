@@ -174,8 +174,8 @@ func TestFilesRule_CheckFile_ExcludeDirectories(t *testing.T) {
 		t.Fatalf("failed to create test file: %v", err)
 	}
 
-	excludeDirs := []pkg.PrefixRuleExclude{
-		pkg.PrefixRuleExclude("vendor"),
+	excludeDirs := []pkg.DirectoryRuleExclude{
+		pkg.DirectoryRuleExclude("vendor"),
 	}
 	rule := NewFilesRule(nil, excludeDirs)
 	errorList := &errors.LintRuleErrorsList{}
@@ -319,5 +319,112 @@ func TestFilesRule_CheckFile_WithExcludeRules(t *testing.T) {
 	errs := errorList.GetErrors()
 	if len(errs) > 0 {
 		t.Errorf("Expected file to be excluded, but got %d errors", len(errs))
+	}
+}
+
+// TestFilesRule_CheckFile_DirectoryExcludeNotPrefix verified that directory excludes
+// do not incorrectly match similarly-named sibling directories via prefix matching.
+func TestFilesRule_CheckFile_DirectoryExcludeNotPrefix(t *testing.T) {
+	tests := []struct {
+		name        string
+		relPath     string
+		wantSkipped bool
+	}{
+		{
+			name:        "exact dir match",
+			relPath:     "images/stronghold/config.yaml",
+			wantSkipped: true,
+		},
+		{
+			name:        "subdirectory match",
+			relPath:     "images/stronghold/subdir/config.yaml",
+			wantSkipped: true,
+		},
+		{
+			name:        "sibling dir with dash suffix not matched",
+			relPath:     "images/stronghold-automatic/config.yaml",
+			wantSkipped: false,
+		},
+		{
+			name:        "sibling dir with suffix not matched",
+			relPath:     "images/stronghold-for-dmt-abuse/config.yaml",
+			wantSkipped: false,
+		},
+		{
+			name:        "parent dir not matched",
+			relPath:     "images/config.yaml",
+			wantSkipped: false,
+		},
+		{
+			name:        "unrelated dir not matched",
+			relPath:     "hooks/config.yaml",
+			wantSkipped: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mc := minimock.NewController(t)
+			mockModule := mocks.NewModuleMock(mc)
+
+			tempDir := t.TempDir()
+			mockModule.GetPathMock.Return(tempDir)
+
+			testFile := filepath.Join(tempDir, filepath.FromSlash(tt.relPath))
+			if err := os.MkdirAll(filepath.Dir(testFile), 0700); err != nil {
+				t.Fatalf("failed to create dir: %v", err)
+			}
+
+			if err := os.WriteFile(testFile, []byte(cyrillicYAML), 0600); err != nil {
+				t.Fatalf("failed to create test file: %v", err)
+			}
+
+			excludeDirs := []pkg.DirectoryRuleExclude{
+				pkg.DirectoryRuleExclude("images/stronghold"),
+			}
+			rule := NewFilesRule(nil, excludeDirs)
+			errorList := &errors.LintRuleErrorsList{}
+
+			rule.CheckFile(mockModule, testFile, errorList)
+
+			errs := errorList.GetErrors()
+			if tt.wantSkipped && len(errs) > 0 {
+				t.Errorf("expected %q to be skipped, but got %d error(s)", tt.relPath, len(errs))
+			}
+			if !tt.wantSkipped && len(errs) == 0 {
+				t.Errorf("expected %q to be reported, but got no errors", tt.relPath)
+			}
+		})
+	}
+}
+
+// TestFilesRule_CheckFile_directory_exclude_trailing_slash verifies that
+// a trailing slash in the exclude directory name is handled correctly
+// (same behavior as without trailing slash).
+func TestFilesRule_CheckFile_directory_exclude_trailing_slash(t *testing.T) {
+	mc := minimock.NewController(t)
+	mockModule := mocks.NewModuleMock(mc)
+
+	tempDir := t.TempDir()
+	mockModule.GetPathMock.Return(tempDir)
+
+	testFile := filepath.Join(tempDir, "vendor", "config.yaml")
+	if err := os.MkdirAll(filepath.Dir(testFile), 0700); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
+	if err := os.WriteFile(testFile, []byte(cyrillicYAML), 0600); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	excludeDirs := []pkg.DirectoryRuleExclude{
+		pkg.DirectoryRuleExclude("vendor/"),
+	}
+	rule := NewFilesRule(nil, excludeDirs)
+	errorList := &errors.LintRuleErrorsList{}
+
+	rule.CheckFile(mockModule, testFile, errorList)
+
+	if errs := errorList.GetErrors(); len(errs) > 0 {
+		t.Errorf("expected file under excluded directory (with trailing slash) to be skipped, got %d errors", len(errs))
 	}
 }
