@@ -23,6 +23,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
+	"github.com/deckhouse/dmt/internal/werf"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
@@ -44,17 +45,27 @@ type WerfRule struct {
 }
 
 func (r *WerfRule) ValidateWerfTemplates(m pkg.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithFilePath(m.GetPath()).WithRule(r.GetName())
+	errorList = errorList.WithRule(r.GetName())
 
-	manifests := fsutils.SplitManifests(m.GetWerfFile())
-	checkUnderscoredImages(manifests, errorList)
+	imageFiles, err := werf.GetModuleImagesWerfFiles(m.GetPath())
+	if err != nil {
+		errorList.Errorf("Failed to read images werf files: %s", err)
+		return
+	}
+
+	for _, imageFile := range imageFiles {
+		fileErrorList := errorList.WithFilePath(imageFile.RelPath)
+
+		manifests := fsutils.SplitManifests(imageFile.Content)
+		checkUnderscoredImages(imageFile.RelPath, manifests, fileErrorList)
+	}
 }
 
-func checkUnderscoredImages(manifests []string, errorList *errors.LintRuleErrorsList) {
+func checkUnderscoredImages(filePath string, manifests []string, errorList *errors.LintRuleErrorsList) {
 	for i, manifest := range manifests {
 		jsonData, err := yaml.YAMLToJSON([]byte(manifest))
 		if err != nil {
-			errorList.Errorf("Failed to parse werf.yaml document %d: %s", i+1, err)
+			errorList.Errorf("Failed to parse %s document %d: %s", filePath, i+1, err)
 			continue
 		}
 
@@ -64,7 +75,7 @@ func checkUnderscoredImages(manifests []string, errorList *errors.LintRuleErrors
 		}
 
 		if strings.Contains(imageName, "_") {
-			errorList.Errorf("Image name %q in werf.yaml (document %d) must not contain underscores", imageName, i+1)
+			errorList.Errorf("Image name %q in %s (document %d) must not contain underscores", imageName, filePath, i+1)
 		}
 	}
 }

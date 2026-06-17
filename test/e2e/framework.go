@@ -108,6 +108,10 @@ type CaseSpec struct {
 	ExpectClean bool `yaml:"expectClean"`
 	// Expect lists the findings that must be present.
 	Expect []Finding `yaml:"expect"`
+	// ExpectAbsent lists findings that must NOT be present. Each entry uses the
+	// same matching semantics as Expect (linter required; rule/level/textContains
+	// optional); the case fails if any produced finding matches.
+	ExpectAbsent []Finding `yaml:"expectAbsent"`
 	// Exhaustive, when true, asserts that there are no findings beyond those
 	// listed in Expect (every produced finding must be matched by some Finding).
 	Exhaustive bool `yaml:"exhaustive"`
@@ -322,6 +326,15 @@ func Match(spec *CaseSpec, findings []pkg.LinterError) MatchResult {
 		case exp.Count == 0 && hits == 0:
 			res.Failures = append(res.Failures,
 				fmt.Sprintf("expected at least one finding for [%s], got none", exp))
+		}
+	}
+
+	for _, absent := range spec.ExpectAbsent {
+		for i := range findings {
+			if findingMatches(absent, findings[i]) {
+				res.Failures = append(res.Failures,
+					fmt.Sprintf("expected no finding for [%s], but got: %s", absent, formatFinding(findings[i])))
+			}
 		}
 	}
 

@@ -1,0 +1,7 @@
+description: >
+  A module whose images/*/werf.inc.yaml render to image names without
+  underscores must not trigger the werf rule.
+module: module
+expectAbsent:
+  - linter: templates
+    rule: werf

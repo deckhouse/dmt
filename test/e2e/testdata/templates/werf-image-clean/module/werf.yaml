@@ -1,0 +1,4 @@
+project: e2e-werf-image-clean
+configVersion: 1
+---
+{{ tpl (.Files.Get ".werf/images.yaml") $ }}
