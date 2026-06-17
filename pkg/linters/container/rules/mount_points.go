@@ -137,5 +137,6 @@ func collectMountPointsDirs(modulePath string) map[string]bool {
 	})
 
 	mpDirsCache.Store(modulePath, dirs)
+
 	return dirs
 }

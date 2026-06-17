@@ -56,13 +56,14 @@ func objectWithMounts(kind, name string, mountPaths ...string) storage.StoreObje
 									"name":  "main",
 									"image": "test:latest",
 									"volumeMounts": func() []any {
-										var mounts []any
+										mounts := make([]any, 0, len(volumeMounts))
 										for _, vm := range volumeMounts {
 											mounts = append(mounts, map[string]any{
 												"name":      vm.Name,
 												"mountPath": vm.MountPath,
 											})
 										}
+
 										return mounts
 									}(),
 								},
