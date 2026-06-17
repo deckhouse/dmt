@@ -35,16 +35,20 @@ type mountPointsFile struct {
 	Dirs []string `yaml:"dirs"`
 }
 
-func NewMountPointsRule() *MountPointsRule {
+func NewMountPointsRule(excludeRules []pkg.StringRuleExclude) *MountPointsRule {
 	return &MountPointsRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: MountPointsRuleName,
+		},
+		StringRule: pkg.StringRule{
+			ExcludeRules: excludeRules,
 		},
 	}
 }
 
 type MountPointsRule struct {
 	pkg.RuleMeta
+	pkg.StringRule
 }
 
 func (r *MountPointsRule) ValidateMountPoints(m pkg.Module, errorList *errors.LintRuleErrorsList) {
@@ -62,6 +66,10 @@ func (r *MountPointsRule) ValidateMountPoints(m pkg.Module, errorList *errors.Li
 
 	for filePath, dirs := range dirsByFile {
 		for _, dir := range dirs {
+			if !r.Enabled(dir) {
+				continue
+			}
+
 			normalizedDir := strings.TrimRight(dir, "/")
 			if !templateMountPaths[normalizedDir] {
 				errorList.WithFilePath(filePath).

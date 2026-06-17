@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/deckhouse/dmt/internal/storage"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
@@ -66,7 +67,7 @@ func deploymentWithMounts(name string, mountPaths ...string) storage.StoreObject
 }
 
 func TestNewMountPointsRule(t *testing.T) {
-	rule := NewMountPointsRule()
+	rule := NewMountPointsRule(nil)
 	assert.Equal(t, MountPointsRuleName, rule.Name)
 }
 
@@ -95,7 +96,7 @@ func TestMountPointsRule_AllDirsMatched(t *testing.T) {
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule()
+	rule := NewMountPointsRule(nil)
 	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
 
 	errs := errorList.GetErrors()
@@ -127,7 +128,7 @@ func TestMountPointsRule_MissingDir(t *testing.T) {
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule()
+	rule := NewMountPointsRule(nil)
 	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
 
 	errs := errorList.GetErrors()
@@ -162,7 +163,7 @@ func TestMountPointsRule_MultipleFiles(t *testing.T) {
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule()
+	rule := NewMountPointsRule(nil)
 	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
 
 	errs := errorList.GetErrors()
@@ -186,7 +187,7 @@ func TestMountPointsRule_NoMountPointsFile(t *testing.T) {
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule()
+	rule := NewMountPointsRule(nil)
 	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
 
 	errs := errorList.GetErrors()
@@ -216,7 +217,7 @@ func TestMountPointsRule_EmptyMountPointsFile(t *testing.T) {
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule()
+	rule := NewMountPointsRule(nil)
 	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
 
 	errs := errorList.GetErrors()
@@ -243,7 +244,7 @@ func TestMountPointsRule_NoPodControllers(t *testing.T) {
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule()
+	rule := NewMountPointsRule(nil)
 	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: nil}, errorList)
 
 	errs := errorList.GetErrors()
@@ -320,7 +321,7 @@ func TestMountPointsRule_DaemonSetAndStatefulSet(t *testing.T) {
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule()
+	rule := NewMountPointsRule(nil)
 	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
 
 	errs := errorList.GetErrors()
@@ -351,7 +352,7 @@ func TestMountPointsRule_TrailingSlashMatch(t *testing.T) {
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule()
+	rule := NewMountPointsRule(nil)
 	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
 
 	errs := errorList.GetErrors()
@@ -408,7 +409,39 @@ func TestMountPointsRule_InitContainers(t *testing.T) {
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule()
+	rule := NewMountPointsRule(nil)
+	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+
+	errs := errorList.GetErrors()
+	assert.Len(t, errs, 0)
+}
+
+func TestMountPointsRule_ExcludeDir(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "mount-points-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	imagesDir := filepath.Join(tmpDir, "images", "app")
+	if err := os.MkdirAll(imagesDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	mountPointsYAML := `dirs:
+  - /etc/app
+  - /etc/not-mounted
+`
+	if err := os.WriteFile(filepath.Join(imagesDir, "mount-points.yaml"), []byte(mountPointsYAML), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	storageMap := map[storage.ResourceIndex]storage.StoreObject{
+		{Kind: "Deployment", Name: "app", Namespace: "default"}: deploymentWithMounts("app", "/etc/app"),
+	}
+
+	errorList := errors.NewLintRuleErrorsList()
+	rule := NewMountPointsRule([]pkg.StringRuleExclude{"/etc/not-mounted"})
 	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
 
 	errs := errorList.GetErrors()

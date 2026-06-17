@@ -21,6 +21,7 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [registry](#registry) | Validates registry secret configuration | ❌ | enabled |
 | [werf](#werf) | Validates image names in `werf.yaml` do not contain underscores | ❌ | enabled |
 | [enabled-modules](#enabled-modules) | Detects usage of `.Values.global.enabledModules` in templates | ✅ | enabled |
+| [mount-points](#mount-points) | Validates that mount-points.yaml directories are used as volumeMounts in pod controllers | ✅ | enabled |
 
 ## Rule Details
 
@@ -1640,6 +1641,76 @@ linters-settings:
           - templates/legacy-deployment.yaml  # Exclude specific file
         directories:
           - templates/vendor/                 # Exclude entire directory
+```
+
+---
+
+### mount-points
+
+**Purpose:** Ensures that all directories listed in `mount-points.yaml` files are actually used as `volumeMount.mountPath` in at least one pod controller (Deployment, StatefulSet, or DaemonSet). This prevents containerd v2 from crashing when trying to mount into a non-existent directory.
+
+**Description:**
+
+Recursively searches the module directory for `mount-points.yaml` files (typically located under `images/<container-name>/`). Each file declares a list of directories that the container expects to have available for mounting. The rule verifies that every declared directory appears as a `mountPath` in at least one pod controller's volume mount (including init containers).
+
+**What it checks:**
+
+1. All `mount-points.yaml` files found recursively in the module directory
+2. Every directory listed under `dirs:` is present as `volumeMounts[].mountPath` in at least one Deployment, StatefulSet, or DaemonSet
+3. Both main containers and init containers are checked
+4. Trailing slashes are normalized for comparison
+
+**Why it matters:**
+
+containerd v2 fails critically if a directory specified as a mount point has not been created and something attempts to mount into it. Keeping `mount-points.yaml` in sync with actual template usage prevents runtime container crashes.
+
+**Examples:**
+
+mount-points.yaml (`images/app/mount-points.yaml`):
+```yaml
+dirs:
+  - /etc/app
+  - /etc/app/certs
+```
+
+❌ **Incorrect** - Directory not referenced in any template:
+
+`/etc/app/certs` is declared in `mount-points.yaml` but no pod controller uses it as a mountPath.
+
+**Error:**
+```
+mount-points.yaml references dir "/etc/app/certs" which is not used as a mountPath in any pod controller
+```
+
+✅ **Correct** - All directories used in templates:
+
+```yaml
+# templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+spec:
+  template:
+    spec:
+      containers:
+      - name: app
+        volumeMounts:
+        - name: config
+          mountPath: /etc/app
+        - name: certs
+          mountPath: /etc/app/certs
+```
+
+**Configuration:**
+
+The rule supports excluding specific directories from the check:
+
+```yaml
+# .dmt.yaml
+linters-settings:
+  templates:
+    exclude-rules:
+      mount-points:
+        - /etc/ignore-this-dir  # Exclude specific directory
 ```
 
 ## Configuration

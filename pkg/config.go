@@ -158,6 +158,7 @@ type TemplatesExcludeRules struct {
 	KubeRBACProxy  StringRuleExcludeList
 	Ingress        KindRuleExcludeList
 	EnabledModules EnabledModulesExcludeRule
+	MountPoints    StringRuleExcludeList
 }
 
 type EnabledModulesExcludeRule struct {
