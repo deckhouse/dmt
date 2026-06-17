@@ -70,7 +70,7 @@ func (r *MountPointsRule) ValidateMountPoints(m pkg.Module, errorList *errors.Li
 
 			if !templateMountPaths[normalizedDir] {
 				errorList.WithFilePath(filePath).
-					Errorf("mount-points.yaml references dir %q which is not used as a mountPath in any pod controller", dir)
+					Warnf("mount-points.yaml references dir %q which is not used as a mountPath in any pod controller", dir)
 			}
 		}
 	}

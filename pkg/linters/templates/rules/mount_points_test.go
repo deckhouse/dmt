@@ -133,6 +133,7 @@ func TestMountPointsRule_MissingDir(t *testing.T) {
 
 	errs := errorList.GetErrors()
 	assert.Len(t, errs, 1)
+	assert.Equal(t, pkg.Warn, errs[0].Level)
 	assert.Contains(t, errs[0].Text, `"/etc/not-mounted"`)
 }
 
@@ -249,6 +250,7 @@ func TestMountPointsRule_NoPodControllers_ReportsUnusedDir(t *testing.T) {
 
 	errs := errorList.GetErrors()
 	assert.Len(t, errs, 1)
+	assert.Equal(t, pkg.Warn, errs[0].Level)
 	assert.Contains(t, errs[0].Text, `"/etc/app"`)
 }
 
@@ -535,6 +537,7 @@ func TestMountPointsRule_ControllerWithoutVolumeMounts(t *testing.T) {
 
 	errs := errorList.GetErrors()
 	assert.Len(t, errs, 1)
+	assert.Equal(t, pkg.Warn, errs[0].Level)
 	assert.Contains(t, errs[0].Text, `"/etc/app"`)
 }
 
