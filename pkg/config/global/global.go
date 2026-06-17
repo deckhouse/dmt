@@ -67,6 +67,7 @@ type ContainerRules struct {
 	PortsRule                    RuleConfig `mapstructure:"ports"`
 	LivenessRule                 RuleConfig `mapstructure:"liveness-probe"`
 	ReadinessRule                RuleConfig `mapstructure:"readiness-probe"`
+	MountPointsRule              RuleConfig `mapstructure:"mount-points"`
 }
 
 type ImagesLinterConfig struct {

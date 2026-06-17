@@ -1,0 +1,9 @@
+description: >
+  Reverse mount-points rule warns when a volumeMount in templates
+  is not declared in any mount-points.yaml file.
+module: module
+expect:
+  - linter: container
+    rule: mount-points
+    level: warn
+    textContains: 'mountPath "/etc/missing" is not declared'

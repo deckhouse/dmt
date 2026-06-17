@@ -91,6 +91,10 @@ func (l *Container) applyContainerRules(object storage.StoreObject, storageMap m
 		func(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 			rules.NewPortsRule(l.cfg.ExcludeRules.Ports.Get()).ContainerPorts(object, containers, errorList.WithMaxLevel(l.cfg.Rules.PortsRule.GetLevel()))
 		},
+		func(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
+			rules.NewMountPointsRule(l.cfg.ExcludeRules.MountPoints.Get(), l.modulePath).
+				CheckMountPaths(object, containers, errorList.WithMaxLevel(l.cfg.Rules.MountPointsRule.GetLevel()))
+		},
 	}
 
 	for _, rule := range containerRules {

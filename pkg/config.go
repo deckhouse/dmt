@@ -331,6 +331,7 @@ type ContainerLinterRules struct {
 	PortsRule                    RuleConfig
 	LivenessRule                 RuleConfig
 	ReadinessRule                RuleConfig
+	MountPointsRule              RuleConfig
 }
 
 type ContainerExcludeRules struct {
@@ -349,7 +350,8 @@ type ContainerExcludeRules struct {
 	Liveness               ContainerRuleExcludeList
 	Readiness              ContainerRuleExcludeList
 
-	Description StringRuleExcludeList
+	Description  StringRuleExcludeList
+	MountPoints  StringRuleExcludeList
 }
 
 type StringRuleExcludeList []string

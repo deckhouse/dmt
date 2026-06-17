@@ -284,6 +284,10 @@ func mapContainerRules(linterSettings *pkg.LintersSettings, configSettings *conf
 		globalConfig.Container.Rules.ReadinessRule.Impact,
 		configSettings.Container.Impact,
 	)
+	linterSettings.Container.Rules.MountPointsRule.SetLevel(
+		globalConfig.Container.Rules.MountPointsRule.Impact,
+		configSettings.Container.Impact,
+	)
 }
 
 // mapImageRules configures Image linter rules
@@ -407,7 +411,9 @@ func mapContainerExclusions(linterSettings *pkg.LintersSettings, configSettings 
 	excludes.Readiness = configExcludes.Readiness.Get()
 	excludes.SeccompProfile = configExcludes.SeccompProfile.Get()
 	excludes.NoNewPrivileges = configExcludes.NoNewPrivileges.Get()
+	excludes.ImageDigest = configExcludes.ImageDigest.Get()
 	excludes.Description = pkg.StringRuleExcludeList(configExcludes.Description)
+	excludes.MountPoints = pkg.StringRuleExcludeList(configExcludes.MountPoints)
 }
 
 // mapImageExclusionsAndSettings maps Image linter exclusions and additional settings
