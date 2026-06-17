@@ -70,8 +70,8 @@ type ContainerExcludeRules struct {
 	Liveness               ContainerRuleExcludeList `mapstructure:"liveness-probe"`
 	Readiness              ContainerRuleExcludeList `mapstructure:"readiness-probe"`
 
-	Description  StringRuleExcludeList `mapstructure:"description"`
-	MountPoints  StringRuleExcludeList `mapstructure:"mount-points"`
+	Description StringRuleExcludeList `mapstructure:"description"`
+	MountPoints StringRuleExcludeList `mapstructure:"mount-points"`
 }
 
 type HooksSettings struct {

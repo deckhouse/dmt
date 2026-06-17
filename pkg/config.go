@@ -350,8 +350,8 @@ type ContainerExcludeRules struct {
 	Liveness               ContainerRuleExcludeList
 	Readiness              ContainerRuleExcludeList
 
-	Description  StringRuleExcludeList
-	MountPoints  StringRuleExcludeList
+	Description StringRuleExcludeList
+	MountPoints StringRuleExcludeList
 }
 
 type StringRuleExcludeList []string
