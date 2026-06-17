@@ -31,7 +31,7 @@ import (
 )
 
 func deploymentWithMounts(name string, mountPaths ...string) storage.StoreObject {
-	volumeMounts := []any{}
+	volumeMounts := make([]any, 0, len(mountPaths))
 	for _, mp := range mountPaths {
 		volumeMounts = append(volumeMounts, map[string]any{
 			"name":      "vol-" + name,
@@ -224,7 +224,7 @@ func TestMountPointsRule_EmptyMountPointsFile(t *testing.T) {
 	assert.Len(t, errs, 0)
 }
 
-func TestMountPointsRule_NoPodControllers(t *testing.T) {
+func TestMountPointsRule_NoPodControllers_ReportsUnusedDir(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "mount-points-test")
 	if err != nil {
 		t.Fatal(err)
@@ -248,7 +248,8 @@ func TestMountPointsRule_NoPodControllers(t *testing.T) {
 	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: nil}, errorList)
 
 	errs := errorList.GetErrors()
-	assert.Len(t, errs, 0)
+	assert.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Text, `"/etc/app"`)
 }
 
 func TestMountPointsRule_DaemonSetAndStatefulSet(t *testing.T) {
@@ -316,7 +317,7 @@ func TestMountPointsRule_DaemonSetAndStatefulSet(t *testing.T) {
 	}
 
 	storageMap := map[storage.ResourceIndex]storage.StoreObject{
-		{Kind: "DaemonSet", Name: "ds", Namespace: "default"}:   dsObj,
+		{Kind: "DaemonSet", Name: "ds", Namespace: "default"}:    dsObj,
 		{Kind: "StatefulSet", Name: "sts", Namespace: "default"}: stsObj,
 	}
 
@@ -448,15 +449,106 @@ func TestMountPointsRule_ExcludeDir(t *testing.T) {
 	assert.Len(t, errs, 0)
 }
 
+func TestMountPointsRule_ExcludeDirWithTrailingSlash(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "mount-points-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	imagesDir := filepath.Join(tmpDir, "images", "app")
+	if err := os.MkdirAll(imagesDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	mountPointsYAML := `dirs:
+  - /etc/app
+  - /etc/not-mounted/
+`
+	if err := os.WriteFile(filepath.Join(imagesDir, "mount-points.yaml"), []byte(mountPointsYAML), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	storageMap := map[storage.ResourceIndex]storage.StoreObject{
+		{Kind: "Deployment", Name: "app", Namespace: "default"}: deploymentWithMounts("app", "/etc/app"),
+	}
+
+	errorList := errors.NewLintRuleErrorsList()
+	rule := NewMountPointsRule([]pkg.StringRuleExclude{"/etc/not-mounted"})
+	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+
+	errs := errorList.GetErrors()
+	assert.Len(t, errs, 0)
+}
+
+func TestMountPointsRule_ControllerWithoutVolumeMounts(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "mount-points-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	imagesDir := filepath.Join(tmpDir, "images", "app")
+	if err := os.MkdirAll(imagesDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	mountPointsYAML := `dirs:
+  - /etc/app
+`
+	if err := os.WriteFile(filepath.Join(imagesDir, "mount-points.yaml"), []byte(mountPointsYAML), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	deploymentWithNoMounts := storage.StoreObject{
+		Unstructured: unstructured.Unstructured{
+			Object: map[string]any{
+				"kind":       "Deployment",
+				"apiVersion": "apps/v1",
+				"metadata": map[string]any{
+					"name":      "app",
+					"namespace": "default",
+				},
+				"spec": map[string]any{
+					"template": map[string]any{
+						"spec": map[string]any{
+							"containers": []map[string]any{
+								{
+									"name":  "main",
+									"image": "test:latest",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	storageMap := map[storage.ResourceIndex]storage.StoreObject{
+		{Kind: "Deployment", Name: "app", Namespace: "default"}: deploymentWithNoMounts,
+	}
+
+	errorList := errors.NewLintRuleErrorsList()
+	rule := NewMountPointsRule(nil)
+	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+
+	errs := errorList.GetErrors()
+	assert.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Text, `"/etc/app"`)
+}
+
 type mockMountPointsModule struct {
 	path    string
 	storage map[storage.ResourceIndex]storage.StoreObject
 }
 
-func (m *mockMountPointsModule) GetName() string                                      { return "test-module" }
-func (m *mockMountPointsModule) GetNamespace() string                                 { return "default" }
-func (m *mockMountPointsModule) GetPath() string                                      { return m.path }
-func (m *mockMountPointsModule) GetWerfFile() string                                  { return "" }
-func (m *mockMountPointsModule) GetChart() *chart.Chart                              { return nil }
-func (m *mockMountPointsModule) GetObjectStore() *storage.UnstructuredObjectStore     { return nil }
-func (m *mockMountPointsModule) GetStorage() map[storage.ResourceIndex]storage.StoreObject { return m.storage }
+func (m *mockMountPointsModule) GetName() string                                  { return "test-module" }
+func (m *mockMountPointsModule) GetNamespace() string                             { return "default" }
+func (m *mockMountPointsModule) GetPath() string                                  { return m.path }
+func (m *mockMountPointsModule) GetWerfFile() string                              { return "" }
+func (m *mockMountPointsModule) GetChart() *chart.Chart                           { return nil }
+func (m *mockMountPointsModule) GetObjectStore() *storage.UnstructuredObjectStore { return nil }
+func (m *mockMountPointsModule) GetStorage() map[storage.ResourceIndex]storage.StoreObject {
+	return m.storage
+}

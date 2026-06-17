@@ -60,17 +60,14 @@ func (r *MountPointsRule) ValidateMountPoints(m pkg.Module, errorList *errors.Li
 	}
 
 	templateMountPaths := collectTemplateMountPaths(m, errorList)
-	if len(templateMountPaths) == 0 {
-		return
-	}
 
 	for filePath, dirs := range dirsByFile {
 		for _, dir := range dirs {
-			if !r.Enabled(dir) {
+			normalizedDir := strings.TrimRight(dir, "/")
+			if !r.Enabled(normalizedDir) {
 				continue
 			}
 
-			normalizedDir := strings.TrimRight(dir, "/")
 			if !templateMountPaths[normalizedDir] {
 				errorList.WithFilePath(filePath).
 					Errorf("mount-points.yaml references dir %q which is not used as a mountPath in any pod controller", dir)
@@ -123,7 +120,6 @@ func collectMountPointsDirs(m pkg.Module, errorList *errors.LintRuleErrorsList) 
 
 		return nil
 	})
-
 	if err != nil {
 		errorList.Errorf("failed to walk module directory: %s", err)
 	}
@@ -143,6 +139,7 @@ func collectTemplateMountPaths(m pkg.Module, errorList *errors.LintRuleErrorsLis
 		if err != nil {
 			errorList.WithObjectID(object.Identity()).
 				Errorf("failed to get containers for object: %s", err)
+
 			continue
 		}
 
