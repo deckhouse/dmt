@@ -141,6 +141,7 @@ type TemplatesLinterRules struct {
 	ClusterDomainRule  RuleConfig
 	RegistryRule       RuleConfig
 	EnabledModulesRule RuleConfig
+	MountPointsRule    RuleConfig
 }
 
 type PrometheusRuleSettings struct {

@@ -139,6 +139,7 @@ type TemplatesLinterRules struct {
 	ClusterDomainRule  RuleConfig `mapstructure:"cluster-domain"`
 	RegistryRule       RuleConfig `mapstructure:"registry"`
 	EnabledModulesRule RuleConfig `mapstructure:"enabled-modules"`
+	MountPointsRule    RuleConfig `mapstructure:"mount-points"`
 }
 
 func (c LinterConfig) IsWarn() bool {
