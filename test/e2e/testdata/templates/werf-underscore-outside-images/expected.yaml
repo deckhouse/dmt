@@ -1,0 +1,9 @@
+description: >
+  An image name with underscores declared directly in the root werf.yaml (not
+  under images/) must NOT be flagged: the werf rule scans only the module's
+  images/*/werf.inc.yaml files. This guards against the previous false positives
+  from aggregated stages/base images.
+module: module
+expectAbsent:
+  - linter: templates
+    rule: werf

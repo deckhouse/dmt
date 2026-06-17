@@ -1,0 +1,16 @@
+description: >
+  With two images, only the one whose werf.inc.yaml renders to an image name
+  with underscores is flagged. The rule scans each images/<name>/werf.inc.yaml
+  independently, so exactly one werf finding is produced, pointing at the
+  offending file.
+module: module
+expect:
+  - linter: templates
+    rule: werf
+    level: error
+    textContains: "images/broken/werf.inc.yaml"
+    count: 1
+expectAbsent:
+  - linter: templates
+    rule: werf
+    textContains: "images/good/werf.inc.yaml"
