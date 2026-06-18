@@ -33,7 +33,7 @@ func TestMatchExpectPass(t *testing.T) {
 
 	spec := &CaseSpec{
 		Expect: []Finding{
-			Finding{Linter: "container", Rule: "object-recommended-labels"},
+			{Linter: "container", Rule: "object-recommended-labels"},
 		},
 		ExpectPass: []Finding{
 			{Linter: "container", Rule: "object-namespace-labels"},

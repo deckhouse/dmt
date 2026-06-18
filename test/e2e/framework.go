@@ -351,11 +351,13 @@ func Match(spec *CaseSpec, findings []pkg.LinterError) MatchResult {
 
 	for _, pass := range spec.ExpectPass {
 		var hits int
+
 		for i := range findings {
 			if findingMatches(pass, findings[i]) {
 				hits++
 			}
 		}
+
 		if hits > 0 {
 			res.Failures = append(res.Failures,
 				fmt.Sprintf("expected rule to pass for [%s], got %d finding(s)", pass, hits))
