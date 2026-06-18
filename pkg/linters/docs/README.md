@@ -15,6 +15,8 @@ Proper documentation is critical for Deckhouse modules as it helps users underst
 | [cyrillic-in-english](#cyrillic-in-english) | Validates English documentation doesn't contain cyrillic characters | ✅ | enabled |
 | [no-lang-key](#no-lang-key) | Validates documentation front matter doesn't contain `lang` key | ✅ | enabled |
 
+"Configurable" means that this rule can be configured using the `.dmt.yaml` file, including customizing the rule's parameters and/or disabling the rule.
+
 ## Rule Details
 
 ### readme

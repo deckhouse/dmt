@@ -12,6 +12,8 @@ Source code, configuration files, and technical documentation should use English
 |------|-------------|--------------|---------|
 | [files](#files) | Validates source files don't contain cyrillic characters | ✅ | enabled |
 
+"Configurable" means that this rule can be configured using the `.dmt.yaml` file, including customizing the rule's parameters and/or disabling the rule.
+
 ## Rule Details
 
 ### files

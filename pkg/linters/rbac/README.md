@@ -15,6 +15,8 @@ Proper RBAC configuration is critical for Kubernetes security, ensuring least-pr
 | [placement](#placement) | Validates RBAC resource placement and naming conventions | ✅ | enabled |
 | [wildcards](#wildcards) | Validates Roles/ClusterRoles don't use wildcard permissions | ✅ | enabled |
 
+"Configurable" means that this rule can be configured using the `.dmt.yaml` file, including customizing the rule's parameters and/or disabling the rule.
+
 ## Rule Details
 
 ### user-authz

@@ -12,6 +12,8 @@ Hooks are Go or Python scripts that react to Kubernetes resource changes and imp
 |------|-------------|--------------|---------|
 | [ingress](#ingress) | Validates copy_custom_certificate hook presence for Ingress resources | ✅ | enabled |
 
+"Configurable" means that this rule can be configured using the `.dmt.yaml` file, including customizing the rule's parameters and/or disabling the rule.
+
 ## Rule Details
 
 ### ingress
