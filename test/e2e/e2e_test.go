@@ -79,6 +79,10 @@ func runCase(t *testing.T, caseDir string) {
 	spec, err := LoadCaseSpec(caseDir)
 	require.NoError(t, err, "load case spec")
 
+	if spec.Skip {
+		t.Skip("case marked as skip in expected.yaml")
+	}
+
 	if spec.Description != "" {
 		t.Logf("case: %s", spec.Description)
 	}
