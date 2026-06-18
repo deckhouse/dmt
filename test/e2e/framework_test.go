@@ -33,9 +33,9 @@ func TestMatchExpectPass(t *testing.T) {
 
 	spec := &CaseSpec{
 		Expect: []Finding{
-			{RuleSelector: RuleSelector{Linter: "container", Rule: "object-recommended-labels"}},
+			Finding{Linter: "container", Rule: "object-recommended-labels"},
 		},
-		ExpectPass: []RuleSelector{
+		ExpectPass: []Finding{
 			{Linter: "container", Rule: "object-namespace-labels"},
 		},
 	}
@@ -51,7 +51,7 @@ func TestMatchExpectPassFailsWhenFindingPresent(t *testing.T) {
 	}
 
 	spec := &CaseSpec{
-		ExpectPass: []RuleSelector{
+		ExpectPass: []Finding{
 			{Linter: "container", Rule: "object-namespace-labels"},
 		},
 	}
@@ -69,7 +69,7 @@ func TestMatchExpectPassFiltersByLevelAndText(t *testing.T) {
 	}
 
 	spec := &CaseSpec{
-		ExpectPass: []RuleSelector{
+		ExpectPass: []Finding{
 			{Linter: "container", Rule: "object-namespace-labels", Level: "error"},
 		},
 	}
