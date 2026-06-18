@@ -429,7 +429,7 @@ func mapNoCyrillicExclusions(linterSettings *pkg.LintersSettings, configSettings
 	configExcludes := &configSettings.NoCyrillic.NoCyrillicExcludeRules
 
 	excludes.Files = pkg.StringRuleExcludeList(configExcludes.Files)
-	excludes.Directories = pkg.PrefixRuleExcludeList(configExcludes.Directories)
+	excludes.Directories = pkg.DirectoryRuleExcludeList(configExcludes.Directories)
 }
 
 // mapOpenAPIExclusions maps OpenAPI linter exclusion rules
@@ -454,7 +454,7 @@ func mapTemplatesExclusionsAndSettings(linterSettings *pkg.LintersSettings, conf
 	excludes.KubeRBACProxy = pkg.StringRuleExcludeList(configExcludes.KubeRBACProxy)
 	excludes.Ingress = configExcludes.Ingress.Get()
 	excludes.EnabledModules.Files = pkg.StringRuleExcludeList(configExcludes.EnabledModules.Files)
-	excludes.EnabledModules.Directories = pkg.PrefixRuleExcludeList(configExcludes.EnabledModules.Directories)
+	excludes.EnabledModules.Directories = pkg.DirectoryRuleExcludeList(configExcludes.EnabledModules.Directories)
 
 	// Additional settings
 	linterSettings.Templates.PrometheusRuleSettings.Disable = configSettings.Templates.PrometheusRules.Disable
@@ -482,7 +482,7 @@ func mapModuleExclusionsAndSettings(linterSettings *pkg.LintersSettings, configS
 	excludes := &linterSettings.Module.ExcludeRules
 	configExcludes := &configSettings.Module.ExcludeRules
 	excludes.License.Files = pkg.StringRuleExcludeList(configExcludes.License.Files)
-	excludes.License.Directories = pkg.PrefixRuleExcludeList(configExcludes.License.Directories)
+	excludes.License.Directories = pkg.DirectoryRuleExcludeList(configExcludes.License.Directories)
 	excludes.OSS.VersionNotSemver = configExcludes.OSS.VersionNotSemver.Get()
 
 	// Additional settings
@@ -538,30 +538,11 @@ func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, r
 	return module, nil
 }
 
-func remapChart(ch *chart.Chart) {
-	remapTemplates(ch)
-
-	for _, dependency := range ch.Dependencies() {
-		remapChart(dependency)
-	}
-}
-
 //go:embed templates/_module_name.tpl
 var moduleNameTemplate []byte
 
 //go:embed templates/_module_image.tpl
 var moduleImageTemplate []byte
-
-func remapTemplates(ch *chart.Chart) {
-	for _, template := range ch.Templates {
-		switch template.Name {
-		case "templates/_module_name.tpl":
-			template.Data = moduleNameTemplate
-		case "templates/_module_image.tpl":
-			template.Data = moduleImageTemplate
-		}
-	}
-}
 
 func newModuleFromPath(path string) (*Module, error) {
 	moduleYamlConfig, err := ParseModuleConfigFile(path)
@@ -595,8 +576,6 @@ func newModuleFromPath(path string) (*Module, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	remapChart(moduleChart)
 
 	resultModule := &Module{
 		name:      info.Name,

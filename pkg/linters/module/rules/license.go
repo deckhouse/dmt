@@ -45,14 +45,14 @@ var fileToSkipRe = regexp.MustCompile(
 )
 
 func NewLicenseRule(excludeFilesRules []pkg.StringRuleExclude,
-	excludeDirectoryRules []pkg.PrefixRuleExclude) *LicenseRule {
+	excludeDirectoryRules []pkg.DirectoryRuleExclude) *LicenseRule {
 	return &LicenseRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: LicenseRuleName,
 		},
 		PathRule: pkg.PathRule{
-			ExcludeStringRules: excludeFilesRules,
-			ExcludePrefixRules: excludeDirectoryRules,
+			ExcludeStringRules:    excludeFilesRules,
+			ExcludeDirectoryRules: excludeDirectoryRules,
 		},
 	}
 }

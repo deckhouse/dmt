@@ -1,0 +1,8 @@
+project: e2e-werf-underscore-outside-images
+configVersion: 1
+---
+# This image name has an underscore but is declared directly in the root
+# werf.yaml (not under images/). The werf rule scans only images/*/werf.inc.yaml,
+# so it must NOT be flagged here.
+image: bad_image/app
+fromImage: scratch

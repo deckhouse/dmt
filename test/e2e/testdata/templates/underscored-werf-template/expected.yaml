@@ -1,8 +1,14 @@
 description: >
-  A werf.yaml file that contains an image with underscores should be flagged by the werf test rule.
+  An images/<name>/werf.inc.yaml that renders to an image name with underscores
+  should be flagged by the werf rule, and the message must reference the image's
+  relative werf file path.
 module: module
 expect:
   - linter: templates
     rule: werf
     level: error
     textContains: "must not contain underscores"
+  - linter: templates
+    rule: werf
+    level: error
+    textContains: "images/test/werf.inc.yaml"

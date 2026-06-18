@@ -68,6 +68,20 @@ func (r *PrefixRule) Enabled(str string) bool {
 	return true
 }
 
+type DirectoryRule struct {
+	ExcludeRules []DirectoryRuleExclude
+}
+
+func (r *DirectoryRule) Enabled(str string) bool {
+	for _, rule := range r.ExcludeRules {
+		if !rule.Enabled(str) {
+			return false
+		}
+	}
+
+	return true
+}
+
 type KindRule struct {
 	ExcludeRules []KindRuleExclude
 }
@@ -106,6 +120,17 @@ type PrefixRuleExclude string
 
 func (e PrefixRuleExclude) Enabled(str string) bool {
 	return !strings.HasPrefix(str, string(e))
+}
+
+type DirectoryRuleExclude string
+
+func (e DirectoryRuleExclude) Enabled(str string) bool {
+	dir := strings.TrimSuffix(string(e), "/")
+	if str == dir {
+		return false
+	}
+
+	return !strings.HasPrefix(str, dir+"/")
 }
 
 type ServicePortRule struct {
@@ -167,8 +192,9 @@ func (e *ContainerRuleExclude) Enabled(object storage.StoreObject, container *co
 }
 
 type PathRule struct {
-	ExcludeStringRules []StringRuleExclude
-	ExcludePrefixRules []PrefixRuleExclude
+	ExcludeStringRules    []StringRuleExclude
+	ExcludePrefixRules    []PrefixRuleExclude
+	ExcludeDirectoryRules []DirectoryRuleExclude
 }
 
 func (r *PathRule) Enabled(name string) bool {
@@ -179,6 +205,12 @@ func (r *PathRule) Enabled(name string) bool {
 	}
 
 	for _, rule := range r.ExcludePrefixRules {
+		if !rule.Enabled(name) {
+			return false
+		}
+	}
+
+	for _, rule := range r.ExcludeDirectoryRules {
 		if !rule.Enabled(name) {
 			return false
 		}

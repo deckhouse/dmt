@@ -168,8 +168,8 @@ type WerfRuleSettings struct {
 }
 
 type LicenseExcludeRule struct {
-	Files       StringRuleExcludeList `mapstructure:"files"`
-	Directories PrefixRuleExcludeList `mapstructure:"directories"`
+	Files       StringRuleExcludeList    `mapstructure:"files"`
+	Directories DirectoryRuleExcludeList `mapstructure:"directories"`
 }
 
 type NoCyrillicSettings struct {
@@ -179,8 +179,8 @@ type NoCyrillicSettings struct {
 }
 
 type NoCyrillicExcludeRules struct {
-	Files       StringRuleExcludeList `mapstructure:"files"`
-	Directories PrefixRuleExcludeList `mapstructure:"directories"`
+	Files       StringRuleExcludeList    `mapstructure:"files"`
+	Directories DirectoryRuleExcludeList `mapstructure:"directories"`
 }
 
 type OpenAPISettings struct {
@@ -240,8 +240,8 @@ type TemplatesExcludeRules struct {
 }
 
 type EnabledModulesExcludeRule struct {
-	Files       StringRuleExcludeList `mapstructure:"files"`
-	Directories PrefixRuleExcludeList `mapstructure:"directories"`
+	Files       StringRuleExcludeList    `mapstructure:"files"`
+	Directories DirectoryRuleExcludeList `mapstructure:"directories"`
 }
 
 type GrafanaDashboardsExcludeList struct {
@@ -283,6 +283,18 @@ func (l PrefixRuleExcludeList) Get() []pkg.PrefixRuleExclude {
 
 	for idx := range l {
 		result = append(result, pkg.PrefixRuleExclude(l[idx]))
+	}
+
+	return result
+}
+
+type DirectoryRuleExcludeList []string
+
+func (l DirectoryRuleExcludeList) Get() []pkg.DirectoryRuleExclude {
+	result := make([]pkg.DirectoryRuleExclude, 0, len(l))
+
+	for idx := range l {
+		result = append(result, pkg.DirectoryRuleExclude(l[idx]))
 	}
 
 	return result
