@@ -167,11 +167,37 @@ func execute() {
 				dir = args[0]
 			}
 
-			return runTestConversions(dir)
+			return runTests(dir, test.WithTesters("conversions"))
 		},
 	}
 
+	var updateSnapshots bool
+
+	templatesCmd := &cobra.Command{
+		Use:   "templates [module-path]",
+		Short: "Test module templates against golden snapshots",
+		Long: `Renders module templates with the values provided under each module's
+'templates-tests/<case>/values.yaml' and compares the result against the
+committed 'expected.yaml' snapshot. Use --update to (re)generate snapshots.`,
+		Args:         cobra.RangeArgs(0, 1),
+		SilenceUsage: true,
+		RunE: func(_ *cobra.Command, args []string) error {
+			var dir = "."
+			if len(args) > 0 {
+				dir = args[0]
+			}
+
+			return runTests(dir,
+				test.WithTesters("templates"),
+				test.WithUpdateSnapshots(updateSnapshots),
+			)
+		},
+	}
+	templatesCmd.Flags().BoolVar(&updateSnapshots, "update", false,
+		"update (regenerate) golden snapshots instead of comparing against them")
+
 	testCmd.AddCommand(conversionsCmd)
+	testCmd.AddCommand(templatesCmd)
 
 	rootCmd.AddCommand(lintCmd)
 	rootCmd.AddCommand(bootstrapCmd)
@@ -184,7 +210,7 @@ func execute() {
 	}
 }
 
-func runTestConversions(dir string) error {
+func runTests(dir string, opts ...test.Option) error {
 	cfg, err := config.NewDefaultRootConfig(dir)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
@@ -195,7 +221,7 @@ func runTestConversions(dir string) error {
 		return fmt.Errorf("failed to expand directory: %w", err)
 	}
 
-	manager, err := test.NewManager(expandedDir, cfg)
+	manager, err := test.NewManager(expandedDir, cfg, opts...)
 	if err != nil {
 		return fmt.Errorf("failed to create test manager: %w", err)
 	}

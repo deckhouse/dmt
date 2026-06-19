@@ -1513,15 +1513,15 @@ Module names are converted to camelCase for values:
 
 ### werf
 
-**Purpose:** Validates that image names defined in `werf.yaml` do not contain underscores. Underscores in image names break OCI/Docker image reference rules and can cause push/pull failures in some registries and tooling.
+**Purpose:** Validates that image names defined in the module's `images/*/werf.inc.yaml` files do not contain underscores. Underscores in image names break OCI/Docker image reference rules and can cause push/pull failures in some registries and tooling.
 
 **Description:**
 
-Splits the module's `werf.yaml` into individual documents and, for every document that defines an `image`, checks that the image name does not contain an underscore (`_`).
+Scans only the module's `images/` directory. Each `images/<name>/werf.inc.yaml` file is rendered the same way the module's `.werf/images.yaml` would render it, split into individual documents, and for every document that defines an `image`, the rule checks that the image name does not contain an underscore (`_`). The repository-root `werf.yaml` and stages/base images defined outside the module are no longer scanned.
 
 **What it checks:**
 
-1. Every document in `werf.yaml` that has an `image` field
+1. Every document in each `images/<name>/werf.inc.yaml` that has an `image` field
 2. The `image` name does not contain the `_` character
 
 **Why it matters:**
@@ -1537,7 +1537,7 @@ Underscores in image names:
 ❌ **Incorrect** - Image name with underscore:
 
 ```yaml
-# werf.yaml
+# images/app/werf.inc.yaml
 image: my_module/app
 git:
   - add: /src
@@ -1546,13 +1546,13 @@ git:
 
 **Error:**
 ```
-Error: Image name "my_module/app" in werf.yaml (document 1) must not contain underscores
+Error: Image name "my_module/app" in images/app/werf.inc.yaml (document 1) must not contain underscores
 ```
 
 ✅ **Correct** - Image name without underscores:
 
 ```yaml
-# werf.yaml
+# images/app/werf.inc.yaml
 image: my-module/app
 git:
   - add: /src
@@ -1562,7 +1562,7 @@ git:
 ✅ **Correct** - Multiple images:
 
 ```yaml
-# werf.yaml
+# images/app/werf.inc.yaml
 ---
 image: my-module/app
 git:

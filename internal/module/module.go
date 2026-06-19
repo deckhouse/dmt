@@ -545,30 +545,11 @@ func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, r
 	return module, nil
 }
 
-func remapChart(ch *chart.Chart) {
-	remapTemplates(ch)
-
-	for _, dependency := range ch.Dependencies() {
-		remapChart(dependency)
-	}
-}
-
 //go:embed templates/_module_name.tpl
 var moduleNameTemplate []byte
 
 //go:embed templates/_module_image.tpl
 var moduleImageTemplate []byte
-
-func remapTemplates(ch *chart.Chart) {
-	for _, template := range ch.Templates {
-		switch template.Name {
-		case "templates/_module_name.tpl":
-			template.Data = moduleNameTemplate
-		case "templates/_module_image.tpl":
-			template.Data = moduleImageTemplate
-		}
-	}
-}
 
 func newModuleFromPath(path string) (*Module, error) {
 	moduleYamlConfig, err := ParseModuleConfigFile(path)
@@ -602,8 +583,6 @@ func newModuleFromPath(path string) (*Module, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	remapChart(moduleChart)
 
 	resultModule := &Module{
 		name:      info.Name,
