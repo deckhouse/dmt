@@ -1705,7 +1705,7 @@ spec:
 The rule supports excluding specific directories from the check:
 
 ```yaml
-# .dmt.yaml
+# dmtlint.yaml
 linters-settings:
   templates:
     exclude-rules:
@@ -1727,7 +1727,7 @@ The Templates linter can be configured at the module level with rule-specific se
 Configure the overall impact level and individual rule toggles:
 
 ```yaml
-# .dmt.yaml
+# dmtlint.yaml
 linters-settings:
   templates:
     # Overall impact level
