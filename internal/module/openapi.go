@@ -104,11 +104,18 @@ func helmFormatModuleImages(m *Module, rawValues map[string]any) (chartutil.Valu
 }
 
 func ComposeValuesFromSchemas(m *Module, globalSchema *spec.Schema) (chartutil.Values, error) {
+	return ComposeValuesFromSchemasForValuesFile(m, globalSchema, "values.yaml")
+}
+
+// ComposeValuesFromSchemasForValuesFile is like ComposeValuesFromSchemas but
+// generates the module values from the given openapi values schema file name
+// (e.g. "values_ce.yaml") instead of the default "values.yaml".
+func ComposeValuesFromSchemasForValuesFile(m *Module, globalSchema *spec.Schema, valuesFile string) (chartutil.Values, error) {
 	if globalSchema == nil {
 		globalSchema = &spec.Schema{}
 	}
 
-	moduleValues, err := values.GetModuleValues(m.GetPath())
+	moduleValues, err := values.GetModuleValuesForValuesFile(m.GetPath(), valuesFile)
 	if err != nil {
 		return nil, fmt.Errorf("cannot find openapi values schema for module %q: %w", m.GetName(), err)
 	}
