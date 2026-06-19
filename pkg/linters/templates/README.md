@@ -22,7 +22,7 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [werf](#werf) | Validates image names in `werf.yaml` do not contain underscores | ❌ | enabled |
 | [enabled-modules](#enabled-modules) | Detects usage of `.Values.global.enabledModules` in templates | ✅ | enabled |
 
-"Configurable" means that this rule can be configured using the `.dmt.yaml` file, including customizing the rule's parameters and/or disabling the rule.
+"Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
 ## Rule Details
 
@@ -325,7 +325,7 @@ spec:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     exclude-rules:
@@ -578,7 +578,7 @@ spec:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     exclude-rules:
@@ -684,7 +684,7 @@ data:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     exclude-rules:
@@ -865,7 +865,7 @@ spec:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     exclude-rules:
@@ -998,7 +998,7 @@ spec:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     exclude-rules:
@@ -1160,7 +1160,7 @@ monitoring/
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     prometheus-rules:
@@ -1277,7 +1277,7 @@ monitoring/
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     grafana-dashboards:
@@ -1633,7 +1633,7 @@ Consider using (.Capabilities.APIVersions.Has "group/version/Kind") instead.
 The rule supports excluding specific files and directories (paths are relative to the module root):
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     exclude-rules:
@@ -1653,7 +1653,7 @@ The Templates linter can be configured at the module level with rule-specific se
 Configure the overall impact level and individual rule toggles:
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     # Overall impact level
@@ -1672,7 +1672,7 @@ linters-settings:
 Each rule can override the overall impact level individually via the `rules` block:
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     rules:
@@ -1703,7 +1703,7 @@ linters-settings:
 Configure exclusions for specific rules:
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     exclude-rules:
@@ -1751,7 +1751,7 @@ linters-settings:
 ### Complete Configuration Example
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     # Global impact level
@@ -1792,10 +1792,10 @@ linters-settings:
 
 ### Configuration in Module Directory
 
-Place `.dmt.yaml` in your module directory for module-specific settings:
+Place `.dmtlint.yaml` in your module directory for module-specific settings:
 
 ```yaml
-# modules/my-module/.dmt.yaml
+# modules/my-module/.dmtlint.yaml
 linters-settings:
   templates:
     impact: warning  # More lenient for this module
@@ -1851,7 +1851,7 @@ Error: No VPA is found for object
 2. **Exclude the controller from VPA validation:**
 
    ```yaml
-   # .dmt.yaml
+   # .dmtlint.yaml
    linters-settings:
      templates:
        exclude-rules:
@@ -1936,7 +1936,7 @@ Error: No PodDisruptionBudget found for controller
 2. **Exclude from PDB validation:**
 
    ```yaml
-   # .dmt.yaml
+   # .dmtlint.yaml
    linters-settings:
      templates:
        exclude-rules:
@@ -2036,7 +2036,7 @@ Object: namespace = d8-my-module
 2. **Exclude namespace from validation:**
 
    ```yaml
-   # .dmt.yaml
+   # .dmtlint.yaml
    linters-settings:
      templates:
        exclude-rules:
@@ -2066,7 +2066,7 @@ Error: Ingress annotation "nginx.ingress.kubernetes.io/configuration-snippet" do
 2. **Exclude Ingress:**
 
    ```yaml
-   # .dmt.yaml
+   # .dmtlint.yaml
    linters-settings:
      templates:
        exclude-rules:

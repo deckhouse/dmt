@@ -330,7 +330,7 @@ roleRef:
 - `log-shipper` in `d8-log-shipper` (when module is `loki`) - For log collection
 
 **Configuration:**
-
+.dmtlint.yaml
 ```yaml
 # .dmt.yaml
 linters-settings:
@@ -689,7 +689,7 @@ rules:
 | Role | rbac-to-us.yaml | Any | `access-to-<module-name>-<suffix>` |
 
 **Configuration:**
-
+.dmtlint.yaml
 ```yaml
 # .dmt.yaml
 linters-settings:
@@ -894,7 +894,7 @@ If you find yourself wanting to use wildcards, consider:
 4. **Review actual needs** - Often you don't need as much access as you think
 
 **Configuration:**
-
+.dmtlint.yaml
 ```yaml
 # .dmt.yaml
 linters-settings:
@@ -914,7 +914,7 @@ The RBAC linter can be configured at the module level with rule-specific exclusi
 ### Module-Level Settings
 
 Configure the overall impact level for the rbac linter:
-
+.dmtlint.yaml
 ```yaml
 # .dmt.yaml
 linters-settings:
@@ -933,7 +933,7 @@ linters-settings:
 #### Binding Subject Exclusions
 
 Exclude specific ServiceAccount names from validation:
-
+.dmtlint.yaml
 ```yaml
 # .dmt.yaml
 linters-settings:
@@ -949,7 +949,7 @@ linters-settings:
 #### Placement Exclusions
 
 Exclude specific RBAC resources from placement validation:
-
+.dmtlint.yaml
 ```yaml
 # .dmt.yaml
 linters-settings:
@@ -967,7 +967,7 @@ linters-settings:
 #### Wildcards Exclusions
 
 Exclude specific Roles/ClusterRoles from wildcard validation:
-
+.dmtlint.yaml
 ```yaml
 # .dmt.yaml
 linters-settings:
@@ -983,7 +983,7 @@ linters-settings:
 ```
 
 ### Complete Configuration Example
-
+.dmtlint.yaml
 ```yaml
 # .dmt.yaml
 linters-settings:
@@ -1014,10 +1014,10 @@ linters-settings:
           name: d8:my-module:admin
 ```
 
-### Configuration in Module Directory
+### Configuration in M.dmtlint.yamlectory
 
 You can also place a `.dmt.yaml` configuration file directly in your module directory:
-
+.dmtlint.yaml
 ```yaml
 # modules/my-module/.dmt.yaml
 linters-settings:
@@ -1074,7 +1074,7 @@ Error: ClusterRoleBinding bind to the wrong ServiceAccount (doesn't exist in the
    Ensure the name in subjects matches the ServiceAccount definition exactly.
 
 3. **Exclude the ServiceAccount from validation:**
-
+.dmtlint.yaml
    ```yaml
    # .dmt.yaml
    linters-settings:
@@ -1211,7 +1211,7 @@ Error: apiGroups, resources, verbs contains a wildcards. Replace them with an ex
    ```
 
 3. **Exclude if wildcards are absolutely necessary (not recommended):**
-
+.dmtlint.yaml
    ```yaml
    # .dmt.yaml
    linters-settings:
