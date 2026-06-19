@@ -22,27 +22,6 @@ const (
 	configValuesFileName = "config-values.yaml"
 )
 
-// readOpenAPIFiles reads config-values.yaml and values.yaml from the specified directory.
-// Mirrors the helper previously imported from github.com/flant/addon-operator/pkg/utils.
-//
-// Module schemas:
-//
-//	/modules/XXX-module-name/openapi/config-values.yaml
-//	/modules/XXX-module-name/openapi/values.yaml
-func readOpenAPIFiles(openAPIDir string) ([]byte, []byte, error) {
-	configValuesBytes, err := readOpenAPIFile(openAPIDir, configValuesFileName)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	valuesBytes, err := readOpenAPIFile(openAPIDir, valuesFileName)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return configValuesBytes, valuesBytes, nil
-}
-
 // readOpenAPIFile reads a single file from the openapi directory, returning nil
 // (and no error) when the directory or the file does not exist.
 func readOpenAPIFile(openAPIDir, fileName string) ([]byte, error) {
