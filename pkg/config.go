@@ -100,7 +100,7 @@ type NoCyrillicLinterRules struct {
 
 type NoCyrillicExcludeRules struct {
 	Files       StringRuleExcludeList
-	Directories PrefixRuleExcludeList
+	Directories DirectoryRuleExcludeList
 }
 
 type OpenAPILinterConfig struct {
@@ -163,7 +163,7 @@ type TemplatesExcludeRules struct {
 
 type EnabledModulesExcludeRule struct {
 	Files       StringRuleExcludeList
-	Directories PrefixRuleExcludeList
+	Directories DirectoryRuleExcludeList
 }
 
 type ServicePortExcludeList []ServicePortExclude
@@ -257,8 +257,8 @@ type OSSExcludeRules struct {
 }
 
 type LicenseExcludeRule struct {
-	Files       StringRuleExcludeList `mapstructure:"files"`
-	Directories PrefixRuleExcludeList `mapstructure:"directories"`
+	Files       StringRuleExcludeList    `mapstructure:"files"`
+	Directories DirectoryRuleExcludeList `mapstructure:"directories"`
 }
 
 type ContainerLinterConfig struct {
@@ -302,6 +302,18 @@ func (l PrefixRuleExcludeList) Get() []PrefixRuleExclude {
 
 	for idx := range l {
 		result = append(result, PrefixRuleExclude(l[idx]))
+	}
+
+	return result
+}
+
+type DirectoryRuleExcludeList []string
+
+func (l DirectoryRuleExcludeList) Get() []DirectoryRuleExclude {
+	result := make([]DirectoryRuleExclude, 0, len(l))
+
+	for idx := range l {
+		result = append(result, DirectoryRuleExclude(l[idx]))
 	}
 
 	return result

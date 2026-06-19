@@ -27,6 +27,15 @@ import (
 	"github.com/werf/nelm/pkg/helm/pkg/werf/helmopts"
 )
 
+func init() {
+	// nelm's chart loader prints "Cannot automatically download chart
+	// dependencies without Chart.lock or requirements.lock." straight to stdout
+	// when a module's Chart.yaml declares dependencies but ships no lock file.
+	// dmt only lints rendered templates and never resolves remote dependencies,
+	// so this warning is noise that pollutes scan output. Suppress it.
+	loader.NoChartLockWarning = ""
+}
+
 type Renderer struct {
 	Name      string
 	Namespace string
@@ -57,6 +66,10 @@ func (r Renderer) RenderChartFromDir(chartDir string, values map[string]any) (ma
 			DefaultChartAPIVersion: "v2",
 			DefaultChartName:       r.Name,
 			DefaultChartVersion:    "0.2.0",
+			// Nelm's chart loader calls DepDownloader.SetChartPath / Build when
+			// the chart has a Chart.lock with external (non-file://) dependencies.
+			// Leave it nil and the loader panics with a nil pointer dereference.
+			DepDownloader: &lintDepDownloader{},
 		},
 	}
 
@@ -97,4 +110,25 @@ func (r Renderer) applyTemplateOverrides(chrt *chart.Chart) {
 	for _, dep := range chrt.Dependencies() {
 		r.applyTemplateOverrides(dep)
 	}
+}
+
+// lintDepDownloader is a minimal implementation of helmopts.DepDownloader used
+// during lint. Nelm's loader requires a non-nil DepDownloader when a chart has
+// a Chart.lock with external dependencies, but dmt does not fetch charts from
+// remote repositories. Returning nil lets lint continue without the external
+// dependencies instead of panicking on a nil pointer dereference.
+type lintDepDownloader struct{}
+
+func (d *lintDepDownloader) SetChartPath(path string) {}
+
+func (d *lintDepDownloader) Build(opts helmopts.HelmOptions) error {
+	return nil
+}
+
+func (d *lintDepDownloader) Update(opts helmopts.HelmOptions) error {
+	return nil
+}
+
+func (d *lintDepDownloader) UpdateRepositories() error {
+	return nil
 }
