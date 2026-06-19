@@ -30,39 +30,41 @@ const (
 //	/modules/XXX-module-name/openapi/config-values.yaml
 //	/modules/XXX-module-name/openapi/values.yaml
 func readOpenAPIFiles(openAPIDir string) ([]byte, []byte, error) {
-	if openAPIDir == "" {
-		return nil, nil, nil
+	configValuesBytes, err := readOpenAPIFile(openAPIDir, configValuesFileName)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	if _, err := os.Stat(openAPIDir); os.IsNotExist(err) {
-		return nil, nil, nil
-	}
-
-	var configValuesBytes []byte
-
-	configPath := filepath.Join(openAPIDir, configValuesFileName)
-	if _, statErr := os.Stat(configPath); !os.IsNotExist(statErr) {
-		var err error
-
-		configValuesBytes, err = os.ReadFile(configPath)
-		if err != nil {
-			return nil, nil, fmt.Errorf("read file %q: %w", configPath, err)
-		}
-	}
-
-	var valuesBytes []byte
-
-	valuesPath := filepath.Join(openAPIDir, valuesFileName)
-	if _, statErr := os.Stat(valuesPath); !os.IsNotExist(statErr) {
-		var err error
-
-		valuesBytes, err = os.ReadFile(valuesPath)
-		if err != nil {
-			return nil, nil, fmt.Errorf("read file %q: %w", valuesPath, err)
-		}
+	valuesBytes, err := readOpenAPIFile(openAPIDir, valuesFileName)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	return configValuesBytes, valuesBytes, nil
+}
+
+// readOpenAPIFile reads a single file from the openapi directory, returning nil
+// (and no error) when the directory or the file does not exist.
+func readOpenAPIFile(openAPIDir, fileName string) ([]byte, error) {
+	if openAPIDir == "" {
+		return nil, nil
+	}
+
+	if _, err := os.Stat(openAPIDir); os.IsNotExist(err) {
+		return nil, nil
+	}
+
+	path := filepath.Join(openAPIDir, fileName)
+	if _, statErr := os.Stat(path); os.IsNotExist(statErr) {
+		return nil, nil
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read file %q: %w", path, err)
+	}
+
+	return data, nil
 }
 
 type SchemaType string
@@ -181,9 +183,22 @@ func readConfigFiles(rootDir string) ([]byte, []byte, error) {
 }
 
 func GetModuleValues(modulePath string) (*spec.Schema, error) {
+	return GetModuleValuesForValuesFile(modulePath, valuesFileName)
+}
+
+// GetModuleValuesForValuesFile is like GetModuleValues but loads the module
+// values schema from the given file name inside the module's openapi directory
+// (e.g. "values_ce.yaml") instead of the default "values.yaml". The
+// "config-values.yaml" schema, when present, is always used as the base.
+func GetModuleValuesForValuesFile(modulePath, valuesFile string) (*spec.Schema, error) {
 	openAPIPath := filepath.Join(modulePath, "openapi")
 
-	configBytes, valuesBytes, err := readOpenAPIFiles(openAPIPath)
+	configBytes, err := readOpenAPIFile(openAPIPath, configValuesFileName)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read openAPI schemas: %w", err)
+	}
+
+	valuesBytes, err := readOpenAPIFile(openAPIPath, valuesFile)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read openAPI schemas: %w", err)
 	}

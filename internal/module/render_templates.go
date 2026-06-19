@@ -19,6 +19,8 @@ package module
 import (
 	"fmt"
 
+	"github.com/go-openapi/spec"
+
 	"github.com/deckhouse/dmt/internal/helm"
 )
 
@@ -60,6 +62,46 @@ func RenderModuleWithValues(modulePath string, userValues map[string]any) (map[s
 		Name:             mod.GetName(),
 		Namespace:        mod.GetNamespace(),
 		LintMode:         false,
+		HelmLibOverrides: helmLibOverrides(),
+	}
+
+	files, err := renderer.RenderChartFromDir(mod.GetPath(), renderValues)
+	if err != nil {
+		return nil, fmt.Errorf("render module: %w", err)
+	}
+
+	return files, nil
+}
+
+// RenderModule renders the module located at modulePath using values
+// auto-generated from the module's openapi schemas (the optional
+// 'openapi/config-values.yaml' and 'openapi/values.yaml' files) combined with
+// the supplied global schema, mirroring the value generation dmt uses while
+// linting. It returns the rendered manifests keyed by chart-relative source
+// file path.
+func RenderModule(modulePath string, globalSchema *spec.Schema) (map[string]string, error) {
+	return RenderModuleForValuesFile(modulePath, globalSchema, "values.yaml")
+}
+
+// RenderModuleForValuesFile is like RenderModule but generates the module values
+// from the given openapi values schema file name (e.g. "values_ce.yaml")
+// instead of the default "values.yaml". It is used to render edition-specific
+// variants of a module.
+func RenderModuleForValuesFile(modulePath string, globalSchema *spec.Schema, valuesFile string) (map[string]string, error) {
+	mod, err := newModuleFromPath(modulePath)
+	if err != nil {
+		return nil, err
+	}
+
+	renderValues, err := ComposeValuesFromSchemasForValuesFile(mod, globalSchema, valuesFile)
+	if err != nil {
+		return nil, fmt.Errorf("compose values: %w", err)
+	}
+
+	renderer := helm.Renderer{
+		Name:             mod.GetName(),
+		Namespace:        mod.GetNamespace(),
+		LintMode:         true,
 		HelmLibOverrides: helmLibOverrides(),
 	}
 
