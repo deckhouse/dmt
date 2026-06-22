@@ -20,6 +20,7 @@ require (
 	github.com/iancoleman/strcase v0.3.0
 	github.com/itchyny/gojq v0.12.19
 	github.com/kyokomi/emoji v2.2.4+incompatible
+	github.com/ldmonster/go-markdownlint v0.0.1
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/go-wordwrap v1.0.1
 	github.com/mitchellh/mapstructure v1.5.0
@@ -101,7 +102,6 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
-	github.com/ldmonster/go-markdownlint v0.0.1 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
