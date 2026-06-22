@@ -58,6 +58,7 @@ type ContainerSettings struct {
 type ContainerExcludeRules struct {
 	ControllerSecurityContext KindRuleExcludeList `mapstructure:"controller-security-context"`
 	DNSPolicy                 KindRuleExcludeList `mapstructure:"dns-policy"`
+	PriorityClass             KindRuleExcludeList `mapstructure:"priority-class"`
 
 	HostNetworkPorts       ContainerRuleExcludeList `mapstructure:"host-network-ports"`
 	Ports                  ContainerRuleExcludeList `mapstructure:"ports"`

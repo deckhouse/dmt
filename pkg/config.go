@@ -346,6 +346,7 @@ type ContainerLinterRules struct {
 type ContainerExcludeRules struct {
 	ControllerSecurityContext KindRuleExcludeList
 	DNSPolicy                 KindRuleExcludeList
+	PriorityClass             KindRuleExcludeList
 
 	HostNetworkPorts       ContainerRuleExcludeList
 	Ports                  ContainerRuleExcludeList
