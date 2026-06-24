@@ -1,0 +1,11 @@
+description: >-
+  A module whose docs/README.md has markdownlint violations: a duplicate
+  top-level heading (MD025) and a missing trailing newline (MD047). The
+  documentation linter's markdownlint rule must report both.
+expect:
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD025/single-title/single-h1"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD047/single-trailing-newline"

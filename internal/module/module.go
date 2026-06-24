@@ -393,7 +393,7 @@ func mapExclusionRulesAndSettings(linterSettings *pkg.LintersSettings, configSet
 	mapRBACExclusions(linterSettings, configSettings)
 	mapHooksSettings(linterSettings, configSettings)
 	mapModuleExclusionsAndSettings(linterSettings, configSettings)
-	mapDocumentationSettings(linterSettings, configSettings)
+	// no excluded rules - mapDocumentationExclusionsAndSettings(linterSettings, configSettings)
 }
 
 // mapContainerExclusions maps Container linter exclusion rules
@@ -501,10 +501,6 @@ func mapModuleExclusionsAndSettings(linterSettings *pkg.LintersSettings, configS
 	linterSettings.Module.DefinitionFileRuleSettings.Disable = configSettings.Module.DefinitionFile.Disable
 	linterSettings.Module.ConversionsRuleSettings.Disable = configSettings.Module.Conversions.Disable
 	linterSettings.Module.HelmignoreRuleSettings.Disable = configSettings.Module.Helmignore.Disable
-}
-
-// mapDocumentationSettings maps Documentation linter settings (placeholder for future exclusion rules)
-func mapDocumentationSettings(_ *pkg.LintersSettings, _ *config.LintersSettings) {
 }
 
 func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, rootConfig *config.RootConfig, errorList *dmtErrors.LintRuleErrorsList) (*Module, error) {
