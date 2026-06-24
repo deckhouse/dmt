@@ -63,10 +63,12 @@ func (l *Templates) Run(m *module.Module) {
 	// monitoring
 	prometheusRule := rules.NewPrometheusRule(l.cfg)
 	grafanaRule := rules.NewGrafanaRule(l.cfg)
+	sourceLabelRule := rules.NewSourceLabelRule(l.cfg)
 
 	if err := dirExists(m.GetPath(), "monitoring"); err == nil {
 		grafanaRule.ValidateGrafanaDashboards(m, errorList.WithMaxLevel(l.cfg.Rules.GrafanaRule.GetLevel()))
 		prometheusRule.ValidatePrometheusRules(m, errorList.WithMaxLevel(l.cfg.Rules.PrometheusRule.GetLevel()))
+		sourceLabelRule.SourceLabelCheckDashboards(m, errorList.WithMaxLevel(l.cfg.Rules.SourceLabelRule.GetLevel()))
 	} else if !os.IsNotExist(err) {
 		errorList.Errorf("reading the 'monitoring' folder failed: %s", err)
 	}
@@ -80,6 +82,7 @@ func (l *Templates) Run(m *module.Module) {
 		servicePortRule.ObjectServiceTargetPort(object, errorList.WithMaxLevel(l.cfg.Rules.ServicePortRule.GetLevel()))
 		prometheusRule.PromtoolRuleCheck(m, object, errorList.WithMaxLevel(l.cfg.Rules.PrometheusRule.GetLevel()))
 		ingressRule.CheckSnippetsRule(object, errorList.WithMaxLevel(l.cfg.Rules.IngressRule.GetLevel()))
+		sourceLabelRule.SourceLabelCheck(m, object, errorList.WithMaxLevel(l.cfg.Rules.SourceLabelRule.GetLevel()))
 	}
 
 	// Cluster domain rule

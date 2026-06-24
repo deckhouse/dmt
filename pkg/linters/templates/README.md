@@ -17,6 +17,7 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [ingress-rules](#ingress-rules) | Validates Ingress configuration snippets | ✅ | enabled |
 | [prometheus-rules](#prometheus-rules) | Validates Prometheus rules with promtool and proper templates | ✅ | enabled |
 | [grafana-dashboards](#grafana-dashboards) | Validates Grafana dashboard templates | ✅ | enabled |
+| [source-label](#source-label) | Requires `source="deckhouse"` selector on metrics in Prometheus rules and Grafana dashboards | ✅ | enabled |
 | [cluster-domain](#cluster-domain) | Validates cluster domain configuration is dynamic | ❌ | enabled |
 | [registry](#registry) | Validates registry secret configuration | ❌ | enabled |
 | [werf](#werf) | Validates image names in `werf.yaml` do not contain underscores | ❌ | enabled |
@@ -1284,6 +1285,85 @@ linters-settings:
 
 ---
 
+### source-label
+
+**Purpose:** Ensures every Deckhouse-owned metric referenced in PromQL expressions (in PrometheusRule objects and Grafana dashboards) is selected with an explicit `source="deckhouse"` label matcher, isolating our metrics from foreign metrics that share the same name.
+
+**Description:**
+
+The rule parses the PromQL expressions of alerting/recording rules and dashboard panel/template queries, and for every vector selector over a Deckhouse metric it requires a `source="deckhouse"` matcher (or a `source=$...` Grafana/templating variable that resolves to it).
+
+**Why it matters:**
+
+User can ran their own exporter that exposed a metric with the **same name** as one of ours. Because both time series shared the metric name, the metric was effectively duplicated, the rule expression returned ambiguous data, and it failed to evaluate. Pinning `source="deckhouse"` separates our metrics from foreign ones with colliding names, so a query only matches our own time series and evaluates reliably.
+
+**What it checks:**
+
+1. `PrometheusRule` objects — the `expr` of every alerting and recording rule
+2. Grafana dashboards under `monitoring/grafana-dashboards` — `expr` of panel targets and `query`/`definition` of query template variables (only Prometheus datasources)
+3. Each Deckhouse metric selector contains `source="deckhouse"` (or `source=$<var>`)
+
+**Exemptions (no source selector required):**
+
+- Metrics produced by recording rules within the module (collected automatically at runtime)
+- Metrics matching the per-module `allowed-metrics` globs (for intentionally foreign metrics, e.g. third-party exporters)
+- Prometheus synthetic metrics: `ALERTS`, `ALERTS_FOR_STATE`
+
+**Examples:**
+
+❌ **Incorrect** - Metric without source selector:
+
+```yaml
+# templates/monitoring.yaml -> PrometheusRule
+- alert: TestAlertMissingSource
+  expr: up{job="node-exporter"} == 0
+  for: 5m
+  labels:
+    severity_level: "5"
+```
+
+**Error:**
+```
+Error: metric 'up' in rule 'TestAlertMissingSource' (group 'e2e.source-label') must have source="deckhouse" selector
+```
+
+✅ **Correct** - Metric with source selector:
+
+```yaml
+- alert: TestAlertWithSource
+  expr: up{job="node-exporter", source="deckhouse"} == 0
+  for: 5m
+  labels:
+    severity_level: "5"
+```
+
+✅ **Correct** - Grafana panel query using a source variable:
+
+```json
+{
+  "title": "Requests",
+  "targets": [
+    { "expr": "rate(my_module_requests_total{source=\"deckhouse\"}[$__rate_interval])" }
+  ]
+}
+```
+
+**Configuration:**
+
+The rule does not use `exclude-rules`. Instead, use `allowed-metrics` to list metric names (glob patterns with `*` and `?` are supported) that are allowed to appear without a source selector:
+
+```yaml
+# .dmt.yaml
+linters-settings:
+  templates:
+    source-label:
+      allowed-metrics:
+        - "rabbitmq_*"      # All metrics from a third-party exporter
+        - "node_exporter_build_info"
+```
+
+---
+
 ### cluster-domain
 
 **Purpose:** Prevents hardcoding of the cluster domain (`cluster.local`) in templates. Ensures cluster domain is configurable to support custom cluster configurations and multi-cluster deployments.
@@ -1663,6 +1743,11 @@ linters-settings:
     
     prometheus-rules:
       disable: true
+    
+    # Allow specific (foreign) metrics without a source="deckhouse" selector
+    source-label:
+      allowed-metrics:
+        - "rabbitmq_*"
 ```
 
 ### Per-Rule Impact Levels
@@ -1694,6 +1779,8 @@ linters-settings:
         impact: error
       enabled-modules:
         impact: warning
+      source-label:
+        impact: error
 ```
 
 ### Rule-Level Exclusions
