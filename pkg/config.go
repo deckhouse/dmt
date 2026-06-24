@@ -347,6 +347,7 @@ type ContainerExcludeRules struct {
 	ControllerSecurityContext KindRuleExcludeList
 	NamespaceLabelsRule       KindRuleExcludeList
 	DNSPolicy                 KindRuleExcludeList
+	PriorityClass             KindRuleExcludeList
 
 	HostNetworkPorts       ContainerRuleExcludeList
 	Ports                  ContainerRuleExcludeList

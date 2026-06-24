@@ -96,6 +96,8 @@ func (f Finding) String() string {
 type CaseSpec struct {
 	// Description is a human-readable summary of what the case verifies.
 	Description string `yaml:"description"`
+	// Skip, when true, causes the test case to be skipped (t.Skip).
+	Skip bool `yaml:"skip"`
 	// Kind selects what to run against the module: "lint" (default) runs the
 	// full lint pipeline, "conversions" runs the `dmt test conversions` testers.
 	// For conversions cases, findings are exposed with linter ID "conversions"
