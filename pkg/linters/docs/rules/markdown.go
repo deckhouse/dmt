@@ -11,18 +11,19 @@ import (
 
 	gomarkdownlint "github.com/ldmonster/go-markdownlint"
 
+	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 const (
-	MarkdownName = "markdownlint"
+	MarkdownlintRuleName = "markdownlint"
 )
 
 func NewMarkdownRule() *MarkdownRule {
 	return &MarkdownRule{
 		RuleMeta: pkg.RuleMeta{
-			Name: MarkdownName,
+			Name: MarkdownlintRuleName,
 		},
 	}
 }
@@ -32,7 +33,7 @@ type MarkdownRule struct {
 	pkg.PathRule
 }
 
-func (r *MarkdownRule) Run(m pkg.Module, errorList *errors.LintRuleErrorsList) {
+func (r *MarkdownRule) CheckFiles(m pkg.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
 	if !r.Enabled(m.GetName()) {
@@ -40,24 +41,39 @@ func (r *MarkdownRule) Run(m pkg.Module, errorList *errors.LintRuleErrorsList) {
 	}
 
 	modulePath := m.GetPath()
-
-	mdFiles, err := collectMarkdownFiles(modulePath)
-	if err != nil {
-		errorList.
-			WithFilePath(modulePath).
-			WithValue(err.Error()).
-			Errorf("failed to collect markdown files: %s", err)
-
+	if modulePath == "" {
 		return
 	}
 
-	if len(mdFiles) == 0 {
+	docsPath := filepath.Join(modulePath, "docs")
+	if _, err := os.Stat(docsPath); err != nil {
+		return
+	}
+
+	files := fsutils.GetFiles(docsPath, false, fsutils.FilterFileByExtensions(".md"))
+
+	var mdFiles []string
+
+	for _, fileName := range files {
+		relFromModule := fsutils.Rel(modulePath, fileName)
+		if !r.Enabled(relFromModule) {
+			continue
+		}
+
+		mdFiles = append(mdFiles, fileName)
+	}
+
+	r.checkFiles(modulePath, mdFiles, errorList)
+}
+
+func (r *MarkdownRule) checkFiles(modulePath string, files []string, errorList *errors.LintRuleErrorsList) {
+	if len(files) == 0 {
 		return
 	}
 
 	cfg := gomarkdownlint.ConfigFromMap(deckhouseMarkdownlintConfig())
 
-	results, err := gomarkdownlint.LintFiles(context.Background(), mdFiles, cfg)
+	results, err := gomarkdownlint.LintFiles(context.Background(), files, cfg)
 	if err != nil {
 		errorList.
 			WithFilePath(modulePath).
@@ -68,15 +84,20 @@ func (r *MarkdownRule) Run(m pkg.Module, errorList *errors.LintRuleErrorsList) {
 	}
 
 	for file, errs := range results {
+		relPath := fsutils.Rel(modulePath, file)
 		for _, mdErr := range errs {
 			errorList.
-				WithFilePath(file).
+				WithFilePath(relPath).
 				WithLineNumber(mdErr.LineNumber).
 				Errorf("%s %s", strings.Join(mdErr.RuleNames, "/"), mdErr.RuleDescription)
 		}
 	}
 }
 
+// deckhouseMarkdownlintConfig returns the markdownlint configuration.
+// go-markdownlint enables every built-in rule by default (ruleDefaultEnable is
+// true when the "default" key is absent), so we do not set "default" and only
+// list the rule overrides below.
 func deckhouseMarkdownlintConfig() map[string]any {
 	return map[string]any{
 		// MD002/first-heading-h1/first-header-h1 - First heading should be a top-level heading (deprecated)
@@ -172,26 +193,4 @@ func deckhouseMarkdownlintConfig() map[string]any {
 			"style": "consistent", // Strong style should be consistent
 		},
 	}
-}
-
-func collectMarkdownFiles(root string) ([]string, error) {
-	var files []string
-
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if info.IsDir() {
-			return nil
-		}
-
-		if strings.HasSuffix(strings.ToLower(info.Name()), ".md") {
-			files = append(files, path)
-		}
-
-		return nil
-	})
-
-	return files, err
 }
