@@ -42,6 +42,9 @@ const (
 	RenderedDirName = "rendered"
 	// openAPIDirName is the per-module directory holding the values schemas.
 	openAPIDirName = "openapi"
+	// templatesDirName is the per-module directory holding the templates to
+	// render. A directory without it is not a renderable module.
+	templatesDirName = "templates"
 	// defaultValuesFile is the base openapi values schema file.
 	defaultValuesFile = "values.yaml"
 	// defaultEditionName is the directory name used for the base (non-edition)
@@ -89,6 +92,17 @@ func Render(dir, outputDir string) error {
 	var hasErrors bool
 
 	for _, modulePath := range paths {
+		// The shared module discovery flags any directory that contains a
+		// 'module.yaml' file, but some of those files are actually Kubernetes
+		// CustomResourceDefinitions that merely share the name (e.g.
+		// deckhouse-controller/crds/module.yaml). Such directories have nothing
+		// to render, so skip anything without a templates directory.
+		if !fsutils.IsDir(filepath.Join(modulePath, templatesDirName)) {
+			log.Debug("Skipping path without templates", slog.String("path", modulePath))
+
+			continue
+		}
+
 		moduleName := moduleName(modulePath)
 
 		log.Info("Rendering module", slog.String("module", moduleName), slog.String("path", modulePath))
