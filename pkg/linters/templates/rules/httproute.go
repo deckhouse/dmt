@@ -65,6 +65,7 @@ func (r *HTTPRouteRule) ModuleMustHaveGatewayResources(md pkg.Module, errorList 
 		if !r.Enabled(IngressKind, name) {
 			continue
 		}
+
 		errorListObj := errorList.WithObjectID(object.Identity()).WithFilePath(object.GetPath())
 
 		route, ok := findHTTPRouteByLabels(object, httpRoutes)
