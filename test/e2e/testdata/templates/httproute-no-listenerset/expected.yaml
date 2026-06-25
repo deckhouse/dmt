@@ -1,0 +1,10 @@
+description: >
+  A module that ships an Ingress and a matching HTTPRoute (same app label),
+  but whose HTTPRoute parentRefs do not reference any ListenerSet present in
+  the module templates, must be flagged by the httproute-rules rule.
+module: module
+expect:
+  - linter: templates
+    rule: httproute-rules
+    level: error
+    textContains: "is invalid for Ingress migration"
