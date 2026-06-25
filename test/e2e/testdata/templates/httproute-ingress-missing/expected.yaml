@@ -6,4 +6,4 @@ expect:
   - linter: templates
     rule: httproute-rules
     level: error
-    textContains: "requires a matching HTTPRoute with the same app label, but none was found"
+    textContains: "the corresponding Gateway API resources are missing"

@@ -7,4 +7,4 @@ expect:
   - linter: templates
     rule: httproute-rules
     level: error
-    textContains: "is invalid for Ingress migration"
+    textContains: "does not yet provide a valid Gateway API replacement for Ingress"

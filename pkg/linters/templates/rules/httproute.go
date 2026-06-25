@@ -32,6 +32,10 @@ const (
 	HTTPRouteKind     = "HTTPRoute"
 	ListenerSetKind   = "ListenerSet"
 	AppLabelKey       = "app"
+
+	// networkTeamHint is appended to every finding so module authors know who
+	// can help with the Ingress -> Gateway API migration and review the change.
+	networkTeamHint = "If you need help with the Gateway API migration or a review, reach out to the network team in #dev-network."
 )
 
 type HTTPRouteRule struct {
@@ -70,14 +74,22 @@ func (r *HTTPRouteRule) ModuleMustHaveGatewayResources(md pkg.Module, errorList 
 
 		route, ok := findHTTPRouteByLabels(object, httpRoutes)
 		if !ok {
-			errorListObj.Errorf("Ingress %q requires a matching HTTPRoute with the same app label, but none was found", name)
+			errorListObj.Errorf(
+				"Ingress %q ships in this module, but the corresponding Gateway API resources are missing: "+
+					"no HTTPRoute with a matching %q=%q label was found. "+
+					"Every Ingress must be accompanied by a Gateway API HTTPRoute (referencing a ListenerSet) so the module is ready for the Ingress -> Gateway API migration. %s",
+				name, AppLabelKey, object.Unstructured.GetLabels()[AppLabelKey], networkTeamHint,
+			)
 			continue
 		}
 
 		if err := validateHTTPRouteParentRefs(route, listenerSets); err != nil {
 			errorList.WithObjectID(route.Identity()).
 				WithFilePath(route.GetPath()).
-				Errorf("HTTPRoute %q is invalid for Ingress migration: %v", route.Unstructured.GetName(), err)
+				Errorf(
+					"HTTPRoute %q does not yet provide a valid Gateway API replacement for Ingress %q: %v. %s",
+					route.Unstructured.GetName(), name, err, networkTeamHint,
+				)
 		}
 	}
 }
@@ -119,7 +131,7 @@ func validateHTTPRouteParentRefs(
 	}
 
 	if !found || len(parentRefs) == 0 {
-		return fmt.Errorf("spec.parentRefs must reference an existing ListenerSet")
+		return fmt.Errorf("spec.parentRefs is empty, so it does not reference a ListenerSet defined in the module templates")
 	}
 
 	for _, parent := range parentRefs {
@@ -140,5 +152,5 @@ func validateHTTPRouteParentRefs(
 		}
 	}
 
-	return fmt.Errorf("spec.parentRefs does not reference any ListenerSet found in module templates")
+	return fmt.Errorf("none of the spec.parentRefs reference a ListenerSet defined in the module templates")
 }
