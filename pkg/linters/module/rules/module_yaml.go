@@ -92,9 +92,21 @@ type DeckhouseModule struct {
 	Requirements  *ModuleRequirements  `json:"requirements,omitempty"`
 	Accessibility *ModuleAccessibility `json:"accessibility,omitempty"`
 	Update        *ModuleUpdate        `json:"update,omitempty"`
+	Disable       *ModuleDisable       `json:"disable,omitempty"`
 }
 
 type ModuleDescriptions struct {
+	English string `json:"en,omitempty"`
+	Russian string `json:"ru,omitempty"`
+}
+
+type ModuleDisable struct {
+	Confirmation bool                  `json:"confirmation,omitempty"`
+	Message      string                `json:"message,omitempty"`
+	Messages     ModuleDisableMessages `json:"messages,omitempty"`
+}
+
+type ModuleDisableMessages struct {
 	English string `json:"en,omitempty"`
 	Russian string `json:"ru,omitempty"`
 }
@@ -281,6 +293,10 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 
 	if yml.Description != "" {
 		errorList.WithMaxLevel(maxLevel).Error("Field 'description' is deprecated, use 'descriptions.en' instead")
+	}
+
+	if yml.Disable != nil && yml.Disable.Message != "" {
+		errorList.WithMaxLevel(maxLevel).Error("Field 'disable.message' is deprecated, use 'disable.messages' (with 'ru'/'en') instead")
 	}
 
 	if yml.Critical && yml.Weight == 0 {
