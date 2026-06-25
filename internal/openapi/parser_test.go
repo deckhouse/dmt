@@ -221,6 +221,7 @@ key3:
 		require.NoError(t, err)
 
 		var parsedKeys []string
+
 		testParser := func(key string, _ any) error {
 			parsedKeys = append(parsedKeys, key)
 			return nil
@@ -269,6 +270,7 @@ spec:
 		require.NoError(t, err)
 
 		var parsedKeys []string
+
 		testParser := func(key string, _ any) error {
 			parsedKeys = append(parsedKeys, key)
 			return nil
@@ -285,6 +287,7 @@ spec:
 func TestFileParser_ParseValue(t *testing.T) {
 	t.Run("parse map string", func(t *testing.T) {
 		var parsedKeys []string
+
 		testParser := func(key string, _ any) error {
 			parsedKeys = append(parsedKeys, key)
 			return nil
@@ -308,6 +311,7 @@ func TestFileParser_ParseValue(t *testing.T) {
 
 	t.Run("parse map any", func(t *testing.T) {
 		var parsedKeys []string
+
 		testParser := func(key string, _ any) error {
 			parsedKeys = append(parsedKeys, key)
 			return nil
@@ -332,6 +336,7 @@ func TestFileParser_ParseValue(t *testing.T) {
 
 	t.Run("parse slice", func(t *testing.T) {
 		var parsedKeys []string
+
 		testParser := func(key string, _ any) error {
 			parsedKeys = append(parsedKeys, key)
 			return nil
@@ -350,6 +355,7 @@ func TestFileParser_ParseValue(t *testing.T) {
 
 	t.Run("nil value", func(t *testing.T) {
 		var parsedKeys []string
+
 		testParser := func(key string, _ any) error {
 			parsedKeys = append(parsedKeys, key)
 			return nil

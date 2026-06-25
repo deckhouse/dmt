@@ -1,0 +1,5 @@
+description: >-
+  A module declaring conversions plus several passing testcases (including a
+  no-op conversion). The conversions tester must report no errors.
+kind: conversions
+expectClean: true

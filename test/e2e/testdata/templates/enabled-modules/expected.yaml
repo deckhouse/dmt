@@ -1,0 +1,10 @@
+description: >
+  A template that uses the deprecated `.Values.global.enabledModules | has`
+  pattern must be flagged (as a warning) by the enabled-modules rule.
+skip: true
+module: module
+expect:
+  - linter: templates
+    rule: enabled-modules
+    level: warn
+    textContains: "Found usage of .Values.global.enabledModules"

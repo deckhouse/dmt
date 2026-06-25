@@ -1,0 +1,22 @@
+description: >
+  A module whose module.yaml lacks required metadata (stage, descriptions) and
+  which has no .helmignore or docs README should be flagged by the module and
+  documentation linters.
+module: module
+expect:
+  - linter: module
+    rule: definition-file
+    level: error
+    textContains: "Field 'stage' is required"
+  - linter: module
+    rule: definition-file
+    level: error
+    textContains: "Module `descriptions.en` field is required"
+  - linter: module
+    rule: helmignore
+    level: error
+    textContains: "File .helmignore is required in module root"
+  - linter: documentation
+    rule: readme
+    level: error
+    textContains: "README.md file is missing in docs/ directory"

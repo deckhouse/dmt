@@ -58,6 +58,7 @@ func (r *CyrillicInEnglishRule) CheckFiles(m pkg.Module, errorList *errors.LintR
 		if filepath.Dir(relFromModule) != "docs" {
 			continue
 		}
+
 		r.checkFile(m, fileName, errorList)
 	}
 }
@@ -100,6 +101,7 @@ func getFileContent(filename string) ([]string, error) {
 	}
 
 	sliceData := strings.Split(string(fileBytes), "\n")
+
 	return sliceData, nil
 }
 
@@ -121,10 +123,12 @@ func checkCyrillicLettersInArray(lines []string) (string, bool) {
 	res := make([]string, 0)
 
 	hasCyr := false
+
 	for i, line := range lines {
 		msg, has := checkCyrillicLettersInString(line)
 		if has {
 			hasCyr = true
+
 			res = append(res, fmt.Sprintf("Line %d: %s", i+1, msg))
 		}
 	}

@@ -79,12 +79,14 @@ func (v *haValidator) run(absoluteKey string, value any) error {
 	}
 
 	parts := strings.Split(absoluteKey, ".")
+
 	key := parts[len(parts)-1]
 	if key != "highAvailability" && key != "https" {
 		return nil
 	}
 
 	m := make(map[any]any)
+
 	rv := reflect.ValueOf(value)
 	if rv.Kind() != reflect.Map {
 		return fmt.Errorf("possible Bug? Have to be a map. Type: %s, Value: %s", reflect.TypeOf(value), value)

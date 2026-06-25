@@ -1,0 +1,8 @@
+name: oss-semver
+namespace: d8-oss-semver
+stage: General Availability
+requirements:
+  deckhouse: ">= 1.68.0"
+descriptions:
+  en: Module used to verify OSS version-not-semver exclude handling.
+  ru: Модуль для проверки исключения oss version-not-semver.

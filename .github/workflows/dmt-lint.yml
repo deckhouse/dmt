@@ -1,0 +1,104 @@
+name: DMT Lint Verify
+
+# Verifies that the dmt build from this branch lints the real deckhouse codebase
+# without regressions. Runs on PRs and on main.
+#
+# Bypass: if the lint fails but the PR carries the "dmtlint-verify-skip" label,
+# the check passes (the failure is acknowledged and merge is allowed). Without
+# the label a lint failure blocks the merge.
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    # `labeled`/`unlabeled` let the check re-evaluate (and turn green) as soon as
+    # the skip label is added or removed, without pushing a new commit.
+    types: [ opened, synchronize, reopened, labeled, unlabeled ]
+  workflow_dispatch:
+    inputs:
+      deckhouse_branch:
+        description: 'Deckhouse branch or tag to run dmt lint on'
+        required: false
+        default: 'main'
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: dmt-lint-verify-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  SKIP_LABEL: dmtlint-verify-skip
+  DECKHOUSE_REPO: https://github.com/deckhouse/deckhouse.git
+  DECKHOUSE_REF: ${{ inputs.deckhouse_branch || 'main' }}
+
+jobs:
+  dmt-lint-verify:
+    name: dmt-lint-verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve skip label
+        id: ctx
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]] \
+            && [[ "${{ contains(github.event.pull_request.labels.*.name, env.SKIP_LABEL) }}" == "true" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::'${SKIP_LABEL}' label present — dmt lint verification will be skipped."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout dmt
+        if: steps.ctx.outputs.skip != 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        if: steps.ctx.outputs.skip != 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build dmt
+        if: steps.ctx.outputs.skip != 'true'
+        run: make build
+
+      - name: Clone deckhouse (${{ env.DECKHOUSE_REF }})
+        if: steps.ctx.outputs.skip != 'true'
+        run: |
+          git clone --depth 1 --branch "${DECKHOUSE_REF}" "${DECKHOUSE_REPO}" "${RUNNER_TEMP}/deckhouse-src"
+
+      # Deckhouse OpenAPI schemas use absolute $ref paths under /deckhouse, so the
+      # prepared tree must live there. Creating a dir under / needs root; hand it
+      # to the runner user so the lint step can populate it without sudo.
+      - name: Prepare /deckhouse
+        if: steps.ctx.outputs.skip != 'true'
+        run: |
+          sudo mkdir -p /deckhouse
+          sudo chown "$(id -u):$(id -g)" /deckhouse
+
+      - name: Lint deckhouse with built dmt
+        id: lint
+        if: steps.ctx.outputs.skip != 'true'
+        continue-on-error: true
+        env:
+          DMT_BIN: ${{ github.workspace }}/dmt
+          SRC_DIR: ${{ runner.temp }}/deckhouse-src
+          WORK_DIR: /deckhouse
+        run: bash .github/scripts/dmt-lint-deckhouse.sh
+
+      - name: Evaluate result
+        run: |
+          if [[ "${{ steps.ctx.outputs.skip }}" == "true" ]]; then
+            echo "::warning::dmt lint verification skipped because the '${SKIP_LABEL}' label is set on this PR."
+            exit 0
+          fi
+
+          if [[ "${{ steps.lint.outcome }}" == "success" ]]; then
+            echo "dmt lint passed on the deckhouse codebase."
+            exit 0
+          fi
+
+          echo "::error::dmt lint failed on the deckhouse codebase. Review the 'Lint deckhouse with built dmt' step logs. To acknowledge and allow merge anyway, add the '${SKIP_LABEL}' label to this PR."
+          exit 1

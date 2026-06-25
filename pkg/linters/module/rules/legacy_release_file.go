@@ -49,6 +49,7 @@ func (r *LegacyReleaseFileRule) CheckLegacyReleaseFile(modulePath string, errorL
 	if errs.Is(err, os.ErrNotExist) {
 		return
 	}
+
 	if err != nil {
 		errorList.Errorf("Cannot stat file %q: %s", legacyReleaseFilename, err)
 		return

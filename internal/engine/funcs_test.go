@@ -395,18 +395,21 @@ func TestPlaceholderFunctions(t *testing.T) {
 	if !ok {
 		t.Fatalf("include function has wrong type")
 	}
+
 	assert.Equal(t, "not implemented", includeFn("", nil))
 
 	tplFn, ok := fm["tpl"].(func(string, any) any)
 	if !ok {
 		t.Fatalf("tpl function has wrong type")
 	}
+
 	assert.Equal(t, "not implemented", tplFn("", nil))
 
 	requiredFn, ok := fm["required"].(func(string, any) (any, error))
 	if !ok {
 		t.Fatalf("required function has wrong type")
 	}
+
 	result, err := requiredFn("", nil)
 	assert.Equal(t, "not implemented", result)
 	require.NoError(t, err)
@@ -415,6 +418,7 @@ func TestPlaceholderFunctions(t *testing.T) {
 	if !ok {
 		t.Fatalf("lookup function has wrong type")
 	}
+
 	m, err := lookupFn("", "", "", "")
 	assert.Equal(t, map[string]any{}, m)
 	require.NoError(t, err)
@@ -423,6 +427,7 @@ func TestPlaceholderFunctions(t *testing.T) {
 	if !ok {
 		t.Fatalf("b64dec function has wrong type")
 	}
+
 	b64result, b64err := b64decFn("")
 	assert.Equal(t, "b64decDecoded_String", b64result)
 	require.NoError(t, b64err)
@@ -431,6 +436,7 @@ func TestPlaceholderFunctions(t *testing.T) {
 	if !ok {
 		t.Fatalf("b32dec function has wrong type")
 	}
+
 	b32result, b32err := b32decFn("")
 	assert.Equal(t, "b32decDecoded_String", b32result)
 	require.NoError(t, b32err)

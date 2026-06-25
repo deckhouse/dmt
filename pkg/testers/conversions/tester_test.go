@@ -360,6 +360,36 @@ description:
 	assert.Contains(t, errorList.GetErrors()[0].Text, "x-config-version")
 }
 
+func TestTester_ConversionsExistButConfigVersionZero(t *testing.T) {
+	tempDir := t.TempDir()
+
+	err := os.MkdirAll(filepath.Join(tempDir, "openapi", "conversions"), 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(
+		filepath.Join(tempDir, "openapi", "config-values.yaml"),
+		[]byte("x-config-version: 0"),
+		0644,
+	)
+	require.NoError(t, err)
+
+	v2 := `version: 2
+conversions:
+  - del(.auth.password)
+description:
+  en: "v2"
+  ru: "v2 ru"`
+	err = os.WriteFile(filepath.Join(tempDir, "openapi", "conversions", "v2.yaml"), []byte(v2), 0644)
+	require.NoError(t, err)
+
+	errorList := pkgerrors.NewTestErrorsList()
+	tester := New(errorList)
+	tester.Run(tempDir)
+
+	assert.True(t, errorList.ContainsErrors())
+	assert.Contains(t, errorList.GetErrors()[0].Text, "x-config-version is not set")
+}
+
 func TestConversionsTester_ReportsTestcaseFailure(t *testing.T) {
 	tmpDir := t.TempDir()
 
@@ -409,13 +439,16 @@ description:
 
 	// With structured errors, check the domain fields instead of parsing formatted text
 	foundMismatch := false
+
 	for _, e := range errors {
 		if e.TestName == "incorrect expected output" {
 			foundMismatch = true
+
 			assert.NotEmpty(t, e.Got, "expected Got field to be populated")
 			assert.NotEmpty(t, e.Expected, "expected Expected field to be populated")
 			assert.Contains(t, e.Text, "conversion mismatch")
 		}
 	}
+
 	assert.True(t, foundMismatch, "expected error with TestName 'incorrect expected output'")
 }

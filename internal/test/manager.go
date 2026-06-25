@@ -34,7 +34,8 @@ import (
 	"github.com/deckhouse/dmt/pkg/config"
 	pkgerrors "github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/testers"
-	tester "github.com/deckhouse/dmt/pkg/testers/conversions"
+	conversions "github.com/deckhouse/dmt/pkg/testers/conversions"
+	templatestester "github.com/deckhouse/dmt/pkg/testers/templates"
 )
 
 type moduleResult struct {
@@ -53,18 +54,52 @@ type Manager struct {
 	results []moduleResult
 }
 
-func NewManager(dir string, rootConfig *config.RootConfig) (*Manager, error) {
+type managerOptions struct {
+	enabled         map[string]bool
+	updateSnapshots bool
+}
+
+// Option customizes which testers a Manager runs and how.
+type Option func(*managerOptions)
+
+// WithTesters restricts the manager to the testers with the given IDs.
+// When omitted, all registered testers run.
+func WithTesters(ids ...string) Option {
+	return func(o *managerOptions) {
+		o.enabled = make(map[string]bool, len(ids))
+		for _, id := range ids {
+			o.enabled[id] = true
+		}
+	}
+}
+
+// WithUpdateSnapshots makes snapshot-based testers rewrite their golden files
+// instead of reporting mismatches.
+func WithUpdateSnapshots(update bool) Option {
+	return func(o *managerOptions) {
+		o.updateSnapshots = update
+	}
+}
+
+func NewManager(dir string, rootConfig *config.RootConfig, opts ...Option) (*Manager, error) {
+	options := &managerOptions{}
+	for _, opt := range opts {
+		opt(options)
+	}
+
 	m := &Manager{
 		cfg:    rootConfig,
 		errors: pkgerrors.NewTestErrorsList(),
 	}
 
 	var err error
+
 	m.modules, err = moduleloader.GetModulePaths(dir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get module paths: %w", err)
 	}
-	m.registerTesters()
+
+	m.registerTesters(options)
 
 	return m, nil
 }
@@ -93,11 +128,14 @@ func (m *Manager) runModuleTests(modulePath string) moduleResult {
 }
 
 func (m *Manager) runTesters(modulePath, moduleName string) (bool, string) {
-	var lastTesterName string
-	var anyApplicable bool
+	var (
+		lastTesterName string
+		anyApplicable  bool
+	)
 
 	for _, t := range m.testers {
 		lastTesterName = t.Name()
+
 		applicable := t.Run(modulePath)
 		if applicable {
 			anyApplicable = true
@@ -110,6 +148,7 @@ func (m *Manager) runTesters(modulePath, moduleName string) (bool, string) {
 
 	// Check errors specific to this module
 	hasErrors := false
+
 	for _, err := range m.errors.GetErrors() {
 		if err.ModuleID == moduleName && err.Level == pkg.Error {
 			hasErrors = true
@@ -212,9 +251,23 @@ func (m *Manager) HasCriticalErrors() bool {
 	return m.errors.ContainsErrors()
 }
 
-func (m *Manager) registerTesters() {
-	m.testers = []testers.Tester{
-		tester.New(m.errors),
+// GetErrors returns all test errors collected during the run.
+// It is primarily intended for tests (e.g. the e2e framework) that need to
+// assert on the structured results produced by the testers.
+func (m *Manager) GetErrors() []pkg.TestError {
+	return m.errors.GetErrors()
+}
+
+func (m *Manager) registerTesters(options *managerOptions) {
+	all := []testers.Tester{
+		conversions.New(m.errors),
+		templatestester.New(m.errors, options.updateSnapshots),
+	}
+
+	for _, t := range all {
+		if options.enabled == nil || options.enabled[t.Name()] {
+			m.testers = append(m.testers, t)
+		}
 	}
 }
 
@@ -222,6 +275,7 @@ func extractModuleName(path string) string {
 	if idx := strings.LastIndex(path, "/"); idx >= 0 && idx < len(path)-1 {
 		return path[idx+1:]
 	}
+
 	return path
 }
 

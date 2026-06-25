@@ -59,6 +59,7 @@ func GetWerfConfig(dir string) (string, error) {
 		if err != nil {
 			return "", err
 		}
+
 		tmpl, err = tmpl.Parse(string(content))
 		if err != nil {
 			return "", err
@@ -104,6 +105,7 @@ func getRootWerfFile(dir string) string {
 		if fsutils.IsFile(result) {
 			return result
 		}
+
 		currentDir = filepath.Dir(currentDir)
 		if currentDir == "/" {
 			break
@@ -123,29 +125,35 @@ func parseWerfConfigTemplatesDir(rootDir string, tmpl *template.Template) error 
 		if err != nil {
 			return err
 		}
+
 		if d.IsDir() {
 			return nil
 		}
+
 		if filepath.Ext(path) == ".tmpl" {
 			data, err := os.ReadFile(path)
 			if err != nil {
 				return err
 			}
+
 			name := filepath.ToSlash(path[len(templatesDir)+1:])
 			if err := addTemplate(tmpl, name, string(data)); err != nil {
 				return err
 			}
 		}
+
 		return nil
 	}); err != nil {
 		return err
 	}
+
 	return nil
 }
 
 func addTemplate(tmpl *template.Template, templateName, templateContent string) error {
 	extraTemplate := tmpl.New(templateName)
 	_, err := extraTemplate.Parse(templateContent)
+
 	return err
 }
 
@@ -154,6 +162,7 @@ func executeTemplate(tmpl *template.Template, name string, data any) (string, er
 	if err := tmpl.ExecuteTemplate(buf, name, data); err != nil {
 		return "", fmt.Errorf("failed to execute template %s: %w", name, err)
 	}
+
 	return buf.String(), nil
 }
 
@@ -207,6 +216,7 @@ func funcMap(tmpl *template.Template) template.FuncMap {
 			if fallbackValue != nil {
 				return *fallbackValue, nil
 			}
+
 			return "", nil
 		}
 
@@ -224,6 +234,7 @@ func funcMap(tmpl *template.Template) template.FuncMap {
 		case "":
 			return val, errors.New(msg)
 		}
+
 		return val, nil
 	}
 
@@ -231,8 +242,10 @@ func funcMap(tmpl *template.Template) template.FuncMap {
 }
 
 func generateRandomTemplateFuncName() string {
-	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	const templateFuncNameLength = 10
+	const (
+		letterBytes            = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+		templateFuncNameLength = 10
+	)
 
 	b := make([]byte, templateFuncNameLength)
 	for i := range b {

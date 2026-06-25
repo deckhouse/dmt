@@ -71,6 +71,7 @@ func newEnumValidator(cfg *pkg.OpenAPILinterConfig) enumValidator {
 	for _, exc := range cfg.ExcludeRules.EnumFileExcludes {
 		excludes[exc+".enum"] = struct{}{}
 	}
+
 	return enumValidator{
 		cfg:      cfg,
 		excludes: excludes,
@@ -98,12 +99,14 @@ func (en enumValidator) run(absoluteKey string, value any) error {
 	}
 
 	values := value.([]any)
+
 	enum := make([]string, 0, len(values))
 	for _, val := range values {
 		valStr, ok := val.(string)
 		if !ok {
 			continue // skip boolean flags
 		}
+
 		enum = append(enum, valStr)
 	}
 
@@ -114,6 +117,7 @@ func (en enumValidator) run(absoluteKey string, value any) error {
 
 func validateEnumValues(enumKey string, values []string) error {
 	var res error
+
 	for _, value := range values {
 		if err := validateEnumValue(value); err != nil {
 			res = stdErrors.Join(res, fmt.Errorf("enum '%s' is invalid: %w", enumKey, err))
@@ -127,6 +131,7 @@ func validateEnumValue(value string) error {
 	if value == "" {
 		return nil
 	}
+
 	vv := []rune(value)
 	if unicode.IsLetter(vv[0]) && !unicode.IsUpper(vv[0]) {
 		return fmt.Errorf("value '%s' must start with Capital letter", value)
@@ -136,6 +141,7 @@ func validateEnumValue(value string) error {
 		if unicode.IsLetter(char) {
 			continue
 		}
+
 		if unicode.IsNumber(char) {
 			continue
 		}

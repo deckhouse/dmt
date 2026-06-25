@@ -1,0 +1,29 @@
+description: "--fix resolves module-package-consistency divergences (other linter findings remain)"
+kind: fix
+module: module
+exhaustive: true
+expect:
+  - linter: module
+    rule: definition-file
+    level: error
+    textContains: "Field 'stage' is required"
+  - linter: module
+    rule: definition-file
+    level: error
+    textContains: "Module `descriptions.en` field is required"
+  - linter: module
+    rule: helmignore
+    level: error
+    textContains: "File .helmignore is required in module root"
+  - linter: module
+    rule: requirements
+    level: error
+    textContains: "optional_modules"
+  - linter: module
+    rule: package-yaml
+    level: error
+    textContains: "requirements.deckhouse.constraint"
+  - linter: documentation
+    rule: readme
+    level: error
+    textContains: "README.md file is missing in docs/ directory"

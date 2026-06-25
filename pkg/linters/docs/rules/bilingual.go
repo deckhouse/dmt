@@ -60,9 +60,11 @@ func (r *BilingualRule) CheckBilingual(m pkg.Module, errorList *errors.LintRuleE
 		if filepath.Dir(rel) != "docs" {
 			continue
 		}
+
 		if strings.HasSuffix(strings.ToLower(rel), RuFallbackSuffix) {
 			rel = strings.ToLower(rel)
 		}
+
 		fileSet[rel] = struct{}{}
 	}
 

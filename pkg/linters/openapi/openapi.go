@@ -17,6 +17,7 @@ limitations under the License.
 package openapi
 
 import (
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -62,11 +63,20 @@ func (o *OpenAPI) Run(m *module.Module) {
 	crdFiles := fsutils.GetFiles(m.GetPath(), true, filterCRDsfiles)
 	crdValidator := rules.NewDeckhouseCRDsRule(o.cfg, m.GetPath())
 	keyValidator := rules.NewKeysRule(o.cfg, m.GetPath())
+
 	for _, file := range crdFiles {
 		enumValidator.Run(file, errorLists)
 		haValidator.Run(file, errorLists)
 		keyValidator.Run(file, errorLists)
 		crdValidator.Run(m.GetName(), file, errorLists)
+	}
+
+	// bilingual check: ensure top-level crds/ files have doc-ru- translation
+	bilingualErrorList := errorLists.WithMaxLevel(o.cfg.Rules.BilingualRule.GetLevel())
+	bilingualValidator := rules.NewBilingualRule(o.cfg, m.GetPath())
+
+	for _, file := range bilingualCRDFiles(m.GetPath()) {
+		bilingualValidator.Run(file, bilingualErrorList)
 	}
 }
 
@@ -82,10 +92,12 @@ var openapiYamlRegex = regexp.MustCompile(`^openapi/.*\.ya?ml$`)
 
 func filterOpenAPIfiles(rootPath, path string) bool {
 	path = fsutils.Rel(rootPath, path)
+
 	filename := filepath.Base(path)
 	if strings.HasSuffix(filename, "-tests.yaml") {
 		return false
 	}
+
 	if strings.HasPrefix(filename, "doc-ru-") {
 		return false
 	}
@@ -97,13 +109,44 @@ var crdsYamlRegex = regexp.MustCompile(`^crds/.*\.ya?ml$`)
 
 func filterCRDsfiles(rootPath, path string) bool {
 	path = fsutils.Rel(rootPath, path)
+
 	filename := filepath.Base(path)
 	if strings.HasSuffix(filename, "-tests.yaml") {
 		return false
 	}
+
 	if strings.HasPrefix(filename, "doc-ru-") {
 		return false
 	}
 
 	return crdsYamlRegex.MatchString(path)
+}
+
+func bilingualCRDFiles(rootPath string) []string {
+	crdsPath := filepath.Join(rootPath, "crds")
+
+	entries, err := os.ReadDir(crdsPath)
+	if err != nil {
+		return nil
+	}
+
+	result := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.Type().IsRegular() {
+			continue
+		}
+
+		filename := entry.Name()
+		if !strings.HasSuffix(filename, ".yaml") && !strings.HasSuffix(filename, ".yml") {
+			continue
+		}
+
+		if strings.HasSuffix(filename, "-tests.yaml") {
+			continue
+		}
+
+		result = append(result, filepath.Join(crdsPath, filename))
+	}
+
+	return result
 }

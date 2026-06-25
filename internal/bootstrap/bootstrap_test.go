@@ -100,6 +100,7 @@ func TestCheckDirectoryEmptyWithEmptyString(t *testing.T) {
 	tempDir := t.TempDir()
 	err = os.Chdir(tempDir)
 	require.NoError(t, err)
+
 	defer func() {
 		if chdirErr := os.Chdir(originalDir); chdirErr != nil {
 			t.Logf("Failed to restore original directory: %v", chdirErr)
@@ -251,6 +252,7 @@ func TestDownloadFile(t *testing.T) {
 			http.Error(w, "failed to create zip file", http.StatusInternalServerError)
 			return
 		}
+
 		_, err = testFile.Write([]byte("test content"))
 		if err != nil {
 			http.Error(w, "failed to write to zip file", http.StatusInternalServerError)
@@ -262,6 +264,7 @@ func TestDownloadFile(t *testing.T) {
 		// Serve the zip file
 		w.Header().Set("Content-Type", "application/zip")
 		w.WriteHeader(http.StatusOK)
+
 		if _, err := w.Write(buf.Bytes()); err != nil {
 			// Log error but can't return it from handler
 			return
@@ -301,6 +304,7 @@ func TestDownloadFileInvalidPath(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/zip")
 		w.WriteHeader(http.StatusOK)
+
 		if _, err := w.Write([]byte("test zip content")); err != nil {
 			// Log error but can't return it from handler
 			return
@@ -318,6 +322,7 @@ func TestDownloadFileServerError(t *testing.T) {
 	// Create a test server that returns an error status
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
+
 		if _, err := w.Write([]byte("Internal Server Error")); err != nil {
 			// Log error but can't return it from handler
 			return
@@ -358,6 +363,7 @@ func TestExtractZip(t *testing.T) {
 
 	// Debug: print what was actually extracted
 	t.Logf("Extracted files in %s:", extractDir)
+
 	for _, entry := range entries {
 		t.Logf("  - %s (dir: %t)", entry.Name(), entry.IsDir())
 	}
@@ -444,6 +450,7 @@ func TestMoveExtractedContent(t *testing.T) {
 		filePath := filepath.Join(templateDir, file)
 		mkdirErr := os.MkdirAll(filepath.Dir(filePath), 0755)
 		require.NoError(t, mkdirErr)
+
 		writeErr := os.WriteFile(filePath, []byte("test"), 0600)
 		require.NoError(t, writeErr)
 	}
@@ -452,6 +459,7 @@ func TestMoveExtractedContent(t *testing.T) {
 	testDir := t.TempDir()
 	originalDir, err := os.Getwd()
 	require.NoError(t, err)
+
 	defer func() {
 		if chdirErr := os.Chdir(originalDir); chdirErr != nil {
 			t.Logf("Failed to restore original directory: %v", chdirErr)
@@ -499,6 +507,7 @@ func TestMoveExtractedContentMultipleDirs(t *testing.T) {
 	file1 := filepath.Join(firstDir, "file1.txt")
 	err = os.WriteFile(file1, []byte("data1"), 0600)
 	require.NoError(t, err)
+
 	file2 := filepath.Join(secondDir, "file2.txt")
 	err = os.WriteFile(file2, []byte("data2"), 0600)
 	require.NoError(t, err)
@@ -665,6 +674,7 @@ func TestExtractZipWithFileTooLarge(t *testing.T) {
 	if err == nil {
 		t.Skip("file size limit is not enforced on this platform/Go version")
 	}
+
 	require.Error(t, err)
 }
 
@@ -716,6 +726,7 @@ func createTestZip(zipPath string) error {
 	if err != nil {
 		return err
 	}
+
 	_, err = testFile.Write([]byte("test content"))
 	if err != nil {
 		return err
@@ -732,6 +743,7 @@ func createTestZip(zipPath string) error {
 	if err != nil {
 		return err
 	}
+
 	_, err = dirFile.Write([]byte("dir content"))
 	if err != nil {
 		return err
@@ -742,6 +754,7 @@ func createTestZip(zipPath string) error {
 	if err != nil {
 		return err
 	}
+
 	_, err = moduleFile.Write([]byte("name: modules-template-main\n"))
 	if err != nil {
 		return err
@@ -766,6 +779,7 @@ func createZipWithoutRoot(zipPath string) error {
 	if err != nil {
 		return err
 	}
+
 	_, err = testFile.Write([]byte("test content"))
 	if err != nil {
 		return err
@@ -776,6 +790,7 @@ func createZipWithoutRoot(zipPath string) error {
 	if err != nil {
 		return err
 	}
+
 	_, err = anotherFile.Write([]byte("another content"))
 	if err != nil {
 		return err
@@ -803,6 +818,7 @@ func createLargeTestZip(zipPath string) error {
 
 	// Write more than maxFileSize bytes
 	largeData := make([]byte, 11*1024*1024) // 11MB
+
 	_, err = largeFile.Write(largeData)
 	if err != nil {
 		return err

@@ -8,7 +8,7 @@ The Module linter performs automated checks on Deckhouse modules to validate con
 
 ## Rules
 
-The Module linter includes **7 validation rules**:
+The Module linter includes **8 validation rules**:
 
 | Rule | Description | Configurable |
 |------|-------------|--------------|
@@ -18,6 +18,7 @@ The Module linter includes **7 validation rules**:
 | [**helmignore**](#helmignore) | Validates `.helmignore` file presence and content | ✅ Yes |
 | [**license**](#license) | Validates license headers in source files | ✅ Yes |
 | [**requirements**](#requirements) | Validates version requirements for features | ❌ No |
+| [**package-yaml**](#package-yaml) | Validates `package.yaml` metadata and new requirements schema | ✅ Yes |
 | [**legacy-release-file**](#legacy-release-file) | Checks for deprecated `release.yaml` file | ❌ No |
 
 ---
@@ -144,21 +145,27 @@ Validates the `oss.yaml` file containing open-source software attribution.
 - ✅ Valid YAML structure
 - ✅ At least one project is described
 - ✅ Each project has required fields:
-  - `id` - Project identifier (must not be empty)
-  - `version` - Project version (must not be empty, should be valid semver) See ADR "platform-security/2026-01-21-oss-yaml-werf.md"
+  - `id` - Project identifier (must not be empty and must be unique within the file)
+  - `version` or `versions` - Project version definition (must not be empty; may use any format used by the OSS project)
   - `name` - Project name (must not be empty)
   - `description` - Project description (must not be empty)
   - `link` - Valid project URL (must not be empty, must be valid URL)
   - `license` - Valid license identifier (must not be empty)
   - `logo` (optional) - Valid logo URL (must be valid URL if provided)
+- ✅ A project may use `versions` instead of `version` when the component has several context-dependent versions. Each `versions[]` item must contain a non-empty `version` value.
+- ✅ dmt checks version values for semver compatibility because semver is the most common format. If the OSS project uses another version format and the value is correct, ignore the warning. You can also suppress this specific warning per project via the `version-not-semver` exclude rule (see below).
 
 **Error Messages:**
 - `Module should have oss.yaml` - File is missing from module root
 - `Invalid oss.yaml: <error>` - File exists but contains invalid YAML or structure
 - `no projects described` - File exists but contains an empty list
 - `id must not be empty` - Project entry is missing the `id` field
+- `id must be unique; duplicate id "<id>" already used by project #<n>` - Project id is duplicated
 - `version must not be empty. Please fill in the parameter and configure CI (werf files for module images) to use these setting.` - Project entry is missing the `version` field
-- `version must be valid semver: <error>` (Warning) - Version is provided but not in valid semantic versioning format
+- `version "<version>" is not semver-compatible; if this version is correct for the OSS project, ignore this warning: <error>` (Warning) - Version is provided but not in valid semantic versioning format
+- `version and versions must not be used together` - Project entry contains both simple and conditional version definitions
+- `versions[].version must not be empty. Please fill in the parameter and configure CI (werf files for module images) to use these setting.` - Conditional version entry is missing the `version` field
+- `versions[].version "<version>" is not semver-compatible; if this version is correct for the OSS project, ignore this warning: <error>` (Warning) - Conditional version is provided but not in valid semantic versioning format
 - `name must not be empty` - Project entry is missing the `name` field
 - `description must not be empty` - Project entry is missing the `description` field
 - `link must not be empty` - Project entry is missing the `link` field
@@ -183,7 +190,37 @@ Validates the `oss.yaml` file containing open-source software attribution.
   description: Monitoring system and time series database
   link: https://prometheus.io/
   license: Apache-2.0
+
+- id: example-service
+  name: Example service
+  description: Example service used in module images
+  link: https://github.com/example/example-service
+  license: Apache-2.0
+  versions:
+    - condition:
+        k8s: "1.31"
+      name: version for k8s 1.31
+      version: 1.2.1
+    - condition:
+        k8s: "1.32"
+      name: version for k8s 1.32
+      version: 1.2.2
 ```
+
+**Excluding the semver warning per project:**
+
+The `version "..." is not semver-compatible` / `versions[].version "..." is not semver-compatible` warnings can be disabled for specific projects (matched by their `oss.yaml` `id`) without disabling the whole OSS rule. Use the `version-not-semver` subrule under `exclude-rules.oss`:
+
+```yaml
+linters-settings:
+  module:                       # linter name
+    exclude-rules:
+      oss:                      # rule name
+        version-not-semver:     # subrule name
+          - id: clickhouse      # oss.yaml id to exclude
+```
+
+With this configuration, the semver-compatibility warning will be skipped for the project whose `id` is `clickhouse`, while all other OSS validations (and the semver check for other projects) still run.
 
 ---
 
@@ -417,6 +454,70 @@ requirements:
 
 ---
 
+### Package YAML
+
+Validates the optional `package.yaml` file in the module root.
+
+**Purpose:** Ensures modules that use the new package requirements schema declare a compatible Deckhouse version and keep dependency constraints parseable as plain semantic version constraints. This prevents modules from publishing v2 package metadata that older Deckhouse versions cannot read.
+
+**Checks:**
+- ✅ If `package.yaml` exists, it must be valid YAML
+- ✅ `apiVersion` is required
+- ✅ `name` is required
+- ✅ All non-empty version constraints must be parsed as-is by the semver library
+- ✅ The new requirements schema requires `requirements.deckhouse.constraint >= 1.77.0`
+- ✅ Old markers such as `!optional` are rejected when placed inside a new `constraint` field
+
+**New Requirements Schema Detection:**
+The rule treats `package.yaml` as using the new requirements schema when any of these fields are present:
+- `requirements.kubernetes.constraint`
+- `requirements.modules.mandatory`
+- `requirements.modules.conditional`
+- `requirements.modules.anyOf`
+
+**Example:**
+```yaml
+# package.yaml
+apiVersion: v2
+name: stronghold
+
+requirements:
+  kubernetes:
+    constraint: ">= 1.26"
+  deckhouse:
+    constraint: ">= 1.77.0"
+  modules:
+    mandatory:
+      - name: cloud-provider-yandex
+        constraint: ">= 1.5.0"
+    conditional:
+      - name: observability
+        constraint: ">= 1.0.0"
+    anyOf:
+      - description: "One of the following cloud providers must be installed"
+        modules:
+          - name: cloud-provider-gcp
+            constraint: ">= 1.5.0"
+          - name: cloud-provider-aws
+            constraint: ">= 2.0.0"
+
+subscribe:
+  apis:
+    - autoscaling.k8s.io/v1/VerticalPodAutoscaler
+  values:
+    - module: stronghold
+      value: .someValues.strField
+```
+
+**Error Examples:**
+```
+❌ package.yaml apiVersion is required
+❌ Invalid package.yaml requirements.modules.conditional[0].constraint version constraint ">= 1.0.0 !optional"
+❌ package.yaml requirements.deckhouse.constraint version range should start no lower than 1.77.0
+```
+
+---
+
 ### Legacy release file
 
 Checks for the deprecated `release.yaml` file.
@@ -460,7 +561,7 @@ linters-settings:
     helmignore:
       disable: false              # Enable/disable .helmignore validation
     
-    # License exclusions
+    # Exclusions
     exclude-rules:
       license:
         files:                    # Exclude specific files
@@ -470,6 +571,9 @@ linters-settings:
           - hooks/venv/
           - third-party/
           - vendor/
+      oss:
+        version-not-semver:       # Skip semver warning for these oss.yaml ids
+          - id: clickhouse
     
     # Overall impact level
     impact: error                 # Level: error | warning | info
@@ -532,6 +636,24 @@ linters-settings:
 stage: "General Availability"
 requirements:
   deckhouse: ">= 1.68.0"
+```
+
+### ❌ package.yaml Uses New Requirements Without Deckhouse 1.77
+
+**Error:** `package.yaml requirements.deckhouse.constraint version range should start no lower than 1.77.0`
+
+**Solution:** Raise the package-level Deckhouse requirement:
+```yaml
+# package.yaml
+apiVersion: v2
+name: my-module
+requirements:
+  deckhouse:
+    constraint: ">= 1.77.0"
+  modules:
+    mandatory:
+      - name: dependency-module
+        constraint: ">= 1.0.0"
 ```
 
 ### ❌ Update Versions Not Sorted

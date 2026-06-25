@@ -1,0 +1,9 @@
+description: >
+  A werf image whose fromImage does not start with base/ must be flagged by the
+  images werf rule.
+module: module
+expect:
+  - linter: images
+    rule: werf
+    level: error
+    textContains: "Invalid `fromImage:` value - image must start with `base/`"

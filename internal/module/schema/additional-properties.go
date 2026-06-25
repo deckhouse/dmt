@@ -32,6 +32,7 @@ func (t *AdditionalPropertiesTransformer) Transform(s *spec.Schema) *spec.Schema
 		if s.Items.Schema != nil {
 			s.Items.Schema = t.Transform(s.Items.Schema)
 		}
+
 		for i := range s.Items.Schemas {
 			s.Items.Schemas[i] = *t.Transform(&s.Items.Schemas[i])
 		}

@@ -41,6 +41,7 @@ var (
 	AbsPath           bool
 	ShowIgnored       bool
 	ShowDocumentation bool
+	Fix               bool
 )
 
 var (
@@ -68,8 +69,12 @@ func InitLintFlagSet() *pflag.FlagSet {
 	lint.StringVarP(&ValuesFile, "values-file", "f", "", "path to values.yaml file with override values")
 	lint.StringVarP(&PprofFile, "pprof-file", "", "", "path to pprof file")
 
+	// automatically fix findings that support autofix
+	lint.BoolVarP(&Fix, "fix", "", false, "automatically fix findings that support autofix")
+
 	// hide warnings in output
 	lint.BoolVarP(&HideWarnings, "hide-warnings", "", false, "hide warnings")
+
 	err := lint.MarkHidden("hide-warnings")
 	if err != nil {
 		log.Error("mark hidden flag 'hide-warnings' is failed")
@@ -77,6 +82,7 @@ func InitLintFlagSet() *pflag.FlagSet {
 
 	// make path absolute
 	lint.BoolVarP(&AbsPath, "abs-path", "", false, "make paths absolute")
+
 	err = lint.MarkHidden("abs-path")
 	if err != nil {
 		log.Error("mark hidden flag 'abs-path' is failed")
@@ -84,12 +90,14 @@ func InitLintFlagSet() *pflag.FlagSet {
 
 	// show ignored errors
 	lint.BoolVarP(&ShowIgnored, "show-ignored", "", false, "show ignored errors")
+
 	err = lint.MarkHidden("show-ignored")
 	if err != nil {
 		log.Error("mark hidden flag 'show-ignored' is failed")
 	}
 
 	lint.BoolVarP(&ShowDocumentation, "doc", "", false, "show documentation links")
+
 	err = lint.MarkHidden("doc")
 	if err != nil {
 		log.Error("mark hidden flag 'doc' is failed")

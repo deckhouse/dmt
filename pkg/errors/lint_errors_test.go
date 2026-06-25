@@ -56,6 +56,7 @@ func Test_Errors(t *testing.T) {
 			{LinterID: "linterid", ModuleID: "moduleID", ObjectID: "", Text: "test3", Level: pkg.Error},
 		},
 		t1.storage.GetErrors())
+
 	t3 := NewLintRuleErrorsList().WithLinterID("linterID").WithModule("moduleID2")
 	require.NotNil(t, t3)
 	t3.WithObjectID("objectID3").Error("test3")

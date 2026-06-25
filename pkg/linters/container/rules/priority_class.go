@@ -29,22 +29,30 @@ const (
 	PriorityClassRuleName = "object-priority-class"
 )
 
-func NewPriorityClassRule() *PriorityClassRule {
+func NewPriorityClassRule(excludeRules []pkg.KindRuleExclude) *PriorityClassRule {
 	return &PriorityClassRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: PriorityClassRuleName,
+		},
+		KindRule: pkg.KindRule{
+			ExcludeRules: excludeRules,
 		},
 	}
 }
 
 type PriorityClassRule struct {
 	pkg.RuleMeta
+	pkg.KindRule
 }
 
 func (r *PriorityClassRule) ObjectPriorityClass(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
 	if !isPriorityClassSupportedKind(object.Unstructured.GetKind()) {
+		return
+	}
+
+	if !r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {
 		return
 	}
 
@@ -71,8 +79,10 @@ func isPriorityClassSupportedKind(kind string) bool {
 func getPriorityClass(object storage.StoreObject) (string, error) {
 	converter := runtime.DefaultUnstructuredConverter
 
-	var priorityClass string
-	var err error
+	var (
+		priorityClass string
+		err           error
+	)
 
 	switch object.Unstructured.GetKind() {
 	case "Deployment":

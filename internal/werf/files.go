@@ -38,6 +38,7 @@ func NewFiles(rootDir, moduleDir string) files {
 	if !fsutils.IsDir(rootDir) {
 		rootDir = filepath.Dir(rootDir)
 	}
+
 	return files{
 		rootDir:   rootDir,
 		moduleDir: moduleDir,
@@ -73,18 +74,22 @@ func (f files) doGlob(pattern string) (map[string]any, error) {
 		dir = f.moduleDir
 		pattern = strings.TrimPrefix(pattern, "modules/*")
 	}
+
 	matches, err := doublestar.Glob(filepath.Join(dir, pattern))
 	if err != nil {
 		return nil, err
 	}
+
 	for _, path := range matches {
 		if !fsutils.IsFile(path) {
 			continue
 		}
+
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return nil, err
 		}
+
 		rel, _ := filepath.Rel(f.rootDir, path)
 		res[rel] = string(data)
 	}

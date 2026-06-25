@@ -45,14 +45,14 @@ var fileToSkipRe = regexp.MustCompile(
 )
 
 func NewLicenseRule(excludeFilesRules []pkg.StringRuleExclude,
-	excludeDirectoryRules []pkg.PrefixRuleExclude) *LicenseRule {
+	excludeDirectoryRules []pkg.DirectoryRuleExclude) *LicenseRule {
 	return &LicenseRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: LicenseRuleName,
 		},
 		PathRule: pkg.PathRule{
-			ExcludeStringRules: excludeFilesRules,
-			ExcludePrefixRules: excludeDirectoryRules,
+			ExcludeStringRules:    excludeFilesRules,
+			ExcludeDirectoryRules: excludeDirectoryRules,
 		},
 	}
 }
@@ -96,12 +96,15 @@ func filterFiles(rootPath, path string) bool {
 		log.Debug("Error getting file info", log.Err(err))
 		return false
 	}
+
 	if f.IsDir() {
 		return false
 	}
+
 	if f.Size() == 0 {
 		return false
 	}
+
 	path = fsutils.Rel(rootPath, path)
 	if fileToCheckRe.MatchString(path) && !fileToSkipRe.MatchString(path) {
 		return true

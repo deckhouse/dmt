@@ -13,6 +13,7 @@ Proper documentation is critical for Deckhouse modules as it helps users underst
 | [readme](#readme) | Validates presence of README.md in docs/ directory | ✅ | enabled |
 | [bilingual](#bilingual) | Validates documentation exists in both English and Russian | ✅ | enabled |
 | [cyrillic-in-english](#cyrillic-in-english) | Validates English documentation doesn't contain cyrillic characters | ✅ | enabled |
+| [no-lang-key](#no-lang-key) | Validates documentation front matter doesn't contain `lang` key | ✅ | enabled |
 
 ## Rule Details
 
@@ -296,6 +297,98 @@ linters-settings:
         exclude:
           - docs/GLOSSARY.md      # Contains technical terms in multiple languages
 ```
+
+### no-lang-key
+
+**Purpose:** Ensures that documentation files don't contain the `lang` key in their YAML front matter. The language of the document should be determined by its file name convention (e.g., `.ru.md` suffix for Russian) rather than by a `lang` field in the front matter.
+
+**Description:**
+
+Markdown documentation files in `docs/` should not include a `lang:` key in their YAML front matter block. The language is already encoded in the file naming convention (`.md` for English, `.ru.md` for Russian), so an additional `lang` field is redundant and can cause inconsistencies.
+
+**What it checks:**
+
+1. Scans all `.md` files in `docs/` directory (top-level only)
+2. Extracts the YAML front matter (content between the first pair of `---` delimiters)
+3. Checks for the presence of a `lang:` key in the front matter
+4. Reports the exact line number where the `lang` key is found
+
+**Why it matters:**
+
+Having a `lang` key in the front matter is redundant because the documentation system already determines the language from the file name suffix. It can also lead to inconsistencies if the `lang` value doesn't match the actual file language. Removing it simplifies the documentation structure and prevents potential mismatches.
+
+**Examples:**
+
+:x: **Incorrect** - Front matter with `lang` key:
+
+```markdown
+---
+title: "Module dashboard"
+lang: ru
+description: "Web interface for Kubernetes Dashboard."
+---
+
+## Authentication
+...
+```
+
+**Error:**
+```
+Documentation contains 'lang' key in front matter; this field should be removed
+File: docs/README.ru.md
+Line 3: front matter contains 'lang' key which should be removed
+```
+
+:x: **Incorrect** - Front matter with `lang` key and additional metadata:
+
+```markdown
+---
+title: "Module dashboard"
+lang: ru
+description: "Web interface."
+webIfaces:
+- name: dashboard
+---
+```
+
+:white_check_mark: **Correct** - Front matter without `lang` key:
+
+```markdown
+---
+title: "Module dashboard"
+description: "Web interface for Kubernetes Dashboard."
+---
+
+## Authentication
+...
+```
+
+:white_check_mark: **Correct** - Front matter without `lang` key and with additional metadata:
+
+```markdown
+---
+title: "Module dashboard"
+description: "Web interface."
+webIfaces:
+- name: dashboard
+---
+```
+
+**Configuration:**
+
+To exclude specific files from this check:
+
+```yaml
+# .dmt.yaml
+linters-settings:
+  documentation:
+    rules:
+      no-lang-key:
+        exclude:
+          - docs/LEGACY.md      # Legacy file that still uses lang key
+```
+
+---
 
 ## Configuration
 

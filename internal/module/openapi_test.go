@@ -415,6 +415,7 @@ func Test_parseProperties(t *testing.T) {
 				t.Errorf("parseProperties() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
+
 			require.Equal(t, tt.want, got)
 		})
 	}

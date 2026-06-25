@@ -30,7 +30,7 @@ func (l *Container) applyContainerRules(object storage.StoreObject, storageMap m
 	rules.NewRecommendedLabelsRule().ObjectRecommendedLabels(object, errorList.WithMaxLevel(l.cfg.Rules.RecommendedLabelsRule.GetLevel()))
 	rules.NewNamespaceLabelsRule().ObjectNamespaceLabels(object, storageMap, errorList.WithMaxLevel(l.cfg.Rules.NamespaceLabelsRule.GetLevel()))
 	rules.NewAPIVersionRule().ObjectAPIVersion(object, errorList.WithMaxLevel(l.cfg.Rules.APIVersionRule.GetLevel()))
-	rules.NewPriorityClassRule().ObjectPriorityClass(object, errorList.WithMaxLevel(l.cfg.Rules.PriorityClassRule.GetLevel()))
+	rules.NewPriorityClassRule(l.cfg.ExcludeRules.PriorityClass.Get()).ObjectPriorityClass(object, errorList.WithMaxLevel(l.cfg.Rules.PriorityClassRule.GetLevel()))
 	rules.NewDNSPolicyRule(l.cfg.ExcludeRules.DNSPolicy.Get()).
 		ObjectDNSPolicy(object, errorList.WithMaxLevel(l.cfg.Rules.DNSPolicyRule.GetLevel()))
 	rules.NewControllerSecurityContextRule(l.cfg.ExcludeRules.ControllerSecurityContext.Get()).
@@ -73,6 +73,9 @@ func (l *Container) applyContainerRules(object storage.StoreObject, storageMap m
 		},
 		func(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 			rules.NewImageDigestRule(l.cfg.ExcludeRules.ImageDigest.Get()).ContainerImageDigestCheck(object, containers, errorList.WithMaxLevel(l.cfg.Rules.ImageDigestRule.GetLevel()))
+		},
+		func(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
+			rules.NewContainerImageNameRule(l.cfg.ExcludeRules.ContainerImageName.Get()).ContainerImageNameCheck(object, containers, errorList.WithMaxLevel(l.cfg.Rules.ContainerImageNameRule.GetLevel()))
 		},
 		func(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 			rules.NewImagePullPolicyRule().ContainersImagePullPolicy(object, containers, errorList.WithMaxLevel(l.cfg.Rules.ImagePullPolicyRule.GetLevel()))

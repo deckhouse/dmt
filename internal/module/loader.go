@@ -46,14 +46,17 @@ func LoadModuleAsChart(moduleName, dir string) (*chart.Chart, error) {
 	c := &chart.Chart{}
 
 	rules := ignore.Empty()
+
 	ifile := filepath.Join(topdir, ignore.HelmIgnore)
 	if _, err = os.Stat(ifile); err == nil {
 		r, err := ignore.ParseFile(ifile)
 		if err != nil {
 			return c, err
 		}
+
 		rules = r
 	}
+
 	rules.AddDefaults()
 
 	files := make([]*loader.BufferedFile, 0)
@@ -79,12 +82,14 @@ func LoadModuleAsChart(moduleName, dir string) (*chart.Chart, error) {
 		if err != nil {
 			return err
 		}
+
 		if fi.IsDir() {
 			// Directory-based ignore rules should involve skipping the entire
 			// contents of that directory.
 			if rules.Ignore(n, fi) {
 				return filepath.SkipDir
 			}
+
 			return nil
 		}
 
@@ -108,6 +113,7 @@ func LoadModuleAsChart(moduleName, dir string) (*chart.Chart, error) {
 		data = bytes.TrimPrefix(data, utf8bom)
 
 		files = append(files, &loader.BufferedFile{Name: n, Data: data})
+
 		return nil
 	}
 

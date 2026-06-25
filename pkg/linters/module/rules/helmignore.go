@@ -69,10 +69,13 @@ func (r *HelmignoreRule) CheckHelmignore(modulePath string, errorList *errors.Li
 		if os.IsNotExist(err) {
 			errorList.WithFilePath(helmignoreFile).
 				Error("File .helmignore is required in module root")
+
 			return
 		}
+
 		errorList.WithFilePath(helmignoreFile).
 			Errorf("Cannot stat .helmignore file: %s", err)
+
 		return
 	}
 
@@ -81,11 +84,13 @@ func (r *HelmignoreRule) CheckHelmignore(modulePath string, errorList *errors.Li
 	if err != nil {
 		errorList.WithFilePath(helmignoreFile).
 			Errorf("Cannot open .helmignore file: %s", err)
+
 		return
 	}
 	defer file.Close()
 
 	var lines []string
+
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -97,6 +102,7 @@ func (r *HelmignoreRule) CheckHelmignore(modulePath string, errorList *errors.Li
 	if err := scanner.Err(); err != nil {
 		errorList.WithFilePath(helmignoreFile).
 			Errorf("Error reading .helmignore file: %s", err)
+
 		return
 	}
 
@@ -104,6 +110,7 @@ func (r *HelmignoreRule) CheckHelmignore(modulePath string, errorList *errors.Li
 	if len(lines) == 0 {
 		errorList.WithFilePath(helmignoreFile).
 			Error("File .helmignore is empty or contains only comments")
+
 		return
 	}
 

@@ -1,0 +1,46 @@
+description: >
+  A Deployment that is missing labels, security contexts, probes, resources and
+  uses a mutable image tag with duplicate env vars should be flagged by the
+  container linter on each of those rules.
+module: module
+expect:
+  - linter: container
+    rule: object-recommended-labels
+    level: error
+    textContains: 'Object does not have the label "module"'
+  - linter: container
+    rule: object-recommended-labels
+    level: error
+    textContains: 'Object does not have the label "heritage"'
+  - linter: container
+    rule: controller-security-context
+    level: error
+    textContains: "Object's SecurityContext is not defined"
+  - linter: container
+    rule: security-context
+    level: error
+    textContains: "Container ContainerSecurityContext is not defined"
+  - linter: container
+    rule: env-variables-duplicates
+    level: error
+    textContains: "Container has two env variables with same name"
+  - linter: container
+    rule: image-digest
+    level: error
+    textContains: "Cannot parse repository from image: nginx:latest"
+  - linter: container
+    rule: liveness-probe
+    level: error
+    textContains: "Container does not contain liveness-probe"
+  - linter: container
+    rule: readiness-probe
+    level: error
+    textContains: "Container does not contain readiness-probe"
+  - linter: container
+    rule: resources
+    level: error
+    textContains: "Ephemeral storage for container is not defined"
+  - linter: container
+    rule: seccomp-profile
+    level: warn
+    textContains: "No seccomp profile specified"

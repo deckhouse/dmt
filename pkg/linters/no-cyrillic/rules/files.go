@@ -31,20 +31,20 @@ const (
 )
 
 var (
-	skipDocRe  = `doc-ru-.+\.y[a]?ml$|_RU\.md$|_ru\.html$|docs/site/_.+|docs/documentation/_.+|tools/spelling/.+|openapi/conversions/.+|module.yaml`
+	skipDocRe  = `doc-ru-.+\.y[a]?ml$|\.ru\.y[a]?ml$|\.ru\.json$|\.ru\.md$|\.ru\.html$|_RU\.md$|_ru\.html$|docs/site/_.+|docs/documentation/_.+|tools/spelling/.+|openapi/conversions/.+|module.yaml|ru\..+`
 	skipSelfRe = `no_cyrillic(_test)?.go$`
 	skipI18NRe = `/i18n/`
 )
 
 func NewFilesRule(excludeFileRules []pkg.StringRuleExclude,
-	excludeDirectoryRules []pkg.PrefixRuleExclude) *FilesRule {
+	excludeDirectoryRules []pkg.DirectoryRuleExclude) *FilesRule {
 	return &FilesRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: FilesRuleName,
 		},
 		PathRule: pkg.PathRule{
-			ExcludeStringRules: excludeFileRules,
-			ExcludePrefixRules: excludeDirectoryRules,
+			ExcludeStringRules:    excludeFileRules,
+			ExcludeDirectoryRules: excludeDirectoryRules,
 		},
 		skipDocRe:  regexp.MustCompile(skipDocRe),
 		skipI18NRe: regexp.MustCompile(skipSelfRe),

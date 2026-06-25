@@ -35,7 +35,8 @@ const (
 	OSSRuleName = "oss"
 )
 
-func NewOSSRule(disable bool) *OSSRule {
+// NewOSSRule creates an OSS attribution rule instance.
+func NewOSSRule(disable bool, versionNotSemverExclude []pkg.StringRuleExclude) *OSSRule {
 	return &OSSRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: OSSRuleName,
@@ -43,12 +44,18 @@ func NewOSSRule(disable bool) *OSSRule {
 		BoolRule: pkg.BoolRule{
 			Exclude: disable,
 		},
+		versionNotSemver: pkg.StringRule{
+			ExcludeRules: versionNotSemverExclude,
+		},
 	}
 }
 
 type OSSRule struct {
 	pkg.RuleMeta
 	pkg.BoolRule
+
+	// versionNotSemver disables the semver-compatibility warning for projects matched by oss.yaml id
+	versionNotSemver pkg.StringRule
 }
 
 const (
@@ -56,6 +63,7 @@ const (
 	imagesDir   = "images"
 )
 
+// OssModuleRule validates oss.yaml only for modules that contain image build sources.
 func (r *OSSRule) OssModuleRule(moduleRoot string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName()).WithFilePath(filepath.Join(moduleRoot, ossFilename))
 
@@ -64,14 +72,16 @@ func (r *OSSRule) OssModuleRule(moduleRoot string, errorList *errors.LintRuleErr
 	}
 
 	imagesPath := filepath.Join(moduleRoot, imagesDir)
+
 	info, err := os.Stat(imagesPath)
 	if err != nil || !info.IsDir() {
 		return
 	}
 
-	verifyOssFile(moduleRoot, errorList)
+	r.verifyOssFile(moduleRoot, errorList)
 }
 
+// ossFileErrorMessage formats user-facing errors for missing or invalid oss.yaml.
 func ossFileErrorMessage(err error) string {
 	if os.IsNotExist(err) {
 		return fmt.Sprintf("module has %s folder, so it likely should have %s", imagesDir, ossFilename)
@@ -80,7 +90,8 @@ func ossFileErrorMessage(err error) string {
 	return fmt.Sprintf("invalid %s: %s", ossFilename, err.Error())
 }
 
-func verifyOssFile(moduleRoot string, errorList *errors.LintRuleErrorsList) {
+// verifyOssFile reads oss.yaml and validates every described OSS project.
+func (r *OSSRule) verifyOssFile(moduleRoot string, errorList *errors.LintRuleErrorsList) {
 	projects, err := readOssFile(moduleRoot)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -98,12 +109,25 @@ func verifyOssFile(moduleRoot string, errorList *errors.LintRuleErrorsList) {
 		return
 	}
 
+	projectIDs := make(map[string]int, len(projects))
+
 	for i, p := range projects {
-		assertOssProject(i+1, &p, errorList)
+		if projectID := strings.TrimSpace(p.ID); projectID != "" {
+			if prevIndex, ok := projectIDs[projectID]; ok {
+				prefix := fmt.Sprintf("#%d (id=%s)", i+1, projectID)
+				errorList.WithObjectID("index="+prefix+";").
+					Errorf("id must be unique; duplicate id %q already used by project #%d", projectID, prevIndex)
+			} else {
+				projectIDs[projectID] = i + 1
+			}
+		}
+
+		r.assertOssProject(i+1, &p, errorList)
 	}
 }
 
-func assertOssProject(i int, p *ossProject, errorList *errors.LintRuleErrorsList) {
+// assertOssProject validates required attribution fields for one OSS project.
+func (r *OSSRule) assertOssProject(i int, p *ossProject, errorList *errors.LintRuleErrorsList) {
 	// prefix to make it easier navigate among errors
 	prefix := fmt.Sprintf("#%d", i)
 
@@ -114,15 +138,9 @@ func assertOssProject(i int, p *ossProject, errorList *errors.LintRuleErrorsList
 		prefix = fmt.Sprintf("#%d (id=%s)", i, p.ID)
 	}
 
-	// Version
-	if strings.TrimSpace(p.Version) == "" {
-		errorList.WithObjectID("index=" + prefix + ";").Error("version must not be empty. Please fill in the parameter and configure CI (werf files for module images) to use these setting.")
-	} else {
-		_, err := semver.NewVersion(p.Version)
-		if err != nil {
-			errorList.WithObjectID("index=" + prefix + ";").Warn(fmt.Sprintf("version must be valid semver: %v", err))
-		}
-	}
+	// skip the semver-compatibility warning when the project id is excluded via version-not-semver
+	checkSemver := r.versionNotSemver.Enabled(strings.TrimSpace(p.ID))
+	assertOssProjectVersion(prefix, p, checkSemver, errorList)
 
 	// Name
 	if strings.TrimSpace(p.Name) == "" {
@@ -154,6 +172,54 @@ func assertOssProject(i int, p *ossProject, errorList *errors.LintRuleErrorsList
 	}
 }
 
+// assertOssProjectVersion validates simple and conditional version definitions.
+func assertOssProjectVersion(prefix string, p *ossProject, checkSemver bool, errorList *errors.LintRuleErrorsList) {
+	version := strings.TrimSpace(p.Version)
+	hasVersions := len(p.Versions) > 0
+
+	if version == "" && !hasVersions {
+		errorList.WithObjectID("index=" + prefix + ";").
+			Error("version must not be empty. Please fill in the parameter and configure CI (werf files for module images) to use these setting.")
+
+		return
+	}
+
+	if version != "" {
+		assertOssVersionValue(prefix, "version", version, checkSemver, errorList)
+	}
+
+	if version != "" && hasVersions {
+		errorList.WithObjectID("index=" + prefix + ";").Error("version and versions must not be used together")
+	}
+
+	for i, versionItem := range p.Versions {
+		versionPrefix := fmt.Sprintf("%s.versions[%d]", prefix, i)
+
+		versionValue := strings.TrimSpace(versionItem.Version)
+		if versionValue == "" {
+			errorList.WithObjectID("index=" + versionPrefix + ";").
+				Error("versions[].version must not be empty. Please fill in the parameter and configure CI (werf files for module images) to use these setting.")
+
+			continue
+		}
+
+		assertOssVersionValue(versionPrefix, "versions[].version", versionValue, checkSemver, errorList)
+	}
+}
+
+// assertOssVersionValue warns when a non-empty version is not semver-compatible.
+func assertOssVersionValue(prefix, fieldPath, version string, checkSemver bool, errorList *errors.LintRuleErrorsList) {
+	if !checkSemver {
+		return
+	}
+
+	if _, err := semver.NewVersion(version); err != nil {
+		errorList.WithObjectID("index=" + prefix + ";").
+			Warn(fmt.Sprintf("%s %q is not semver-compatible; if this version is correct for the OSS project, ignore this warning: %v", fieldPath, version, err))
+	}
+}
+
+// readOssFile loads oss.yaml from the module root and parses its project list.
 func readOssFile(moduleRoot string) ([]ossProject, error) {
 	b, err := os.ReadFile(filepath.Join(moduleRoot, ossFilename))
 	if err != nil {
@@ -163,21 +229,31 @@ func readOssFile(moduleRoot string) ([]ossProject, error) {
 	return parseProjectList(b)
 }
 
+// parseProjectList parses oss.yaml content using strict YAML decoding.
 func parseProjectList(b []byte) ([]ossProject, error) {
 	var projects []ossProject
+
 	err := yaml.UnmarshalStrict(b, &projects)
 	if err != nil {
 		return nil, err
 	}
+
 	return projects, nil
 }
 
 type ossProject struct {
-	Name        string `json:"name"`           // example: Dex
-	Description string `json:"description"`    // example: A Federated OpenID Connect Provider with pluggable connectors
-	Link        string `json:"link"`           // example: https://github.com/dexidp/dex
-	Logo        string `json:"logo,omitempty"` // example: https://dexidp.io/img/logos/dex-horizontal-color.png
-	License     string `json:"license"`        // example: Apache License 2.0
-	ID          string `json:"id"`             // example: dexidp/dex
-	Version     string `json:"version"`        // example: 2.0.0
+	Name        string       `json:"name"`           // example: Dex
+	Description string       `json:"description"`    // example: A Federated OpenID Connect Provider with pluggable connectors
+	Link        string       `json:"link"`           // example: https://github.com/dexidp/dex
+	Logo        string       `json:"logo,omitempty"` // example: https://dexidp.io/img/logos/dex-horizontal-color.png
+	License     string       `json:"license"`        // example: Apache License 2.0
+	ID          string       `json:"id"`             // example: dexidp/dex
+	Version     string       `json:"version"`        // example: 2.0.0
+	Versions    []ossVersion `json:"versions,omitempty"`
+}
+
+type ossVersion struct {
+	Condition map[string]any `json:"condition,omitempty"`
+	Name      string         `json:"name,omitempty"`
+	Version   string         `json:"version"`
 }

@@ -8,6 +8,7 @@ func Test_convertToHTTPS(t *testing.T) {
 	type args struct {
 		repoURL string
 	}
+
 	tests := []struct {
 		name string
 		args args

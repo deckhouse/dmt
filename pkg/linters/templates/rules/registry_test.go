@@ -91,6 +91,7 @@ func TestRegistryRule_CheckRegistrySecret(t *testing.T) {
 				// Create module directory without registry secret
 				err := os.MkdirAll(path, 0755)
 				require.NoError(t, err)
+
 				return func() {
 					os.RemoveAll(path)
 				}
@@ -366,6 +367,7 @@ func TestGetGitConfigFile(t *testing.T) {
 				require.NoError(t, err)
 				err = os.WriteFile(filepath.Join(dir, ".git", "config"), []byte("test"), 0600)
 				require.NoError(t, err)
+
 				return func() {
 					os.RemoveAll(dir)
 				}
@@ -399,6 +401,7 @@ func TestGetGitConfigFile(t *testing.T) {
 			setupFunc: func(dir string) func() {
 				err := os.MkdirAll(dir, 0755)
 				require.NoError(t, err)
+
 				return func() {
 					os.RemoveAll(dir)
 				}
@@ -411,6 +414,7 @@ func TestGetGitConfigFile(t *testing.T) {
 			setupFunc: func(dir string) func() {
 				err := os.MkdirAll(filepath.Join(dir, ".git"), 0755)
 				require.NoError(t, err)
+
 				return func() {
 					os.RemoveAll(dir)
 				}
@@ -448,6 +452,7 @@ func TestGetModuleNameFromRepository(t *testing.T) {
 				require.NoError(t, err)
 				err = os.WriteFile(filepath.Join(dir, ".git", "config"), []byte(config), 0600)
 				require.NoError(t, err)
+
 				return func() {
 					os.RemoveAll(dir)
 				}
@@ -464,6 +469,7 @@ func TestGetModuleNameFromRepository(t *testing.T) {
 				require.NoError(t, err)
 				err = os.WriteFile(filepath.Join(dir, ".git", "config"), []byte(config), 0600)
 				require.NoError(t, err)
+
 				return func() {
 					os.RemoveAll(dir)
 				}
@@ -480,6 +486,7 @@ func TestGetModuleNameFromRepository(t *testing.T) {
 				require.NoError(t, err)
 				err = os.WriteFile(filepath.Join(dir, ".git", "config"), []byte(config), 0600)
 				require.NoError(t, err)
+
 				return func() {
 					os.RemoveAll(dir)
 				}
@@ -492,6 +499,7 @@ func TestGetModuleNameFromRepository(t *testing.T) {
 			setupFunc: func(dir, _ string) func() {
 				err := os.MkdirAll(dir, 0755)
 				require.NoError(t, err)
+
 				return func() {
 					os.RemoveAll(dir)
 				}
@@ -508,6 +516,7 @@ func TestGetModuleNameFromRepository(t *testing.T) {
 				require.NoError(t, err)
 				err = os.WriteFile(filepath.Join(dir, ".git", "config"), []byte(config), 0600)
 				require.NoError(t, err)
+
 				return func() {
 					os.RemoveAll(dir)
 				}
@@ -524,6 +533,7 @@ func TestGetModuleNameFromRepository(t *testing.T) {
 				require.NoError(t, err)
 				err = os.WriteFile(filepath.Join(dir, ".git", "config"), []byte(config), 0600)
 				require.NoError(t, err)
+
 				return func() {
 					os.RemoveAll(dir)
 				}

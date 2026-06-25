@@ -23,6 +23,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
+	"github.com/deckhouse/dmt/internal/werf"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
@@ -44,29 +45,37 @@ type WerfRule struct {
 }
 
 func (r *WerfRule) ValidateWerfTemplates(m pkg.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithFilePath(m.GetPath()).WithRule(r.GetName())
+	errorList = errorList.WithRule(r.GetName())
 
-	manifests := fsutils.SplitManifests(m.GetWerfFile())
-	checkGitSection(m.GetName(), manifests, errorList)
+	imageFiles, err := werf.GetModuleImagesWerfFiles(m.GetPath())
+	if err != nil {
+		errorList.Errorf("Failed to read images werf files: %s", err)
+		return
+	}
+
+	for _, imageFile := range imageFiles {
+		fileErrorList := errorList.WithFilePath(imageFile.RelPath)
+
+		manifests := fsutils.SplitManifests(imageFile.Content)
+		checkUnderscoredImages(imageFile.RelPath, manifests, fileErrorList)
+	}
 }
 
-func checkGitSection(moduleName string, manifests []string, errorList *errors.LintRuleErrorsList) {
+func checkUnderscoredImages(filePath string, manifests []string, errorList *errors.LintRuleErrorsList) {
 	for i, manifest := range manifests {
 		jsonData, err := yaml.YAMLToJSON([]byte(manifest))
 		if err != nil {
-			errorList.Errorf("parsing Werf file, document %d failed: %s", i+1, err)
+			errorList.Errorf("Failed to parse %s document %d: %s", filePath, i+1, err)
 			continue
 		}
+
 		imageName := gjson.GetBytes(jsonData, "image").String()
-		if !strings.Contains(imageName, moduleName+"/") {
+		if imageName == "" {
 			continue
 		}
-		gjson.GetBytes(jsonData, "git").ForEach(func(_, value gjson.Result) bool {
-			if !value.Get("stageDependencies").Exists() {
-				errorList.Errorf("parsing Werf file, document %d (image: %s) failed: 'git.stageDependencies' is required", i+1, imageName)
-				return false
-			}
-			return true
-		})
+
+		if strings.Contains(imageName, "_") {
+			errorList.Errorf("Image name %q in %s (document %d) must not contain underscores", imageName, filePath, i+1)
+		}
 	}
 }

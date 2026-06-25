@@ -1,0 +1,12 @@
+{
+  "title": "E2E Dashboard",
+  "panels": [
+    {
+      "type": "graph",
+      "title": "Legacy Panel"
+    }
+  ],
+  "templating": {
+    "list": []
+  }
+}

@@ -58,6 +58,7 @@ type ContainerSettings struct {
 type ContainerExcludeRules struct {
 	ControllerSecurityContext KindRuleExcludeList `mapstructure:"controller-security-context"`
 	DNSPolicy                 KindRuleExcludeList `mapstructure:"dns-policy"`
+	PriorityClass             KindRuleExcludeList `mapstructure:"priority-class"`
 
 	HostNetworkPorts       ContainerRuleExcludeList `mapstructure:"host-network-ports"`
 	Ports                  ContainerRuleExcludeList `mapstructure:"ports"`
@@ -112,6 +113,28 @@ type ModuleSettings struct {
 
 type ModuleExcludeRules struct {
 	License LicenseExcludeRule `mapstructure:"license"`
+	OSS     OSSExcludeRules    `mapstructure:"oss"`
+}
+
+type OSSExcludeRules struct {
+	// version-not-semver disables the semver-compatibility warning for the listed oss.yaml projects (matched by id)
+	VersionNotSemver OSSVersionNotSemverExcludeList `mapstructure:"version-not-semver"`
+}
+
+type OSSVersionNotSemverExcludeList []OSSVersionNotSemverExclude
+
+type OSSVersionNotSemverExclude struct {
+	ID string `mapstructure:"id"`
+}
+
+func (l OSSVersionNotSemverExcludeList) Get() []pkg.StringRuleExclude {
+	result := make([]pkg.StringRuleExclude, 0, len(l))
+
+	for idx := range l {
+		result = append(result, pkg.StringRuleExclude(l[idx].ID))
+	}
+
+	return result
 }
 
 type ModuleOSSRuleSettings struct {
@@ -145,8 +168,8 @@ type WerfRuleSettings struct {
 }
 
 type LicenseExcludeRule struct {
-	Files       StringRuleExcludeList `mapstructure:"files"`
-	Directories PrefixRuleExcludeList `mapstructure:"directories"`
+	Files       StringRuleExcludeList    `mapstructure:"files"`
+	Directories DirectoryRuleExcludeList `mapstructure:"directories"`
 }
 
 type NoCyrillicSettings struct {
@@ -156,8 +179,8 @@ type NoCyrillicSettings struct {
 }
 
 type NoCyrillicExcludeRules struct {
-	Files       StringRuleExcludeList `mapstructure:"files"`
-	Directories PrefixRuleExcludeList `mapstructure:"directories"`
+	Files       StringRuleExcludeList    `mapstructure:"files"`
+	Directories DirectoryRuleExcludeList `mapstructure:"directories"`
 }
 
 type OpenAPISettings struct {
@@ -195,23 +218,30 @@ type TemplatesSettings struct {
 }
 
 type TemplatesLinterRules struct {
-	VPARule           RuleConfig `mapstructure:"vpa"`
-	PDBRule           RuleConfig `mapstructure:"pdb"`
-	IngressRule       RuleConfig `mapstructure:"ingress"`
-	PrometheusRule    RuleConfig `mapstructure:"prometheus-rules"`
-	GrafanaRule       RuleConfig `mapstructure:"grafana-dashboards"`
-	KubeRBACProxyRule RuleConfig `mapstructure:"kube-rbac-proxy"`
-	ServicePortRule   RuleConfig `mapstructure:"service-port"`
-	ClusterDomainRule RuleConfig `mapstructure:"cluster-domain"`
-	RegistryRule      RuleConfig `mapstructure:"registry"`
+	VPARule            RuleConfig `mapstructure:"vpa"`
+	PDBRule            RuleConfig `mapstructure:"pdb"`
+	IngressRule        RuleConfig `mapstructure:"ingress"`
+	PrometheusRule     RuleConfig `mapstructure:"prometheus-rules"`
+	GrafanaRule        RuleConfig `mapstructure:"grafana-dashboards"`
+	KubeRBACProxyRule  RuleConfig `mapstructure:"kube-rbac-proxy"`
+	ServicePortRule    RuleConfig `mapstructure:"service-port"`
+	ClusterDomainRule  RuleConfig `mapstructure:"cluster-domain"`
+	RegistryRule       RuleConfig `mapstructure:"registry"`
+	EnabledModulesRule RuleConfig `mapstructure:"enabled-modules"`
 }
 
 type TemplatesExcludeRules struct {
-	VPAAbsent     KindRuleExcludeList    `mapstructure:"vpa"`
-	PDBAbsent     KindRuleExcludeList    `mapstructure:"pdb"`
-	ServicePort   ServicePortExcludeList `mapstructure:"service-port"`
-	KubeRBACProxy StringRuleExcludeList  `mapstructure:"kube-rbac-proxy"`
-	Ingress       KindRuleExcludeList    `mapstructure:"ingress"`
+	VPAAbsent      KindRuleExcludeList       `mapstructure:"vpa"`
+	PDBAbsent      KindRuleExcludeList       `mapstructure:"pdb"`
+	ServicePort    ServicePortExcludeList    `mapstructure:"service-port"`
+	KubeRBACProxy  StringRuleExcludeList     `mapstructure:"kube-rbac-proxy"`
+	Ingress        KindRuleExcludeList       `mapstructure:"ingress"`
+	EnabledModules EnabledModulesExcludeRule `mapstructure:"enabled-modules"`
+}
+
+type EnabledModulesExcludeRule struct {
+	Files       StringRuleExcludeList    `mapstructure:"files"`
+	Directories DirectoryRuleExcludeList `mapstructure:"directories"`
 }
 
 type GrafanaDashboardsExcludeList struct {
@@ -253,6 +283,18 @@ func (l PrefixRuleExcludeList) Get() []pkg.PrefixRuleExclude {
 
 	for idx := range l {
 		result = append(result, pkg.PrefixRuleExclude(l[idx]))
+	}
+
+	return result
+}
+
+type DirectoryRuleExcludeList []string
+
+func (l DirectoryRuleExcludeList) Get() []pkg.DirectoryRuleExclude {
+	result := make([]pkg.DirectoryRuleExclude, 0, len(l))
+
+	for idx := range l {
+		result = append(result, pkg.DirectoryRuleExclude(l[idx]))
 	}
 
 	return result

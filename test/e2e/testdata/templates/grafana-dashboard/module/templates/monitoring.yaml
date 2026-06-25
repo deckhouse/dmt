@@ -1,0 +1,2 @@
+# This module renders dashboards via include "helm_lib_grafana_dashboard_definitions" .
+# (kept as a comment so the e2e fixture renders without helm_lib being available)

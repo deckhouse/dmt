@@ -28,12 +28,13 @@ import (
 
 func TestOSSRule_OssModuleRule(t *testing.T) {
 	tests := []struct {
-		name            string
-		disable         bool
-		createImagesDir bool
-		setupFiles      map[string]string
-		wantErrors      []string
-		wantWarns       []string
+		name                    string
+		disable                 bool
+		createImagesDir         bool
+		setupFiles              map[string]string
+		versionNotSemverExclude []pkg.StringRuleExclude
+		wantErrors              []string
+		wantWarns               []string
 	}{
 		{
 			name:            "rule disabled, no oss.yaml",
@@ -113,6 +114,31 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 			wantErrors: nil,
 		},
 		{
+			name:            "valid project with conditional versions",
+			createImagesDir: true,
+			setupFiles: map[string]string{
+				"oss.yaml": `
+- id: "example-service"
+  name: "Example service"
+  description: "Example service used in module images"
+  link: "https://github.com/example/example-service"
+  license: "Apache License 2.0"
+  versions:
+    - condition:
+        k8s: "1.31"
+      name: "version for k8s 1.31"
+      version: "1.2.1"
+    - condition:
+        k8s:
+          - "1.32"
+          - "1.33"
+      name: "version for k8s 1.32 and 1.33"
+      version: "1.2.2"
+`,
+			},
+			wantErrors: nil,
+		},
+		{
 			name:            "project with empty id",
 			createImagesDir: true,
 			setupFiles: map[string]string{
@@ -143,6 +169,24 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 			wantErrors: []string{"version must not be empty. Please fill in the parameter and configure CI (werf files for module images) to use these setting."},
 		},
 		{
+			name:            "project with empty conditional version",
+			createImagesDir: true,
+			setupFiles: map[string]string{
+				"oss.yaml": `
+- id: "example-service"
+  name: "Example service"
+  description: "Example service used in module images"
+  link: "https://github.com/example/example-service"
+  license: "Apache License 2.0"
+  versions:
+    - condition:
+        k8s: "1.31"
+      version: ""
+`,
+			},
+			wantErrors: []string{"versions[].version must not be empty"},
+		},
+		{
 			name:            "project with invalid semver version",
 			createImagesDir: true,
 			setupFiles: map[string]string{
@@ -155,7 +199,60 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
   license: "Apache License 2.0"
 `,
 			},
-			wantWarns: []string{"version must be valid semver"},
+			wantWarns: []string{`version "invalid-version" is not semver-compatible; if this version is correct for the OSS project, ignore this warning`},
+		},
+		{
+			name:            "invalid semver version excluded by id via version-not-semver",
+			createImagesDir: true,
+			setupFiles: map[string]string{
+				"oss.yaml": `
+- id: "clickhouse"
+  version: "invalid-version"
+  name: "ClickHouse"
+  description: "An open-source column-oriented DBMS"
+  link: "https://github.com/ClickHouse/ClickHouse"
+  license: "Apache License 2.0"
+`,
+			},
+			versionNotSemverExclude: []pkg.StringRuleExclude{"clickhouse"},
+			wantWarns:               nil,
+		},
+		{
+			name:            "project with invalid conditional semver version",
+			createImagesDir: true,
+			setupFiles: map[string]string{
+				"oss.yaml": `
+- id: "example-service"
+  name: "Example service"
+  description: "Example service used in module images"
+  link: "https://github.com/example/example-service"
+  license: "Apache License 2.0"
+  versions:
+    - condition:
+        k8s: "1.31"
+      version: "ccm/v30.1.4"
+`,
+			},
+			wantWarns: []string{`versions[].version "ccm/v30.1.4" is not semver-compatible; if this version is correct for the OSS project, ignore this warning`},
+		},
+		{
+			name:            "project with version and versions",
+			createImagesDir: true,
+			setupFiles: map[string]string{
+				"oss.yaml": `
+- id: "example-service"
+  version: "1.2.0"
+  name: "Example service"
+  description: "Example service used in module images"
+  link: "https://github.com/example/example-service"
+  license: "Apache License 2.0"
+  versions:
+    - condition:
+        k8s: "1.31"
+      version: "1.2.1"
+`,
+			},
+			wantErrors: []string{"version and versions must not be used together"},
 		},
 		{
 			name:            "project with empty name",
@@ -269,6 +366,27 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 			},
 			wantErrors: []string{"id must not be empty"},
 		},
+		{
+			name:            "duplicate project id",
+			createImagesDir: true,
+			setupFiles: map[string]string{
+				"oss.yaml": `
+- id: "dexidp/dex"
+  version: "2.0.0"
+  name: "Dex"
+  description: "A Federated OpenID Connect Provider with pluggable connectors"
+  link: "https://github.com/dexidp/dex"
+  license: "Apache License 2.0"
+- id: "dexidp/dex"
+  version: "2.1.0"
+  name: "Dex"
+  description: "A Federated OpenID Connect Provider with pluggable connectors"
+  link: "https://github.com/dexidp/dex"
+  license: "Apache License 2.0"
+`,
+			},
+			wantErrors: []string{"id must be unique; duplicate id \"dexidp/dex\" already used by project #1"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -291,7 +409,7 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 			}
 
 			// Create rule
-			rule := NewOSSRule(tt.disable)
+			rule := NewOSSRule(tt.disable, tt.versionNotSemverExclude)
 			errorList := errors.NewLintRuleErrorsList()
 
 			// Run the rule
@@ -299,8 +417,12 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 
 			// Check errors
 			errs := errorList.GetErrors()
-			var errorTexts []string
-			var warnTexts []string
+
+			var (
+				errorTexts []string
+				warnTexts  []string
+			)
+
 			for _, e := range errs {
 				switch e.Level {
 				case pkg.Error:
@@ -324,12 +446,14 @@ func checkMessages(t *testing.T, msgType string, want []string, got []string) {
 	} else {
 		for _, w := range want {
 			found := false
+
 			for _, g := range got {
 				if strings.Contains(g, w) {
 					found = true
 					break
 				}
 			}
+
 			if !found {
 				t.Errorf("expected %s containing %q, but not found in %v", msgType, w, got)
 			}
@@ -395,11 +519,14 @@ func Test_parseProjectList(t *testing.T) {
 				if err == nil {
 					t.Errorf("expected error, got nil")
 				}
+
 				return
 			}
+
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
+
 			if len(projects) != test.wantCount {
 				t.Errorf("unexpected project count: got=%d, want=%d", len(projects), test.wantCount)
 			}

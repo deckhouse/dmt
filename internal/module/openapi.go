@@ -59,12 +59,16 @@ func applyDigests(moduleName string, digests, helmValues map[string]any) {
 }
 
 func helmFormatModuleImages(m *Module, rawValues map[string]any) (chartutil.Values, error) {
-	caps := chartutil.DefaultCapabilities
-	vers := []string(caps.APIVersions)
-	vers = appendIfMissing(vers, "autoscaling.k8s.io/v1/VerticalPodAutoscaler")
+	// DefaultCapabilities is a process-global pointer; copy the struct and its
+	// APIVersions slice so concurrent callers don't mutate the shared value.
+	capsCopy := *chartutil.DefaultCapabilities
+	caps := &capsCopy
+	vers := append([]string{}, caps.APIVersions...)
+	vers = append(vers, "autoscaling.k8s.io/v1/VerticalPodAutoscaler", "cert-manager.io/v1")
 	vers = appendIfMissing(vers, "gateway.networking.k8s.io/v1/Gateway")
 	vers = appendIfMissing(vers, "gateway.networking.k8s.io/v1/HTTPRoute")
 	vers = appendIfMissing(vers, "gateway.networking.k8s.io/v1/ListenerSet")
+
 	caps.APIVersions = vers
 
 	digests := map[string]any{
@@ -125,11 +129,18 @@ func appendIfMissing(values []string, value string) []string {
 }
 
 func ComposeValuesFromSchemas(m *Module, globalSchema *spec.Schema) (chartutil.Values, error) {
+	return ComposeValuesFromSchemasForValuesFile(m, globalSchema, "values.yaml")
+}
+
+// ComposeValuesFromSchemasForValuesFile is like ComposeValuesFromSchemas but
+// generates the module values from the given openapi values schema file name
+// (e.g. "values_ce.yaml") instead of the default "values.yaml".
+func ComposeValuesFromSchemasForValuesFile(m *Module, globalSchema *spec.Schema, valuesFile string) (chartutil.Values, error) {
 	if globalSchema == nil {
 		globalSchema = &spec.Schema{}
 	}
 
-	moduleValues, err := values.GetModuleValues(m.GetPath())
+	moduleValues, err := values.GetModuleValuesForValuesFile(m.GetPath(), valuesFile)
 	if err != nil {
 		return nil, fmt.Errorf("cannot find openapi values schema for module %q: %w", m.GetName(), err)
 	}
@@ -217,11 +228,14 @@ func parseString(key, pattern string, result map[string]any) error {
 	if pattern == "" {
 		pattern = `^[a-zA-Z0-9]{8}$`
 	}
+
 	const limit = 8
+
 	r, err := reggen.Generate(pattern, limit)
 	if err != nil {
 		return err
 	}
+
 	result[key] = r
 
 	return nil
@@ -232,15 +246,18 @@ func parseDefault(key string, prop *spec.Schema, extension string, result map[st
 	if !ok {
 		return nil
 	}
+
 	if extension == ExamplesDefault {
 		if def == nil {
 			return nil
 		}
+
 		slice, isSlice := def.([]any)
 		if isSlice {
 			if len(slice) == 0 {
 				return nil
 			}
+
 			def = slice[0]
 		} else {
 			mapSlice, isMapSlice := def.([]map[string]any)
@@ -248,6 +265,7 @@ func parseDefault(key string, prop *spec.Schema, extension string, result map[st
 				if len(mapSlice) == 0 {
 					return nil
 				}
+
 				def = mapSlice[0]
 			} else {
 				// Skip non-slice and non-map-slice default values as they are not supported in this context
@@ -255,23 +273,30 @@ func parseDefault(key string, prop *spec.Schema, extension string, result map[st
 			}
 		}
 	}
+
 	ex, ok := def.(map[string]any)
 	if !ok {
 		result[key] = def
 		return nil
 	}
+
 	if prop.Type.Contains(ObjectKey) {
 		t, err := parseProperties(prop)
 		if err != nil {
 			return err
 		}
+
 		if err := mergo.Merge(&t, ex, mergo.WithOverride); err != nil {
 			return err
 		}
+
 		result[key] = t
+
 		return nil
 	}
+
 	result[key] = def
+
 	return nil
 }
 
@@ -280,6 +305,7 @@ func parseEnum(key string, prop *spec.Schema, result map[string]any) {
 	if prop.Default != nil {
 		t = prop.Default
 	}
+
 	result[key] = t
 }
 
@@ -288,6 +314,7 @@ func parseObject(key string, prop *spec.Schema, result map[string]any) error {
 	if err != nil {
 		return err
 	}
+
 	result[key] = t
 
 	return nil
@@ -306,6 +333,7 @@ func parseArray(key string, prop *spec.Schema, result map[string]any) error {
 	}
 
 	t := make(map[string]any)
+
 	err := parseProperty(key, element, t)
 	if err != nil {
 		return err
@@ -382,6 +410,7 @@ func mergeSchemas(rootSchema *spec.Schema, schemas ...spec.Schema) *spec.Schema 
 		for key := range schema.Properties {
 			rootSchema.Properties[key] = schema.Properties[key]
 		}
+
 		rootSchema.OneOf = schema.OneOf
 		rootSchema.AllOf = schema.AllOf
 		rootSchema.AnyOf = schema.AnyOf

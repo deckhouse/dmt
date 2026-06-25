@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2e-config
+  namespace: e2e-cluster-domain
+data:
+  endpoint: "my-svc.my-namespace.svc.cluster.local"

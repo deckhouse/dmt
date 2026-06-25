@@ -62,6 +62,7 @@ func generateDocumentationURL(linterID, ruleID string) string {
 	if linterID == "" || ruleID == "" {
 		return "Not ready"
 	}
+
 	return fmt.Sprintf("%s/pkg/linters/%s#%s", baseRepoURL, linterID, ruleID)
 }
 
@@ -105,20 +106,25 @@ func (m *Manager) initManager(dir string) *Manager {
 		log.Error("Failed to get global values", log.Err(err))
 		return m
 	}
+
 	errorList := m.errors.WithLinterID("manager")
+
 	for i := range paths {
 		moduleName := filepath.Base(paths[i])
 		log.Debug("Found module", slog.String("module", moduleName))
+
 		if err := m.validateModule(paths[i]); err != nil {
 			// linting errors are already logged
 			continue
 		}
+
 		mdl, err := module.NewModule(paths[i], &vals, globalValues, m.cfg, errorList)
 		if err != nil {
 			errorList.
 				WithFilePath(paths[i]).WithModule(moduleName).
 				WithValue(err.Error()).
 				Errorf("cannot create module `%s`", moduleName)
+
 			continue
 		}
 
@@ -149,6 +155,7 @@ func (m *Manager) Run() {
 
 	for _, module := range m.Modules {
 		processingCh <- struct{}{}
+
 		wg.Add(1)
 
 		go func() {
@@ -269,6 +276,10 @@ func (m *Manager) PrintResult() {
 			fmt.Fprintf(w, "\t%s\t\t%d\n", "LineNumber:", err.LineNumber)
 		}
 
+		if err.FixError != nil {
+			fmt.Fprintf(w, "\t%s\t\t%s\n", "AutofixError:", color.New(color.FgHiYellow).Sprint(err.FixError.Error()))
+		}
+
 		if flags.ShowDocumentation {
 			docURL := generateDocumentationURL(err.LinterID, err.RuleID)
 			if docURL != "" {
@@ -286,6 +297,23 @@ func (m *Manager) PrintResult() {
 
 func (m *Manager) HasCriticalErrors() bool {
 	return m.errors.ContainsErrors()
+}
+
+// ApplyFixes is the single entry point for the --fix flag. It runs every fix
+// attached to a collected finding. Findings whose fix succeeds are marked Fixed
+// and subsequently dropped by GetErrors; findings whose fix fails are kept, and
+// PrintResult reports the failure via the finding's FixError.
+func (m *Manager) ApplyFixes() {
+	for _, fix := range m.errors.GetFixes() {
+		fix()
+	}
+}
+
+// GetErrors returns all findings collected during the run.
+// It is primarily intended for tests (e.g. the e2e framework) that need to
+// assert on the structured findings produced by the linters.
+func (m *Manager) GetErrors() []pkg.LinterError {
+	return m.errors.GetErrors()
 }
 
 // prepareString handle ussual string and prepare it for tablewriter
@@ -316,6 +344,7 @@ func getRootDirectory(dir string) string {
 			fsutils.IsFile(filepath.Join(dir, "global-hooks", "openapi", "values.yaml")) {
 			return dir
 		}
+
 		parent := filepath.Dir(dir)
 		if dir == parent || parent == "" {
 			break

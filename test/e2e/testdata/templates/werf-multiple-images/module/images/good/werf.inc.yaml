@@ -1,0 +1,7 @@
+---
+image: {{ .ModuleNamePrefix }}{{ .ImageName }}-artifact
+final: false
+fromImage: nginx:latest
+---
+image: {{ .ModuleNamePrefix }}{{ .ImageName }}
+fromImage: scratch

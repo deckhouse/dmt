@@ -238,8 +238,10 @@ func (r *RequirementsRegistry) validateRequirement(check RequirementCheck, modul
 
 // validateComponentRequirement validates a single component requirement
 func (*RequirementsRegistry) validateComponentRequirement(checkName string, req ComponentRequirement, modulePath string, module *DeckhouseModule, errorList *errors.LintRuleErrorsList) {
-	var constraintStr string
-	var constraintName string
+	var (
+		constraintStr  string
+		constraintName string
+	)
 
 	switch req.ComponentType {
 	case ComponentDeckhouse:
@@ -254,8 +256,10 @@ func (*RequirementsRegistry) validateComponentRequirement(checkName string, req 
 		if module.Requirements == nil || module.Requirements.Deckhouse == "" {
 			errorList.Errorf("requirements [%s]: %s, deckhouse version range should start no lower than %s",
 				checkName, req.Description, req.MinVersion)
+
 			return
 		}
+
 		constraintStr = module.Requirements.Deckhouse
 		constraintName = "deckhouse"
 	case ComponentK8s:
@@ -263,6 +267,7 @@ func (*RequirementsRegistry) validateComponentRequirement(checkName string, req 
 			errorList.Errorf("requirements [%s]: %s, kubernetes version constraint is required", checkName, req.Description)
 			return
 		}
+
 		constraintStr = module.Requirements.Kubernetes
 		constraintName = "kubernetes"
 	case ComponentModule:
@@ -281,6 +286,7 @@ func (*RequirementsRegistry) validateComponentRequirement(checkName string, req 
 	}
 
 	minAllowed := findMinimalAllowedVersion(constraint)
+
 	minimalVersion, err := semver.NewVersion(req.MinVersion)
 	if err != nil {
 		errorList.Errorf("requirements [%s]: invalid minimum version format %s: %s", checkName, req.MinVersion, err)
@@ -308,11 +314,13 @@ func findGoModFilesWithModuleSDK(modulePath, minVersion string) []string {
 	}
 
 	var validGoModDirs []string
+
 	for _, goModFile := range goModFiles {
 		if hasModuleSDKDependency(goModFile, minVersion) {
 			validGoModDirs = append(validGoModDirs, filepath.Dir(goModFile))
 		}
 	}
+
 	return validGoModDirs
 }
 
@@ -335,16 +343,19 @@ func hasModuleSDKDependency(goModFile, minVersion string) bool {
 				if err != nil {
 					continue
 				}
+
 				minVersionParsed, err := semver.NewVersion(minVersion)
 				if err != nil {
 					continue
 				}
+
 				if !sdkVersion.LessThan(minVersionParsed) {
 					return true
 				}
 			}
 		}
 	}
+
 	return false
 }
 
@@ -357,11 +368,13 @@ func findPatternInGoFiles(dirs []string, pattern *regexp.Regexp) bool {
 			if err != nil {
 				continue
 			}
+
 			if pattern.Match(content) {
 				return true
 			}
 		}
 	}
+
 	return false
 }
 
@@ -394,6 +407,7 @@ func hasOptionalModules(module *DeckhouseModule) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -434,29 +448,35 @@ func (r *RequirementsRule) CheckRequirements(modulePath string, errorList *error
 	registry.RunAllChecks(modulePath, moduleDescriptions, errorList)
 }
 
-// findMinimalAllowedVersion finds the minimum allowed version among all >=, >, =, != in constraint
-// Uses regex to extract versions and operators, returns the minimal version, or nil if only < or <= are present
+// findMinimalAllowedVersion finds the minimum allowed version among >=, >, = operators in constraint.
+// != is deliberately excluded — it means "not equal" and does not set a lower bound.
+// Returns the minimal version, or nil if only <, <=, or != are present.
 func findMinimalAllowedVersion(constraint *semver.Constraints) *semver.Version {
 	if constraint == nil {
 		return nil
 	}
 
 	matches := versionConstraintRegex.FindAllStringSubmatch(constraint.String(), -1)
+
 	var minVersion *semver.Version
+
 	foundMin := false
 
 	for _, m := range matches {
 		if len(m) < 3 {
 			continue
 		}
+
 		op := m[1]
+
 		verStr := m[2]
-		if op == ">=" || op == ">" || op == "=" || op == "!=" {
+		if op == ">=" || op == ">" || op == "=" {
 			v, err := semver.NewVersion(verStr)
 			if err == nil {
 				if minVersion == nil || v.LessThan(minVersion) {
 					minVersion = v
 				}
+
 				foundMin = true
 			}
 		}
@@ -465,9 +485,11 @@ func findMinimalAllowedVersion(constraint *semver.Constraints) *semver.Version {
 	if !foundMin {
 		return nil
 	}
+
 	if minVersion != nil && constraint.Check(minVersion) {
 		return minVersion
 	}
+
 	return minVersion
 }
 
