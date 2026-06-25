@@ -42,6 +42,11 @@ WORK_DIR="${WORK_DIR:-/deckhouse}"
 # module trees (ee, be, fe, se, se-plus) into a single modules/ directory and
 # extracts cloud providers into candi/cloud-providers, so the linter sees the
 # same layout deckhouse lints in its own CI.
+#
+# Each edition module is overlaid onto its base counterpart in modules/ (so an
+# edition can add/override files in an existing module). When both the base and
+# edition variants ship an oss.yaml, they are concatenated (base first, then the
+# edition's) rather than overwritten, matching deckhouse's own CI behaviour.
 structure_prepare() {
   local modules_dir=("ee/modules" "ee/be/modules" "ee/fe/modules" "ee/se/modules" "ee/se-plus/modules")
   local cloud_providers_glob="030-cloud-provider-*"
@@ -56,17 +61,41 @@ structure_prepare() {
 
   local dir
   for dir in "${modules_dir[@]}"; do
-    if [ -d "${WORK_DIR}/${dir}" ]; then
-      cp -R "${WORK_DIR}/${dir}"/* "${WORK_DIR}/modules/" 2>/dev/null || true
-    fi
-
     shopt -s nullglob
+
+    local source_module_dir
+    for source_module_dir in "${WORK_DIR}/${dir}/"*; do
+      local module_name
+      module_name=$(basename "${source_module_dir}")
+      local target_module_dir="${WORK_DIR}/modules/${module_name}"
+      local merged_oss_tmp=""
+
+      # Preserve both oss.yaml manifests when the module exists in both trees.
+      if [[ -f "${target_module_dir}/oss.yaml" && -f "${source_module_dir}/oss.yaml" ]]; then
+        merged_oss_tmp=$(mktemp)
+        cat "${target_module_dir}/oss.yaml" > "${merged_oss_tmp}"
+        printf "\n" >> "${merged_oss_tmp}"
+        cat "${source_module_dir}/oss.yaml" >> "${merged_oss_tmp}"
+      fi
+
+      if [[ -d "${target_module_dir}" ]]; then
+        cp -R "${source_module_dir}"/. "${target_module_dir}"/
+      else
+        cp -R "${source_module_dir}" "${target_module_dir}"
+      fi
+
+      if [[ -n "${merged_oss_tmp}" ]]; then
+        mv "${merged_oss_tmp}" "${target_module_dir}/oss.yaml"
+      fi
+    done
+
     local cloud_provider_dir
     for cloud_provider_dir in "${WORK_DIR}/${dir}/"${cloud_providers_glob}; do
       local cloud_provider_name
       cloud_provider_name=$(echo "${cloud_provider_dir}" | grep -oP '(?<=030-cloud-provider-)[^[:space:]]+')
       cp -R "${cloud_provider_dir}" "${WORK_DIR}/candi/cloud-providers/${cloud_provider_name}"
     done
+
     shopt -u nullglob
   done
 }
