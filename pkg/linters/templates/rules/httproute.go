@@ -80,6 +80,7 @@ func (r *HTTPRouteRule) ModuleMustHaveGatewayResources(md pkg.Module, errorList 
 					"Every Ingress must be accompanied by a Gateway API HTTPRoute (referencing a ListenerSet) so the module is ready for the Ingress -> Gateway API migration. %s",
 				name, AppLabelKey, object.Unstructured.GetLabels()[AppLabelKey], networkTeamHint,
 			)
+
 			continue
 		}
 
