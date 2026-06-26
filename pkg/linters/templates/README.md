@@ -1916,8 +1916,23 @@ webhooks:
 
 **Configuration:**
 
+The rule defaults to `warning` level and can be configured via global or module `.dmtlint.yaml`.
+
+**Impact level** — set the severity of the check:
+
 ```yaml
-# .dmt.yaml
+# .dmt.yaml (global) or <module>/.dmtlint.yaml
+linters-settings:
+  templates:
+    rules:
+      webhook-configuration-annotations:
+        impact: error  # error | warn | ignored (default: warn)
+```
+
+**Excluding resources** — skip specific webhook configurations by kind and name:
+
+```yaml
+# .dmt.yaml (global) or <module>/.dmtlint.yaml
 linters-settings:
   templates:
     exclude-rules:
@@ -1926,6 +1941,16 @@ linters-settings:
           name: istio-sidecar-injector     # managed externally by istio operator
         - kind: MutatingWebhookConfiguration
           name: cert-manager-webhook       # managed externally by cert-manager operator
+```
+
+**Disabling entirely** — set impact to `ignored`:
+
+```yaml
+linters-settings:
+  templates:
+    rules:
+      webhook-configuration-annotations:
+        impact: ignored
 ```
 
 ## Configuration
@@ -2066,6 +2091,11 @@ linters-settings:
     prometheus-rules:
       disable: false
     
+    # Rule-specific impact levels
+    rules:
+      webhook-configuration-annotations:
+        impact: error  # escalate from default warn to error
+
     # Rule-specific exclusions
     exclude-rules:
       vpa:
@@ -2090,6 +2120,10 @@ linters-settings:
       
       kube-rbac-proxy:
         - d8-development
+
+      webhook-configuration-annotations:
+        - kind: ValidatingWebhookConfiguration
+          name: istio-sidecar-injector
 ```
 
 ### Configuration in Module Directory
@@ -2101,6 +2135,10 @@ Place `.dmt.yaml` in your module directory for module-specific settings:
 linters-settings:
   templates:
     impact: warning  # More lenient for this module
+    
+    rules:
+      webhook-configuration-annotations:
+        impact: ignored  # this module has no webhook configs
     
     grafana-dashboards:
       disable: true  # No dashboards yet
