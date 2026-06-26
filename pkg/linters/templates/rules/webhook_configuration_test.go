@@ -59,7 +59,7 @@ func TestWebhookConfigurationRule_BothAnnotationsPresent(t *testing.T) {
 	errorList := errors.NewLintRuleErrorsList()
 
 	rule.ValidateWebhookConfigurationAnnotations(mod, errorList)
-	assert.Empty(t, errorList.GetErrors())
+	assert.False(t, errorList.ContainsErrors())
 }
 
 func TestWebhookConfigurationRule_OnlyWeight(t *testing.T) {
@@ -76,7 +76,7 @@ func TestWebhookConfigurationRule_OnlyWeight(t *testing.T) {
 	errorList := errors.NewLintRuleErrorsList()
 
 	rule.ValidateWebhookConfigurationAnnotations(mod, errorList)
-	assert.Empty(t, errorList.GetErrors())
+	assert.False(t, errorList.ContainsErrors())
 }
 
 func TestWebhookConfigurationRule_OnlyDeployDependency(t *testing.T) {
@@ -93,7 +93,7 @@ func TestWebhookConfigurationRule_OnlyDeployDependency(t *testing.T) {
 	errorList := errors.NewLintRuleErrorsList()
 
 	rule.ValidateWebhookConfigurationAnnotations(mod, errorList)
-	assert.Empty(t, errorList.GetErrors())
+	assert.False(t, errorList.ContainsErrors())
 }
 
 func TestWebhookConfigurationRule_NeitherAnnotation(t *testing.T) {
@@ -110,7 +110,7 @@ func TestWebhookConfigurationRule_NeitherAnnotation(t *testing.T) {
 	errorList := errors.NewLintRuleErrorsList()
 
 	rule.ValidateWebhookConfigurationAnnotations(mod, errorList)
-	assert.NotEmpty(t, errorList.GetErrors())
+	assert.True(t, errorList.ContainsErrors())
 }
 
 func TestWebhookConfigurationRule_MutatingWebhookConfiguration(t *testing.T) {
@@ -127,7 +127,7 @@ func TestWebhookConfigurationRule_MutatingWebhookConfiguration(t *testing.T) {
 	errorList := errors.NewLintRuleErrorsList()
 
 	rule.ValidateWebhookConfigurationAnnotations(mod, errorList)
-	assert.Empty(t, errorList.GetErrors())
+	assert.False(t, errorList.ContainsErrors())
 }
 
 func TestWebhookConfigurationRule_SkipsNonWebhookResources(t *testing.T) {
@@ -151,7 +151,7 @@ func TestWebhookConfigurationRule_SkipsNonWebhookResources(t *testing.T) {
 	errorList := errors.NewLintRuleErrorsList()
 
 	rule.ValidateWebhookConfigurationAnnotations(mod, errorList)
-	assert.Empty(t, errorList.GetErrors())
+	assert.False(t, errorList.ContainsErrors())
 }
 
 func TestWebhookConfigurationRule_ExcludedResource(t *testing.T) {
@@ -169,7 +169,7 @@ func TestWebhookConfigurationRule_ExcludedResource(t *testing.T) {
 	errorList := errors.NewLintRuleErrorsList()
 
 	rule.ValidateWebhookConfigurationAnnotations(mod, errorList)
-	assert.Empty(t, errorList.GetErrors())
+	assert.False(t, errorList.ContainsErrors())
 }
 
 func TestWebhookConfigurationRule_ExcludedResourceDoesNotAffectOthers(t *testing.T) {
@@ -193,5 +193,5 @@ func TestWebhookConfigurationRule_ExcludedResourceDoesNotAffectOthers(t *testing
 	errorList := errors.NewLintRuleErrorsList()
 
 	rule.ValidateWebhookConfigurationAnnotations(mod, errorList)
-	assert.NotEmpty(t, errorList.GetErrors())
+	assert.True(t, errorList.ContainsErrors())
 }
