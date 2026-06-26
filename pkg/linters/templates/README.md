@@ -1921,7 +1921,7 @@ The rule defaults to `warning` level and can be configured via global or module 
 **Impact level** — set the severity of the check:
 
 ```yaml
-# .dmt.yaml (global) or <module>/.dmtlint.yaml
+# .dmtlint.yaml (global) or <module>/.dmtlint.yaml
 linters-settings:
   templates:
     rules:
@@ -1932,7 +1932,7 @@ linters-settings:
 **Excluding resources** — skip specific webhook configurations by kind and name:
 
 ```yaml
-# .dmt.yaml (global) or <module>/.dmtlint.yaml
+# .dmtlint.yaml (global) or <module>/.dmtlint.yaml
 linters-settings:
   templates:
     exclude-rules:
