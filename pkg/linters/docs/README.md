@@ -2,7 +2,7 @@
 
 ## Overview
 
-The **Documentation Linter** validates module documentation to ensure proper structure, completeness, and language consistency. This linter enforces bilingual documentation requirements, checks for documentation file presence, and validates that English documentation doesn't contain cyrillic characters.
+The **Documentation Linter** validates module documentation to ensure proper structure, completeness, and language consistency. This linter enforces bilingual documentation requirements, checks for documentation file presence, validates that English documentation doesn't contain cyrillic characters, and ensures markdown files follow deckhouse markdown style conventions.
 
 Proper documentation is critical for Deckhouse modules as it helps users understand module features, configuration options, and usage patterns. The linter ensures documentation meets quality standards and is accessible to both English and Russian-speaking audiences.
 
@@ -14,6 +14,7 @@ Proper documentation is critical for Deckhouse modules as it helps users underst
 | [bilingual](#bilingual) | Validates documentation exists in both English and Russian | ✅ | enabled |
 | [cyrillic-in-english](#cyrillic-in-english) | Validates English documentation doesn't contain cyrillic characters | ✅ | enabled |
 | [no-lang-key](#no-lang-key) | Validates documentation front matter doesn't contain `lang` key | ✅ | enabled |
+| [markdownlint](#markdownlint) | Validates markdown files in docs/ follow deckhouse markdown style | ✅ | enabled |
 
 ## Rule Details
 
@@ -386,6 +387,72 @@ linters-settings:
       no-lang-key:
         exclude:
           - docs/LEGACY.md      # Legacy file that still uses lang key
+```
+
+---
+
+### markdownlint
+
+**Purpose:** Ensures markdown files in the `docs/` directory follow consistent deckhouse markdown style conventions (headings, lists, code blocks, etc.).
+
+**Description:**
+
+This rule runs the [go-markdownlint](https://github.com/ldmonster/go-markdownlint) library against every `.md` file under `docs/` (recursively, including `docs/internal/...`) and reports any markdown style violations. The built-in rule set is enabled by default; only a fixed set of deckhouse-specific overrides is applied (line-length limits, blanks-around-headings, duplicate-heading siblings, etc.).
+
+**What it checks:**
+
+1. Recursively scans all `.md` files under `docs/` (top-level and nested, e.g. `docs/internal/`)
+2. Lints each file with the built-in markdownlint rules using the deckhouse configuration overrides
+3. Reports the rule name(s), description, file path and line number for each violation
+
+**Why it matters:**
+
+Consistent markdown style across all modules makes the documentation easier to read, review and maintain, and keeps it aligned with the rest of the deckhouse documentation.
+
+**Examples:**
+
+❌ **Incorrect** - Duplicate top-level heading (MD025) and missing trailing newline (MD047):
+
+```markdown
+<!-- docs/README.md -->
+# My Module
+
+# My Module
+```
+```
+
+(file has no trailing newline)
+
+**Error:**
+```
+MD025/single-title/single-h1 Multiple top-level headings in the same document
+File: docs/README.md
+Line: 3
+
+MD047/single-trailing-newline Files should end with a single newline character
+File: docs/README.md
+Line: 3
+```
+
+✅ **Correct** - Single top-level heading and trailing newline:
+
+```markdown
+<!-- docs/README.md -->
+# My Module
+```
+
+**Configuration:**
+
+To downgrade or disable this rule:
+
+```yaml
+# .dmt.yaml
+linters-settings:
+  documentation:
+    rules:
+      markdownlint:
+        impact: warn   # report findings but don't fail the run
+        # impact: ignored   # disable the rule entirely
 ```
 
 ---

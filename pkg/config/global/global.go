@@ -95,6 +95,7 @@ type DocumentationRules struct {
 	ReadmeRule             RuleConfig `mapstructure:"readme"`
 	NoCyrillicExcludeRules RuleConfig `mapstructure:"cyrillic-in-english"`
 	NoLangKeyRule          RuleConfig `mapstructure:"no-lang-key"`
+	MarkdownlintRule       RuleConfig `mapstructure:"markdownlint"`
 }
 
 type OpenAPILinterConfig struct {

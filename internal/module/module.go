@@ -307,6 +307,7 @@ func mapDocumentationRules(linterSettings *pkg.LintersSettings, configSettings *
 	rules.ReadmeRule.SetLevel(globalRules.ReadmeRule.Impact, fallbackImpact)
 	rules.CyrillicInEnglishRule.SetLevel(globalRules.NoCyrillicExcludeRules.Impact, fallbackImpact)
 	rules.NoLangKeyRule.SetLevel(globalRules.NoLangKeyRule.Impact, fallbackImpact)
+	rules.MarkdownlintRule.SetLevel(globalRules.MarkdownlintRule.Impact, fallbackImpact)
 }
 
 func mapModuleRules(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings, globalConfig *global.Linters) {
