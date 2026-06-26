@@ -115,9 +115,9 @@ For every English documentation file in the `docs/` directory, a corresponding R
 **What it checks:**
 
 1. Scans all `.md` files in the `docs/` directory (top-level only)
-2. For each English documentation file, checks for a corresponding `.ru.md` or `_RU.md` file
+2. For each English documentation file, checks for a corresponding `.ru.md` file
 3. Validates that Russian counterparts exist for all documentation files
-4. Ignores files that are already Russian (ending in `.ru.md` or `_RU.md`)
+4. Ignores files that are already Russian (ending in `.ru.md`)
 
 **Why it matters:**
 
@@ -159,15 +159,14 @@ my-module/
 my-module/
 └── docs/
     ├── README.md                 # English version
-    ├── README_RU.md              # Russian translation (legacy format)
+    ├── README.ru.md              # Russian translation (legacy format)
     ├── CONFIGURATION.md
-    └── CONFIGURATION_RU.md
+    └── CONFIGURATION.ru.md
 ```
 
 **Supported file naming conventions:**
 
-- **Preferred:** `FILENAME.ru.md` (e.g., `README.ru.md`, `FAQ.ru.md`)
-- **Legacy:** `FILENAME_RU.md` (e.g., `README_RU.md`, `FAQ_RU.md`) - case insensitive
+- `FILENAME.ru.md` (e.g., `README.ru.md`, `FAQ.ru.md`)
 
 **Configuration:**
 
@@ -196,7 +195,7 @@ English documentation files must not contain cyrillic characters. This rule scan
 **What it checks:**
 
 1. Scans all `.md` and `.markdown` files in `docs/` directory (top-level only)
-2. Skips files ending in `.ru.md` or `_RU.md` (Russian documentation)
+2. Skips files ending in `.ru.md` (Russian documentation)
 3. Detects cyrillic characters (А-Я, а-я, Ё, ё) in each line
 4. Reports exact line numbers and positions where cyrillic characters appear
 5. Provides visual indicators pointing to problematic characters
@@ -599,17 +598,12 @@ But you have `docs/README-RU.md` or `docs/README_ru.md` (lowercase).
 1. **Rename to the correct format:**
 
    ```bash
-   # Preferred format
    mv modules/my-module/docs/README-RU.md \
       modules/my-module/docs/README.ru.md
-   
-   # Legacy format (also acceptable)
-   mv modules/my-module/docs/README-RU.md \
-      modules/my-module/docs/README_RU.md
    ```
 
 2. **Supported naming conventions:**
    - ✅ `FILENAME.ru.md` (preferred)
-   - ✅ `FILENAME_RU.md` (legacy, case insensitive)
+   - ❌ `FILENAME_RU.md` (legacy, not supported)
    - ❌ `FILENAME-RU.md` (not supported)
 

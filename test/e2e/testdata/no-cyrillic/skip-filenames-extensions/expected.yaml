@@ -1,7 +1,7 @@
 description: >
   Comprehensive coverage of the no-cyrillic files rule skip logic. The module
   contains Cyrillic in many files that must be skipped by filename/path
-  (doc-ru-*, *.ru.{yaml,yml,json,md,html}, *_RU.md, *_ru.html, docs/site/_*,
+  (doc-ru-*, *.ru.{yaml,yml,json,md,html}, *_ru.html, docs/site/_*,
   docs/documentation/_*, tools/spelling/*, openapi/conversions/*, module.yaml,
   i18n/*, and the new ru.* prefix) as well as in files whose extensions are not
   scanned at all (.txt). Only a single regular template with Cyrillic must be

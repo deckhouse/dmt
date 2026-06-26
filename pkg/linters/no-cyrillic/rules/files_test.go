@@ -54,8 +54,8 @@ func TestFilesRule_CheckFile_SkipPatterns(t *testing.T) {
 		{name: "ru md suffix", relPath: "guide.ru.md", wantSkipped: true},
 		{name: "ru html suffix", relPath: "page.ru.html", wantSkipped: true},
 
-		// *_RU.md and *_ru.html
-		{name: "RU md suffix", relPath: "README_RU.md", wantSkipped: true},
+		// *.ru.md and *_ru.html
+		{name: "RU md suffix", relPath: "README.ru.md", wantSkipped: true},
 		{name: "ru html underscore", relPath: "index_ru.html", wantSkipped: true},
 
 		// docs/site and docs/documentation underscore-prefixed includes
@@ -228,7 +228,7 @@ func TestFilesRule_CheckFile_SkipRussianFile(t *testing.T) {
 
 	// Create test directory structure
 	tempDir := t.TempDir()
-	testFile := filepath.Join(tempDir, "README_RU.md")
+	testFile := filepath.Join(tempDir, "README.ru.md")
 
 	// Create a Russian file with cyrillic content (should be skipped)
 	err := os.WriteFile(testFile, []byte("# Документация\nПривет мир\n"), 0600)
