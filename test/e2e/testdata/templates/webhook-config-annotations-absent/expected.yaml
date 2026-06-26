@@ -6,4 +6,4 @@ expect:
   - linter: templates
     rule: webhook-configuration-annotations
     level: error
-    textContains: "must have either \"werf.io/weight\" or \"werf.io/deploy-dependency\" annotation"
+    textContains: "must have either \"werf.io/deploy-dependency\" or \"werf.io/weight\" annotation"

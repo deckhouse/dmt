@@ -1853,7 +1853,7 @@ linters-settings:
 
 ### webhook-configuration-annotations
 
-**Purpose:** Ensures every `ValidatingWebhookConfiguration` and `MutatingWebhookConfiguration` has at least one of `werf.io/weight` or `werf.io/deploy-dependency` annotations. These annotations control werf deploy ordering: `werf.io/weight` sets explicit ordering priority, while `werf.io/deploy-dependency` declares a dependency on another resource.
+**Purpose:** Ensures every `ValidatingWebhookConfiguration` and `MutatingWebhookConfiguration` has at least one of `werf.io/deploy-dependency` or `werf.io/weight` annotations. These annotations control werf deploy ordering: `werf.io/deploy-dependency` declares a dependency on another resource (the recommended approach), while `werf.io/weight` sets explicit ordering priority.
 
 **Description:**
 
@@ -1861,16 +1861,13 @@ Iterates all parsed Kubernetes resources, filters for webhook configuration kind
 
 **What it checks:**
 
-1. Every `ValidatingWebhookConfiguration` has either `werf.io/weight` or `werf.io/deploy-dependency` annotation
-2. Every `MutatingWebhookConfiguration` has either `werf.io/weight` or `werf.io/deploy-dependency` annotation
+1. Every `ValidatingWebhookConfiguration` has either `werf.io/deploy-dependency` or `werf.io/weight` annotation
+2. Every `MutatingWebhookConfiguration` has either `werf.io/deploy-dependency` or `werf.io/weight` annotation
 3. Resources with neither annotation are reported as errors (configurable via `impact`, set to `warn` to downgrade)
 
 **Why it matters:**
 
-Webhook configurations modify API server behavior. If they deploy before their backing services or after dependent resources, they can:
-- Block API operations due to unavailable webhook backends
-- Cause deployment ordering issues during cluster bootstrap
-- Lead to admission failures for newly created resources
+Webhook backing services (its Deployment, Service, etc) should be deployed before the webhook itself (MutatingWebhookConfiguration or ValidationWebhookConfiguration). Otherwise, if the module rollout was not finished properly (network issues, OOM and so on), the cluster might be left in a state where webhook is deployed, but has no backing services. And if so, resources that this webhook validates/mutates could not be created or updated anymore. To avoid this, deployment order of the webhook and its backing services must be enforced via annotations.
 
 **Examples:**
 
@@ -1896,7 +1893,7 @@ webhooks:
 
 **Error:**
 ```
-ValidatingWebhookConfiguration "my-webhook" must have either "werf.io/weight" or "werf.io/deploy-dependency" annotation
+ValidatingWebhookConfiguration "my-webhook" must have either "werf.io/deploy-dependency" or "werf.io/weight" annotation
 ```
 
 ✅ **Correct** - With deploy ordering annotations:
@@ -1907,8 +1904,8 @@ kind: ValidatingWebhookConfiguration
 metadata:
   name: my-webhook
   annotations:
-    werf.io/weight: "10"
     werf.io/deploy-dependency: d8-my-module/my-service
+    werf.io/weight: "10"
 webhooks:
   - name: check.example.com
     ...
