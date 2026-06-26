@@ -22,6 +22,7 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [registry](#registry) | Validates registry secret configuration | ❌ | enabled |
 | [werf](#werf) | Validates image names in `werf.yaml` do not contain underscores | ❌ | enabled |
 | [enabled-modules](#enabled-modules) | Detects usage of `.Values.global.enabledModules` in templates | ✅ | enabled |
+| [webhook-configuration-annotations](#webhook-configuration-annotations) | Checks webhook configurations have werf.io/weight or deploy-dependency annotations | ✅ | enabled |
 
 ## Rule Details
 
@@ -1850,6 +1851,83 @@ linters-settings:
           - templates/vendor/                 # Exclude entire directory
 ```
 
+### webhook-configuration-annotations
+
+**Purpose:** Ensures every `ValidatingWebhookConfiguration` and `MutatingWebhookConfiguration` has at least one of `werf.io/weight` or `werf.io/deploy-dependency` annotations. These annotations control werf deploy ordering: `werf.io/weight` sets explicit ordering priority, while `werf.io/deploy-dependency` declares a dependency on another resource.
+
+**Description:**
+
+Iterates all parsed Kubernetes resources, filters for webhook configuration kinds, and checks that each webhook configuration declares its position in the deploy order via annotations. Without these annotations, webhook configurations may deploy in an undefined order, potentially causing cluster API disruptions.
+
+**What it checks:**
+
+1. Every `ValidatingWebhookConfiguration` has either `werf.io/weight` or `werf.io/deploy-dependency` annotation
+2. Every `MutatingWebhookConfiguration` has either `werf.io/weight` or `werf.io/deploy-dependency` annotation
+3. Resources with neither annotation are reported as errors
+
+**Why it matters:**
+
+Webhook configurations modify API server behavior. If they deploy before their backing services or after dependent resources, they can:
+- Block API operations due to unavailable webhook backends
+- Cause deployment ordering issues during cluster bootstrap
+- Lead to admission failures for newly created resources
+
+**Examples:**
+
+❌ **Incorrect** - Webhook configuration without ordering annotations:
+
+```yaml
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: my-webhook
+webhooks:
+  - name: check.example.com
+    clientConfig:
+      service:
+        name: my-service
+        namespace: d8-my-module
+    rules:
+      - operations: ["CREATE", "UPDATE"]
+        apiGroups: [""]
+        apiVersions: ["v1"]
+        resources: ["pods"]
+```
+
+**Error:**
+```
+ValidatingWebhookConfiguration "my-webhook" must have either "werf.io/weight" or "werf.io/deploy-dependency" annotation
+```
+
+✅ **Correct** - With deploy ordering annotations:
+
+```yaml
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: my-webhook
+  annotations:
+    werf.io/weight: "10"
+    werf.io/deploy-dependency: d8-my-module/my-service
+webhooks:
+  - name: check.example.com
+    ...
+```
+
+**Configuration:**
+
+```yaml
+# .dmt.yaml
+linters-settings:
+  templates:
+    exclude-rules:
+      webhook-configuration-annotations:
+        - kind: ValidatingWebhookConfiguration
+          name: istio-sidecar-injector     # managed externally by istio operator
+        - kind: MutatingWebhookConfiguration
+          name: cert-manager-webhook       # managed externally by cert-manager operator
+```
+
 ## Configuration
 
 The Templates linter can be configured at the module level with rule-specific settings and exclusions.
@@ -1904,6 +1982,8 @@ linters-settings:
         impact: error
       enabled-modules:
         impact: warning
+      webhook-configuration-annotations:
+        impact: error
 ```
 
 ### Rule-Level Exclusions
@@ -1961,6 +2041,13 @@ linters-settings:
           - templates/legacy-deployment.yaml
         directories:
           - templates/vendor/
+
+      # webhook-configuration-annotations exclusions (by kind and name)
+      webhook-configuration-annotations:
+        - kind: ValidatingWebhookConfiguration
+          name: istio-sidecar-injector
+        - kind: MutatingWebhookConfiguration
+          name: cert-manager-webhook
 ```
 
 ### Complete Configuration Example
