@@ -341,12 +341,7 @@ func mapTemplatesRules(linterSettings *pkg.LintersSettings, configSettings *conf
 	rules.ClusterDomainRule.SetLevel(globalRules.ClusterDomainRule.Impact, fallbackImpact)
 	rules.RegistryRule.SetLevel(globalRules.RegistryRule.Impact, fallbackImpact)
 
-	webhookImpact := globalRules.WebhookConfigurationRule.Impact
-	if webhookImpact == "" {
-		webhookImpact = "warn"
-	}
-
-	rules.WebhookConfigurationRule.SetLevel(webhookImpact, "")
+	rules.WebhookConfigurationRule.SetLevel(globalRules.WebhookConfigurationRule.Impact, fallbackImpact)
 }
 
 // mapOpenAPIRules configures OpenAPI linter rules
