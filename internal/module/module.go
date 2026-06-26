@@ -374,6 +374,7 @@ func mapSimpleLinterRules(linterSettings *pkg.LintersSettings, configSettings *c
 
 	// Hooks rules
 	linterSettings.Hooks.Rules.HooksRule.SetLevel("", configSettings.Hooks.Impact)
+	linterSettings.Hooks.Rules.TLSCertificateRule.SetLevel("", configSettings.Hooks.Impact)
 }
 
 // mapExclusionRulesAndSettings maps exclusion rules and additional linter settings
@@ -474,6 +475,7 @@ func mapRBACExclusions(linterSettings *pkg.LintersSettings, configSettings *conf
 // mapHooksSettings maps Hooks linter settings
 func mapHooksSettings(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings) {
 	linterSettings.Hooks.IngressRuleSettings.Disable = configSettings.Hooks.Ingress.Disable
+	linterSettings.Hooks.TLSCertificateRuleSettings.Disable = configSettings.Hooks.TLSCertificate.Disable
 }
 
 // mapModuleExclusionsAndSettings maps Module linter exclusions and settings

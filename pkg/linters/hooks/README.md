@@ -11,6 +11,7 @@ Hooks are Go or Python scripts that react to Kubernetes resource changes and imp
 | Rule | Description | Configurable | Default |
 |------|-------------|--------------|---------|
 | [ingress](#ingress) | Validates copy_custom_certificate hook presence for Ingress resources | ✅ | enabled |
+| [tls-certificate](#tls-certificate) | Detects invalid self-signed certificate generation in Go hooks | ✅ | enabled |
 
 ## Rule Details
 
@@ -104,6 +105,85 @@ linters-settings:
       disable: true
 ```
 
+### tls-certificate
+
+**Purpose:** Detects places in Go hooks that generate invalid self-signed TLS certificates using the `go_lib/hooks/tls_certificate` helpers (`RegisterInternalTLSHook` / `GenerateSelfSignedCert`).
+
+**Description:**
+
+Self-signed certificates produced by these helpers had defects that caused validation failures outside of Go/kube-apiserver (`openssl verify`, Trivy, Java keystores, MaxPatrol). This rule statically scans Go hook source for the known causes, based on [deckhouse/deckhouse#20138](https://github.com/deckhouse/deckhouse/pull/20138).
+
+**What it checks:**
+
+The rule only inspects `.go` files in the module's `hooks/` directory that import:
+
+```go
+"github.com/deckhouse/deckhouse/go_lib/hooks/tls_certificate"
+```
+
+For those files it reports:
+
+1. **Bogus `"requestheader-client"` usage.** This string does not exist in cfssl's KeyUsage/ExtKeyUsage maps, so cfssl silently discards it and emits a certificate with an empty `ExtendedKeyUsage` extension. Strict validators require at least `serverAuth`. Use `"server auth"` instead.
+2. **`WithGroups` on a leaf certificate.** Passing `WithGroups(...)` into a `GenerateSelfSignedCert(...)` call copies the CA's `Organization` onto the leaf, recreating the `Subject == Issuer` (depth-0 self-signed) collision that OpenSSL rejects with `X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT`.
+
+**Why it matters:**
+
+Certificates that pass Go's lenient verification still fail in OpenSSL, Trivy, and other strict validators, breaking webhooks and security scans in environments outside of kube-apiserver.
+
+**Examples:**
+
+❌ **Incorrect** - bogus usage that drops the EKU extension:
+
+```go
+import "github.com/deckhouse/deckhouse/go_lib/hooks/tls_certificate"
+
+var _ = tls_certificate.RegisterInternalTLSHook(tls_certificate.GenSelfSignedTLSHookConf{
+    Usages: []string{"requestheader-client"}, // no EKU is emitted
+    // ...
+})
+```
+
+❌ **Incorrect** - `WithGroups` on the leaf recreates Subject == Issuer:
+
+```go
+cert, _ := tls_certificate.GenerateSelfSignedCert(
+    "leaf",
+    ca,
+    tls_certificate.WithGroups("Deckhouse"), // copies CA Organization onto the leaf
+)
+```
+
+✅ **Correct**:
+
+```go
+var _ = tls_certificate.RegisterInternalTLSHook(tls_certificate.GenSelfSignedTLSHookConf{
+    Usages: []string{"server auth"},
+    // ...
+})
+
+cert, _ := tls_certificate.GenerateSelfSignedCert("leaf", ca)
+```
+
+**Error:**
+
+```
+Invalid certificate usage "requestheader-client" produces a certificate with an empty ExtendedKeyUsage extension and is rejected by strict validators. Use "server auth" instead.
+```
+
+```
+WithGroups applied to a leaf certificate via GenerateSelfSignedCert copies the CA Organization onto the leaf, recreating the Subject == Issuer (depth-0 self-signed) collision rejected by OpenSSL. Remove WithGroups from the leaf certificate.
+```
+
+**Configuration:**
+
+```yaml
+# .dmt.yaml
+linters-settings:
+  hooks:
+    tls-certificate:
+      disable: false  # Enable/disable the tls-certificate rule
+```
+
 ## Configuration
 
 The Hooks linter can be configured at both the module level and for individual rules.
@@ -149,6 +229,8 @@ linters-settings:
     
     # Rule-specific settings
     ingress:
+      disable: false
+    tls-certificate:
       disable: false
 ```
 
