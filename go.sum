@@ -259,8 +259,6 @@ github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0
 github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
 github.com/kyokomi/emoji v2.2.4+incompatible h1:np0woGKwx9LiHAQmwZx79Oc0rHpNw3o+3evou4BEPv4=
 github.com/kyokomi/emoji v2.2.4+incompatible/go.mod h1:mZ6aGCD7yk8j6QY6KICwnZ2pxoszVseX1DNoGtU2tBA=
-github.com/ldmonster/go-markdownlint v0.0.1 h1:FSitTYz1pnRIrElTUfbjnOmRxhnyS1DxxGsSFnlrTLs=
-github.com/ldmonster/go-markdownlint v0.0.1/go.mod h1:d501SE7F9c34YnMsZWiPJikJ/hcl6PgS9y3bKe62cwY=
 github.com/linode/linodego v1.46.0 h1:+uOG4SD2MIrhbrLrvOD5HrbdLN3D19Wgn3MgdUNQjeU=
 github.com/linode/linodego v1.46.0/go.mod h1:vyklQRzZUWhFVBZdYx4dcYJU/gG9yKB9VUcUs6ub0Lk=
 github.com/magiconair/properties v1.8.7 h1:IeQXZAiQcpL9mgcAe1Nu6cX9LLw6ExEHKjN0VQdvPDY=

@@ -1,5 +1,5 @@
 description: >-
-  A module whose docs/README.md has markdownlint violations: a duplicate
+  A module whose docs/CONFIGURATION.md has markdownlint violations: a duplicate
   top-level heading (MD025) and a missing trailing newline (MD047). The
   documentation linter's markdownlint rule must report both.
 expect:
