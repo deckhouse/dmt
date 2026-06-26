@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	gomarkdownlint "github.com/ldmonster/go-markdownlint"
+	gomarkdownlint "github.com/fuldaxxx/go-markdownlint"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/pkg"
@@ -57,14 +57,6 @@ func (r *MarkdownRule) CheckFiles(m pkg.Module, errorList *errors.LintRuleErrors
 	for _, fileName := range files {
 		relFromModule := fsutils.Rel(modulePath, fileName)
 		if !r.Enabled(relFromModule) {
-			continue
-		}
-
-		// Mirror the deckhouse testing/.markdownlintignore entry "README.md",
-		// which excludes every README.md at any depth. These files are mostly
-		// demo/quickstart scaffolding and were never covered by the legacy
-		// markdownlint job; keep them out to preserve parity.
-		if filepath.Base(fileName) == "README.md" {
 			continue
 		}
 
