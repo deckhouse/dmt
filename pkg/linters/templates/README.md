@@ -1863,7 +1863,7 @@ Iterates all parsed Kubernetes resources, filters for webhook configuration kind
 
 1. Every `ValidatingWebhookConfiguration` has either `werf.io/weight` or `werf.io/deploy-dependency` annotation
 2. Every `MutatingWebhookConfiguration` has either `werf.io/weight` or `werf.io/deploy-dependency` annotation
-3. Resources with neither annotation are reported as errors
+3. Resources with neither annotation are reported as warnings
 
 **Why it matters:**
 
@@ -1894,7 +1894,7 @@ webhooks:
         resources: ["pods"]
 ```
 
-**Error:**
+**Warning:**
 ```
 ValidatingWebhookConfiguration "my-webhook" must have either "werf.io/weight" or "werf.io/deploy-dependency" annotation
 ```

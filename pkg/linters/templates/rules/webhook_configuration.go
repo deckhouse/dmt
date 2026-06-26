@@ -65,7 +65,7 @@ func (r *WebhookConfigurationRule) ValidateWebhookConfigurationAnnotations(m pkg
 		if !hasWeight && !hasDeployDependency {
 			errorList.WithObjectID(object.Identity()).
 				WithFilePath(object.GetPath()).
-				Errorf("%s %q must have either %q or %q annotation", kind, object.Unstructured.GetName(), AnnotationWeight, AnnotationDeployDependency)
+				Warnf("%s %q must have either %q or %q annotation", kind, object.Unstructured.GetName(), AnnotationWeight, AnnotationDeployDependency)
 		}
 	}
 }
