@@ -1938,7 +1938,7 @@ linters-settings:
   templates:
     rules:
       webhook-configuration-annotations:
-        impact: warn  # error | warn | ignored (default: error)
+        impact: warn  # error | warn (default: error)
 ```
 
 **Excluding resources** — skip specific webhook configurations by kind and name:
@@ -1953,16 +1953,6 @@ linters-settings:
           name: istio-sidecar-injector     # managed externally by istio operator
         - kind: MutatingWebhookConfiguration
           name: cert-manager-webhook       # managed externally by cert-manager operator
-```
-
-**Disabling entirely** — set impact to `ignored`:
-
-```yaml
-linters-settings:
-  templates:
-    rules:
-      webhook-configuration-annotations:
-        impact: ignored
 ```
 
 ## Configuration
@@ -2147,10 +2137,6 @@ Place `.dmt.yaml` in your module directory for module-specific settings:
 linters-settings:
   templates:
     impact: warning  # More lenient for this module
-    
-    rules:
-      webhook-configuration-annotations:
-        impact: ignored  # this module has no webhook configs
     
     grafana-dashboards:
       disable: true  # No dashboards yet
