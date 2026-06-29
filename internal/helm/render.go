@@ -18,6 +18,8 @@ package helm
 
 import (
 	"fmt"
+	"io"
+	stdlog "log"
 	"path"
 
 	"github.com/werf/nelm/pkg/helm/pkg/chart"
@@ -73,7 +75,19 @@ func (r Renderer) RenderChartFromDir(chartDir string, values map[string]any) (ma
 		},
 	}
 
+	// nelm's chart loader calls sympath.Walk which indiscriminately logs
+	// "found symbolic link in path: %s resolves to %s" via the standard
+	// log package. Deckhouse modules use symlinks for helm_lib and other
+	// shared resources; those messages are expected noise. Mute std log
+	// during the load call and restore it afterwards.
+	stdlogWriter := stdlog.Writer()
+
+	stdlog.SetOutput(io.Discard)
+
 	chrt, err := loader.LoadDir(chartDir, opts)
+
+	stdlog.SetOutput(stdlogWriter)
+
 	if err != nil {
 		return nil, fmt.Errorf("load chart: %w", err)
 	}
