@@ -44,24 +44,6 @@ func makeStorage(kind, name string, annotations map[string]string) map[storage.R
 	}
 }
 
-func TestWebhookConfigurationRule_BothAnnotationsPresent(t *testing.T) {
-	mc := minimock.NewController(t)
-
-	storage := makeStorage("ValidatingWebhookConfiguration", "my-webhook", map[string]string{
-		"werf.io/weight":           "10",
-		"werf.io/deploy-dependency": "some-dep",
-	})
-
-	mod := mocks.NewModuleMock(mc)
-	mod.GetStorageMock.Return(storage)
-
-	rule := NewWebhookConfigurationRule(nil)
-	errorList := errors.NewLintRuleErrorsList()
-
-	rule.ValidateWebhookConfigurationAnnotations(mod, errorList)
-	assert.False(t, errorList.ContainsErrors())
-}
-
 func TestWebhookConfigurationRule_OnlyWeight(t *testing.T) {
 	mc := minimock.NewController(t)
 
@@ -79,11 +61,30 @@ func TestWebhookConfigurationRule_OnlyWeight(t *testing.T) {
 	assert.False(t, errorList.ContainsErrors())
 }
 
-func TestWebhookConfigurationRule_OnlyDeployDependency(t *testing.T) {
+func TestWebhookConfigurationRule_OnlyDeployDependencySuffixed(t *testing.T) {
 	mc := minimock.NewController(t)
 
 	storage := makeStorage("ValidatingWebhookConfiguration", "my-webhook", map[string]string{
-		"werf.io/deploy-dependency": "dep-a",
+		"werf.io/deploy-dependency-deployment": "state=ready,kind=Deployment,name=my-app,namespace=d8-module",
+		"werf.io/deploy-dependency-service":    "state=present,kind=Service,name=my-svc,namespace=d8-module",
+	})
+
+	mod := mocks.NewModuleMock(mc)
+	mod.GetStorageMock.Return(storage)
+
+	rule := NewWebhookConfigurationRule(nil)
+	errorList := errors.NewLintRuleErrorsList()
+
+	rule.ValidateWebhookConfigurationAnnotations(mod, errorList)
+	assert.False(t, errorList.ContainsErrors())
+}
+
+func TestWebhookConfigurationRule_BothWeightAndDeployDependencySuffixed(t *testing.T) {
+	mc := minimock.NewController(t)
+
+	storage := makeStorage("ValidatingWebhookConfiguration", "my-webhook", map[string]string{
+		"werf.io/weight":                       "10",
+		"werf.io/deploy-dependency-deployment": "state=ready,kind=Deployment,name=my-app,namespace=d8-module",
 	})
 
 	mod := mocks.NewModuleMock(mc)
@@ -152,6 +153,25 @@ func TestWebhookConfigurationRule_SkipsNonWebhookResources(t *testing.T) {
 
 	rule.ValidateWebhookConfigurationAnnotations(mod, errorList)
 	assert.False(t, errorList.ContainsErrors())
+}
+
+func TestWebhookConfigurationRule_DeployOnNotEnough(t *testing.T) {
+	mc := minimock.NewController(t)
+
+	// "werf.io/deploy-on" controls deploy *stages* (e.g. pre-install), not
+	// deploy *ordering* — it should NOT satisfy the rule on its own.
+	storage := makeStorage("ValidatingWebhookConfiguration", "my-webhook", map[string]string{
+		"werf.io/deploy-on": "pre-install,pre-upgrade,pre-rollback",
+	})
+
+	mod := mocks.NewModuleMock(mc)
+	mod.GetStorageMock.Return(storage)
+
+	rule := NewWebhookConfigurationRule(nil)
+	errorList := errors.NewLintRuleErrorsList()
+
+	rule.ValidateWebhookConfigurationAnnotations(mod, errorList)
+	assert.True(t, errorList.ContainsErrors())
 }
 
 func TestWebhookConfigurationRule_ExcludedResource(t *testing.T) {

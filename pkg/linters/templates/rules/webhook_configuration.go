@@ -17,6 +17,8 @@ limitations under the License.
 package rules
 
 import (
+	"strings"
+
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
@@ -24,8 +26,9 @@ import (
 const (
 	WebhookConfigurationRuleName = "webhook-configuration-annotations"
 
-	AnnotationWeight           = "werf.io/weight"
-	AnnotationDeployDependency = "werf.io/deploy-dependency"
+	AnnotationWeight                 = "werf.io/weight"
+	AnnotationDeployDependency       = "werf.io/deploy-dependency"
+	AnnotationDeployDependencyPrefix = "werf.io/deploy-dependency-"
 )
 
 func NewWebhookConfigurationRule(excludeRules []pkg.KindRuleExclude) *WebhookConfigurationRule {
@@ -44,6 +47,20 @@ type WebhookConfigurationRule struct {
 	pkg.KindRule
 }
 
+// hasDeployDependencyAnnotation checks whether any annotation key starts with
+// "werf.io/deploy-dependency". In practice werf uses suffixed keys such as
+// "werf.io/deploy-dependency-deployment" or "werf.io/deploy-dependency-service",
+// so a prefix match is required instead of an exact key match.
+func hasDeployDependencyAnnotation(annotations map[string]string) bool {
+	for key := range annotations {
+		if strings.HasPrefix(key, AnnotationDeployDependencyPrefix) {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (r *WebhookConfigurationRule) ValidateWebhookConfigurationAnnotations(m pkg.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
@@ -60,12 +77,12 @@ func (r *WebhookConfigurationRule) ValidateWebhookConfigurationAnnotations(m pkg
 		annotations := object.Unstructured.GetAnnotations()
 
 		_, hasWeight := annotations[AnnotationWeight]
-		_, hasDeployDependency := annotations[AnnotationDeployDependency]
+		hasDeployDependency := hasDeployDependencyAnnotation(annotations)
 
 		if !hasWeight && !hasDeployDependency {
 			errorList.WithObjectID(object.Identity()).
 				WithFilePath(object.GetPath()).
-				Errorf("%s %q must have either %q or %q annotation", kind, object.Unstructured.GetName(), AnnotationDeployDependency, AnnotationWeight)
+				Errorf("%s %q must have either %q annotation or an annotation with %q prefix", kind, object.Unstructured.GetName(), AnnotationWeight, AnnotationDeployDependency)
 		}
 	}
 }

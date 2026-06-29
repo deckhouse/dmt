@@ -1853,7 +1853,7 @@ linters-settings:
 
 ### webhook-configuration-annotations
 
-**Purpose:** Ensures every `ValidatingWebhookConfiguration` and `MutatingWebhookConfiguration` has at least one of `werf.io/deploy-dependency` or `werf.io/weight` annotations. These annotations control werf deploy ordering: `werf.io/deploy-dependency` declares a dependency on another resource (the recommended approach), while `werf.io/weight` sets explicit ordering priority.
+**Purpose:** Ensures every `ValidatingWebhookConfiguration` and `MutatingWebhookConfiguration` has at least one ordering annotation: `werf.io/weight` or an annotation with the `werf.io/deploy-dependency-` prefix (e.g. `werf.io/deploy-dependency-deployment`, `werf.io/deploy-dependency-service`). These annotations control werf deploy ordering: `werf.io/deploy-dependency-*` declares a dependency on another resource (the recommended approach), while `werf.io/weight` sets explicit ordering priority.
 
 **Description:**
 
@@ -1861,9 +1861,10 @@ Iterates all parsed Kubernetes resources, filters for webhook configuration kind
 
 **What it checks:**
 
-1. Every `ValidatingWebhookConfiguration` has either `werf.io/deploy-dependency` or `werf.io/weight` annotation
-2. Every `MutatingWebhookConfiguration` has either `werf.io/deploy-dependency` or `werf.io/weight` annotation
-3. Resources with neither annotation are reported as errors (configurable via `impact`, set to `warn` to downgrade)
+1. Every `ValidatingWebhookConfiguration` has either `werf.io/weight` or an annotation starting with `werf.io/deploy-dependency-`
+2. Every `MutatingWebhookConfiguration` has either `werf.io/weight` or an annotation starting with `werf.io/deploy-dependency-`
+3. Note: `werf.io/deploy-on` alone is not sufficient — it controls deploy *stages*, not deploy *ordering*
+4. Resources with neither annotation are reported as errors (configurable via `impact`, set to `warn` to downgrade)
 
 **Why it matters:**
 
@@ -1904,7 +1905,21 @@ kind: ValidatingWebhookConfiguration
 metadata:
   name: my-webhook
   annotations:
-    werf.io/deploy-dependency: d8-my-module/my-service
+    werf.io/deploy-dependency-deployment: state=ready,kind=Deployment,name=my-app,namespace=d8-my-module
+    werf.io/deploy-dependency-service: state=present,kind=Service,name=my-svc,namespace=d8-my-module
+webhooks:
+  - name: check.example.com
+    ...
+```
+
+✅ **Correct** - With weight annotation only:
+
+```yaml
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: my-webhook
+  annotations:
     werf.io/weight: "10"
 webhooks:
   - name: check.example.com
