@@ -114,6 +114,8 @@ type CaseSpec struct {
 	// same matching semantics as Expect (linter required; rule/level/textContains
 	// optional); the case fails if any produced finding matches.
 	ExpectAbsent []Finding `yaml:"expectAbsent"`
+	// ExpectPass lists rules that must not produce any matching findings.
+	ExpectPass []Finding `yaml:"expectPass"`
 	// Exhaustive, when true, asserts that there are no findings beyond those
 	// listed in Expect (every produced finding must be matched by some Finding).
 	Exhaustive bool `yaml:"exhaustive"`
@@ -346,6 +348,21 @@ func Match(spec *CaseSpec, findings []pkg.LinterError) MatchResult {
 				res.Failures = append(res.Failures,
 					fmt.Sprintf("unexpected finding (exhaustive mode): %s", formatFinding(findings[i])))
 			}
+		}
+	}
+
+	for _, pass := range spec.ExpectPass {
+		var hits int
+
+		for i := range findings {
+			if findingMatches(pass, findings[i]) {
+				hits++
+			}
+		}
+
+		if hits > 0 {
+			res.Failures = append(res.Failures,
+				fmt.Sprintf("expected rule to pass for [%s], got %d finding(s)", pass, hits))
 		}
 	}
 

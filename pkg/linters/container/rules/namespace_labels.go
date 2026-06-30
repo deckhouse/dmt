@@ -28,16 +28,20 @@ const (
 	NamespaceLabelsRuleName = "object-namespace-labels"
 )
 
-func NewNamespaceLabelsRule() *NamespaceLabelsRule {
+func NewNamespaceLabelsRule(excludeRules []pkg.KindRuleExclude) *NamespaceLabelsRule {
 	return &NamespaceLabelsRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: NamespaceLabelsRuleName,
+		},
+		KindRule: pkg.KindRule{
+			ExcludeRules: excludeRules,
 		},
 	}
 }
 
 type NamespaceLabelsRule struct {
 	pkg.RuleMeta
+	pkg.KindRule
 }
 
 func (r *NamespaceLabelsRule) ObjectNamespaceLabels(object storage.StoreObject, storageMap map[storage.ResourceIndex]storage.StoreObject, errorList *errors.LintRuleErrorsList) {
@@ -48,6 +52,11 @@ func (r *NamespaceLabelsRule) ObjectNamespaceLabels(object storage.StoreObject, 
 	}
 
 	namespaceName := object.Unstructured.GetName()
+
+	if !r.Enabled(object.Unstructured.GetKind(), namespaceName) {
+		// TODO: add metrics
+		return
+	}
 
 	hasPrometheusRules := false
 

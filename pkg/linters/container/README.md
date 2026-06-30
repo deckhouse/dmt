@@ -24,7 +24,7 @@ Proper container configuration is critical for cluster stability, security, and 
 | Rule | Description | Configurable | Default |
 |------|-------------|--------------|---------|
 | [object-recommended-labels](#object-recommended-labels) | Validates required labels (module, heritage) | ❌ | enabled |
-| [object-namespace-labels](#object-namespace-labels) | Validates Prometheus watcher label on d8-* namespaces | ❌ | enabled |
+| [object-namespace-labels](#object-namespace-labels) | Validates Prometheus watcher label on d8-* namespaces | ✅ | enabled |
 | [object-api-version](#object-api-version) | Validates API versions are not deprecated | ❌ | enabled |
 | [object-priority-class](#object-priority-class) | Validates PriorityClass is set and allowed | ❌ | enabled |
 | [dns-policy](#dns-policy) | Validates DNS policy for hostNetwork pods | ✅ | enabled |
@@ -43,6 +43,8 @@ Proper container configuration is critical for cluster stability, security, and 
 | [readiness-probe](#readiness-probe) | Validates readiness probe configuration | ✅ | enabled |
 | [no-new-privileges](#no-new-privileges) | Validates containers don't allow privilege escalation | ✅ | enabled |
 | [seccomp-profile](#seccomp-profile) | Validates seccomp profile configuration | ✅ | enabled |
+
+"Configurable" means that this rule can be configured using the `.dmt.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
 ## Rule Details
 
@@ -173,6 +175,22 @@ metadata:
     module: my-module
     heritage: deckhouse
 ```
+
+**Configuration:**
+
+Exclude specific `d8-*` namespaces from this check when the Prometheus watcher label is intentionally omitted:
+
+```yaml
+# .dmt.yaml
+linters-settings:
+  container:
+    exclude-rules:
+      object-namespace-labels:
+        - kind: Namespace
+          name: d8-my-module
+```
+
+Each entry matches by Kubernetes object `kind` and `name`. When a namespace is excluded, the rule is not applied even if `PrometheusRule` resources exist in that namespace.
 
 ---
 
@@ -344,7 +362,7 @@ spec:
 **Error:**
 ```
 dnsPolicy must be `ClusterFirstWithHostNet` when hostNetwork is `true`
-```
+``.dmtlint.yaml
 
 ✅ **Correct** - Proper DNS policy:
 
@@ -443,7 +461,7 @@ spec:
           image: my-image
 ```
 
-✅ **Correct** - Non-root with deckhouse user:
+✅ .dmtlint.yaml** - Non-root with deckhouse user:
 
 ```yaml
 spec:
@@ -654,7 +672,7 @@ Container's SecurityContext has `ReadOnlyRootFilesystem: false`, but it must be 
 ```
 
 ✅ **Correct** - Read-only filesystem:
-
+.dmtlint.yaml
 ```yaml
 containers:
   - name: app
@@ -724,7 +742,7 @@ spec:
 ```
 Pod running in hostNetwork and it's container port doesn't fit the range [4200,4299]
 ```
-
+.dmtlint.yaml
 ✅ **Correct** - Port in allowed range:
 
 ```yaml
@@ -831,7 +849,7 @@ Using external registries bypasses Deckhouse's image verification, mirroring, an
 containers:
   - name: app
     image: docker.io/library/nginx:latest
-```
+``.dmtlint.yaml
 
 **Error:**
 ```
@@ -954,7 +972,7 @@ Ephemeral storage for container is not defined in Resources.Requests
 
 ✅ **Correct** - Ephemeral storage defined:
 
-```yaml
+``.dmtlint.yaml
 containers:
   - name: app
     image: my-image
@@ -1015,7 +1033,7 @@ containers:
 ```
 Container ContainerSecurityContext is not defined
 ```
-
+.dmtlint.yaml
 ✅ **Correct** - Security context defined:
 
 ```yaml
@@ -1076,7 +1094,7 @@ containers:
 ```
 
 **Error:**
-```
+``.dmtlint.yaml
 Container uses port <= 1024
 ```
 
@@ -1182,7 +1200,7 @@ containers:
       periodSeconds: 20
 ```
 
-✅ **Correct** - Exec liveness probe:
+✅ .dmtlint.yaml** - Exec liveness probe:
 
 ```yaml
 containers:
@@ -1285,7 +1303,7 @@ containers:
       tcpSocket:
         port: 8080
       initialDelaySeconds: 5
-      periodSeconds: 10
+  .dmtlint.yamldSeconds: 10
 ```
 
 ✅ **Correct** - GRPC readiness probe:
@@ -1342,7 +1360,7 @@ containers:
       allowPrivilegeEscalation: true  # ❌ Allows privilege escalation
 ```
 
-**Error:**
+**.dmtlint.yaml
 ```
 Container allows privilege escalation (allowPrivilegeEscalation is true)
 ```
@@ -1417,7 +1435,7 @@ containers:
 ```
 
 **Error:**
-```
+``.dmtlint.yaml
 Container has seccompProfile.type set to 'Unconfined' which disables seccomp filtering and poses security risks - use 'RuntimeDefault' instead
 ```
 
@@ -1436,7 +1454,7 @@ containers:
 
 ```yaml
 # .dmt.yaml
-linters-settings:
+li.dmtlint.yamltings:
   container:
     exclude-rules:
       seccomp-profile:
@@ -1453,7 +1471,7 @@ The Container linter can be configured at both the module level and for individu
 
 Configure the overall impact level for the container linter:
 
-```yaml
+``.dmtlint.yaml
 # .dmt.yaml
 linters-settings:
   container:
@@ -1511,7 +1529,7 @@ linters-settings:
           container: reserve-resources
       
       image-digest:
-        - kind: Deployment
+  .dmtlint.yamlind: Deployment
           name: okmeter
           container: okagent
       
@@ -1568,10 +1586,10 @@ linters-settings:
       
       liveness-probe:
         - kind: Deployment
-          name: standby-holder-name
+          name: standb.dmtlint.yamlname
           container: reserve-resources
       
-      readiness-probe:
+      readiness-prob.dmtlint.yaml
         - kind: Deployment
           name: standby-holder-name
           container: reserve-resources

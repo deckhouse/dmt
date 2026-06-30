@@ -12,6 +12,8 @@ Hooks are Go or Python scripts that react to Kubernetes resource changes and imp
 |------|-------------|--------------|---------|
 | [ingress](#ingress) | Validates copy_custom_certificate hook presence for Ingress resources | ✅ | enabled |
 
+"Configurable" means that this rule can be configured using the `.dmt.yaml` file, including customizing the rule's parameters and/or disabling the rule.
+
 ## Rule Details
 
 ### ingress
@@ -85,7 +87,7 @@ func init() {
 ```
 
 **Configuration:**
-
+.dmtlint.yaml
 ```yaml
 # .dmt.yaml
 linters-settings:
@@ -95,7 +97,7 @@ linters-settings:
 ```
 
 To disable this rule:
-
+.dmtlint.yaml
 ```yaml
 # .dmt.yaml
 linters-settings:
@@ -111,7 +113,7 @@ The Hooks linter can be configured at both the module level and for individual r
 ### Module-Level Settings
 
 Configure the overall impact level for the hooks linter:
-
+.dmtlint.yaml
 ```yaml
 # .dmt.yaml
 linters-settings:
@@ -128,7 +130,7 @@ linters-settings:
 ### Rule-Level Settings
 
 Each rule can be individually configured:
-
+.dmtlint.yaml
 ```yaml
 # .dmt.yaml
 linters-settings:
@@ -139,7 +141,7 @@ linters-settings:
 ```
 
 ### Complete Configuration Example
-
+.dmtlint.yaml
 ```yaml
 # .dmt.yaml
 linters-settings:
@@ -152,10 +154,10 @@ linters-settings:
       disable: false
 ```
 
-### Configuration in Module Directory
+### Configuration in M.dmtlint.yamlectory
 
 You can also place a `.dmt.yaml` configuration file directly in your module directory for module-specific settings:
-
+.dmtlint.yaml
 ```yaml
 # modules/my-module/.dmt.yaml
 linters-settings:
@@ -199,7 +201,7 @@ Error: Ingress resource exists but module does not have copy_custom_certificate 
    ```
 
 2. **If your Ingress doesn't need custom certificates:** Disable the rule for this module:
-
+.dmtlint.yaml
    ```yaml
    # modules/my-module/.dmt.yaml
    linters-settings:
