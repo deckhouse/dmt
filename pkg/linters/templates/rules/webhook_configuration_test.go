@@ -21,7 +21,6 @@ import (
 
 	"github.com/gojuno/minimock/v3"
 	"github.com/stretchr/testify/assert"
-
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/deckhouse/dmt/internal/mocks"
@@ -200,6 +199,7 @@ func TestWebhookConfigurationRule_ExcludedResourceDoesNotAffectOthers(t *testing
 		u := unstructured.Unstructured{}
 		u.SetKind("MutatingWebhookConfiguration")
 		u.SetName("other-hook")
+
 		return storage.StoreObject{Unstructured: u, AbsPath: "/test/other.yaml"}
 	}()
 

@@ -129,16 +129,16 @@ type TemplatesLinterConfig struct {
 }
 
 type TemplatesLinterRules struct {
-	VPARule            RuleConfig `mapstructure:"vpa"`
-	PDBRule            RuleConfig `mapstructure:"pdb"`
-	IngressRule        RuleConfig `mapstructure:"ingress"`
-	PrometheusRule     RuleConfig `mapstructure:"prometheus-rules"`
-	GrafanaRule        RuleConfig `mapstructure:"grafana-dashboards"`
-	KubeRBACProxyRule  RuleConfig `mapstructure:"kube-rbac-proxy"`
-	ServicePortRule    RuleConfig `mapstructure:"service-port"`
-	ClusterDomainRule  RuleConfig `mapstructure:"cluster-domain"`
-	RegistryRule       RuleConfig `mapstructure:"registry"`
-	EnabledModulesRule RuleConfig `mapstructure:"enabled-modules"`
+	VPARule                  RuleConfig `mapstructure:"vpa"`
+	PDBRule                  RuleConfig `mapstructure:"pdb"`
+	IngressRule              RuleConfig `mapstructure:"ingress"`
+	PrometheusRule           RuleConfig `mapstructure:"prometheus-rules"`
+	GrafanaRule              RuleConfig `mapstructure:"grafana-dashboards"`
+	KubeRBACProxyRule        RuleConfig `mapstructure:"kube-rbac-proxy"`
+	ServicePortRule          RuleConfig `mapstructure:"service-port"`
+	ClusterDomainRule        RuleConfig `mapstructure:"cluster-domain"`
+	RegistryRule             RuleConfig `mapstructure:"registry"`
+	EnabledModulesRule       RuleConfig `mapstructure:"enabled-modules"`
 	WebhookConfigurationRule RuleConfig `mapstructure:"webhook-configuration-annotations"`
 }
 
