@@ -50,7 +50,7 @@ func (h *Hooks) Run(m *module.Module) {
 
 	r := rules.NewHookRule(h.cfg)
 	for _, object := range m.GetStorage() {
-		r.CheckIngressCopyCustomCertificateRule(m, object, errorList)
+		r.CheckCopyCustomCertificateRule(m, object, errorList)
 	}
 }
 
