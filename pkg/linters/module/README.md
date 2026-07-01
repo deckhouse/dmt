@@ -42,6 +42,7 @@ Validates the `module.yaml` configuration file structure and content.
 - ✅ Update section follows versioning rules
 - ✅ `weight` must not be zero for critical modules
 - ✅ `description` field is deprecated (use `descriptions.en` instead)
+- ✅ `disable.message` field is deprecated (use `disable.messages` with `ru`/`en` instead)
 
 #### Stage Values
 
