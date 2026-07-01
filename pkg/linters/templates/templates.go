@@ -96,6 +96,10 @@ func (l *Templates) Run(m *module.Module) {
 
 	rules.NewRegistryRule().CheckRegistrySecret(m, errorList.WithMaxLevel(l.cfg.Rules.RegistryRule.GetLevel()))
 
+	// WebhookConfiguration annotations rule
+	rules.NewWebhookConfigurationRule(l.cfg.ExcludeRules.WebhookConfiguration.Get()).
+		ValidateWebhookConfigurationAnnotations(m, errorList.WithMaxLevel(l.cfg.Rules.WebhookConfigurationRule.GetLevel()))
+
 	// EnabledModules rule
 	rules.NewEnabledModulesRule(
 		l.cfg.ExcludeRules.EnabledModules.Files.Get(),
