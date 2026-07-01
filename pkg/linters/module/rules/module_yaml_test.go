@@ -459,6 +459,61 @@ descriptions:
 	assert.False(t, errorList.ContainsErrors(), "Expected no warnings when 'description' field is not used")
 }
 
+func TestCheckDefinitionFile_DeprecatedDisableMessageField(t *testing.T) {
+	tempDir := t.TempDir()
+	moduleFilePath := filepath.Join(tempDir, ModuleConfigFilename)
+
+	// Test deprecated 'disable.message' field usage
+	err := os.WriteFile(moduleFilePath, []byte(`
+name: test-module
+stage: Experimental
+descriptions:
+  en: "Test description"
+  ru: "Тестовое описание"
+disable:
+  confirmation: true
+  message: "Old disable message field"
+`), 0600)
+	require.NoError(t, err)
+
+	rule := NewDefinitionFileRule(false)
+	errorList := errors.NewLintRuleErrorsList()
+
+	rule.CheckDefinitionFile(tempDir, errorList)
+	assert.True(t, errorList.ContainsErrors(), "Expected error for deprecated 'disable.message' field")
+
+	// Check that we have the deprecation warning
+	found := false
+
+	for _, err := range errorList.GetErrors() {
+		if strings.Contains(err.Text, "Field 'disable.message' is deprecated") {
+			found = true
+			break
+		}
+	}
+
+	assert.True(t, found, "Expected deprecation warning for 'disable.message' field")
+
+	// Test with localized 'disable.messages' instead of deprecated 'disable.message'
+	err = os.WriteFile(moduleFilePath, []byte(`
+name: test-module
+stage: Experimental
+descriptions:
+  en: "Test description"
+  ru: "Тестовое описание"
+disable:
+  confirmation: true
+  messages:
+    en: "Disable message"
+    ru: "Сообщение при отключении"
+`), 0600)
+	require.NoError(t, err)
+
+	errorList = errors.NewLintRuleErrorsList()
+	rule.CheckDefinitionFile(tempDir, errorList)
+	assert.False(t, errorList.ContainsErrors(), "Expected no warnings when 'disable.message' field is not used")
+}
+
 func TestCheckDefinitionFile_FileErrors(t *testing.T) {
 	tempDir := t.TempDir()
 	moduleFilePath := filepath.Join(tempDir, ModuleConfigFilename)
