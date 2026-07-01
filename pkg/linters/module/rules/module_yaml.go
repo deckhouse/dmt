@@ -295,13 +295,42 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 		errorList.WithMaxLevel(maxLevel).Error("Field 'description' is deprecated, use 'descriptions.en' instead")
 	}
 
-	if yml.Disable != nil && yml.Disable.Message != "" {
-		errorList.WithMaxLevel(maxLevel).Error("Field 'disable.message' is deprecated, use 'disable.messages' (with 'ru'/'en') instead")
+	if yml.Disable != nil {
+		hasMessage := yml.Disable.Message != ""
+		hasMessages := yml.Disable.Messages.English != "" || yml.Disable.Messages.Russian != ""
+
+		switch {
+		case hasMessages && !requirementsGuaranteeDeckhouse177(yml.Requirements):
+			errorList.Error("Field 'disable.messages' is only supported on Deckhouse >= v1.77; set 'requirements.deckhouse' to \">= 1.77\"")
+		case hasMessage && !hasMessages:
+			errorList.Warn("Field 'disable.message' is deprecated on Deckhouse >= v1.77, use 'disable.messages' (with 'ru'/'en') instead")
+		}
 	}
 
 	if yml.Critical && yml.Weight == 0 {
 		errorList.Error("Field 'weight' must not be zero for critical modules")
 	}
+}
+
+// requirementsGuaranteeDeckhouse177 reports whether requirements.deckhouse constrains the
+// platform to v1.77 or newer — i.e. no Deckhouse version below 1.77 satisfies the constraint.
+// disable.messages is only understood by Deckhouse >= v1.77.
+func requirementsGuaranteeDeckhouse177(req *ModuleRequirements) bool {
+	if req == nil || req.Deckhouse == "" {
+		return false
+	}
+
+	constraint, err := semver.NewConstraint(req.Deckhouse)
+	if err != nil {
+		return false
+	}
+
+	belowMin, err := semver.NewVersion("1.76.999999")
+	if err != nil {
+		return false
+	}
+
+	return !constraint.Check(belowMin)
 }
 
 func (m ModuleRequirements) validateRequirements(errorList *errors.LintRuleErrorsList) {

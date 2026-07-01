@@ -1,0 +1,11 @@
+name: e2e-module-disable-messages
+namespace: e2e-module-disable-messages
+stage: Experimental
+descriptions:
+  en: "Module used to verify the disable.messages requirement lint"
+  ru: "Модуль для проверки требования disable.messages"
+disable:
+  confirmation: true
+  messages:
+    ru: "Локализованное сообщение отключения"
+    en: "Localized disable message"

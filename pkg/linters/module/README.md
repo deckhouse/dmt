@@ -42,7 +42,8 @@ Validates the `module.yaml` configuration file structure and content.
 - ✅ Update section follows versioning rules
 - ✅ `weight` must not be zero for critical modules
 - ✅ `description` field is deprecated (use `descriptions.en` instead)
-- ✅ `disable.message` field is deprecated (use `disable.messages` with `ru`/`en` instead)
+- ✅ `disable.messages` (localized `ru`/`en`) requires `requirements.deckhouse` to be `>= 1.77` — otherwise an **error** (Deckhouse below 1.77 does not understand it)
+- ✅ `disable.message` without `disable.messages` is deprecated for Deckhouse `>= 1.77` — a **warning** pointing authors to the localized `disable.messages`
 
 #### Stage Values
 

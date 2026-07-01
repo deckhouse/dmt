@@ -463,55 +463,71 @@ func TestCheckDefinitionFile_DeprecatedDisableMessageField(t *testing.T) {
 	tempDir := t.TempDir()
 	moduleFilePath := filepath.Join(tempDir, ModuleConfigFilename)
 
-	// Test deprecated 'disable.message' field usage
-	err := os.WriteFile(moduleFilePath, []byte(`
+	rule := NewDefinitionFileRule(false)
+
+	check := func(t *testing.T, body string) *errors.LintRuleErrorsList {
+		t.Helper()
+		require.NoError(t, os.WriteFile(moduleFilePath, []byte(body), 0600))
+
+		errorList := errors.NewLintRuleErrorsList()
+		rule.CheckDefinitionFile(tempDir, errorList)
+
+		return errorList
+	}
+
+	containsText := func(errorList *errors.LintRuleErrorsList, substr string) bool {
+		for _, e := range errorList.GetErrors() {
+			if strings.Contains(e.Text, substr) {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	// disable.message without disable.messages -> deprecation warning, not a hard error.
+	errorList := check(t, `
 name: test-module
 stage: Experimental
 descriptions:
   en: "Test description"
-  ru: "Тестовое описание"
 disable:
   confirmation: true
   message: "Old disable message field"
-`), 0600)
-	require.NoError(t, err)
+`)
+	assert.False(t, errorList.ContainsErrors(), "disable.message deprecation must be a warning, not an error")
+	assert.True(t, containsText(errorList, "Field 'disable.message' is deprecated"), "expected disable.message deprecation warning")
 
-	rule := NewDefinitionFileRule(false)
-	errorList := errors.NewLintRuleErrorsList()
-
-	rule.CheckDefinitionFile(tempDir, errorList)
-	assert.True(t, errorList.ContainsErrors(), "Expected error for deprecated 'disable.message' field")
-
-	// Check that we have the deprecation warning
-	found := false
-
-	for _, err := range errorList.GetErrors() {
-		if strings.Contains(err.Text, "Field 'disable.message' is deprecated") {
-			found = true
-			break
-		}
-	}
-
-	assert.True(t, found, "Expected deprecation warning for 'disable.message' field")
-
-	// Test with localized 'disable.messages' instead of deprecated 'disable.message'
-	err = os.WriteFile(moduleFilePath, []byte(`
+	// disable.messages without requirements.deckhouse >= 1.77 -> error.
+	errorList = check(t, `
 name: test-module
 stage: Experimental
 descriptions:
   en: "Test description"
-  ru: "Тестовое описание"
 disable:
   confirmation: true
   messages:
     en: "Disable message"
     ru: "Сообщение при отключении"
-`), 0600)
-	require.NoError(t, err)
+`)
+	assert.True(t, errorList.ContainsErrors(), "disable.messages without requirements.deckhouse >= 1.77 must be an error")
+	assert.True(t, containsText(errorList, "disable.messages' is only supported on Deckhouse >= v1.77"), "expected disable.messages requirement error")
 
-	errorList = errors.NewLintRuleErrorsList()
-	rule.CheckDefinitionFile(tempDir, errorList)
-	assert.False(t, errorList.ContainsErrors(), "Expected no warnings when 'disable.message' field is not used")
+	// disable.messages with requirements.deckhouse >= 1.77 -> clean.
+	errorList = check(t, `
+name: test-module
+stage: Experimental
+descriptions:
+  en: "Test description"
+requirements:
+  deckhouse: ">= 1.77"
+disable:
+  confirmation: true
+  messages:
+    en: "Disable message"
+    ru: "Сообщение при отключении"
+`)
+	assert.False(t, errorList.ContainsErrors(), "disable.messages with requirements.deckhouse >= 1.77 must be clean")
 }
 
 func TestCheckDefinitionFile_FileErrors(t *testing.T) {
