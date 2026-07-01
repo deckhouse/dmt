@@ -1,0 +1,9 @@
+name: e2e-module-disable-message
+namespace: e2e-module-disable-message
+stage: Experimental
+descriptions:
+  en: "Module used to verify the disable.message deprecation lint"
+  ru: "Модуль для проверки депрекации disable.message"
+disable:
+  confirmation: true
+  message: "Deprecated singular disable message"
