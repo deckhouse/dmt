@@ -65,6 +65,7 @@ The `accessibility` section controls which editions and bundles include the modu
 - `se` - Standard Edition
 - `se-plus` - Standard Edition Plus
 - `be` - Business Edition
+- `cse` - Certified Security Edition
 - `_default` - Default behavior override
 
 **Valid Bundles:**
