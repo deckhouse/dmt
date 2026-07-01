@@ -1,0 +1,12 @@
+name: e2e-module-disable-messages-partial
+namespace: e2e-module-disable-messages-partial
+stage: Experimental
+descriptions:
+  en: "Module used to verify disable.messages requires both ru and en"
+  ru: "Модуль для проверки требования обоих языков в disable.messages"
+requirements:
+  deckhouse: ">= 1.77"
+disable:
+  confirmation: true
+  messages:
+    en: "Localized disable message"

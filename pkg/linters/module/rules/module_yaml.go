@@ -297,12 +297,20 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 
 	if yml.Disable != nil {
 		hasMessage := yml.Disable.Message != ""
-		hasMessages := yml.Disable.Messages.English != "" || yml.Disable.Messages.Russian != ""
+		hasRu := yml.Disable.Messages.Russian != ""
+		hasEn := yml.Disable.Messages.English != ""
+		hasMessages := hasRu || hasEn
 
 		switch {
-		case hasMessages && !requirementsGuaranteeDeckhouse177(yml.Requirements):
-			errorList.Error("Field 'disable.messages' is only supported on Deckhouse >= v1.77; set 'requirements.deckhouse' to \">= 1.77\"")
-		case hasMessage && !hasMessages:
+		case hasMessages:
+			if !requirementsGuaranteeDeckhouse177(yml.Requirements) {
+				errorList.Error("Field 'disable.messages' is only supported on Deckhouse >= v1.77; set 'requirements.deckhouse' to \">= 1.77\"")
+			}
+
+			if !hasRu || !hasEn {
+				errorList.Error("Field 'disable.messages' must define both 'ru' and 'en'")
+			}
+		case hasMessage:
 			errorList.Warn("Field 'disable.message' is deprecated on Deckhouse >= v1.77, use 'disable.messages' (with 'ru'/'en') instead")
 		}
 	}

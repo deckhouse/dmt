@@ -528,6 +528,22 @@ disable:
     ru: "Сообщение при отключении"
 `)
 	assert.False(t, errorList.ContainsErrors(), "disable.messages with requirements.deckhouse >= 1.77 must be clean")
+
+	// disable.messages missing one of ru/en -> error.
+	errorList = check(t, `
+name: test-module
+stage: Experimental
+descriptions:
+  en: "Test description"
+requirements:
+  deckhouse: ">= 1.77"
+disable:
+  confirmation: true
+  messages:
+    en: "Disable message"
+`)
+	assert.True(t, errorList.ContainsErrors(), "disable.messages missing 'ru' must be an error")
+	assert.True(t, containsText(errorList, "must define both 'ru' and 'en'"), "expected both-languages error")
 }
 
 func TestCheckDefinitionFile_FileErrors(t *testing.T) {
