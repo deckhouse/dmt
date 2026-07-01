@@ -1,0 +1,8 @@
+description: >
+  A module with an Ingress, a matching HTTPRoute (same app label), and a
+  ListenerSet referenced by the HTTPRoute parentRefs must produce no
+  httproute-rules findings.
+module: module
+expectAbsent:
+  - linter: templates
+    rule: httproute-rules

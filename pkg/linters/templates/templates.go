@@ -59,7 +59,8 @@ func (l *Templates) Run(m *module.Module) {
 	rules.NewPDBRule(l.cfg.ExcludeRules.PDBAbsent.Get()).ControllerMustHavePDB(m, errorList.WithMaxLevel(l.cfg.Rules.PDBRule.GetLevel()))
 	// Ingress
 	ingressRule := rules.NewIngressRule(l.cfg.ExcludeRules.Ingress.Get())
-
+	// HttpRoute
+	httpRouteRule := rules.NewHTTPRouteRule(l.cfg.ExcludeRules.HTTPRoute.Get())
 	// monitoring
 	prometheusRule := rules.NewPrometheusRule(l.cfg)
 	grafanaRule := rules.NewGrafanaRule(l.cfg)
@@ -81,6 +82,8 @@ func (l *Templates) Run(m *module.Module) {
 		prometheusRule.PromtoolRuleCheck(m, object, errorList.WithMaxLevel(l.cfg.Rules.PrometheusRule.GetLevel()))
 		ingressRule.CheckSnippetsRule(object, errorList.WithMaxLevel(l.cfg.Rules.IngressRule.GetLevel()))
 	}
+
+	httpRouteRule.ModuleMustHaveGatewayResources(m, errorList.WithMaxLevel(l.cfg.Rules.HTTPRouteRule.GetLevel()))
 
 	// Cluster domain rule
 	clusterDomainRule := rules.NewClusterDomainRule()

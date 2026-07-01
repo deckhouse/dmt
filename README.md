@@ -64,6 +64,17 @@ Quickly scaffold new Deckhouse modules with best practices:
 
 ---
 
+## 🧰 Commands
+
+| Command | Purpose | Documentation |
+|---------|---------|---------------|
+| `lint` | Lint Deckhouse modules with the specialized linters | [Command Line Options](#lint-command) |
+| `bootstrap` | Scaffold a new Deckhouse module | [Command Line Options](#bootstrap-command) |
+| `render` | Render module templates to disk | [internal/render/README.md](internal/render/README.md) |
+| `test` | Run module testers (`conversions`, `templates`) | [internal/test/README.md](internal/test/README.md) |
+
+---
+
 ## 📦 Installation
 
 ### Method 1: Install Script (Recommended)
@@ -287,6 +298,56 @@ dmt bootstrap my-module -p gitlab -d ./modules/my-module
 
 # Custom template
 dmt bootstrap my-module -r https://example.com/template.zip
+```
+
+#### Render Command
+
+Renders each module's `templates/` directory using values generated from its OpenAPI schemas. See [internal/render/README.md](internal/render/README.md) for the full output layout and edition handling.
+
+```bash
+dmt render [module-path] [flags]
+```
+
+**Flags:**
+- `--output, -o`: Directory to write rendered output into (default: a `rendered/` directory at each module root)
+
+**Examples:**
+```bash
+# Render every module under the current directory, in-place
+dmt render
+
+# Render every module under ./modules
+dmt render ./modules
+
+# Render all modules into a shared output directory
+dmt render ./modules --output ./build
+```
+
+#### Test Command
+
+Runs module testers. See [internal/test/README.md](internal/test/README.md) for testcase formats and snapshot details.
+
+```bash
+dmt test <subcommand> [module-path] [flags]
+```
+
+**Subcommands:**
+- `conversions`: Validate OpenAPI configuration conversions against declared versions and testcases
+- `templates`: Render module templates and compare against committed golden snapshots
+
+**Flags:**
+- `--update` (`templates` only): Regenerate golden snapshots instead of comparing against them
+
+**Examples:**
+```bash
+# Validate conversions for all modules
+dmt test conversions
+
+# Compare templates against snapshots for a single module
+dmt test templates ./modules/my-module
+
+# Refresh snapshots after intentional template changes
+dmt test templates ./modules/my-module --update
 ```
 
 ---

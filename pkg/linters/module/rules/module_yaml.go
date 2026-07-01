@@ -49,6 +49,7 @@ var ValidEditions = []string{
 	"se",
 	"se-plus",
 	"be",
+	"cse",
 	"_default",
 }
 

@@ -1,0 +1,13 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: ListenerSet
+metadata:
+  name: e2e-listener-set
+  namespace: e2e-httproute-valid
+spec:
+  parentRef:
+    name: default
+    namespace: d8-alb
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
