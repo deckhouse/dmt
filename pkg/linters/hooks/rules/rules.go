@@ -48,7 +48,7 @@ func NewHookRule(cfg *pkg.HooksLinterConfig) *HookRule {
 	}
 }
 
-func (l *HookRule) CheckIngressCopyCustomCertificateRule(m *module.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+func (l *HookRule) CheckCopyCustomCertificateRule(m *module.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(l.GetName()).WithFilePath(object.GetPath())
 
 	const (
@@ -59,7 +59,7 @@ func (l *HookRule) CheckIngressCopyCustomCertificateRule(m *module.Module, objec
 		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
 	}
 
-	if object.Unstructured.GetKind() != "Ingress" {
+	if object.Unstructured.GetKind() != "Ingress" && object.Unstructured.GetKind() != "HTTPRoute" {
 		return
 	}
 
@@ -82,7 +82,7 @@ func (l *HookRule) CheckIngressCopyCustomCertificateRule(m *module.Module, objec
 	}
 
 	if _, ok := imports[copyCustomCertificateImport]; !ok {
-		errorList.Error("Ingress resource exists but module does not have copy_custom_certificate hook")
+		errorList.Errorf("%s resource exists but module does not have copy_custom_certificate hook", object.Unstructured.GetKind())
 	}
 }
 

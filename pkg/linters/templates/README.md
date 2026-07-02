@@ -15,6 +15,7 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [kube-rbac-proxy](#kube-rbac-proxy) | Validates kube-rbac-proxy CA certificates in namespaces | ✅ | enabled |
 | [service-port](#service-port) | Validates services use named target ports | ✅ | enabled |
 | [ingress-rules](#ingress-rules) | Validates Ingress configuration snippets | ✅ | enabled |
+| [httproute-rules](#httproute-rules) | Validates that every Ingress has a companion HTTPRoute backed by a ListenerSet | ✅ | enabled |
 | [prometheus-rules](#prometheus-rules) | Validates Prometheus rules with promtool and proper templates | ✅ | enabled |
 | [grafana-dashboards](#grafana-dashboards) | Validates Grafana dashboard templates | ✅ | enabled |
 | [cluster-domain](#cluster-domain) | Validates cluster domain configuration is dynamic | ❌ | enabled |
@@ -1010,6 +1011,213 @@ linters-settings:
 
 ---
 
+### httproute-rules
+
+**Purpose:** Ensures that every module using Ingress-Nginx also ships a Gateway API equivalent — an `HTTPRoute` with a matching `app` label and a `ListenerSet` referenced by that route's `parentRefs`. This is the linter enforcement of DKP's transition to Gateway API.
+
+**Background:**
+
+DKP is moving from Ingress-Nginx toward the Kubernetes Gateway API. The goal is to claim full Gateway API readiness: every module that exposes HTTP traffic must work through both stacks simultaneously during the transition period. When Ingress-Nginx is eventually retired, modules that followed this rule will require no additional changes.
+
+The rule enforces the migration contract:
+
+> *If a module ships an Ingress, it must also ship a functionally equivalent HTTPRoute and a ListenerSet. An Ingress without a Gateway API counterpart is incomplete.*
+
+**What it checks:**
+
+For each `Ingress` object in the module templates:
+
+1. The Ingress has an `app` label.
+2. An `HTTPRoute` with the same `app` label value exists in the module templates.
+3. The HTTPRoute's `spec.parentRefs` references at least one `ListenerSet` that is also present in the module templates.
+
+**Why it matters:**
+
+- Modules that expose services only through Ingress-Nginx will stop working the moment that controller is removed from a cluster.
+- Shipping both resources in parallel keeps the module functional on Ingress-Nginx clusters today and on Gateway-API-only clusters tomorrow — with zero additional effort at migration time.
+- The ListenerSet requirement guarantees the HTTPRoute is actually connected to a gateway and not left dangling.
+
+**Examples:**
+
+❌ **Incorrect** — Ingress without a matching HTTPRoute:
+
+```yaml
+# templates/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dashboard
+  namespace: d8-my-module
+  labels:
+    app: dashboard  # ← app label is present, but no HTTPRoute exists
+spec:
+  rules:
+    - host: dashboard.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dashboard
+                port:
+                  number: 80
+```
+
+**Error:**
+```
+Error: Ingress "dashboard" requires a matching HTTPRoute with the same app label, but none was found
+```
+
+❌ **Incorrect** — HTTPRoute exists but its `parentRefs` do not reference any `ListenerSet` in the module:
+
+```yaml
+# templates/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dashboard
+  namespace: d8-my-module
+  labels:
+    app: dashboard
+spec:
+  rules:
+    - host: dashboard.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dashboard
+                port:
+                  number: 80
+---
+# templates/httproute.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: dashboard
+  namespace: d8-my-module
+  labels:
+    app: dashboard
+spec:
+  parentRefs:
+    - name: some-external-gateway  # ❌ Not a ListenerSet defined in this module
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: dashboard
+          port: 80
+```
+
+**Error:**
+```
+Error: HTTPRoute "dashboard" is invalid for Ingress migration:
+       spec.parentRefs does not reference any ListenerSet found in module templates
+```
+
+❌ **Incorrect** — HTTPRoute has empty `parentRefs`:
+
+```yaml
+# templates/httproute.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: dashboard
+  labels:
+    app: dashboard
+spec:
+  parentRefs: []  # ❌ Empty
+  rules:
+    - ...
+```
+
+**Error:**
+```
+Error: HTTPRoute "dashboard" is invalid for Ingress migration:
+       spec.parentRefs must reference an existing ListenerSet
+```
+
+✅ **Correct** — Ingress, HTTPRoute and ListenerSet all present and properly connected:
+
+```yaml
+# templates/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dashboard
+  namespace: d8-my-module
+  labels:
+    app: dashboard
+spec:
+  rules:
+    - host: dashboard.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dashboard
+                port:
+                  number: 80
+---
+# templates/httproute.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: dashboard
+  namespace: d8-my-module
+  labels:
+    app: dashboard  # ✅ Matches Ingress app label
+spec:
+  parentRefs:
+    - name: d8-alb-listener  # ✅ References a ListenerSet defined below
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: dashboard
+          port: 80
+---
+# templates/listenerset.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: ListenerSet
+metadata:
+  name: d8-alb-listener  # ✅ Name matches HTTPRoute parentRef
+  namespace: d8-my-module
+spec:
+  parentRef:
+    name: default
+    namespace: d8-alb
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+```
+
+**Configuration:**
+
+```yaml
+# .dmt.yaml
+linters-settings:
+  templates:
+    exclude-rules:
+      httproute:
+        - kind: Ingress
+          name: legacy-webhook  # Ingress that cannot yet be migrated
+        - kind: Ingress
+          name: internal-only
+```
+
+---
+
 ### prometheus-rules
 
 **Purpose:** Validates Prometheus alerting and recording rules using promtool and ensures proper Helm template structure. This catches syntax errors, invalid queries, and ensures monitoring rules are properly packaged.
@@ -1756,6 +1964,8 @@ linters-settings:
         impact: error
       ingress:
         impact: warning
+      httproute:
+        impact: error
       prometheus-rules:
         impact: info
       grafana-dashboards:
@@ -1801,7 +2011,14 @@ linters-settings:
           name: dashboard
         - kind: Ingress
           name: legacy-api
-      
+
+      # HTTPRoute exclusions — Ingresses that are not yet required to have a Gateway API companion
+      httproute:
+        - kind: Ingress
+          name: legacy-webhook
+        - kind: Ingress
+          name: internal-only
+
       # Service port exclusions (by service name and port name)
       service-port:
         - name: d8-control-plane-apiserver
@@ -2147,6 +2364,118 @@ Error: Ingress annotation "nginx.ingress.kubernetes.io/configuration-snippet" do
          ingress:
            - kind: Ingress
              name: dashboard
+   ```
+
+### Issue: Ingress requires a matching HTTPRoute
+
+**Symptom:**
+```
+Error: Ingress "my-app" requires a matching HTTPRoute with the same app label, but none was found
+```
+
+**Cause:** A module ships an Ingress but no `HTTPRoute` with the same `app` label exists in the templates.
+
+**Solutions:**
+
+1. **Add an HTTPRoute and a ListenerSet** (preferred — full Gateway API compliance):
+
+   ```yaml
+   # templates/httproute.yaml
+   apiVersion: gateway.networking.k8s.io/v1
+   kind: HTTPRoute
+   metadata:
+     name: my-app
+     namespace: d8-my-module
+     labels:
+       app: my-app  # Must match the Ingress app label
+   spec:
+     parentRefs:
+       - name: d8-alb-listener
+     rules:
+       - matches:
+           - path:
+               type: PathPrefix
+               value: /
+         backendRefs:
+           - name: my-app
+             port: 80
+   ---
+   # templates/listenerset.yaml
+   apiVersion: gateway.networking.k8s.io/v1
+   kind: ListenerSet
+   metadata:
+     name: d8-alb-listener
+     namespace: d8-my-module
+   spec:
+     parentRef:
+       name: default
+       namespace: d8-alb
+     listeners:
+       - name: http
+         protocol: HTTP
+         port: 80
+   ```
+
+2. **Exclude the Ingress temporarily** (only when migration is genuinely blocked):
+
+   ```yaml
+   # .dmt.yaml
+   linters-settings:
+     templates:
+       exclude-rules:
+         httproute:
+           - kind: Ingress
+             name: my-app
+   ```
+
+### Issue: HTTPRoute parentRefs do not reference any ListenerSet
+
+**Symptom:**
+```
+Error: HTTPRoute "my-app" is invalid for Ingress migration:
+       spec.parentRefs does not reference any ListenerSet found in module templates
+```
+
+**Cause:** The HTTPRoute exists and matches the Ingress `app` label, but its `spec.parentRefs` either is empty or names a gateway that is not defined as a `ListenerSet` in the module.
+
+**Solutions:**
+
+1. **Add a ListenerSet to the module and reference it**:
+
+   ```yaml
+   # templates/listenerset.yaml
+   apiVersion: gateway.networking.k8s.io/v1
+   kind: ListenerSet
+   metadata:
+     name: d8-alb-listener   # ← this name must appear in parentRefs
+     namespace: d8-my-module
+   spec:
+     parentRef:
+       name: default
+       namespace: d8-alb
+     listeners:
+       - name: http
+         protocol: HTTP
+         port: 80
+   ```
+
+   ```yaml
+   # templates/httproute.yaml (excerpt)
+   spec:
+     parentRefs:
+       - name: d8-alb-listener  # ← matches ListenerSet above
+   ```
+
+2. **Exclude the Ingress** if a ListenerSet cannot be provided yet:
+
+   ```yaml
+   # .dmt.yaml
+   linters-settings:
+     templates:
+       exclude-rules:
+         httproute:
+           - kind: Ingress
+             name: my-app
    ```
 
 ### Issue: Invalid Prometheus rules

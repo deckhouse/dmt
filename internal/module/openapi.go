@@ -65,6 +65,10 @@ func helmFormatModuleImages(m *Module, rawValues map[string]any) (chartutil.Valu
 	caps := &capsCopy
 	vers := append([]string{}, caps.APIVersions...)
 	vers = append(vers, "autoscaling.k8s.io/v1/VerticalPodAutoscaler", "cert-manager.io/v1")
+	vers = appendIfMissing(vers, "gateway.networking.k8s.io/v1/Gateway")
+	vers = appendIfMissing(vers, "gateway.networking.k8s.io/v1/HTTPRoute")
+	vers = appendIfMissing(vers, "gateway.networking.k8s.io/v1/ListenerSet")
+
 	caps.APIVersions = vers
 
 	digests := map[string]any{
@@ -86,6 +90,17 @@ func helmFormatModuleImages(m *Module, rawValues map[string]any) (chartutil.Valu
 	}
 
 	applyDigests(m.GetName(), digests, rawValues)
+	_ = mergo.Merge(&rawValues, map[string]any{
+		"global": map[string]any{
+			"discovery": map[string]any{
+				"gatewayAPIDefaultGateway": map[string]any{
+					"name":      "default",
+					"namespace": "d8-alb",
+				},
+			},
+		},
+	}, mergo.WithOverride)
+
 	top := map[string]any{
 		"Chart":        m.GetMetadata(),
 		"Capabilities": caps,
@@ -101,6 +116,16 @@ func helmFormatModuleImages(m *Module, rawValues map[string]any) (chartutil.Valu
 	}
 
 	return top, nil
+}
+
+func appendIfMissing(values []string, value string) []string {
+	for _, item := range values {
+		if item == value {
+			return values
+		}
+	}
+
+	return append(values, value)
 }
 
 func ComposeValuesFromSchemas(m *Module, globalSchema *spec.Schema) (chartutil.Values, error) {

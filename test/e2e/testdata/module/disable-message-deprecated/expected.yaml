@@ -1,0 +1,10 @@
+description: >
+  A module whose module.yaml still uses the deprecated singular disable.message
+  field (without disable.messages) should get a deprecation warning from the
+  module linter, pointing authors to the localized disable.messages (ru/en).
+module: module
+expect:
+  - linter: module
+    rule: definition-file
+    level: warn
+    textContains: "Field 'disable.message' is deprecated"

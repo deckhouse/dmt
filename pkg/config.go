@@ -140,6 +140,7 @@ type TemplatesLinterRules struct {
 	ServicePortRule    RuleConfig
 	ClusterDomainRule  RuleConfig
 	RegistryRule       RuleConfig
+	HTTPRouteRule      RuleConfig
 	EnabledModulesRule RuleConfig
 	MountPointsRule    RuleConfig
 }
@@ -157,6 +158,7 @@ type TemplatesExcludeRules struct {
 	ServicePort    ServicePortExcludeList
 	KubeRBACProxy  StringRuleExcludeList
 	Ingress        KindRuleExcludeList
+	HTTPRoute      KindRuleExcludeList
 	EnabledModules EnabledModulesExcludeRule
 	MountPoints    StringRuleExcludeList
 }
