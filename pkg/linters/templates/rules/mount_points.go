@@ -59,7 +59,10 @@ func (r *MountPointsRule) ValidateMountPoints(m pkg.Module, errorList *errors.Li
 		return
 	}
 
-	templateMountPaths := collectTemplateMountPaths(m, errorList)
+	templateMountPaths, hasPodControllers := collectTemplateMountPaths(m, errorList)
+	if !hasPodControllers {
+		return
+	}
 
 	for filePath, dirs := range dirsByFile {
 		for _, dir := range dirs {
@@ -127,13 +130,15 @@ func collectMountPointsDirs(m pkg.Module, errorList *errors.LintRuleErrorsList) 
 	return dirsByFile
 }
 
-func collectTemplateMountPaths(m pkg.Module, errorList *errors.LintRuleErrorsList) map[string]bool {
+func collectTemplateMountPaths(m pkg.Module, errorList *errors.LintRuleErrorsList) (map[string]bool, bool) {
 	mountPaths := make(map[string]bool)
+	hasPodControllers := false
 
 	for _, object := range m.GetStorage() {
 		if !IsPodController(object.Unstructured.GetKind()) {
 			continue
 		}
+		hasPodControllers = true
 
 		containers, err := object.GetAllContainers()
 		if err != nil {
@@ -151,5 +156,5 @@ func collectTemplateMountPaths(m pkg.Module, errorList *errors.LintRuleErrorsLis
 		}
 	}
 
-	return mountPaths
+	return mountPaths, hasPodControllers
 }

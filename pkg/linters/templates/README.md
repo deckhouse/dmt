@@ -1885,7 +1885,7 @@ dirs:
 
 `/etc/app/certs` is declared in `mount-points.yaml` but no pod controller uses it as a mountPath.
 
-**Error:**
+**Warning:**
 ```
 mount-points.yaml references dir "/etc/app/certs" which is not used as a mountPath in any pod controller
 ```

@@ -225,7 +225,7 @@ func TestMountPointsRule_EmptyMountPointsFile(t *testing.T) {
 	assert.Len(t, errs, 0)
 }
 
-func TestMountPointsRule_NoPodControllers_ReportsUnusedDir(t *testing.T) {
+func TestMountPointsRule_NoPodControllers_Skips(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "mount-points-test")
 	if err != nil {
 		t.Fatal(err)
@@ -249,9 +249,7 @@ func TestMountPointsRule_NoPodControllers_ReportsUnusedDir(t *testing.T) {
 	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: nil}, errorList)
 
 	errs := errorList.GetErrors()
-	assert.Len(t, errs, 1)
-	assert.Equal(t, pkg.Warn, errs[0].Level)
-	assert.Contains(t, errs[0].Text, `"/etc/app"`)
+	assert.Len(t, errs, 0)
 }
 
 func TestMountPointsRule_DaemonSetAndStatefulSet(t *testing.T) {
