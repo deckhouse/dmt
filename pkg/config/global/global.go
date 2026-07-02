@@ -67,6 +67,7 @@ type ContainerRules struct {
 	PortsRule                    RuleConfig `mapstructure:"ports"`
 	LivenessRule                 RuleConfig `mapstructure:"liveness-probe"`
 	ReadinessRule                RuleConfig `mapstructure:"readiness-probe"`
+	MountPointsRule              RuleConfig `mapstructure:"mount-points"`
 }
 
 type ImagesLinterConfig struct {
@@ -139,6 +140,7 @@ type TemplatesLinterRules struct {
 	ClusterDomainRule  RuleConfig `mapstructure:"cluster-domain"`
 	RegistryRule       RuleConfig `mapstructure:"registry"`
 	EnabledModulesRule RuleConfig `mapstructure:"enabled-modules"`
+	MountPointsRule    RuleConfig `mapstructure:"mount-points"`
 }
 
 func (c LinterConfig) IsWarn() bool {

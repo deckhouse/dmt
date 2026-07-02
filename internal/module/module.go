@@ -284,6 +284,10 @@ func mapContainerRules(linterSettings *pkg.LintersSettings, configSettings *conf
 		globalConfig.Container.Rules.ReadinessRule.Impact,
 		configSettings.Container.Impact,
 	)
+	linterSettings.Container.Rules.MountPointsRule.SetLevel(
+		globalConfig.Container.Rules.MountPointsRule.Impact,
+		configSettings.Container.Impact,
+	)
 }
 
 // mapImageRules configures Image linter rules
@@ -341,6 +345,7 @@ func mapTemplatesRules(linterSettings *pkg.LintersSettings, configSettings *conf
 	rules.ClusterDomainRule.SetLevel(globalRules.ClusterDomainRule.Impact, fallbackImpact)
 	rules.RegistryRule.SetLevel(globalRules.RegistryRule.Impact, fallbackImpact)
 	rules.EnabledModulesRule.SetLevel(globalRules.EnabledModulesRule.Impact, fallbackImpact)
+	rules.MountPointsRule.SetLevel(globalRules.MountPointsRule.Impact, fallbackImpact)
 }
 
 // mapOpenAPIRules configures OpenAPI linter rules
@@ -408,6 +413,7 @@ func mapContainerExclusions(linterSettings *pkg.LintersSettings, configSettings 
 	excludes.SeccompProfile = configExcludes.SeccompProfile.Get()
 	excludes.NoNewPrivileges = configExcludes.NoNewPrivileges.Get()
 	excludes.Description = pkg.StringRuleExcludeList(configExcludes.Description)
+	excludes.MountPoints = pkg.StringRuleExcludeList(configExcludes.MountPoints)
 }
 
 // mapImageExclusionsAndSettings maps Image linter exclusions and additional settings
@@ -455,6 +461,7 @@ func mapTemplatesExclusionsAndSettings(linterSettings *pkg.LintersSettings, conf
 	excludes.Ingress = configExcludes.Ingress.Get()
 	excludes.EnabledModules.Files = pkg.StringRuleExcludeList(configExcludes.EnabledModules.Files)
 	excludes.EnabledModules.Directories = pkg.DirectoryRuleExcludeList(configExcludes.EnabledModules.Directories)
+	excludes.MountPoints = pkg.StringRuleExcludeList(configExcludes.MountPoints)
 
 	// Additional settings
 	linterSettings.Templates.PrometheusRuleSettings.Disable = configSettings.Templates.PrometheusRules.Disable
