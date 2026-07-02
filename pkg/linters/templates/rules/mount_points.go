@@ -138,6 +138,7 @@ func collectTemplateMountPaths(m pkg.Module, errorList *errors.LintRuleErrorsLis
 		if !IsPodController(object.Unstructured.GetKind()) {
 			continue
 		}
+
 		hasPodControllers = true
 
 		containers, err := object.GetAllContainers()
