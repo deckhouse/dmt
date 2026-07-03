@@ -105,6 +105,9 @@ func (l *Templates) Run(m *module.Module) {
 		l.cfg.ExcludeRules.EnabledModules.Files.Get(),
 		l.cfg.ExcludeRules.EnabledModules.Directories.Get(),
 	).CheckEnabledModules(m, errorList.WithMaxLevel(l.cfg.Rules.EnabledModulesRule.GetLevel()))
+
+	// MountPoints rule
+	rules.NewMountPointsRule(l.cfg.ExcludeRules.MountPoints.Get()).ValidateMountPoints(m, errorList.WithMaxLevel(l.cfg.Rules.MountPointsRule.GetLevel()))
 }
 
 func (l *Templates) Name() string {

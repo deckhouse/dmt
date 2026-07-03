@@ -459,6 +459,93 @@ descriptions:
 	assert.False(t, errorList.ContainsErrors(), "Expected no warnings when 'description' field is not used")
 }
 
+func TestCheckDefinitionFile_DeprecatedDisableMessageField(t *testing.T) {
+	tempDir := t.TempDir()
+	moduleFilePath := filepath.Join(tempDir, ModuleConfigFilename)
+
+	rule := NewDefinitionFileRule(false)
+
+	check := func(t *testing.T, body string) *errors.LintRuleErrorsList {
+		t.Helper()
+		require.NoError(t, os.WriteFile(moduleFilePath, []byte(body), 0600))
+
+		errorList := errors.NewLintRuleErrorsList()
+		rule.CheckDefinitionFile(tempDir, errorList)
+
+		return errorList
+	}
+
+	containsText := func(errorList *errors.LintRuleErrorsList, substr string) bool {
+		for _, e := range errorList.GetErrors() {
+			if strings.Contains(e.Text, substr) {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	// disable.message without disable.messages -> deprecation warning, not a hard error.
+	errorList := check(t, `
+name: test-module
+stage: Experimental
+descriptions:
+  en: "Test description"
+disable:
+  confirmation: true
+  message: "Old disable message field"
+`)
+	assert.False(t, errorList.ContainsErrors(), "disable.message deprecation must be a warning, not an error")
+	assert.True(t, containsText(errorList, "Field 'disable.message' is deprecated"), "expected disable.message deprecation warning")
+
+	// disable.messages without requirements.deckhouse >= 1.77 -> error.
+	errorList = check(t, `
+name: test-module
+stage: Experimental
+descriptions:
+  en: "Test description"
+disable:
+  confirmation: true
+  messages:
+    en: "Disable message"
+    ru: "Сообщение при отключении"
+`)
+	assert.True(t, errorList.ContainsErrors(), "disable.messages without requirements.deckhouse >= 1.77 must be an error")
+	assert.True(t, containsText(errorList, "disable.messages' is only supported on Deckhouse >= v1.77"), "expected disable.messages requirement error")
+
+	// disable.messages with requirements.deckhouse >= 1.77 -> clean.
+	errorList = check(t, `
+name: test-module
+stage: Experimental
+descriptions:
+  en: "Test description"
+requirements:
+  deckhouse: ">= 1.77"
+disable:
+  confirmation: true
+  messages:
+    en: "Disable message"
+    ru: "Сообщение при отключении"
+`)
+	assert.False(t, errorList.ContainsErrors(), "disable.messages with requirements.deckhouse >= 1.77 must be clean")
+
+	// disable.messages missing one of ru/en -> error.
+	errorList = check(t, `
+name: test-module
+stage: Experimental
+descriptions:
+  en: "Test description"
+requirements:
+  deckhouse: ">= 1.77"
+disable:
+  confirmation: true
+  messages:
+    en: "Disable message"
+`)
+	assert.True(t, errorList.ContainsErrors(), "disable.messages missing 'ru' must be an error")
+	assert.True(t, containsText(errorList, "must define both 'ru' and 'en'"), "expected both-languages error")
+}
+
 func TestCheckDefinitionFile_FileErrors(t *testing.T) {
 	tempDir := t.TempDir()
 	moduleFilePath := filepath.Join(tempDir, ModuleConfigFilename)

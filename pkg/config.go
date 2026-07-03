@@ -143,6 +143,7 @@ type TemplatesLinterRules struct {
 	HTTPRouteRule            RuleConfig
 	EnabledModulesRule       RuleConfig
 	WebhookConfigurationRule RuleConfig
+	MountPointsRule          RuleConfig
 }
 
 type PrometheusRuleSettings struct {
@@ -161,6 +162,7 @@ type TemplatesExcludeRules struct {
 	HTTPRoute            KindRuleExcludeList
 	EnabledModules       EnabledModulesExcludeRule
 	WebhookConfiguration KindRuleExcludeList
+	MountPoints          StringRuleExcludeList
 }
 
 type EnabledModulesExcludeRule struct {
@@ -345,6 +347,7 @@ type ContainerLinterRules struct {
 	PortsRule                    RuleConfig
 	LivenessRule                 RuleConfig
 	ReadinessRule                RuleConfig
+	MountPointsRule              RuleConfig
 }
 
 type ContainerExcludeRules struct {
@@ -365,6 +368,7 @@ type ContainerExcludeRules struct {
 	Readiness              ContainerRuleExcludeList
 
 	Description StringRuleExcludeList
+	MountPoints StringRuleExcludeList
 }
 
 type StringRuleExcludeList []string

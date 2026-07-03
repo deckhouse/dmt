@@ -72,6 +72,7 @@ type ContainerExcludeRules struct {
 	Readiness              ContainerRuleExcludeList `mapstructure:"readiness-probe"`
 
 	Description StringRuleExcludeList `mapstructure:"description"`
+	MountPoints StringRuleExcludeList `mapstructure:"mount-points"`
 }
 
 type HooksSettings struct {
@@ -229,6 +230,7 @@ type TemplatesLinterRules struct {
 	RegistryRule             RuleConfig `mapstructure:"registry"`
 	EnabledModulesRule       RuleConfig `mapstructure:"enabled-modules"`
 	WebhookConfigurationRule RuleConfig `mapstructure:"webhook-configuration-annotations"`
+	MountPointsRule          RuleConfig `mapstructure:"mount-points"`
 }
 
 type TemplatesExcludeRules struct {
@@ -239,6 +241,7 @@ type TemplatesExcludeRules struct {
 	Ingress              KindRuleExcludeList       `mapstructure:"ingress"`
 	EnabledModules       EnabledModulesExcludeRule `mapstructure:"enabled-modules"`
 	WebhookConfiguration KindRuleExcludeList       `mapstructure:"webhook-configuration-annotations"`
+	MountPoints          StringRuleExcludeList     `mapstructure:"mount-points"`
 }
 
 type EnabledModulesExcludeRule struct {
