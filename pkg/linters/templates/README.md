@@ -22,6 +22,7 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [registry](#registry) | Validates registry secret configuration | ❌ | enabled |
 | [werf](#werf) | Validates image names in `werf.yaml` do not contain underscores | ❌ | enabled |
 | [enabled-modules](#enabled-modules) | Detects usage of `.Values.global.enabledModules` in templates | ✅ | enabled |
+| [webhook-configuration-annotations](#webhook-configuration-annotations) | Checks webhook configurations have werf.io/weight or deploy-dependency annotations | ✅ | enabled |
 | [mount-points](#mount-points) | Validates that mount-points.yaml directories are used as volumeMounts in pod controllers | ✅ | enabled |
 
 ## Rule Details
@@ -1851,6 +1852,110 @@ linters-settings:
           - templates/vendor/                 # Exclude entire directory
 ```
 
+### webhook-configuration-annotations
+
+**Purpose:** Ensures every `ValidatingWebhookConfiguration` and `MutatingWebhookConfiguration` has at least one ordering annotation: `werf.io/weight` or an annotation with the `werf.io/deploy-dependency-` prefix (e.g. `werf.io/deploy-dependency-deployment`, `werf.io/deploy-dependency-service`). These annotations control werf deploy ordering: `werf.io/deploy-dependency-*` declares a dependency on another resource (the recommended approach), while `werf.io/weight` sets explicit ordering priority.
+
+**Description:**
+
+Iterates all parsed Kubernetes resources, filters for webhook configuration kinds, and checks that each webhook configuration declares its position in the deploy order via annotations. Without these annotations, webhook configurations may deploy in an undefined order, potentially causing cluster API disruptions.
+
+**What it checks:**
+
+1. Every `ValidatingWebhookConfiguration` has either `werf.io/weight` or an annotation starting with `werf.io/deploy-dependency-`
+2. Every `MutatingWebhookConfiguration` has either `werf.io/weight` or an annotation starting with `werf.io/deploy-dependency-`
+3. Note: `werf.io/deploy-on` alone is not sufficient — it controls deploy *stages*, not deploy *ordering*
+4. Resources with neither annotation are reported as errors (configurable via `impact`, set to `warn` to downgrade)
+
+**Why it matters:**
+
+Webhook backing services (its Deployment, Service, etc) should be deployed before the webhook itself (MutatingWebhookConfiguration or ValidationWebhookConfiguration). Otherwise, if the module rollout was not finished properly (network issues, OOM and so on), the cluster might be left in a state where webhook is deployed, but has no backing services. And if so, resources that this webhook validates/mutates could not be created or updated anymore. To avoid this, deployment order of the webhook and its backing services must be enforced via annotations.
+
+**Examples:**
+
+❌ **Incorrect** - Webhook configuration without ordering annotations:
+
+```yaml
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: my-webhook
+webhooks:
+  - name: check.example.com
+    clientConfig:
+      service:
+        name: my-service
+        namespace: d8-my-module
+    rules:
+      - operations: ["CREATE", "UPDATE"]
+        apiGroups: [""]
+        apiVersions: ["v1"]
+        resources: ["pods"]
+```
+
+**Error:**
+```
+ValidatingWebhookConfiguration "my-webhook" must have either "werf.io/deploy-dependency" or "werf.io/weight" annotation
+```
+
+✅ **Correct** - With deploy ordering annotations:
+
+```yaml
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: my-webhook
+  annotations:
+    werf.io/deploy-dependency-deployment: state=ready,kind=Deployment,name=my-app,namespace=d8-my-module
+    werf.io/deploy-dependency-service: state=present,kind=Service,name=my-svc,namespace=d8-my-module
+webhooks:
+  - name: check.example.com
+    ...
+```
+
+✅ **Correct** - With weight annotation only:
+
+```yaml
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: my-webhook
+  annotations:
+    werf.io/weight: "10"
+webhooks:
+  - name: check.example.com
+    ...
+```
+
+**Configuration:**
+
+The rule defaults to `warning` level and can be configured via global or module `.dmtlint.yaml`.
+
+**Impact level** — set the severity of the check:
+
+```yaml
+# .dmtlint.yaml (global) or <module>/.dmtlint.yaml
+linters-settings:
+  templates:
+    rules:
+      webhook-configuration-annotations:
+        impact: warn  # error | warn (default: error)
+```
+
+**Excluding resources** — skip specific webhook configurations by kind and name:
+
+```yaml
+# .dmtlint.yaml (global) or <module>/.dmtlint.yaml
+linters-settings:
+  templates:
+    exclude-rules:
+      webhook-configuration-annotations:
+        - kind: ValidatingWebhookConfiguration
+          name: istio-sidecar-injector     # managed externally by istio operator
+        - kind: MutatingWebhookConfiguration
+          name: cert-manager-webhook       # managed externally by cert-manager operator
+```
+
 ---
 
 ### mount-points
@@ -1924,6 +2029,9 @@ linters-settings:
 ```
 
 **When to exclude:** Pods managed outside Helm (operators, mutating webhooks, static pods, bashible) have `volumeMounts` that are not present in Helm templates. Directories from `mount-points.yaml` for these containers will produce false positives — exclude them with the corresponding paths.
+```
+
+**Configuration:**
 
 
 ## Configuration
@@ -1980,6 +2088,8 @@ linters-settings:
         impact: error
       enabled-modules:
         impact: warning
+      webhook-configuration-annotations:
+        impact: error
 ```
 
 ### Rule-Level Exclusions
@@ -2037,6 +2147,13 @@ linters-settings:
           - templates/legacy-deployment.yaml
         directories:
           - templates/vendor/
+
+      # webhook-configuration-annotations exclusions (by kind and name)
+      webhook-configuration-annotations:
+        - kind: ValidatingWebhookConfiguration
+          name: istio-sidecar-injector
+        - kind: MutatingWebhookConfiguration
+          name: cert-manager-webhook
 ```
 
 ### Complete Configuration Example
@@ -2055,6 +2172,11 @@ linters-settings:
     prometheus-rules:
       disable: false
     
+    # Rule-specific impact levels
+    rules:
+      webhook-configuration-annotations:
+        impact: warn  # downgrade from default error to warn
+
     # Rule-specific exclusions
     exclude-rules:
       vpa:
@@ -2079,6 +2201,10 @@ linters-settings:
       
       kube-rbac-proxy:
         - d8-development
+
+      webhook-configuration-annotations:
+        - kind: ValidatingWebhookConfiguration
+          name: istio-sidecar-injector
 ```
 
 ### Configuration in Module Directory
