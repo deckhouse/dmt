@@ -1,0 +1,31 @@
+description: >
+  A ValidatingWebhookConfiguration with werf.io/weight annotation must pass
+  the webhook-configuration-annotations rule without errors. Uses exhaustive
+  matching to confirm the rule produces no findings.
+module: module
+exhaustive: true
+expect:
+  - linter: container
+    rule: object-recommended-labels
+    level: error
+    textContains: '"module"'
+  - linter: container
+    rule: object-recommended-labels
+    level: error
+    textContains: '"heritage"'
+  - linter: module
+    rule: definition-file
+    level: error
+    textContains: "'stage' is required"
+  - linter: module
+    rule: definition-file
+    level: error
+    textContains: '`descriptions.en` field is required'
+  - linter: module
+    rule: helmignore
+    level: error
+    textContains: ".helmignore is required"
+  - linter: documentation
+    rule: readme
+    level: error
+    textContains: "README.md file is missing"

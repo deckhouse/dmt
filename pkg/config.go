@@ -131,16 +131,19 @@ type TemplatesLinterConfig struct {
 	GrafanaDashboardsSettings GrafanaDashboardsSettings
 }
 type TemplatesLinterRules struct {
-	VPARule            RuleConfig
-	PDBRule            RuleConfig
-	IngressRule        RuleConfig
-	PrometheusRule     RuleConfig
-	GrafanaRule        RuleConfig
-	KubeRBACProxyRule  RuleConfig
-	ServicePortRule    RuleConfig
-	ClusterDomainRule  RuleConfig
-	RegistryRule       RuleConfig
-	EnabledModulesRule RuleConfig
+	VPARule                  RuleConfig
+	PDBRule                  RuleConfig
+	IngressRule              RuleConfig
+	PrometheusRule           RuleConfig
+	GrafanaRule              RuleConfig
+	KubeRBACProxyRule        RuleConfig
+	ServicePortRule          RuleConfig
+	ClusterDomainRule        RuleConfig
+	RegistryRule             RuleConfig
+	HTTPRouteRule            RuleConfig
+	EnabledModulesRule       RuleConfig
+	WebhookConfigurationRule RuleConfig
+	MountPointsRule          RuleConfig
 }
 
 type PrometheusRuleSettings struct {
@@ -151,12 +154,15 @@ type GrafanaDashboardsSettings struct {
 	Disable bool
 }
 type TemplatesExcludeRules struct {
-	VPAAbsent      KindRuleExcludeList
-	PDBAbsent      KindRuleExcludeList
-	ServicePort    ServicePortExcludeList
-	KubeRBACProxy  StringRuleExcludeList
-	Ingress        KindRuleExcludeList
-	EnabledModules EnabledModulesExcludeRule
+	VPAAbsent            KindRuleExcludeList
+	PDBAbsent            KindRuleExcludeList
+	ServicePort          ServicePortExcludeList
+	KubeRBACProxy        StringRuleExcludeList
+	Ingress              KindRuleExcludeList
+	HTTPRoute            KindRuleExcludeList
+	EnabledModules       EnabledModulesExcludeRule
+	WebhookConfiguration KindRuleExcludeList
+	MountPoints          StringRuleExcludeList
 }
 
 type EnabledModulesExcludeRule struct {
@@ -341,6 +347,7 @@ type ContainerLinterRules struct {
 	PortsRule                    RuleConfig
 	LivenessRule                 RuleConfig
 	ReadinessRule                RuleConfig
+	MountPointsRule              RuleConfig
 }
 
 type ContainerExcludeRules struct {
@@ -362,6 +369,7 @@ type ContainerExcludeRules struct {
 	Readiness              ContainerRuleExcludeList
 
 	Description StringRuleExcludeList
+	MountPoints StringRuleExcludeList
 }
 
 type StringRuleExcludeList []string
