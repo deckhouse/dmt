@@ -154,7 +154,7 @@ linters-settings:
       disable: false
 ```
 
-### Configuration in M.dmtlint.yamlectory
+### Configuration in Module Directory
 
 You can also place a `.dmtlint.yaml` configuration file directly in your module directory for module-specific settings:
 .dmtlint.yaml
