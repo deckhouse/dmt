@@ -1,0 +1,10 @@
+description: >
+  A module that keeps both disable.message and disable.messages while still allowing
+  Deckhouse < 1.77 gets a warning: disable.message is the < 1.77 fallback and must be
+  removed once the module requires >= 1.77.
+module: module
+expect:
+  - linter: module
+    rule: definition-file
+    level: warn
+    textContains: "must be removed once 'requirements.deckhouse' is pinned to >= v1.77"

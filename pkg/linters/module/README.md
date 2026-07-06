@@ -42,9 +42,10 @@ Validates the `module.yaml` configuration file structure and content.
 - ✅ Update section follows versioning rules
 - ✅ `weight` must not be zero for critical modules
 - ✅ `description` field is deprecated (use `descriptions.en` instead)
-- ✅ `disable.messages` (localized `ru`/`en`) requires `requirements.deckhouse` to be `>= 1.77` — otherwise an **error** (Deckhouse below 1.77 does not understand it)
-- ✅ `disable.messages` must define **both** `ru` and `en` — otherwise an **error**
-- ✅ `disable.message` without `disable.messages` is deprecated for Deckhouse `>= 1.77` — a **warning** pointing authors to the localized `disable.messages`
+- ✅ `disable.messages` (localized `ru`/`en`) must define **both** `ru` and `en` — otherwise an **error**
+- ✅ `disable.messages` on a module that allows Deckhouse `< 1.77` needs a `disable.message` fallback (or `requirements.deckhouse` pinned to `>= 1.77`) — otherwise an **error** (Deckhouse below 1.77 does not read `disable.messages`)
+- ✅ `disable.message` on a module pinned to Deckhouse `>= 1.77` must be removed (only `disable.messages` is read there) — otherwise an **error**; a lone `disable.message` on `< 1.77` is the correct field, so no finding
+- ✅ `disable.message` kept alongside `disable.messages` while the module still allows Deckhouse `< 1.77` — a **warning**: it is the `< 1.77` fallback and must be removed once `requirements.deckhouse` is pinned to `>= 1.77`
 
 #### Stage Values
 

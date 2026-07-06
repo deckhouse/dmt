@@ -485,20 +485,37 @@ func TestCheckDefinitionFile_DeprecatedDisableMessageField(t *testing.T) {
 		return false
 	}
 
-	// disable.message without disable.messages -> deprecation warning, not a hard error.
+	// message only, pinned >= 1.77 -> error (must be removed in favour of messages).
 	errorList := check(t, `
 name: test-module
 stage: Experimental
 descriptions:
   en: "Test description"
+requirements:
+  deckhouse: ">= 1.77"
 disable:
   confirmation: true
   message: "Old disable message field"
 `)
-	assert.False(t, errorList.ContainsErrors(), "disable.message deprecation must be a warning, not an error")
-	assert.True(t, containsText(errorList, "Field 'disable.message' is deprecated"), "expected disable.message deprecation warning")
+	assert.True(t, errorList.ContainsErrors(), "disable.message on >= 1.77 must be an error")
+	assert.True(t, containsText(errorList, "'disable.message' must be removed on Deckhouse >= v1.77"), "expected disable.message removal error")
 
-	// disable.messages without requirements.deckhouse >= 1.77 -> error.
+	// message only, requirements allow < 1.77 -> silent (messages is not available there).
+	errorList = check(t, `
+name: test-module
+stage: Experimental
+descriptions:
+  en: "Test description"
+requirements:
+  deckhouse: ">= 1.60"
+disable:
+  confirmation: true
+  message: "Old disable message field"
+`)
+	assert.False(t, errorList.ContainsErrors(), "disable.message on < 1.77 must not error")
+	assert.False(t, containsText(errorList, "disable.message"), "disable.message on < 1.77 must be silent")
+
+	// messages without a message fallback on < 1.77 -> error.
 	errorList = check(t, `
 name: test-module
 stage: Experimental
@@ -510,10 +527,29 @@ disable:
     en: "Disable message"
     ru: "Сообщение при отключении"
 `)
-	assert.True(t, errorList.ContainsErrors(), "disable.messages without requirements.deckhouse >= 1.77 must be an error")
-	assert.True(t, containsText(errorList, "disable.messages' is only supported on Deckhouse >= v1.77"), "expected disable.messages requirement error")
+	assert.True(t, errorList.ContainsErrors(), "disable.messages without a message fallback on < 1.77 must be an error")
+	assert.True(t, containsText(errorList, "is not read on Deckhouse < v1.77"), "expected messages fallback error")
 
-	// disable.messages with requirements.deckhouse >= 1.77 -> clean.
+	// message + messages while the module still targets < 1.77 -> warning (fallback must be
+	// removed on >= 1.77), but not an error.
+	errorList = check(t, `
+name: test-module
+stage: Experimental
+descriptions:
+  en: "Test description"
+requirements:
+  deckhouse: ">= 1.60"
+disable:
+  confirmation: true
+  message: "Fallback for < 1.77"
+  messages:
+    en: "Disable message"
+    ru: "Сообщение при отключении"
+`)
+	assert.False(t, errorList.ContainsErrors(), "disable.message fallback on < 1.77 must not be an error")
+	assert.True(t, containsText(errorList, "must be removed once 'requirements.deckhouse' is pinned to >= v1.77"), "expected disable.message fallback warning")
+
+	// messages with requirements.deckhouse >= 1.77 -> clean.
 	errorList = check(t, `
 name: test-module
 stage: Experimental
@@ -529,7 +565,7 @@ disable:
 `)
 	assert.False(t, errorList.ContainsErrors(), "disable.messages with requirements.deckhouse >= 1.77 must be clean")
 
-	// disable.messages missing one of ru/en -> error.
+	// messages missing one of ru/en -> error.
 	errorList = check(t, `
 name: test-module
 stage: Experimental
@@ -544,6 +580,24 @@ disable:
 `)
 	assert.True(t, errorList.ContainsErrors(), "disable.messages missing 'ru' must be an error")
 	assert.True(t, containsText(errorList, "must define both 'ru' and 'en'"), "expected both-languages error")
+
+	// message alongside messages, pinned >= 1.77 -> error (message is redundant, must be removed).
+	errorList = check(t, `
+name: test-module
+stage: Experimental
+descriptions:
+  en: "Test description"
+requirements:
+  deckhouse: ">= 1.77"
+disable:
+  confirmation: true
+  message: "Old disable message field"
+  messages:
+    en: "Disable message"
+    ru: "Сообщение при отключении"
+`)
+	assert.True(t, errorList.ContainsErrors(), "disable.message alongside messages on >= 1.77 must be an error")
+	assert.True(t, containsText(errorList, "'disable.message' must be removed on Deckhouse >= v1.77"), "expected disable.message removal error")
 }
 
 func TestCheckDefinitionFile_FileErrors(t *testing.T) {

@@ -302,17 +302,30 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 		hasEn := yml.Disable.Messages.English != ""
 		hasMessages := hasRu || hasEn
 
-		switch {
-		case hasMessages:
-			if !requirementsGuaranteeDeckhouse177(yml.Requirements) {
-				errorList.Error("Field 'disable.messages' is only supported on Deckhouse >= v1.77; set 'requirements.deckhouse' to \">= 1.77\"")
-			}
+		guaranteed := requirementsGuaranteeDeckhouse177(yml.Requirements)
 
+		// disable.message is only read by Deckhouse < v1.77; a module limited to >= v1.77
+		// must drop it in favour of the localized disable.messages.
+		if hasMessage && guaranteed {
+			errorList.Error("Field 'disable.message' must be removed on Deckhouse >= v1.77; use 'disable.messages' (with 'ru'/'en') instead")
+		}
+
+		if hasMessages {
 			if !hasRu || !hasEn {
 				errorList.Error("Field 'disable.messages' must define both 'ru' and 'en'")
 			}
-		case hasMessage:
-			errorList.Warn("Field 'disable.message' is deprecated on Deckhouse >= v1.77, use 'disable.messages' (with 'ru'/'en') instead")
+
+			// disable.messages is not read by Deckhouse < v1.77, so a module that can run
+			// there needs a disable.message fallback (or must pin requirements.deckhouse >= v1.77).
+			if !guaranteed && !hasMessage {
+				errorList.Error("Field 'disable.messages' is not read on Deckhouse < v1.77; add a 'disable.message' fallback or require 'requirements.deckhouse' >= v1.77")
+			}
+
+			// Both are present while the module still targets < v1.77: disable.message is the
+			// fallback for those old versions and must be dropped once the module requires >= v1.77.
+			if hasMessage && !guaranteed {
+				errorList.Warn("Field 'disable.message' is a Deckhouse < v1.77 fallback and must be removed once 'requirements.deckhouse' is pinned to >= v1.77 (only 'disable.messages' is read there)")
+			}
 		}
 	}
 
