@@ -12,7 +12,7 @@ Source code, configuration files, and technical documentation should use English
 |------|-------------|--------------|---------|
 | [files](#files) | Validates source files don't contain cyrillic characters | ✅ | enabled |
 
-"Configurable" means that this rule can be configured using the `.dmt.yaml` file, including customizing the rule's parameters and/or disabling the rule.
+"Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
 ## Rule Details
 
@@ -228,7 +228,7 @@ Each `^` points to a cyrillic character, making it easy to find and replace them
 **Configuration:**
 .dmtlint.yaml
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   no-cyrillic:
     impact: error  # error | warning | info | ignored
@@ -237,7 +237,7 @@ linters-settings:
 To exclude specific files:
 .dmtlint.yaml
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   no-cyrillic:
     exclude-rules:
@@ -249,7 +249,7 @@ linters-settings:
 To exclude entire directories:
 .dmtlint.yaml
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   no-cyrillic:
     exclude-rules:
@@ -262,7 +262,7 @@ linters-settings:
 Combined example:
 .dmtlint.yaml
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   no-cyrillic:
     impact: error
@@ -284,7 +284,7 @@ The No-Cyrillic linter can be configured at the module level with path-based exc
 Configure the overall impact level for the no-cyrillic linter:
 .dmtlint.yaml
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   no-cyrillic:
     impact: error  # Options: error, warning, info, ignored
@@ -301,7 +301,7 @@ linters-settings:
 Exclude specific files from cyrillic checking:
 .dmtlint.yaml
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   no-cyrillic:
     exclude-rules:
@@ -321,7 +321,7 @@ linters-settings:
 Exclude entire directories from cyrillic checking:
 .dmtlint.yaml
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   no-cyrillic:
     exclude-rules:
@@ -340,7 +340,7 @@ linters-settings:
 ### Complete Configuration Example
 .dmtlint.yaml
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   no-cyrillic:
     # Global impact level
@@ -365,10 +365,10 @@ linters-settings:
 
 ### Configuration in M.dmtlint.yamlectory
 
-You can also place a `.dmt.yaml` configuration file directly in your module directory:
+You can also place a `.dmtlint.yaml` configuration file directly in your module directory:
 .dmtlint.yaml
 ```yaml
-# modules/my-module/.dmt.yaml
+# modules/my-module/.dmtlint.yaml
 linters-settings:
   no-cyrillic:
     impact: warning  # More lenient for this specific module

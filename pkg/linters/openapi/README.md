@@ -16,7 +16,7 @@ Proper OpenAPI schema validation is critical for module configuration, ensuring 
 | [deckhouse-crds](#deckhouse-crds) | Validates Deckhouse CRD structure and metadata | ✅ | enabled |
 | [bilingual](#bilingual) | Validates translation files (`doc-ru-`) exist for OpenAPI and CRD files | ✅ | enabled |
 
-"Configurable" means that this rule can be configured using the `.dmt.yaml` file, including customizing the rule's parameters and/or disabling the rule.
+"Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
 ## Rule Details
 
@@ -164,7 +164,7 @@ properties:
 **Configuration:**
 .dmtlint.yaml
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   openapi:
     impact: error
@@ -173,7 +173,7 @@ linters-settings:
 To exclude specific enum fields:
 .dmtlint.yaml
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   openapi:
     exclude-rules:
@@ -185,7 +185,7 @@ linters-settings:
 To exclude enum fields with array wildcards:
 .dmtlint.yaml
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   openapi:
     exclude-rules:
@@ -285,7 +285,7 @@ properties:
 **Configuration:**
 .dmtlint.yaml
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   openapi:
     exclude-rules:
@@ -378,7 +378,7 @@ properties:
 Define which names should be banned in enum values:
 .dmtlint.yaml
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   openapi:
     exclude-rules:
@@ -597,7 +597,7 @@ spec:
 **Configuration:**
 .dmtlint.yaml
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   openapi:
     exclude-rules:
@@ -685,7 +685,7 @@ crds/
 **Configuration:**
 .dmtlint.yaml
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   openapi:
     impact: error  # Controls the impact level for all openapi rules including bilingual
@@ -702,7 +702,7 @@ The OpenAPI linter can be configured at the module level with rule-specific excl
 Configure the overall impact level for the openapi linter:
 .dmtlint.yaml
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   openapi:
     impact: error  # Options: error, warning, info, ignored
@@ -723,7 +723,7 @@ Each rule supports excluding specific schema paths or CRD names:
 Exclude specific enum fields by their schema path:
 .dmtlint.yaml
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   openapi:
     exclude-rules:
@@ -744,7 +744,7 @@ linters-settings:
 Exclude specific highAvailability fields:
 .dmtlint.yaml
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   openapi:
     exclude-rules:
@@ -758,7 +758,7 @@ linters-settings:
 Define which property names are banned in enum values:
 .dmtlint.yaml
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   openapi:
     exclude-rules:
@@ -775,7 +775,7 @@ linters-settings:
 Exclude specific CRDs from validation:
 .dmtlint.yaml
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   openapi:
     exclude-rules:
@@ -788,7 +788,7 @@ linters-settings:
 ### Complete Configuration Example
 .dmtlint.yaml
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   openapi:
     # Global impact level
@@ -820,10 +820,10 @@ linters-settings:
 
 ### Configuration in M.dmtlint.yamlectory
 
-You can also place a `.dmt.yaml` configuration file directly in your module directory:
+You can also place a `.dmtlint.yaml` configuration file directly in your module directory:
 .dmtlint.yaml
 ```yaml
-# modules/my-module/.dmt.yaml
+# modules/my-module/.dmtlint.yaml
 linters-settings:
   openapi:
     impact: warning  # More lenient for this specific module
@@ -1151,7 +1151,7 @@ Error: enum 'properties.items[5].properties.type.enum' is invalid: value 'custom
 2. **Exclude specific path if needed:**
 .dmtlint.yaml
    ```yaml
-   # .dmt.yaml
+   # .dmtlint.yaml
    linters-settings:
      openapi:
        exclude-rules:

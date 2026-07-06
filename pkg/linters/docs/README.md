@@ -15,7 +15,7 @@ Proper documentation is critical for Deckhouse modules as it helps users underst
 | [cyrillic-in-english](#cyrillic-in-english) | Validates English documentation doesn't contain cyrillic characters | ✅ | enabled |
 | [no-lang-key](#no-lang-key) | Validates documentation front matter doesn't contain `lang` key | ✅ | enabled |
 
-"Configurable" means that this rule can be configured using the `.dmt.yaml` file, including customizing the rule's parameters and/or disabling the rule.
+"Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
 ## Rule Details
 
@@ -95,7 +95,7 @@ This module provides...
 To disable this rule for specific modules:
 .dmtlint.yaml
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   documentation:
     rules:
@@ -176,7 +176,7 @@ my-module/
 To disable bilingual checks for specific files:
 .dmtlint.yaml
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   documentation:
     rules:
@@ -291,7 +291,7 @@ Line 42: Check the документация for more details.
 To exclude specific files from this check:
 .dmtlint.yaml
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   documentation:
     rules:
@@ -381,7 +381,7 @@ webIfaces:
 To exclude specific files from this check:
 .dmtlint.yaml
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   documentation:
     rules:
@@ -401,7 +401,7 @@ The Documentation linter can be configured at both the module level and for indi
 Configure the overall impact level for the documentation linter:
 .dmtlint.yaml
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   documentation:
     impact: error  # Options: error, warning, info, ignored
@@ -418,7 +418,7 @@ linters-settings:
 Exclude specific modules or files from validation:
 .dmtlint.yaml
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   documentation:
     rules:
@@ -503,7 +503,7 @@ File: docs/CONFIGURATION.md
 3. **Exclude if translation is not needed (not recommended):**
 .dmtlint.yaml
    ```yaml
-   # .dmt.yaml
+   # .dmtlint.yaml
    linters-settings:
      documentation:
        rules:

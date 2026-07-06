@@ -17,7 +17,7 @@ The Images linter includes **4 validation rules**:
 | [**werf**](#werf) | Validates werf.yaml configuration | ✅ Yes |
 | [**patches**](#patches) | Validates patch file structure and documentation | ✅ Yes |
 
-"Configurable" means that this rule can be configured using the `.dmt.yaml` file, including customizing the rule's parameters and/or disabling the rule.
+"Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
 ---
 

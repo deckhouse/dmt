@@ -1208,7 +1208,7 @@ spec:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     exclude-rules:
@@ -2547,7 +2547,7 @@ Error: Ingress "my-app" requires a matching HTTPRoute with the same app label, b
 2. **Exclude the Ingress temporarily** (only when migration is genuinely blocked):
 
    ```yaml
-   # .dmt.yaml
+   # .dmtlint.yaml
    linters-settings:
      templates:
        exclude-rules:
@@ -2597,7 +2597,7 @@ Error: HTTPRoute "my-app" is invalid for Ingress migration:
 2. **Exclude the Ingress** if a ListenerSet cannot be provided yet:
 
    ```yaml
-   # .dmt.yaml
+   # .dmtlint.yaml
    linters-settings:
      templates:
        exclude-rules:

@@ -44,7 +44,7 @@ Proper container configuration is critical for cluster stability, security, and 
 | [no-new-privileges](#no-new-privileges) | Validates containers don't allow privilege escalation | ✅ | enabled |
 | [seccomp-profile](#seccomp-profile) | Validates seccomp profile configuration | ✅ | enabled |
 
-"Configurable" means that this rule can be configured using the `.dmt.yaml` file, including customizing the rule's parameters and/or disabling the rule.
+"Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
 ## Rule Details
 
@@ -181,7 +181,7 @@ metadata:
 Exclude specific `d8-*` namespaces from this check when the Prometheus watcher label is intentionally omitted:
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   container:
     exclude-rules:
@@ -380,7 +380,7 @@ spec:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   container:
     exclude-rules:
@@ -479,7 +479,7 @@ spec:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   container:
     exclude-rules:
@@ -690,7 +690,7 @@ volumes:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   container:
     exclude-rules:
@@ -760,7 +760,7 @@ spec:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   container:
     exclude-rules:
@@ -867,7 +867,7 @@ containers:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   container:
     exclude-rules:
@@ -990,7 +990,7 @@ containers:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   container:
     exclude-rules:
@@ -1051,7 +1051,7 @@ containers:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   container:
     exclude-rules:
@@ -1112,7 +1112,7 @@ containers:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   container:
     exclude-rules:
@@ -1218,7 +1218,7 @@ containers:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   container:
     exclude-rules:
@@ -1321,7 +1321,7 @@ containers:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   container:
     exclude-rules:
@@ -1378,7 +1378,7 @@ containers:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   container:
     exclude-rules:
@@ -1453,7 +1453,7 @@ containers:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 li.dmtlint.yamltings:
   container:
     exclude-rules:
@@ -1472,7 +1472,7 @@ The Container linter can be configured at both the module level and for individu
 Configure the overall impact level for the container linter:
 
 ``.dmtlint.yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   container:
     impact: error  # Options: error, warning, info, ignored
@@ -1489,7 +1489,7 @@ linters-settings:
 Many rules support excluding specific objects or containers:
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   container:
     exclude-rules:
@@ -1547,7 +1547,7 @@ linters-settings:
 ### Complete Configuration Example
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   container:
     # Global impact level for all container rules
@@ -1604,10 +1604,10 @@ linters-settings:
 
 ### Configuration in Module Directory
 
-You can also place a `.dmt.yaml` configuration file directly in your module directory:
+You can also place a `.dmtlint.yaml` configuration file directly in your module directory:
 
 ```yaml
-# modules/my-module/.dmt.yaml
+# modules/my-module/.dmtlint.yaml
 linters-settings:
   container:
     impact: warning  # More lenient for this specific module
