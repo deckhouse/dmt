@@ -87,7 +87,6 @@ func init() {
 ```
 
 **Configuration:**
-.dmtlint.yaml
 ```yaml
 # .dmtlint.yaml
 linters-settings:
@@ -97,7 +96,6 @@ linters-settings:
 ```
 
 To disable this rule:
-.dmtlint.yaml
 ```yaml
 # .dmtlint.yaml
 linters-settings:
@@ -113,7 +111,6 @@ The Hooks linter can be configured at both the module level and for individual r
 ### Module-Level Settings
 
 Configure the overall impact level for the hooks linter:
-.dmtlint.yaml
 ```yaml
 # .dmtlint.yaml
 linters-settings:
@@ -130,7 +127,6 @@ linters-settings:
 ### Rule-Level Settings
 
 Each rule can be individually configured:
-.dmtlint.yaml
 ```yaml
 # .dmtlint.yaml
 linters-settings:
@@ -141,7 +137,6 @@ linters-settings:
 ```
 
 ### Complete Configuration Example
-.dmtlint.yaml
 ```yaml
 # .dmtlint.yaml
 linters-settings:
@@ -157,7 +152,6 @@ linters-settings:
 ### Configuration in Module Directory
 
 You can also place a `.dmtlint.yaml` configuration file directly in your module directory for module-specific settings:
-.dmtlint.yaml
 ```yaml
 # modules/my-module/.dmtlint.yaml
 linters-settings:
@@ -201,7 +195,7 @@ Error: Ingress resource exists but module does not have copy_custom_certificate 
    ```
 
 2. **If your Ingress doesn't need custom certificates:** Disable the rule for this module:
-.dmtlint.yaml
+
    ```yaml
    # modules/my-module/.dmtlint.yaml
    linters-settings:

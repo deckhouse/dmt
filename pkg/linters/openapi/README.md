@@ -162,7 +162,6 @@ properties:
 ```
 
 **Configuration:**
-.dmtlint.yaml
 ```yaml
 # .dmtlint.yaml
 linters-settings:
@@ -171,7 +170,6 @@ linters-settings:
 ```
 
 To exclude specific enum fields:
-.dmtlint.yaml
 ```yaml
 # .dmtlint.yaml
 linters-settings:
@@ -183,7 +181,6 @@ linters-settings:
 ```
 
 To exclude enum fields with array wildcards:
-.dmtlint.yaml
 ```yaml
 # .dmtlint.yaml
 linters-settings:
@@ -283,7 +280,6 @@ properties:
 ```
 
 **Configuration:**
-.dmtlint.yaml
 ```yaml
 # .dmtlint.yaml
 linters-settings:
@@ -376,7 +372,6 @@ properties:
 **Configuration:**
 
 Define which names should be banned in enum values:
-.dmtlint.yaml
 ```yaml
 # .dmtlint.yaml
 linters-settings:
@@ -595,7 +590,6 @@ spec:
 ```
 
 **Configuration:**
-.dmtlint.yaml
 ```yaml
 # .dmtlint.yaml
 linters-settings:
@@ -683,7 +677,6 @@ crds/
 ```
 
 **Configuration:**
-.dmtlint.yaml
 ```yaml
 # .dmtlint.yaml
 linters-settings:
@@ -700,7 +693,6 @@ The OpenAPI linter can be configured at the module level with rule-specific excl
 ### Module-Level Settings
 
 Configure the overall impact level for the openapi linter:
-.dmtlint.yaml
 ```yaml
 # .dmtlint.yaml
 linters-settings:
@@ -721,7 +713,6 @@ Each rule supports excluding specific schema paths or CRD names:
 #### Enum Rule Exclusions
 
 Exclude specific enum fields by their schema path:
-.dmtlint.yaml
 ```yaml
 # .dmtlint.yaml
 linters-settings:
@@ -742,7 +733,6 @@ linters-settings:
 #### High Availability Exclusions
 
 Exclude specific highAvailability fields:
-.dmtlint.yaml
 ```yaml
 # .dmtlint.yaml
 linters-settings:
@@ -756,7 +746,6 @@ linters-settings:
 #### Key Banned Names Configuration
 
 Define which property names are banned in enum values:
-.dmtlint.yaml
 ```yaml
 # .dmtlint.yaml
 linters-settings:
@@ -773,7 +762,6 @@ linters-settings:
 #### CRD Exclusions
 
 Exclude specific CRDs from validation:
-.dmtlint.yaml
 ```yaml
 # .dmtlint.yaml
 linters-settings:
@@ -786,7 +774,6 @@ linters-settings:
 ```
 
 ### Complete Configuration Example
-.dmtlint.yaml
 ```yaml
 # .dmtlint.yaml
 linters-settings:
@@ -1148,7 +1135,7 @@ Error: enum 'properties.items[5].properties.type.enum' is invalid: value 'custom
    ```
 
 2. **Exclude specific path if needed:**
-.dmtlint.yaml
+
    ```yaml
    # .dmtlint.yaml
    linters-settings:

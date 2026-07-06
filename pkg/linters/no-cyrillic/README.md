@@ -226,7 +226,6 @@ Visual pointer:             ^^^^^^^^^^^^
 Each `^` points to a cyrillic character, making it easy to find and replace them.
 
 **Configuration:**
-.dmtlint.yaml
 ```yaml
 # .dmtlint.yaml
 linters-settings:
@@ -235,7 +234,6 @@ linters-settings:
 ```
 
 To exclude specific files:
-.dmtlint.yaml
 ```yaml
 # .dmtlint.yaml
 linters-settings:
@@ -247,7 +245,6 @@ linters-settings:
 ```
 
 To exclude entire directories:
-.dmtlint.yaml
 ```yaml
 # .dmtlint.yaml
 linters-settings:
@@ -260,7 +257,6 @@ linters-settings:
 ```
 
 Combined example:
-.dmtlint.yaml
 ```yaml
 # .dmtlint.yaml
 linters-settings:
@@ -282,7 +278,6 @@ The No-Cyrillic linter can be configured at the module level with path-based exc
 ### Module-Level Settings
 
 Configure the overall impact level for the no-cyrillic linter:
-.dmtlint.yaml
 ```yaml
 # .dmtlint.yaml
 linters-settings:
@@ -299,7 +294,6 @@ linters-settings:
 ### File Exclusions
 
 Exclude specific files from cyrillic checking:
-.dmtlint.yaml
 ```yaml
 # .dmtlint.yaml
 linters-settings:
@@ -319,7 +313,6 @@ linters-settings:
 ### Directory Exclusions
 
 Exclude entire directories from cyrillic checking:
-.dmtlint.yaml
 ```yaml
 # .dmtlint.yaml
 linters-settings:
@@ -338,7 +331,6 @@ linters-settings:
 - All files within excluded directories are skipped
 
 ### Complete Configuration Example
-.dmtlint.yaml
 ```yaml
 # .dmtlint.yaml
 linters-settings:
@@ -366,7 +358,6 @@ linters-settings:
 ### Configuration in Module Directory
 
 You can also place a `.dmtlint.yaml` configuration file directly in your module directory:
-.dmtlint.yaml
 ```yaml
 # modules/my-module/.dmtlint.yaml
 linters-settings:
