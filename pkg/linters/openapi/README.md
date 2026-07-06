@@ -818,10 +818,9 @@ linters-settings:
         - experimental-resources.deckhouse.io
 ```
 
-### Configuration in M.dmtlint.yamlectory
+### Configuration in Module Directory
 
 You can also place a `.dmtlint.yaml` configuration file directly in your module directory:
-.dmtlint.yaml
 ```yaml
 # modules/my-module/.dmtlint.yaml
 linters-settings:
