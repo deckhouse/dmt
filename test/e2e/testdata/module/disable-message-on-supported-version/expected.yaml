@@ -1,0 +1,10 @@
+description: >
+  A module pinned to Deckhouse >= 1.77 must not keep the singular disable.message
+  field: on >= 1.77 only the localized disable.messages is read, so disable.message
+  must be removed. The module linter flags it as an error.
+module: module
+expect:
+  - linter: module
+    rule: definition-file
+    level: error
+    textContains: "'disable.message' must be removed on Deckhouse >= v1.77"

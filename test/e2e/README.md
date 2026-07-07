@@ -58,6 +58,9 @@ kind: lint              # "lint" (default) or "conversions"
 module: module          # subdir to lint, defaults to "module"
 expectClean: false      # assert the run produced zero findings
 exhaustive: false       # assert there are NO findings beyond those listed
+expectPass:             # rules that must not produce any matching findings
+  - linter: container
+    rule: object-namespace-labels
 expect:
   - linter: container             # required, matched case-insensitively
     rule: env-variables-duplicates # optional
@@ -74,6 +77,9 @@ Matching semantics:
 - `count` is the expected number of matching findings. `0` (or omitting it)
   means "at least one".
 - `expectClean: true` asserts the module produced no findings at all.
+- `expectPass` lists rules that must not produce any matching findings. `linter`
+  is required; `rule`, `level` and `textContains` are optional filters using the
+  same matching rules as `expect`.
 - `exhaustive: true` asserts that every produced finding is matched by some
   entry in `expect` (use it to lock down the complete output of a fixture).
 
@@ -94,6 +100,9 @@ go test ./test/e2e/ -run 'TestE2E/<linter>/<your-case>' -v
 |------|-----------|
 | `container/bad-deployment` | container linter (labels, security context, probes, resources, image digest, duplicate env, seccomp) |
 | `module/missing-metadata` | module linter (definition-file, helmignore) + documentation linter (readme) |
+| `module/disable-message-on-supported-version` | module linter `definition-file` (error: `disable.message` on a module pinned to `>= 1.77` must be removed, use `disable.messages`) |
+| `module/disable-messages-invalid` | module linter `definition-file` (errors: `disable.messages` without a `disable.message` fallback on `< 1.77`, and missing `ru`/`en`) |
+| `module/disable-message-fallback` | module linter `definition-file` (warning: `disable.message` + `disable.messages` on a module still allowing `< 1.77` — drop the fallback on `>= 1.77`) |
 | `no-cyrillic/in-template` | no-cyrillic linter (Cyrillic characters in a yaml file) |
 | `no-cyrillic/skip-russian-files` | no-cyrillic linter skips Russian localized files (`*.ru.yml`, `*.ru.yaml`, `*.ru.json`, `doc-ru-*.yml`) while still reporting a regular Cyrillic template |
 | `no-cyrillic/skip-filenames-extensions` | no-cyrillic linter skips every filename/path pattern (`doc-ru-*`, `*.ru.{yaml,yml,json,md,html}`, `docs/site/_*`, `docs/documentation/_*`, `tools/spelling/*`, `openapi/conversions/*`, `module.yaml`, `i18n/*`, `ru.*`) and non-scanned extensions (`.txt`), reporting only one genuine Cyrillic template |

@@ -34,7 +34,8 @@ import (
 	"github.com/deckhouse/dmt/pkg/config"
 	pkgerrors "github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/testers"
-	tester "github.com/deckhouse/dmt/pkg/testers/conversions"
+	conversions "github.com/deckhouse/dmt/pkg/testers/conversions"
+	templatestester "github.com/deckhouse/dmt/pkg/testers/templates"
 )
 
 type moduleResult struct {
@@ -53,7 +54,39 @@ type Manager struct {
 	results []moduleResult
 }
 
-func NewManager(dir string, rootConfig *config.RootConfig) (*Manager, error) {
+type managerOptions struct {
+	enabled         map[string]bool
+	updateSnapshots bool
+}
+
+// Option customizes which testers a Manager runs and how.
+type Option func(*managerOptions)
+
+// WithTesters restricts the manager to the testers with the given IDs.
+// When omitted, all registered testers run.
+func WithTesters(ids ...string) Option {
+	return func(o *managerOptions) {
+		o.enabled = make(map[string]bool, len(ids))
+		for _, id := range ids {
+			o.enabled[id] = true
+		}
+	}
+}
+
+// WithUpdateSnapshots makes snapshot-based testers rewrite their golden files
+// instead of reporting mismatches.
+func WithUpdateSnapshots(update bool) Option {
+	return func(o *managerOptions) {
+		o.updateSnapshots = update
+	}
+}
+
+func NewManager(dir string, rootConfig *config.RootConfig, opts ...Option) (*Manager, error) {
+	options := &managerOptions{}
+	for _, opt := range opts {
+		opt(options)
+	}
+
 	m := &Manager{
 		cfg:    rootConfig,
 		errors: pkgerrors.NewTestErrorsList(),
@@ -66,7 +99,7 @@ func NewManager(dir string, rootConfig *config.RootConfig) (*Manager, error) {
 		return nil, fmt.Errorf("failed to get module paths: %w", err)
 	}
 
-	m.registerTesters()
+	m.registerTesters(options)
 
 	return m, nil
 }
@@ -225,9 +258,16 @@ func (m *Manager) GetErrors() []pkg.TestError {
 	return m.errors.GetErrors()
 }
 
-func (m *Manager) registerTesters() {
-	m.testers = []testers.Tester{
-		tester.New(m.errors),
+func (m *Manager) registerTesters(options *managerOptions) {
+	all := []testers.Tester{
+		conversions.New(m.errors),
+		templatestester.New(m.errors, options.updateSnapshots),
+	}
+
+	for _, t := range all {
+		if options.enabled == nil || options.enabled[t.Name()] {
+			m.testers = append(m.testers, t)
+		}
 	}
 }
 

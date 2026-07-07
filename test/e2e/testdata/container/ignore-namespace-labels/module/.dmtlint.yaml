@@ -1,0 +1,10 @@
+linters-settings:
+  container:
+    exclude-rules:
+      resources:
+        - kind: Deployment
+          name: m-s-test
+          container: m-s-test
+      object-namespace-labels:
+        - kind: Namespace
+          name: d8-e2e-app

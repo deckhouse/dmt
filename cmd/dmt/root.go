@@ -34,6 +34,7 @@ import (
 	"github.com/deckhouse/dmt/internal/bootstrap"
 	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/fsutils"
+	"github.com/deckhouse/dmt/internal/render"
 	"github.com/deckhouse/dmt/internal/test"
 	"github.com/deckhouse/dmt/internal/version"
 	"github.com/deckhouse/dmt/pkg/config"
@@ -167,15 +168,72 @@ func execute() {
 				dir = args[0]
 			}
 
-			return runTestConversions(dir)
+			return runTests(dir, test.WithTesters("conversions"))
 		},
 	}
 
+	var updateSnapshots bool
+
+	templatesCmd := &cobra.Command{
+		Use:   "templates [module-path]",
+		Short: "Test module templates against golden snapshots",
+		Long: `Renders module templates with the values provided under each module's
+'templates-tests/<case>/values.yaml' and compares the result against the
+committed 'expected.yaml' snapshot. Use --update to (re)generate snapshots.`,
+		Args:         cobra.RangeArgs(0, 1),
+		SilenceUsage: true,
+		RunE: func(_ *cobra.Command, args []string) error {
+			var dir = "."
+			if len(args) > 0 {
+				dir = args[0]
+			}
+
+			return runTests(dir,
+				test.WithTesters("templates"),
+				test.WithUpdateSnapshots(updateSnapshots),
+			)
+		},
+	}
+	templatesCmd.Flags().BoolVar(&updateSnapshots, "update", false,
+		"update (regenerate) golden snapshots instead of comparing against them")
+
 	testCmd.AddCommand(conversionsCmd)
+	testCmd.AddCommand(templatesCmd)
+
+	var renderOutput string
+
+	renderCmd := &cobra.Command{
+		Use:   "render [module-path]",
+		Short: "Render Deckhouse module templates",
+		Long: `Finds all modules under the given path (including subdirectories) and renders
+each module's templates from its 'templates' directory using values generated
+from the module's openapi schemas ('openapi/config-values.yaml' and
+'openapi/values.yaml', if present).
+
+By default the output is written into a 'rendered' directory at each module
+root. When --output is set, the output is instead written into
+'<output>/rendered/<module-name>/<edition>/', where the module name is taken
+from the module's 'module.yaml' and editions follow the
+'openapi/values_<edition>.yaml' convention (with 'default' for
+'openapi/values.yaml').`,
+		Args:         cobra.RangeArgs(0, 1),
+		SilenceUsage: true,
+		RunE: func(_ *cobra.Command, args []string) error {
+			var dir = "."
+			if len(args) > 0 {
+				dir = args[0]
+			}
+
+			return render.Render(dir, renderOutput)
+		},
+	}
+	renderCmd.Flags().StringVarP(&renderOutput, "output", "o", "",
+		"directory to write the rendered output into (created if absent; a 'rendered' subdirectory is created inside it)")
 
 	rootCmd.AddCommand(lintCmd)
 	rootCmd.AddCommand(bootstrapCmd)
 	rootCmd.AddCommand(testCmd)
+	rootCmd.AddCommand(renderCmd)
 	rootCmd.Flags().AddFlagSet(flags.InitDefaultFlagSet())
 
 	err := rootCmd.Execute()
@@ -184,7 +242,7 @@ func execute() {
 	}
 }
 
-func runTestConversions(dir string) error {
+func runTests(dir string, opts ...test.Option) error {
 	cfg, err := config.NewDefaultRootConfig(dir)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
@@ -195,7 +253,7 @@ func runTestConversions(dir string) error {
 		return fmt.Errorf("failed to expand directory: %w", err)
 	}
 
-	manager, err := test.NewManager(expandedDir, cfg)
+	manager, err := test.NewManager(expandedDir, cfg, opts...)
 	if err != nil {
 		return fmt.Errorf("failed to create test manager: %w", err)
 	}

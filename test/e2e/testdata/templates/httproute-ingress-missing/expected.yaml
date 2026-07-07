@@ -1,0 +1,9 @@
+description: >
+  A module that ships an Ingress with an app label but no matching HTTPRoute
+  must be flagged by the httproute-rules rule.
+module: module
+expect:
+  - linter: templates
+    rule: httproute-rules
+    level: error
+    textContains: "the corresponding Gateway API resources are missing"

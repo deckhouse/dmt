@@ -1,0 +1,14 @@
+description: >
+  A module that sets disable.messages with only one language (en, no ru) and
+  without a disable.message fallback (requirements allow Deckhouse < 1.77) must be
+  flagged with both errors: the missing fallback and the missing localization.
+module: module
+expect:
+  - linter: module
+    rule: definition-file
+    level: error
+    textContains: "is not read on Deckhouse < v1.77"
+  - linter: module
+    rule: definition-file
+    level: error
+    textContains: "must define both 'ru' and 'en'"

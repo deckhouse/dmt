@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-app
+  namespace: e2e-mount-points-missing
+spec:
+  selector:
+    matchLabels:
+      app: test-app
+  template:
+    metadata:
+      labels:
+        app: test-app
+    spec:
+      containers:
+      - name: app
+        image: test:latest
+        volumeMounts:
+        - name: config
+          mountPath: /etc/app
+        - name: missing
+          mountPath: /etc/missing
+      - name: sidecar
+        image: sidecar:latest
+        volumeMounts:
+        - name: data
+          mountPath: /var/data

@@ -24,7 +24,7 @@ Proper container configuration is critical for cluster stability, security, and 
 | Rule | Description | Configurable | Default |
 |------|-------------|--------------|---------|
 | [object-recommended-labels](#object-recommended-labels) | Validates required labels (module, heritage) | ❌ | enabled |
-| [object-namespace-labels](#object-namespace-labels) | Validates Prometheus watcher label on d8-* namespaces | ❌ | enabled |
+| [object-namespace-labels](#object-namespace-labels) | Validates Prometheus watcher label on d8-* namespaces | ✅ | enabled |
 | [object-api-version](#object-api-version) | Validates API versions are not deprecated | ❌ | enabled |
 | [object-priority-class](#object-priority-class) | Validates PriorityClass is set and allowed | ❌ | enabled |
 | [dns-policy](#dns-policy) | Validates DNS policy for hostNetwork pods | ✅ | enabled |
@@ -43,6 +43,8 @@ Proper container configuration is critical for cluster stability, security, and 
 | [readiness-probe](#readiness-probe) | Validates readiness probe configuration | ✅ | enabled |
 | [no-new-privileges](#no-new-privileges) | Validates containers don't allow privilege escalation | ✅ | enabled |
 | [seccomp-profile](#seccomp-profile) | Validates seccomp profile configuration | ✅ | enabled |
+
+"Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
 ## Rule Details
 
@@ -173,6 +175,22 @@ metadata:
     module: my-module
     heritage: deckhouse
 ```
+
+**Configuration:**
+
+Exclude specific `d8-*` namespaces from this check when the Prometheus watcher label is intentionally omitted:
+
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  container:
+    exclude-rules:
+      object-namespace-labels:
+        - kind: Namespace
+          name: d8-my-module
+```
+
+Each entry matches by Kubernetes object `kind` and `name`. When a namespace is excluded, the rule is not applied even if `PrometheusRule` resources exist in that namespace.
 
 ---
 
@@ -362,7 +380,7 @@ spec:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   container:
     exclude-rules:
@@ -461,7 +479,7 @@ spec:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   container:
     exclude-rules:
@@ -654,7 +672,6 @@ Container's SecurityContext has `ReadOnlyRootFilesystem: false`, but it must be 
 ```
 
 ✅ **Correct** - Read-only filesystem:
-
 ```yaml
 containers:
   - name: app
@@ -672,7 +689,7 @@ volumes:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   container:
     exclude-rules:
@@ -724,7 +741,6 @@ spec:
 ```
 Pod running in hostNetwork and it's container port doesn't fit the range [4200,4299]
 ```
-
 ✅ **Correct** - Port in allowed range:
 
 ```yaml
@@ -742,7 +758,7 @@ spec:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   container:
     exclude-rules:
@@ -849,7 +865,7 @@ containers:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   container:
     exclude-rules:
@@ -972,7 +988,7 @@ containers:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   container:
     exclude-rules:
@@ -1015,7 +1031,6 @@ containers:
 ```
 Container ContainerSecurityContext is not defined
 ```
-
 ✅ **Correct** - Security context defined:
 
 ```yaml
@@ -1033,7 +1048,7 @@ containers:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   container:
     exclude-rules:
@@ -1094,7 +1109,7 @@ containers:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   container:
     exclude-rules:
@@ -1200,7 +1215,7 @@ containers:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   container:
     exclude-rules:
@@ -1303,7 +1318,7 @@ containers:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   container:
     exclude-rules:
@@ -1360,7 +1375,7 @@ containers:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   container:
     exclude-rules:
@@ -1435,7 +1450,7 @@ containers:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   container:
     exclude-rules:
@@ -1454,7 +1469,7 @@ The Container linter can be configured at both the module level and for individu
 Configure the overall impact level for the container linter:
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   container:
     impact: error  # Options: error, warning, info, ignored
@@ -1471,7 +1486,7 @@ linters-settings:
 Many rules support excluding specific objects or containers:
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   container:
     exclude-rules:
@@ -1529,7 +1544,7 @@ linters-settings:
 ### Complete Configuration Example
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   container:
     # Global impact level for all container rules
@@ -1571,7 +1586,7 @@ linters-settings:
           name: standby-holder-name
           container: reserve-resources
       
-      readiness-probe:
+      readiness-probe
         - kind: Deployment
           name: standby-holder-name
           container: reserve-resources
@@ -1586,10 +1601,10 @@ linters-settings:
 
 ### Configuration in Module Directory
 
-You can also place a `.dmt.yaml` configuration file directly in your module directory:
+You can also place a `.dmtlint.yaml` configuration file directly in your module directory:
 
 ```yaml
-# modules/my-module/.dmt.yaml
+# modules/my-module/.dmtlint.yaml
 linters-settings:
   container:
     impact: warning  # More lenient for this specific module

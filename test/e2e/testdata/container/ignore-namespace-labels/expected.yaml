@@ -1,0 +1,7 @@
+description: >
+  A namespace with a name starting with "d8-" should be ignored by the
+  container linter on the object-namespace-labels rule.
+module: module
+expectPass:
+  - linter: container
+    rule: object-namespace-labels

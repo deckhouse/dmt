@@ -49,6 +49,7 @@ var ValidEditions = []string{
 	"se",
 	"se-plus",
 	"be",
+	"cse",
 	"_default",
 }
 
@@ -92,9 +93,21 @@ type DeckhouseModule struct {
 	Requirements  *ModuleRequirements  `json:"requirements,omitempty"`
 	Accessibility *ModuleAccessibility `json:"accessibility,omitempty"`
 	Update        *ModuleUpdate        `json:"update,omitempty"`
+	Disable       *ModuleDisable       `json:"disable,omitempty"`
 }
 
 type ModuleDescriptions struct {
+	English string `json:"en,omitempty"`
+	Russian string `json:"ru,omitempty"`
+}
+
+type ModuleDisable struct {
+	Confirmation bool                  `json:"confirmation,omitempty"`
+	Message      string                `json:"message,omitempty"`
+	Messages     ModuleDisableMessages `json:"messages,omitempty"`
+}
+
+type ModuleDisableMessages struct {
 	English string `json:"en,omitempty"`
 	Russian string `json:"ru,omitempty"`
 }
@@ -283,9 +296,63 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 		errorList.WithMaxLevel(maxLevel).Error("Field 'description' is deprecated, use 'descriptions.en' instead")
 	}
 
+	if yml.Disable != nil {
+		hasMessage := yml.Disable.Message != ""
+		hasRu := yml.Disable.Messages.Russian != ""
+		hasEn := yml.Disable.Messages.English != ""
+		hasMessages := hasRu || hasEn
+
+		guaranteed := requirementsGuaranteeDeckhouse177(yml.Requirements)
+
+		// disable.message is only read by Deckhouse < v1.77; a module limited to >= v1.77
+		// must drop it in favour of the localized disable.messages.
+		if hasMessage && guaranteed {
+			errorList.Error("Field 'disable.message' must be removed on Deckhouse >= v1.77; use 'disable.messages' (with 'ru'/'en') instead")
+		}
+
+		if hasMessages {
+			if !hasRu || !hasEn {
+				errorList.Error("Field 'disable.messages' must define both 'ru' and 'en'")
+			}
+
+			// disable.messages is not read by Deckhouse < v1.77, so a module that can run
+			// there needs a disable.message fallback (or must pin requirements.deckhouse >= v1.77).
+			if !guaranteed && !hasMessage {
+				errorList.Error("Field 'disable.messages' is not read on Deckhouse < v1.77; add a 'disable.message' fallback or require 'requirements.deckhouse' >= v1.77")
+			}
+
+			// Both are present while the module still targets < v1.77: disable.message is the
+			// fallback for those old versions and must be dropped once the module requires >= v1.77.
+			if hasMessage && !guaranteed {
+				errorList.Warn("Field 'disable.message' is a Deckhouse < v1.77 fallback and must be removed once 'requirements.deckhouse' is pinned to >= v1.77 (only 'disable.messages' is read there)")
+			}
+		}
+	}
+
 	if yml.Critical && yml.Weight == 0 {
 		errorList.Error("Field 'weight' must not be zero for critical modules")
 	}
+}
+
+// requirementsGuaranteeDeckhouse177 reports whether requirements.deckhouse constrains the
+// platform to v1.77 or newer — i.e. no Deckhouse version below 1.77 satisfies the constraint.
+// disable.messages is only understood by Deckhouse >= v1.77.
+func requirementsGuaranteeDeckhouse177(req *ModuleRequirements) bool {
+	if req == nil || req.Deckhouse == "" {
+		return false
+	}
+
+	constraint, err := semver.NewConstraint(req.Deckhouse)
+	if err != nil {
+		return false
+	}
+
+	belowMin, err := semver.NewVersion("1.76.999999")
+	if err != nil {
+		return false
+	}
+
+	return !constraint.Check(belowMin)
 }
 
 func (m ModuleRequirements) validateRequirements(errorList *errors.LintRuleErrorsList) {

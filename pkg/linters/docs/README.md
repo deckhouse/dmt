@@ -15,6 +15,8 @@ Proper documentation is critical for Deckhouse modules as it helps users underst
 | [cyrillic-in-english](#cyrillic-in-english) | Validates English documentation doesn't contain cyrillic characters | ✅ | enabled |
 | [no-lang-key](#no-lang-key) | Validates documentation front matter doesn't contain `lang` key | ✅ | enabled |
 
+"Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
+
 ## Rule Details
 
 ### readme
@@ -91,9 +93,8 @@ This module provides...
 **Configuration:**
 
 To disable this rule for specific modules:
-
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   documentation:
     rules:
@@ -171,9 +172,8 @@ my-module/
 **Configuration:**
 
 To disable bilingual checks for specific files:
-
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   documentation:
     rules:
@@ -286,9 +286,8 @@ Line 42: Check the документация for more details.
 **Configuration:**
 
 To exclude specific files from this check:
-
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   documentation:
     rules:
@@ -376,9 +375,8 @@ webIfaces:
 **Configuration:**
 
 To exclude specific files from this check:
-
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   documentation:
     rules:
@@ -396,9 +394,8 @@ The Documentation linter can be configured at both the module level and for indi
 ### Module-Level Settings
 
 Configure the overall impact level for the documentation linter:
-
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   documentation:
     impact: error  # Options: error, warning, info, ignored
@@ -413,9 +410,8 @@ linters-settings:
 ### Path-Based Exclusions
 
 Exclude specific modules or files from validation:
-
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   documentation:
     rules:
@@ -500,7 +496,7 @@ File: docs/CONFIGURATION.md
 3. **Exclude if translation is not needed (not recommended):**
 
    ```yaml
-   # .dmt.yaml
+   # .dmtlint.yaml
    linters-settings:
      documentation:
        rules:

@@ -17,23 +17,35 @@ limitations under the License.
 package helm
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"helm.sh/helm/v3/pkg/chart"
-	"helm.sh/helm/v3/pkg/chartutil"
 )
 
-func TestRenderChartFromRawValues(t *testing.T) {
+func writeChart(t *testing.T, files map[string]string) string {
+	t.Helper()
+
+	dir := t.TempDir()
+	for name, content := range files {
+		path := filepath.Join(dir, name)
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+	}
+
+	return dir
+}
+
+func TestRenderChartFromDir(t *testing.T) {
 	t.Run("should return error if chart name is empty", func(t *testing.T) {
 		renderer := Renderer{
 			Name:      "",
 			Namespace: "default",
-			LintMode:  false,
 		}
 
-		_, err := renderer.RenderChartFromRawValues(&chart.Chart{}, chartutil.Values{})
+		_, err := renderer.RenderChartFromDir(t.TempDir(), map[string]any{})
 		require.Error(t, err)
 		assert.Equal(t, "helm chart must have a name", err.Error())
 	})
@@ -42,30 +54,53 @@ func TestRenderChartFromRawValues(t *testing.T) {
 		renderer := Renderer{
 			Name:      "test-chart",
 			Namespace: "default",
-			LintMode:  false,
 		}
 
-		testChart := &chart.Chart{
-			Metadata: &chart.Metadata{
-				Name: "test-chart",
-			},
-			Templates: []*chart.File{
-				{
-					Name: "templates/test.yaml",
-					Data: []byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: test-configmap"),
-				},
-			},
-		}
+		dir := writeChart(t, map[string]string{
+			"Chart.yaml": "apiVersion: v2\nname: test-chart\nversion: 0.1.0\n",
+			"templates/test.yaml": "apiVersion: v1\n" +
+				"kind: ConfigMap\n" +
+				"metadata:\n" +
+				"  name: test-configmap\n" +
+				"data:\n" +
+				"  key: {{ .Values.key }}\n",
+		})
 
-		values := chartutil.Values{
-			"key": "value",
-		}
-
-		output, err := renderer.RenderChartFromRawValues(testChart, values)
+		output, err := renderer.RenderChartFromDir(dir, map[string]any{
+			"Values": map[string]any{"key": "value"},
+		})
 		require.NoError(t, err)
-		assert.Contains(t, output, "test-chart/templates/test.yaml")
-		assert.Contains(t, output["test-chart/templates/test.yaml"], "apiVersion: v1")
-		assert.Contains(t, output["test-chart/templates/test.yaml"], "kind: ConfigMap")
-		assert.Contains(t, output["test-chart/templates/test.yaml"], "name: test-configmap")
+		require.Contains(t, output, "test-chart/templates/test.yaml")
+
+		manifest := output["test-chart/templates/test.yaml"]
+		assert.Contains(t, manifest, "kind: ConfigMap")
+		assert.Contains(t, manifest, "name: test-configmap")
+		assert.Contains(t, manifest, "key: value")
+	})
+
+	t.Run("should not panic on chart with external dependencies", func(t *testing.T) {
+		renderer := Renderer{
+			Name:      "test-chart",
+			Namespace: "default",
+		}
+
+		dir := writeChart(t, map[string]string{
+			"Chart.yaml": "apiVersion: v2\nname: test-chart\nversion: 0.1.0\ndependencies:\n  - name: external-dep\n    version: 1.0.0\n    repository: https://example.com/charts\n",
+			"Chart.lock": "apiVersion: v2\ndependencies:\n  - name: external-dep\n    repository: https://example.com/charts\n    version: 1.0.0\ndigest: sha256:0000000000000000000000000000000000000000000000000000000000000000\ngenerated: \"2025-01-01T00:00:00.000000000Z\"\n",
+			"templates/test.yaml": "apiVersion: v1\n" +
+				"kind: ConfigMap\n" +
+				"metadata:\n" +
+				"  name: test-configmap\n" +
+				"data:\n" +
+				"  key: {{ .Values.key }}\n",
+		})
+
+		// Before the fix this panicked with a nil pointer dereference because
+		// RenderChartFromDir did not set ChartLoadOpts.DepDownloader.
+		output, err := renderer.RenderChartFromDir(dir, map[string]any{
+			"Values": map[string]any{"key": "value"},
+		})
+		require.NoError(t, err)
+		require.Contains(t, output, "test-chart/templates/test.yaml")
 	})
 }

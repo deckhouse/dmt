@@ -1,0 +1,12 @@
+description: >
+  A module with an images/ directory and an oss.yaml whose project uses a
+  non-semver version. Without any exclude rule, the OSS rule must emit the
+  semver-compatibility warning (and nothing else).
+module: module
+exhaustive: true
+expect:
+  - linter: module
+    rule: oss
+    level: warn
+    textContains: 'version "stable-23.8" is not semver-compatible'
+    count: 1

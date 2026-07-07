@@ -37,14 +37,14 @@ var (
 )
 
 func NewFilesRule(excludeFileRules []pkg.StringRuleExclude,
-	excludeDirectoryRules []pkg.PrefixRuleExclude) *FilesRule {
+	excludeDirectoryRules []pkg.DirectoryRuleExclude) *FilesRule {
 	return &FilesRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: FilesRuleName,
 		},
 		PathRule: pkg.PathRule{
-			ExcludeStringRules: excludeFileRules,
-			ExcludePrefixRules: excludeDirectoryRules,
+			ExcludeStringRules:    excludeFileRules,
+			ExcludeDirectoryRules: excludeDirectoryRules,
 		},
 		skipDocRe:  regexp.MustCompile(skipDocRe),
 		skipI18NRe: regexp.MustCompile(skipSelfRe),

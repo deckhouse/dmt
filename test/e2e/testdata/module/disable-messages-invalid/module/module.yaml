@@ -1,0 +1,10 @@
+name: e2e-module-disable-messages-invalid
+namespace: e2e-module-disable-messages-invalid
+stage: Experimental
+descriptions:
+  en: "Module used to verify disable.messages error rules"
+  ru: "Модуль для проверки ошибок disable.messages"
+disable:
+  confirmation: true
+  messages:
+    en: "Localized disable message"

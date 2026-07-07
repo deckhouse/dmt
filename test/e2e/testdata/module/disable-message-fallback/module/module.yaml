@@ -1,0 +1,14 @@
+name: e2e-module-disable-fallback
+namespace: e2e-module-disable-fallback
+stage: Experimental
+descriptions:
+  en: "Module used to verify the disable.message fallback warning"
+  ru: "Модуль для проверки предупреждения о fallback disable.message"
+requirements:
+  deckhouse: ">= 1.60"
+disable:
+  confirmation: true
+  message: "Fallback for Deckhouse < 1.77"
+  messages:
+    ru: "Локализованное сообщение отключения"
+    en: "Localized disable message"

@@ -59,7 +59,8 @@ func (l *Templates) Run(m *module.Module) {
 	rules.NewPDBRule(l.cfg.ExcludeRules.PDBAbsent.Get()).ControllerMustHavePDB(m, errorList.WithMaxLevel(l.cfg.Rules.PDBRule.GetLevel()))
 	// Ingress
 	ingressRule := rules.NewIngressRule(l.cfg.ExcludeRules.Ingress.Get())
-
+	// HttpRoute
+	httpRouteRule := rules.NewHTTPRouteRule(l.cfg.ExcludeRules.HTTPRoute.Get())
 	// monitoring
 	prometheusRule := rules.NewPrometheusRule(l.cfg)
 	grafanaRule := rules.NewGrafanaRule(l.cfg)
@@ -82,6 +83,8 @@ func (l *Templates) Run(m *module.Module) {
 		ingressRule.CheckSnippetsRule(object, errorList.WithMaxLevel(l.cfg.Rules.IngressRule.GetLevel()))
 	}
 
+	httpRouteRule.ModuleMustHaveGatewayResources(m, errorList.WithMaxLevel(l.cfg.Rules.HTTPRouteRule.GetLevel()))
+
 	// Cluster domain rule
 	clusterDomainRule := rules.NewClusterDomainRule()
 	clusterDomainRule.ValidateClusterDomainInTemplates(m, errorList.WithMaxLevel(l.cfg.Rules.ClusterDomainRule.GetLevel()))
@@ -93,11 +96,18 @@ func (l *Templates) Run(m *module.Module) {
 
 	rules.NewRegistryRule().CheckRegistrySecret(m, errorList.WithMaxLevel(l.cfg.Rules.RegistryRule.GetLevel()))
 
+	// WebhookConfiguration annotations rule
+	rules.NewWebhookConfigurationRule(l.cfg.ExcludeRules.WebhookConfiguration.Get()).
+		ValidateWebhookConfigurationAnnotations(m, errorList.WithMaxLevel(l.cfg.Rules.WebhookConfigurationRule.GetLevel()))
+
 	// EnabledModules rule
 	rules.NewEnabledModulesRule(
 		l.cfg.ExcludeRules.EnabledModules.Files.Get(),
 		l.cfg.ExcludeRules.EnabledModules.Directories.Get(),
 	).CheckEnabledModules(m, errorList.WithMaxLevel(l.cfg.Rules.EnabledModulesRule.GetLevel()))
+
+	// MountPoints rule
+	rules.NewMountPointsRule(l.cfg.ExcludeRules.MountPoints.Get()).ValidateMountPoints(m, errorList.WithMaxLevel(l.cfg.Rules.MountPointsRule.GetLevel()))
 }
 
 func (l *Templates) Name() string {

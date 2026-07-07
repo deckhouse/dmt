@@ -28,12 +28,13 @@ import (
 
 func TestOSSRule_OssModuleRule(t *testing.T) {
 	tests := []struct {
-		name            string
-		disable         bool
-		createImagesDir bool
-		setupFiles      map[string]string
-		wantErrors      []string
-		wantWarns       []string
+		name                    string
+		disable                 bool
+		createImagesDir         bool
+		setupFiles              map[string]string
+		versionNotSemverExclude []pkg.StringRuleExclude
+		wantErrors              []string
+		wantWarns               []string
 	}{
 		{
 			name:            "rule disabled, no oss.yaml",
@@ -199,6 +200,22 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 `,
 			},
 			wantWarns: []string{`version "invalid-version" is not semver-compatible; if this version is correct for the OSS project, ignore this warning`},
+		},
+		{
+			name:            "invalid semver version excluded by id via version-not-semver",
+			createImagesDir: true,
+			setupFiles: map[string]string{
+				"oss.yaml": `
+- id: "clickhouse"
+  version: "invalid-version"
+  name: "ClickHouse"
+  description: "An open-source column-oriented DBMS"
+  link: "https://github.com/ClickHouse/ClickHouse"
+  license: "Apache License 2.0"
+`,
+			},
+			versionNotSemverExclude: []pkg.StringRuleExclude{"clickhouse"},
+			wantWarns:               nil,
 		},
 		{
 			name:            "project with invalid conditional semver version",
@@ -392,7 +409,7 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 			}
 
 			// Create rule
-			rule := NewOSSRule(tt.disable)
+			rule := NewOSSRule(tt.disable, tt.versionNotSemverExclude)
 			errorList := errors.NewLintRuleErrorsList()
 
 			// Run the rule

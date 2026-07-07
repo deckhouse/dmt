@@ -57,6 +57,7 @@ import (
 const (
 	KindLint        = "lint"
 	KindConversions = "conversions"
+	KindFix         = "fix"
 )
 
 // Finding declares one expected lint finding for a case.
@@ -95,6 +96,8 @@ func (f Finding) String() string {
 type CaseSpec struct {
 	// Description is a human-readable summary of what the case verifies.
 	Description string `yaml:"description"`
+	// Skip, when true, causes the test case to be skipped (t.Skip).
+	Skip bool `yaml:"skip"`
 	// Kind selects what to run against the module: "lint" (default) runs the
 	// full lint pipeline, "conversions" runs the `dmt test conversions` testers.
 	// For conversions cases, findings are exposed with linter ID "conversions"
@@ -107,6 +110,12 @@ type CaseSpec struct {
 	ExpectClean bool `yaml:"expectClean"`
 	// Expect lists the findings that must be present.
 	Expect []Finding `yaml:"expect"`
+	// ExpectAbsent lists findings that must NOT be present. Each entry uses the
+	// same matching semantics as Expect (linter required; rule/level/textContains
+	// optional); the case fails if any produced finding matches.
+	ExpectAbsent []Finding `yaml:"expectAbsent"`
+	// ExpectPass lists rules that must not produce any matching findings.
+	ExpectPass []Finding `yaml:"expectPass"`
 	// Exhaustive, when true, asserts that there are no findings beyond those
 	// listed in Expect (every produced finding must be matched by some Finding).
 	Exhaustive bool `yaml:"exhaustive"`
@@ -141,6 +150,8 @@ func Run(kind, moduleDir string) ([]pkg.LinterError, error) {
 	switch kind {
 	case KindConversions:
 		return RunConversions(moduleDir)
+	case KindFix:
+		return RunFix(moduleDir)
 	case KindLint, "":
 		return Lint(moduleDir)
 	default:
@@ -180,6 +191,39 @@ func Lint(moduleDir string) ([]pkg.LinterError, error) {
 
 	mng := manager.NewManager(target, cfg)
 	mng.Run()
+
+	return mng.GetErrors(), nil
+}
+
+// RunFix runs the lint pipeline with --fix: the run collects findings with
+// deferred fixes, ApplyFixes patches module.yaml on disk, and GetErrors then
+// returns only the findings that remain unresolved (successfully fixed ones are
+// dropped), so callers can assert on what --fix could not resolve.
+func RunFix(moduleDir string) ([]pkg.LinterError, error) {
+	tmpRoot, err := os.MkdirTemp("", "dmt-e2e-fix-*")
+	if err != nil {
+		return nil, fmt.Errorf("create temp dir: %w", err)
+	}
+	defer os.RemoveAll(tmpRoot)
+
+	target := filepath.Join(tmpRoot, filepath.Base(moduleDir))
+	if err = copyDir(moduleDir, target); err != nil {
+		return nil, fmt.Errorf("copy module: %w", err)
+	}
+
+	initLintFlagsOnce()
+
+	cfg, err := config.NewDefaultRootConfig(target)
+	if err != nil {
+		return nil, fmt.Errorf("load config: %w", err)
+	}
+
+	metrics.GetClient(target)
+
+	mng := manager.NewManager(target, cfg)
+	mng.Run()
+
+	mng.ApplyFixes()
 
 	return mng.GetErrors(), nil
 }
@@ -289,12 +333,36 @@ func Match(spec *CaseSpec, findings []pkg.LinterError) MatchResult {
 		}
 	}
 
+	for _, absent := range spec.ExpectAbsent {
+		for i := range findings {
+			if findingMatches(absent, findings[i]) {
+				res.Failures = append(res.Failures,
+					fmt.Sprintf("expected no finding for [%s], but got: %s", absent, formatFinding(findings[i])))
+			}
+		}
+	}
+
 	if spec.Exhaustive {
 		for i := range findings {
 			if !matched[i] {
 				res.Failures = append(res.Failures,
 					fmt.Sprintf("unexpected finding (exhaustive mode): %s", formatFinding(findings[i])))
 			}
+		}
+	}
+
+	for _, pass := range spec.ExpectPass {
+		var hits int
+
+		for i := range findings {
+			if findingMatches(pass, findings[i]) {
+				hits++
+			}
+		}
+
+		if hits > 0 {
+			res.Failures = append(res.Failures,
+				fmt.Sprintf("expected rule to pass for [%s], got %d finding(s)", pass, hits))
 		}
 	}
 

@@ -15,12 +15,17 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [kube-rbac-proxy](#kube-rbac-proxy) | Validates kube-rbac-proxy CA certificates in namespaces | ✅ | enabled |
 | [service-port](#service-port) | Validates services use named target ports | ✅ | enabled |
 | [ingress-rules](#ingress-rules) | Validates Ingress configuration snippets | ✅ | enabled |
+| [httproute-rules](#httproute-rules) | Validates that every Ingress has a companion HTTPRoute backed by a ListenerSet | ✅ | enabled |
 | [prometheus-rules](#prometheus-rules) | Validates Prometheus rules with promtool and proper templates | ✅ | enabled |
 | [grafana-dashboards](#grafana-dashboards) | Validates Grafana dashboard templates | ✅ | enabled |
 | [cluster-domain](#cluster-domain) | Validates cluster domain configuration is dynamic | ❌ | enabled |
 | [registry](#registry) | Validates registry secret configuration | ❌ | enabled |
 | [werf](#werf) | Validates image names in `werf.yaml` do not contain underscores | ❌ | enabled |
 | [enabled-modules](#enabled-modules) | Detects usage of `.Values.global.enabledModules` in templates | ✅ | enabled |
+| [webhook-configuration-annotations](#webhook-configuration-annotations) | Checks webhook configurations have werf.io/weight or deploy-dependency annotations | ✅ | enabled |
+| [mount-points](#mount-points) | Validates that mount-points.yaml directories are used as volumeMounts in pod controllers | ✅ | enabled |
+
+"Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
 ## Rule Details
 
@@ -323,7 +328,7 @@ spec:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     exclude-rules:
@@ -576,7 +581,7 @@ spec:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     exclude-rules:
@@ -682,7 +687,7 @@ data:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     exclude-rules:
@@ -863,7 +868,7 @@ spec:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     exclude-rules:
@@ -996,7 +1001,7 @@ spec:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     exclude-rules:
@@ -1005,6 +1010,213 @@ linters-settings:
           name: dashboard  # Exclude specific Ingress
         - kind: Ingress
           name: legacy-api
+```
+
+---
+
+### httproute-rules
+
+**Purpose:** Ensures that every module using Ingress-Nginx also ships a Gateway API equivalent — an `HTTPRoute` with a matching `app` label and a `ListenerSet` referenced by that route's `parentRefs`. This is the linter enforcement of DKP's transition to Gateway API.
+
+**Background:**
+
+DKP is moving from Ingress-Nginx toward the Kubernetes Gateway API. The goal is to claim full Gateway API readiness: every module that exposes HTTP traffic must work through both stacks simultaneously during the transition period. When Ingress-Nginx is eventually retired, modules that followed this rule will require no additional changes.
+
+The rule enforces the migration contract:
+
+> *If a module ships an Ingress, it must also ship a functionally equivalent HTTPRoute and a ListenerSet. An Ingress without a Gateway API counterpart is incomplete.*
+
+**What it checks:**
+
+For each `Ingress` object in the module templates:
+
+1. The Ingress has an `app` label.
+2. An `HTTPRoute` with the same `app` label value exists in the module templates.
+3. The HTTPRoute's `spec.parentRefs` references at least one `ListenerSet` that is also present in the module templates.
+
+**Why it matters:**
+
+- Modules that expose services only through Ingress-Nginx will stop working the moment that controller is removed from a cluster.
+- Shipping both resources in parallel keeps the module functional on Ingress-Nginx clusters today and on Gateway-API-only clusters tomorrow — with zero additional effort at migration time.
+- The ListenerSet requirement guarantees the HTTPRoute is actually connected to a gateway and not left dangling.
+
+**Examples:**
+
+❌ **Incorrect** — Ingress without a matching HTTPRoute:
+
+```yaml
+# templates/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dashboard
+  namespace: d8-my-module
+  labels:
+    app: dashboard  # ← app label is present, but no HTTPRoute exists
+spec:
+  rules:
+    - host: dashboard.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dashboard
+                port:
+                  number: 80
+```
+
+**Error:**
+```
+Error: Ingress "dashboard" requires a matching HTTPRoute with the same app label, but none was found
+```
+
+❌ **Incorrect** — HTTPRoute exists but its `parentRefs` do not reference any `ListenerSet` in the module:
+
+```yaml
+# templates/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dashboard
+  namespace: d8-my-module
+  labels:
+    app: dashboard
+spec:
+  rules:
+    - host: dashboard.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dashboard
+                port:
+                  number: 80
+---
+# templates/httproute.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: dashboard
+  namespace: d8-my-module
+  labels:
+    app: dashboard
+spec:
+  parentRefs:
+    - name: some-external-gateway  # ❌ Not a ListenerSet defined in this module
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: dashboard
+          port: 80
+```
+
+**Error:**
+```
+Error: HTTPRoute "dashboard" is invalid for Ingress migration:
+       spec.parentRefs does not reference any ListenerSet found in module templates
+```
+
+❌ **Incorrect** — HTTPRoute has empty `parentRefs`:
+
+```yaml
+# templates/httproute.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: dashboard
+  labels:
+    app: dashboard
+spec:
+  parentRefs: []  # ❌ Empty
+  rules:
+    - ...
+```
+
+**Error:**
+```
+Error: HTTPRoute "dashboard" is invalid for Ingress migration:
+       spec.parentRefs must reference an existing ListenerSet
+```
+
+✅ **Correct** — Ingress, HTTPRoute and ListenerSet all present and properly connected:
+
+```yaml
+# templates/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dashboard
+  namespace: d8-my-module
+  labels:
+    app: dashboard
+spec:
+  rules:
+    - host: dashboard.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dashboard
+                port:
+                  number: 80
+---
+# templates/httproute.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: dashboard
+  namespace: d8-my-module
+  labels:
+    app: dashboard  # ✅ Matches Ingress app label
+spec:
+  parentRefs:
+    - name: d8-alb-listener  # ✅ References a ListenerSet defined below
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: dashboard
+          port: 80
+---
+# templates/listenerset.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: ListenerSet
+metadata:
+  name: d8-alb-listener  # ✅ Name matches HTTPRoute parentRef
+  namespace: d8-my-module
+spec:
+  parentRef:
+    name: default
+    namespace: d8-alb
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+```
+
+**Configuration:**
+
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  templates:
+    exclude-rules:
+      httproute:
+        - kind: Ingress
+          name: legacy-webhook  # Ingress that cannot yet be migrated
+        - kind: Ingress
+          name: internal-only
 ```
 
 ---
@@ -1158,7 +1370,7 @@ monitoring/
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     prometheus-rules:
@@ -1275,7 +1487,7 @@ monitoring/
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     grafana-dashboards:
@@ -1512,15 +1724,15 @@ Module names are converted to camelCase for values:
 
 ### werf
 
-**Purpose:** Validates that image names defined in `werf.yaml` do not contain underscores. Underscores in image names break OCI/Docker image reference rules and can cause push/pull failures in some registries and tooling.
+**Purpose:** Validates that image names defined in the module's `images/*/werf.inc.yaml` files do not contain underscores. Underscores in image names break OCI/Docker image reference rules and can cause push/pull failures in some registries and tooling.
 
 **Description:**
 
-Splits the module's `werf.yaml` into individual documents and, for every document that defines an `image`, checks that the image name does not contain an underscore (`_`).
+Scans only the module's `images/` directory. Each `images/<name>/werf.inc.yaml` file is rendered the same way the module's `.werf/images.yaml` would render it, split into individual documents, and for every document that defines an `image`, the rule checks that the image name does not contain an underscore (`_`). The repository-root `werf.yaml` and stages/base images defined outside the module are no longer scanned.
 
 **What it checks:**
 
-1. Every document in `werf.yaml` that has an `image` field
+1. Every document in each `images/<name>/werf.inc.yaml` that has an `image` field
 2. The `image` name does not contain the `_` character
 
 **Why it matters:**
@@ -1536,7 +1748,7 @@ Underscores in image names:
 ❌ **Incorrect** - Image name with underscore:
 
 ```yaml
-# werf.yaml
+# images/app/werf.inc.yaml
 image: my_module/app
 git:
   - add: /src
@@ -1545,13 +1757,13 @@ git:
 
 **Error:**
 ```
-Error: Image name "my_module/app" in werf.yaml (document 1) must not contain underscores
+Error: Image name "my_module/app" in images/app/werf.inc.yaml (document 1) must not contain underscores
 ```
 
 ✅ **Correct** - Image name without underscores:
 
 ```yaml
-# werf.yaml
+# images/app/werf.inc.yaml
 image: my-module/app
 git:
   - add: /src
@@ -1561,7 +1773,7 @@ git:
 ✅ **Correct** - Multiple images:
 
 ```yaml
-# werf.yaml
+# images/app/werf.inc.yaml
 ---
 image: my-module/app
 git:
@@ -1631,7 +1843,7 @@ Consider using (.Capabilities.APIVersions.Has "group/version/Kind") instead.
 The rule supports excluding specific files and directories (paths are relative to the module root):
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     exclude-rules:
@@ -1642,6 +1854,188 @@ linters-settings:
           - templates/vendor/                 # Exclude entire directory
 ```
 
+### webhook-configuration-annotations
+
+**Purpose:** Ensures every `ValidatingWebhookConfiguration` and `MutatingWebhookConfiguration` has at least one ordering annotation: `werf.io/weight` or an annotation with the `werf.io/deploy-dependency-` prefix (e.g. `werf.io/deploy-dependency-deployment`, `werf.io/deploy-dependency-service`). These annotations control werf deploy ordering: `werf.io/deploy-dependency-*` declares a dependency on another resource (the recommended approach), while `werf.io/weight` sets explicit ordering priority.
+
+**Description:**
+
+Iterates all parsed Kubernetes resources, filters for webhook configuration kinds, and checks that each webhook configuration declares its position in the deploy order via annotations. Without these annotations, webhook configurations may deploy in an undefined order, potentially causing cluster API disruptions.
+
+**What it checks:**
+
+1. Every `ValidatingWebhookConfiguration` has either `werf.io/weight` or an annotation starting with `werf.io/deploy-dependency-`
+2. Every `MutatingWebhookConfiguration` has either `werf.io/weight` or an annotation starting with `werf.io/deploy-dependency-`
+3. Note: `werf.io/deploy-on` alone is not sufficient — it controls deploy *stages*, not deploy *ordering*
+4. Resources with neither annotation are reported as errors (configurable via `impact`, set to `warn` to downgrade)
+
+**Why it matters:**
+
+Webhook backing services (its Deployment, Service, etc) should be deployed before the webhook itself (MutatingWebhookConfiguration or ValidationWebhookConfiguration). Otherwise, if the module rollout was not finished properly (network issues, OOM and so on), the cluster might be left in a state where webhook is deployed, but has no backing services. And if so, resources that this webhook validates/mutates could not be created or updated anymore. To avoid this, deployment order of the webhook and its backing services must be enforced via annotations.
+
+**Examples:**
+
+❌ **Incorrect** - Webhook configuration without ordering annotations:
+
+```yaml
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: my-webhook
+webhooks:
+  - name: check.example.com
+    clientConfig:
+      service:
+        name: my-service
+        namespace: d8-my-module
+    rules:
+      - operations: ["CREATE", "UPDATE"]
+        apiGroups: [""]
+        apiVersions: ["v1"]
+        resources: ["pods"]
+```
+
+**Error:**
+```
+ValidatingWebhookConfiguration "my-webhook" must have either "werf.io/deploy-dependency" or "werf.io/weight" annotation
+```
+
+✅ **Correct** - With deploy ordering annotations:
+
+```yaml
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: my-webhook
+  annotations:
+    werf.io/deploy-dependency-deployment: state=ready,kind=Deployment,name=my-app,namespace=d8-my-module
+    werf.io/deploy-dependency-service: state=present,kind=Service,name=my-svc,namespace=d8-my-module
+webhooks:
+  - name: check.example.com
+    ...
+```
+
+✅ **Correct** - With weight annotation only:
+
+```yaml
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: my-webhook
+  annotations:
+    werf.io/weight: "10"
+webhooks:
+  - name: check.example.com
+    ...
+```
+
+**Configuration:**
+
+The rule defaults to `warning` level and can be configured via global or module `.dmtlint.yaml`.
+
+**Impact level** — set the severity of the check:
+
+```yaml
+# .dmtlint.yaml (global) or <module>/.dmtlint.yaml
+linters-settings:
+  templates:
+    rules:
+      webhook-configuration-annotations:
+        impact: warn  # error | warn (default: error)
+```
+
+**Excluding resources** — skip specific webhook configurations by kind and name:
+
+```yaml
+# .dmtlint.yaml (global) or <module>/.dmtlint.yaml
+linters-settings:
+  templates:
+    exclude-rules:
+      webhook-configuration-annotations:
+        - kind: ValidatingWebhookConfiguration
+          name: istio-sidecar-injector     # managed externally by istio operator
+        - kind: MutatingWebhookConfiguration
+          name: cert-manager-webhook       # managed externally by cert-manager operator
+```
+
+---
+
+### mount-points
+
+**Purpose:** Ensures that all directories listed in `mount-points.yaml` files are actually used as `volumeMount.mountPath` in at least one pod controller (Deployment, StatefulSet, or DaemonSet). This prevents containerd v2 from crashing when trying to mount into a non-existent directory.
+
+**Description:**
+
+Recursively searches the module directory for `mount-points.yaml` files (typically located under `images/<container-name>/`). Each file declares a list of directories that the container expects to have available for mounting. The rule verifies that every declared directory appears as a `mountPath` in at least one pod controller's volume mount (including init containers).
+
+**What it checks:**
+
+1. All `mount-points.yaml` files found recursively in the module directory
+2. Every directory listed under `dirs:` is present as `volumeMounts[].mountPath` in at least one Deployment, StatefulSet, or DaemonSet
+3. Both main containers and init containers are checked
+4. Trailing slashes are normalized for comparison
+
+**Why it matters:**
+
+containerd v2 fails critically if a directory specified as a mount point has not been created and something attempts to mount into it. Keeping `mount-points.yaml` in sync with actual template usage prevents runtime container crashes.
+
+**Examples:**
+
+mount-points.yaml (`images/app/mount-points.yaml`):
+```yaml
+dirs:
+  - /etc/app
+  - /etc/app/certs
+```
+
+❌ **Incorrect** - Directory not referenced in any template:
+
+`/etc/app/certs` is declared in `mount-points.yaml` but no pod controller uses it as a mountPath.
+
+**Warning:**
+```
+mount-points.yaml references dir "/etc/app/certs" which is not used as a mountPath in any pod controller
+```
+
+✅ **Correct** - All directories used in templates:
+
+```yaml
+# templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+spec:
+  template:
+    spec:
+      containers:
+      - name: app
+        volumeMounts:
+        - name: config
+          mountPath: /etc/app
+        - name: certs
+          mountPath: /etc/app/certs
+```
+
+**Configuration:**
+
+The rule supports excluding specific directories from the check:
+
+```yaml
+# dmtlint.yaml
+linters-settings:
+  templates:
+    exclude-rules:
+      mount-points:
+        - /etc/ignore-this-dir  # Exclude specific directory
+        - /run/secrets/         # Exclude entire tree (pod managed outside Helm)
+        - /var/run/secrets/istiod  # Exclude single path
+```
+
+**When to exclude:** Pods managed outside Helm (operators, mutating webhooks, static pods, bashible) have `volumeMounts` that are not present in Helm templates. Directories from `mount-points.yaml` for these containers will produce false positives — exclude them with the corresponding paths.
+```
+
+**Configuration:**
+
+
 ## Configuration
 
 The Templates linter can be configured at the module level with rule-specific settings and exclusions.
@@ -1651,7 +2045,7 @@ The Templates linter can be configured at the module level with rule-specific se
 Configure the overall impact level and individual rule toggles:
 
 ```yaml
-# .dmt.yaml
+# dmtlint.yaml
 linters-settings:
   templates:
     # Overall impact level
@@ -1670,7 +2064,7 @@ linters-settings:
 Each rule can override the overall impact level individually via the `rules` block:
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     rules:
@@ -1680,6 +2074,8 @@ linters-settings:
         impact: error
       ingress:
         impact: warning
+      httproute:
+        impact: error
       prometheus-rules:
         impact: info
       grafana-dashboards:
@@ -1694,6 +2090,8 @@ linters-settings:
         impact: error
       enabled-modules:
         impact: warning
+      webhook-configuration-annotations:
+        impact: error
 ```
 
 ### Rule-Level Exclusions
@@ -1701,7 +2099,7 @@ linters-settings:
 Configure exclusions for specific rules:
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     exclude-rules:
@@ -1725,7 +2123,14 @@ linters-settings:
           name: dashboard
         - kind: Ingress
           name: legacy-api
-      
+
+      # HTTPRoute exclusions — Ingresses that are not yet required to have a Gateway API companion
+      httproute:
+        - kind: Ingress
+          name: legacy-webhook
+        - kind: Ingress
+          name: internal-only
+
       # Service port exclusions (by service name and port name)
       service-port:
         - name: d8-control-plane-apiserver
@@ -1744,12 +2149,19 @@ linters-settings:
           - templates/legacy-deployment.yaml
         directories:
           - templates/vendor/
+
+      # webhook-configuration-annotations exclusions (by kind and name)
+      webhook-configuration-annotations:
+        - kind: ValidatingWebhookConfiguration
+          name: istio-sidecar-injector
+        - kind: MutatingWebhookConfiguration
+          name: cert-manager-webhook
 ```
 
 ### Complete Configuration Example
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     # Global impact level
@@ -1762,6 +2174,11 @@ linters-settings:
     prometheus-rules:
       disable: false
     
+    # Rule-specific impact levels
+    rules:
+      webhook-configuration-annotations:
+        impact: warn  # downgrade from default error to warn
+
     # Rule-specific exclusions
     exclude-rules:
       vpa:
@@ -1786,14 +2203,18 @@ linters-settings:
       
       kube-rbac-proxy:
         - d8-development
+
+      webhook-configuration-annotations:
+        - kind: ValidatingWebhookConfiguration
+          name: istio-sidecar-injector
 ```
 
 ### Configuration in Module Directory
 
-Place `.dmt.yaml` in your module directory for module-specific settings:
+Place `.dmtlint.yaml` in your module directory for module-specific settings:
 
 ```yaml
-# modules/my-module/.dmt.yaml
+# modules/my-module/.dmtlint.yaml
 linters-settings:
   templates:
     impact: warning  # More lenient for this module
@@ -1849,7 +2270,7 @@ Error: No VPA is found for object
 2. **Exclude the controller from VPA validation:**
 
    ```yaml
-   # .dmt.yaml
+   # .dmtlint.yaml
    linters-settings:
      templates:
        exclude-rules:
@@ -1934,7 +2355,7 @@ Error: No PodDisruptionBudget found for controller
 2. **Exclude from PDB validation:**
 
    ```yaml
-   # .dmt.yaml
+   # .dmtlint.yaml
    linters-settings:
      templates:
        exclude-rules:
@@ -2034,7 +2455,7 @@ Object: namespace = d8-my-module
 2. **Exclude namespace from validation:**
 
    ```yaml
-   # .dmt.yaml
+   # .dmtlint.yaml
    linters-settings:
      templates:
        exclude-rules:
@@ -2064,13 +2485,125 @@ Error: Ingress annotation "nginx.ingress.kubernetes.io/configuration-snippet" do
 2. **Exclude Ingress:**
 
    ```yaml
-   # .dmt.yaml
+   # .dmtlint.yaml
    linters-settings:
      templates:
        exclude-rules:
          ingress:
            - kind: Ingress
              name: dashboard
+   ```
+
+### Issue: Ingress requires a matching HTTPRoute
+
+**Symptom:**
+```
+Error: Ingress "my-app" requires a matching HTTPRoute with the same app label, but none was found
+```
+
+**Cause:** A module ships an Ingress but no `HTTPRoute` with the same `app` label exists in the templates.
+
+**Solutions:**
+
+1. **Add an HTTPRoute and a ListenerSet** (preferred — full Gateway API compliance):
+
+   ```yaml
+   # templates/httproute.yaml
+   apiVersion: gateway.networking.k8s.io/v1
+   kind: HTTPRoute
+   metadata:
+     name: my-app
+     namespace: d8-my-module
+     labels:
+       app: my-app  # Must match the Ingress app label
+   spec:
+     parentRefs:
+       - name: d8-alb-listener
+     rules:
+       - matches:
+           - path:
+               type: PathPrefix
+               value: /
+         backendRefs:
+           - name: my-app
+             port: 80
+   ---
+   # templates/listenerset.yaml
+   apiVersion: gateway.networking.k8s.io/v1
+   kind: ListenerSet
+   metadata:
+     name: d8-alb-listener
+     namespace: d8-my-module
+   spec:
+     parentRef:
+       name: default
+       namespace: d8-alb
+     listeners:
+       - name: http
+         protocol: HTTP
+         port: 80
+   ```
+
+2. **Exclude the Ingress temporarily** (only when migration is genuinely blocked):
+
+   ```yaml
+   # .dmtlint.yaml
+   linters-settings:
+     templates:
+       exclude-rules:
+         httproute:
+           - kind: Ingress
+             name: my-app
+   ```
+
+### Issue: HTTPRoute parentRefs do not reference any ListenerSet
+
+**Symptom:**
+```
+Error: HTTPRoute "my-app" is invalid for Ingress migration:
+       spec.parentRefs does not reference any ListenerSet found in module templates
+```
+
+**Cause:** The HTTPRoute exists and matches the Ingress `app` label, but its `spec.parentRefs` either is empty or names a gateway that is not defined as a `ListenerSet` in the module.
+
+**Solutions:**
+
+1. **Add a ListenerSet to the module and reference it**:
+
+   ```yaml
+   # templates/listenerset.yaml
+   apiVersion: gateway.networking.k8s.io/v1
+   kind: ListenerSet
+   metadata:
+     name: d8-alb-listener   # ← this name must appear in parentRefs
+     namespace: d8-my-module
+   spec:
+     parentRef:
+       name: default
+       namespace: d8-alb
+     listeners:
+       - name: http
+         protocol: HTTP
+         port: 80
+   ```
+
+   ```yaml
+   # templates/httproute.yaml (excerpt)
+   spec:
+     parentRefs:
+       - name: d8-alb-listener  # ← matches ListenerSet above
+   ```
+
+2. **Exclude the Ingress** if a ListenerSet cannot be provided yet:
+
+   ```yaml
+   # .dmtlint.yaml
+   linters-settings:
+     templates:
+       exclude-rules:
+         httproute:
+           - kind: Ingress
+             name: my-app
    ```
 
 ### Issue: Invalid Prometheus rules
