@@ -94,8 +94,9 @@ go test ./test/e2e/ -run 'TestE2E/<linter>/<your-case>' -v
 |------|-----------|
 | `container/bad-deployment` | container linter (labels, security context, probes, resources, image digest, duplicate env, seccomp) |
 | `module/missing-metadata` | module linter (definition-file, helmignore) + documentation linter (readme) |
-| `module/disable-message-deprecated` | module linter `definition-file` (warning: `disable.message` without `disable.messages` is deprecated) |
-| `module/disable-messages-invalid` | module linter `definition-file` (errors: `disable.messages` without `requirements.deckhouse >= 1.77`, and missing `ru`/`en`) |
+| `module/disable-message-on-supported-version` | module linter `definition-file` (error: `disable.message` on a module pinned to `>= 1.77` must be removed, use `disable.messages`) |
+| `module/disable-messages-invalid` | module linter `definition-file` (errors: `disable.messages` without a `disable.message` fallback on `< 1.77`, and missing `ru`/`en`) |
+| `module/disable-message-fallback` | module linter `definition-file` (warning: `disable.message` + `disable.messages` on a module still allowing `< 1.77` — drop the fallback on `>= 1.77`) |
 | `no-cyrillic/in-template` | no-cyrillic linter (Cyrillic characters in a yaml file) |
 | `no-cyrillic/skip-russian-files` | no-cyrillic linter skips Russian localized files (`*.ru.yml`, `*.ru.yaml`, `*.ru.json`, `doc-ru-*.yml`) while still reporting a regular Cyrillic template |
 | `no-cyrillic/skip-filenames-extensions` | no-cyrillic linter skips every filename/path pattern (`doc-ru-*`, `*.ru.{yaml,yml,json,md,html}`, `*_RU.md`, `docs/site/_*`, `docs/documentation/_*`, `tools/spelling/*`, `openapi/conversions/*`, `module.yaml`, `i18n/*`, `ru.*`) and non-scanned extensions (`.txt`), reporting only one genuine Cyrillic template |

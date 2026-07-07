@@ -4,6 +4,8 @@ stage: Experimental
 descriptions:
   en: "Module used to verify the disable.message deprecation lint"
   ru: "Модуль для проверки депрекации disable.message"
+requirements:
+  deckhouse: ">= 1.77"
 disable:
   confirmation: true
   message: "Deprecated singular disable message"
