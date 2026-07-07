@@ -57,6 +57,7 @@ type ContainerSettings struct {
 
 type ContainerExcludeRules struct {
 	ControllerSecurityContext KindRuleExcludeList `mapstructure:"controller-security-context"`
+	NamespaceLabelsRule       KindRuleExcludeList `mapstructure:"object-namespace-labels"`
 	DNSPolicy                 KindRuleExcludeList `mapstructure:"dns-policy"`
 	PriorityClass             KindRuleExcludeList `mapstructure:"priority-class"`
 

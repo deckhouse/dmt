@@ -25,6 +25,8 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [webhook-configuration-annotations](#webhook-configuration-annotations) | Checks webhook configurations have werf.io/weight or deploy-dependency annotations | ✅ | enabled |
 | [mount-points](#mount-points) | Validates that mount-points.yaml directories are used as volumeMounts in pod controllers | ✅ | enabled |
 
+"Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
+
 ## Rule Details
 
 ### vpa
@@ -326,7 +328,7 @@ spec:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     exclude-rules:
@@ -579,7 +581,7 @@ spec:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     exclude-rules:
@@ -685,7 +687,7 @@ data:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     exclude-rules:
@@ -866,7 +868,7 @@ spec:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     exclude-rules:
@@ -999,7 +1001,7 @@ spec:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     exclude-rules:
@@ -1206,7 +1208,7 @@ spec:
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     exclude-rules:
@@ -1368,7 +1370,7 @@ monitoring/
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     prometheus-rules:
@@ -1485,7 +1487,7 @@ monitoring/
 **Configuration:**
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     grafana-dashboards:
@@ -1841,7 +1843,7 @@ Consider using (.Capabilities.APIVersions.Has "group/version/Kind") instead.
 The rule supports excluding specific files and directories (paths are relative to the module root):
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     exclude-rules:
@@ -2062,7 +2064,7 @@ linters-settings:
 Each rule can override the overall impact level individually via the `rules` block:
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     rules:
@@ -2097,7 +2099,7 @@ linters-settings:
 Configure exclusions for specific rules:
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     exclude-rules:
@@ -2159,7 +2161,7 @@ linters-settings:
 ### Complete Configuration Example
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   templates:
     # Global impact level
@@ -2209,10 +2211,10 @@ linters-settings:
 
 ### Configuration in Module Directory
 
-Place `.dmt.yaml` in your module directory for module-specific settings:
+Place `.dmtlint.yaml` in your module directory for module-specific settings:
 
 ```yaml
-# modules/my-module/.dmt.yaml
+# modules/my-module/.dmtlint.yaml
 linters-settings:
   templates:
     impact: warning  # More lenient for this module
@@ -2268,7 +2270,7 @@ Error: No VPA is found for object
 2. **Exclude the controller from VPA validation:**
 
    ```yaml
-   # .dmt.yaml
+   # .dmtlint.yaml
    linters-settings:
      templates:
        exclude-rules:
@@ -2353,7 +2355,7 @@ Error: No PodDisruptionBudget found for controller
 2. **Exclude from PDB validation:**
 
    ```yaml
-   # .dmt.yaml
+   # .dmtlint.yaml
    linters-settings:
      templates:
        exclude-rules:
@@ -2453,7 +2455,7 @@ Object: namespace = d8-my-module
 2. **Exclude namespace from validation:**
 
    ```yaml
-   # .dmt.yaml
+   # .dmtlint.yaml
    linters-settings:
      templates:
        exclude-rules:
@@ -2483,7 +2485,7 @@ Error: Ingress annotation "nginx.ingress.kubernetes.io/configuration-snippet" do
 2. **Exclude Ingress:**
 
    ```yaml
-   # .dmt.yaml
+   # .dmtlint.yaml
    linters-settings:
      templates:
        exclude-rules:
@@ -2545,7 +2547,7 @@ Error: Ingress "my-app" requires a matching HTTPRoute with the same app label, b
 2. **Exclude the Ingress temporarily** (only when migration is genuinely blocked):
 
    ```yaml
-   # .dmt.yaml
+   # .dmtlint.yaml
    linters-settings:
      templates:
        exclude-rules:
@@ -2595,7 +2597,7 @@ Error: HTTPRoute "my-app" is invalid for Ingress migration:
 2. **Exclude the Ingress** if a ListenerSet cannot be provided yet:
 
    ```yaml
-   # .dmt.yaml
+   # .dmtlint.yaml
    linters-settings:
      templates:
        exclude-rules:
