@@ -35,7 +35,8 @@ const (
 )
 
 type mountPointsFile struct {
-	Dirs []string `yaml:"dirs"`
+	Dirs  []string `yaml:"dirs"`
+	Files []string `yaml:"files"`
 }
 
 func NewMountPointsRule(excludeRules []pkg.StringRuleExclude, modulePath string) *MountPointsRule {
@@ -131,6 +132,10 @@ func collectMountPointsDirs(modulePath string) map[string]bool {
 
 		for _, dir := range mpf.Dirs {
 			dirs[strings.TrimRight(dir, "/")] = true
+		}
+
+		for _, file := range mpf.Files {
+			dirs[strings.TrimRight(file, "/")] = true
 		}
 
 		return nil
