@@ -227,6 +227,32 @@ func TestMountPointsContainerRule_TrailingSlash(t *testing.T) {
 	assert.Len(t, errorList.GetErrors(), 0)
 }
 
+func TestMountPointsContainerRule_FilesDeclared(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "mpcr-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	writeMountPointsFile(t, tmpDir, `dirs:
+  - /etc/app
+files:
+  - /etc/app/config.yaml
+  - /var/run/app.sock
+`)
+
+	obj := objectWithMounts("Deployment", "app", "/etc/app", "/etc/app/config.yaml", "/var/run/app.sock")
+
+	containers, err := obj.GetAllContainers()
+	assert.NoError(t, err)
+
+	errorList := errors.NewLintRuleErrorsList()
+	rule := NewMountPointsRule(nil, tmpDir)
+	rule.CheckMountPaths(obj, containers, errorList)
+
+	assert.Len(t, errorList.GetErrors(), 0)
+}
+
 func TestMountPointsContainerRule_DaemonSetAndStatefulSet(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "mpcr-test")
 	if err != nil {
