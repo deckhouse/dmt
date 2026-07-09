@@ -60,6 +60,21 @@ type MountPointsRule struct {
 	pkg.StringRule
 }
 
+// ValidateMountPoints checks that every dir or file declared in mount-points.yaml
+// is actually used as a volumeMount.mountPath in at least one pod controller template.
+//
+// Direction: mount-points.yaml → templates.
+//
+// Built-in excluded paths: /sys, /dev, /proc — these Linux system paths
+// are always available and do not need to be declared in mount-points.yaml.
+//
+// Module-specific exclusions are configured via dmtlint.yaml:
+//
+//	templates:
+//	  excludeRules:
+//	    mount-points:
+//	      - /host
+//	      - /etc/multipath
 func (r *MountPointsRule) ValidateMountPoints(m pkg.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 

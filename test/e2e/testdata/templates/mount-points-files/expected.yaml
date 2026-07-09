@@ -1,0 +1,10 @@
+description: >
+  Templates mount-points rule should check files: entries the same as dirs:.
+  /etc/app and /etc/app/config.yaml are used in templates,
+  /etc/app/unused.yaml is not → 1 warning.
+module: module
+expect:
+  - linter: templates
+    rule: mount-points
+    level: warn
+    textContains: '"/etc/app/unused.yaml"'

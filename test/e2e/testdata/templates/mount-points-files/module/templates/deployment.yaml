@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-app
+  namespace: e2e-mount-points-files
+spec:
+  selector:
+    matchLabels:
+      app: test-app
+  template:
+    metadata:
+      labels:
+        app: test-app
+    spec:
+      containers:
+      - name: app
+        image: test:latest
+        volumeMounts:
+        - name: config
+          mountPath: /etc/app
+        - name: config-file
+          mountPath: /etc/app/config.yaml

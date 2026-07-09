@@ -71,7 +71,18 @@ type MountPointsRule struct {
 // CheckMountPaths verifies that every volumeMount.mountPath in pod controllers
 // is declared in at least one mount-points.yaml file in the module.
 //
-// Direction: templates → mount-points.yaml (reverse of the existing templates rule).
+// Direction: templates → mount-points.yaml (reverse of the templates rule).
+//
+// Built-in excluded paths: /sys, /dev, /proc — these Linux system paths
+// are always available and do not need to be declared in mount-points.yaml.
+//
+// Module-specific exclusions are configured via dmtlint.yaml:
+//
+//	container:
+//	  excludeRules:
+//	    mount-points:
+//	      - /host
+//	      - /etc/iscsi
 func (r *MountPointsRule) CheckMountPaths(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.ShortPath())
 
