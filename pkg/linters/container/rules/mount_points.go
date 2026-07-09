@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,6 +25,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
@@ -37,6 +40,14 @@ const (
 type mountPointsFile struct {
 	Dirs  []string `yaml:"dirs"`
 	Files []string `yaml:"files"`
+}
+
+// builtinExcludedPaths are system paths that are always available on Linux hosts
+// and should not be required in mount-points.yaml.
+var builtinExcludedPaths = map[string]bool{
+	"/sys":  true,
+	"/dev":  true,
+	"/proc": true,
 }
 
 func NewMountPointsRule(excludeRules []pkg.StringRuleExclude, modulePath string) *MountPointsRule {
@@ -77,6 +88,10 @@ func (r *MountPointsRule) CheckMountPaths(object storage.StoreObject, containers
 	for _, container := range containers {
 		for _, vm := range container.VolumeMounts {
 			normalizedPath := strings.TrimRight(vm.MountPath, "/")
+			if builtinExcludedPaths[normalizedPath] {
+				continue
+			}
+
 			if !r.Enabled(normalizedPath) {
 				continue
 			}
@@ -109,6 +124,7 @@ func collectMountPointsDirs(modulePath string) map[string]bool {
 
 	_ = filepath.Walk(modulePath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
+			log.Warn("mount-points walk error", slog.String("path", path), log.Err(err))
 			return nil
 		}
 
@@ -122,11 +138,13 @@ func collectMountPointsDirs(modulePath string) map[string]bool {
 
 		data, err := os.ReadFile(path)
 		if err != nil {
+			log.Warn("mount-points read error", slog.String("path", path), log.Err(err))
 			return nil
 		}
 
 		var mpf mountPointsFile
 		if err := yaml.Unmarshal(data, &mpf); err != nil {
+			log.Warn("mount-points parse error", slog.String("path", path), log.Err(err))
 			return nil
 		}
 

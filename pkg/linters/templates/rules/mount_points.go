@@ -32,7 +32,16 @@ const (
 )
 
 type mountPointsFile struct {
-	Dirs []string `yaml:"dirs"`
+	Dirs  []string `yaml:"dirs"`
+	Files []string `yaml:"files"`
+}
+
+// builtinExcludedPaths are system paths that are always available on Linux hosts
+// and should not be required in mount-points.yaml.
+var builtinExcludedPaths = map[string]bool{
+	"/sys":  true,
+	"/dev":  true,
+	"/proc": true,
 }
 
 func NewMountPointsRule(excludeRules []pkg.StringRuleExclude) *MountPointsRule {
@@ -67,6 +76,10 @@ func (r *MountPointsRule) ValidateMountPoints(m pkg.Module, errorList *errors.Li
 	for filePath, dirs := range dirsByFile {
 		for _, dir := range dirs {
 			normalizedDir := strings.TrimRight(dir, "/")
+			if builtinExcludedPaths[normalizedDir] {
+				continue
+			}
+
 			if !r.Enabled(normalizedDir) {
 				continue
 			}
@@ -94,7 +107,8 @@ func collectMountPointsDirs(m pkg.Module, errorList *errors.LintRuleErrorsList) 
 
 	err := filepath.Walk(modulePath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return err
+			errorList.WithFilePath(path).Errorf("walk error: %s", err)
+			return nil
 		}
 
 		if info.IsDir() {
@@ -117,8 +131,12 @@ func collectMountPointsDirs(m pkg.Module, errorList *errors.LintRuleErrorsList) 
 			return nil
 		}
 
-		if len(mpf.Dirs) > 0 {
-			dirsByFile[path] = mpf.Dirs
+		allEntries := make([]string, 0, len(mpf.Dirs)+len(mpf.Files))
+		allEntries = append(allEntries, mpf.Dirs...)
+		allEntries = append(allEntries, mpf.Files...)
+
+		if len(allEntries) > 0 {
+			dirsByFile[path] = allEntries
 		}
 
 		return nil
