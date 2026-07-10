@@ -1,0 +1,5 @@
+dirs:
+  - /etc/app
+files:
+  - /etc/app/config.yaml
+  - /etc/app/unused.yaml

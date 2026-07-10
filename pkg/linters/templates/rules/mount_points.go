@@ -32,7 +32,17 @@ const (
 )
 
 type mountPointsFile struct {
-	Dirs []string `yaml:"dirs"`
+	Dirs  []string `yaml:"dirs"`
+	Files []string `yaml:"files"`
+}
+
+// builtinExcludedPaths are system paths that are always available on Linux hosts
+// and should not be required in mount-points.yaml.
+var builtinExcludedPaths = map[string]bool{
+	"/sys":  true,
+	"/dev":  true,
+	"/proc": true,
+	"/tmp":  true,
 }
 
 func NewMountPointsRule(excludeRules []pkg.StringRuleExclude) *MountPointsRule {
@@ -51,6 +61,21 @@ type MountPointsRule struct {
 	pkg.StringRule
 }
 
+// ValidateMountPoints checks that every dir or file declared in mount-points.yaml
+// is actually used as a volumeMount.mountPath in at least one pod controller template.
+//
+// Direction: mount-points.yaml → templates.
+//
+// Built-in excluded paths: /sys, /dev, /proc — these Linux system paths
+// are always available and do not need to be declared in mount-points.yaml.
+//
+// Module-specific exclusions are configured via dmtlint.yaml:
+//
+//	templates:
+//	  excludeRules:
+//	    mount-points:
+//	      - /host
+//	      - /etc/multipath
 func (r *MountPointsRule) ValidateMountPoints(m pkg.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
@@ -67,6 +92,10 @@ func (r *MountPointsRule) ValidateMountPoints(m pkg.Module, errorList *errors.Li
 	for filePath, dirs := range dirsByFile {
 		for _, dir := range dirs {
 			normalizedDir := strings.TrimRight(dir, "/")
+			if builtinExcludedPaths[normalizedDir] {
+				continue
+			}
+
 			if !r.Enabled(normalizedDir) {
 				continue
 			}
@@ -94,7 +123,8 @@ func collectMountPointsDirs(m pkg.Module, errorList *errors.LintRuleErrorsList) 
 
 	err := filepath.Walk(modulePath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return err
+			errorList.WithFilePath(path).Errorf("walk error: %s", err)
+			return nil
 		}
 
 		if info.IsDir() {
@@ -117,8 +147,12 @@ func collectMountPointsDirs(m pkg.Module, errorList *errors.LintRuleErrorsList) 
 			return nil
 		}
 
-		if len(mpf.Dirs) > 0 {
-			dirsByFile[path] = mpf.Dirs
+		allEntries := make([]string, 0, len(mpf.Dirs)+len(mpf.Files))
+		allEntries = append(allEntries, mpf.Dirs...)
+		allEntries = append(allEntries, mpf.Files...)
+
+		if len(allEntries) > 0 {
+			dirsByFile[path] = allEntries
 		}
 
 		return nil

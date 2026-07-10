@@ -1,0 +1,6 @@
+description: >
+  Container mount-points rule should not warn about /sys and /dev
+  because they are built-in excluded system paths, even when
+  they are not declared in mount-points.yaml.
+module: module
+expect: []

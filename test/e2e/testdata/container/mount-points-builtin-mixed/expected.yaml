@@ -1,0 +1,9 @@
+description: >
+  Container mount-points rule should skip /sys and /proc (built-in excluded)
+  but still warn about /etc/missing (not in mount-points.yaml and not excluded).
+module: module
+expect:
+  - linter: container
+    rule: mount-points
+    level: warn
+    textContains: 'mountPath "/etc/missing" is not declared'

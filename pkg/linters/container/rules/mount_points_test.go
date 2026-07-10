@@ -283,3 +283,98 @@ func TestMountPointsContainerRule_DaemonSetAndStatefulSet(t *testing.T) {
 	rule.CheckMountPaths(stsObj, stsContainers, errorList)
 	assert.Len(t, errorList.GetErrors(), 0)
 }
+
+func TestMountPointsContainerRule_BuiltinExcludedSys(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "mpcr-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	writeMountPointsFile(t, tmpDir, `dirs:
+  - /etc/app
+`)
+
+	obj := objectWithMounts("Deployment", "app", "/sys", "/etc/app")
+
+	containers, err := obj.GetAllContainers()
+	assert.NoError(t, err)
+
+	errorList := errors.NewLintRuleErrorsList()
+	rule := NewMountPointsRule(nil, tmpDir)
+	rule.CheckMountPaths(obj, containers, errorList)
+
+	assert.Len(t, errorList.GetErrors(), 0)
+}
+
+func TestMountPointsContainerRule_BuiltinExcludedDev(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "mpcr-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	writeMountPointsFile(t, tmpDir, `dirs:
+  - /etc/app
+`)
+
+	obj := objectWithMounts("Deployment", "app", "/dev")
+
+	containers, err := obj.GetAllContainers()
+	assert.NoError(t, err)
+
+	errorList := errors.NewLintRuleErrorsList()
+	rule := NewMountPointsRule(nil, tmpDir)
+	rule.CheckMountPaths(obj, containers, errorList)
+
+	assert.Len(t, errorList.GetErrors(), 0)
+}
+
+func TestMountPointsContainerRule_BuiltinExcludedProc(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "mpcr-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	writeMountPointsFile(t, tmpDir, `dirs:
+  - /etc/app
+`)
+
+	obj := objectWithMounts("Deployment", "app", "/proc")
+
+	containers, err := obj.GetAllContainers()
+	assert.NoError(t, err)
+
+	errorList := errors.NewLintRuleErrorsList()
+	rule := NewMountPointsRule(nil, tmpDir)
+	rule.CheckMountPaths(obj, containers, errorList)
+
+	assert.Len(t, errorList.GetErrors(), 0)
+}
+
+func TestMountPointsContainerRule_BuiltinExcludedDoesNotSuppressMissing(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "mpcr-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	writeMountPointsFile(t, tmpDir, `dirs:
+  - /etc/app
+`)
+
+	obj := objectWithMounts("Deployment", "app", "/sys", "/etc/missing")
+
+	containers, err := obj.GetAllContainers()
+	assert.NoError(t, err)
+
+	errorList := errors.NewLintRuleErrorsList()
+	rule := NewMountPointsRule(nil, tmpDir)
+	rule.CheckMountPaths(obj, containers, errorList)
+
+	errs := errorList.GetErrors()
+	assert.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Text, "/etc/missing")
+	assert.NotContains(t, errs[0].Text, "/sys")
+}

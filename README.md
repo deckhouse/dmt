@@ -37,7 +37,7 @@ DMT includes **9 specialized linters** to validate different aspects of your Dec
 
 | Linter | Purpose | Key Checks |
 |--------|---------|------------|
-| [**Container**](pkg/linters/container/README.md) | Container configuration validation | Duplicate names, env vars, security contexts, probes, resource limits |
+| [**Container**](pkg/linters/container/README.md) | Container configuration validation | Duplicate names, env vars, security contexts, probes, resource limits, mount-points |
 | [**Documentation**](pkg/linters/docs/README.md) | Documentation quality | README presence, bilingual support, no cyrillic in English docs |
 | [**Hooks**](pkg/linters/hooks/README.md) | Hook validation | Hook syntax, ingress configurations |
 | [**Images**](pkg/linters/images/README.md) | Image build instructions | Dockerfile best practices, werf configuration |
@@ -45,7 +45,7 @@ DMT includes **9 specialized linters** to validate different aspects of your Dec
 | [**NoCyrillic**](pkg/linters/no-cyrillic/README.md) | Character encoding | Cyrillic characters in code/config files |
 | [**OpenAPI**](pkg/linters/openapi/README.md) | OpenAPI schemas | Schema validation, CRD definitions, naming conventions |
 | [**RBAC**](pkg/linters/rbac/README.md) | Security policies | Role bindings, service accounts, wildcards |
-| [**Templates**](pkg/linters/templates/README.md) | Kubernetes templates | VPA/PDB settings, Prometheus rules, Grafana dashboards, service ports |
+| [**Templates**](pkg/linters/templates/README.md) | Kubernetes templates | VPA/PDB settings, Prometheus rules, Grafana dashboards, service ports, mount-points |
 
 ### 🚀 Module Bootstrapping
 
@@ -244,6 +244,46 @@ linters-settings:
       vpa-absent:
         - kind: Deployment
           name: one-off-job
+      mount-points:
+        - /host
+        - /etc/iscsi
+        - /certs
+
+  container:
+    impact: error
+    exclude-rules:
+      mount-points:
+        - /host
+        - /var/lib/kubelet
+```
+
+### Rule: mount-points
+
+The `mount-points` rule validates that volume mounts in pod controllers match the declarations in `mount-points.yaml` files (and vice versa). It runs in two directions:
+
+- **Container linter** (`templates → mount-points.yaml`): warns when a `volumeMount.mountPath` in a Deployment/DaemonSet/StatefulSet is not declared in any `mount-points.yaml`.
+- **Templates linter** (`mount-points.yaml → templates`): warns when a dir or file declared in `mount-points.yaml` is not used as a mountPath in any pod controller.
+
+**Built-in excluded paths:** `/sys`, `/dev`, `/proc` are always skipped — these Linux system paths are available on every host and do not need to be declared.
+
+**Module-specific exclusions:** host paths specific to a module (e.g. `/host`, `/etc/iscsi` for CSI drivers) can be excluded via `.dmtlint.yaml`:
+
+```yaml
+linters-settings:
+  templates:
+    excludeRules:
+      mount-points:
+        - /host
+        - /etc/multipath
+        - /etc/iscsi
+        - /run/iscsid
+        - /certs
+        - /csi
+  container:
+    excludeRules:
+      mount-points:
+        - /host
+        - /var/lib/kubelet
 ```
 
 ### Command Line Options

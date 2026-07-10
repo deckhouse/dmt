@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,6 +25,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
@@ -37,6 +40,15 @@ const (
 type mountPointsFile struct {
 	Dirs  []string `yaml:"dirs"`
 	Files []string `yaml:"files"`
+}
+
+// builtinExcludedPaths are system paths that are always available on Linux hosts
+// and should not be required in mount-points.yaml.
+var builtinExcludedPaths = map[string]bool{
+	"/sys":  true,
+	"/dev":  true,
+	"/proc": true,
+	"/tmp":  true,
 }
 
 func NewMountPointsRule(excludeRules []pkg.StringRuleExclude, modulePath string) *MountPointsRule {
@@ -60,7 +72,18 @@ type MountPointsRule struct {
 // CheckMountPaths verifies that every volumeMount.mountPath in pod controllers
 // is declared in at least one mount-points.yaml file in the module.
 //
-// Direction: templates → mount-points.yaml (reverse of the existing templates rule).
+// Direction: templates → mount-points.yaml (reverse of the templates rule).
+//
+// Built-in excluded paths: /sys, /dev, /proc — these Linux system paths
+// are always available and do not need to be declared in mount-points.yaml.
+//
+// Module-specific exclusions are configured via dmtlint.yaml:
+//
+//	container:
+//	  excludeRules:
+//	    mount-points:
+//	      - /host
+//	      - /etc/iscsi
 func (r *MountPointsRule) CheckMountPaths(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.ShortPath())
 
@@ -77,6 +100,10 @@ func (r *MountPointsRule) CheckMountPaths(object storage.StoreObject, containers
 	for _, container := range containers {
 		for _, vm := range container.VolumeMounts {
 			normalizedPath := strings.TrimRight(vm.MountPath, "/")
+			if builtinExcludedPaths[normalizedPath] {
+				continue
+			}
+
 			if !r.Enabled(normalizedPath) {
 				continue
 			}
@@ -109,6 +136,7 @@ func collectMountPointsDirs(modulePath string) map[string]bool {
 
 	_ = filepath.Walk(modulePath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
+			log.Warn("mount-points walk error", slog.String("path", path), log.Err(err))
 			return nil
 		}
 
@@ -122,11 +150,13 @@ func collectMountPointsDirs(modulePath string) map[string]bool {
 
 		data, err := os.ReadFile(path)
 		if err != nil {
+			log.Warn("mount-points read error", slog.String("path", path), log.Err(err))
 			return nil
 		}
 
 		var mpf mountPointsFile
 		if err := yaml.Unmarshal(data, &mpf); err != nil {
+			log.Warn("mount-points parse error", slog.String("path", path), log.Err(err))
 			return nil
 		}
 
