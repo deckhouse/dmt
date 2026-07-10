@@ -1,0 +1,137 @@
+description: >-
+  A module whose docs/ intentionally violate every markdownlint rule that is
+  active under dmt's configuration, spread across one file per rule cluster to
+  avoid style-consistency rules masking each other. Each active rule must be
+  reported at least once. This verifies the full markdownlint ruleset actually
+  detects the errors it is supposed to.
+#
+# MD036 (no-emphasis-as-heading) and MD051 (link-fragments) were fixed in
+# go-markdownlint (they used to silently never fire); they are asserted below.
+#
+# Rules that are active but deliberately NOT asserted here:
+#   MD054 (link-image-style) - default config allows every link/image style, so
+#                              it cannot produce a finding.
+#
+# Rules disabled via dmt config (must stay silent): MD002, MD004, MD032, MD033,
+# MD053, MD059, MD060.
+expect:
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD001/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD003/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD005/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD009/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD010/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD011/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD012/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD014/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD018/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD019/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD020/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD021/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD022/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD023/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD024/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD025/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD027/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD029/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD030/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD031/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD034/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD035/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD036/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD037/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD038/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD039/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD040/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD041/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD042/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD045/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD046/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD047/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD048/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD049/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD050/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD051/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD052/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD055/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD056/"
+  - linter: documentation
+    rule: markdownlint
+    textContains: "MD058/"

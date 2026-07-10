@@ -1,0 +1,8 @@
+name: test-module-markdownlint-all-rules
+namespace: d8-test
+weight: 100
+stage: Experimental
+descriptions:
+  en: "Test module whose docs intentionally violate every active markdownlint rule"
+requirements:
+  deckhouse: ">=1.68.0"
