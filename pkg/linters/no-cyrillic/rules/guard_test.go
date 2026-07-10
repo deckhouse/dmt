@@ -26,28 +26,20 @@ import (
 	"github.com/gojuno/minimock/v3"
 
 	"github.com/deckhouse/dmt/internal/mocks"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
-// TestFilesRule_CheckFile_SkipsOversizedFile verifies that a file larger than
-// maxCheckableFileSize is skipped instead of being read into memory and echoed
-// into the log — even though it is full of Cyrillic and would otherwise be
-// reported.
-func TestFilesRule_CheckFile_SkipsOversizedFile(t *testing.T) {
-	mc := minimock.NewController(t)
-	mockModule := mocks.NewModuleMock(mc)
+// writeOversizedCyrillicFile creates a file just over the size limit whose first
+// line contains Cyrillic (so it would be reported if it were actually scanned).
+func writeOversizedCyrillicFile(t *testing.T, path string) {
+	t.Helper()
 
-	tempDir := t.TempDir()
-	mockModule.GetPathMock.Return(tempDir)
-
-	testFile := filepath.Join(tempDir, "huge.yaml")
-
-	f, err := os.Create(testFile)
+	f, err := os.Create(path)
 	if err != nil {
 		t.Fatalf("create file: %v", err)
 	}
 
-	// One Cyrillic line, then padding to push the file past the size limit.
 	if _, err := f.WriteString("greeting: Привет\n"); err != nil {
 		t.Fatalf("write: %v", err)
 	}
@@ -59,14 +51,86 @@ func TestFilesRule_CheckFile_SkipsOversizedFile(t *testing.T) {
 	if err := f.Close(); err != nil {
 		t.Fatalf("close: %v", err)
 	}
+}
+
+// TestFilesRule_CheckFile_WarnsOnOversizedFile verifies that a file larger than
+// maxCheckableFileSize is not read into memory but reported as a warning (rather
+// than silently skipped or read and echoed into the log).
+func TestFilesRule_CheckFile_WarnsOnOversizedFile(t *testing.T) {
+	mc := minimock.NewController(t)
+	mockModule := mocks.NewModuleMock(mc)
+
+	tempDir := t.TempDir()
+	mockModule.GetPathMock.Return(tempDir)
+
+	testFile := filepath.Join(tempDir, "huge.yaml")
+	writeOversizedCyrillicFile(t, testFile)
 
 	rule := NewFilesRule(nil, nil)
 	errorList := &errors.LintRuleErrorsList{}
 
 	rule.CheckFile(mockModule, testFile, errorList)
 
-	if errs := errorList.GetErrors(); len(errs) > 0 {
-		t.Errorf("expected oversized file to be skipped, got %d error(s)", len(errs))
+	errs := errorList.GetErrors()
+	if len(errs) != 1 {
+		t.Fatalf("expected exactly one finding for an oversized file, got %d", len(errs))
+	}
+
+	if !strings.EqualFold(errs[0].Level.String(), "warn") {
+		t.Errorf("expected a warn-level finding, got %q", errs[0].Level.String())
+	}
+
+	if !strings.Contains(errs[0].Text, "too large") {
+		t.Errorf("expected the finding to mention the file is too large, got %q", errs[0].Text)
+	}
+}
+
+// TestFilesRule_CheckFile_OversizedFileCanBeExcluded verifies the oversized-file
+// warning honours the exclude rules, so a user can silence it by excluding the
+// file or its directory.
+func TestFilesRule_CheckFile_OversizedFileCanBeExcluded(t *testing.T) {
+	tests := []struct {
+		name        string
+		relPath     string
+		excludeFile []pkg.StringRuleExclude
+		excludeDirs []pkg.DirectoryRuleExclude
+	}{
+		{
+			name:        "excluded by file",
+			relPath:     "huge.yaml",
+			excludeFile: []pkg.StringRuleExclude{"huge.yaml"},
+		},
+		{
+			name:        "excluded by directory",
+			relPath:     "big/huge.yaml",
+			excludeDirs: []pkg.DirectoryRuleExclude{"big"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mc := minimock.NewController(t)
+			mockModule := mocks.NewModuleMock(mc)
+
+			tempDir := t.TempDir()
+			mockModule.GetPathMock.Return(tempDir)
+
+			testFile := filepath.Join(tempDir, filepath.FromSlash(tt.relPath))
+			if err := os.MkdirAll(filepath.Dir(testFile), 0700); err != nil {
+				t.Fatalf("mkdir: %v", err)
+			}
+
+			writeOversizedCyrillicFile(t, testFile)
+
+			rule := NewFilesRule(tt.excludeFile, tt.excludeDirs)
+			errorList := &errors.LintRuleErrorsList{}
+
+			rule.CheckFile(mockModule, testFile, errorList)
+
+			if errs := errorList.GetErrors(); len(errs) > 0 {
+				t.Errorf("expected excluded oversized file to produce no findings, got %d", len(errs))
+			}
+		})
 	}
 }
 

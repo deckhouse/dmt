@@ -5,12 +5,9 @@ package rules
 
 import (
 	"fmt"
-	"log/slog"
 	"path/filepath"
 	"regexp"
 	"strings"
-
-	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/pkg"
@@ -37,6 +34,18 @@ func NewNoLangKeyRule() *NoLangKeyRule {
 type NoLangKeyRule struct {
 	pkg.RuleMeta
 	pkg.PathRule
+
+	// sizeExcludes gates only the large-file size warning (not the lang-key
+	// check), so a file/directory can be excluded from the size check alone.
+	sizeExcludes pkg.PathRule
+}
+
+// WithFileSizeExcludes configures the files/directories excluded from the
+// large-file size warning.
+func (r *NoLangKeyRule) WithFileSizeExcludes(files []pkg.StringRuleExclude, dirs []pkg.DirectoryRuleExclude) *NoLangKeyRule {
+	r.sizeExcludes = pkg.PathRule{ExcludeStringRules: files, ExcludeDirectoryRules: dirs}
+
+	return r
 }
 
 func (r *NoLangKeyRule) CheckFiles(m pkg.Module, errorList *errors.LintRuleErrorsList) {
@@ -70,8 +79,12 @@ func (r *NoLangKeyRule) checkFile(m pkg.Module, fileName string, errorList *erro
 	content, err := fsutils.ReadFile(fileName)
 	if err != nil {
 		if fsutils.IsFileTooLarge(err) {
-			log.Debug("skipping oversized file in no-lang-key check",
-				slog.String("file", relPath))
+			// Too large to scan; report it as a warning unless the file or its
+			// directory is excluded from the size check.
+			if r.sizeExcludes.Enabled(relPath) {
+				errorList.WithFilePath(relPath).
+					Warnf("file is too large to check for a lang key and was skipped; exclude the file or its directory under documentation.exclude-rules.file-size to silence this warning")
+			}
 
 			return
 		}

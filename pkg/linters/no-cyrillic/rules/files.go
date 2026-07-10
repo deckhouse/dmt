@@ -17,12 +17,9 @@ limitations under the License.
 package rules
 
 import (
-	"log/slog"
 	"os"
 	"regexp"
 	"strings"
-
-	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/pkg"
@@ -105,14 +102,15 @@ func (r *FilesRule) CheckFile(m pkg.Module, fileName string, errorList *errors.L
 		return
 	}
 
-	// Skip files too large to be hand-written sources: reading a multi-gigabyte
-	// generated file into memory (and echoing its Cyrillic lines into a finding)
-	// would blow up memory and flood the log.
+	// Files too large to be hand-written sources are not scanned: reading a
+	// multi-gigabyte generated file into memory (and echoing its Cyrillic lines
+	// into a finding) would blow up memory and flood the log. Report it as a
+	// warning instead of failing. This is gated by r.Enabled(fName) above, so a
+	// user can silence it by excluding the file or its directory in the
+	// no-cyrillic exclude rules.
 	if info.Size() > maxCheckableFileSize {
-		log.Debug("skipping oversized file in no-cyrillic check",
-			slog.String("file", fName),
-			slog.Int64("size", info.Size()),
-		)
+		errorList.WithFilePath(fName).
+			Warnf("file is too large (%d bytes) to check for Cyrillic letters and was skipped; exclude the file or its directory in the no-cyrillic rules to silence this warning", info.Size())
 
 		return
 	}
