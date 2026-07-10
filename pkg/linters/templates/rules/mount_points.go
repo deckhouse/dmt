@@ -42,6 +42,7 @@ var builtinExcludedPaths = map[string]bool{
 	"/sys":  true,
 	"/dev":  true,
 	"/proc": true,
+	"/tmp":  true,
 }
 
 func NewMountPointsRule(excludeRules []pkg.StringRuleExclude) *MountPointsRule {
