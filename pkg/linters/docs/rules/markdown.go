@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	gomarkdownlint "github.com/ldmonster/go-markdownlint"
+	gomarkdownlint "github.com/fuldaxxx/go-markdownlint"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/pkg"

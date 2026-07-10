@@ -10,6 +10,7 @@ require (
 	github.com/bmatcuk/doublestar v1.3.4
 	github.com/deckhouse/deckhouse/pkg/log v0.2.1
 	github.com/fatih/color v1.19.0
+	github.com/fuldaxxx/go-markdownlint v0.0.3
 	github.com/go-openapi/spec v0.22.4
 	github.com/gobwas/glob v0.2.3
 	github.com/gogo/protobuf v1.3.2
@@ -20,7 +21,6 @@ require (
 	github.com/iancoleman/strcase v0.3.0
 	github.com/itchyny/gojq v0.12.19
 	github.com/kyokomi/emoji v2.2.4+incompatible
-	github.com/ldmonster/go-markdownlint v0.0.1
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/go-wordwrap v1.0.1
 	github.com/mitchellh/mapstructure v1.5.0
@@ -194,3 +194,5 @@ require (
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.6.0 // indirect
 )
+
+replace github.com/ldmonster/go-markdownlint => ../go-markdownlint
