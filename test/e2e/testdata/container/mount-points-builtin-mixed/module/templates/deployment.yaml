@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-app
+  namespace: e2e-mount-points-builtin-mixed
+spec:
+  selector:
+    matchLabels:
+      app: test-app
+  template:
+    metadata:
+      labels:
+        app: test-app
+    spec:
+      containers:
+      - name: app
+        image: test:latest
+        volumeMounts:
+        - name: sys
+          mountPath: /sys
+        - name: proc
+          mountPath: /proc
+        - name: missing
+          mountPath: /etc/missing
