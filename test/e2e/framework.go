@@ -64,15 +64,20 @@ const (
 //
 // Matching semantics:
 //   - linter is required and matched case-insensitively against LinterID.
-//   - rule, level and textContains are optional; when set they all must match.
+//   - rule, level, textContains and valueContains are optional; when set they
+//     all must match.
 //   - textContains is a case-sensitive substring match against the message.
+//   - valueContains is a case-sensitive substring match against the finding's
+//     attached value (ObjectValue), where linters put details too large for the
+//     message itself.
 //   - count is the expected number of matching findings; 0 means "at least one".
 type Finding struct {
-	Linter       string `yaml:"linter"`
-	Rule         string `yaml:"rule"`
-	Level        string `yaml:"level"`
-	TextContains string `yaml:"textContains"`
-	Count        int    `yaml:"count"`
+	Linter        string `yaml:"linter"`
+	Rule          string `yaml:"rule"`
+	Level         string `yaml:"level"`
+	TextContains  string `yaml:"textContains"`
+	ValueContains string `yaml:"valueContains"`
+	Count         int    `yaml:"count"`
 }
 
 func (f Finding) String() string {
@@ -87,6 +92,10 @@ func (f Finding) String() string {
 
 	if f.TextContains != "" {
 		parts = append(parts, fmt.Sprintf("textContains=%q", f.TextContains))
+	}
+
+	if f.ValueContains != "" {
+		parts = append(parts, fmt.Sprintf("valueContains=%q", f.ValueContains))
 	}
 
 	return strings.Join(parts, " ")
@@ -383,6 +392,10 @@ func findingMatches(exp Finding, got pkg.LinterError) bool {
 	}
 
 	if exp.TextContains != "" && !strings.Contains(got.Text, exp.TextContains) {
+		return false
+	}
+
+	if exp.ValueContains != "" && !strings.Contains(fmt.Sprint(got.ObjectValue), exp.ValueContains) {
 		return false
 	}
 

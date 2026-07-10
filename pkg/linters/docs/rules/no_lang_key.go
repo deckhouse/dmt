@@ -5,10 +5,12 @@ package rules
 
 import (
 	"fmt"
-	"os"
+	"log/slog"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/pkg"
@@ -65,9 +67,17 @@ func (r *NoLangKeyRule) checkFile(m pkg.Module, fileName string, errorList *erro
 		return
 	}
 
-	content, err := os.ReadFile(fileName)
+	content, err := fsutils.ReadFile(fileName)
 	if err != nil {
+		if fsutils.IsFileTooLarge(err) {
+			log.Debug("skipping oversized file in no-lang-key check",
+				slog.String("file", relPath))
+
+			return
+		}
+
 		errorList.WithFilePath(relPath).WithValue(err.Error()).Error("failed to read file")
+
 		return
 	}
 

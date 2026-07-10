@@ -18,7 +18,6 @@ package rules
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -26,6 +25,7 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"sigs.k8s.io/yaml"
 
+	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
@@ -207,7 +207,7 @@ func (r *DeckhouseCRDsRule) Run(moduleName, path string, errorList *errors.LintR
 
 	shortPath, _ := filepath.Rel(r.rootPath, path)
 
-	fileContent, err := os.ReadFile(path)
+	fileContent, err := fsutils.ReadFile(path)
 	if err != nil {
 		errorList.Errorf("Can't read file %s: %s", shortPath, err)
 		return

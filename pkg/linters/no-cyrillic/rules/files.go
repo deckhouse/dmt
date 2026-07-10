@@ -17,9 +17,12 @@ limitations under the License.
 package rules
 
 import (
+	"log/slog"
 	"os"
 	"regexp"
 	"strings"
+
+	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/pkg"
@@ -28,6 +31,19 @@ import (
 
 const (
 	FilesRuleName = "files"
+
+	// maxCheckableFileSize bounds how large a file the Cyrillic check will read
+	// into memory. Files above it are generated data blobs (bundled Grafana
+	// dashboards, rendered openapi, CRD bundles), not hand-written sources;
+	// reading a multi-gigabyte file just to scan for Cyrillic letters would
+	// exhaust memory, so such files are skipped.
+	maxCheckableFileSize = 10 << 20 // 10 MiB
+
+	// maxCyrillicReportLines bounds how many offending lines a single finding
+	// echoes back, and maxCyrillicLineWidth bounds the width of each. Together
+	// they keep a file full of Cyrillic from dumping megabytes into the log.
+	maxCyrillicReportLines = 100
+	maxCyrillicLineWidth   = 200
 )
 
 var (
@@ -79,6 +95,25 @@ func (r *FilesRule) CheckFile(m pkg.Module, fileName string, errorList *errors.L
 	}
 
 	if r.skipSelfRe.MatchString(fileName) {
+		return
+	}
+
+	info, err := os.Stat(fileName)
+	if err != nil {
+		errorList.Error(err.Error())
+
+		return
+	}
+
+	// Skip files too large to be hand-written sources: reading a multi-gigabyte
+	// generated file into memory (and echoing its Cyrillic lines into a finding)
+	// would blow up memory and flood the log.
+	if info.Size() > maxCheckableFileSize {
+		log.Debug("skipping oversized file in no-cyrillic check",
+			slog.String("file", fName),
+			slog.Int64("size", info.Size()),
+		)
+
 		return
 	}
 

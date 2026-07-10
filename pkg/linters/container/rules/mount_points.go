@@ -25,6 +25,7 @@ import (
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -120,7 +121,7 @@ func collectMountPointsDirs(modulePath string) map[string]bool {
 			return nil
 		}
 
-		data, err := os.ReadFile(path)
+		data, err := fsutils.ReadFile(path)
 		if err != nil {
 			return nil
 		}
