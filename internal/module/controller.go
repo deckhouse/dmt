@@ -43,6 +43,13 @@ func RunRender(m *Module, values chartutil.Values, objectStore *storage.Unstruct
 		// Inject dmt's deterministic helm_lib helper stubs so image and
 		// module-name references resolve to stable values during linting.
 		HelmLibOverrides: helmLibOverrides(),
+		// A symlink loop in the chart is skipped (its files are not rendered)
+		// rather than crashing the loader; report it as a warning so the module
+		// is still linted but the loop is surfaced to the user.
+		OnSymlinkLoop: func(path, resolved string) {
+			errorList.WithModule(m.GetName()).WithFilePath(path).WithRule("symlink-loop").
+				Warnf("symbolic link loop detected in chart and skipped: %s resolves to ancestor %s", path, resolved)
+		},
 	}
 
 	files, err := renderer.RenderChartFromDir(m.GetPath(), values)

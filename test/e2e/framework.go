@@ -416,12 +416,75 @@ func copyDir(src, dst string) error {
 
 		target := filepath.Join(dst, rel)
 
+		if info.Mode()&os.ModeSymlink != 0 {
+			return copySymlink(src, path, target)
+		}
+
 		if info.IsDir() {
 			return os.MkdirAll(target, 0o755)
 		}
 
 		return copyFile(path, target, info.Mode())
 	})
+}
+
+// copySymlink reproduces a symbolic link found under the source tree. Links that
+// stay inside the module (including loops, e.g. templates/loop -> ..) are
+// recreated as links so the copy faithfully preserves the layout under test;
+// links pointing outside the module (e.g. a chart dependency symlinked from a
+// shared lib dir) are dereferenced so their content still resolves in the
+// isolated copy.
+func copySymlink(srcRoot, path, dst string) error {
+	linkTarget, err := os.Readlink(path)
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+
+	if symlinkStaysWithin(srcRoot, path, linkTarget) {
+		return os.Symlink(linkTarget, dst)
+	}
+
+	// Dereference: copy whatever the link ultimately points to.
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+
+	if info.IsDir() {
+		return copyDir(path, dst)
+	}
+
+	return copyFile(path, dst, info.Mode())
+}
+
+// symlinkStaysWithin reports whether the link at path, pointing at linkTarget,
+// resolves to a location inside srcRoot.
+func symlinkStaysWithin(srcRoot, path, linkTarget string) bool {
+	resolved := linkTarget
+	if !filepath.IsAbs(resolved) {
+		resolved = filepath.Join(filepath.Dir(path), linkTarget)
+	}
+
+	absRoot, err := filepath.Abs(srcRoot)
+	if err != nil {
+		return false
+	}
+
+	absTarget, err := filepath.Abs(resolved)
+	if err != nil {
+		return false
+	}
+
+	rel, err := filepath.Rel(absRoot, absTarget)
+	if err != nil {
+		return false
+	}
+
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 func copyFile(src, dst string, mode os.FileMode) error {

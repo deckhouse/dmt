@@ -21,9 +21,12 @@ package module
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
+
+	"github.com/deckhouse/deckhouse/pkg/log"
 )
 
 // Walk walks the file tree rooted at root, calling walkFn for each file or directory
@@ -36,7 +39,7 @@ func Walk(root string, walkFn filepath.WalkFunc) error {
 	if err != nil {
 		err = walkFn(root, nil, err)
 	} else {
-		err = symwalk(root, info, walkFn)
+		err = symwalk(root, info, walkFn, make(map[string]struct{}))
 	}
 
 	if errors.Is(err, filepath.SkipDir) {
@@ -66,8 +69,12 @@ func readDirNames(dirname string) ([]string, error) {
 	return names, nil
 }
 
-// symwalk recursively descends path, calling walkFn.
-func symwalk(path string, info os.FileInfo, walkFn filepath.WalkFunc) error {
+// symwalk recursively descends path, calling walkFn. ancestors holds the
+// resolved real paths of the directories currently on the recursion stack; it
+// is used to detect symlink loops. Without it, a symlink resolving to one of its
+// own ancestors would make the walk recurse forever, reading the same files into
+// memory until the process is killed with an out-of-memory error.
+func symwalk(path string, info os.FileInfo, walkFn filepath.WalkFunc, ancestors map[string]struct{}) error {
 	// Recursively walk symlinked directories.
 	if IsSymlink(info) {
 		resolved, err := filepath.EvalSymlinks(path)
@@ -79,7 +86,7 @@ func symwalk(path string, info os.FileInfo, walkFn filepath.WalkFunc) error {
 			return err
 		}
 
-		if err := symwalk(path, info, walkFn); err != nil && !errors.Is(err, filepath.SkipDir) {
+		if err := symwalk(path, info, walkFn, ancestors); err != nil && !errors.Is(err, filepath.SkipDir) {
 			return err
 		}
 
@@ -93,6 +100,25 @@ func symwalk(path string, info os.FileInfo, walkFn filepath.WalkFunc) error {
 	if !info.IsDir() {
 		return nil
 	}
+
+	// Resolve to the real path so a symlink that points back at an ancestor is
+	// recognised as a loop and skipped rather than followed without bound.
+	real, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return walkFn(path, info, err)
+	}
+
+	if _, ok := ancestors[real]; ok {
+		log.Warn("skipping already-visited path to avoid symbolic link loop",
+			slog.String("path", path),
+			slog.String("resolved", real),
+		)
+
+		return nil
+	}
+
+	ancestors[real] = struct{}{}
+	defer delete(ancestors, real)
 
 	names, err := readDirNames(path)
 	if err != nil {
@@ -108,7 +134,7 @@ func symwalk(path string, info os.FileInfo, walkFn filepath.WalkFunc) error {
 				return err
 			}
 		} else {
-			err = symwalk(filename, fileInfo, walkFn)
+			err = symwalk(filename, fileInfo, walkFn, ancestors)
 			if err != nil {
 				if (!fileInfo.IsDir() && !IsSymlink(fileInfo)) || !errors.Is(err, filepath.SkipDir) {
 					return err

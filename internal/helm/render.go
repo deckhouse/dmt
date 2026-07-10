@@ -50,6 +50,13 @@ type Renderer struct {
 	// values during linting. Overrides are applied to the chart and all of its
 	// dependencies.
 	HelmLibOverrides map[string][]byte
+
+	// OnSymlinkLoop, when set, is called once for each symbolic link loop that
+	// was found in the chart directory and skipped while preparing a cleaned
+	// copy for rendering. It lets the caller surface the loop as a lint finding
+	// instead of silently dropping it. path is the offending link; resolved is
+	// the ancestor directory it points back to.
+	OnSymlinkLoop func(path, resolved string)
 }
 
 // RenderChartFromDir renders the chart located at chartDir with nelm's chart
@@ -59,6 +66,36 @@ type Renderer struct {
 func (r Renderer) RenderChartFromDir(chartDir string, values map[string]any) (map[string]string, error) {
 	if r.Name == "" {
 		return nil, fmt.Errorf("helm chart must have a name")
+	}
+
+	// nelm's chart loader reads every file in the directory into memory and
+	// follows symlinks without cycle detection, so a symlink loop makes it
+	// exhaust memory and abort the whole process with a fatal out-of-memory
+	// error. Pre-flight the directory: on a symlink loop, render a cleaned copy
+	// (loops skipped, symlinks dereferenced) so linting still proceeds; an
+	// oversized tree is rejected outright since cleaning cannot make it safe.
+	loadDir := chartDir
+
+	hasLoop, err := scanChartDir(chartDir)
+	if err != nil {
+		return nil, fmt.Errorf("load chart: %w", err)
+	}
+
+	if hasLoop {
+		cleaned, cleanup, loops, err := materializeCleanChartDir(chartDir)
+		if err != nil {
+			return nil, fmt.Errorf("load chart: prepare cleaned chart dir: %w", err)
+		}
+
+		defer cleanup()
+
+		if r.OnSymlinkLoop != nil {
+			for _, l := range loops {
+				r.OnSymlinkLoop(l.Path, l.Resolved)
+			}
+		}
+
+		loadDir = cleaned
 	}
 
 	opts := helmopts.HelmOptions{
@@ -84,7 +121,7 @@ func (r Renderer) RenderChartFromDir(chartDir string, values map[string]any) (ma
 
 	stdlog.SetOutput(io.Discard)
 
-	chrt, err := loader.LoadDir(chartDir, opts)
+	chrt, err := loader.LoadDir(loadDir, opts)
 
 	stdlog.SetOutput(stdlogWriter)
 
