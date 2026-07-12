@@ -202,5 +202,11 @@ func deckhouseMarkdownlintConfig() map[string]any {
 		"MD050": map[string]any{
 			"style": "consistent", // Strong style should be consistent
 		},
+
+		// MD051/link-fragments - Link fragments should be valid.
+		// Disabled: Deckhouse docs reference anchors that only exist after the
+		// Jekyll/OpenAPI build (e.g. #parameters-...) or via Kramdown IALs
+		// ({: #id}), which a static linter cannot resolve.
+		"MD051": false,
 	}
 }

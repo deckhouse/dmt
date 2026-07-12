@@ -10,7 +10,7 @@ require (
 	github.com/bmatcuk/doublestar v1.3.4
 	github.com/deckhouse/deckhouse/pkg/log v0.2.1
 	github.com/fatih/color v1.19.0
-	github.com/fuldaxxx/go-markdownlint v0.0.4
+	github.com/fuldaxxx/go-markdownlint v0.0.5
 	github.com/go-openapi/spec v0.22.4
 	github.com/gobwas/glob v0.2.3
 	github.com/gogo/protobuf v1.3.2
