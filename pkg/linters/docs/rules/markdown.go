@@ -50,7 +50,13 @@ func (r *MarkdownRule) CheckFiles(m pkg.Module, errorList *errors.LintRuleErrors
 		return
 	}
 
-	files := fsutils.GetFiles(docsPath, false, fsutils.FilterFileByExtensions(".md"))
+	// README.md is checked by a separate Deckhouse pipeline and excluded from
+	// markdownlint (testing/.markdownlintignore contains "README.md"), so skip
+	// it here too. Combined into one predicate because GetFiles ORs its filters:
+	// a separate exclusion filter would be defeated by the ".md" extension match.
+	files := fsutils.GetFiles(docsPath, false, func(_, path string) bool {
+		return filepath.Ext(path) == ".md" && filepath.Base(path) != "README.md"
+	})
 
 	var mdFiles []string
 

@@ -5,15 +5,15 @@ description: >-
   reported at least once. This verifies the full markdownlint ruleset actually
   detects the errors it is supposed to.
 #
-# MD036 (no-emphasis-as-heading) and MD051 (link-fragments) were fixed in
-# go-markdownlint (they used to silently never fire); they are asserted below.
+# MD036 (no-emphasis-as-heading) was fixed in go-markdownlint (it used to
+# silently never fire); it is asserted below.
 #
 # Rules that are active but deliberately NOT asserted here:
 #   MD054 (link-image-style) - default config allows every link/image style, so
 #                              it cannot produce a finding.
 #
 # Rules disabled via dmt config (must stay silent): MD002, MD004, MD032, MD033,
-# MD053, MD059, MD060.
+# MD051, MD053, MD059, MD060.
 expect:
   - linter: documentation
     rule: markdownlint
@@ -120,9 +120,6 @@ expect:
   - linter: documentation
     rule: markdownlint
     textContains: "MD050/"
-  - linter: documentation
-    rule: markdownlint
-    textContains: "MD051/"
   - linter: documentation
     rule: markdownlint
     textContains: "MD052/"
