@@ -4,7 +4,11 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
+
+	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/remote-linters/docs"
 )
 
 type RemoteLintOptions struct {
@@ -35,6 +39,21 @@ func RunRemoteLint(ctx context.Context, imagePath string, opts *RemoteLintOption
 	}
 	defer os.RemoveAll(tempDir)
 
+	errorList := errors.NewLintRuleErrorsList() // .WithMaxLevel()
+
+	linters, err := buildLinters(ctx, tempDir, errorList)
+	if err != nil {
+		return fmt.Errorf("failed to build linters: %w", err)
+	}
+
+	os.Remove(filepath.Join(tempDir, "docs", "README.md"))
+
+	for _, linter := range linters {
+		linter.Lint(ctx)
+	}
+
+	docs.PrintResult(errorList)
+
 	return nil
 }
 
@@ -50,4 +69,17 @@ func cutTagFromImagePath(imagePath string) (string, string, error) {
 	}
 
 	return "", "", fmt.Errorf("tag not found in image path: %s", imagePath)
+}
+
+type Linter interface {
+	Lint(ctx context.Context)
+}
+
+func buildLinters(_ context.Context, path string, errorList *errors.LintRuleErrorsList) ([]Linter, error) {
+
+	docsLinter := docs.NewLinter(docs.Config{Path: path}, errorList)
+
+	return []Linter{
+		docsLinter,
+	}, nil
 }
