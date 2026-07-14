@@ -89,7 +89,13 @@ func lintRelease(ctx context.Context, client *client.Client, tag string, errorLi
 	if err != nil {
 		return fmt.Errorf("failed to extract release image: %w", err)
 	}
-	defer os.RemoveAll(tempDir)
+
+	// remove temp dir if there are no errors
+	defer func(errs *errors.LintRuleErrorsList) {
+		if !errs.ContainsErrors() {
+			os.RemoveAll(tempDir)
+		}
+	}(errorList)
 
 	linters := buildReleaseLinters(tempDir, errorList.WithObjectID("release"))
 

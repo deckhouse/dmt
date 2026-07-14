@@ -32,4 +32,6 @@ func NewLinter(cfg Config, errorList *errors.LintRuleErrorsList) *Linter {
 // Lint executes all layout rules against the configured package path.
 func (l *Linter) Lint(ctx context.Context) {
 	rules.NewChangelogRule(l.config.Path, l.errorList).Check(ctx)
+	rules.NewModuleYAMLRule(l.config.Path, l.errorList).Check(ctx)
+	rules.NewVersionJSONRule(l.config.Path, l.errorList).Check(ctx)
 }
