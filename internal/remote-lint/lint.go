@@ -16,6 +16,7 @@ import (
 	"github.com/mitchellh/go-wordwrap"
 
 	"github.com/deckhouse/deckhouse/pkg/registry/client"
+
 	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
