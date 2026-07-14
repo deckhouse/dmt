@@ -133,6 +133,7 @@ type TemplatesLinterRules struct {
 	VPARule                  RuleConfig `mapstructure:"vpa"`
 	PDBRule                  RuleConfig `mapstructure:"pdb"`
 	IngressRule              RuleConfig `mapstructure:"ingress"`
+	HTTPRouteRule            RuleConfig `mapstructure:"httproute"`
 	PrometheusRule           RuleConfig `mapstructure:"prometheus-rules"`
 	GrafanaRule              RuleConfig `mapstructure:"grafana-dashboards"`
 	KubeRBACProxyRule        RuleConfig `mapstructure:"kube-rbac-proxy"`

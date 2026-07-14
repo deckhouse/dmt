@@ -1,0 +1,6 @@
+linters-settings:
+  templates:
+    exclude-rules:
+      httproute:
+        - kind: Ingress
+          name: e2e-app

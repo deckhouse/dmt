@@ -1,0 +1,2 @@
+name: e2e-httproute-ingress-excluded
+namespace: e2e-httproute-ingress-excluded
