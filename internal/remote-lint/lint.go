@@ -20,7 +20,8 @@ import (
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/remote-linters/bundle/docs"
-	releaseDocs "github.com/deckhouse/dmt/pkg/remote-linters/release/docs"
+	"github.com/deckhouse/dmt/pkg/remote-linters/bundle/layout"
+	releaseLayout "github.com/deckhouse/dmt/pkg/remote-linters/release/layout"
 )
 
 type RemoteLintOptions struct {
@@ -119,17 +120,19 @@ type Linter interface {
 
 func buildBundleLinters(path string, errorList *errors.LintRuleErrorsList) []Linter {
 	docsLinter := docs.NewLinter(docs.Config{Path: path}, errorList)
+	layoutLinter := layout.NewLinter(layout.Config{Path: path}, errorList)
 
 	return []Linter{
 		docsLinter,
+		layoutLinter,
 	}
 }
 
 func buildReleaseLinters(path string, errorList *errors.LintRuleErrorsList) []Linter {
-	docsLinter := releaseDocs.NewLinter(releaseDocs.Config{Path: path}, errorList)
+	layoutLinter := releaseLayout.NewLinter(releaseLayout.Config{Path: path}, errorList)
 
 	return []Linter{
-		docsLinter,
+		layoutLinter,
 	}
 }
 

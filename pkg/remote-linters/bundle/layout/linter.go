@@ -25,15 +25,12 @@ type Config struct {
 func NewLinter(cfg Config, errorList *errors.LintRuleErrorsList) *Linter {
 	return &Linter{
 		config:    cfg,
-		errorList: errorList.WithRule(LinterID),
+		errorList: errorList.WithLinterID(LinterID),
 	}
 }
 
 // Lint executes all layout rules against the configured package path.
 func (l *Linter) Lint(ctx context.Context) {
-	rules.NewNoWerfRule(l.config.Path, l.errorList).Check(ctx)
-	rules.NewNoChartRule(l.config.Path, l.errorList).Check(ctx)
-	rules.NewNoHelmignoreRule(l.config.Path, l.errorList).Check(ctx)
 	rules.NewGitignoreRule(l.config.Path, l.errorList).Check(ctx)
 	rules.NewChangelogRule(l.config.Path, l.errorList).Check(ctx)
 	rules.NewDocsRule(l.config.Path, l.errorList).Check(ctx)
