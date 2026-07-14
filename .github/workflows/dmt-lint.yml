@@ -20,6 +20,16 @@ on:
         required: false
         default: 'main'
         type: string
+      matrix:
+        description: 'Render and lint all template variants (--matrix)'
+        required: false
+        default: false
+        type: boolean
+      matrix_limit:
+        description: 'Max value combinations per module (--matrix-limit); empty = default'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -88,7 +98,10 @@ jobs:
           WORK_DIR: /deckhouse
           # Render and lint every template variant (all openapi value
           # combinations) so conditionally-rendered resources are verified too.
-          DMT_MATRIX: "true"
+          # Off by default; enabled only via the "matrix" input checkbox on a
+          # manual (workflow_dispatch) run.
+          DMT_MATRIX: ${{ inputs.matrix && 'true' || 'false' }}
+          DMT_MATRIX_LIMIT: ${{ inputs.matrix_limit }}
         run: bash .github/scripts/dmt-lint-deckhouse.sh
 
       - name: Evaluate result
