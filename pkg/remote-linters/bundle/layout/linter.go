@@ -34,4 +34,10 @@ func (l *Linter) Lint(ctx context.Context) {
 	rules.NewGitignoreRule(l.config.Path, l.errorList).Check(ctx)
 	rules.NewChangelogRule(l.config.Path, l.errorList).Check(ctx)
 	rules.NewDocsRule(l.config.Path, l.errorList).Check(ctx)
+	rules.NewTemplatesRule(l.config.Path, l.errorList).Check(ctx)
+	rules.NewChartsRule(l.config.Path, l.errorList).Check(ctx)
+	rules.NewDigestsRule(l.config.Path, l.errorList).Check(ctx)
+	rules.NewChartYAMLRule(l.config.Path, l.errorList).Check(ctx)
+	rules.NewVersionJSONRule(l.config.Path, l.errorList).Check(ctx)
+	rules.NewModuleYAMLRule(l.config.Path, l.errorList).Check(ctx)
 }

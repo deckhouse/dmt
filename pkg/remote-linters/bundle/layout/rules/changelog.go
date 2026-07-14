@@ -4,7 +4,7 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
-// Rule purpose: require changelog.yaml so package changes have a release history entry point.
+// Rule purpose: require changelog.yaml so bundle image have a release history entry point.
 
 // ChangelogRuleID is the stable identifier used to reference this rule in configuration.
 const ChangelogRuleID = "changelog"
