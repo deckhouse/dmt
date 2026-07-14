@@ -24,6 +24,7 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [enabled-modules](#enabled-modules) | Detects usage of `.Values.global.enabledModules` in templates | ✅ | enabled |
 | [webhook-configuration-annotations](#webhook-configuration-annotations) | Checks webhook configurations have werf.io/weight or deploy-dependency annotations | ✅ | enabled |
 | [mount-points](#mount-points) | Validates that mount-points.yaml directories are used as volumeMounts in pod controllers | ✅ | enabled |
+| [schema-validation](#schema-validation) | Validates every rendered resource against its CRD / Kubernetes schema | ✅ | enabled |
 
 "Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
@@ -2668,3 +2669,57 @@ The linter now includes comprehensive validation for Grafana dashboards based on
 
 - **Required variable**: Ensures dashboards contain the required `ds_prometheus` variable of type `datasource`
 - **Query variables**: Validates that query variables use recommended datasource UIDs
+
+### schema-validation
+
+**Purpose:** Validates every rendered manifest against its schema, catching type
+errors, missing required fields, unknown enum values and other structural
+mistakes at lint time — before the resource is ever applied to a cluster.
+
+**Description:**
+
+After the module's templates are rendered, each resulting object is matched to a
+schema by its `apiVersion`/`kind` and validated. Schemas are resolved from three
+sources, in order of precedence:
+
+1. **The module's own CRDs** (`crds/`): their OpenAPI v3 schema is used directly,
+   so a module is authoritative for the resources it defines. The Kubernetes
+   extensions `x-kubernetes-preserve-unknown-fields`, `x-kubernetes-int-or-string`
+   and `nullable` are honored so valid manifests are not falsely rejected.
+2. **Bundled third-party CRD schemas** from
+   [datree/crds-catalog](https://github.com/datreeio/crds-catalog).
+3. **Bundled built-in Kubernetes schemas** (e.g. `Deployment`, `Service`).
+
+Both bundled sources are compiled into the dmt binary, so validation works fully
+offline. Resources whose kind has **no** known schema are silently skipped — the
+rule only reports schema violations, never the absence of a schema.
+
+**Why it matters:**
+
+Rendered templates frequently drift from the API they target (a value of the
+wrong type, a renamed field, a typo in an enum). Such issues otherwise surface
+only at `helm install` / apply time. Validating against the real schemas during
+lint moves that feedback left.
+
+**Configuration:**
+
+```yaml
+linters-settings:
+  templates:
+    rules:
+      schema-validation:
+        impact: error   # or warn / ignore
+    exclude-rules:
+      schema-validation:
+        - kind: MyResource
+          name: my-resource
+```
+
+**Updating the bundled schemas:**
+
+The embedded catalog lives at `internal/schemas/data/schemas.tar.gz` and is
+regenerated with:
+
+```bash
+scripts/gen-schemas.sh [k8s-version]   # default: v1.30.0
+```

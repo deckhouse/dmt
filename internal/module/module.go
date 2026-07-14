@@ -348,6 +348,7 @@ func mapTemplatesRules(linterSettings *pkg.LintersSettings, configSettings *conf
 	rules.EnabledModulesRule.SetLevel(globalRules.EnabledModulesRule.Impact, fallbackImpact)
 	rules.MountPointsRule.SetLevel(globalRules.MountPointsRule.Impact, fallbackImpact)
 	rules.WebhookConfigurationRule.SetLevel(globalRules.WebhookConfigurationRule.Impact, fallbackImpact)
+	rules.SchemaValidationRule.SetLevel(globalRules.SchemaValidationRule.Impact, fallbackImpact)
 }
 
 // mapOpenAPIRules configures OpenAPI linter rules
@@ -467,6 +468,7 @@ func mapTemplatesExclusionsAndSettings(linterSettings *pkg.LintersSettings, conf
 	excludes.EnabledModules.Directories = pkg.DirectoryRuleExcludeList(configExcludes.EnabledModules.Directories)
 	excludes.WebhookConfiguration = configExcludes.WebhookConfiguration.Get()
 	excludes.MountPoints = pkg.StringRuleExcludeList(configExcludes.MountPoints)
+	excludes.SchemaValidation = configExcludes.SchemaValidation.Get()
 
 	// Additional settings
 	linterSettings.Templates.PrometheusRuleSettings.Disable = configSettings.Templates.PrometheusRules.Disable
