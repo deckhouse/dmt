@@ -15,10 +15,12 @@ import (
 	"github.com/kyokomi/emoji"
 	"github.com/mitchellh/go-wordwrap"
 
+	"github.com/deckhouse/deckhouse/pkg/registry/client"
 	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/remote-linters/docs"
+	"github.com/deckhouse/dmt/pkg/remote-linters/bundle/docs"
+	releaseDocs "github.com/deckhouse/dmt/pkg/remote-linters/release/docs"
 )
 
 type RemoteLintOptions struct {
@@ -38,6 +40,24 @@ func RunRemoteLint(ctx context.Context, imagePath string, opts *RemoteLintOption
 
 	client := initRegistryClient(registryPath, opts.Login, opts.Password)
 
+	errorList := errors.NewLintRuleErrorsList() // .WithMaxLevel()
+
+	err = lintBundle(ctx, client, tag, errorList)
+	if err != nil {
+		return fmt.Errorf("failed to lint bundle: %w", err)
+	}
+
+	err = lintRelease(ctx, client, tag, errorList)
+	if err != nil {
+		return fmt.Errorf("failed to lint release: %w", err)
+	}
+
+	PrintResult(errorList)
+
+	return nil
+}
+
+func lintBundle(ctx context.Context, client *client.Client, tag string, errorList *errors.LintRuleErrorsList) error {
 	image, err := client.GetImage(ctx, tag)
 	if err != nil {
 		return fmt.Errorf("failed to get image: %w", err)
@@ -49,9 +69,7 @@ func RunRemoteLint(ctx context.Context, imagePath string, opts *RemoteLintOption
 	}
 	defer os.RemoveAll(tempDir)
 
-	errorList := errors.NewLintRuleErrorsList() // .WithMaxLevel()
-
-	linters := buildLinters(tempDir, errorList)
+	linters := buildBundleLinters(tempDir, errorList.WithObjectID("bundle"))
 
 	os.Remove(filepath.Join(tempDir, "docs", "README.md")) // debug: delete this line
 
@@ -59,7 +77,28 @@ func RunRemoteLint(ctx context.Context, imagePath string, opts *RemoteLintOption
 		linter.Lint(ctx)
 	}
 
-	PrintResult(errorList)
+	return nil
+}
+
+func lintRelease(ctx context.Context, client *client.Client, tag string, errorList *errors.LintRuleErrorsList) error {
+	releaseImage, err := client.WithSegment("release").GetImage(ctx, tag)
+	if err != nil {
+		return fmt.Errorf("failed to get release image: %w", err)
+	}
+
+	tempReleaseDir, err := ExtractImage(ctx, releaseImage)
+	if err != nil {
+		return fmt.Errorf("failed to extract release image: %w", err)
+	}
+	defer os.RemoveAll(tempReleaseDir)
+
+	os.Remove(filepath.Join(tempReleaseDir, "changelog.yaml")) // debug: delete this line
+
+	linters := buildReleaseLinters(tempReleaseDir, errorList.WithObjectID("release"))
+
+	for _, linter := range linters {
+		linter.Lint(ctx)
+	}
 
 	return nil
 }
@@ -82,8 +121,16 @@ type Linter interface {
 	Lint(ctx context.Context)
 }
 
-func buildLinters(path string, errorList *errors.LintRuleErrorsList) []Linter {
+func buildBundleLinters(path string, errorList *errors.LintRuleErrorsList) []Linter {
 	docsLinter := docs.NewLinter(docs.Config{Path: path}, errorList)
+
+	return []Linter{
+		docsLinter,
+	}
+}
+
+func buildReleaseLinters(path string, errorList *errors.LintRuleErrorsList) []Linter {
+	docsLinter := releaseDocs.NewLinter(releaseDocs.Config{Path: path}, errorList)
 
 	return []Linter{
 		docsLinter,

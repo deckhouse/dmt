@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/remote-linters/docs/rules"
+	"github.com/deckhouse/dmt/pkg/remote-linters/bundle/docs/rules"
 )
 
 // LinterID is the stable identifier used to reference this linter in configuration and diagnostics.
