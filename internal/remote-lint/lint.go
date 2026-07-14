@@ -100,11 +100,11 @@ func lintRelease(ctx context.Context, client *client.Client, tag string, errorLi
 	return nil
 }
 
-// returns repository path and tag (or digest) from the image path
-// turns strings like "registry.example.com/my-module:v0.0.1" into "registry.example.com/my-module" and "v0.0.1" (or sha256:aaa)
+// returns repository path and tag from the image path
+// turns strings like "registry.example.com/my-module:v0.0.1" into "registry.example.com/my-module" and "v0.0.1"
 func cutTagFromImagePath(imagePath string) (string, string, error) {
-	if parts := strings.Split(imagePath, "@"); len(parts) == 2 {
-		return parts[0], parts[1], nil
+	if strings.Contains(imagePath, "@") {
+		return "", "", fmt.Errorf("digest not supported")
 	}
 
 	if parts := strings.Split(imagePath, ":"); len(parts) == 2 {
