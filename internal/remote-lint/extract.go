@@ -5,12 +5,10 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/deckhouse/deckhouse/pkg/registry"
 )
 
@@ -20,8 +18,6 @@ func ExtractImage(ctx context.Context, image registry.Image) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp directory: %w", err)
 	}
-
-	log.Info("extracting image to temp directory", slog.String("tempDir", tempDir))
 
 	rc := image.Extract()
 	defer rc.Close()

@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"text/tabwriter"
@@ -72,8 +71,6 @@ func lintBundle(ctx context.Context, client *client.Client, tag string, errorLis
 
 	linters := buildBundleLinters(tempDir, errorList.WithObjectID("bundle"))
 
-	os.Remove(filepath.Join(tempDir, "docs", "README.md")) // debug: delete this line
-
 	for _, linter := range linters {
 		linter.Lint(ctx)
 	}
@@ -82,20 +79,18 @@ func lintBundle(ctx context.Context, client *client.Client, tag string, errorLis
 }
 
 func lintRelease(ctx context.Context, client *client.Client, tag string, errorList *errors.LintRuleErrorsList) error {
-	releaseImage, err := client.WithSegment("release").GetImage(ctx, tag)
+	image, err := client.WithSegment("release").GetImage(ctx, tag)
 	if err != nil {
 		return fmt.Errorf("failed to get release image: %w", err)
 	}
 
-	tempReleaseDir, err := ExtractImage(ctx, releaseImage)
+	tempDir, err := ExtractImage(ctx, image)
 	if err != nil {
 		return fmt.Errorf("failed to extract release image: %w", err)
 	}
-	defer os.RemoveAll(tempReleaseDir)
+	defer os.RemoveAll(tempDir)
 
-	os.Remove(filepath.Join(tempReleaseDir, "changelog.yaml")) // debug: delete this line
-
-	linters := buildReleaseLinters(tempReleaseDir, errorList.WithObjectID("release"))
+	linters := buildReleaseLinters(tempDir, errorList.WithObjectID("release"))
 
 	for _, linter := range linters {
 		linter.Lint(ctx)

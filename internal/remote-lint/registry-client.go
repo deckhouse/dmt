@@ -45,12 +45,6 @@ func dockerConfigAuth(registryHost string) (authn.Authenticator, bool) {
 		return nil, false
 	}
 
-	log.Warn("debug dockerConfigAuth", slog.String(
-		"registryHost", registryHost),
-		slog.String("ref", ref.String()),
-		slog.String("registry", ref.Context().RegistryStr()),
-	)
-
 	reg, err := name.NewRegistry(ref.Context().RegistryStr())
 	if err != nil {
 		return nil, false
