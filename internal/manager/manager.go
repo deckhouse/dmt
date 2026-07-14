@@ -27,7 +27,9 @@ import (
 	"sync"
 	"text/tabwriter"
 
+	"dario.cat/mergo"
 	"github.com/fatih/color"
+	"github.com/go-openapi/spec"
 	"github.com/kyokomi/emoji"
 	"github.com/mitchellh/go-wordwrap"
 	"helm.sh/helm/v3/pkg/chartutil"
@@ -36,6 +38,7 @@ import (
 
 	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/fsutils"
+	"github.com/deckhouse/dmt/internal/matrix"
 	"github.com/deckhouse/dmt/internal/metrics"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/moduleloader"
@@ -76,14 +79,44 @@ type Manager struct {
 	Modules []*module.Module
 
 	errors *errors.LintRuleErrorsList
+
+	// matrix enables rendering every value combination of each module
+	// (see internal/matrix); matrixLimit caps the combinations per module.
+	matrix      bool
+	matrixLimit int
 }
 
-func NewManager(dir string, rootConfig *config.RootConfig) *Manager {
+// Option customizes a Manager at construction time.
+type Option func(*Manager)
+
+// WithMatrix enables matrix mode with the given per-module combination limit.
+// A non-positive limit falls back to the matrix package default. It is the
+// programmatic equivalent of the --matrix / --matrix-limit flags and lets
+// callers (e.g. tests) opt in without touching process-global flags.
+func WithMatrix(enabled bool, limit int) Option {
+	return func(m *Manager) {
+		m.matrix = enabled
+		if limit > 0 {
+			m.matrixLimit = limit
+		}
+	}
+}
+
+func NewManager(dir string, rootConfig *config.RootConfig, opts ...Option) *Manager {
 	managerLevel := pkg.Error
 	m := &Manager{
 		cfg: rootConfig,
 
 		errors: errors.NewLintRuleErrorsList().WithMaxLevel(&managerLevel),
+
+		// Default to the process-global flags so the CLI keeps working; options
+		// below can override for programmatic callers.
+		matrix:      flags.Matrix,
+		matrixLimit: flags.MatrixLimit,
+	}
+
+	for _, opt := range opts {
+		opt(m)
 	}
 
 	return m.initManager(dir)
@@ -118,22 +151,74 @@ func (m *Manager) initManager(dir string) *Manager {
 			continue
 		}
 
-		mdl, err := module.NewModule(paths[i], &vals, globalValues, m.cfg, errorList)
+		m.Modules = append(m.Modules, m.loadModuleVariants(paths[i], moduleName, vals, globalValues, errorList)...)
+	}
+
+	log.Info("Found modules", slog.Int("count", len(m.Modules)))
+
+	return m
+}
+
+// loadModuleVariants builds the module(s) to lint for a single path. In the
+// default mode this is a single module rendered with the generated (plus
+// --values-file) values. In --matrix mode it is one module per discovered value
+// combination, so conditionally-rendered resources are reached too.
+func (m *Manager) loadModuleVariants(
+	path, moduleName string,
+	baseVals chartutil.Values,
+	globalValues *spec.Schema,
+	errorList *errors.LintRuleErrorsList,
+) []*module.Module {
+	variants := []matrix.Variant{{}}
+
+	if m.matrix {
+		generated, err := matrix.Generate(path, "values.yaml", m.matrixLimit)
+		if err != nil {
+			errorList.WithFilePath(path).WithModule(moduleName).
+				WithValue(err.Error()).
+				Errorf("cannot expand matrix variants for module `%s`", moduleName)
+		} else {
+			variants = generated
+			log.Info("Matrix variants for module",
+				slog.String("module", moduleName), slog.Int("count", len(variants)))
+		}
+	}
+
+	modules := make([]*module.Module, 0, len(variants))
+
+	for idx := range variants {
+		vals := mergeValues(baseVals, variants[idx].Overrides)
+
+		mdl, err := module.NewModule(path, &vals, globalValues, m.cfg, errorList)
 		if err != nil {
 			errorList.
-				WithFilePath(paths[i]).WithModule(moduleName).
+				WithFilePath(path).WithModule(moduleName).
 				WithValue(err.Error()).
 				Errorf("cannot create module `%s`", moduleName)
 
 			continue
 		}
 
-		m.Modules = append(m.Modules, mdl)
+		modules = append(modules, mdl)
 	}
 
-	log.Info("Found modules", slog.Int("count", len(m.Modules)))
+	return modules
+}
 
-	return m
+// mergeValues returns a fresh value tree with override applied on top of base.
+// base is treated as read-only.
+func mergeValues(base, override chartutil.Values) chartutil.Values {
+	out := chartutil.Values{}
+
+	if len(base) > 0 {
+		_ = mergo.Merge(&out, base, mergo.WithOverride)
+	}
+
+	if len(override) > 0 {
+		_ = mergo.Merge(&out, override, mergo.WithOverride)
+	}
+
+	return out
 }
 
 func decodeValuesFile(path string) (chartutil.Values, error) {
@@ -197,6 +282,10 @@ func getLintersForModule(cfg *pkg.LintersSettings, errList *errors.LintRuleError
 
 func (m *Manager) PrintResult() {
 	errs := m.errors.GetErrors()
+
+	if m.matrix {
+		errs = dedupeErrors(errs)
+	}
 
 	if len(errs) == 0 {
 		return
@@ -313,7 +402,40 @@ func (m *Manager) ApplyFixes() {
 // It is primarily intended for tests (e.g. the e2e framework) that need to
 // assert on the structured findings produced by the linters.
 func (m *Manager) GetErrors() []pkg.LinterError {
-	return m.errors.GetErrors()
+	errs := m.errors.GetErrors()
+
+	if m.matrix {
+		return dedupeErrors(errs)
+	}
+
+	return errs
+}
+
+// dedupeErrors removes findings that are identical in every user-visible field.
+// In --matrix mode the same resource is rendered and linted across many value
+// combinations, so a finding that is not specific to one variant would
+// otherwise be reported many times.
+func dedupeErrors(errs []pkg.LinterError) []pkg.LinterError {
+	seen := make(map[string]struct{}, len(errs))
+	out := make([]pkg.LinterError, 0, len(errs))
+
+	for i := range errs {
+		e := errs[i]
+		key := strings.Join([]string{
+			e.LinterID, e.RuleID, e.ModuleID, e.ObjectID,
+			e.Level.String(), e.FilePath, e.Text,
+		}, "\x00")
+
+		if _, dup := seen[key]; dup {
+			continue
+		}
+
+		seen[key] = struct{}{}
+
+		out = append(out, e)
+	}
+
+	return out
 }
 
 // prepareString handle ussual string and prepare it for tablewriter

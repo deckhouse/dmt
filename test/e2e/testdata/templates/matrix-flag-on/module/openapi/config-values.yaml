@@ -1,0 +1,7 @@
+type: object
+properties:
+  enabled:
+    type: boolean
+    # The default render picks the first example (false), so the guarded
+    # resource below is never produced without --matrix.
+    x-examples: [false, true]

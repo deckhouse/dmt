@@ -119,6 +119,10 @@ type CaseSpec struct {
 	// Exhaustive, when true, asserts that there are no findings beyond those
 	// listed in Expect (every produced finding must be matched by some Finding).
 	Exhaustive bool `yaml:"exhaustive"`
+	// Matrix, when true, lints the module in matrix mode (renders every value
+	// combination), so conditionally-rendered resources are reached. Only
+	// applies to lint cases.
+	Matrix bool `yaml:"matrix"`
 }
 
 // LoadCaseSpec reads and parses the expected.yaml file from a case directory.
@@ -146,14 +150,14 @@ func LoadCaseSpec(caseDir string) (*CaseSpec, error) {
 
 // Run executes a case (lint or conversions) against a module directory and
 // returns the produced findings.
-func Run(kind, moduleDir string) ([]pkg.LinterError, error) {
+func Run(kind, moduleDir string, matrix bool) ([]pkg.LinterError, error) {
 	switch kind {
 	case KindConversions:
 		return RunConversions(moduleDir)
 	case KindFix:
 		return RunFix(moduleDir)
 	case KindLint, "":
-		return Lint(moduleDir)
+		return Lint(moduleDir, matrix)
 	default:
 		return nil, fmt.Errorf("unknown case kind %q", kind)
 	}
@@ -163,7 +167,7 @@ func Run(kind, moduleDir string) ([]pkg.LinterError, error) {
 // findings. The module is copied into an isolated temp directory first so the
 // run is hermetic (no config inherited from parent dirs, no artifacts written
 // back into testdata).
-func Lint(moduleDir string) ([]pkg.LinterError, error) {
+func Lint(moduleDir string, matrix bool) ([]pkg.LinterError, error) {
 	tmpRoot, err := os.MkdirTemp("", "dmt-e2e-*")
 	if err != nil {
 		return nil, fmt.Errorf("create temp dir: %w", err)
@@ -189,7 +193,14 @@ func Lint(moduleDir string) ([]pkg.LinterError, error) {
 	// Initialize the metrics client so linters that emit metrics don't panic.
 	metrics.GetClient(target)
 
-	mng := manager.NewManager(target, cfg)
+	// Matrix mode is passed per-case as a manager option instead of via the
+	// process-global flag, so parallel cases with different settings don't race.
+	var opts []manager.Option
+	if matrix {
+		opts = append(opts, manager.WithMatrix(true, 0))
+	}
+
+	mng := manager.NewManager(target, cfg, opts...)
 	mng.Run()
 
 	return mng.GetErrors(), nil

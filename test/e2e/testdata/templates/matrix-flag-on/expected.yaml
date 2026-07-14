@@ -1,0 +1,11 @@
+description: >
+  A Service guarded by a boolean flag (default false) carries a schema
+  violation. With --matrix, the enabled=true variant is rendered and the
+  templates schema-validation rule flags the undeclared field.
+module: module
+matrix: true
+expect:
+  - linter: templates
+    rule: schema-validation
+    level: error
+    textContains: "additional properties 'bogusField' not allowed"

@@ -42,7 +42,11 @@ var (
 	ShowIgnored       bool
 	ShowDocumentation bool
 	Fix               bool
+	Matrix            bool
+	MatrixLimit       int
 )
+
+const defaultMatrixLimit = 100
 
 var (
 	BootstrapRepositoryType string
@@ -71,6 +75,12 @@ func InitLintFlagSet() *pflag.FlagSet {
 
 	// automatically fix findings that support autofix
 	lint.BoolVarP(&Fix, "fix", "", false, "automatically fix findings that support autofix")
+
+	// render every combination of template variants (across openapi examples,
+	// enums and booleans) and lint them all, to reach conditionally-rendered
+	// resources a single default render never produces.
+	lint.BoolVarP(&Matrix, "matrix", "", false, "render and lint all template variants (all openapi value combinations)")
+	lint.IntVarP(&MatrixLimit, "matrix-limit", "", defaultMatrixLimit, "maximum number of value combinations to render per module in --matrix mode")
 
 	// hide warnings in output
 	lint.BoolVarP(&HideWarnings, "hide-warnings", "", false, "hide warnings")

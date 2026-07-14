@@ -1,0 +1,16 @@
+{{- if eq .Values.matrixMode.resourcesMode.mode "Static" }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: matrix-mode-svc
+  namespace: matrix-mode
+spec:
+  selector:
+    app: matrix-mode
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+  # Invalid: only rendered for the "Static" oneOf branch, which --matrix reaches.
+  anotherBogusField: true
+{{- end }}
