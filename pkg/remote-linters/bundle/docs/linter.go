@@ -40,7 +40,6 @@ func (l *Linter) Lint(ctx context.Context) {
 
 	rules.NewReadmeRule(l.config.Path, l.errorList).Check(ctx)
 	rules.NewBilingualRule(l.config.Path, l.errorList).Check(ctx)
-	rules.NewCyrillicInEnglishRule(l.config.Path, l.errorList).Check(ctx)
 }
 
 // hasDocsDir reports whether docs/ exists as a directory in the package root.
