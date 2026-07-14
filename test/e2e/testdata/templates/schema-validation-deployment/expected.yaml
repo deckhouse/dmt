@@ -1,0 +1,10 @@
+description: >
+  A rendered Deployment whose spec.replicas is a string instead of an integer
+  must be flagged by the templates schema-validation rule against the bundled
+  built-in Kubernetes schema.
+module: module
+expect:
+  - linter: templates
+    rule: schema-validation
+    level: error
+    textContains: "does not match its k8s schema"
