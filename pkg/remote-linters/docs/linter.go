@@ -11,13 +11,14 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/fatih/color"
+	"github.com/kyokomi/emoji"
+	"github.com/mitchellh/go-wordwrap"
+
 	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/remote-linters/docs/rules"
-	"github.com/fatih/color"
-	"github.com/kyokomi/emoji"
-	"github.com/mitchellh/go-wordwrap"
 )
 
 // LinterID is the stable identifier used to reference this linter in configuration and diagnostics.

@@ -37,6 +37,7 @@ func (r *ReadmeRule) Check(_ context.Context) {
 			WithFilePath(path).
 			WithValue(err.Error()).
 			Error("README.md file is missing in docs/ directory")
+
 		return
 	}
 

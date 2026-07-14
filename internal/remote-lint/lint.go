@@ -41,12 +41,9 @@ func RunRemoteLint(ctx context.Context, imagePath string, opts *RemoteLintOption
 
 	errorList := errors.NewLintRuleErrorsList() // .WithMaxLevel()
 
-	linters, err := buildLinters(ctx, tempDir, errorList)
-	if err != nil {
-		return fmt.Errorf("failed to build linters: %w", err)
-	}
+	linters := buildLinters(tempDir, errorList)
 
-	os.Remove(filepath.Join(tempDir, "docs", "README.md"))
+	os.Remove(filepath.Join(tempDir, "docs", "README.md")) // debug: delete this line
 
 	for _, linter := range linters {
 		linter.Lint(ctx)
@@ -75,11 +72,10 @@ type Linter interface {
 	Lint(ctx context.Context)
 }
 
-func buildLinters(_ context.Context, path string, errorList *errors.LintRuleErrorsList) ([]Linter, error) {
-
+func buildLinters(path string, errorList *errors.LintRuleErrorsList) []Linter {
 	docsLinter := docs.NewLinter(docs.Config{Path: path}, errorList)
 
 	return []Linter{
 		docsLinter,
-	}, nil
+	}
 }

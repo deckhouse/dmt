@@ -3,10 +3,11 @@ package remotelint
 import (
 	"log/slog"
 
-	"github.com/deckhouse/deckhouse/pkg/log"
-	regclient "github.com/deckhouse/deckhouse/pkg/registry/client"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
+
+	"github.com/deckhouse/deckhouse/pkg/log"
+	regclient "github.com/deckhouse/deckhouse/pkg/registry/client"
 )
 
 func initRegistryClient(registryHost string, login, password string) *regclient.Client {
