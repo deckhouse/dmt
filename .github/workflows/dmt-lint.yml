@@ -86,6 +86,9 @@ jobs:
           DMT_BIN: ${{ github.workspace }}/dmt
           SRC_DIR: ${{ runner.temp }}/deckhouse-src
           WORK_DIR: /deckhouse
+          # Render and lint every template variant (all openapi value
+          # combinations) so conditionally-rendered resources are verified too.
+          DMT_MATRIX: "true"
         run: bash .github/scripts/dmt-lint-deckhouse.sh
 
       - name: Evaluate result
