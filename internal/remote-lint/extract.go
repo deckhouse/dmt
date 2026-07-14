@@ -5,10 +5,34 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/deckhouse/deckhouse/pkg/log"
+	"github.com/deckhouse/deckhouse/pkg/registry"
 )
+
+// ExtractImage extracts the image to a temporary directory and returns the path to the directory
+func ExtractImage(ctx context.Context, image registry.Image) (string, error) {
+	tempDir, err := os.MkdirTemp("", "dmt-*")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp directory: %w", err)
+	}
+
+	log.Info("extracting image to temp directory", slog.String("tempDir", tempDir))
+
+	rc := image.Extract()
+	defer rc.Close()
+
+	err = Extract(ctx, rc, tempDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to extract image: %w", err)
+	}
+
+	return tempDir, nil
+}
 
 func Extract(ctx context.Context, rc io.ReadCloser, target string) error {
 	tr := tar.NewReader(rc)
