@@ -50,50 +50,48 @@ env:
   TEMPLATE_REF: ${{ inputs.template_branch || 'main' }}
 
 jobs:
-  resolve-skip:
-    name: resolve-skip
+  lint-deckhouse:
+    name: DMT verify deckhouse
     runs-on: ubuntu-latest
-    outputs:
-      skip: ${{ steps.ctx.outputs.skip }}
     steps:
-      - name: Resolve skip label
-        id: ctx
+      - name: Check skip label
+        id: skip
         run: |
           if [[ "${{ github.event_name }}" == "pull_request" ]] \
             && [[ "${{ contains(github.event.pull_request.labels.*.name, env.SKIP_LABEL) }}" == "true" ]]; then
+            echo "::warning::'${SKIP_LABEL}' label present — skipping deckhouse lint."
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::'${SKIP_LABEL}' label present — dmt lint verification will be skipped."
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
-  lint-deckhouse:
-    needs: resolve-skip
-    if: needs.resolve-skip.outputs.skip != 'true'
-    name: DMT verify deckhouse
-    runs-on: ubuntu-latest
-    steps:
       - name: Checkout dmt
+        if: steps.skip.outputs.skip != 'true'
         uses: actions/checkout@v4
 
       - name: Setup Go
+        if: steps.skip.outputs.skip != 'true'
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
 
       - name: Build dmt
+        if: steps.skip.outputs.skip != 'true'
         run: make build
 
       - name: Clone deckhouse (${{ env.DECKHOUSE_REF }})
+        if: steps.skip.outputs.skip != 'true'
         run: |
           git clone --depth 1 --branch "${DECKHOUSE_REF}" "${DECKHOUSE_REPO}" "${RUNNER_TEMP}/deckhouse-src"
 
       - name: Prepare /deckhouse
+        if: steps.skip.outputs.skip != 'true'
         run: |
           sudo mkdir -p /deckhouse
           sudo chown "$(id -u):$(id -g)" /deckhouse
 
       - name: Lint deckhouse with built dmt
+        if: steps.skip.outputs.skip != 'true'
         env:
           DMT_BIN: ${{ github.workspace }}/dmt
           SRC_DIR: ${{ runner.temp }}/deckhouse-src
@@ -103,27 +101,41 @@ jobs:
         run: bash .github/scripts/dmt-lint-deckhouse.sh
 
   lint-modules-template:
-    needs: resolve-skip
-    if: needs.resolve-skip.outputs.skip != 'true'
     name: DMT verify modules-template
     runs-on: ubuntu-latest
     steps:
+      - name: Check skip label
+        id: skip
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]] \
+            && [[ "${{ contains(github.event.pull_request.labels.*.name, env.SKIP_LABEL) }}" == "true" ]]; then
+            echo "::warning::'${SKIP_LABEL}' label present — skipping modules-template lint."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout dmt
+        if: steps.skip.outputs.skip != 'true'
         uses: actions/checkout@v4
 
       - name: Setup Go
+        if: steps.skip.outputs.skip != 'true'
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
 
       - name: Build dmt
+        if: steps.skip.outputs.skip != 'true'
         run: make build
 
       - name: Clone modules-template (${{ env.TEMPLATE_REF }})
+        if: steps.skip.outputs.skip != 'true'
         run: |
           git clone --depth 1 --branch "${TEMPLATE_REF}" "${TEMPLATE_REPO}" "${RUNNER_TEMP}/modules-template"
 
       - name: Lint modules-template with built dmt
+        if: steps.skip.outputs.skip != 'true'
         env:
           DMT_BIN: ${{ github.workspace }}/dmt
           SRC_DIR: ${{ runner.temp }}/modules-template
