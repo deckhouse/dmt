@@ -196,7 +196,11 @@ func getLintersForModule(cfg *pkg.LintersSettings, errList *errors.LintRuleError
 }
 
 func (m *Manager) PrintResult() {
-	errs := m.errors.GetErrors()
+	PrintResult(m.errors)
+}
+
+func PrintResult(errorList *errors.LintRuleErrorsList) {
+	errs := errorList.GetErrors()
 
 	if len(errs) == 0 {
 		return

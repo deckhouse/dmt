@@ -1,31 +1,24 @@
 package remotelint
 
 import (
-	"bytes"
-	"cmp"
 	"context"
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
-	"text/tabwriter"
 
-	"github.com/fatih/color"
 	"github.com/google/go-containerregistry/pkg/name"
-	"github.com/kyokomi/emoji"
-	"github.com/mitchellh/go-wordwrap"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/deckhouse/deckhouse/pkg/registry/client"
 
-	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/manager"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/docs"
+	moduleLinter "github.com/deckhouse/dmt/pkg/linters/module"
 )
 
 type RemoteLintOptions struct {
@@ -64,7 +57,7 @@ func RunRemoteLint(ctx context.Context, imagePath string, opts *RemoteLintOption
 		return fmt.Errorf("failed to lint release: %w", err)
 	}
 
-	PrintResult(errorList)
+	manager.PrintResult(errorList)
 
 	if errorList.ContainsErrors() {
 		return fmt.Errorf("critical errors found")
@@ -87,7 +80,7 @@ func lintBundle(ctx context.Context, client *client.Client, tag string, cfg *pkg
 
 	os.RemoveAll(filepath.Join(tempDir, "docs")) // debug: remove docs directory
 
-	linters := buildBundleLinters(tempDir, cfg, errorList.WithObjectID("bundle"))
+	linters := buildBundleLinters(cfg, errorList.WithObjectID("bundle"))
 
 	for _, linter := range linters {
 		m, err := module.NewModule(tempDir, nil, nil, nil, errorList.WithObjectID("bundle"))
@@ -113,10 +106,15 @@ func lintRelease(ctx context.Context, client *client.Client, tag string, cfg *pk
 	}
 	defer os.RemoveAll(tempDir)
 
-	linters := buildReleaseLinters(tempDir, errorList.WithObjectID("release"))
+	linters := buildReleaseLinters(cfg, errorList.WithObjectID("release"))
 
 	for _, linter := range linters {
-		linter.Run(nil)
+		m, err := module.NewModule(tempDir, nil, nil, nil, errorList.WithObjectID("release"))
+		if err != nil {
+			return fmt.Errorf("failed to create module: %w", err)
+		}
+
+		linter.Run(m)
 	}
 
 	return nil
@@ -146,14 +144,16 @@ type Linter interface {
 	manager.Linter
 }
 
-func buildBundleLinters(path string, cfg *pkg.LintersSettings, errorList *errors.LintRuleErrorsList) []Linter {
+func buildBundleLinters(cfg *pkg.LintersSettings, errorList *errors.LintRuleErrorsList) []Linter {
 	return []Linter{
 		docs.New(&cfg.Documentation, errorList.WithMaxLevel(cfg.Documentation.Impact)),
 	}
 }
 
-func buildReleaseLinters(path string, errorList *errors.LintRuleErrorsList) []Linter {
-	return []Linter{}
+func buildReleaseLinters(cfg *pkg.LintersSettings, errorList *errors.LintRuleErrorsList) []Linter {
+	return []Linter{
+		moduleLinter.New(&cfg.Module, errorList.WithMaxLevel(cfg.Module.Impact)),
+	}
 }
 
 func parseConfig() (*pkg.LintersSettings, error) {
@@ -171,119 +171,4 @@ func parseConfig() (*pkg.LintersSettings, error) {
 	cfg.LintersSettings.MergeGlobal(&rootConfig.GlobalSettings.Linters)
 
 	return module.RemapLinterSettings(&cfg.LintersSettings, &rootConfig.GlobalSettings.Linters), nil
-}
-
-func PrintResult(errorList *errors.LintRuleErrorsList) {
-	errs := errorList.GetErrors()
-
-	if len(errs) == 0 {
-		return
-	}
-
-	slices.SortFunc(errs, func(a, b pkg.LinterError) int {
-		return cmp.Or(
-			cmp.Compare(a.Level, b.Level),
-			cmp.Compare(a.LinterID, b.LinterID),
-			cmp.Compare(a.RuleID, b.RuleID),
-		)
-	})
-
-	w := new(tabwriter.Writer)
-
-	const minWidth = 5
-
-	buf := bytes.NewBuffer([]byte{})
-	w.Init(buf, minWidth, 0, 0, ' ', 0)
-
-	for idx := range errs {
-		err := errs[idx]
-
-		msgColor := color.FgRed
-
-		if err.Level == pkg.Ignored {
-			// TODO: make it not global
-			if !flags.ShowIgnored {
-				continue
-			}
-
-			msgColor = color.FgWhite
-		}
-
-		if err.Level == pkg.Warn {
-			// TODO: make it not global
-			if flags.HideWarnings {
-				continue
-			}
-
-			msgColor = color.FgHiYellow
-		}
-
-		// header
-		fmt.Fprint(w, emoji.Sprintf(":monkey:"))
-		fmt.Fprint(w, color.New(color.FgHiBlue).SprintFunc()("["))
-
-		if err.RuleID != "" {
-			fmt.Fprint(w, color.New(color.FgHiBlue).SprintFunc()(err.RuleID+" "))
-		}
-
-		fmt.Fprintf(w, "%s\n", color.New(color.FgHiBlue).SprintfFunc()("(#%s)]", err.LinterID))
-
-		// body
-		fmt.Fprintf(w, "\t%s\t\t%s\n", "Message:", color.New(msgColor).SprintfFunc()(prepareString(err.Text)))
-
-		if err.ObjectID != "" && err.ObjectID != err.ModuleID {
-			fmt.Fprintf(w, "\t%s\t\t%s\n", "Object:", err.ObjectID)
-		}
-
-		if err.ObjectValue != nil {
-			value := fmt.Sprintf("%v", err.ObjectValue)
-
-			fmt.Fprintf(w, "\t%s\t\t%s\n", "Value:", prepareString(value))
-		}
-
-		if err.FilePath != "" {
-			fmt.Fprintf(w, "\t%s\t\t%s\n", "FilePath:", strings.TrimSpace(err.FilePath))
-		}
-
-		if err.LineNumber != 0 {
-			fmt.Fprintf(w, "\t%s\t\t%d\n", "LineNumber:", err.LineNumber)
-		}
-
-		if err.FixError != nil {
-			fmt.Fprintf(w, "\t%s\t\t%s\n", "AutofixError:", color.New(color.FgHiYellow).Sprint(err.FixError.Error()))
-		}
-
-		// if flags.ShowDocumentation {
-		// 	docURL := generateDocumentationURL(err.LinterID, err.RuleID)
-		// 	if docURL != "" {
-		// 		fmt.Fprintf(w, "\t%s\t\t%s\n", "Documentation:", docURL)
-		// 	}
-		// }
-
-		fmt.Fprintln(w)
-
-		w.Flush()
-	}
-
-	fmt.Println(buf.String())
-}
-
-// prepareString handle ussual string and prepare it for tablewriter
-func prepareString(input string) string {
-	// magic wrap const
-	const wrapLen = 100
-
-	w := &strings.Builder{}
-
-	// split wraps for tablewrite
-	split := strings.Split(wordwrap.WrapString(input, wrapLen), "\n")
-
-	// first string must be pure for correct handling
-	fmt.Fprint(w, strings.TrimSpace(split[0]))
-
-	for i := 1; i < len(split); i++ {
-		fmt.Fprintf(w, "\n\t\t\t%s", strings.TrimSpace(split[i]))
-	}
-
-	return w.String()
 }
