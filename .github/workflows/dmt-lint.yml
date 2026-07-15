@@ -70,7 +70,7 @@ jobs:
   lint-deckhouse:
     needs: resolve-skip
     if: needs.resolve-skip.outputs.skip != 'true'
-    name: lint-deckhouse
+    name: DMT verify deckhouse
     runs-on: ubuntu-latest
     steps:
       - name: Checkout dmt
@@ -105,7 +105,7 @@ jobs:
   lint-modules-template:
     needs: resolve-skip
     if: needs.resolve-skip.outputs.skip != 'true'
-    name: lint-modules-template
+    name: DMT verify modules-template
     runs-on: ubuntu-latest
     steps:
       - name: Checkout dmt
