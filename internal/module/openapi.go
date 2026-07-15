@@ -226,7 +226,14 @@ func parseProperty(key string, prop *spec.Schema, result map[string]any) error {
 
 func parseString(key, pattern string, result map[string]any) error {
 	if pattern == "" {
-		pattern = `^[a-zA-Z0-9]{8}$`
+		// No pattern in the module's own values schema, so we invent a placeholder.
+		// Generate a lowercase kebab-case string (e.g. "abcd-efgh") rather than an
+		// arbitrary mixed-case one: such values routinely flow into resource name /
+		// namespace / label fields, which downstream CRD schemas constrain to the
+		// DNS-1123 label pattern `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`. A mixed-case
+		// placeholder fails that pattern and produces spurious schema-validation
+		// findings; a lowercase kebab value satisfies it.
+		pattern = `^[a-z]{4}-[a-z]{4}$`
 	}
 
 	const limit = 8
