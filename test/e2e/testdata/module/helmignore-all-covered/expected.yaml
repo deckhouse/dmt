@@ -1,0 +1,6 @@
+description: >
+  .helmignore covers all module root directories (hooks/, images/, openapi/,
+  docs/, crds/) except templates/ which is required by Helm. No helmignore
+  errors should be reported.
+module: module
+expectClean: true
