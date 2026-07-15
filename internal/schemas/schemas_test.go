@@ -278,6 +278,57 @@ func TestRepoCRDsOverrideCatalog(t *testing.T) {
 	}
 }
 
+// TestValidate_NullOptionalFieldStripped reproduces manifests that render an
+// optional string field as an explicit null (e.g. `caFile: null` when a chart
+// leaves it empty). Kubernetes treats such nulls as unset, so validation must
+// not flag "got null, want string".
+func TestValidate_NullOptionalFieldStripped(t *testing.T) {
+	s := loadStoreWithCRD(t)
+
+	obj := mustObj(t, `
+apiVersion: example.deckhouse.io/v1alpha1
+kind: Widget
+metadata:
+  name: w1
+spec:
+  size: 3
+  mode: null
+`)
+
+	res := s.Validate(obj)
+	if !res.Found {
+		t.Fatal("expected schema to be found for Widget")
+	}
+
+	if !res.Valid() {
+		t.Fatalf("expected null optional field to be treated as unset, got errors: %v", res.Errors)
+	}
+}
+
+// TestValidate_NullRequiredFieldStillFails guards the flip side: stripping a null
+// must not mask a genuinely missing required field.
+func TestValidate_NullRequiredFieldStillFails(t *testing.T) {
+	s := loadStoreWithCRD(t)
+
+	obj := mustObj(t, `
+apiVersion: example.deckhouse.io/v1alpha1
+kind: Widget
+metadata:
+  name: w1
+spec:
+  size: null
+`)
+
+	res := s.Validate(obj)
+	if !res.Found {
+		t.Fatal("expected schema to be found for Widget")
+	}
+
+	if res.Valid() {
+		t.Fatal("expected a null required field to be reported as missing")
+	}
+}
+
 func TestValidateModuleCRD_Valid(t *testing.T) {
 	s := loadStoreWithCRD(t)
 

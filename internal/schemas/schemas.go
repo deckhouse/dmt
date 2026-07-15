@@ -314,7 +314,43 @@ func normalizeInstance(obj map[string]any) (any, error) {
 		return nil, fmt.Errorf("encode manifest: %w", err)
 	}
 
-	return jsonschema.UnmarshalJSON(bytes.NewReader(raw))
+	inst, err := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
+	if err != nil {
+		return nil, err
+	}
+
+	return stripNulls(inst), nil
+}
+
+// stripNulls removes object fields whose value is null, recursing through nested
+// objects and arrays. Kubernetes treats an explicit null on an optional field as
+// "unset" — it prunes such fields — so a template that renders e.g.
+// `caFile: null` for a value it left empty produces a manifest that is valid in
+// a real cluster. Dropping those nulls before validation matches that behaviour
+// and avoids spurious "got null, want <type>" findings. A null on a genuinely
+// required field still surfaces, correctly, as a missing-required-property error.
+func stripNulls(v any) any {
+	switch t := v.(type) {
+	case map[string]any:
+		for key, val := range t {
+			if val == nil {
+				delete(t, key)
+				continue
+			}
+
+			t[key] = stripNulls(val)
+		}
+
+		return t
+	case []any:
+		for i, val := range t {
+			t[i] = stripNulls(val)
+		}
+
+		return t
+	default:
+		return v
+	}
 }
 
 // formatValidationError flattens a validator error into concise, de-duplicated
