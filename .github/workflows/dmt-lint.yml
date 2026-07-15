@@ -1,7 +1,7 @@
 name: DMT Lint Verify
 
 # Verifies that the dmt build from this branch lints the real deckhouse codebase
-# without regressions. Runs on PRs and on main.
+# and the modules-template reference module without regressions. Runs on PRs and on main.
 #
 # Bypass: if the lint fails but the PR carries the "dmtlint-verify-skip" label,
 # the check passes (the failure is acknowledged and merge is allowed). Without
@@ -17,6 +17,11 @@ on:
     inputs:
       deckhouse_branch:
         description: 'Deckhouse branch or tag to run dmt lint on'
+        required: false
+        default: 'main'
+        type: string
+      template_branch:
+        description: 'modules-template branch or tag to run dmt lint on'
         required: false
         default: 'main'
         type: string
@@ -43,6 +48,8 @@ env:
   SKIP_LABEL: dmtlint-verify-skip
   DECKHOUSE_REPO: https://github.com/deckhouse/deckhouse.git
   DECKHOUSE_REF: ${{ inputs.deckhouse_branch || 'main' }}
+  TEMPLATE_REPO: https://github.com/deckhouse/modules-template.git
+  TEMPLATE_REF: ${{ inputs.template_branch || 'main' }}
 
 jobs:
   dmt-lint-verify:
@@ -104,6 +111,20 @@ jobs:
           DMT_MATRIX_LIMIT: ${{ inputs.matrix_limit }}
         run: bash .github/scripts/dmt-lint-deckhouse.sh
 
+      - name: Clone modules-template (${{ env.TEMPLATE_REF }})
+        if: steps.ctx.outputs.skip != 'true'
+        run: |
+          git clone --depth 1 --branch "${TEMPLATE_REF}" "${TEMPLATE_REPO}" "${RUNNER_TEMP}/modules-template"
+
+      - name: Lint modules-template with built dmt
+        id: lint-template
+        if: steps.ctx.outputs.skip != 'true'
+        continue-on-error: true
+        env:
+          DMT_BIN: ${{ github.workspace }}/dmt
+          SRC_DIR: ${{ runner.temp }}/modules-template
+        run: bash .github/scripts/dmt-lint-modules-template.sh
+
       - name: Evaluate result
         run: |
           if [[ "${{ steps.ctx.outputs.skip }}" == "true" ]]; then
@@ -111,10 +132,19 @@ jobs:
             exit 0
           fi
 
-          if [[ "${{ steps.lint.outcome }}" == "success" ]]; then
-            echo "dmt lint passed on the deckhouse codebase."
-            exit 0
+          FAILED=""
+
+          if [[ "${{ steps.lint.outcome }}" != "success" ]]; then
+            FAILED="${FAILED}  - deckhouse (review the 'Lint deckhouse with built dmt' step logs)\n"
           fi
 
-          echo "::error::dmt lint failed on the deckhouse codebase. Review the 'Lint deckhouse with built dmt' step logs. To acknowledge and allow merge anyway, add the '${SKIP_LABEL}' label to this PR."
-          exit 1
+          if [[ "${{ steps.lint-template.outcome }}" != "success" ]]; then
+            FAILED="${FAILED}  - modules-template (review the 'Lint modules-template with built dmt' step logs)\n"
+          fi
+
+          if [[ -n "${FAILED}" ]]; then
+            echo "::error::dmt lint failed on:\n${FAILED}To acknowledge and allow merge anyway, add the '${SKIP_LABEL}' label to this PR."
+            exit 1
+          fi
+
+          echo "dmt lint passed on deckhouse and modules-template."
