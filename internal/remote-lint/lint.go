@@ -12,6 +12,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/fatih/color"
+	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/kyokomi/emoji"
 	"github.com/mitchellh/go-wordwrap"
 
@@ -19,13 +20,12 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/registry/client"
 
 	"github.com/deckhouse/dmt/internal/flags"
+	"github.com/deckhouse/dmt/internal/manager"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/remote-linters/bundle/docs"
-	"github.com/deckhouse/dmt/pkg/remote-linters/bundle/layout"
-	releaseLayout "github.com/deckhouse/dmt/pkg/remote-linters/release/layout"
+	"github.com/deckhouse/dmt/pkg/linters/docs"
 )
 
 type RemoteLintOptions struct {
@@ -46,7 +46,8 @@ func RunRemoteLint(ctx context.Context, imagePath string, opts *RemoteLintOption
 
 	client := initRegistryClient(registryPath, opts.Login, opts.Password)
 
-	errorList := errors.NewLintRuleErrorsList() // .WithMaxLevel()
+	level := pkg.Error
+	errorList := errors.NewLintRuleErrorsList().WithMaxLevel(&level)
 
 	cfg, err := parseConfig()
 	if err != nil {
@@ -65,6 +66,10 @@ func RunRemoteLint(ctx context.Context, imagePath string, opts *RemoteLintOption
 
 	PrintResult(errorList)
 
+	if errorList.ContainsErrors() {
+		return fmt.Errorf("critical errors found")
+	}
+
 	return nil
 }
 
@@ -80,12 +85,17 @@ func lintBundle(ctx context.Context, client *client.Client, tag string, cfg *pkg
 	}
 	defer os.RemoveAll(tempDir)
 
-	os.RemoveAll(filepath.Join(tempDir, "docs"))
+	os.RemoveAll(filepath.Join(tempDir, "docs")) // debug: remove docs directory
 
 	linters := buildBundleLinters(tempDir, cfg, errorList.WithObjectID("bundle"))
 
 	for _, linter := range linters {
-		linter.Lint(ctx)
+		m, err := module.NewModule(tempDir, nil, nil, nil, errorList.WithObjectID("bundle"))
+		if err != nil {
+			return fmt.Errorf("failed to create module: %w", err)
+		}
+
+		linter.Run(m)
 	}
 
 	return nil
@@ -106,7 +116,7 @@ func lintRelease(ctx context.Context, client *client.Client, tag string, cfg *pk
 	linters := buildReleaseLinters(tempDir, errorList.WithObjectID("release"))
 
 	for _, linter := range linters {
-		linter.Lint(ctx)
+		linter.Run(nil)
 	}
 
 	return nil
@@ -119,30 +129,31 @@ func cutTagFromImagePath(imagePath string) (string, string, error) {
 		return "", "", fmt.Errorf("digest not supported")
 	}
 
-	if parts := strings.Split(imagePath, ":"); len(parts) == 2 {
-		return parts[0], parts[1], nil
+	ref, err := name.ParseReference(imagePath, name.WithDefaultTag(""))
+	if err != nil {
+		return "", "", fmt.Errorf("failed to parse image path: %w", err)
 	}
 
-	return "", "", fmt.Errorf("tag not found in image path: %s", imagePath)
+	tag := ref.Identifier()
+	if tag == "" {
+		return "", "", fmt.Errorf("tag not found in image path")
+	}
+
+	return ref.Context().Name(), tag, nil
 }
 
 type Linter interface {
-	Lint(ctx context.Context)
+	manager.Linter
 }
 
 func buildBundleLinters(path string, cfg *pkg.LintersSettings, errorList *errors.LintRuleErrorsList) []Linter {
 	return []Linter{
-		docs.NewLinter(path, &cfg.Documentation, errorList),
-		layout.NewLinter(layout.Config{Path: path}, errorList),
+		docs.New(&cfg.Documentation, errorList.WithMaxLevel(cfg.Documentation.Impact)),
 	}
 }
 
 func buildReleaseLinters(path string, errorList *errors.LintRuleErrorsList) []Linter {
-	layoutLinter := releaseLayout.NewLinter(releaseLayout.Config{Path: path}, errorList)
-
-	return []Linter{
-		layoutLinter,
-	}
+	return []Linter{}
 }
 
 func parseConfig() (*pkg.LintersSettings, error) {
