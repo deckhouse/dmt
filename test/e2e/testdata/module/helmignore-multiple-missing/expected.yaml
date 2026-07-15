@@ -1,0 +1,26 @@
+description: >
+  .helmignore only lists hooks/ but the module has images/, docs/, openapi/,
+  crds/ directories. module.yaml is excluded (read by Deckhouse directly).
+  templates/ and charts/ are skipped (module-template).
+module: module
+expect:
+  - linter: module
+    rule: helmignore
+    level: warn
+    textContains: "Directory 'images/' is not listed in .helmignore"
+    count: 1
+  - linter: module
+    rule: helmignore
+    level: warn
+    textContains: "Directory 'docs/' is not listed in .helmignore"
+    count: 1
+  - linter: module
+    rule: helmignore
+    level: warn
+    textContains: "Directory 'openapi/' is not listed in .helmignore"
+    count: 1
+  - linter: module
+    rule: helmignore
+    level: warn
+    textContains: "Directory 'crds/' is not listed in .helmignore"
+    count: 1

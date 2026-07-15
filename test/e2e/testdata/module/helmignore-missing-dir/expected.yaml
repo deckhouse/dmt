@@ -1,0 +1,16 @@
+description: >
+  .helmignore only lists hooks/ but the module also has images/ and openapi/
+  directories. module.yaml is excluded (read by Deckhouse directly).
+  The rule must report each uncovered directory.
+module: module
+expect:
+  - linter: module
+    rule: helmignore
+    level: warn
+    textContains: "Directory 'images/' is not listed in .helmignore"
+    count: 1
+  - linter: module
+    rule: helmignore
+    level: warn
+    textContains: "Directory 'openapi/' is not listed in .helmignore"
+    count: 1
