@@ -43,8 +43,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  SKIP_DECKHOUSE_LABEL: dmtlint-verify-skip-deckhouse
-  SKIP_TEMPLATE_LABEL: dmtlint-verify-skip-modules-template
+  SKIP_LABEL: dmtlint-verify-skip
   DECKHOUSE_REPO: https://github.com/deckhouse/deckhouse.git
   DECKHOUSE_REF: ${{ inputs.deckhouse_branch || 'main' }}
   TEMPLATE_REPO: https://github.com/deckhouse/modules-template.git
@@ -59,8 +58,8 @@ jobs:
         id: skip
         run: |
           if [[ "${{ github.event_name }}" == "pull_request" ]] \
-            && [[ "${{ contains(github.event.pull_request.labels.*.name, env.SKIP_DECKHOUSE_LABEL) }}" == "true" ]]; then
-            echo "::warning::'${SKIP_DECKHOUSE_LABEL}' label present — skipping deckhouse lint."
+            && [[ "${{ contains(github.event.pull_request.labels.*.name, env.SKIP_LABEL) }}" == "true" ]]; then
+            echo "::warning::'${SKIP_LABEL}' label present — skipping deckhouse lint."
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
@@ -109,8 +108,8 @@ jobs:
         id: skip
         run: |
           if [[ "${{ github.event_name }}" == "pull_request" ]] \
-            && [[ "${{ contains(github.event.pull_request.labels.*.name, env.SKIP_TEMPLATE_LABEL) }}" == "true" ]]; then
-            echo "::warning::'${SKIP_TEMPLATE_LABEL}' label present — skipping modules-template lint."
+            && [[ "${{ contains(github.event.pull_request.labels.*.name, env.SKIP_LABEL) }}" == "true" ]]; then
+            echo "::warning::'${SKIP_LABEL}' label present — skipping modules-template lint."
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
