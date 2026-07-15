@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"text/tabwriter"
@@ -14,10 +15,13 @@ import (
 	"github.com/kyokomi/emoji"
 	"github.com/mitchellh/go-wordwrap"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/deckhouse/deckhouse/pkg/registry/client"
 
 	"github.com/deckhouse/dmt/internal/flags"
+	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg"
+	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/remote-linters/bundle/docs"
 	"github.com/deckhouse/dmt/pkg/remote-linters/bundle/layout"
@@ -25,6 +29,7 @@ import (
 )
 
 type RemoteLintOptions struct {
+	Config *config.RootConfig
 	// Login is the username to use for the registry e.g. license-token
 	Login string
 	// Password is the password to use for the registry
@@ -43,12 +48,17 @@ func RunRemoteLint(ctx context.Context, imagePath string, opts *RemoteLintOption
 
 	errorList := errors.NewLintRuleErrorsList() // .WithMaxLevel()
 
-	err = lintBundle(ctx, client, tag, errorList)
+	cfg, err := parseConfig()
+	if err != nil {
+		return fmt.Errorf("failed to parse config: %w", err)
+	}
+
+	err = lintBundle(ctx, client, tag, cfg, errorList)
 	if err != nil {
 		return fmt.Errorf("failed to lint bundle: %w", err)
 	}
 
-	err = lintRelease(ctx, client, tag, errorList)
+	err = lintRelease(ctx, client, tag, cfg, errorList)
 	if err != nil {
 		return fmt.Errorf("failed to lint release: %w", err)
 	}
@@ -58,7 +68,7 @@ func RunRemoteLint(ctx context.Context, imagePath string, opts *RemoteLintOption
 	return nil
 }
 
-func lintBundle(ctx context.Context, client *client.Client, tag string, errorList *errors.LintRuleErrorsList) error {
+func lintBundle(ctx context.Context, client *client.Client, tag string, cfg *pkg.LintersSettings, errorList *errors.LintRuleErrorsList) error {
 	image, err := client.GetImage(ctx, tag)
 	if err != nil {
 		return fmt.Errorf("failed to get image: %w", err)
@@ -70,7 +80,9 @@ func lintBundle(ctx context.Context, client *client.Client, tag string, errorLis
 	}
 	defer os.RemoveAll(tempDir)
 
-	linters := buildBundleLinters(tempDir, errorList.WithObjectID("bundle"))
+	os.RemoveAll(filepath.Join(tempDir, "docs"))
+
+	linters := buildBundleLinters(tempDir, cfg, errorList.WithObjectID("bundle"))
 
 	for _, linter := range linters {
 		linter.Lint(ctx)
@@ -79,7 +91,7 @@ func lintBundle(ctx context.Context, client *client.Client, tag string, errorLis
 	return nil
 }
 
-func lintRelease(ctx context.Context, client *client.Client, tag string, errorList *errors.LintRuleErrorsList) error {
+func lintRelease(ctx context.Context, client *client.Client, tag string, cfg *pkg.LintersSettings, errorList *errors.LintRuleErrorsList) error {
 	image, err := client.WithSegment("release").GetImage(ctx, tag)
 	if err != nil {
 		return fmt.Errorf("failed to get release image: %w", err)
@@ -89,13 +101,7 @@ func lintRelease(ctx context.Context, client *client.Client, tag string, errorLi
 	if err != nil {
 		return fmt.Errorf("failed to extract release image: %w", err)
 	}
-
-	// remove temp dir if there are no errors
-	defer func(errs *errors.LintRuleErrorsList) {
-		if !errs.ContainsErrors() {
-			os.RemoveAll(tempDir)
-		}
-	}(errorList)
+	defer os.RemoveAll(tempDir)
 
 	linters := buildReleaseLinters(tempDir, errorList.WithObjectID("release"))
 
@@ -124,13 +130,10 @@ type Linter interface {
 	Lint(ctx context.Context)
 }
 
-func buildBundleLinters(path string, errorList *errors.LintRuleErrorsList) []Linter {
-	docsLinter := docs.NewLinter(docs.Config{Path: path}, errorList)
-	layoutLinter := layout.NewLinter(layout.Config{Path: path}, errorList)
-
+func buildBundleLinters(path string, cfg *pkg.LintersSettings, errorList *errors.LintRuleErrorsList) []Linter {
 	return []Linter{
-		docsLinter,
-		layoutLinter,
+		docs.NewLinter(path, &cfg.Documentation, errorList),
+		layout.NewLinter(layout.Config{Path: path}, errorList),
 	}
 }
 
@@ -140,6 +143,23 @@ func buildReleaseLinters(path string, errorList *errors.LintRuleErrorsList) []Li
 	return []Linter{
 		layoutLinter,
 	}
+}
+
+func parseConfig() (*pkg.LintersSettings, error) {
+	rootConfig, err := config.NewDefaultRootConfig(".")
+	if err != nil {
+		log.Fatal("default root config", log.Err(err)) //nolint:gocritic
+	}
+
+	// Load module config
+	cfg := &config.ModuleConfig{}
+	if err := config.NewLoader(cfg, ".").Load(); err != nil {
+		return nil, fmt.Errorf("can not parse module config: %w", err)
+	}
+
+	cfg.LintersSettings.MergeGlobal(&rootConfig.GlobalSettings.Linters)
+
+	return module.RemapLinterSettings(&cfg.LintersSettings, &rootConfig.GlobalSettings.Linters), nil
 }
 
 func PrintResult(errorList *errors.LintRuleErrorsList) {

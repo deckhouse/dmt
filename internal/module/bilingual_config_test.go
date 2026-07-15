@@ -12,13 +12,13 @@ import (
 
 func TestRemapOpenAPIBilingualRuleLevel(t *testing.T) {
 	t.Run("defaults to error", func(t *testing.T) {
-		settings := remapLinterSettings(&config.LintersSettings{}, &global.Linters{})
+		settings := RemapLinterSettings(&config.LintersSettings{}, &global.Linters{})
 
 		require.Equal(t, pkg.Error, *settings.OpenAPI.Rules.BilingualRule.GetLevel())
 	})
 
 	t.Run("uses global warning level", func(t *testing.T) {
-		settings := remapLinterSettings(&config.LintersSettings{}, &global.Linters{
+		settings := RemapLinterSettings(&config.LintersSettings{}, &global.Linters{
 			OpenAPI: global.OpenAPILinterConfig{
 				Rules: global.OpenAPIRules{
 					BilingualRule: global.RuleConfig{Impact: pkg.Warn.String()},
