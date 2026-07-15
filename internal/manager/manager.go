@@ -59,6 +59,10 @@ import (
 
 const (
 	baseRepoURL = "https://github.com/deckhouse/dmt/tree/main"
+
+	// logProgressEvery throttles the per-module "Run linters" progress line in
+	// --matrix mode: the first variant and every Nth one afterwards are logged.
+	logProgressEvery = 50
 )
 
 func generateDocumentationURL(linterID, ruleID string) string {
@@ -305,6 +309,13 @@ func (m *Manager) Run() {
 	errorList := m.errors.WithLinterID("manager")
 
 	for ti := range m.targets {
+		// linted counts the successfully-rendered variants of this module. In
+		// --matrix mode a module expands to thousands of variants, each of which
+		// would otherwise log an identical "Run linters" line; throttle it to the
+		// first variant and every logProgressEvery-th thereafter. Incremented only
+		// from this (single) producer goroutine, so no synchronization is needed.
+		linted := 0
+
 		// Variants are pulled lazily: forEachVariant advances the matrix sequence
 		// only as fast as the callback consumes it, and the callback blocks on
 		// liveSlots when the worker pool is full. So a module with millions of
@@ -323,6 +334,12 @@ func (m *Manager) Run() {
 				return true
 			}
 
+			linted++
+			if linted == 1 || linted%logProgressEvery == 0 {
+				log.Info("Run linters for module",
+					slog.String("module", mdl.GetName()), slog.Int("variant", linted))
+			}
+
 			wg.Add(1)
 
 			go func(mdl *module.Module) {
@@ -334,8 +351,6 @@ func (m *Manager) Run() {
 					<-liveSlots
 					wg.Done()
 				}()
-
-				log.Info("Run linters for module", slog.String("module", mdl.GetName()))
 
 				for _, linter := range getLintersForModule(mdl.GetModuleConfig(), m.errors) {
 					if flags.LinterName != "" && linter.Name() != flags.LinterName {
@@ -350,6 +365,15 @@ func (m *Manager) Run() {
 
 			return true
 		})
+
+		// Always surface where the module finished: log the last variant too,
+		// unless the throttle above already emitted it (the first, or a multiple
+		// of logProgressEvery). Safe to read linted here — the producer is done
+		// enumerating this target and only it ever writes linted.
+		if linted > 1 && linted%logProgressEvery != 0 {
+			log.Info("Run linters for module",
+				slog.String("module", m.targets[ti].moduleName), slog.Int("variant", linted))
+		}
 	}
 
 	wg.Wait()
