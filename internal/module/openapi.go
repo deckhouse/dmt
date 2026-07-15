@@ -352,48 +352,52 @@ func parseArray(key string, prop *spec.Schema, result map[string]any) error {
 }
 
 func parseOneOf(key string, prop *spec.Schema, result map[string]any) error {
-	downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
-	mergedSchema := mergeSchemas(downwardSchema, prop.OneOf...)
-
-	t, err := parseProperties(mergedSchema)
-	if err != nil {
-		return err
-	}
-
-	if t != nil {
-		result[key] = t
-	}
-
-	return nil
+	return parseComposite(key, prop, prop.OneOf, result)
 }
 
 func parseAnyOf(key string, prop *spec.Schema, result map[string]any) error {
-	downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
-	mergedSchema := mergeSchemas(downwardSchema, prop.AnyOf...)
-
-	t, err := parseProperties(mergedSchema)
-	if err != nil {
-		return err
-	}
-
-	if t != nil {
-		result[key] = t
-	}
-
-	return nil
+	return parseComposite(key, prop, prop.AnyOf, result)
 }
 
 func parseAllOf(key string, prop *spec.Schema, result map[string]any) error {
-	downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
-	mergedSchema := mergeSchemas(downwardSchema, prop.AllOf...)
+	return parseComposite(key, prop, prop.AllOf, result)
+}
 
-	t, err := parseProperties(mergedSchema)
-	if err != nil {
-		return err
+// parseComposite generates a value for a schema that uses oneOf/anyOf/allOf.
+// When the branches contribute object properties, they are merged and generated
+// as an object (the historical behaviour). When they don't — e.g. the common
+// int-or-string quantity shape `oneOf: [{type: string}, {type: number}]` — the
+// merged schema has no properties, and generating it as an object would yield a
+// bogus empty `{}`. That `{}` then renders into fields like resources.requests.cpu
+// and trips schema validation ("got object, want null or number"). In that case
+// generate a scalar from the first branch that declares a concrete type instead.
+func parseComposite(key string, prop *spec.Schema, branches []spec.Schema, result map[string]any) error {
+	downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
+	mergedSchema := mergeSchemas(downwardSchema, branches...)
+
+	if len(mergedSchema.Properties) > 0 {
+		t, err := parseProperties(mergedSchema)
+		if err != nil {
+			return err
+		}
+
+		if t != nil {
+			result[key] = t
+		}
+
+		return nil
 	}
 
-	if t != nil {
-		result[key] = t
+	// No object shape to build: pick the first branch with a concrete scalar
+	// type (or enum) and generate that, so int-or-string style unions yield a
+	// valid scalar rather than an empty object.
+	for i := range branches {
+		branch := branches[i]
+		if len(branch.Enum) > 0 || branch.Type.Contains("string") ||
+			branch.Type.Contains("integer") || branch.Type.Contains("number") ||
+			branch.Type.Contains("boolean") {
+			return parseProperty(key, &branch, result)
+		}
 	}
 
 	return nil
