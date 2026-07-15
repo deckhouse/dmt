@@ -289,30 +289,40 @@ func decodeValuesFile(path string) (chartutil.Values, error) {
 
 func (m *Manager) Run() {
 	wg := new(sync.WaitGroup)
-	processingCh := make(chan struct{}, flags.LintersLimit)
+
+	// liveSlots bounds how many rendered modules exist at once. A slot is taken
+	// before a module is rendered and released only after it has been linted and
+	// freed, so peak memory stays ~worker-count modules — not every variant at
+	// once, which is what exhausts memory on large --matrix runs.
+	liveSlots := make(chan struct{}, flags.LintersLimit)
 
 	errorList := m.errors.WithLinterID("manager")
 
 	for idx := range m.variants {
-		processingCh <- struct{}{}
+		// Acquire a slot, then render in this (single) producer goroutine.
+		// Rendering stays strictly sequential on purpose: nelm's chart loader and
+		// template engine keep shared, non-synchronized state, so rendering
+		// several charts concurrently both races (fatal "concurrent map writes")
+		// and spikes memory. Concurrency is applied to linting instead, below.
+		liveSlots <- struct{}{}
+
+		mdl := m.renderVariant(m.variants[idx], errorList)
+		if mdl == nil {
+			<-liveSlots
+			continue
+		}
 
 		wg.Add(1)
 
-		go func(v moduleVariant) {
+		go func(mdl *module.Module) {
 			defer func() {
-				<-processingCh
+				// Release the rendered objects (returning the store to the pool)
+				// as soon as linting finishes, then free the slot so the producer
+				// can render the next variant.
+				mdl.Release()
+				<-liveSlots
 				wg.Done()
 			}()
-
-			// Render lazily here rather than up front: only the worker-count
-			// modules in flight are resident, so peak memory stays bounded even
-			// when --matrix expands to thousands of variants. The rendered module
-			// is dropped when this goroutine returns, freeing its chart and object
-			// store before the next variant is built.
-			mdl := m.renderVariant(v, errorList)
-			if mdl == nil {
-				return
-			}
 
 			log.Info("Run linters for module", slog.String("module", mdl.GetName()))
 
@@ -325,11 +335,7 @@ func (m *Manager) Run() {
 
 				linter.Run(mdl)
 			}
-
-			// Release the rendered objects as soon as linting finishes instead of
-			// waiting for the goroutine's stack frame to be reclaimed.
-			mdl.Release()
-		}(m.variants[idx])
+		}(mdl)
 	}
 
 	wg.Wait()
