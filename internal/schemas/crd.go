@@ -19,6 +19,7 @@ package schemas
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -79,24 +80,44 @@ func (s *Store) LoadModuleCRDs(dir string) error {
 	return nil
 }
 
-// loadCRDDoc registers the schemas of a single CRD document.
+// loadCRDDoc registers the schemas of a single CRD document as the module's own
+// (authoritative) CRDs, recording any null-keyword notes for the caller.
 func (s *Store) loadCRDDoc(doc []byte) error {
+	compiled, notes, err := compileCRDDoc(doc)
+	if err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	maps.Copy(s.module, compiled)
+	s.notes = append(s.notes, notes...)
+
+	return nil
+}
+
+// compileCRDDoc parses a single CustomResourceDefinition document and compiles
+// the OpenAPI v3 schema of each served version into a validator, keyed by lookup
+// key. It also returns any null-keyword notes (see SchemaNote) gathered while
+// sanitizing. Non-CRD documents yield an empty result and no error.
+func compileCRDDoc(doc []byte) (map[string]*jsonschema.Schema, []SchemaNote, error) {
 	var obj map[string]any
 	if err := yaml.Unmarshal(doc, &obj); err != nil {
-		return fmt.Errorf("parse: %w", err)
+		return nil, nil, fmt.Errorf("parse: %w", err)
 	}
 
 	if len(obj) == 0 {
-		return nil
+		return nil, nil, nil
 	}
 
 	if kind, _ := obj["kind"].(string); kind != "CustomResourceDefinition" {
-		return nil
+		return nil, nil, nil
 	}
 
 	spec, _ := obj["spec"].(map[string]any)
 	if spec == nil {
-		return nil
+		return nil, nil, nil
 	}
 
 	group, _ := spec["group"].(string)
@@ -105,29 +126,30 @@ func (s *Store) loadCRDDoc(doc []byte) error {
 	crdKind, _ := names["kind"].(string)
 
 	if group == "" || crdKind == "" {
-		return nil
+		return nil, nil, nil
 	}
 
 	schemasByVersion := crdVersionSchemas(spec)
 	if len(schemasByVersion) == 0 {
-		return nil
+		return nil, nil, nil
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	out := make(map[string]*jsonschema.Schema, len(schemasByVersion))
+
+	var notes []SchemaNote
 
 	for version, rawSchema := range schemasByVersion {
 		sanitized, dropped := sanitizeOpenAPISchema(rawSchema)
 
 		sch, err := compileFromDocument(sanitized)
 		if err != nil {
-			return fmt.Errorf("compile %s/%s %s: %w", group, version, crdKind, err)
+			return nil, nil, fmt.Errorf("compile %s/%s %s: %w", group, version, crdKind, err)
 		}
 
-		s.module[crdLookupKey(group, version, crdKind)] = sch
+		out[crdLookupKey(group, version, crdKind)] = sch
 
 		for _, path := range dropped {
-			s.notes = append(s.notes, SchemaNote{
+			notes = append(notes, SchemaNote{
 				Group:   group,
 				Version: version,
 				Kind:    crdKind,
@@ -136,7 +158,7 @@ func (s *Store) loadCRDDoc(doc []byte) error {
 		}
 	}
 
-	return nil
+	return out, notes, nil
 }
 
 // crdVersionSchemas extracts the OpenAPI v3 schema for each served version of a

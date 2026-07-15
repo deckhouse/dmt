@@ -47,6 +47,9 @@ var catalog []byte
 const (
 	sourceK8s = "k8s"
 	sourceCRD = "crd"
+	// sourceDeckhouse marks a schema resolved from the deckhouse repository's own
+	// CRDs, which take precedence over the bundled third-party catalog.
+	sourceDeckhouse = "deckhouse"
 )
 
 // entryKey builds a catalog map key from a schema source and a lookup key.

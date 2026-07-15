@@ -61,6 +61,14 @@ func (r *SchemaValidationRule) ValidateResourceSchemas(m pkg.Module, errorList *
 
 	store := schemas.New()
 
+	// The deckhouse repository is the source of truth for CRD versions: a kind
+	// defined anywhere in the repo (e.g. cert-manager's Certificate under
+	// 101-cert-manager) validates against that definition instead of the lagging
+	// bundled catalog. Loaded once per repo root and shared across modules.
+	if root := schemas.DeckhouseRoot(m.GetPath()); root != "" {
+		store.UseRepoCRDs(schemas.LoadRepoCRDs(root))
+	}
+
 	// A module's own CRDs are authoritative for the resources it defines.
 	crdsDir := filepath.Join(m.GetPath(), crdsDirName)
 	if err := store.LoadModuleCRDs(crdsDir); err != nil {

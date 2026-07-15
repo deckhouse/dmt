@@ -168,6 +168,114 @@ spec:
 	}
 }
 
+// repoCertificateCRD is a trimmed cert-manager Certificate CRD that, unlike the
+// bundled catalog snapshot, declares the modern spec.certificateOwnerRef field.
+const repoCertificateCRD = `
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: certificates.cert-manager.io
+spec:
+  group: cert-manager.io
+  names:
+    kind: Certificate
+    plural: certificates
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required: [secretName]
+              properties:
+                secretName:
+                  type: string
+                certificateOwnerRef:
+                  type: boolean
+`
+
+// certWithOwnerRef renders a Certificate using the field missing from the
+// bundled catalog. It is valid for the cert-manager version deckhouse ships.
+const certWithOwnerRef = `
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: hubble
+  namespace: d8-cni-cilium
+spec:
+  secretName: hubble-tls
+  certificateOwnerRef: true
+`
+
+// makeDeckhouseTree creates a minimal directory that DeckhouseRoot recognises as
+// a repository root, with one module shipping the given CRD under crds/.
+func makeDeckhouseTree(t *testing.T, module, crd string) string {
+	t.Helper()
+
+	root := t.TempDir()
+	openapi := filepath.Join(root, "global-hooks", "openapi")
+	if err := os.MkdirAll(openapi, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{"config-values.yaml", "values.yaml"} {
+		if err := os.WriteFile(filepath.Join(openapi, f), []byte("type: object\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	crdsDir := filepath.Join(root, "modules", module, "crds")
+	if err := os.MkdirAll(crdsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(crdsDir, "certificate.yaml"), []byte(crd), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	return root
+}
+
+// TestRepoCRDsOverrideCatalog proves the deckhouse repository's own CRDs win over
+// the bundled catalog: a Certificate using certificateOwnerRef is rejected by the
+// stale catalog but accepted once the repo overlay is in effect.
+func TestRepoCRDsOverrideCatalog(t *testing.T) {
+	root := makeDeckhouseTree(t, "101-cert-manager", repoCertificateCRD)
+
+	if got := DeckhouseRoot(filepath.Join(root, "modules", "500-cilium-hubble")); got != root {
+		t.Fatalf("DeckhouseRoot = %q, want %q", got, root)
+	}
+
+	obj := mustObj(t, certWithOwnerRef)
+
+	// Control: against the bundled catalog alone the field is rejected.
+	catalogOnly := New()
+	if err := catalogOnly.Prepare([]map[string]any{obj}); err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+	if res := catalogOnly.Validate(obj); res.Found && res.Valid() {
+		t.Fatal("expected the stale catalog schema to reject certificateOwnerRef (control)")
+	}
+
+	// With the repo overlay the same object validates against deckhouse's CRD.
+	s := New()
+	s.UseRepoCRDs(LoadRepoCRDs(root))
+	if err := s.Prepare([]map[string]any{obj}); err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+
+	res := s.Validate(obj)
+	if res.SchemaSource != sourceDeckhouse {
+		t.Fatalf("expected schema source %q, got %q", sourceDeckhouse, res.SchemaSource)
+	}
+	if !res.Valid() {
+		t.Fatalf("expected repo CRD to accept certificateOwnerRef, got errors: %v", res.Errors)
+	}
+}
+
 func TestValidateModuleCRD_Valid(t *testing.T) {
 	s := loadStoreWithCRD(t)
 

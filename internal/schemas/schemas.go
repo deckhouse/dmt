@@ -54,6 +54,12 @@ type Store struct {
 	// compiled from their OpenAPI v3 definitions. Keyed by lookup key.
 	module map[string]*jsonschema.Schema
 
+	// repo holds the deckhouse repository's own CRDs (all modules' crds/),
+	// shared read-only across stores and loaded once per root. They override the
+	// bundled catalog: deckhouse is the source of truth for the CRD versions it
+	// ships. Keyed by lookup key; must not be mutated.
+	repo map[string]*jsonschema.Schema
+
 	// notes collects non-fatal adjustments made while loading module CRDs (see
 	// SchemaNote), so the caller can surface them to the module author.
 	notes []SchemaNote
@@ -184,23 +190,41 @@ func (s *Store) lookup(group, version, kind string) (*jsonschema.Schema, string)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// 1. Module-provided CRDs win over the bundled catalog so a module's own
-	// definition is authoritative for its resources.
+	// 1. Module-provided CRDs win over everything so a module's own definition is
+	// authoritative for its resources.
 	if sch, ok := s.module[crdLookupKey(group, version, kind)]; ok {
 		return sch, "module"
 	}
 
-	// 2. Third-party CRDs from the datree catalog (keyed by full group).
+	// 2. Deckhouse repository CRDs override the external catalog: the truth is the
+	// CRD version deckhouse actually ships, not the lagging upstream snapshot. A
+	// kind defined anywhere in the repo therefore never falls through to the
+	// catalog below.
+	if sch, ok := s.repo[crdLookupKey(group, version, kind)]; ok {
+		return sch, sourceDeckhouse
+	}
+
+	// 3. Third-party CRDs from the datree catalog (keyed by full group).
 	if sch := s.compiledCatalogLocked(sourceCRD, crdLookupKey(group, version, kind)); sch != nil {
 		return sch, sourceCRD
 	}
 
-	// 3. Built-in Kubernetes types (keyed by the group's first DNS label).
+	// 4. Built-in Kubernetes types (keyed by the group's first DNS label).
 	if sch := s.compiledCatalogLocked(sourceK8s, k8sLookupKey(group, version, kind)); sch != nil {
 		return sch, sourceK8s
 	}
 
 	return nil, ""
+}
+
+// UseRepoCRDs registers the deckhouse repository's own CRDs (see LoadRepoCRDs)
+// as an overlay that takes precedence over the bundled catalog. The map is
+// shared read-only across stores and must not be mutated.
+func (s *Store) UseRepoCRDs(repo map[string]*jsonschema.Schema) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.repo = repo
 }
 
 // compiledCatalogLocked returns the compiled schema for a catalog entry that was
