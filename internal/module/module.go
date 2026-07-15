@@ -17,7 +17,6 @@ limitations under the License.
 package module
 
 import (
-	"cmp"
 	_ "embed"
 	"errors"
 	"fmt"
@@ -314,7 +313,7 @@ func mapDocumentationRules(linterSettings *pkg.LintersSettings, configSettings *
 	rules.NoLangKeyRule.SetLevel(globalRules.NoLangKeyRule.Impact, fallbackImpact)
 	// markdownlint defaults to warn (non-fatal) rather than error; explicit
 	// rule-level or documentation-linter-level impact still overrides it.
-	rules.MarkdownlintRule.SetLevel(globalRules.MarkdownlintRule.Impact, cmp.Or(fallbackImpact, pkg.Warn.String()))
+	rules.MarkdownlintRule.SetLevel(globalRules.MarkdownlintRule.Impact, pkg.Warn.String())
 }
 
 func mapModuleRules(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings, globalConfig *global.Linters) {
