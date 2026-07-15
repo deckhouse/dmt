@@ -35,6 +35,7 @@ package matrix
 
 import (
 	"fmt"
+	"iter"
 	"sort"
 	"strings"
 
@@ -69,44 +70,60 @@ type Variant struct {
 	Label string
 }
 
-// Generate returns the value variants to render for the module at modulePath,
-// using valuesFile (e.g. "values.yaml") as the openapi values schema. The first
-// variant is always the default (no overrides), so matrix output is a superset
-// of a normal lint. At most limit combinations are produced.
-func Generate(modulePath, valuesFile string, limit int) ([]Variant, error) {
+// Generate returns a lazy sequence of value variants to render for the module
+// at modulePath, using valuesFile (e.g. "values.yaml") as the openapi values
+// schema, along with the total number of variants the sequence will yield. The
+// first variant is always the default (no overrides), so matrix output is a
+// superset of a normal lint. At most limit combinations are produced.
+//
+// The sequence is lazy on purpose: a module whose schema expands to millions of
+// combinations would exhaust memory if every override tree were materialized up
+// front, so each variant's overrides are built only as it is consumed. The
+// returned count is computed without materializing anything (a cheap product
+// for the cartesian case, the pairwise set size otherwise), so callers can log
+// it before iterating.
+func Generate(modulePath, valuesFile string, limit int) (iter.Seq[Variant], int, error) {
 	if limit <= 0 {
 		limit = defaultLimit
 	}
 
 	camelName, err := moduleCamelName(modulePath)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	schema, err := values.GetModuleValuesForValuesFile(modulePath, valuesFile)
 	if err != nil {
-		return nil, fmt.Errorf("load module values schema: %w", err)
+		return nil, 0, fmt.Errorf("load module values schema: %w", err)
 	}
 
 	axes := discoverAxes(schema)
 
 	// Always start with the default (no-override) render.
-	variants := []Variant{{Overrides: nil, Label: "default"}}
+	defaultVariant := Variant{Overrides: nil, Label: "default"}
 
 	if len(axes) == 0 {
-		return variants, nil
+		return sliceSeq([]Variant{defaultVariant}), 1, nil
 	}
 
-	combos := combinations(axes, max(1, limit-1))
+	comboSeq, comboCount := combinationsSeq(axes, max(1, limit-1))
 
-	for _, combo := range combos {
-		variants = append(variants, Variant{
-			Overrides: buildOverride(camelName, axes, combo),
-			Label:     comboLabel(axes, combo),
-		})
+	seq := func(yield func(Variant) bool) {
+		if !yield(defaultVariant) {
+			return
+		}
+
+		for combo := range comboSeq {
+			if !yield(Variant{
+				Overrides: buildOverride(camelName, axes, combo),
+				Label:     comboLabel(axes, combo),
+			}) {
+				return
+			}
+		}
 	}
 
-	return variants, nil
+	return seq, comboCount + 1, nil
 }
 
 // discoverAxes walks a module values schema and collects one Axis per node that

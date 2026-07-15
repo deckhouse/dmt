@@ -77,12 +77,12 @@ type Linter interface {
 type Manager struct {
 	cfg *config.RootConfig
 
-	// variants is the flattened lint work list: one entry per module in the
-	// default mode, or one per discovered value combination in --matrix mode.
-	// Each entry is rendered into a module.Module lazily inside Run so that only
-	// worker-count modules are resident in memory at a time — in --matrix mode
-	// materializing every variant up front exhausts memory on large module sets.
-	variants []moduleVariant
+	// targets is the set of module directories to lint. Matrix value
+	// combinations are generated lazily per target inside Run (never collected
+	// into a slice), and each is rendered into a module.Module on demand, so only
+	// worker-count modules are resident at a time — a schema that expands to
+	// millions of combinations neither materializes them nor holds them rendered.
+	targets []moduleTarget
 
 	errors *errors.LintRuleErrorsList
 
@@ -95,6 +95,14 @@ type Manager struct {
 	// (see internal/matrix); matrixLimit caps the combinations per module.
 	matrix      bool
 	matrixLimit int
+}
+
+// moduleTarget is a discovered module directory awaiting linting. Its variants
+// are generated lazily in Run, so the manager only holds one cheap entry per
+// module regardless of how many matrix combinations each expands to.
+type moduleTarget struct {
+	path       string
+	moduleName string
 }
 
 // moduleVariant is one unit of lint work: a module path plus the value
@@ -168,8 +176,6 @@ func (m *Manager) initManager(dir string) *Manager {
 	m.baseVals = vals
 	m.globalValues = globalValues
 
-	errorList := m.errors.WithLinterID("manager")
-
 	for i := range paths {
 		moduleName := filepath.Base(paths[i])
 		log.Debug("Found module", slog.String("module", moduleName))
@@ -179,51 +185,51 @@ func (m *Manager) initManager(dir string) *Manager {
 			continue
 		}
 
-		m.variants = append(m.variants, m.expandModuleVariants(paths[i], moduleName, errorList)...)
+		m.targets = append(m.targets, moduleTarget{path: paths[i], moduleName: moduleName})
 	}
 
-	log.Info("Found modules", slog.Int("count", len(m.variants)))
+	log.Info("Found modules", slog.Int("count", len(m.targets)))
 
 	return m
 }
 
-// expandModuleVariants enumerates the lint work items for a single module path.
-// In the default mode this is a single item rendered with the generated (plus
-// --values-file) values. In --matrix mode it is one item per discovered value
-// combination, so conditionally-rendered resources are reached too. Only the
-// (cheap) value overrides are computed here; the actual render is deferred to
-// Run so that variants do not all occupy memory at once.
-func (m *Manager) expandModuleVariants(
-	path, moduleName string,
-	errorList *errors.LintRuleErrorsList,
-) []moduleVariant {
-	generated := []matrix.Variant{{}}
+// forEachVariant invokes fn for each lint variant of a target, generated
+// lazily. In the default mode that is the single default variant (the generated
+// plus --values-file values). In --matrix mode it is the default plus every
+// discovered value combination, streamed one at a time so a schema expanding to
+// millions of combinations is never materialized as a slice. fn returning false
+// stops iteration early.
+func (m *Manager) forEachVariant(t moduleTarget, errorList *errors.LintRuleErrorsList, fn func(moduleVariant) bool) {
+	if !m.matrix {
+		fn(moduleVariant{path: t.path, moduleName: t.moduleName})
+		return
+	}
 
-	if m.matrix {
-		variants, err := matrix.Generate(path, "values.yaml", m.matrixLimit)
-		if err != nil {
-			errorList.WithFilePath(path).WithModule(moduleName).
-				WithValue(err.Error()).
-				Errorf("cannot expand matrix variants for module `%s`", moduleName)
-		} else {
-			generated = variants
-			log.Info("Matrix variants for module",
-				slog.String("module", moduleName), slog.Int("count", len(generated)))
+	seq, count, err := matrix.Generate(t.path, "values.yaml", m.matrixLimit)
+	if err != nil {
+		errorList.WithFilePath(t.path).WithModule(t.moduleName).
+			WithValue(err.Error()).
+			Errorf("cannot expand matrix variants for module `%s`", t.moduleName)
+
+		// Fall back to the default variant so the module is still linted.
+		fn(moduleVariant{path: t.path, moduleName: t.moduleName})
+
+		return
+	}
+
+	log.Info("Matrix variants for module",
+		slog.String("module", t.moduleName), slog.Int("count", count))
+
+	for v := range seq {
+		if !fn(moduleVariant{
+			path:       t.path,
+			moduleName: t.moduleName,
+			label:      v.Label,
+			overrides:  v.Overrides,
+		}) {
+			return
 		}
 	}
-
-	out := make([]moduleVariant, 0, len(generated))
-
-	for idx := range generated {
-		out = append(out, moduleVariant{
-			path:       path,
-			moduleName: moduleName,
-			label:      generated[idx].Label,
-			overrides:  generated[idx].Overrides,
-		})
-	}
-
-	return out
 }
 
 // renderVariant builds the module.Module for one work item. It returns nil when
@@ -298,44 +304,52 @@ func (m *Manager) Run() {
 
 	errorList := m.errors.WithLinterID("manager")
 
-	for idx := range m.variants {
-		// Acquire a slot, then render in this (single) producer goroutine.
-		// Rendering stays strictly sequential on purpose: nelm's chart loader and
-		// template engine keep shared, non-synchronized state, so rendering
-		// several charts concurrently both races (fatal "concurrent map writes")
-		// and spikes memory. Concurrency is applied to linting instead, below.
-		liveSlots <- struct{}{}
+	for ti := range m.targets {
+		// Variants are pulled lazily: forEachVariant advances the matrix sequence
+		// only as fast as the callback consumes it, and the callback blocks on
+		// liveSlots when the worker pool is full. So a module with millions of
+		// combinations is enumerated one variant at a time, never as a slice.
+		m.forEachVariant(m.targets[ti], errorList, func(v moduleVariant) bool {
+			// Acquire a slot, then render in this (single) producer goroutine.
+			// Rendering stays strictly sequential on purpose: nelm's chart loader
+			// and template engine keep shared, non-synchronized state, so rendering
+			// several charts concurrently both races (fatal "concurrent map
+			// writes") and spikes memory. Concurrency is applied to linting below.
+			liveSlots <- struct{}{}
 
-		mdl := m.renderVariant(m.variants[idx], errorList)
-		if mdl == nil {
-			<-liveSlots
-			continue
-		}
-
-		wg.Add(1)
-
-		go func(mdl *module.Module) {
-			defer func() {
-				// Release the rendered objects (returning the store to the pool)
-				// as soon as linting finishes, then free the slot so the producer
-				// can render the next variant.
-				mdl.Release()
+			mdl := m.renderVariant(v, errorList)
+			if mdl == nil {
 				<-liveSlots
-				wg.Done()
-			}()
-
-			log.Info("Run linters for module", slog.String("module", mdl.GetName()))
-
-			for _, linter := range getLintersForModule(mdl.GetModuleConfig(), m.errors) {
-				if flags.LinterName != "" && linter.Name() != flags.LinterName {
-					continue
-				}
-
-				log.Debug("Running linter", slog.String("linter", linter.Name()), slog.String("module", mdl.GetName()))
-
-				linter.Run(mdl)
+				return true
 			}
-		}(mdl)
+
+			wg.Add(1)
+
+			go func(mdl *module.Module) {
+				defer func() {
+					// Release the rendered objects (returning the store to the
+					// pool) as soon as linting finishes, then free the slot so the
+					// producer can render the next variant.
+					mdl.Release()
+					<-liveSlots
+					wg.Done()
+				}()
+
+				log.Info("Run linters for module", slog.String("module", mdl.GetName()))
+
+				for _, linter := range getLintersForModule(mdl.GetModuleConfig(), m.errors) {
+					if flags.LinterName != "" && linter.Name() != flags.LinterName {
+						continue
+					}
+
+					log.Debug("Running linter", slog.String("linter", linter.Name()), slog.String("module", mdl.GetName()))
+
+					linter.Run(mdl)
+				}
+			}(mdl)
+
+			return true
+		})
 	}
 
 	wg.Wait()

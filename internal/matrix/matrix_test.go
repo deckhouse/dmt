@@ -19,6 +19,7 @@ package matrix
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -78,9 +79,15 @@ func writeTestModule(t *testing.T) string {
 func TestGenerate_IncludesDefaultAndCombos(t *testing.T) {
 	dir := writeTestModule(t)
 
-	variants, err := Generate(dir, "values.yaml", 100)
+	seq, count, err := Generate(dir, "values.yaml", 100)
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
+	}
+
+	variants := slices.Collect(seq)
+
+	if len(variants) != count {
+		t.Fatalf("reported count %d but sequence yielded %d variants", count, len(variants))
 	}
 
 	if len(variants) < 2 {
@@ -166,10 +173,12 @@ func TestGenerate_ExpandsOneOf(t *testing.T) {
 	writeFile(filepath.Join("openapi", "config-values.yaml"), oneOfConfigValues)
 	writeFile(filepath.Join("openapi", "values.yaml"), valuesSchema)
 
-	variants, err := Generate(dir, "values.yaml", 100)
+	seq, _, err := Generate(dir, "values.yaml", 100)
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
+
+	variants := slices.Collect(seq)
 
 	// The non-default (generated Balanced) "Static" branch must be reachable in
 	// at least one variant, either via the oneOf branch value or the mode enum.

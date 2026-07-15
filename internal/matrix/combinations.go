@@ -18,20 +18,25 @@ package matrix
 
 import (
 	"fmt"
+	"iter"
+	"slices"
 	"strings"
 )
 
-// combinations returns index-tuples (one value index per axis) to render. When
-// the full cartesian product fits within limit it is returned in full;
-// otherwise an all-pairs set is produced so every pair of axis values still
-// co-occurs in at least one tuple, then capped at limit.
-func combinations(axes []Axis, limit int) [][]int {
+// combinationsSeq returns a lazy sequence of index-tuples (one value index per
+// axis) to render, plus the total number it will yield. When the full cartesian
+// product fits within limit it is streamed in full — generated one tuple at a
+// time via a mixed-radix counter, so a schema that expands to millions of
+// combinations never materializes them all at once. Otherwise an all-pairs set
+// is built (bounded, and capped at limit) so every pair of axis values still
+// co-occurs in at least one tuple.
+func combinationsSeq(axes []Axis, limit int) (iter.Seq[[]int], int) {
 	if len(axes) == 0 || limit <= 0 {
-		return nil
+		return sliceSeq[[]int](nil), 0
 	}
 
 	if size, ok := cartesianSize(axes, limit); ok {
-		return cartesian(axes, size)
+		return cartesianSeq(axes), size
 	}
 
 	combos := pairwise(axes)
@@ -39,7 +44,25 @@ func combinations(axes []Axis, limit int) [][]int {
 		combos = combos[:limit]
 	}
 
-	return combos
+	return sliceSeq(combos), len(combos)
+}
+
+// combinations collects combinationsSeq into a slice. It is a convenience for
+// tests; production code consumes the lazy sequence directly.
+func combinations(axes []Axis, limit int) [][]int {
+	seq, _ := combinationsSeq(axes, limit)
+	return slices.Collect(seq)
+}
+
+// sliceSeq adapts a slice into an iter.Seq without copying its elements.
+func sliceSeq[T any](s []T) iter.Seq[T] {
+	return func(yield func(T) bool) {
+		for i := range s {
+			if !yield(s[i]) {
+				return
+			}
+		}
+	}
 }
 
 // cartesianSize returns the product of axis lengths, and false if it exceeds
@@ -57,33 +80,39 @@ func cartesianSize(axes []Axis, limit int) (int, bool) {
 	return size, true
 }
 
-func cartesian(axes []Axis, size int) [][]int {
-	combos := make([][]int, 0, size)
-	idx := make([]int, len(axes))
+// cartesianSeq lazily yields every index-tuple of the axes' cartesian product
+// via a mixed-radix counter, allocating only the single tuple it is about to
+// yield. This is what lets --matrix mode enumerate an arbitrarily large product
+// (e.g. a module expanding to >1M combinations) without holding it in memory.
+func cartesianSeq(axes []Axis) iter.Seq[[]int] {
+	return func(yield func([]int) bool) {
+		idx := make([]int, len(axes))
 
-	for {
-		combo := make([]int, len(axes))
-		copy(combo, idx)
-		combos = append(combos, combo)
+		for {
+			combo := make([]int, len(axes))
+			copy(combo, idx)
 
-		// increment the mixed-radix counter
-		pos := len(axes) - 1
-		for pos >= 0 {
-			idx[pos]++
-			if idx[pos] < len(axes[pos].Values) {
-				break
+			if !yield(combo) {
+				return
 			}
 
-			idx[pos] = 0
-			pos--
-		}
+			// increment the mixed-radix counter
+			pos := len(axes) - 1
+			for pos >= 0 {
+				idx[pos]++
+				if idx[pos] < len(axes[pos].Values) {
+					break
+				}
 
-		if pos < 0 {
-			break
+				idx[pos] = 0
+				pos--
+			}
+
+			if pos < 0 {
+				return
+			}
 		}
 	}
-
-	return combos
 }
 
 // pairwise returns a set of tuples covering every pair of (axis, value) across
