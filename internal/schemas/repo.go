@@ -85,34 +85,32 @@ func buildRepoCRDs(root string) map[string]*jsonschema.Schema {
 			return nil
 		}
 
-		mergeCRDDir(path, out)
+		// Compile the whole crds/ subtree at once (deckhouse nests CRDs in
+		// subdirectories, e.g. crds/cert-manager/), then skip re-descending it.
+		mergeCRDTree(path, out)
 
-		return nil
+		return filepath.SkipDir
 	})
 
 	return out
 }
 
-// mergeCRDDir compiles every CRD document in a single crds/ directory into out.
-func mergeCRDDir(dir string, out map[string]*jsonschema.Schema) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
+// mergeCRDTree compiles every CRD document found anywhere under a crds/ subtree
+// into out, recursing into nested directories.
+func mergeCRDTree(dir string, out map[string]*jsonschema.Schema) {
+	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
 		}
 
-		name := entry.Name()
+		name := d.Name()
 		if !strings.HasSuffix(name, ".yaml") && !strings.HasSuffix(name, ".yml") {
-			continue
+			return nil
 		}
 
-		content, err := os.ReadFile(filepath.Join(dir, name))
+		content, err := os.ReadFile(path)
 		if err != nil {
-			continue
+			return nil
 		}
 
 		for _, doc := range splitYAML(string(content)) {
@@ -130,7 +128,9 @@ func mergeCRDDir(dir string, out map[string]*jsonschema.Schema) {
 				}
 			}
 		}
-	}
+
+		return nil
+	})
 }
 
 // DeckhouseRoot walks up from dir to the deckhouse repository root, identified

@@ -228,11 +228,13 @@ func makeDeckhouseTree(t *testing.T, module, crd string) string {
 		}
 	}
 
-	crdsDir := filepath.Join(root, "modules", module, "crds")
+	// Nest the CRD in a subdirectory (crds/cert-manager/…) exactly as deckhouse
+	// ships cert-manager's CRDs, so the loader must recurse to find it.
+	crdsDir := filepath.Join(root, "modules", module, "crds", "cert-manager")
 	if err := os.MkdirAll(crdsDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(crdsDir, "certificate.yaml"), []byte(crd), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(crdsDir, "cert-manager.io_certificates.yaml"), []byte(crd), 0o600); err != nil {
 		t.Fatal(err)
 	}
 

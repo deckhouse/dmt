@@ -19,6 +19,7 @@ package schemas
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
@@ -29,14 +30,14 @@ import (
 )
 
 // LoadModuleCRDs parses every CustomResourceDefinition found under dir (the
-// module's crds/ directory) and registers a compiled schema for each of its
-// served versions. These take precedence over the bundled catalog. A missing
-// directory is not an error. Individual CRDs that fail to parse or compile are
-// skipped and reported through the returned (aggregated) error, so a single bad
-// file never prevents the rest from being used.
+// module's crds/ directory, searched recursively — deckhouse nests CRDs in
+// subdirectories such as crds/cert-manager/) and registers a compiled schema
+// for each of its served versions. These take precedence over the bundled
+// catalog. A missing directory is not an error. Individual CRDs that fail to
+// parse or compile are skipped and reported through the returned (aggregated)
+// error, so a single bad file never prevents the rest from being used.
 func (s *Store) LoadModuleCRDs(dir string) error {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
+	if _, err := os.Stat(dir); err != nil {
 		if os.IsNotExist(err) {
 			return nil
 		}
@@ -46,24 +47,22 @@ func (s *Store) LoadModuleCRDs(dir string) error {
 
 	var problems []string
 
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
+	walkErr := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
 		}
 
-		name := entry.Name()
+		name := d.Name()
 		if !strings.HasSuffix(name, ".yaml") && !strings.HasSuffix(name, ".yml") {
-			continue
+			return nil
 		}
 
 		// Deckhouse ships doc-only helper files (e.g. doc-ru-*.yaml) alongside
-		// CRDs; they are not definitions and are ignored below by kind.
-		path := filepath.Join(dir, name)
-
+		// CRDs; they are not definitions and are ignored by loadCRDDoc by kind.
 		content, err := os.ReadFile(path)
 		if err != nil {
 			problems = append(problems, fmt.Sprintf("%s: %s", name, err))
-			continue
+			return nil
 		}
 
 		for _, doc := range splitYAML(string(content)) {
@@ -71,6 +70,11 @@ func (s *Store) LoadModuleCRDs(dir string) error {
 				problems = append(problems, fmt.Sprintf("%s: %s", name, err))
 			}
 		}
+
+		return nil
+	})
+	if walkErr != nil {
+		return fmt.Errorf("walk crds dir: %w", walkErr)
 	}
 
 	if len(problems) > 0 {
