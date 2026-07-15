@@ -75,15 +75,40 @@ type Linter interface {
 }
 
 type Manager struct {
-	cfg     *config.RootConfig
-	Modules []*module.Module
+	cfg *config.RootConfig
+
+	// variants is the flattened lint work list: one entry per module in the
+	// default mode, or one per discovered value combination in --matrix mode.
+	// Each entry is rendered into a module.Module lazily inside Run so that only
+	// worker-count modules are resident in memory at a time — in --matrix mode
+	// materializing every variant up front exhausts memory on large module sets.
+	variants []moduleVariant
 
 	errors *errors.LintRuleErrorsList
+
+	// baseVals and globalValues are the render inputs captured at init and reused
+	// when each variant is rendered on demand.
+	baseVals     chartutil.Values
+	globalValues *spec.Schema
 
 	// matrix enables rendering every value combination of each module
 	// (see internal/matrix); matrixLimit caps the combinations per module.
 	matrix      bool
 	matrixLimit int
+}
+
+// moduleVariant is one unit of lint work: a module path plus the value
+// overrides that select which template branches to render. Rendering is
+// deferred to Run, so this struct stays cheap and many can be held at once.
+type moduleVariant struct {
+	path       string
+	moduleName string
+	// label describes the matrix combination; empty for the base variant.
+	label string
+	// overrides is the matrix value override tree; nil for the base variant. A
+	// nil overrides marks the one variant whose render failure is a genuine
+	// module defect rather than an invalid value combination.
+	overrides chartutil.Values
 }
 
 // Option customizes a Manager at construction time.
@@ -140,6 +165,9 @@ func (m *Manager) initManager(dir string) *Manager {
 		return m
 	}
 
+	m.baseVals = vals
+	m.globalValues = globalValues
+
 	errorList := m.errors.WithLinterID("manager")
 
 	for i := range paths {
@@ -151,58 +179,83 @@ func (m *Manager) initManager(dir string) *Manager {
 			continue
 		}
 
-		m.Modules = append(m.Modules, m.loadModuleVariants(paths[i], moduleName, vals, globalValues, errorList)...)
+		m.variants = append(m.variants, m.expandModuleVariants(paths[i], moduleName, errorList)...)
 	}
 
-	log.Info("Found modules", slog.Int("count", len(m.Modules)))
+	log.Info("Found modules", slog.Int("count", len(m.variants)))
 
 	return m
 }
 
-// loadModuleVariants builds the module(s) to lint for a single path. In the
-// default mode this is a single module rendered with the generated (plus
-// --values-file) values. In --matrix mode it is one module per discovered value
-// combination, so conditionally-rendered resources are reached too.
-func (m *Manager) loadModuleVariants(
+// expandModuleVariants enumerates the lint work items for a single module path.
+// In the default mode this is a single item rendered with the generated (plus
+// --values-file) values. In --matrix mode it is one item per discovered value
+// combination, so conditionally-rendered resources are reached too. Only the
+// (cheap) value overrides are computed here; the actual render is deferred to
+// Run so that variants do not all occupy memory at once.
+func (m *Manager) expandModuleVariants(
 	path, moduleName string,
-	baseVals chartutil.Values,
-	globalValues *spec.Schema,
 	errorList *errors.LintRuleErrorsList,
-) []*module.Module {
-	variants := []matrix.Variant{{}}
+) []moduleVariant {
+	generated := []matrix.Variant{{}}
 
 	if m.matrix {
-		generated, err := matrix.Generate(path, "values.yaml", m.matrixLimit)
+		variants, err := matrix.Generate(path, "values.yaml", m.matrixLimit)
 		if err != nil {
 			errorList.WithFilePath(path).WithModule(moduleName).
 				WithValue(err.Error()).
 				Errorf("cannot expand matrix variants for module `%s`", moduleName)
 		} else {
-			variants = generated
+			generated = variants
 			log.Info("Matrix variants for module",
-				slog.String("module", moduleName), slog.Int("count", len(variants)))
+				slog.String("module", moduleName), slog.Int("count", len(generated)))
 		}
 	}
 
-	modules := make([]*module.Module, 0, len(variants))
+	out := make([]moduleVariant, 0, len(generated))
 
-	for idx := range variants {
-		vals := mergeValues(baseVals, variants[idx].Overrides)
-
-		mdl, err := module.NewModule(path, &vals, globalValues, m.cfg, errorList)
-		if err != nil {
-			errorList.
-				WithFilePath(path).WithModule(moduleName).
-				WithValue(err.Error()).
-				Errorf("cannot create module `%s`", moduleName)
-
-			continue
-		}
-
-		modules = append(modules, mdl)
+	for idx := range generated {
+		out = append(out, moduleVariant{
+			path:       path,
+			moduleName: moduleName,
+			label:      generated[idx].Label,
+			overrides:  generated[idx].Overrides,
+		})
 	}
 
-	return modules
+	return out
+}
+
+// renderVariant builds the module.Module for one work item. It returns nil when
+// the variant cannot be rendered: a matrix variant (non-nil overrides) that
+// fails is almost always an invalid value combination the chart rejects via
+// `fail` (e.g. two mutually-exclusive parameters), so it is skipped quietly.
+// Only the base variant's failure is reported as a genuine "module doesn't
+// build" error.
+func (m *Manager) renderVariant(v moduleVariant, errorList *errors.LintRuleErrorsList) *module.Module {
+	vals := mergeValues(m.baseVals, v.overrides)
+
+	mdl, err := module.NewModule(v.path, &vals, m.globalValues, m.cfg, errorList)
+	if err == nil {
+		return mdl
+	}
+
+	if v.overrides != nil {
+		log.Debug("skipping matrix variant that failed to render",
+			slog.String("module", v.moduleName),
+			slog.String("variant", v.label),
+			slog.String("error", err.Error()),
+		)
+
+		return nil
+	}
+
+	errorList.
+		WithFilePath(v.path).WithModule(v.moduleName).
+		WithValue(err.Error()).
+		Errorf("cannot create module `%s`", v.moduleName)
+
+	return nil
 }
 
 // mergeValues returns a fresh value tree with override applied on top of base.
@@ -238,29 +291,45 @@ func (m *Manager) Run() {
 	wg := new(sync.WaitGroup)
 	processingCh := make(chan struct{}, flags.LintersLimit)
 
-	for _, module := range m.Modules {
+	errorList := m.errors.WithLinterID("manager")
+
+	for idx := range m.variants {
 		processingCh <- struct{}{}
 
 		wg.Add(1)
 
-		go func() {
+		go func(v moduleVariant) {
 			defer func() {
 				<-processingCh
 				wg.Done()
 			}()
 
-			log.Info("Run linters for module", slog.String("module", module.GetName()))
+			// Render lazily here rather than up front: only the worker-count
+			// modules in flight are resident, so peak memory stays bounded even
+			// when --matrix expands to thousands of variants. The rendered module
+			// is dropped when this goroutine returns, freeing its chart and object
+			// store before the next variant is built.
+			mdl := m.renderVariant(v, errorList)
+			if mdl == nil {
+				return
+			}
 
-			for _, linter := range getLintersForModule(module.GetModuleConfig(), m.errors) {
+			log.Info("Run linters for module", slog.String("module", mdl.GetName()))
+
+			for _, linter := range getLintersForModule(mdl.GetModuleConfig(), m.errors) {
 				if flags.LinterName != "" && linter.Name() != flags.LinterName {
 					continue
 				}
 
-				log.Debug("Running linter", slog.String("linter", linter.Name()), slog.String("module", module.GetName()))
+				log.Debug("Running linter", slog.String("linter", linter.Name()), slog.String("module", mdl.GetName()))
 
-				linter.Run(module)
+				linter.Run(mdl)
 			}
-		}()
+
+			// Release the rendered objects as soon as linting finishes instead of
+			// waiting for the goroutine's stack frame to be reclaimed.
+			mdl.Release()
+		}(m.variants[idx])
 	}
 
 	wg.Wait()
