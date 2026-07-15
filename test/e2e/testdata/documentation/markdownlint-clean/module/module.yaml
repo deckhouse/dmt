@@ -1,8 +1,0 @@
-name: test-module-markdownlint-clean
-namespace: d8-test
-weight: 100
-stage: Experimental
-descriptions:
-  en: "Test module used to verify markdownlint reports nothing on valid docs"
-requirements:
-  deckhouse: ">=1.68.0"

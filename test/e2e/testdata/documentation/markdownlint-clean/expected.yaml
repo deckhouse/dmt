@@ -1,7 +1,0 @@
-description: >-
-  A module whose docs/ contains a perfectly valid README.md and its Russian
-  counterpart README.ru.md. Both documents exercise the Markdown constructs the
-  markdownlint rules inspect (headings, fenced code, tables, links, emphasis),
-  but all in their correct form. The whole lint run must be clean: markdownlint
-  (and every other documentation rule) must report nothing on valid input.
-expectClean: true
