@@ -2,15 +2,11 @@ name: DMT Lint Verify
 
 # Verifies that the dmt build from this branch lints the real deckhouse codebase
 # and the modules-template reference module without regressions. Runs on PRs and on main.
-#
-# Bypass: if the lint fails but the PR carries the "dmtlint-verify-skip" label,
-# the check passes (the failure is acknowledged and merge is allowed). Without
-# the label a lint failure blocks the merge.
 on:
   push:
     branches: [ main ]
   pull_request:
-    types: [ opened, synchronize, reopened, labeled, unlabeled ]
+    types: [ opened, synchronize, reopened ]
   workflow_dispatch:
     inputs:
       deckhouse_branch:
@@ -43,33 +39,13 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  SKIP_LABEL: dmtlint-verify-skip
   DECKHOUSE_REPO: https://github.com/deckhouse/deckhouse.git
   DECKHOUSE_REF: ${{ inputs.deckhouse_branch || 'main' }}
   TEMPLATE_REPO: https://github.com/deckhouse/modules-template.git
   TEMPLATE_REF: ${{ inputs.template_branch || 'main' }}
 
 jobs:
-  resolve-skip:
-    name: resolve-skip
-    runs-on: ubuntu-latest
-    outputs:
-      skip: ${{ steps.ctx.outputs.skip }}
-    steps:
-      - name: Resolve skip label
-        id: ctx
-        run: |
-          if [[ "${{ github.event_name }}" == "pull_request" ]] \
-            && [[ "${{ contains(github.event.pull_request.labels.*.name, env.SKIP_LABEL) }}" == "true" ]]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::'${SKIP_LABEL}' label present — dmt lint verification will be skipped."
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
-
   lint-deckhouse:
-    needs: resolve-skip
-    if: needs.resolve-skip.outputs.skip != 'true'
     name: DMT verify deckhouse
     runs-on: ubuntu-latest
     steps:
@@ -103,8 +79,6 @@ jobs:
         run: bash .github/scripts/dmt-lint-deckhouse.sh
 
   lint-modules-template:
-    needs: resolve-skip
-    if: needs.resolve-skip.outputs.skip != 'true'
     name: DMT verify modules-template
     runs-on: ubuntu-latest
     steps:
