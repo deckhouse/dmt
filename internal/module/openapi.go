@@ -189,6 +189,11 @@ func parseProperties(tempNode *spec.Schema) (map[string]any, error) {
 	return result, nil
 }
 
+// parseProperty generates a value for a single schema property. An explicitly
+// provided value wins — the dmt-proprietary x-dmt-default, then x-example /
+// x-examples, then a schema default; only when none is present does it fabricate
+// a placeholder from the declared type so templates still have something to
+// render.
 func parseProperty(key string, prop *spec.Schema, result map[string]any) error {
 	switch {
 	case prop.Extensions[DmtDefault] != nil:
