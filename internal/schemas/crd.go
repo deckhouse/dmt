@@ -117,12 +117,23 @@ func (s *Store) loadCRDDoc(doc []byte) error {
 	defer s.mu.Unlock()
 
 	for version, rawSchema := range schemasByVersion {
-		sch, err := compileFromDocument(sanitizeOpenAPISchema(rawSchema))
+		sanitized, dropped := sanitizeOpenAPISchema(rawSchema)
+
+		sch, err := compileFromDocument(sanitized)
 		if err != nil {
 			return fmt.Errorf("compile %s/%s %s: %w", group, version, crdKind, err)
 		}
 
 		s.module[crdLookupKey(group, version, crdKind)] = sch
+
+		for _, path := range dropped {
+			s.notes = append(s.notes, SchemaNote{
+				Group:   group,
+				Version: version,
+				Kind:    crdKind,
+				Path:    path,
+			})
+		}
 	}
 
 	return nil
@@ -205,24 +216,25 @@ func compileFromDocument(doc map[string]any) (*jsonschema.Schema, error) {
 //   - boolean exclusiveMinimum/Maximum (OpenAPI/draft-4 form) are dropped as
 //     they are incompatible with modern JSON Schema drafts.
 //
-// The returned value is a deep copy; the input is not modified.
-func sanitizeOpenAPISchema(in map[string]any) map[string]any {
-	out, _ := sanitizeNode(in).(map[string]any)
-	if out == nil {
-		out = map[string]any{}
+// The returned value is a deep copy; the input is not modified. dropped
+// collects the paths of null-valued keywords that were removed (see sanitizeMap).
+func sanitizeOpenAPISchema(in map[string]any) (out map[string]any, dropped []string) {
+	sanitized, _ := sanitizeNode(in, "", &dropped).(map[string]any)
+	if sanitized == nil {
+		sanitized = map[string]any{}
 	}
 
-	return out
+	return sanitized, dropped
 }
 
-func sanitizeNode(node any) any {
+func sanitizeNode(node any, path string, dropped *[]string) any {
 	switch v := node.(type) {
 	case map[string]any:
-		return sanitizeMap(v)
+		return sanitizeMap(v, path, dropped)
 	case []any:
 		items := make([]any, 0, len(v))
-		for _, item := range v {
-			items = append(items, sanitizeNode(item))
+		for i, item := range v {
+			items = append(items, sanitizeNode(item, fmt.Sprintf("%s/%d", path, i), dropped))
 		}
 
 		return items
@@ -231,7 +243,7 @@ func sanitizeNode(node any) any {
 	}
 }
 
-func sanitizeMap(in map[string]any) map[string]any {
+func sanitizeMap(in map[string]any, path string, dropped *[]string) map[string]any {
 	out := make(map[string]any, len(in))
 
 	preserveUnknown := boolValue(in["x-kubernetes-preserve-unknown-fields"])
@@ -239,7 +251,20 @@ func sanitizeMap(in map[string]any) map[string]any {
 	nullable := boolValue(in["nullable"])
 
 	for key, value := range in {
+		child := strings.TrimPrefix(path+"/"+key, "/")
+
 		switch {
+		case value == nil && key != "default" && key != "const":
+			// A null keyword value (e.g. `maxLength:` or `description:` left empty
+			// in a CRD) is invalid against the JSON Schema metaschema — maxLength
+			// wants an integer, description a string — and carries no constraint
+			// anyway. Drop it so the schema compiles instead of failing the whole
+			// module's CRD load, and record the path so the caller can nudge the
+			// author to clean it up. (default/const legitimately accept null; null
+			// enum entries live inside arrays and are handled by sanitizeNode.)
+			*dropped = append(*dropped, child)
+
+			continue
 		case strings.HasPrefix(key, "x-kubernetes-"):
 			continue
 		case key == "nullable":
@@ -256,9 +281,9 @@ func sanitizeMap(in map[string]any) map[string]any {
 				continue
 			}
 
-			out[key] = sanitizeNode(value)
+			out[key] = sanitizeNode(value, child, dropped)
 		default:
-			out[key] = sanitizeNode(value)
+			out[key] = sanitizeNode(value, child, dropped)
 		}
 	}
 

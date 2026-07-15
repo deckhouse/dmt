@@ -53,6 +53,32 @@ type Store struct {
 	// module holds schemas for the CRDs shipped by the module under test,
 	// compiled from their OpenAPI v3 definitions. Keyed by lookup key.
 	module map[string]*jsonschema.Schema
+
+	// notes collects non-fatal adjustments made while loading module CRDs (see
+	// SchemaNote), so the caller can surface them to the module author.
+	notes []SchemaNote
+}
+
+// SchemaNote records a non-fatal adjustment made while loading a module CRD.
+// The only note today is a dropped null-valued schema keyword — e.g. a
+// `maxLength:` or `description:` left empty in the CRD, which YAML parses as
+// null. Kubernetes treats such optional keywords as unset, so dmt does too
+// (dropping them keeps the schema compilable), but it is worth cleaning up.
+type SchemaNote struct {
+	Group   string
+	Version string
+	Kind    string
+	// Path is the location of the offending keyword within the CRD's
+	// openAPIV3Schema, e.g. "properties/spec/properties/name/maxLength".
+	Path string
+}
+
+// ModuleCRDNotes returns the notes gathered by LoadModuleCRDs.
+func (s *Store) ModuleCRDNotes() []SchemaNote {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.notes
 }
 
 // New returns an empty Store. Embedded schemas are loaded lazily on the first

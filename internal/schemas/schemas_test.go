@@ -88,6 +88,86 @@ func mustObj(t *testing.T, manifest string) map[string]any {
 	return obj
 }
 
+// nullKeywordCRD reproduces deckhouse CRDs (e.g. user-authn) that leave schema
+// keywords empty, which YAML parses as null. maxLength/description as null are
+// invalid against the JSON Schema metaschema and used to fail the whole CRD
+// load; sanitizeMap must drop them so the schema still compiles.
+const nullKeywordCRD = `
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: gadgets.example.deckhouse.io
+spec:
+  group: example.deckhouse.io
+  names:
+    kind: Gadget
+    plural: gadgets
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                name:
+                  type: string
+                  maxLength:
+                  description:
+`
+
+func TestLoadModuleCRDs_NullKeywordsDropped(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "gadget.yaml"), []byte(nullKeywordCRD), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	s := New()
+	if err := s.LoadModuleCRDs(dir); err != nil {
+		t.Fatalf("LoadModuleCRDs must tolerate null keyword values, got: %v", err)
+	}
+
+	// The dropped nulls must be surfaced as notes so the author can clean them up.
+	notes := s.ModuleCRDNotes()
+	gotPaths := make(map[string]bool, len(notes))
+	for _, n := range notes {
+		if n.Kind != "Gadget" || n.Group != "example.deckhouse.io" || n.Version != "v1" {
+			t.Errorf("unexpected note identity: %+v", n)
+		}
+		gotPaths[n.Path] = true
+	}
+
+	for _, want := range []string{
+		"properties/spec/properties/name/maxLength",
+		"properties/spec/properties/name/description",
+	} {
+		if !gotPaths[want] {
+			t.Errorf("expected a note for dropped null keyword %q; got notes %+v", want, notes)
+		}
+	}
+
+	// The CRD must still be usable for validation after the nulls are dropped.
+	res := s.Validate(mustObj(t, `
+apiVersion: example.deckhouse.io/v1
+kind: Gadget
+metadata:
+  name: g1
+spec:
+  name: hello
+`))
+	if !res.Found {
+		t.Fatal("expected the compiled Gadget schema to be found")
+	}
+
+	if !res.Valid() {
+		t.Fatalf("expected a valid object, got errors: %v", res.Errors)
+	}
+}
+
 func TestValidateModuleCRD_Valid(t *testing.T) {
 	s := loadStoreWithCRD(t)
 

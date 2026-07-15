@@ -62,9 +62,19 @@ func (r *SchemaValidationRule) ValidateResourceSchemas(m pkg.Module, errorList *
 	store := schemas.New()
 
 	// A module's own CRDs are authoritative for the resources it defines.
-	if err := store.LoadModuleCRDs(filepath.Join(m.GetPath(), crdsDirName)); err != nil {
-		errorList.WithFilePath(filepath.Join(m.GetPath(), crdsDirName)).
+	crdsDir := filepath.Join(m.GetPath(), crdsDirName)
+	if err := store.LoadModuleCRDs(crdsDir); err != nil {
+		errorList.WithFilePath(crdsDir).
 			Warnf("failed to load module CRDs for schema validation: %s", err)
+	}
+
+	// Surface CRDs that ship null-valued keywords (e.g. an empty `maxLength:`).
+	// dmt tolerates them — Kubernetes treats such optional keywords as unset — but
+	// they are worth cleaning up. Reported as warnings so validation still runs.
+	for _, note := range store.ModuleCRDNotes() {
+		errorList.WithFilePath(crdsDir).
+			Warnf("CRD %s %s/%s has a null keyword at %q — set a value or remove the key",
+				note.Kind, note.Group, note.Version, note.Path)
 	}
 
 	// Collect object bodies once so the embedded catalog is streamed a single
