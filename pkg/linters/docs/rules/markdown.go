@@ -125,15 +125,8 @@ func deckhouseMarkdownlintConfig() map[string]any {
 			"stern":                  false, // Stern length checking
 		},
 
-		// MD053/link-image-reference-definitions - Link and image reference
-		// definitions should be needed.
-		// "MD053": false,
-
-		// MD059/descriptive-link-text - Link text should be descriptive.
-		// "MD059": false,
-
 		// MD060/table-column-style - Table column style.
-		// "MD060": false,
+		"MD060": false,
 
 		// MD022/blanks-around-headings/blanks-around-headers - Headings should be surrounded by blank lines
 		"MD022": map[string]any{
