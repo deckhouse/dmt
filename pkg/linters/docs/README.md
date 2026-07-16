@@ -455,13 +455,15 @@ Findings are reported as `MDxxx/rule-name …`. Look up the code below to see wh
 | MD049 / emphasis-style | Italic style must be consistent (`*` or `_`). |
 | MD050 / strong-style | Bold style must be consistent (`**` or `__`). |
 | MD052 / reference-links-images | Reference links/images must point to a defined label. |
+| MD053 / link-image-reference-definitions | Reference definitions (`[label]: url`) must be used — no unused ones. |
 | MD055 / table-pipe-style | Table leading/trailing pipe (`\|`) style must be consistent. |
 | MD056 / table-column-count | Every table row must have the same number of columns. |
 | MD058 / blanks-around-tables | Tables must be surrounded by blank lines. |
+| MD059 / descriptive-link-text | Link text must be descriptive — not `here`, `link`, `click here`. |
 
-Two rules are enabled but effectively inert under the deckhouse config, so you will not see them fire: **MD043** (required-headings — no required structure is set) and **MD044** (proper-names — the name list is empty).
+Three rules are enabled but effectively inert under the deckhouse config, so you will not see them fire: **MD043** (required-headings — no required structure is set), **MD044** (proper-names — the name list is empty) and **MD054** (link-image-style — all link/image styles are allowed by default).
 
-Rules **disabled** on purpose (never reported): MD002 (first-heading-h1, deprecated), MD004 (ul-style), MD032 (blanks-around-lists), MD033 (no-inline-html — HTML is allowed), MD051 (link-fragments — Deckhouse anchors only exist after the doc build), MD053 (link-image-reference-definitions), MD059 (descriptive-link-text), MD060 (table-column-style).
+Rules **disabled** on purpose (never reported): MD002 (first-heading-h1, deprecated), MD004 (ul-style), MD032 (blanks-around-lists), MD033 (no-inline-html — HTML is allowed), MD051 (link-fragments — Deckhouse anchors only exist after the doc build), MD060 (table-column-style).
 
 **Examples:**
 
@@ -472,7 +474,6 @@ Rules **disabled** on purpose (never reported): MD002 (first-heading-h1, depreca
 # My Module
 
 # My Module
-```
 ```
 
 (file has no trailing newline)
@@ -500,7 +501,7 @@ Line: 3
 To make this rule fatal, or to disable it:
 
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   documentation:
     rules:

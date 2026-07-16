@@ -311,8 +311,10 @@ func mapDocumentationRules(linterSettings *pkg.LintersSettings, configSettings *
 	rules.ReadmeRule.SetLevel(globalRules.ReadmeRule.Impact, fallbackImpact)
 	rules.CyrillicInEnglishRule.SetLevel(globalRules.NoCyrillicExcludeRules.Impact, fallbackImpact)
 	rules.NoLangKeyRule.SetLevel(globalRules.NoLangKeyRule.Impact, fallbackImpact)
-	// markdownlint defaults to warn (non-fatal) rather than error; explicit
-	// rule-level or documentation-linter-level impact still overrides it.
+	// markdownlint defaults to warn (non-fatal) rather than error. Unlike the
+	// other documentation rules, the linter-level impact (fallbackImpact) is
+	// intentionally NOT used as the fallback here — only an explicit rule-level
+	// markdownlint impact overrides the warn default.
 	rules.MarkdownlintRule.SetLevel(globalRules.MarkdownlintRule.Impact, pkg.Warn.String())
 }
 
