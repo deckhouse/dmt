@@ -79,7 +79,19 @@ type LintersSettings struct {
 
 type DocumentationLinterConfig struct {
 	LinterConfig
-	Rules DocumentationLinterRules
+	Rules        DocumentationLinterRules
+	ExcludeRules DocumentationExcludeRules
+}
+
+type DocumentationExcludeRules struct {
+	// FileSize excludes files/directories from the large-file size warning only,
+	// not from the documentation content checks themselves.
+	FileSize FileSizeExcludeRules
+}
+
+type FileSizeExcludeRules struct {
+	Files       StringRuleExcludeList
+	Directories DirectoryRuleExcludeList
 }
 
 type DocumentationLinterRules struct {

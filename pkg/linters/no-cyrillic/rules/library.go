@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 )
@@ -42,6 +43,13 @@ func checkCyrillicLettersInString(line string) (string, bool) {
 	// Replace trim all spaces, because we do not need formatting here
 	line = strings.TrimSpace(line)
 
+	// Bound the width of a single reported line: a minified file can hold a very
+	// long line, and echoing all of it (twice, with the cursor) would flood the
+	// log.
+	if runes := []rune(line); len(runes) > maxCyrillicLineWidth {
+		line = string(runes[:maxCyrillicLineWidth]) + "…"
+	}
+
 	// Make string with pointers to Cyrillic letters so user can detect hidden letters.
 	cursor := cyrFillerRe.ReplaceAllString(line, "-")
 	cursor = cyrPointerRe.ReplaceAllString(cursor, "^")
@@ -55,15 +63,31 @@ func checkCyrillicLettersInArray(lines []string) (string, bool) {
 	res := make([]string, 0)
 
 	hasCyr := false
+	truncated := 0
 
 	for _, line := range lines {
 		msg, has := checkCyrillicLettersInString(line)
-		if has {
-			hasCyr = true
-
-			res = append(res, msg)
+		if !has {
+			continue
 		}
+
+		hasCyr = true
+
+		// Cap the number of reported lines so a file full of Cyrillic cannot
+		// produce a multi-megabyte finding.
+		if len(res) >= maxCyrillicReportLines {
+			truncated++
+
+			continue
+		}
+
+		res = append(res, msg)
 	}
 
-	return strings.Join(res, "\n"), hasCyr
+	out := strings.Join(res, "\n")
+	if truncated > 0 {
+		out += fmt.Sprintf("\n… and %d more line(s) with Cyrillic letters (truncated)", truncated)
+	}
+
+	return out, hasCyr
 }

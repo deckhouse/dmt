@@ -371,5 +371,18 @@ func remapContainerRuleExclude(input *ContainerRuleExclude) *pkg.ContainerRuleEx
 }
 
 type DocumentationSettings struct {
+	ExcludeRules DocumentationExcludeRules `mapstructure:"exclude-rules"`
+
 	Impact string `mapstructure:"impact"`
+}
+
+type DocumentationExcludeRules struct {
+	// FileSize excludes files/directories from the large-file size warning only,
+	// not from the documentation content checks themselves.
+	FileSize FileSizeExcludeRules `mapstructure:"file-size"`
+}
+
+type FileSizeExcludeRules struct {
+	Files       StringRuleExcludeList    `mapstructure:"files"`
+	Directories DirectoryRuleExcludeList `mapstructure:"directories"`
 }

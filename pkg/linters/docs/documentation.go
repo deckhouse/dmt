@@ -41,9 +41,16 @@ func (l *Documentation) Run(m *module.Module) {
 
 	rules.NewBilingualRule().CheckBilingual(m, errorList.WithMaxLevel(l.cfg.Rules.BilingualRule.GetLevel()))
 
-	rules.NewCyrillicInEnglishRule().CheckFiles(m, errorList.WithMaxLevel(l.cfg.Rules.CyrillicInEnglishRule.GetLevel()))
+	sizeExcludeFiles := l.cfg.ExcludeRules.FileSize.Files.Get()
+	sizeExcludeDirs := l.cfg.ExcludeRules.FileSize.Directories.Get()
 
-	rules.NewNoLangKeyRule().CheckFiles(m, errorList.WithMaxLevel(l.cfg.Rules.NoLangKeyRule.GetLevel()))
+	rules.NewCyrillicInEnglishRule().
+		WithFileSizeExcludes(sizeExcludeFiles, sizeExcludeDirs).
+		CheckFiles(m, errorList.WithMaxLevel(l.cfg.Rules.CyrillicInEnglishRule.GetLevel()))
+
+	rules.NewNoLangKeyRule().
+		WithFileSizeExcludes(sizeExcludeFiles, sizeExcludeDirs).
+		CheckFiles(m, errorList.WithMaxLevel(l.cfg.Rules.NoLangKeyRule.GetLevel()))
 }
 
 func (l *Documentation) Name() string {

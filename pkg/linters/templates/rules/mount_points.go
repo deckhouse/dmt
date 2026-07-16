@@ -23,6 +23,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
@@ -135,7 +136,7 @@ func collectMountPointsDirs(m pkg.Module, errorList *errors.LintRuleErrorsList) 
 			return nil
 		}
 
-		data, err := os.ReadFile(path)
+		data, err := fsutils.ReadFile(path)
 		if err != nil {
 			errorList.Errorf("failed to read %s: %s", path, err)
 			return nil

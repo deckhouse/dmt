@@ -1,0 +1,11 @@
+description: >
+  A chart containing a symbolic link loop (templates/loop -> the module root)
+  must not crash the helm loader with an out-of-memory error. dmt skips the loop
+  while rendering a cleaned copy of the chart and reports it as a warn-level
+  finding, so the module is still linted.
+module: module
+expect:
+  - linter: manager
+    rule: symlink-loop
+    level: warn
+    textContains: "symbolic link loop detected"

@@ -393,7 +393,18 @@ func mapExclusionRulesAndSettings(linterSettings *pkg.LintersSettings, configSet
 	mapRBACExclusions(linterSettings, configSettings)
 	mapHooksSettings(linterSettings, configSettings)
 	mapModuleExclusionsAndSettings(linterSettings, configSettings)
-	// no excluded rules - mapDocumentationExclusionsAndSettings(linterSettings, configSettings)
+	mapDocumentationExclusions(linterSettings, configSettings)
+}
+
+// mapDocumentationExclusions maps Documentation linter exclusion rules. Only the
+// large-file size warning honours these excludes; the documentation content
+// checks themselves are not affected.
+func mapDocumentationExclusions(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings) {
+	excludes := &linterSettings.Documentation.ExcludeRules.FileSize
+	configExcludes := &configSettings.Documentation.ExcludeRules.FileSize
+
+	excludes.Files = pkg.StringRuleExcludeList(configExcludes.Files)
+	excludes.Directories = pkg.DirectoryRuleExcludeList(configExcludes.Directories)
 }
 
 // mapContainerExclusions maps Container linter exclusion rules

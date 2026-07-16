@@ -297,6 +297,16 @@ linters-settings:
           - docs/GLOSSARY.md      # Contains technical terms in multiple languages
 ```
 
+**Large files:**
+
+A documentation file larger than 10 MiB is not read into memory or scanned for cyrillic. Instead of failing, the linter reports a **warning** so the skipped file stays visible:
+
+```
+file is too large to check for Cyrillic letters and was skipped; exclude the file or its directory under documentation.exclude-rules.file-size to silence this warning
+```
+
+This warning is silenced only through the `exclude-rules.file-size` list (see [File-Size Exclusions](#file-size-exclusions)); the per-rule `exclude` above affects the content check, not the size warning.
+
 ### no-lang-key
 
 **Purpose:** Ensures that documentation files don't contain the `lang` key in their YAML front matter. The language of the document should be determined by its file name convention (e.g., `.ru.md` suffix for Russian) rather than by a `lang` field in the front matter.
@@ -386,6 +396,16 @@ linters-settings:
           - docs/LEGACY.md      # Legacy file that still uses lang key
 ```
 
+**Large files:**
+
+A documentation file larger than 10 MiB is not read into memory or scanned for a `lang` key. Instead of failing, the linter reports a **warning** so the skipped file stays visible:
+
+```
+file is too large to check for a lang key and was skipped; exclude the file or its directory under documentation.exclude-rules.file-size to silence this warning
+```
+
+This warning is silenced only through the `exclude-rules.file-size` list (see [File-Size Exclusions](#file-size-exclusions)); the per-rule `exclude` above affects the content check, not the size warning.
+
 ---
 
 ## Configuration
@@ -426,6 +446,38 @@ linters-settings:
         exclude:
           - docs/GLOSSARY.md    # Technical terms document
 ```
+
+### File-Size Exclusions
+
+Documentation files larger than 10 MiB are not scanned by the `cyrillic-in-english` and `no-lang-key` rules; the linter reports a warning for each skipped file instead (see the "Large files" notes above). These exclusions silence that warning **only** — they do not affect the content checks themselves.
+
+Exclude specific files:
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  documentation:
+    exclude-rules:
+      file-size:
+        files:
+          - docs/generated-reference.md
+          - docs/bundled-dashboard.md
+```
+
+Exclude entire directories:
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  documentation:
+    exclude-rules:
+      file-size:
+        directories:
+          - docs/generated/
+```
+
+**Pattern matching:**
+- Paths are relative to the module root
+- `files` uses exact file-path matching; `directories` uses directory-prefix matching
+- Applies only to the large-file size warning, not to the cyrillic/lang-key content checks
 
 ## Common Issues
 
@@ -544,6 +596,36 @@ Line 15: Check the документация for details.
    <!-- docs/README.ru.md -->
    Проверьте документацию для получения подробностей.
    ```
+
+### Issue: Documentation file too large to check
+
+**Symptom:**
+```
+Warning: file is too large to check for Cyrillic letters and was skipped; exclude the file or its directory under documentation.exclude-rules.file-size to silence this warning
+File: docs/generated-reference.md
+```
+
+**Cause:** A documentation file exceeds 10 MiB, so it is not read into memory or scanned. This is usually a generated or bundled file rather than hand-written documentation.
+
+**Solutions:**
+
+1. **Split or trim the file** if it is genuinely documentation that should be checked.
+
+2. **Exclude it from the size check** if it is generated/bundled and the warning is noise:
+
+   ```yaml
+   # .dmtlint.yaml
+   linters-settings:
+     documentation:
+       exclude-rules:
+         file-size:
+           files:
+             - docs/generated-reference.md
+           directories:
+             - docs/generated/
+   ```
+
+   This suppresses the size warning only; the cyrillic and lang-key content checks are unaffected.
 
 ### Issue: Empty README.md file
 

@@ -1,0 +1,12 @@
+description: >
+  A file with more Cyrillic lines (150) than the report cap (100) produces a
+  single no-cyrillic finding whose echoed value is truncated with a
+  "… (truncated)" note, instead of dumping every offending line into the log.
+module: module
+expect:
+  - linter: no-cyrillic
+    rule: files
+    level: error
+    textContains: "has cyrillic letters"
+    valueContains: "truncated"
+    count: 1
