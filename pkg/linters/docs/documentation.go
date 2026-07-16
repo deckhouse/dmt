@@ -37,7 +37,7 @@ func (l *Documentation) RunRemote(cfg *linters.LinterConfig) {
 	}
 
 	errorList := l.ErrorList.WithModule(cfg.Name)
-	rules.NewReadmeRule().CheckReadmeRemote(cfg.Path, errorList.WithMaxLevel(cfg.LinterSettings.Documentation.Rules.ReadmeRule.GetLevel()))
+	rules.NewReadmeRule().CheckReadmeRemote(cfg.Path, errorList.WithMaxLevel(l.cfg.Rules.ReadmeRule.GetLevel()))
 }
 
 func (l *Documentation) Run(m *module.Module) {

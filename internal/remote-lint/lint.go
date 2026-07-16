@@ -9,10 +9,10 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/name"
 
-	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/deckhouse/deckhouse/pkg/registry/client"
 
 	"github.com/deckhouse/dmt/internal/manager"
+	"github.com/deckhouse/dmt/internal/metrics"
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
@@ -39,6 +39,10 @@ func RunRemoteLint(ctx context.Context, imagePath string, opts *RemoteLintOption
 	}
 
 	client := initRegistryClient(registryPath, opts.Login, opts.Password)
+
+	// init metrics storage, should be done before printing results, as
+	// PrintResult reports per-error metrics through the shared metrics client.
+	metrics.GetClient(".")
 
 	level := pkg.Error
 	errorList := errors.NewLintRuleErrorsList().WithMaxLevel(&level)
@@ -87,10 +91,9 @@ func lintBundle(ctx context.Context, client *client.Client, tag string, cfg *pkg
 
 	for _, linter := range bundleLinters {
 		cfg := &linters.LinterConfig{
-			Name:           client.GetRegistry(),
-			Namespace:      "bundle",
-			Path:           tempDir,
-			LinterSettings: cfg,
+			Name:      client.GetRegistry(),
+			Namespace: "bundle",
+			Path:      tempDir,
 		}
 		linter.RunRemote(cfg)
 	}
@@ -114,10 +117,9 @@ func lintRelease(ctx context.Context, client *client.Client, tag string, cfg *pk
 
 	for _, linter := range releaseLinters {
 		cfg := &linters.LinterConfig{
-			Name:           client.GetRegistry(),
-			Namespace:      "release",
-			Path:           tempDir,
-			LinterSettings: cfg,
+			Name:      client.GetRegistry(),
+			Namespace: "release",
+			Path:      tempDir,
 		}
 		linter.RunRemote(cfg)
 	}
@@ -158,10 +160,11 @@ func buildReleaseLinters(cfg *pkg.LintersSettings, errorList *errors.LintRuleErr
 	}
 }
 
+// parsing config from .dmtlint.yaml file
 func parseConfig() (*pkg.LintersSettings, error) {
 	rootConfig, err := config.NewDefaultRootConfig(".")
 	if err != nil {
-		log.Fatal("default root config", log.Err(err)) //nolint:gocritic
+		return nil, fmt.Errorf("failed to parse default root config: %w", err)
 	}
 
 	// Load module config
