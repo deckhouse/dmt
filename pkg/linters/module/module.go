@@ -43,12 +43,16 @@ func New(cfg *pkg.ModuleLinterConfig, errorList *errors.LintRuleErrorsList) *Mod
 }
 
 func (l *Module) RunRemote(cfg *linters.LinterConfig) {
-	if cfg == nil || cfg.Path == "" {
+	if cfg == nil {
 		return
 	}
 
 	errorList := l.ErrorList.WithModule(cfg.Name)
-	rules.NewDefinitionFileRule(l.cfg.DefinitionFileRuleSettings.Disable).CheckDefinitionFile(cfg.Path, errorList.WithMaxLevel(l.cfg.Rules.DefinitionFileRule.GetLevel()))
+
+	rules.NewDefinitionFileRule(l.cfg.DefinitionFileRuleSettings.Disable).
+		CheckDefinitionFile(cfg.Path, errorList.WithMaxLevel(l.cfg.Rules.DefinitionFileRule.GetLevel()), rules.WithModuleYamlExists())
+	rules.NewPackageYAMLRule().
+		CheckPackageYAML(cfg.Path, errorList.WithMaxLevel(l.cfg.Rules.PackageYAMLRule.GetLevel()), rules.WithPackageYamlExists())
 }
 
 func (l *Module) Run(m *module.Module) {

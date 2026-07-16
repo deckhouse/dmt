@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/name"
@@ -84,8 +83,6 @@ func lintBundle(ctx context.Context, client *client.Client, tag string, cfg *pkg
 		return fmt.Errorf("failed to extract image: %w", err)
 	}
 	defer os.RemoveAll(tempDir)
-
-	os.RemoveAll(filepath.Join(tempDir, "docs")) // debug: remove docs directory
 
 	bundleLinters := buildBundleLinters(cfg, errorList.WithObjectID("bundle"))
 
