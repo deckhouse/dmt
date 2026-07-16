@@ -206,7 +206,15 @@ func convertURLToModuleName(repoURL string) string {
 	return parts[len(parts)-1]
 }
 
+func (r *DefinitionFileRule) CheckDefinitionFileRemote(path string, errorList *errors.LintRuleErrorsList) {
+	//
+}
+
 func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *errors.LintRuleErrorsList) {
+	r.checkDefinitionFile(modulePath, errorList)
+}
+
+func (r *DefinitionFileRule) checkDefinitionFile(modulePath string, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName()).WithFilePath(ModuleConfigFilename)
 
 	if !r.Enabled() {

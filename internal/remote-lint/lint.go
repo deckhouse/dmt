@@ -17,6 +17,7 @@ import (
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters"
 	"github.com/deckhouse/dmt/pkg/linters/docs"
 	moduleLinter "github.com/deckhouse/dmt/pkg/linters/module"
 )
@@ -54,6 +55,8 @@ func RunRemoteLint(ctx context.Context, imagePath string, opts *RemoteLintOption
 
 	err = lintRelease(ctx, client, tag, cfg, errorList)
 	if err != nil {
+		// print result of successful bundle linting
+		manager.PrintResult(errorList)
 		return fmt.Errorf("failed to lint release: %w", err)
 	}
 
@@ -80,15 +83,16 @@ func lintBundle(ctx context.Context, client *client.Client, tag string, cfg *pkg
 
 	os.RemoveAll(filepath.Join(tempDir, "docs")) // debug: remove docs directory
 
-	linters := buildBundleLinters(cfg, errorList.WithObjectID("bundle"))
+	bundleLinters := buildBundleLinters(cfg, errorList.WithObjectID("bundle"))
 
-	for _, linter := range linters {
-		m, err := module.NewModule(tempDir, nil, nil, nil, errorList.WithObjectID("bundle"))
-		if err != nil {
-			return fmt.Errorf("failed to create module: %w", err)
+	for _, linter := range bundleLinters {
+		cfg := &linters.LinterConfig{
+			Name:           client.GetRegistry(),
+			Namespace:      "bundle",
+			Path:           tempDir,
+			LinterSettings: cfg,
 		}
-
-		linter.Run(m)
+		linter.RunRemote(cfg)
 	}
 
 	return nil
@@ -106,15 +110,16 @@ func lintRelease(ctx context.Context, client *client.Client, tag string, cfg *pk
 	}
 	defer os.RemoveAll(tempDir)
 
-	linters := buildReleaseLinters(cfg, errorList.WithObjectID("release"))
+	releaseLinters := buildReleaseLinters(cfg, errorList.WithObjectID("release"))
 
-	for _, linter := range linters {
-		m, err := module.NewModule(tempDir, nil, nil, nil, errorList.WithObjectID("release"))
-		if err != nil {
-			return fmt.Errorf("failed to create module: %w", err)
+	for _, linter := range releaseLinters {
+		cfg := &linters.LinterConfig{
+			Name:           client.GetRegistry(),
+			Namespace:      "release",
+			Path:           tempDir,
+			LinterSettings: cfg,
 		}
-
-		linter.Run(m)
+		linter.RunRemote(cfg)
 	}
 
 	return nil
@@ -141,18 +146,14 @@ func cutTagFromImagePath(imagePath string) (string, string, error) {
 	return ref.Context().Name(), tag, nil
 }
 
-type Linter interface {
-	manager.Linter
-}
-
-func buildBundleLinters(cfg *pkg.LintersSettings, errorList *errors.LintRuleErrorsList) []Linter {
-	return []Linter{
+func buildBundleLinters(cfg *pkg.LintersSettings, errorList *errors.LintRuleErrorsList) []linters.RemoteLinter {
+	return []linters.RemoteLinter{
 		docs.New(&cfg.Documentation, errorList.WithMaxLevel(cfg.Documentation.Impact)),
 	}
 }
 
-func buildReleaseLinters(cfg *pkg.LintersSettings, errorList *errors.LintRuleErrorsList) []Linter {
-	return []Linter{
+func buildReleaseLinters(cfg *pkg.LintersSettings, errorList *errors.LintRuleErrorsList) []linters.RemoteLinter {
+	return []linters.RemoteLinter{
 		moduleLinter.New(&cfg.Module, errorList.WithMaxLevel(cfg.Module.Impact)),
 	}
 }

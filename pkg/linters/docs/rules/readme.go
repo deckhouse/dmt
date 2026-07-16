@@ -28,14 +28,21 @@ type ReadmeRule struct {
 	pkg.PathRule
 }
 
-func (r *ReadmeRule) CheckReadme(m pkg.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+func (r *ReadmeRule) CheckReadmeRemote(path string, errorList *errors.LintRuleErrorsList) {
+	r.checkReadme(path, errorList)
+}
 
+func (r *ReadmeRule) CheckReadme(m pkg.Module, errorList *errors.LintRuleErrorsList) {
 	if !r.Enabled(m.GetName()) {
 		return
 	}
 
-	modulePath := m.GetPath()
+	r.checkReadme(m.GetPath(), errorList)
+}
+
+func (r *ReadmeRule) checkReadme(modulePath string, errorList *errors.LintRuleErrorsList) {
+	errorList = errorList.WithRule(r.GetName())
+
 	path := filepath.Join(modulePath, "docs", "README.md")
 
 	if _, err := os.Stat(path); err != nil {
