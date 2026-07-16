@@ -123,6 +123,7 @@ func lintRelease(ctx context.Context, client *client.Client, tag string, cfg *pk
 // returns repository path and tag from the image path
 // turns strings like "registry.example.com/my-module:v0.0.1" into "registry.example.com/my-module" and "v0.0.1"
 func cutTagFromImagePath(imagePath string) (string, string, error) {
+	// if digest was provided we can't know the release tag in future steps, so we can't pull it
 	if strings.Contains(imagePath, "@") {
 		return "", "", fmt.Errorf("digest not supported")
 	}
