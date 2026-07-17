@@ -1,0 +1,7 @@
+description: >
+  A valid module with exclusiveGroup field must not produce definition-file parse errors.
+module: module
+expectAbsent:
+  - linter: module
+    rule: definition-file
+    textContains: "Cannot parse file"
