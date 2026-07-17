@@ -31,7 +31,7 @@ func New(cfg *pkg.DocumentationLinterConfig, errorList *errors.LintRuleErrorsLis
 	}
 }
 
-func (l *Documentation) RunRemote(cfg *linters.LinterConfig) {
+func (l *Documentation) RunRemoteForBundle(cfg *linters.LinterConfig) {
 	if cfg == nil || cfg.Path == "" {
 		return
 	}

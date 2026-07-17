@@ -1,7 +1,12 @@
 package linters
 
-type RemoteLinter interface {
-	RunRemote(cfg *LinterConfig)
+type RemoteBundleLinter interface {
+	RunRemoteForBundle(cfg *LinterConfig)
+	Name() string
+}
+
+type RemoteReleaseLinter interface {
+	RunRemoteForRelease(cfg *LinterConfig)
 	Name() string
 }
 

@@ -92,7 +92,7 @@ func lintBundle(ctx context.Context, client *client.Client, tag string, cfg *pkg
 			Namespace: "bundle",
 			Path:      tempDir,
 		}
-		linter.RunRemote(cfg)
+		linter.RunRemoteForBundle(cfg)
 	}
 
 	return nil
@@ -118,7 +118,7 @@ func lintRelease(ctx context.Context, client *client.Client, tag string, cfg *pk
 			Namespace: "release",
 			Path:      tempDir,
 		}
-		linter.RunRemote(cfg)
+		linter.RunRemoteForRelease(cfg)
 	}
 
 	return nil
@@ -145,14 +145,14 @@ func cutTagFromImagePath(imagePath string) (string, string, error) {
 	return ref.Context().Name(), tag, nil
 }
 
-func buildBundleLinters(cfg *pkg.LintersSettings, errorList *errors.LintRuleErrorsList) []linters.RemoteLinter {
-	return []linters.RemoteLinter{
+func buildBundleLinters(cfg *pkg.LintersSettings, errorList *errors.LintRuleErrorsList) []linters.RemoteBundleLinter {
+	return []linters.RemoteBundleLinter{
 		docs.New(&cfg.Documentation, errorList.WithMaxLevel(cfg.Documentation.Impact)),
 	}
 }
 
-func buildReleaseLinters(cfg *pkg.LintersSettings, errorList *errors.LintRuleErrorsList) []linters.RemoteLinter {
-	return []linters.RemoteLinter{
+func buildReleaseLinters(cfg *pkg.LintersSettings, errorList *errors.LintRuleErrorsList) []linters.RemoteReleaseLinter {
+	return []linters.RemoteReleaseLinter{
 		moduleLinter.New(&cfg.Module, errorList.WithMaxLevel(cfg.Module.Impact)),
 	}
 }

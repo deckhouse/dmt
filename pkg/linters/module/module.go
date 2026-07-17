@@ -42,7 +42,7 @@ func New(cfg *pkg.ModuleLinterConfig, errorList *errors.LintRuleErrorsList) *Mod
 	}
 }
 
-func (l *Module) RunRemote(cfg *linters.LinterConfig) {
+func (l *Module) RunRemoteForRelease(cfg *linters.LinterConfig) {
 	if cfg == nil {
 		return
 	}
