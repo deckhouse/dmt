@@ -1,0 +1,7 @@
+description: >
+  A Certificate that uses the recommended Gateway API ClusterIssuer include
+  helper must not be flagged by certificate-gateway-issuer.
+module: module
+expectPass:
+  - linter: templates
+    rule: certificate-gateway-issuer

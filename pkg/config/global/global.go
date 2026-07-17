@@ -130,19 +130,20 @@ type TemplatesLinterConfig struct {
 }
 
 type TemplatesLinterRules struct {
-	VPARule                  RuleConfig `mapstructure:"vpa"`
-	PDBRule                  RuleConfig `mapstructure:"pdb"`
-	IngressRule              RuleConfig `mapstructure:"ingress"`
-	HTTPRouteRule            RuleConfig `mapstructure:"httproute"`
-	PrometheusRule           RuleConfig `mapstructure:"prometheus-rules"`
-	GrafanaRule              RuleConfig `mapstructure:"grafana-dashboards"`
-	KubeRBACProxyRule        RuleConfig `mapstructure:"kube-rbac-proxy"`
-	ServicePortRule          RuleConfig `mapstructure:"service-port"`
-	ClusterDomainRule        RuleConfig `mapstructure:"cluster-domain"`
-	RegistryRule             RuleConfig `mapstructure:"registry"`
-	EnabledModulesRule       RuleConfig `mapstructure:"enabled-modules"`
-	WebhookConfigurationRule RuleConfig `mapstructure:"webhook-configuration-annotations"`
-	MountPointsRule          RuleConfig `mapstructure:"mount-points"`
+	VPARule                      RuleConfig `mapstructure:"vpa"`
+	PDBRule                      RuleConfig `mapstructure:"pdb"`
+	IngressRule                  RuleConfig `mapstructure:"ingress"`
+	HTTPRouteRule                RuleConfig `mapstructure:"httproute"`
+	PrometheusRule               RuleConfig `mapstructure:"prometheus-rules"`
+	GrafanaRule                  RuleConfig `mapstructure:"grafana-dashboards"`
+	KubeRBACProxyRule            RuleConfig `mapstructure:"kube-rbac-proxy"`
+	ServicePortRule              RuleConfig `mapstructure:"service-port"`
+	ClusterDomainRule            RuleConfig `mapstructure:"cluster-domain"`
+	RegistryRule                 RuleConfig `mapstructure:"registry"`
+	EnabledModulesRule           RuleConfig `mapstructure:"enabled-modules"`
+	WebhookConfigurationRule     RuleConfig `mapstructure:"webhook-configuration-annotations"`
+	MountPointsRule              RuleConfig `mapstructure:"mount-points"`
+	CertificateGatewayIssuerRule RuleConfig `mapstructure:"certificate-gateway-issuer"`
 }
 
 func (c LinterConfig) IsWarn() bool {

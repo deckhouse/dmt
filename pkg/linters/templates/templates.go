@@ -89,6 +89,10 @@ func (l *Templates) Run(m *module.Module) {
 	clusterDomainRule := rules.NewClusterDomainRule()
 	clusterDomainRule.ValidateClusterDomainInTemplates(m, errorList.WithMaxLevel(l.cfg.Rules.ClusterDomainRule.GetLevel()))
 
+	// Certificate Gateway API issuer rule
+	rules.NewCertificateGatewayIssuerRule(l.cfg.ExcludeRules.CertificateGatewayIssuer.Get()).
+		ValidateCertificateGatewayIssuer(m, errorList.WithMaxLevel(l.cfg.Rules.CertificateGatewayIssuerRule.GetLevel()))
+
 	// werf file
 	// The following line is commented out because the Werf rule validation is not currently required.
 	// If needed in the future, uncomment and ensure the rule is properly configured.
