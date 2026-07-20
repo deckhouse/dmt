@@ -41,16 +41,14 @@ const (
 )
 
 // moduleTemplateExclude is the set of files and directories that belong to
-// the standard Deckhouse module (Helm chart) template and therefore should
-// NOT be listed in .helmignore.
-// moduleTemplateExclude is the set of files and directories that belong to
-// the Deckhouse module template and therefore should NOT be listed in
-// .helmignore. These are either required by Helm or read by Deckhouse
-// directly from the module filesystem (not from the rendered chart).
+// the Deckhouse module and therefore should NOT be listed in .helmignore.
+// These are either required by Helm for rendering or read by Deckhouse
+// directly from the module filesystem.
 var moduleTemplateExclude = map[string]bool{
-	// Required by Helm
+	// Required by Helm for chart rendering
 	"templates":   true,
 	"charts":      true,
+	"monitoring":  true,
 	"Chart.yaml":  true,
 	"values.yaml": true,
 
