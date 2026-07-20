@@ -51,10 +51,6 @@ var moduleTemplateExclude = map[string]bool{
 	"monitoring":  true,
 	"Chart.yaml":  true,
 	"values.yaml": true,
-
-	// Read by Deckhouse directly, not part of the Helm chart
-	".namespace": true,
-	"rbac.yaml":  true,
 }
 
 func NewHelmignoreRule(disable bool) *HelmignoreRule {
