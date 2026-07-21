@@ -52,6 +52,9 @@ func (h *Hooks) Run(m *module.Module) {
 	for _, object := range m.GetStorage() {
 		r.CheckCopyCustomCertificateRule(m, object, errorList)
 	}
+
+	rules.NewTLSCertificateRule(h.cfg.TLSCertificateRuleSettings.Disable).
+		CheckTLSCertificateHooks(m, errorList.WithMaxLevel(h.cfg.Rules.TLSCertificateRule.GetLevel()))
 }
 
 func (h *Hooks) Name() string {
