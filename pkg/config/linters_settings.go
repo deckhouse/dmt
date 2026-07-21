@@ -233,6 +233,7 @@ type TemplatesLinterRules struct {
 	EnabledModulesRule       RuleConfig `mapstructure:"enabled-modules"`
 	WebhookConfigurationRule RuleConfig `mapstructure:"webhook-configuration-annotations"`
 	MountPointsRule          RuleConfig `mapstructure:"mount-points"`
+	SchemaValidationRule     RuleConfig `mapstructure:"schema-validation"`
 }
 
 type TemplatesExcludeRules struct {
@@ -245,6 +246,7 @@ type TemplatesExcludeRules struct {
 	EnabledModules       EnabledModulesExcludeRule `mapstructure:"enabled-modules"`
 	WebhookConfiguration KindRuleExcludeList       `mapstructure:"webhook-configuration-annotations"`
 	MountPoints          StringRuleExcludeList     `mapstructure:"mount-points"`
+	SchemaValidation     KindRuleExcludeList       `mapstructure:"schema-validation"`
 }
 
 type EnabledModulesExcludeRule struct {

@@ -108,6 +108,10 @@ func (l *Templates) Run(m *module.Module) {
 
 	// MountPoints rule
 	rules.NewMountPointsRule(l.cfg.ExcludeRules.MountPoints.Get()).ValidateMountPoints(m, errorList.WithMaxLevel(l.cfg.Rules.MountPointsRule.GetLevel()))
+
+	// SchemaValidation rule: validate rendered resources against their CRD/k8s schemas
+	rules.NewSchemaValidationRule(l.cfg.ExcludeRules.SchemaValidation.Get()).
+		ValidateResourceSchemas(m, errorList.WithMaxLevel(l.cfg.Rules.SchemaValidationRule.GetLevel()))
 }
 
 func (l *Templates) Name() string {

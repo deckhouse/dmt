@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/go-openapi/spec"
 	"helm.sh/helm/v3/pkg/chart"
@@ -45,6 +46,16 @@ const (
 
 // Compile-time check to ensure Module implements pkg.Module interface
 var _ pkg.Module = (*Module)(nil)
+
+// objectStorePool recycles UnstructuredObjectStores across module renders. In
+// --matrix mode a module set expands to thousands of variants rendered one
+// after another; reusing a store — and the map buckets it has already grown —
+// instead of allocating a fresh one per render cuts allocation churn and peak
+// memory. A store is borrowed in NewModule (rendered strictly into it) and
+// handed back by Module.Release once the module has been linted.
+var objectStorePool = sync.Pool{
+	New: func() any { return storage.NewUnstructuredObjectStore() },
+}
 
 type Module struct {
 	name        string
@@ -127,6 +138,20 @@ func (m *Module) GetStorage() map[storage.ResourceIndex]storage.StoreObject {
 	}
 
 	return m.objectStore.Storage
+}
+
+// Release returns the module's rendered object store to the shared pool and
+// detaches it from the module. Call it once the module has been fully linted;
+// the module (and any object obtained from its store) must not be used
+// afterwards. Safe to call more than once and on a nil module.
+func (m *Module) Release() {
+	if m == nil || m.objectStore == nil {
+		return
+	}
+
+	m.objectStore.Reset()
+	objectStorePool.Put(m.objectStore)
+	m.objectStore = nil
 }
 
 func (m *Module) GetWerfFile() string {
@@ -348,6 +373,7 @@ func mapTemplatesRules(linterSettings *pkg.LintersSettings, configSettings *conf
 	rules.EnabledModulesRule.SetLevel(globalRules.EnabledModulesRule.Impact, fallbackImpact)
 	rules.MountPointsRule.SetLevel(globalRules.MountPointsRule.Impact, fallbackImpact)
 	rules.WebhookConfigurationRule.SetLevel(globalRules.WebhookConfigurationRule.Impact, fallbackImpact)
+	rules.SchemaValidationRule.SetLevel(globalRules.SchemaValidationRule.Impact, fallbackImpact)
 }
 
 // mapOpenAPIRules configures OpenAPI linter rules
@@ -467,6 +493,7 @@ func mapTemplatesExclusionsAndSettings(linterSettings *pkg.LintersSettings, conf
 	excludes.EnabledModules.Directories = pkg.DirectoryRuleExcludeList(configExcludes.EnabledModules.Directories)
 	excludes.WebhookConfiguration = configExcludes.WebhookConfiguration.Get()
 	excludes.MountPoints = pkg.StringRuleExcludeList(configExcludes.MountPoints)
+	excludes.SchemaValidation = configExcludes.SchemaValidation.Get()
 
 	// Additional settings
 	linterSettings.Templates.PrometheusRuleSettings.Disable = configSettings.Templates.PrometheusRules.Disable
@@ -519,10 +546,16 @@ func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, r
 		return nil, fmt.Errorf("failed to override values from file: %w", err)
 	}
 
-	objectStore := storage.NewUnstructuredObjectStore()
+	// Render strictly into a pooled store rather than a freshly allocated one.
+	objectStore := objectStorePool.Get().(*storage.UnstructuredObjectStore)
 
 	err = RunRender(module, schemas, objectStore, errorList)
 	if err != nil {
+		// Matrix variants fail to render often; return the store to the pool so
+		// the next render reuses it instead of leaking it.
+		objectStore.Reset()
+		objectStorePool.Put(objectStore)
+
 		return nil, err
 	}
 

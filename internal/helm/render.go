@@ -21,6 +21,7 @@ import (
 	"io"
 	stdlog "log"
 	"path"
+	"sync"
 
 	"github.com/werf/nelm/pkg/helm/pkg/chart"
 	"github.com/werf/nelm/pkg/helm/pkg/chart/loader"
@@ -36,6 +37,48 @@ func init() {
 	// dmt only lints rendered templates and never resolves remote dependencies,
 	// so this warning is noise that pollutes scan output. Suppress it.
 	loader.NoChartLockWarning = ""
+}
+
+// stdlog muting state. nelm writes two kinds of noise straight to the standard
+// log package:
+//   - the chart loader's sympath.Walk logs "found symbolic link in path:..."
+//     (deckhouse modules symlink helm_lib and other shared resources);
+//   - the render engine logs "[INFO] Fail: <msg>" for every `fail` call in a
+//     template, in addition to returning it as an error.
+//
+// Both are expected — the second especially in --matrix mode, where invalid
+// value combinations legitimately hit `fail`.
+var (
+	stdlogMu      sync.Mutex
+	stdlogDepth   int
+	stdlogRestore io.Writer
+)
+
+// muteStdlog redirects the standard log package to io.Discard and returns a
+// function that restores the previous output. Because renders run concurrently
+// (the manager builds one module per matrix variant in a worker pool) and
+// stdlog's output is process-global, muting is reference counted: the first
+// active render redirects output and the last one restores it. Only the
+// save/restore is guarded by the mutex — the render itself runs without holding
+// it, so parallelism is preserved.
+func muteStdlog() func() {
+	stdlogMu.Lock()
+	if stdlogDepth == 0 {
+		stdlogRestore = stdlog.Writer()
+		stdlog.SetOutput(io.Discard)
+	}
+	stdlogDepth++
+	stdlogMu.Unlock()
+
+	return func() {
+		stdlogMu.Lock()
+		stdlogDepth--
+		if stdlogDepth == 0 {
+			stdlog.SetOutput(stdlogRestore)
+			stdlogRestore = nil
+		}
+		stdlogMu.Unlock()
+	}
 }
 
 type Renderer struct {
@@ -75,19 +118,10 @@ func (r Renderer) RenderChartFromDir(chartDir string, values map[string]any) (ma
 		},
 	}
 
-	// nelm's chart loader calls sympath.Walk which indiscriminately logs
-	// "found symbolic link in path: %s resolves to %s" via the standard
-	// log package. Deckhouse modules use symlinks for helm_lib and other
-	// shared resources; those messages are expected noise. Mute std log
-	// during the load call and restore it afterwards.
-	stdlogWriter := stdlog.Writer()
-
-	stdlog.SetOutput(io.Discard)
+	// Mute std log for the whole load+render; the real errors are still returned.
+	defer muteStdlog()()
 
 	chrt, err := loader.LoadDir(chartDir, opts)
-
-	stdlog.SetOutput(stdlogWriter)
-
 	if err != nil {
 		return nil, fmt.Errorf("load chart: %w", err)
 	}

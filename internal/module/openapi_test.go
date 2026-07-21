@@ -421,6 +421,32 @@ func Test_parseProperties(t *testing.T) {
 	}
 }
 
+// Test_parseComposite_ScalarOneOf guards the int-or-string quantity shape used
+// throughout deckhouse (resources.requests/limits.cpu/memory, VPA min/max):
+// `oneOf: [{type: string}, {type: number}]`. It must generate a scalar, not an
+// empty object — a `{}` there renders into resource fields and trips schema
+// validation with "got object, want null or number".
+func Test_parseComposite_ScalarOneOf(t *testing.T) {
+	prop := &spec.Schema{
+		SchemaProps: spec.SchemaProps{
+			OneOf: []spec.Schema{
+				{SchemaProps: spec.SchemaProps{Type: spec.StringOrArray{"string"}, Pattern: `^[0-9]+m?$`}},
+				{SchemaProps: spec.SchemaProps{Type: spec.StringOrArray{"number"}}},
+			},
+		},
+	}
+
+	result := map[string]any{}
+	require.NoError(t, parseProperty("cpu", prop, result))
+
+	if _, isObject := result["cpu"].(map[string]any); isObject {
+		t.Fatalf("scalar oneOf generated an object, want a scalar: %v", result["cpu"])
+	}
+
+	require.Contains(t, result, "cpu")
+	require.IsType(t, "", result["cpu"], "expected a string quantity from the first (string) branch")
+}
+
 func Test_applyDigests(t *testing.T) {
 	tests := []struct {
 		name    string

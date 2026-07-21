@@ -426,6 +426,13 @@ func (s *UnstructuredObjectStore) Close() {
 	s.Storage = make(map[ResourceIndex]StoreObject)
 }
 
+// Reset empties the store in place, keeping the map's already-allocated buckets
+// so a pooled store retains its capacity for the next render. Unlike Close it
+// does not drop the backing map, which is what makes reuse cheap.
+func (s *UnstructuredObjectStore) Reset() {
+	clear(s.Storage)
+}
+
 func NewSHA256(data []byte) string {
 	h := sha256.New()
 	h.Write(data)

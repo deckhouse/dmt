@@ -1,0 +1,10 @@
+description: >
+  A rendered cert-manager Certificate whose spec.dnsNames is a scalar string
+  instead of an array must be flagged by the templates schema-validation rule
+  against the bundled third-party CRD schema.
+module: module
+expect:
+  - linter: templates
+    rule: schema-validation
+    level: error
+    textContains: "does not match its crd schema"

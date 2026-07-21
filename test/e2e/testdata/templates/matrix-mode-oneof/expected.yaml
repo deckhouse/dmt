@@ -1,0 +1,11 @@
+description: >
+  A Service rendered only for the "Static" oneOf/enum branch carries a schema
+  violation. --matrix expands both the oneOf branches and the mode enum, reaches
+  the Static variant, and the schema-validation rule flags the undeclared field.
+module: module
+matrix: true
+expect:
+  - linter: templates
+    rule: schema-validation
+    level: error
+    textContains: "additional properties 'anotherBogusField' not allowed"
