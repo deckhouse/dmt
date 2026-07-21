@@ -145,10 +145,10 @@ func (m *Module) GetModuleConfig() *pkg.LintersSettings {
 	return m.linterConfig
 }
 
-// remapLinterSettings converts configuration settings from the config package format
+// RemapLinterSettings converts configuration settings from the config package format
 // to the pkg package format, mapping both rule-level configurations and exclusion rules
 // across all linter domains (Container, Image, NoCyrillic, OpenAPI, Templates, RBAC, Hooks, Module).
-func remapLinterSettings(configSettings *config.LintersSettings, globalConfig *global.Linters) *pkg.LintersSettings {
+func RemapLinterSettings(configSettings *config.LintersSettings, globalConfig *global.Linters) *pkg.LintersSettings {
 	linterSettings := &pkg.LintersSettings{}
 
 	// Step 1: Configure linter-level impact settings
@@ -550,7 +550,7 @@ func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, r
 
 	cfg.LintersSettings.MergeGlobal(&rootConfig.GlobalSettings.Linters)
 
-	module.linterConfig = remapLinterSettings(&cfg.LintersSettings, &rootConfig.GlobalSettings.Linters)
+	module.linterConfig = RemapLinterSettings(&cfg.LintersSettings, &rootConfig.GlobalSettings.Linters)
 
 	return module, nil
 }

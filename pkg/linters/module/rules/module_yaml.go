@@ -207,8 +207,23 @@ func convertURLToModuleName(repoURL string) string {
 	return parts[len(parts)-1]
 }
 
-func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *errors.LintRuleErrorsList) {
+type CheckDefinitionFileOptions func(modulePath string, errorList *errors.LintRuleErrorsList)
+
+func WithModuleYamlExists() CheckDefinitionFileOptions {
+	return func(modulePath string, errorList *errors.LintRuleErrorsList) {
+		_, err := os.Stat(filepath.Join(modulePath, ModuleConfigFilename))
+		if err != nil {
+			errorList.Errorf("Cannot stat file %q: %s", ModuleConfigFilename, err)
+		}
+	}
+}
+
+func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *errors.LintRuleErrorsList, options ...CheckDefinitionFileOptions) {
 	errorList = errorList.WithRule(r.GetName()).WithFilePath(ModuleConfigFilename)
+
+	for _, opt := range options {
+		opt(modulePath, errorList)
+	}
 
 	if !r.Enabled() {
 		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))

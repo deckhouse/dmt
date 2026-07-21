@@ -7,6 +7,7 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
+	linters "github.com/deckhouse/dmt/pkg/linters"
 	"github.com/deckhouse/dmt/pkg/linters/docs/rules"
 )
 
@@ -28,6 +29,16 @@ func New(cfg *pkg.DocumentationLinterConfig, errorList *errors.LintRuleErrorsLis
 		cfg:       cfg,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.Impact),
 	}
+}
+
+func (l *Documentation) RunRemoteForBundle(cfg *linters.LinterConfig) {
+	if cfg == nil || cfg.Path == "" {
+		return
+	}
+
+	errorList := l.ErrorList.WithModule(cfg.Name)
+	rules.NewReadmeRule().CheckReadmeRemote(cfg.Path, errorList.WithMaxLevel(l.cfg.Rules.ReadmeRule.GetLevel()))
+	rules.NewChangelogRule().CheckChangelog(cfg.Path, errorList)
 }
 
 func (l *Documentation) Run(m *module.Module) {

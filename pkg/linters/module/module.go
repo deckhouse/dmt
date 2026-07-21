@@ -20,6 +20,7 @@ import (
 	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters"
 	"github.com/deckhouse/dmt/pkg/linters/module/rules"
 )
 
@@ -39,6 +40,19 @@ func New(cfg *pkg.ModuleLinterConfig, errorList *errors.LintRuleErrorsList) *Mod
 		cfg:       cfg,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.Impact),
 	}
+}
+
+func (l *Module) RunRemoteForRelease(cfg *linters.LinterConfig) {
+	if cfg == nil {
+		return
+	}
+
+	errorList := l.ErrorList.WithModule(cfg.Name)
+
+	rules.NewDefinitionFileRule(l.cfg.DefinitionFileRuleSettings.Disable).
+		CheckDefinitionFile(cfg.Path, errorList.WithMaxLevel(l.cfg.Rules.DefinitionFileRule.GetLevel()), rules.WithModuleYamlExists())
+	rules.NewPackageYAMLRule().
+		CheckPackageYAML(cfg.Path, errorList.WithMaxLevel(l.cfg.Rules.PackageYAMLRule.GetLevel()), rules.WithPackageYamlExists())
 }
 
 func (l *Module) Run(m *module.Module) {

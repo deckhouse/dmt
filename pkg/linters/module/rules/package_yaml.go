@@ -136,9 +136,24 @@ func getModulePackage(modulePath string, errorList *errors.LintRuleErrorsList) (
 	return &yml, nil
 }
 
+type CheckPackageYAMLOptions func(modulePath string, errorList *errors.LintRuleErrorsList)
+
+func WithPackageYamlExists() CheckPackageYAMLOptions {
+	return func(modulePath string, errorList *errors.LintRuleErrorsList) {
+		_, err := os.Stat(filepath.Join(modulePath, PackageConfigFilename))
+		if err != nil {
+			errorList.Errorf("Cannot stat file %q: %s", PackageConfigFilename, err)
+		}
+	}
+}
+
 // CheckPackageYAML validates package.yaml in the module root.
-func (r *PackageYAMLRule) CheckPackageYAML(modulePath string, errorList *errors.LintRuleErrorsList) {
+func (r *PackageYAMLRule) CheckPackageYAML(modulePath string, errorList *errors.LintRuleErrorsList, options ...CheckPackageYAMLOptions) {
 	errorList = errorList.WithRule(r.GetName())
+
+	for _, opt := range options {
+		opt(modulePath, errorList)
+	}
 
 	modulePackage, err := getModulePackage(modulePath, errorList)
 	if err != nil {

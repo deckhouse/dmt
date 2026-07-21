@@ -27,9 +27,12 @@ const (
 )
 
 var (
-	LintersLimit int
-	LogLevel     string
-	LinterName   string
+	Remote         string
+	RemoteLogin    string
+	RemotePassword string
+	LintersLimit   int
+	LogLevel       string
+	LinterName     string
 )
 
 var (
@@ -61,6 +64,10 @@ func InitDefaultFlagSet() *pflag.FlagSet {
 
 func InitLintFlagSet() *pflag.FlagSet {
 	lint := pflag.NewFlagSet("lint", pflag.ContinueOnError)
+
+	lint.StringVarP(&Remote, "remote", "r", "", "lint registry artifact, e.g. 'registry.example.com/my-module:v0.0.1'")
+	lint.StringVar(&RemoteLogin, "login", "", "login for the registry, used when --remote is set")
+	lint.StringVar(&RemotePassword, "password", "", "password for the registry, used when --remote is set")
 
 	lint.IntVarP(&LintersLimit, "parallel", "p", numThreads, "number of threads for parallel processing")
 
