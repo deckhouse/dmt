@@ -1,0 +1,8 @@
+name: state-snapshotter
+stage: Preview
+descriptions:
+  en: "State snapshotter module"
+  en: "Модуль State snapshotter"
+requirements:
+  deckhouse: ">= 1.72"
+namespace: d8-state-snapshotter
