@@ -22,8 +22,13 @@
 # Required environment variables:
 #   SRC_DIR  - path to a checkout of the deckhouse repository
 # Optional:
-#   DMT_BIN  - dmt binary to use (default: "dmt" from PATH)
-#   WORK_DIR - directory for the prepared structure (default: /deckhouse)
+#   DMT_BIN          - dmt binary to use (default: "dmt" from PATH)
+#   WORK_DIR         - directory for the prepared structure (default: /deckhouse)
+#   DMT_MATRIX       - when "true", run `dmt lint --matrix` so every template
+#                      variant (all openapi value combinations) is rendered and
+#                      linted, reaching conditionally-rendered resources.
+#   DMT_MATRIX_LIMIT - max combinations per module in matrix mode (passed to
+#                      --matrix-limit; only used when DMT_MATRIX=true).
 #
 # NOTE: WORK_DIR defaults to the absolute path /deckhouse on purpose. Deckhouse
 # OpenAPI schemas contain absolute $ref paths like
@@ -106,5 +111,15 @@ structure_prepare
 echo "Linting with: ${DMT_BIN}"
 "${DMT_BIN}" --version || true
 
-echo "Running: ${DMT_BIN} lint -l INFO ${WORK_DIR}/modules"
-"${DMT_BIN}" lint -l INFO "${WORK_DIR}/modules"
+# Optionally enable matrix mode: render and lint every value combination so
+# resources gated behind feature flags / modes are reached too.
+lint_flags=(-l INFO)
+if [[ "${DMT_MATRIX:-}" == "true" ]]; then
+  lint_flags+=(--matrix)
+  if [[ -n "${DMT_MATRIX_LIMIT:-}" ]]; then
+    lint_flags+=(--matrix-limit "${DMT_MATRIX_LIMIT}")
+  fi
+fi
+
+echo "Running: ${DMT_BIN} lint ${lint_flags[*]} ${WORK_DIR}/modules"
+"${DMT_BIN}" lint "${lint_flags[@]}" "${WORK_DIR}/modules"

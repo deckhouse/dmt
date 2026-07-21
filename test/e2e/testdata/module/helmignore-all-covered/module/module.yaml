@@ -1,0 +1,8 @@
+name: helmignore-covered
+namespace: d8-helmignore-covered
+stage: General Availability
+requirements:
+  deckhouse: ">= 1.68.0"
+descriptions:
+  en: E2E test - all directories covered by .helmignore.
+  ru: E2E тест - все директории покрыты .helmignore.
