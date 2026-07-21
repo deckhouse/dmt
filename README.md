@@ -38,7 +38,7 @@ DMT includes **9 specialized linters** to validate different aspects of your Dec
 | Linter | Purpose | Key Checks |
 |--------|---------|------------|
 | [**Container**](pkg/linters/container/README.md) | Container configuration validation | Duplicate names, env vars, security contexts, probes, resource limits, mount-points |
-| [**Documentation**](pkg/linters/docs/README.md) | Documentation quality | README presence, bilingual support, no cyrillic in English docs |
+| [**Documentation**](pkg/linters/docs/README.md) | Documentation quality | README presence, bilingual support, no cyrillic in English docs, markdown style |
 | [**Hooks**](pkg/linters/hooks/README.md) | Hook validation | Hook syntax, ingress configurations |
 | [**Images**](pkg/linters/images/README.md) | Image build instructions | Dockerfile best practices, werf configuration |
 | [**Module**](pkg/linters/module/README.md) | Module structure | module.yaml format, OpenAPI conversions, oss.yaml, license files |

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The **Documentation Linter** validates module documentation to ensure proper structure, completeness, and language consistency. This linter enforces bilingual documentation requirements, checks for documentation file presence, and validates that English documentation doesn't contain cyrillic characters.
+The **Documentation Linter** validates module documentation to ensure proper structure, completeness, and language consistency. This linter enforces bilingual documentation requirements, checks for documentation file presence, validates that English documentation doesn't contain cyrillic characters, and ensures markdown files follow deckhouse markdown style conventions.
 
 Proper documentation is critical for Deckhouse modules as it helps users understand module features, configuration options, and usage patterns. The linter ensures documentation meets quality standards and is accessible to both English and Russian-speaking audiences.
 
@@ -14,6 +14,7 @@ Proper documentation is critical for Deckhouse modules as it helps users underst
 | [bilingual](#bilingual) | Validates documentation exists in both English and Russian | ✅ | enabled |
 | [cyrillic-in-english](#cyrillic-in-english) | Validates English documentation doesn't contain cyrillic characters | ✅ | enabled |
 | [no-lang-key](#no-lang-key) | Validates documentation front matter doesn't contain `lang` key | ✅ | enabled |
+| [markdownlint](#markdownlint) | Validates markdown files in docs/ follow deckhouse markdown style | ✅ | enabled |
 
 "Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
@@ -384,6 +385,129 @@ linters-settings:
       no-lang-key:
         exclude:
           - docs/LEGACY.md      # Legacy file that still uses lang key
+```
+
+---
+
+### markdownlint
+
+**Purpose:** Ensures markdown files in the `docs/` directory follow consistent deckhouse markdown style conventions (headings, lists, code blocks, etc.).
+
+**Description:**
+
+This rule runs the [go-markdownlint](https://github.com/ldmonster/go-markdownlint) library against every `.md` file under `docs/` (recursively, including `docs/internal/...`) and reports any markdown style violations. The built-in rule set is enabled by default; only a fixed set of deckhouse-specific overrides is applied (line-length limits, blanks-around-headings, duplicate-heading siblings, etc.).
+
+Unlike the other documentation rules, `markdownlint` reports at `warn` **by default** — its findings are shown but do not fail the run. Set `impact: error` to make violations fatal.
+
+**What it checks:**
+
+1. Recursively scans all `.md` files under `docs/` (top-level and nested, e.g. `docs/internal/`)
+2. Lints each file with the built-in markdownlint rules using the deckhouse configuration overrides
+3. Reports the rule name(s), description, file path and line number for each violation
+
+**Why it matters:**
+
+Consistent markdown style across all modules makes the documentation easier to read, review and maintain, and keeps it aligned with the rest of the deckhouse documentation.
+
+**Rule reference:**
+
+Findings are reported as `MDxxx/rule-name …`. Look up the code below to see what it means. Rules marked *(tuned)* use deckhouse-specific settings.
+
+| Rule (as shown in the error) | What it means |
+|------------------------------|---------------|
+| MD001 / heading-increment | Heading levels must increase one at a time — no jump from `#` to `###`. |
+| MD003 / heading-style | Heading style must be consistent (ATX `#`, not closed `# … #` or setext). |
+| MD005 / list-indent | List items at the same level must share the same indentation. |
+| MD007 / ul-indent | Nested bullet lists must be indented by the expected amount. |
+| MD009 / no-trailing-spaces | No trailing spaces at the end of a line. |
+| MD010 / no-hard-tabs | No hard tabs — use spaces. |
+| MD011 / no-reversed-links | Reversed link syntax `(text)[url]` instead of `[text](url)`. |
+| MD012 / no-multiple-blanks | No multiple consecutive blank lines. |
+| MD013 / line-length *(tuned)* | Line too long. Limits: 1000 chars (headings 128, code blocks 400). |
+| MD014 / commands-show-output | `$` before shell commands only when their output is shown. |
+| MD018 / no-missing-space-atx | Space required after `#` in a heading (`# Title`, not `#Title`). |
+| MD019 / no-multiple-space-atx | At most one space after `#` in a heading. |
+| MD020 / no-missing-space-closed-atx | Space required inside a closed heading `# Title #`. |
+| MD021 / no-multiple-space-closed-atx | At most one space inside a closed heading. |
+| MD022 / blanks-around-headings *(tuned)* | Headings must be surrounded by blank lines (1 above, 1 below). |
+| MD023 / heading-start-left | Headings must start at the beginning of the line (no indent). |
+| MD024 / no-duplicate-heading *(tuned)* | No duplicate heading text — checked among sibling headings only. |
+| MD025 / single-title / single-h1 | Only one top-level (`#`) heading per document. |
+| MD026 / no-trailing-punctuation *(tuned)* | No trailing punctuation in headings (`. , ; : !` and CJK variants). |
+| MD027 / no-multiple-space-blockquote | At most one space after `>` in a blockquote. |
+| MD028 / no-blanks-blockquote | No blank line inside a blockquote (it splits it in two). |
+| MD029 / ol-prefix *(tuned)* | Ordered-list numbering — all `1.` or strictly ascending (`one_or_ordered`). |
+| MD030 / list-marker-space | Correct number of spaces after a list marker. |
+| MD031 / blanks-around-fences | Fenced code blocks must be surrounded by blank lines. |
+| MD034 / no-bare-urls | Bare URLs must be wrapped in `<…>` or `[text](url)`. |
+| MD035 / hr-style | Horizontal-rule style must be consistent (e.g. always `---`). |
+| MD036 / no-emphasis-as-heading | Don't use bold/italic text in place of a heading. |
+| MD037 / no-space-in-emphasis | No spaces inside emphasis markers (`**bold**`, not `** bold **`). |
+| MD038 / no-space-in-code | No spaces inside inline code (`` `code` ``, not `` ` code ` ``). |
+| MD039 / no-space-in-links | No spaces inside link text (`[link]`, not `[ link ]`). |
+| MD040 / fenced-code-language | Fenced code blocks must declare a language after the opening fence (e.g. `yaml`, `bash`). |
+| MD041 / first-line-heading / first-line-h1 *(tuned)* | First line must be a top-level heading (front-matter `title` counts). |
+| MD042 / no-empty-links | No empty links (`[text]()`). |
+| MD045 / no-alt-text | Images must have alt text (`![alt](img.png)`). |
+| MD046 / code-block-style | Code-block style must be consistent within a file (fenced vs indented). |
+| MD047 / single-trailing-newline | File must end with exactly one newline. |
+| MD048 / code-fence-style | Code-fence style must be consistent (all fences use backticks, or all use tildes `~~~`). |
+| MD049 / emphasis-style | Italic style must be consistent (`*` or `_`). |
+| MD050 / strong-style | Bold style must be consistent (`**` or `__`). |
+| MD052 / reference-links-images | Reference links/images must point to a defined label. |
+| MD053 / link-image-reference-definitions | Reference definitions (`[label]: url`) must be used — no unused ones. |
+| MD055 / table-pipe-style | Table leading/trailing pipe (`\|`) style must be consistent. |
+| MD056 / table-column-count | Every table row must have the same number of columns. |
+| MD058 / blanks-around-tables | Tables must be surrounded by blank lines. |
+| MD059 / descriptive-link-text | Link text must be descriptive — not `here`, `link`, `click here`. |
+
+Three rules are enabled but effectively inert under the deckhouse config, so you will not see them fire: **MD043** (required-headings — no required structure is set), **MD044** (proper-names — the name list is empty) and **MD054** (link-image-style — all link/image styles are allowed by default).
+
+Rules **disabled** on purpose (never reported): MD002 (first-heading-h1, deprecated), MD004 (ul-style), MD032 (blanks-around-lists), MD033 (no-inline-html — HTML is allowed), MD051 (link-fragments — Deckhouse anchors only exist after the doc build), MD060 (table-column-style).
+
+**Examples:**
+
+❌ **Incorrect** - Duplicate top-level heading (MD025) and missing trailing newline (MD047):
+
+```markdown
+<!-- docs/README.md -->
+# My Module
+
+# My Module
+```
+
+(file has no trailing newline)
+
+**Error:**
+```
+MD025/single-title/single-h1 Multiple top-level headings in the same document
+File: docs/README.md
+Line: 3
+
+MD047/single-trailing-newline Files should end with a single newline character
+File: docs/README.md
+Line: 3
+```
+
+✅ **Correct** - Single top-level heading and trailing newline:
+
+```markdown
+<!-- docs/README.md -->
+# My Module
+```
+
+**Configuration:**
+
+To make this rule fatal, or to disable it:
+
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  documentation:
+    rules:
+      markdownlint:
+        impact: error  # fail the run on violations (default is warn)
+        # impact: ignored   # disable the rule entirely
 ```
 
 ---

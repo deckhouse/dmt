@@ -87,6 +87,7 @@ type DocumentationLinterRules struct {
 	BilingualRule         RuleConfig
 	CyrillicInEnglishRule RuleConfig
 	NoLangKeyRule         RuleConfig
+	MarkdownlintRule      RuleConfig
 }
 
 type NoCyrillicLinterConfig struct {
