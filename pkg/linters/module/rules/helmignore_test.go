@@ -159,10 +159,10 @@ func TestHelmignoreRule_CheckHelmignore(t *testing.T) {
 			name:        "multiple missing directories",
 			createFile:  true,
 			fileContent: "hooks/",
-			directories: []string{"hooks", "images", "docs"},
+			directories: []string{"hooks", "images", "scripts"},
 			expectedErrors: []string{
 				"Directory 'images/' is not listed in .helmignore",
-				"Directory 'docs/' is not listed in .helmignore",
+				"Directory 'scripts/' is not listed in .helmignore",
 			},
 		},
 		{
@@ -211,10 +211,10 @@ func TestHelmignoreRule_CheckHelmignore(t *testing.T) {
 		{
 			name:        "negated pattern does not count as covered",
 			createFile:  true,
-			fileContent: "!hooks/",
-			directories: []string{"hooks"},
+			fileContent: "!images/",
+			directories: []string{"images"},
 			expectedErrors: []string{
-				"Directory 'hooks/' is not listed in .helmignore",
+				"Directory 'images/' is not listed in .helmignore",
 			},
 		},
 		{
@@ -230,6 +230,25 @@ func TestHelmignoreRule_CheckHelmignore(t *testing.T) {
 			fileContent:    "hooks/",
 			directories:    []string{"hooks", "charts"},
 			expectedErrors: []string{},
+		},
+		{
+			name:           "monitoring directory is skipped (needed in chart)",
+			createFile:     true,
+			fileContent:    ".git/",
+			directories:    []string{"monitoring"},
+			expectedErrors: []string{},
+		},
+		{
+			name:        "only helm rendering dirs are skipped",
+			createFile:  true,
+			fileContent: ".git/",
+			directories: []string{"docs", "crds", "hooks", "monitoring", "openapi", "templates", "charts"},
+			expectedErrors: []string{
+				"Directory 'docs/' is not listed in .helmignore",
+				"Directory 'crds/' is not listed in .helmignore",
+				"Directory 'hooks/' is not listed in .helmignore",
+				"Directory 'openapi/' is not listed in .helmignore",
+			},
 		},
 		{
 			name:           "empty module root only templates",

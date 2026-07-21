@@ -1,7 +1,7 @@
 description: >
-  .helmignore only lists hooks/ but the module has images/, docs/, openapi/,
-  crds/ directories. module.yaml is excluded (read by Deckhouse directly).
-  templates/ and charts/ are skipped (module-template).
+  .helmignore lists hooks/ and module.yaml but the module has images/,
+  docs/, openapi/, crds/ directories. templates/ and charts/ are skipped
+  (module-template).
 module: module
 expect:
   - linter: module
