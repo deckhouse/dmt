@@ -158,6 +158,7 @@ spec:
 		t.Run(tt.name, func(t *testing.T) {
 			tempDir, err := os.MkdirTemp("", "certificate-gateway-issuer-test")
 			require.NoError(t, err)
+
 			defer os.RemoveAll(tempDir)
 
 			modulePath := filepath.Join(tempDir, "module")
@@ -171,11 +172,13 @@ spec:
 
 			mc := minimock.NewController(t)
 			mockModule := mocks.NewModuleMock(mc)
+
 			objects := make(map[storage.ResourceIndex]storage.StoreObject, len(tt.storageObjects))
 			for index, object := range tt.storageObjects {
 				object.AbsPath = filepath.Join(modulePath, object.AbsPath)
 				objects[index] = object
 			}
+
 			mockModule.GetStorageMock.Return(objects)
 
 			errorList := errors.NewLintRuleErrorsList()
