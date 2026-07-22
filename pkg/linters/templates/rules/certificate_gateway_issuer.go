@@ -71,6 +71,7 @@ func (r *CertificateGatewayIssuerRule) ValidateCertificateGatewayIssuer(m pkg.Mo
 		}
 
 		objectErrorList := errorList.WithObjectID(object.Identity()).WithFilePath(object.GetPath())
+
 		content, err := os.ReadFile(object.AbsPath)
 		if err != nil {
 			objectErrorList.Errorf("Failed to read file %s: %v", object.GetPath(), err)
@@ -99,6 +100,7 @@ func containsForbiddenGatewayIssuerForObject(content string, object storage.Stor
 		}
 
 		foundNamedDocument = true
+
 		if containsForbiddenGatewayIssuer(document) {
 			return true
 		}
