@@ -16,6 +16,8 @@ Proper OpenAPI schema validation is critical for module configuration, ensuring 
 | [deckhouse-crds](#deckhouse-crds) | Validates Deckhouse CRD structure and metadata | ✅ | enabled |
 | [bilingual](#bilingual) | Validates translation files (`doc-ru-`) exist for OpenAPI and CRD files | ✅ | enabled |
 
+"Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
+
 ## Rule Details
 
 ### enum
@@ -160,18 +162,16 @@ properties:
 ```
 
 **Configuration:**
-
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   openapi:
     impact: error
 ```
 
 To exclude specific enum fields:
-
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   openapi:
     exclude-rules:
@@ -181,9 +181,8 @@ linters-settings:
 ```
 
 To exclude enum fields with array wildcards:
-
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   openapi:
     exclude-rules:
@@ -281,9 +280,8 @@ properties:
 ```
 
 **Configuration:**
-
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   openapi:
     exclude-rules:
@@ -374,9 +372,8 @@ properties:
 **Configuration:**
 
 Define which names should be banned in enum values:
-
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   openapi:
     exclude-rules:
@@ -593,9 +590,8 @@ spec:
 ```
 
 **Configuration:**
-
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   openapi:
     exclude-rules:
@@ -681,9 +677,8 @@ crds/
 ```
 
 **Configuration:**
-
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   openapi:
     impact: error  # Controls the impact level for all openapi rules including bilingual
@@ -698,9 +693,8 @@ The OpenAPI linter can be configured at the module level with rule-specific excl
 ### Module-Level Settings
 
 Configure the overall impact level for the openapi linter:
-
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   openapi:
     impact: error  # Options: error, warning, info, ignored
@@ -719,9 +713,8 @@ Each rule supports excluding specific schema paths or CRD names:
 #### Enum Rule Exclusions
 
 Exclude specific enum fields by their schema path:
-
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   openapi:
     exclude-rules:
@@ -740,9 +733,8 @@ linters-settings:
 #### High Availability Exclusions
 
 Exclude specific highAvailability fields:
-
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   openapi:
     exclude-rules:
@@ -754,9 +746,8 @@ linters-settings:
 #### Key Banned Names Configuration
 
 Define which property names are banned in enum values:
-
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   openapi:
     exclude-rules:
@@ -771,9 +762,8 @@ linters-settings:
 #### CRD Exclusions
 
 Exclude specific CRDs from validation:
-
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   openapi:
     exclude-rules:
@@ -784,9 +774,8 @@ linters-settings:
 ```
 
 ### Complete Configuration Example
-
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   openapi:
     # Global impact level
@@ -818,10 +807,9 @@ linters-settings:
 
 ### Configuration in Module Directory
 
-You can also place a `.dmt.yaml` configuration file directly in your module directory:
-
+You can also place a `.dmtlint.yaml` configuration file directly in your module directory:
 ```yaml
-# modules/my-module/.dmt.yaml
+# modules/my-module/.dmtlint.yaml
 linters-settings:
   openapi:
     impact: warning  # More lenient for this specific module
@@ -1149,7 +1137,7 @@ Error: enum 'properties.items[5].properties.type.enum' is invalid: value 'custom
 2. **Exclude specific path if needed:**
 
    ```yaml
-   # .dmt.yaml
+   # .dmtlint.yaml
    linters-settings:
      openapi:
        exclude-rules:

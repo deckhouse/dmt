@@ -17,70 +17,81 @@ limitations under the License.
 package module
 
 import (
-	"strings"
 	"testing"
+	"unicode/utf8"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"sigs.k8s.io/yaml"
 )
 
-const configMapWithYAMLStream = `apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: xxx
-data:
-  apply-on-startup.yaml: |2
-    kind: token
-    version: v2
-    metadata:
-      name: teleport-proxy
-    ---
-    kind: token
-    version: v2
-    metadata:
-      name: teleport-appservice`
-
-const serviceManifest = `apiVersion: v1
-kind: Service
-metadata:
-  name: xxx`
-
-func TestSplitYAMLDocumentsWithBlockScalarIndentIndicator(t *testing.T) {
+func TestIsBinaryManifest(t *testing.T) {
 	tests := []struct {
-		name     string
-		content  string
-		wantDocs []string
+		name string
+		data []byte
+		want bool
 	}{
 		{
-			name:     "keeps separator inside block scalar",
-			content:  configMapWithYAMLStream,
-			wantDocs: []string{configMapWithYAMLStream},
+			name: "clean yaml",
+			data: []byte("apiVersion: v1\nkind: Secret\ndata:\n  cni: Y2lsaXVt\n"),
+			want: false,
 		},
 		{
-			name:     "splits after block scalar",
-			content:  joinYAMLDocuments(configMapWithYAMLStream, serviceManifest),
-			wantDocs: []string{configMapWithYAMLStream, serviceManifest},
+			name: "multibyte utf-8 is allowed",
+			data: []byte("metadata:\n  name: тест\n"),
+			want: false,
+		},
+		{
+			name: "invalid leading utf-8 octet",
+			// 0xf1 starts a 4-byte sequence but is followed by an invalid
+			// continuation byte: this is exactly what b64dec of a random
+			// alphanumeric string produces.
+			data: []byte{'d', 'a', 't', 'a', ':', '\n', ' ', ' ', 0x68, 0x1d, 0xf1, 0x63, 0xdc, 0xca},
+			want: true,
+		},
+		{
+			name: "disallowed control character",
+			data: []byte("data:\n  value\x00here\n"),
+			want: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			docs := splitYAMLDocuments(tt.content)
-			require.Equal(t, tt.wantDocs, docs)
-			requireValidYAMLDocuments(t, docs)
+			assert.Equal(t, tt.want, isBinaryManifest(tt.data))
 		})
 	}
 }
 
-func joinYAMLDocuments(docs ...string) string {
-	return strings.Join(docs, "\n---\n")
-}
+func TestSanitizeBinaryManifest(t *testing.T) {
+	t.Run("preserves clean content", func(t *testing.T) {
+		in := []byte("apiVersion: v1\nkind: Secret\nmetadata:\n  name: тест\n")
+		assert.Equal(t, in, sanitizeBinaryManifest(in))
+	})
 
-func requireValidYAMLDocuments(t *testing.T, docs []string) {
-	t.Helper()
+	t.Run("replaces invalid utf-8 and keeps layout", func(t *testing.T) {
+		// Mimics a rendered Secret whose data value came from b64dec of a
+		// synthetic placeholder, yielding binary bytes.
+		in := []byte("apiVersion: v1\nkind: Secret\nmetadata:\n  name: d8-cni-configuration\ndata:\n  ")
+		in = append(in, 0x68, 0x1d, 0xf1, 0x63, 0xdc, 0xca)
+		in = append(in, '\n')
 
-	for _, doc := range docs {
-		var node map[string]any
-		require.NoError(t, yaml.UnmarshalStrict([]byte(doc), &node))
-	}
+		out := sanitizeBinaryManifest(in)
+
+		require.True(t, utf8.Valid(out), "sanitized manifest must be valid UTF-8")
+
+		node := map[string]any{}
+		require.NoError(t, yaml.UnmarshalStrict(out, &node))
+		assert.Equal(t, "Secret", node["kind"])
+	})
+
+	t.Run("replaces control characters", func(t *testing.T) {
+		in := []byte("data:\n  value\x01\x02\x03\n")
+		out := sanitizeBinaryManifest(in)
+
+		require.True(t, utf8.Valid(out))
+
+		node := map[string]any{}
+		require.NoError(t, yaml.UnmarshalStrict(out, &node))
+	})
 }

@@ -85,6 +85,11 @@ func runLint(dir string) error {
 
 	mng := manager.NewManager(dir, cfg)
 	mng.Run()
+
+	if flags.Fix {
+		mng.ApplyFixes()
+	}
+
 	mng.PrintResult()
 
 	metrics.SetDmtInfo()

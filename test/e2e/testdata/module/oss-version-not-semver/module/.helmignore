@@ -1,0 +1,7 @@
+.git
+*.md
+docs/
+images/
+openapi/
+module.yaml
+oss.yaml

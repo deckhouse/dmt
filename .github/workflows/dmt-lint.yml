@@ -1,7 +1,7 @@
 name: DMT Lint Verify
 
 # Verifies that the dmt build from this branch lints the real deckhouse codebase
-# without regressions. Runs on PRs and on main.
+# and the modules-template reference module without regressions. Runs on PRs and on main.
 #
 # Bypass: if the lint fails but the PR carries the "dmtlint-verify-skip" label,
 # the check passes (the failure is acknowledged and merge is allowed). Without
@@ -10,10 +10,29 @@ on:
   push:
     branches: [ main ]
   pull_request:
-    # `labeled`/`unlabeled` let the check re-evaluate (and turn green) as soon as
-    # the skip label is added or removed, without pushing a new commit.
     types: [ opened, synchronize, reopened, labeled, unlabeled ]
   workflow_dispatch:
+    inputs:
+      deckhouse_branch:
+        description: 'Deckhouse branch or tag to run dmt lint on'
+        required: false
+        default: 'main'
+        type: string
+      template_branch:
+        description: 'modules-template branch or tag to run dmt lint on'
+        required: false
+        default: 'main'
+        type: string
+      matrix:
+        description: 'Render and lint all template variants (--matrix)'
+        required: false
+        default: false
+        type: boolean
+      matrix_limit:
+        description: 'Max value combinations per module (--matrix-limit); empty = default'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -26,73 +45,98 @@ concurrency:
 env:
   SKIP_LABEL: dmtlint-verify-skip
   DECKHOUSE_REPO: https://github.com/deckhouse/deckhouse.git
-  DECKHOUSE_REF: main
+  DECKHOUSE_REF: ${{ inputs.deckhouse_branch || 'main' }}
+  TEMPLATE_REPO: https://github.com/deckhouse/modules-template.git
+  TEMPLATE_REF: ${{ inputs.template_branch || 'main' }}
 
 jobs:
-  dmt-lint-verify:
-    name: dmt-lint-verify
+  lint-deckhouse:
+    name: DMT verify deckhouse
     runs-on: ubuntu-latest
     steps:
-      - name: Resolve skip label
-        id: ctx
+      - name: Check skip label
+        id: skip
         run: |
           if [[ "${{ github.event_name }}" == "pull_request" ]] \
             && [[ "${{ contains(github.event.pull_request.labels.*.name, env.SKIP_LABEL) }}" == "true" ]]; then
+            echo "::warning::'${SKIP_LABEL}' label present — skipping deckhouse lint."
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::'${SKIP_LABEL}' label present — dmt lint verification will be skipped."
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Checkout dmt
-        if: steps.ctx.outputs.skip != 'true'
+        if: steps.skip.outputs.skip != 'true'
         uses: actions/checkout@v4
 
       - name: Setup Go
-        if: steps.ctx.outputs.skip != 'true'
+        if: steps.skip.outputs.skip != 'true'
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
 
       - name: Build dmt
-        if: steps.ctx.outputs.skip != 'true'
+        if: steps.skip.outputs.skip != 'true'
         run: make build
 
       - name: Clone deckhouse (${{ env.DECKHOUSE_REF }})
-        if: steps.ctx.outputs.skip != 'true'
+        if: steps.skip.outputs.skip != 'true'
         run: |
           git clone --depth 1 --branch "${DECKHOUSE_REF}" "${DECKHOUSE_REPO}" "${RUNNER_TEMP}/deckhouse-src"
 
-      # Deckhouse OpenAPI schemas use absolute $ref paths under /deckhouse, so the
-      # prepared tree must live there. Creating a dir under / needs root; hand it
-      # to the runner user so the lint step can populate it without sudo.
       - name: Prepare /deckhouse
-        if: steps.ctx.outputs.skip != 'true'
+        if: steps.skip.outputs.skip != 'true'
         run: |
           sudo mkdir -p /deckhouse
           sudo chown "$(id -u):$(id -g)" /deckhouse
 
       - name: Lint deckhouse with built dmt
-        id: lint
-        if: steps.ctx.outputs.skip != 'true'
-        continue-on-error: true
+        if: steps.skip.outputs.skip != 'true'
         env:
           DMT_BIN: ${{ github.workspace }}/dmt
           SRC_DIR: ${{ runner.temp }}/deckhouse-src
           WORK_DIR: /deckhouse
+          DMT_MATRIX: ${{ inputs.matrix && 'true' || 'false' }}
+          DMT_MATRIX_LIMIT: ${{ inputs.matrix_limit }}
         run: bash .github/scripts/dmt-lint-deckhouse.sh
 
-      - name: Evaluate result
+  lint-modules-template:
+    name: DMT verify modules-template
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check skip label
+        id: skip
         run: |
-          if [[ "${{ steps.ctx.outputs.skip }}" == "true" ]]; then
-            echo "::warning::dmt lint verification skipped because the '${SKIP_LABEL}' label is set on this PR."
-            exit 0
+          if [[ "${{ github.event_name }}" == "pull_request" ]] \
+            && [[ "${{ contains(github.event.pull_request.labels.*.name, env.SKIP_LABEL) }}" == "true" ]]; then
+            echo "::warning::'${SKIP_LABEL}' label present — skipping modules-template lint."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
-          if [[ "${{ steps.lint.outcome }}" == "success" ]]; then
-            echo "dmt lint passed on the deckhouse codebase."
-            exit 0
-          fi
+      - name: Checkout dmt
+        if: steps.skip.outputs.skip != 'true'
+        uses: actions/checkout@v4
 
-          echo "::error::dmt lint failed on the deckhouse codebase. Review the 'Lint deckhouse with built dmt' step logs. To acknowledge and allow merge anyway, add the '${SKIP_LABEL}' label to this PR."
-          exit 1
+      - name: Setup Go
+        if: steps.skip.outputs.skip != 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build dmt
+        if: steps.skip.outputs.skip != 'true'
+        run: make build
+
+      - name: Clone modules-template (${{ env.TEMPLATE_REF }})
+        if: steps.skip.outputs.skip != 'true'
+        run: |
+          git clone --depth 1 --branch "${TEMPLATE_REF}" "${TEMPLATE_REPO}" "${RUNNER_TEMP}/modules-template"
+
+      - name: Lint modules-template with built dmt
+        if: steps.skip.outputs.skip != 'true'
+        env:
+          DMT_BIN: ${{ github.workspace }}/dmt
+          SRC_DIR: ${{ runner.temp }}/modules-template
+        run: bash .github/scripts/dmt-lint-modules-template.sh

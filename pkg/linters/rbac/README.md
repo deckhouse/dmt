@@ -15,6 +15,8 @@ Proper RBAC configuration is critical for Kubernetes security, ensuring least-pr
 | [placement](#placement) | Validates RBAC resource placement and naming conventions | ✅ | enabled |
 | [wildcards](#wildcards) | Validates Roles/ClusterRoles don't use wildcard permissions | ✅ | enabled |
 
+"Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
+
 ## Rule Details
 
 ### user-authz
@@ -328,9 +330,8 @@ roleRef:
 - `log-shipper` in `d8-log-shipper` (when module is `loki`) - For log collection
 
 **Configuration:**
-
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   rbac:
     exclude-rules:
@@ -687,9 +688,8 @@ rules:
 | Role | rbac-to-us.yaml | Any | `access-to-<module-name>-<suffix>` |
 
 **Configuration:**
-
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   rbac:
     exclude-rules:
@@ -892,9 +892,8 @@ If you find yourself wanting to use wildcards, consider:
 4. **Review actual needs** - Often you don't need as much access as you think
 
 **Configuration:**
-
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   rbac:
     exclude-rules:
@@ -912,9 +911,8 @@ The RBAC linter can be configured at the module level with rule-specific exclusi
 ### Module-Level Settings
 
 Configure the overall impact level for the rbac linter:
-
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   rbac:
     impact: error  # Options: error, warning, info, ignored
@@ -931,9 +929,8 @@ linters-settings:
 #### Binding Subject Exclusions
 
 Exclude specific ServiceAccount names from validation:
-
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   rbac:
     exclude-rules:
@@ -947,9 +944,8 @@ linters-settings:
 #### Placement Exclusions
 
 Exclude specific RBAC resources from placement validation:
-
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   rbac:
     exclude-rules:
@@ -965,9 +961,8 @@ linters-settings:
 #### Wildcards Exclusions
 
 Exclude specific Roles/ClusterRoles from wildcard validation:
-
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   rbac:
     exclude-rules:
@@ -981,9 +976,8 @@ linters-settings:
 ```
 
 ### Complete Configuration Example
-
 ```yaml
-# .dmt.yaml
+# .dmtlint.yaml
 linters-settings:
   rbac:
     # Global impact level
@@ -1014,10 +1008,9 @@ linters-settings:
 
 ### Configuration in Module Directory
 
-You can also place a `.dmt.yaml` configuration file directly in your module directory:
-
+You can also place a `.dmtlint.yaml` configuration file directly in your module directory:
 ```yaml
-# modules/my-module/.dmt.yaml
+# modules/my-module/.dmtlint.yaml
 linters-settings:
   rbac:
     impact: warning  # More lenient for this specific module
@@ -1074,7 +1067,7 @@ Error: ClusterRoleBinding bind to the wrong ServiceAccount (doesn't exist in the
 3. **Exclude the ServiceAccount from validation:**
 
    ```yaml
-   # .dmt.yaml
+   # .dmtlint.yaml
    linters-settings:
      rbac:
        exclude-rules:
@@ -1211,7 +1204,7 @@ Error: apiGroups, resources, verbs contains a wildcards. Replace them with an ex
 3. **Exclude if wildcards are absolutely necessary (not recommended):**
 
    ```yaml
-   # .dmt.yaml
+   # .dmtlint.yaml
    linters-settings:
      rbac:
        exclude-rules:

@@ -26,6 +26,10 @@ type LinterError struct {
 	FilePath    string
 	LineNumber  int
 	Level       Level
+
+	// FixError is set when this finding carried an automatic fix that was run
+	// under --fix but failed. The finding is still reported as unresolved.
+	FixError error
 }
 
 type TestError struct {

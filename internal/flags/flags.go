@@ -41,6 +41,7 @@ var (
 	AbsPath           bool
 	ShowIgnored       bool
 	ShowDocumentation bool
+	Fix               bool
 )
 
 var (
@@ -67,6 +68,9 @@ func InitLintFlagSet() *pflag.FlagSet {
 	lint.StringVarP(&LogLevel, "log-level", "l", "INFO", "log-level [DEBUG | INFO | WARN | ERROR]")
 	lint.StringVarP(&ValuesFile, "values-file", "f", "", "path to values.yaml file with override values")
 	lint.StringVarP(&PprofFile, "pprof-file", "", "", "path to pprof file")
+
+	// automatically fix findings that support autofix
+	lint.BoolVarP(&Fix, "fix", "", false, "automatically fix findings that support autofix")
 
 	// hide warnings in output
 	lint.BoolVarP(&HideWarnings, "hide-warnings", "", false, "hide warnings")

@@ -1,0 +1,4 @@
+app:
+  name: demo
+  greeting: hello
+  replicas: 3

@@ -21,6 +21,8 @@ The Module linter includes **8 validation rules**:
 | [**package-yaml**](#package-yaml) | Validates `package.yaml` metadata and new requirements schema | ✅ Yes |
 | [**legacy-release-file**](#legacy-release-file) | Checks for deprecated `release.yaml` file | ❌ No |
 
+"Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
+
 ---
 
 ## Rule Details
@@ -42,6 +44,10 @@ Validates the `module.yaml` configuration file structure and content.
 - ✅ Update section follows versioning rules
 - ✅ `weight` must not be zero for critical modules
 - ✅ `description` field is deprecated (use `descriptions.en` instead)
+- ✅ `disable.messages` (localized `ru`/`en`) must define **both** `ru` and `en` — otherwise an **error**
+- ✅ `disable.messages` on a module that allows Deckhouse `< 1.77` needs a `disable.message` fallback (or `requirements.deckhouse` pinned to `>= 1.77`) — otherwise an **error** (Deckhouse below 1.77 does not read `disable.messages`)
+- ✅ `disable.message` on a module pinned to Deckhouse `>= 1.77` must be removed (only `disable.messages` is read there) — otherwise an **error**; a lone `disable.message` on `< 1.77` is the correct field, so no finding
+- ✅ `disable.message` kept alongside `disable.messages` while the module still allows Deckhouse `< 1.77` — a **warning**: it is the `< 1.77` fallback and must be removed once `requirements.deckhouse` is pinned to `>= 1.77`
 
 #### Stage Values
 
@@ -65,6 +71,7 @@ The `accessibility` section controls which editions and bundles include the modu
 - `se` - Standard Edition
 - `se-plus` - Standard Edition Plus
 - `be` - Business Edition
+- `cse` - Certified Security Edition
 - `_default` - Default behavior override
 
 **Valid Bundles:**
@@ -153,7 +160,7 @@ Validates the `oss.yaml` file containing open-source software attribution.
   - `license` - Valid license identifier (must not be empty)
   - `logo` (optional) - Valid logo URL (must be valid URL if provided)
 - ✅ A project may use `versions` instead of `version` when the component has several context-dependent versions. Each `versions[]` item must contain a non-empty `version` value.
-- ✅ dmt checks version values for semver compatibility because semver is the most common format. If the OSS project uses another version format and the value is correct, ignore the warning.
+- ✅ dmt checks version values for semver compatibility because semver is the most common format. If the OSS project uses another version format and the value is correct, ignore the warning. You can also suppress this specific warning per project via the `version-not-semver` exclude rule (see below).
 
 **Error Messages:**
 - `Module should have oss.yaml` - File is missing from module root
@@ -206,6 +213,21 @@ Validates the `oss.yaml` file containing open-source software attribution.
       name: version for k8s 1.32
       version: 1.2.2
 ```
+
+**Excluding the semver warning per project:**
+
+The `version "..." is not semver-compatible` / `versions[].version "..." is not semver-compatible` warnings can be disabled for specific projects (matched by their `oss.yaml` `id`) without disabling the whole OSS rule. Use the `version-not-semver` subrule under `exclude-rules.oss`:
+
+```yaml
+linters-settings:
+  module:                       # linter name
+    exclude-rules:
+      oss:                      # rule name
+        version-not-semver:     # subrule name
+          - id: clickhouse      # oss.yaml id to exclude
+```
+
+With this configuration, the semver-compatibility warning will be skipped for the project whose `id` is `clickhouse`, while all other OSS validations (and the semver check for other projects) still run.
 
 ---
 
@@ -546,7 +568,7 @@ linters-settings:
     helmignore:
       disable: false              # Enable/disable .helmignore validation
     
-    # License exclusions
+    # Exclusions
     exclude-rules:
       license:
         files:                    # Exclude specific files
@@ -556,6 +578,9 @@ linters-settings:
           - hooks/venv/
           - third-party/
           - vendor/
+      oss:
+        version-not-semver:       # Skip semver warning for these oss.yaml ids
+          - id: clickhouse
     
     # Overall impact level
     impact: error                 # Level: error | warning | info

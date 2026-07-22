@@ -1,0 +1,9 @@
+description: >
+  A ValidatingWebhookConfiguration without werf.io/weight or werf.io/deploy-dependency-*
+  annotation must be flagged by the webhook-configuration-annotations rule.
+module: module
+expect:
+  - linter: templates
+    rule: webhook-configuration-annotations
+    level: error
+    textContains: "must have either \"werf.io/weight\" annotation or an annotation with \"werf.io/deploy-dependency\" prefix"

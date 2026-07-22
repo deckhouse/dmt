@@ -5,8 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apa	linterSettings.NoCyrillic.ExcludeRules.Files = pkg.StringRuleExcludeList(configSettings.NoCyrillic.NoCyrillicExcludeRules.Files)
-	linterSettings.NoCyrillic.ExcludeRules.Directories = pkg.PrefixRuleExcludeList(configSettings.NoCyrillic.NoCyrillicExcludeRules.Directories)e.org/licenses/LICENSE-2.0
+    http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -285,6 +284,10 @@ func mapContainerRules(linterSettings *pkg.LintersSettings, configSettings *conf
 		globalConfig.Container.Rules.ReadinessRule.Impact,
 		configSettings.Container.Impact,
 	)
+	linterSettings.Container.Rules.MountPointsRule.SetLevel(
+		globalConfig.Container.Rules.MountPointsRule.Impact,
+		configSettings.Container.Impact,
+	)
 }
 
 // mapImageRules configures Image linter rules
@@ -308,6 +311,11 @@ func mapDocumentationRules(linterSettings *pkg.LintersSettings, configSettings *
 	rules.ReadmeRule.SetLevel(globalRules.ReadmeRule.Impact, fallbackImpact)
 	rules.CyrillicInEnglishRule.SetLevel(globalRules.NoCyrillicExcludeRules.Impact, fallbackImpact)
 	rules.NoLangKeyRule.SetLevel(globalRules.NoLangKeyRule.Impact, fallbackImpact)
+	// markdownlint defaults to warn (non-fatal) rather than error. Unlike the
+	// other documentation rules, the linter-level impact (fallbackImpact) is
+	// intentionally NOT used as the fallback here — only an explicit rule-level
+	// markdownlint impact overrides the warn default.
+	rules.MarkdownlintRule.SetLevel(globalRules.MarkdownlintRule.Impact, pkg.Warn.String())
 }
 
 func mapModuleRules(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings, globalConfig *global.Linters) {
@@ -335,6 +343,7 @@ func mapTemplatesRules(linterSettings *pkg.LintersSettings, configSettings *conf
 	rules.VPARule.SetLevel(globalRules.VPARule.Impact, fallbackImpact)
 	rules.PDBRule.SetLevel(globalRules.PDBRule.Impact, fallbackImpact)
 	rules.IngressRule.SetLevel(globalRules.IngressRule.Impact, fallbackImpact)
+	rules.HTTPRouteRule.SetLevel(globalRules.HTTPRouteRule.Impact, fallbackImpact)
 	rules.PrometheusRule.SetLevel(globalRules.PrometheusRule.Impact, fallbackImpact)
 	rules.GrafanaRule.SetLevel(globalRules.GrafanaRule.Impact, fallbackImpact)
 	rules.KubeRBACProxyRule.SetLevel(globalRules.KubeRBACProxyRule.Impact, fallbackImpact)
@@ -342,6 +351,8 @@ func mapTemplatesRules(linterSettings *pkg.LintersSettings, configSettings *conf
 	rules.ClusterDomainRule.SetLevel(globalRules.ClusterDomainRule.Impact, fallbackImpact)
 	rules.RegistryRule.SetLevel(globalRules.RegistryRule.Impact, fallbackImpact)
 	rules.EnabledModulesRule.SetLevel(globalRules.EnabledModulesRule.Impact, fallbackImpact)
+	rules.MountPointsRule.SetLevel(globalRules.MountPointsRule.Impact, fallbackImpact)
+	rules.WebhookConfigurationRule.SetLevel(globalRules.WebhookConfigurationRule.Impact, fallbackImpact)
 }
 
 // mapOpenAPIRules configures OpenAPI linter rules
@@ -396,7 +407,9 @@ func mapContainerExclusions(linterSettings *pkg.LintersSettings, configSettings 
 	configExcludes := &configSettings.Container.ExcludeRules
 
 	excludes.ControllerSecurityContext = configExcludes.ControllerSecurityContext.Get()
+	excludes.NamespaceLabelsRule = configExcludes.NamespaceLabelsRule.Get()
 	excludes.DNSPolicy = configExcludes.DNSPolicy.Get()
+	excludes.PriorityClass = configExcludes.PriorityClass.Get()
 	excludes.HostNetworkPorts = configExcludes.HostNetworkPorts.Get()
 	excludes.Ports = configExcludes.Ports.Get()
 	excludes.ReadOnlyRootFilesystem = configExcludes.ReadOnlyRootFilesystem.Get()
@@ -408,6 +421,7 @@ func mapContainerExclusions(linterSettings *pkg.LintersSettings, configSettings 
 	excludes.SeccompProfile = configExcludes.SeccompProfile.Get()
 	excludes.NoNewPrivileges = configExcludes.NoNewPrivileges.Get()
 	excludes.Description = pkg.StringRuleExcludeList(configExcludes.Description)
+	excludes.MountPoints = pkg.StringRuleExcludeList(configExcludes.MountPoints)
 }
 
 // mapImageExclusionsAndSettings maps Image linter exclusions and additional settings
@@ -429,7 +443,7 @@ func mapNoCyrillicExclusions(linterSettings *pkg.LintersSettings, configSettings
 	configExcludes := &configSettings.NoCyrillic.NoCyrillicExcludeRules
 
 	excludes.Files = pkg.StringRuleExcludeList(configExcludes.Files)
-	excludes.Directories = pkg.PrefixRuleExcludeList(configExcludes.Directories)
+	excludes.Directories = pkg.DirectoryRuleExcludeList(configExcludes.Directories)
 }
 
 // mapOpenAPIExclusions maps OpenAPI linter exclusion rules
@@ -453,8 +467,11 @@ func mapTemplatesExclusionsAndSettings(linterSettings *pkg.LintersSettings, conf
 	excludes.ServicePort = configExcludes.ServicePort.Get()
 	excludes.KubeRBACProxy = pkg.StringRuleExcludeList(configExcludes.KubeRBACProxy)
 	excludes.Ingress = configExcludes.Ingress.Get()
+	excludes.HTTPRoute = configExcludes.HTTPRoute.Get()
 	excludes.EnabledModules.Files = pkg.StringRuleExcludeList(configExcludes.EnabledModules.Files)
-	excludes.EnabledModules.Directories = pkg.PrefixRuleExcludeList(configExcludes.EnabledModules.Directories)
+	excludes.EnabledModules.Directories = pkg.DirectoryRuleExcludeList(configExcludes.EnabledModules.Directories)
+	excludes.WebhookConfiguration = configExcludes.WebhookConfiguration.Get()
+	excludes.MountPoints = pkg.StringRuleExcludeList(configExcludes.MountPoints)
 
 	// Additional settings
 	linterSettings.Templates.PrometheusRuleSettings.Disable = configSettings.Templates.PrometheusRules.Disable
@@ -482,7 +499,8 @@ func mapModuleExclusionsAndSettings(linterSettings *pkg.LintersSettings, configS
 	excludes := &linterSettings.Module.ExcludeRules
 	configExcludes := &configSettings.Module.ExcludeRules
 	excludes.License.Files = pkg.StringRuleExcludeList(configExcludes.License.Files)
-	excludes.License.Directories = pkg.PrefixRuleExcludeList(configExcludes.License.Directories)
+	excludes.License.Directories = pkg.DirectoryRuleExcludeList(configExcludes.License.Directories)
+	excludes.OSS.VersionNotSemver = configExcludes.OSS.VersionNotSemver.Get()
 
 	// Additional settings
 	linterSettings.Module.OSSRuleSettings.Disable = configSettings.Module.OSS.Disable
@@ -537,30 +555,11 @@ func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, r
 	return module, nil
 }
 
-func remapChart(ch *chart.Chart) {
-	remapTemplates(ch)
-
-	for _, dependency := range ch.Dependencies() {
-		remapChart(dependency)
-	}
-}
-
 //go:embed templates/_module_name.tpl
 var moduleNameTemplate []byte
 
 //go:embed templates/_module_image.tpl
 var moduleImageTemplate []byte
-
-func remapTemplates(ch *chart.Chart) {
-	for _, template := range ch.Templates {
-		switch template.Name {
-		case "templates/_module_name.tpl":
-			template.Data = moduleNameTemplate
-		case "templates/_module_image.tpl":
-			template.Data = moduleImageTemplate
-		}
-	}
-}
 
 func newModuleFromPath(path string) (*Module, error) {
 	moduleYamlConfig, err := ParseModuleConfigFile(path)
@@ -594,8 +593,6 @@ func newModuleFromPath(path string) (*Module, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	remapChart(moduleChart)
 
 	resultModule := &Module{
 		name:      info.Name,

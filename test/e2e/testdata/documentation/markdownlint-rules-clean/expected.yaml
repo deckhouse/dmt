@@ -1,0 +1,52 @@
+description: >-
+  One file per markdownlint rule under docs/, each written in the correct form
+  from the rule documentation. Verifies dmt's markdownlint rule does not falsely
+  fire on valid input. Assertions are scoped to the documentation linter's
+  markdownlint rule; findings from other linters (readme, bilingual, ...) are
+  intentionally ignored.
+expectPass:
+  # No markdownlint finding at all across the correct-form corpus.
+  - {linter: documentation, rule: markdownlint}
+  - {linter: documentation, rule: markdownlint, textContains: "MD001/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD003/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD005/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD007/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD009/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD010/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD011/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD012/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD013/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD014/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD018/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD019/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD020/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD021/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD022/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD023/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD024/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD025/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD026/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD027/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD028/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD029/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD030/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD031/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD034/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD035/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD036/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD037/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD038/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD039/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD040/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD041/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD042/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD045/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD046/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD047/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD048/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD049/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD050/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD052/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD055/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD056/"}
+  - {linter: documentation, rule: markdownlint, textContains: "MD058/"}

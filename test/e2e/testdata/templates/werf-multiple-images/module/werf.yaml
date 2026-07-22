@@ -1,0 +1,4 @@
+project: e2e-werf-multiple-images
+configVersion: 1
+---
+{{ tpl (.Files.Get ".werf/images.yaml") $ }}

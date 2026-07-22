@@ -37,15 +37,15 @@ DMT includes **9 specialized linters** to validate different aspects of your Dec
 
 | Linter | Purpose | Key Checks |
 |--------|---------|------------|
-| [**Container**](pkg/linters/container/README.md) | Container configuration validation | Duplicate names, env vars, security contexts, probes, resource limits |
-| [**Documentation**](pkg/linters/docs/README.md) | Documentation quality | README presence, bilingual support, no cyrillic in English docs |
+| [**Container**](pkg/linters/container/README.md) | Container configuration validation | Duplicate names, env vars, security contexts, probes, resource limits, mount-points |
+| [**Documentation**](pkg/linters/docs/README.md) | Documentation quality | README presence, bilingual support, no cyrillic in English docs, markdown style |
 | [**Hooks**](pkg/linters/hooks/README.md) | Hook validation | Hook syntax, ingress configurations |
 | [**Images**](pkg/linters/images/README.md) | Image build instructions | Dockerfile best practices, werf configuration |
 | [**Module**](pkg/linters/module/README.md) | Module structure | module.yaml format, OpenAPI conversions, oss.yaml, license files |
 | [**NoCyrillic**](pkg/linters/no-cyrillic/README.md) | Character encoding | Cyrillic characters in code/config files |
 | [**OpenAPI**](pkg/linters/openapi/README.md) | OpenAPI schemas | Schema validation, CRD definitions, naming conventions |
 | [**RBAC**](pkg/linters/rbac/README.md) | Security policies | Role bindings, service accounts, wildcards |
-| [**Templates**](pkg/linters/templates/README.md) | Kubernetes templates | VPA/PDB settings, Prometheus rules, Grafana dashboards, service ports |
+| [**Templates**](pkg/linters/templates/README.md) | Kubernetes templates | VPA/PDB settings, Prometheus rules, Grafana dashboards, service ports, mount-points |
 
 ### 🚀 Module Bootstrapping
 
@@ -61,6 +61,17 @@ Quickly scaffold new Deckhouse modules with best practices:
 - **Per-module config**: Override rules for specific needs
 - **Impact levels**: Control severity (error/warn)
 - **Exclusion rules**: Skip checks for specific resources
+
+---
+
+## 🧰 Commands
+
+| Command | Purpose | Documentation |
+|---------|---------|---------------|
+| `lint` | Lint Deckhouse modules with the specialized linters | [Command Line Options](#lint-command) |
+| `bootstrap` | Scaffold a new Deckhouse module | [Command Line Options](#bootstrap-command) |
+| `render` | Render module templates to disk | [internal/render/README.md](internal/render/README.md) |
+| `test` | Run module testers (`conversions`, `templates`) | [internal/test/README.md](internal/test/README.md) |
 
 ---
 
@@ -233,6 +244,46 @@ linters-settings:
       vpa-absent:
         - kind: Deployment
           name: one-off-job
+      mount-points:
+        - /host
+        - /etc/iscsi
+        - /certs
+
+  container:
+    impact: error
+    exclude-rules:
+      mount-points:
+        - /host
+        - /var/lib/kubelet
+```
+
+### Rule: mount-points
+
+The `mount-points` rule validates that volume mounts in pod controllers match the declarations in `mount-points.yaml` files (and vice versa). It runs in two directions:
+
+- **Container linter** (`templates → mount-points.yaml`): warns when a `volumeMount.mountPath` in a Deployment/DaemonSet/StatefulSet is not declared in any `mount-points.yaml`.
+- **Templates linter** (`mount-points.yaml → templates`): warns when a dir or file declared in `mount-points.yaml` is not used as a mountPath in any pod controller.
+
+**Built-in excluded paths:** `/sys`, `/dev`, `/proc` are always skipped — these Linux system paths are available on every host and do not need to be declared.
+
+**Module-specific exclusions:** host paths specific to a module (e.g. `/host`, `/etc/iscsi` for CSI drivers) can be excluded via `.dmtlint.yaml`:
+
+```yaml
+linters-settings:
+  templates:
+    excludeRules:
+      mount-points:
+        - /host
+        - /etc/multipath
+        - /etc/iscsi
+        - /run/iscsid
+        - /certs
+        - /csi
+  container:
+    excludeRules:
+      mount-points:
+        - /host
+        - /var/lib/kubelet
 ```
 
 ### Command Line Options
@@ -287,6 +338,56 @@ dmt bootstrap my-module -p gitlab -d ./modules/my-module
 
 # Custom template
 dmt bootstrap my-module -r https://example.com/template.zip
+```
+
+#### Render Command
+
+Renders each module's `templates/` directory using values generated from its OpenAPI schemas. See [internal/render/README.md](internal/render/README.md) for the full output layout and edition handling.
+
+```bash
+dmt render [module-path] [flags]
+```
+
+**Flags:**
+- `--output, -o`: Directory to write rendered output into (default: a `rendered/` directory at each module root)
+
+**Examples:**
+```bash
+# Render every module under the current directory, in-place
+dmt render
+
+# Render every module under ./modules
+dmt render ./modules
+
+# Render all modules into a shared output directory
+dmt render ./modules --output ./build
+```
+
+#### Test Command
+
+Runs module testers. See [internal/test/README.md](internal/test/README.md) for testcase formats and snapshot details.
+
+```bash
+dmt test <subcommand> [module-path] [flags]
+```
+
+**Subcommands:**
+- `conversions`: Validate OpenAPI configuration conversions against declared versions and testcases
+- `templates`: Render module templates and compare against committed golden snapshots
+
+**Flags:**
+- `--update` (`templates` only): Regenerate golden snapshots instead of comparing against them
+
+**Examples:**
+```bash
+# Validate conversions for all modules
+dmt test conversions
+
+# Compare templates against snapshots for a single module
+dmt test templates ./modules/my-module
+
+# Refresh snapshots after intentional template changes
+dmt test templates ./modules/my-module --update
 ```
 
 ---

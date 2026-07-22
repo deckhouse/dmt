@@ -1,0 +1,6 @@
+description: >
+  Templates mount-points rule should not warn about /sys, /dev, /proc
+  because they are built-in excluded system paths. /etc/app is in
+  the template, so no warnings at all.
+module: module
+expect: []

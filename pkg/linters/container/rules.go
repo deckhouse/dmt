@@ -28,9 +28,10 @@ func (l *Container) applyContainerRules(object storage.StoreObject, storageMap m
 	errorList = errorList.WithFilePath(object.GetPath())
 
 	rules.NewRecommendedLabelsRule().ObjectRecommendedLabels(object, errorList.WithMaxLevel(l.cfg.Rules.RecommendedLabelsRule.GetLevel()))
-	rules.NewNamespaceLabelsRule().ObjectNamespaceLabels(object, storageMap, errorList.WithMaxLevel(l.cfg.Rules.NamespaceLabelsRule.GetLevel()))
+	rules.NewNamespaceLabelsRule(l.cfg.ExcludeRules.NamespaceLabelsRule.Get()).
+		ObjectNamespaceLabels(object, storageMap, errorList.WithMaxLevel(l.cfg.Rules.NamespaceLabelsRule.GetLevel()))
 	rules.NewAPIVersionRule().ObjectAPIVersion(object, errorList.WithMaxLevel(l.cfg.Rules.APIVersionRule.GetLevel()))
-	rules.NewPriorityClassRule().ObjectPriorityClass(object, errorList.WithMaxLevel(l.cfg.Rules.PriorityClassRule.GetLevel()))
+	rules.NewPriorityClassRule(l.cfg.ExcludeRules.PriorityClass.Get()).ObjectPriorityClass(object, errorList.WithMaxLevel(l.cfg.Rules.PriorityClassRule.GetLevel()))
 	rules.NewDNSPolicyRule(l.cfg.ExcludeRules.DNSPolicy.Get()).
 		ObjectDNSPolicy(object, errorList.WithMaxLevel(l.cfg.Rules.DNSPolicyRule.GetLevel()))
 	rules.NewControllerSecurityContextRule(l.cfg.ExcludeRules.ControllerSecurityContext.Get()).
@@ -90,6 +91,10 @@ func (l *Container) applyContainerRules(object storage.StoreObject, storageMap m
 		},
 		func(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
 			rules.NewPortsRule(l.cfg.ExcludeRules.Ports.Get()).ContainerPorts(object, containers, errorList.WithMaxLevel(l.cfg.Rules.PortsRule.GetLevel()))
+		},
+		func(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
+			rules.NewMountPointsRule(l.cfg.ExcludeRules.MountPoints.Get(), l.modulePath).
+				CheckMountPaths(object, containers, errorList.WithMaxLevel(l.cfg.Rules.MountPointsRule.GetLevel()))
 		},
 	}
 

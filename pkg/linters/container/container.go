@@ -31,6 +31,8 @@ type Container struct {
 	name, desc string
 	cfg        *pkg.ContainerLinterConfig
 	ErrorList  *errors.LintRuleErrorsList
+
+	modulePath string
 }
 
 func New(containerCfg *pkg.ContainerLinterConfig, errorList *errors.LintRuleErrorsList) *Container {
@@ -48,6 +50,8 @@ func (l *Container) Run(m *module.Module) {
 	}
 
 	errorList := l.ErrorList.WithModule(m.GetName())
+
+	l.modulePath = m.GetPath()
 
 	storage := m.GetStorage()
 	for _, object := range storage {

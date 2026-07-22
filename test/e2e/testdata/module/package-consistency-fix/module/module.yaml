@@ -1,0 +1,6 @@
+name: wrong-name
+namespace: e2e
+requirements:
+  deckhouse: ">=0.0.0"
+  modules:
+    prompp: "!optional >=0.16.0"
