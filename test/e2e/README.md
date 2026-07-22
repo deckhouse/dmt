@@ -138,6 +138,9 @@ go test ./test/e2e/ -run 'TestE2E/<linter>/<your-case>' -v
 | `templates/prometheus-promtool` | `prometheus-rules` (invalid PromQL via promtool) |
 | `templates/kube-rbac-proxy` | `kube-rbac-proxy` (d8-* namespace without kube-rbac-proxy CA) |
 | `templates/cluster-domain` | `cluster-domain` (hardcoded `cluster.local`) |
+| `templates/certificate-gateway-issuer-forbidden` | `certificate-gateway-issuer` (Certificate uses `printf "letsencrypt-gateway-%s"`) |
+| `templates/certificate-gateway-issuer-valid` | `certificate-gateway-issuer` (Certificate uses the recommended include helper) |
+| `templates/certificate-gateway-issuer-disabled` | `certificate-gateway-issuer` excluded via `templates.exclude-rules` |
 | `templates/registry` | `registry` (global dockercfg without module override) |
 | `templates/enabled-modules` | `enabled-modules` (deprecated `.Values.global.enabledModules | has`) |
 

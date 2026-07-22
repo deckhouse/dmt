@@ -353,6 +353,7 @@ func mapTemplatesRules(linterSettings *pkg.LintersSettings, configSettings *conf
 	rules.EnabledModulesRule.SetLevel(globalRules.EnabledModulesRule.Impact, fallbackImpact)
 	rules.MountPointsRule.SetLevel(globalRules.MountPointsRule.Impact, fallbackImpact)
 	rules.WebhookConfigurationRule.SetLevel(globalRules.WebhookConfigurationRule.Impact, fallbackImpact)
+	rules.CertificateGatewayIssuerRule.SetLevel(globalRules.CertificateGatewayIssuerRule.Impact, fallbackImpact)
 }
 
 // mapOpenAPIRules configures OpenAPI linter rules
@@ -468,6 +469,7 @@ func mapTemplatesExclusionsAndSettings(linterSettings *pkg.LintersSettings, conf
 	excludes.KubeRBACProxy = pkg.StringRuleExcludeList(configExcludes.KubeRBACProxy)
 	excludes.Ingress = configExcludes.Ingress.Get()
 	excludes.HTTPRoute = configExcludes.HTTPRoute.Get()
+	excludes.CertificateGatewayIssuer = configExcludes.CertificateGatewayIssuer.Get()
 	excludes.EnabledModules.Files = pkg.StringRuleExcludeList(configExcludes.EnabledModules.Files)
 	excludes.EnabledModules.Directories = pkg.DirectoryRuleExcludeList(configExcludes.EnabledModules.Directories)
 	excludes.WebhookConfiguration = configExcludes.WebhookConfiguration.Get()
