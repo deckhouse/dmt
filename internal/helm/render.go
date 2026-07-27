@@ -18,8 +18,6 @@ package helm
 
 import (
 	"fmt"
-	"io"
-	stdlog "log"
 	"path"
 
 	"github.com/werf/nelm/pkg/helm/pkg/chart"
@@ -38,6 +36,12 @@ func init() {
 	loader.NoChartLockWarning = ""
 }
 
+// Renderer is a convenience wrapper around NelmEngine that carries DMT-specific
+// rendering concerns: chart name, namespace, lint mode, and helm_lib template
+// overrides. It delegates chart loading and rendering to NelmEngine.
+//
+// Renderer is the stable public API for module rendering. For new consumers that
+// do not need helm_lib overrides, use NelmEngine directly.
 type Renderer struct {
 	Name      string
 	Namespace string
@@ -61,41 +65,20 @@ func (r Renderer) RenderChartFromDir(chartDir string, values map[string]any) (ma
 		return nil, fmt.Errorf("helm chart must have a name")
 	}
 
-	opts := helmopts.HelmOptions{
-		ChartLoadOpts: helmopts.ChartLoadOptions{
-			// deckhouse modules may omit Chart.yaml; provide sane defaults so the
-			// directory still loads as a chart.
-			DefaultChartAPIVersion: "v2",
-			DefaultChartName:       r.Name,
-			DefaultChartVersion:    "0.2.0",
-			// Nelm's chart loader calls DepDownloader.SetChartPath / Build when
-			// the chart has a Chart.lock with external (non-file://) dependencies.
-			// Leave it nil and the loader panics with a nil pointer dereference.
-			DepDownloader: &lintDepDownloader{},
-		},
-	}
+	eng := NewEngine()
 
-	// nelm's chart loader calls sympath.Walk which indiscriminately logs
-	// "found symbolic link in path: %s resolves to %s" via the standard
-	// log package. Deckhouse modules use symlinks for helm_lib and other
-	// shared resources; those messages are expected noise. Mute std log
-	// during the load call and restore it afterwards.
-	stdlogWriter := stdlog.Writer()
-
-	stdlog.SetOutput(io.Discard)
-
-	chrt, err := loader.LoadDir(chartDir, opts)
-
-	stdlog.SetOutput(stdlogWriter)
-
+	chrt, err := eng.LoadChart(chartDir, r.Name)
 	if err != nil {
-		return nil, fmt.Errorf("load chart: %w", err)
+		return nil, err
 	}
 
 	r.applyTemplateOverrides(chrt)
 
-	e := engine.Engine{LintMode: r.LintMode}
+	opts := helmopts.HelmOptions{
+		ChartLoadOpts: eng.chartLoadOpts,
+	}
 
+	e := engine.Engine{LintMode: r.LintMode}
 	out, err := e.Render(chrt, chartutil.Values(values), opts)
 	if err != nil {
 		return nil, err
