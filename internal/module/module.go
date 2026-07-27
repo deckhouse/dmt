@@ -150,6 +150,7 @@ func (m *Module) GetValues() map[string]any {
 	if m == nil {
 		return nil
 	}
+
 	return m.values
 }
 

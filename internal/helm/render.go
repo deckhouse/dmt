@@ -79,6 +79,7 @@ func (r Renderer) RenderChartFromDir(chartDir string, values map[string]any) (ma
 	}
 
 	e := engine.Engine{LintMode: r.LintMode}
+
 	out, err := e.Render(chrt, chartutil.Values(values), opts)
 	if err != nil {
 		return nil, err

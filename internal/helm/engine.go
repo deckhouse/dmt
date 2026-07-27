@@ -32,7 +32,7 @@ import (
 type EngineOption func(*NelmEngine)
 
 // NelmEngine is a reusable wrapper around werf/nelm for rendering Helm charts.
-// Unlike the old Renderer, it does not own chart name / namespace / lint mode —
+// Unlike the old Renderer, it does not own chart name / namespace / lint mode -
 // those are passed per-render call. Engine-level concerns (log suppression,
 // default options, DepDownloader) are injected via functional options.
 type NelmEngine struct {
@@ -51,6 +51,7 @@ func NewEngine(opts ...EngineOption) *NelmEngine {
 	for _, o := range opts {
 		o(e)
 	}
+
 	return e
 }
 
@@ -83,6 +84,7 @@ func (e *NelmEngine) LoadChart(chartDir, name string) (*chart.Chart, error) {
 
 	// Suppress nelm's indiscriminate symlink/Chart.lock logging during load.
 	stdlogWriter := stdlog.Writer()
+
 	stdlog.SetOutput(io.Discard)
 
 	chrt, err := loader.LoadDir(chartDir, opts)
@@ -92,6 +94,7 @@ func (e *NelmEngine) LoadChart(chartDir, name string) (*chart.Chart, error) {
 	if err != nil {
 		return nil, fmt.Errorf("load chart: %w", err)
 	}
+
 	return chrt, nil
 }
 
@@ -104,11 +107,13 @@ func (e *NelmEngine) RenderChart(chartDir, name string, values map[string]any, l
 	}
 
 	eng := engine.Engine{LintMode: lintMode}
+
 	out, err := eng.Render(chrt, chartutil.Values(values), helmopts.HelmOptions{
 		ChartLoadOpts: e.chartLoadOpts,
 	})
 	if err != nil {
 		return nil, err
 	}
+
 	return out, nil
 }
