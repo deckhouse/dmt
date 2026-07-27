@@ -53,6 +53,7 @@ type Module struct {
 	chart       *chart.Chart
 	objectStore *storage.UnstructuredObjectStore
 	werfFile    string
+	values      map[string]any
 
 	linterConfig *pkg.LintersSettings
 }
@@ -143,6 +144,13 @@ func (m *Module) GetModuleConfig() *pkg.LintersSettings {
 	}
 
 	return m.linterConfig
+}
+
+func (m *Module) GetValues() map[string]any {
+	if m == nil {
+		return nil
+	}
+	return m.values
 }
 
 // remapLinterSettings converts configuration settings from the config package format
@@ -533,6 +541,7 @@ func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, r
 	}
 
 	module.objectStore = objectStore
+	module.values = schemas
 
 	werfFile, err := werf.GetWerfConfig(path)
 	if err != nil {

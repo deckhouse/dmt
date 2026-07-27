@@ -28,10 +28,7 @@ import (
 // during rendering so that image and module-name references resolve to stable
 // values regardless of the helm_lib version a module ships with.
 func helmLibOverrides() map[string][]byte {
-	return map[string][]byte{
-		"_module_name.tpl":  moduleNameTemplate,
-		"_module_image.tpl": moduleImageTemplate,
-	}
+	return HelmLibOverrides()
 }
 
 // RenderModuleWithValues renders the module at modulePath with the supplied

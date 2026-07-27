@@ -108,6 +108,9 @@ func (l *Templates) Run(m *module.Module) {
 
 	// MountPoints rule
 	rules.NewMountPointsRule(l.cfg.ExcludeRules.MountPoints.Get()).ValidateMountPoints(m, errorList.WithMaxLevel(l.cfg.Rules.MountPointsRule.GetLevel()))
+
+	// HelmRender rule
+	rules.NewHelmRenderRule().Check(m, errorList.WithMaxLevel(l.cfg.Rules.HelmRenderRule.GetLevel()))
 }
 
 func (l *Templates) Name() string {
