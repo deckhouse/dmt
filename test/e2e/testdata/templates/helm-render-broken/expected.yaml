@@ -1,0 +1,11 @@
+description: >
+  A module with a template containing {{ fail }} must be caught by the
+  helm-render rule. In the main lint-mode render, fail is suppressed.
+  In the helm-render rule (strict mode), fail produces an error that is
+  reported as a lint finding.
+module: module
+expect:
+  - linter: templates
+    rule: helm-render
+    level: error
+    textContains: "helm render failed"

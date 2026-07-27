@@ -44,7 +44,7 @@ func (r *HelmRenderRule) Check(m *module.Module, errorList *errors.LintRuleError
 	renderer := helm.Renderer{
 		Name:             m.GetName(),
 		Namespace:        m.GetNamespace(),
-		LintMode:         true,
+		LintMode:         false, // strict mode catches errors the main render suppresses
 		HelmLibOverrides: module.HelmLibOverrides(),
 	}
 
