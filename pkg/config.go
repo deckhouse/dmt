@@ -144,6 +144,7 @@ type TemplatesLinterRules struct {
 	EnabledModulesRule       RuleConfig
 	WebhookConfigurationRule RuleConfig
 	MountPointsRule          RuleConfig
+	HelmRenderRule           RuleConfig
 }
 
 type PrometheusRuleSettings struct {

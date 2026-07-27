@@ -143,6 +143,7 @@ type TemplatesLinterRules struct {
 	EnabledModulesRule       RuleConfig `mapstructure:"enabled-modules"`
 	WebhookConfigurationRule RuleConfig `mapstructure:"webhook-configuration-annotations"`
 	MountPointsRule          RuleConfig `mapstructure:"mount-points"`
+	HelmRenderRule           RuleConfig `mapstructure:"helm-render"`
 }
 
 func (c LinterConfig) IsWarn() bool {
