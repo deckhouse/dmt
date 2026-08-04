@@ -23,7 +23,7 @@ import (
 	k8SRbac "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -51,7 +51,7 @@ type WildcardsRule struct {
 
 // objectRolesWildcard is a linter for checking the presence
 // of a wildcard in a Role and ClusterRole
-func (r *WildcardsRule) ObjectRolesWildcard(m *module.Module, errorList *errors.LintRuleErrorsList) {
+func (r *WildcardsRule) ObjectRolesWildcard(m *modules.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.Name)
 
 	for _, object := range m.GetStorage() {

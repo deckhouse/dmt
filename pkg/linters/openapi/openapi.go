@@ -23,7 +23,7 @@ import (
 	"strings"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
-	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/openapi/rules"
@@ -45,7 +45,7 @@ func New(cfg *pkg.OpenAPILinterConfig, errorList *errors.LintRuleErrorsList) *Op
 	}
 }
 
-func (o *OpenAPI) Run(m *module.Module) {
+func (o *OpenAPI) Run(m *modules.Module) {
 	errorLists := o.ErrorList.WithModule(m.GetName())
 
 	// check openAPI files

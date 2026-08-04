@@ -20,7 +20,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/templates/rules"
@@ -46,7 +46,7 @@ func New(cfg *pkg.TemplatesLinterConfig, errorList *errors.LintRuleErrorsList) *
 	}
 }
 
-func (l *Templates) Run(m *module.Module) {
+func (l *Templates) Run(m *modules.Module) {
 	if m == nil {
 		return
 	}
@@ -108,6 +108,9 @@ func (l *Templates) Run(m *module.Module) {
 
 	// MountPoints rule
 	rules.NewMountPointsRule(l.cfg.ExcludeRules.MountPoints.Get()).ValidateMountPoints(m, errorList.WithMaxLevel(l.cfg.Rules.MountPointsRule.GetLevel()))
+
+	// HelmRender rule
+	rules.NewHelmRenderRule().Check(m, errorList.WithMaxLevel(l.cfg.Rules.HelmRenderRule.GetLevel()))
 }
 
 func (l *Templates) Name() string {

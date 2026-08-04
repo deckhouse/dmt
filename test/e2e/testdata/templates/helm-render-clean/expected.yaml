@@ -1,0 +1,8 @@
+description: >
+  A valid module with renderable templates must pass the helm-render rule
+  without producing any findings. Other linters may produce findings for
+  the minimal module structure, but none from helm-render.
+module: module
+expectAbsent:
+  - linter: templates
+    rule: helm-render

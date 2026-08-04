@@ -25,7 +25,7 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
-	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/pkg"
 	pkgerrors "github.com/deckhouse/dmt/pkg/errors"
 )
@@ -62,7 +62,7 @@ type LicenseRule struct {
 	pkg.PathRule
 }
 
-func (r *LicenseRule) CheckFiles(mod *module.Module, errorList *pkgerrors.LintRuleErrorsList) {
+func (r *LicenseRule) CheckFiles(mod *modules.Module, errorList *pkgerrors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
 	// Use new parser if available

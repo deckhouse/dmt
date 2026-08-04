@@ -37,9 +37,9 @@ import (
 	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/metrics"
-	"github.com/deckhouse/dmt/internal/module"
 	"github.com/deckhouse/dmt/internal/moduleloader"
-	"github.com/deckhouse/dmt/internal/values"
+	"github.com/deckhouse/dmt/internal/modules"
+	"github.com/deckhouse/dmt/internal/modules/values"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -67,13 +67,13 @@ func generateDocumentationURL(linterID, ruleID string) string {
 }
 
 type Linter interface {
-	Run(m *module.Module)
+	Run(m *modules.Module)
 	Name() string
 }
 
 type Manager struct {
 	cfg     *config.RootConfig
-	Modules []*module.Module
+	Modules []*modules.Module
 
 	errors *errors.LintRuleErrorsList
 }
@@ -118,7 +118,7 @@ func (m *Manager) initManager(dir string) *Manager {
 			continue
 		}
 
-		mdl, err := module.NewModule(paths[i], &vals, globalValues, m.cfg, errorList)
+		mdl, err := modules.NewModule(paths[i], &vals, globalValues, m.cfg, errorList)
 		if err != nil {
 			errorList.
 				WithFilePath(paths[i]).WithModule(moduleName).

@@ -25,7 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -62,7 +62,7 @@ func (s *nsLabelSelector) Matches(namespace string, labelSet labels.Set) bool {
 
 // controllerMustHavePDB adds linting errors if there are pods from controllers which are not covered (except DaemonSets)
 // by a PodDisruptionBudget
-func (r *PDBRule) ControllerMustHavePDB(md *module.Module, errorList *errors.LintRuleErrorsList) {
+func (r *PDBRule) ControllerMustHavePDB(md *modules.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
 	pdbSelectors := collectPDBSelectors(md, errorList)
@@ -90,7 +90,7 @@ func (r *PDBRule) ControllerMustHavePDB(md *module.Module, errorList *errors.Lin
 }
 
 // collectPDBSelectors collects selectors for matching pods
-func collectPDBSelectors(md *module.Module, errorList *errors.LintRuleErrorsList) []nsLabelSelector {
+func collectPDBSelectors(md *modules.Module, errorList *errors.LintRuleErrorsList) []nsLabelSelector {
 	var selectors []nsLabelSelector
 
 	for _, object := range md.GetStorage() {

@@ -21,7 +21,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/internal/set"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
@@ -49,7 +49,7 @@ type VPARule struct {
 }
 
 // controllerMustHaveVPA fills linting error regarding VPA
-func (r *VPARule) ControllerMustHaveVPA(md *module.Module, errorList *errors.LintRuleErrorsList) {
+func (r *VPARule) ControllerMustHaveVPA(md *modules.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
 	vpaTargets, vpaContainerNamesMap, vpaUpdateModes := parseTargetsGroups(md, errorList)
@@ -84,7 +84,7 @@ func IsPodController(kind string) bool {
 }
 
 // parseTargetsGroups resolves target resource indexes
-func parseTargetsGroups(md *module.Module, errorList *errors.LintRuleErrorsList) (
+func parseTargetsGroups(md *modules.Module, errorList *errors.LintRuleErrorsList) (
 	map[storage.ResourceIndex]struct{},
 	map[storage.ResourceIndex]set.Set,
 	map[storage.ResourceIndex]UpdateMode,

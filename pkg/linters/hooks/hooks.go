@@ -17,7 +17,7 @@ limitations under the License.
 package hooks
 
 import (
-	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/hooks/rules"
@@ -41,7 +41,7 @@ func New(cfg *pkg.HooksLinterConfig, errorList *errors.LintRuleErrorsList) *Hook
 	}
 }
 
-func (h *Hooks) Run(m *module.Module) {
+func (h *Hooks) Run(m *modules.Module) {
 	if m == nil {
 		return
 	}

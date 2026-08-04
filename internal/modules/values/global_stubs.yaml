@@ -1,0 +1,57 @@
+# Placeholder .Values.global.* values injected before rendering so the real
+# deckhouse_lib_helm helpers resolve offline. dmt renders strictly (no LintMode),
+# so every global key a helper indexes must exist and be the right type or the
+# render fails. These are fake-but-well-typed defaults; a module's own generated
+# values take precedence (merged on top). Keys mirror what deckhouse_lib_helm reads.
+global:
+  # https.mode below is CertManager, and deckhouse_lib_helm fails a module that
+  # inherits it unless cert-manager is enabled — keep the two consistent.
+  enabledModules:
+    - cert-manager
+  clusterIsBootstrapped: true
+  highAvailability: false
+  defaultClusterStorageClass: ""
+  deckhouseVersion: test
+  deckhouseEdition: CSE
+  clusterConfiguration:
+    apiVersion: deckhouse.io/v1
+    kind: ClusterConfiguration
+    clusterDomain: cluster.local
+    clusterType: Static
+    kubernetesVersion: "Automatic"
+    podSubnetCIDR: 10.111.0.0/16
+    podSubnetNodeCIDRPrefix: "24"
+    serviceSubnetCIDR: 10.222.0.0/16
+    proxy: {}
+  discovery:
+    clusterMasterCount: 3
+    clusterControlPlaneIsHighlyAvailable: false
+    clusterUUID: aa-bb-cc-dd
+    kubernetesVersion: "1.29.0"
+    prometheusScrapeInterval: 30
+    defaultStorageClass: ""
+    apiVersions: []
+    d8SpecificNodeCountByRole: {}
+    gatewayAPIDefaultGateway:
+      name: default
+      namespace: d8-alb
+  modules:
+    publicDomainTemplate: "%s.example.com"
+    ingressClass: nginx
+    placement: {}
+    https:
+      mode: CertManager
+      certManager:
+        clusterIssuerName: letsencrypt
+  internal:
+    modules:
+      kubeRBACProxyCA:
+        cert: ""
+        key: ""
+      admissionWebhookClientCA:
+        cert: ""
+        key: ""
+  modulesImages:
+    registry:
+      base: registry.example.com/deckhouse
+    digests: {}

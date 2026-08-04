@@ -17,7 +17,7 @@ limitations under the License.
 package images
 
 import (
-	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/images/rules"
@@ -43,7 +43,7 @@ func New(imageCfg *pkg.ImageLinterConfig, errorList *errors.LintRuleErrorsList) 
 	}
 }
 
-func (l *Images) Run(m *module.Module) {
+func (l *Images) Run(m *modules.Module) {
 	if m == nil {
 		return
 	}

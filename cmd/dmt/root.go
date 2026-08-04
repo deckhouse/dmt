@@ -34,7 +34,7 @@ import (
 	"github.com/deckhouse/dmt/internal/bootstrap"
 	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/fsutils"
-	"github.com/deckhouse/dmt/internal/render"
+	"github.com/deckhouse/dmt/internal/rendercmd"
 	"github.com/deckhouse/dmt/internal/test"
 	"github.com/deckhouse/dmt/internal/version"
 	"github.com/deckhouse/dmt/pkg/config"
@@ -224,7 +224,7 @@ from the module's 'module.yaml' and editions follow the
 				dir = args[0]
 			}
 
-			return render.Render(dir, renderOutput)
+			return rendercmd.Render(dir, renderOutput)
 		},
 	}
 	renderCmd.Flags().StringVarP(&renderOutput, "output", "o", "",

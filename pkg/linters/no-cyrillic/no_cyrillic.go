@@ -18,7 +18,7 @@ package nocyrillic
 
 import (
 	"github.com/deckhouse/dmt/internal/fsutils"
-	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/no-cyrillic/rules"
@@ -50,7 +50,7 @@ func New(cfg *pkg.NoCyrillicLinterConfig, errorList *errors.LintRuleErrorsList) 
 	}
 }
 
-func (l *NoCyrillic) Run(m *module.Module) {
+func (l *NoCyrillic) Run(m *modules.Module) {
 	errorList := l.ErrorList.WithModule(m.GetName())
 
 	if m.GetPath() == "" {

@@ -20,7 +20,7 @@ import (
 	v1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -46,7 +46,7 @@ type BindingSubjectRule struct {
 	pkg.StringRule
 }
 
-func (r *BindingSubjectRule) ObjectBindingSubjectServiceAccountCheck(m *module.Module, errorList *errors.LintRuleErrorsList) {
+func (r *BindingSubjectRule) ObjectBindingSubjectServiceAccountCheck(m *modules.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 	converter := runtime.DefaultUnstructuredConverter
 
