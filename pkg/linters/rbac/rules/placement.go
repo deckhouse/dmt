@@ -24,7 +24,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -69,7 +69,7 @@ func isDeckhouseSystemNamespace(actual string) bool {
 	return slices.Contains(deckhouseNamespaces, actual)
 }
 
-func (r *PlacementRule) ObjectRBACPlacement(m *module.Module, errorList *errors.LintRuleErrorsList) {
+func (r *PlacementRule) ObjectRBACPlacement(m *modules.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
 	for _, object := range m.GetStorage() {
@@ -102,7 +102,7 @@ func (r *PlacementRule) ObjectRBACPlacement(m *module.Module, errorList *errors.
 	}
 }
 
-func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+func objectRBACPlacementServiceAccount(m *modules.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	objectName := object.Unstructured.GetName()
 	shortPath := object.ShortPath()
 	namespace := object.Unstructured.GetNamespace()
@@ -185,7 +185,7 @@ func objectRBACPlacementServiceAccount(m *module.Module, object storage.StoreObj
 	errorList.Errorf("ServiceAccount should be in %q or \"*/rbac-for-us.yaml\"", RootRBACForUsPath)
 }
 
-func objectRBACPlacementClusterRole(m *module.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+func objectRBACPlacementClusterRole(m *modules.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	objectName := object.Unstructured.GetName()
 	objectKind := object.Unstructured.GetKind()
 	shortPath := object.ShortPath()
@@ -215,7 +215,7 @@ func objectRBACPlacementClusterRole(m *module.Module, object storage.StoreObject
 	}
 }
 
-func objectRBACPlacementRole(m *module.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+func objectRBACPlacementRole(m *modules.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	shortPath := object.ShortPath()
 	errorList = errorList.WithFilePath(shortPath)
 
@@ -239,7 +239,7 @@ func objectRBACPlacementRole(m *module.Module, object storage.StoreObject, error
 }
 
 // handleRootRBACForUs applies to templates/rbac-for-us.yaml file's objects
-func handleRootRBACForUs(m *module.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+func handleRootRBACForUs(m *modules.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	prefix := "d8:" + m.GetName()
 	objectName := object.Unstructured.GetName()
 	objectKind := object.Unstructured.GetKind()
@@ -264,7 +264,7 @@ func handleRootRBACForUs(m *module.Module, object storage.StoreObject, errorList
 }
 
 // handleRootRBACToUs applies to templates/rbac-to-us.yaml file's objects
-func handleRootRBACToUs(m *module.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+func handleRootRBACToUs(m *modules.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	prefix := "access-to-" + m.GetName()
 	objectName := object.Unstructured.GetName()
 	objectKind := object.Unstructured.GetKind()
@@ -281,7 +281,7 @@ func handleRootRBACToUs(m *module.Module, object storage.StoreObject, errorList 
 }
 
 // handleNestedRBACForUs applies to templates/**/rbac-for-us.yaml file's objects
-func handleNestedRBACForUs(m *module.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+func handleNestedRBACForUs(m *modules.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	objectName := object.Unstructured.GetName()
 	objectKind := object.Unstructured.GetKind()
 	shortPath := object.ShortPath()
@@ -322,7 +322,7 @@ func handleNestedRBACForUs(m *module.Module, object storage.StoreObject, errorLi
 }
 
 // handleNestedRBACToUs applies to templates/**/rbac-to-us.yaml file's objects
-func handleNestedRBACToUs(m *module.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+func handleNestedRBACToUs(m *modules.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	objectName := object.Unstructured.GetName()
 	objectKind := object.Unstructured.GetKind()
 	shortPath := object.ShortPath()

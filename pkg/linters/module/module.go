@@ -17,7 +17,7 @@ limitations under the License.
 package module
 
 import (
-	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/module/rules"
@@ -41,7 +41,7 @@ func New(cfg *pkg.ModuleLinterConfig, errorList *errors.LintRuleErrorsList) *Mod
 	}
 }
 
-func (l *Module) Run(m *module.Module) {
+func (l *Module) Run(m *modules.Module) {
 	if m == nil {
 		return
 	}

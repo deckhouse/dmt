@@ -4,7 +4,7 @@
 package docs
 
 import (
-	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/docs/rules"
@@ -30,7 +30,7 @@ func New(cfg *pkg.DocumentationLinterConfig, errorList *errors.LintRuleErrorsLis
 	}
 }
 
-func (l *Documentation) Run(m *module.Module) {
+func (l *Documentation) Run(m *modules.Module) {
 	if m == nil || m.GetPath() == "" {
 		return
 	}

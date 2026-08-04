@@ -1,10 +1,11 @@
 ---
-# Source: e2e-templates/templates/configmap.yaml
+# Source: templates/configmap.yaml
 apiVersion: v1
 data:
   greeting: hello
   replicas: "3"
 kind: ConfigMap
 metadata:
+  annotations: {}
+  labels: {}
   name: demo
-  namespace: d8-e2e-templates

@@ -17,7 +17,7 @@ limitations under the License.
 package rbac
 
 import (
-	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules"
@@ -43,7 +43,7 @@ func New(cfg *pkg.RBACLinterConfig, errorList *errors.LintRuleErrorsList) *Rbac 
 	}
 }
 
-func (l *Rbac) Run(m *module.Module) {
+func (l *Rbac) Run(m *modules.Module) {
 	if m == nil {
 		return
 	}

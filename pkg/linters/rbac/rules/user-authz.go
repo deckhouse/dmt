@@ -21,7 +21,7 @@ import (
 
 	"github.com/iancoleman/strcase"
 
-	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
@@ -46,7 +46,7 @@ type UserAuthZRule struct {
 objectUserAuthzClusterRolePath validates that files for user-authz contains only cluster roles.
 Also, it validates that role names equals to d8:user-authz:<ChartName>:<AccessLevel>
 */
-func (*UserAuthZRule) ObjectUserAuthzClusterRolePath(m *module.Module, errorList *errors.LintRuleErrorsList) {
+func (*UserAuthZRule) ObjectUserAuthzClusterRolePath(m *modules.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithModule(m.GetName())
 
 	for _, object := range m.GetStorage() {
