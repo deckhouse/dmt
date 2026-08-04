@@ -449,6 +449,69 @@ func Test_synthesizeProperties(t *testing.T) {
 			want:    map[string]any{"tenantName": "a"},
 			wantErr: false,
 		},
+		{
+			name: "array example given as a single object stays a list",
+			schema: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Properties: map[string]spec.Schema{
+						"tolerations": {
+							SchemaProps: spec.SchemaProps{Type: spec.StringOrArray{"array"}},
+							VendorExtensible: spec.VendorExtensible{
+								Extensions: spec.Extensions{
+									examplesDefault: []any{
+										map[string]any{"key": "key1", "operator": "Equal"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: map[string]any{
+				"tolerations": []any{map[string]any{"key": "key1", "operator": "Equal"}},
+			},
+			wantErr: false,
+		},
+		{
+			name: "array example given as a bare scalar stays a list",
+			schema: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Properties: map[string]spec.Schema{
+						"hosts": {
+							SchemaProps: spec.SchemaProps{Type: spec.StringOrArray{"array"}},
+							VendorExtensible: spec.VendorExtensible{
+								Extensions: spec.Extensions{
+									examplesDefault: []any{"example.com"},
+								},
+							},
+						},
+					},
+				},
+			},
+			want:    map[string]any{"hosts": []any{"example.com"}},
+			wantErr: false,
+		},
+		{
+			name: "array example already given as a list is kept as is",
+			schema: &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Properties: map[string]spec.Schema{
+						"hosts": {
+							SchemaProps: spec.SchemaProps{Type: spec.StringOrArray{"array"}},
+							VendorExtensible: spec.VendorExtensible{
+								Extensions: spec.Extensions{
+									examplesDefault: []any{
+										[]any{"a.example.com", "b.example.com"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want:    map[string]any{"hosts": []any{"a.example.com", "b.example.com"}},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
