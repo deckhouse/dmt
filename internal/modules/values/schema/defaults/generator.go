@@ -148,6 +148,15 @@ func synthesizeDefault(key string, prop *spec.Schema, extension string, result m
 		}
 	}
 
+	// An array property is often illustrated with a single element (one
+	// toleration, one host) instead of a one-element list. Keep the shape the
+	// schema declares: a helper that renders the value with toYaml would
+	// otherwise emit a map where the chart appends list items, producing
+	// invalid YAML.
+	if prop.Type.Contains(arrayObject) {
+		def = asList(def)
+	}
+
 	ex, ok := def.(map[string]any)
 	if !ok {
 		result[key] = def
@@ -172,6 +181,17 @@ func synthesizeDefault(key string, prop *spec.Schema, extension string, result m
 	result[key] = def
 
 	return nil
+}
+
+// asList returns v unchanged when it already is a list, and wraps it into a
+// one-element list otherwise.
+func asList(v any) any {
+	switch v.(type) {
+	case []any, []map[string]any:
+		return v
+	default:
+		return []any{v}
+	}
 }
 
 // pickExample chooses which x-examples entry to render. x-examples is a list of
