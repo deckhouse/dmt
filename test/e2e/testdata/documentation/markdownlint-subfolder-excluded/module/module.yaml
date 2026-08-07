@@ -1,0 +1,8 @@
+name: test-module-markdownlint-subfolder-excluded
+namespace: d8-test
+weight: 100
+stage: Experimental
+descriptions:
+  en: "Test module used to verify markdownlint skips docs subfolders"
+requirements:
+  deckhouse: ">=1.68.0"

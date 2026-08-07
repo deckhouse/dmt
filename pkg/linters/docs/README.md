@@ -395,13 +395,13 @@ linters-settings:
 
 **Description:**
 
-This rule runs the [go-markdownlint](https://github.com/ldmonster/go-markdownlint) library against every `.md` file under `docs/` (recursively, including `docs/internal/...`) and reports any markdown style violations. The built-in rule set is enabled by default; only a fixed set of deckhouse-specific overrides is applied (line-length limits, blanks-around-headings, duplicate-heading siblings, etc.).
+This rule runs the [go-markdownlint](https://github.com/ldmonster/go-markdownlint) library against every top-level `.md` file in `docs/` and reports any markdown style violations. Files in subfolders (e.g. `docs/internal/...`) are not checked. The built-in rule set is enabled by default; only a fixed set of deckhouse-specific overrides is applied (line-length limits, blanks-around-headings, duplicate-heading siblings, etc.).
 
 Unlike the other documentation rules, `markdownlint` reports at `warn` **by default** — its findings are shown but do not fail the run. Set `impact: error` to make violations fatal.
 
 **What it checks:**
 
-1. Recursively scans all `.md` files under `docs/` (top-level and nested, e.g. `docs/internal/`)
+1. Scans all `.md` files in `docs/` directory (top-level only; subfolders such as `docs/internal/` are skipped)
 2. Lints each file with the built-in markdownlint rules using the deckhouse configuration overrides
 3. Reports the rule name(s), description, file path and line number for each violation
 

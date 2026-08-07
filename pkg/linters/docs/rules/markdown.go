@@ -62,6 +62,11 @@ func (r *MarkdownRule) CheckFiles(m pkg.Module, errorList *errors.LintRuleErrors
 
 	for _, fileName := range files {
 		relFromModule := fsutils.Rel(modulePath, fileName)
+		// only consider top-level docs/* files, skip any subfolders like docs/internal/
+		if filepath.Dir(relFromModule) != "docs" {
+			continue
+		}
+
 		if !r.Enabled(relFromModule) {
 			continue
 		}
