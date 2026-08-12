@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -41,9 +42,12 @@ const (
 type HTTPRouteRule struct {
 	pkg.RuleMeta
 	pkg.KindRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func NewHTTPRouteRule(excludeRules []pkg.KindRuleExclude) *HTTPRouteRule {
+func NewHTTPRouteRule(excludeRules []pkg.KindRuleExclude, m pkg.Module, errorList *errors.LintRuleErrorsList) *HTTPRouteRule {
 	return &HTTPRouteRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: HTTPRouteRuleName,
@@ -51,11 +55,15 @@ func NewHTTPRouteRule(excludeRules []pkg.KindRuleExclude) *HTTPRouteRule {
 		KindRule: pkg.KindRule{
 			ExcludeRules: excludeRules,
 		},
+		module:    m,
+		errorList: errorList.WithRule(HTTPRouteRuleName),
 	}
 }
 
-func (r *HTTPRouteRule) ModuleMustHaveGatewayResources(md pkg.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+var _ pkg.Rule = (*HTTPRouteRule)(nil)
+
+func (r *HTTPRouteRule) Check(_ context.Context) {
+	md, errorList := r.module, r.errorList
 
 	httpRoutes := collectStoreObjectsByKind(md, HTTPRouteKind)
 	listenerSets := collectStoreObjectsByKind(md, ListenerSetKind)

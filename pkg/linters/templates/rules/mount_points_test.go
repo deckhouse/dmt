@@ -67,7 +67,7 @@ func deploymentWithMounts(name string, mountPaths ...string) storage.StoreObject
 }
 
 func TestNewMountPointsRule(t *testing.T) {
-	rule := NewMountPointsRule(nil)
+	rule := NewMountPointsRule(nil, nil, errors.NewLintRuleErrorsList())
 	assert.Equal(t, MountPointsRuleName, rule.Name)
 }
 
@@ -96,8 +96,8 @@ func TestMountPointsRule_AllDirsMatched(t *testing.T) {
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil)
-	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule := NewMountPointsRule(nil, &mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule.Check(t.Context())
 
 	errs := errorList.GetErrors()
 	assert.Len(t, errs, 0)
@@ -128,8 +128,8 @@ func TestMountPointsRule_MissingDir(t *testing.T) {
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil)
-	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule := NewMountPointsRule(nil, &mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule.Check(t.Context())
 
 	errs := errorList.GetErrors()
 	assert.Len(t, errs, 1)
@@ -164,8 +164,8 @@ func TestMountPointsRule_MultipleFiles(t *testing.T) {
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil)
-	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule := NewMountPointsRule(nil, &mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule.Check(t.Context())
 
 	errs := errorList.GetErrors()
 	assert.Len(t, errs, 0)
@@ -188,8 +188,8 @@ func TestMountPointsRule_NoMountPointsFile(t *testing.T) {
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil)
-	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule := NewMountPointsRule(nil, &mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule.Check(t.Context())
 
 	errs := errorList.GetErrors()
 	assert.Len(t, errs, 0)
@@ -218,8 +218,8 @@ func TestMountPointsRule_EmptyMountPointsFile(t *testing.T) {
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil)
-	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule := NewMountPointsRule(nil, &mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule.Check(t.Context())
 
 	errs := errorList.GetErrors()
 	assert.Len(t, errs, 0)
@@ -245,8 +245,8 @@ func TestMountPointsRule_NoPodControllers_Skips(t *testing.T) {
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil)
-	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: nil}, errorList)
+	rule := NewMountPointsRule(nil, &mockMountPointsModule{path: tmpDir, storage: nil}, errorList)
+	rule.Check(t.Context())
 
 	errs := errorList.GetErrors()
 	assert.Len(t, errs, 0)
@@ -322,8 +322,8 @@ func TestMountPointsRule_DaemonSetAndStatefulSet(t *testing.T) {
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil)
-	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule := NewMountPointsRule(nil, &mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule.Check(t.Context())
 
 	errs := errorList.GetErrors()
 	assert.Len(t, errs, 0)
@@ -353,8 +353,8 @@ func TestMountPointsRule_TrailingSlashMatch(t *testing.T) {
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil)
-	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule := NewMountPointsRule(nil, &mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule.Check(t.Context())
 
 	errs := errorList.GetErrors()
 	assert.Len(t, errs, 0)
@@ -410,8 +410,8 @@ func TestMountPointsRule_InitContainers(t *testing.T) {
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil)
-	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule := NewMountPointsRule(nil, &mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule.Check(t.Context())
 
 	errs := errorList.GetErrors()
 	assert.Len(t, errs, 0)
@@ -442,8 +442,8 @@ func TestMountPointsRule_ExcludeDir(t *testing.T) {
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule([]pkg.StringRuleExclude{"/etc/not-mounted"})
-	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule := NewMountPointsRule([]pkg.StringRuleExclude{"/etc/not-mounted"}, &mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule.Check(t.Context())
 
 	errs := errorList.GetErrors()
 	assert.Len(t, errs, 0)
@@ -474,8 +474,8 @@ func TestMountPointsRule_ExcludeDirWithTrailingSlash(t *testing.T) {
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule([]pkg.StringRuleExclude{"/etc/not-mounted"})
-	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule := NewMountPointsRule([]pkg.StringRuleExclude{"/etc/not-mounted"}, &mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule.Check(t.Context())
 
 	errs := errorList.GetErrors()
 	assert.Len(t, errs, 0)
@@ -530,8 +530,8 @@ func TestMountPointsRule_ControllerWithoutVolumeMounts(t *testing.T) {
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil)
-	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule := NewMountPointsRule(nil, &mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule.Check(t.Context())
 
 	errs := errorList.GetErrors()
 	assert.Len(t, errs, 1)
@@ -564,8 +564,8 @@ func TestMountPointsRule_BuiltinExcludedSys(t *testing.T) {
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil)
-	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule := NewMountPointsRule(nil, &mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule.Check(t.Context())
 
 	// /sys is built-in excluded, /etc/app is in templates → 0 errors
 	errs := errorList.GetErrors()
@@ -630,8 +630,8 @@ func TestMountPointsRule_BuiltinExcludedDev(t *testing.T) {
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil)
-	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule := NewMountPointsRule(nil, &mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule.Check(t.Context())
 
 	errs := errorList.GetErrors()
 	assert.Len(t, errs, 0)
@@ -661,8 +661,8 @@ func TestMountPointsRule_BuiltinExcludedProc(t *testing.T) {
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil)
-	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule := NewMountPointsRule(nil, &mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule.Check(t.Context())
 
 	errs := errorList.GetErrors()
 	assert.Len(t, errs, 0)
@@ -695,8 +695,8 @@ func TestMountPointsRule_BuiltinExcludedDoesNotSuppressWarn(t *testing.T) {
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil)
-	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule := NewMountPointsRule(nil, &mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule.Check(t.Context())
 
 	// /sys, /dev, /proc are built-in excluded, but /etc/not-mounted should still warn
 	errs := errorList.GetErrors()
@@ -733,8 +733,8 @@ func TestMountPointsRule_FilesMatchedInTemplate(t *testing.T) {
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil)
-	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule := NewMountPointsRule(nil, &mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule.Check(t.Context())
 
 	errs := errorList.GetErrors()
 	assert.Len(t, errs, 0)
@@ -764,8 +764,8 @@ func TestMountPointsRule_FilesNotInTemplate(t *testing.T) {
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil)
-	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule := NewMountPointsRule(nil, &mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule.Check(t.Context())
 
 	errs := errorList.GetErrors()
 	assert.Len(t, errs, 1)
@@ -801,8 +801,8 @@ files:
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil)
-	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule := NewMountPointsRule(nil, &mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule.Check(t.Context())
 
 	errs := errorList.GetErrors()
 	assert.Len(t, errs, 0)
@@ -833,8 +833,8 @@ func TestMountPointsRule_FilesOnly(t *testing.T) {
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil)
-	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule := NewMountPointsRule(nil, &mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule.Check(t.Context())
 
 	// files: only, all matched → 0 errors
 	errs := errorList.GetErrors()
@@ -867,8 +867,8 @@ files:
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil)
-	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule := NewMountPointsRule(nil, &mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule.Check(t.Context())
 
 	// /etc/app is matched, /etc/app/unused.yaml is not → 1 warn
 	errs := errorList.GetErrors()
@@ -890,3 +890,4 @@ func (m *mockMountPointsModule) GetObjectStore() *storage.UnstructuredObjectStor
 func (m *mockMountPointsModule) GetStorage() map[storage.ResourceIndex]storage.StoreObject {
 	return m.storage
 }
+func (m *mockMountPointsModule) GetValues() map[string]any { return nil }

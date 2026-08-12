@@ -4,6 +4,7 @@
 package rules
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,11 +20,13 @@ const (
 	RuFallbackSuffix  = "_ru.md"
 )
 
-func NewBilingualRule() *BilingualRule {
+func NewBilingualRule(m pkg.Module, errorList *errors.LintRuleErrorsList) *BilingualRule {
 	return &BilingualRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: BilingualRuleName,
 		},
+		module:    m,
+		errorList: errorList.WithRule(BilingualRuleName),
 	}
 }
 
@@ -31,10 +34,15 @@ type BilingualRule struct {
 	pkg.RuleMeta
 	pkg.PathRule
 	disable bool
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func (r *BilingualRule) CheckBilingual(m pkg.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+var _ pkg.Rule = (*BilingualRule)(nil)
+
+func (r *BilingualRule) Check(_ context.Context) {
+	m, errorList := r.module, r.errorList
 
 	if r.disable {
 		return

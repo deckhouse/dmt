@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"log/slog"
 	"strings"
 
@@ -38,9 +39,12 @@ const (
 type IngressRule struct {
 	pkg.RuleMeta
 	pkg.KindRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func NewIngressRule(excludeRules []pkg.KindRuleExclude) *IngressRule {
+func NewIngressRule(excludeRules []pkg.KindRuleExclude, m pkg.Module, errorList *errors.LintRuleErrorsList) *IngressRule {
 	return &IngressRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: IngressRuleName,
@@ -48,11 +52,21 @@ func NewIngressRule(excludeRules []pkg.KindRuleExclude) *IngressRule {
 		KindRule: pkg.KindRule{
 			ExcludeRules: excludeRules,
 		},
+		module:    m,
+		errorList: errorList.WithRule(IngressRuleName),
 	}
 }
 
-func (r *IngressRule) CheckSnippetsRule(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.GetPath())
+var _ pkg.Rule = (*IngressRule)(nil)
+
+func (r *IngressRule) Check(_ context.Context) {
+	for _, object := range r.module.GetStorage() {
+		r.checkObject(object)
+	}
+}
+
+func (r *IngressRule) checkObject(object storage.StoreObject) {
+	errorList := r.errorList.WithFilePath(object.GetPath())
 
 	if object.Unstructured.GetKind() != "Ingress" {
 		return

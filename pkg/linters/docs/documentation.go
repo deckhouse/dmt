@@ -4,6 +4,8 @@
 package docs
 
 import (
+	"context"
+
 	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -18,38 +20,44 @@ const (
 type Documentation struct {
 	name, desc string
 	cfg        *pkg.DocumentationLinterConfig
+	module     *modules.Module
 	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *pkg.DocumentationLinterConfig, errorList *errors.LintRuleErrorsList) *Documentation {
+func New(cfg *pkg.DocumentationLinterConfig, m *modules.Module, errorList *errors.LintRuleErrorsList) *Documentation {
 	return &Documentation{
 		name:      ID,
 		desc:      "Documentation linter checks module documentation requirements",
 		cfg:       cfg,
+		module:    m,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.Impact),
 	}
 }
 
-func (l *Documentation) Run(m *modules.Module) {
-	if m == nil || m.GetPath() == "" {
+func (l *Documentation) Lint(ctx context.Context) {
+	if l.module == nil || l.module.GetPath() == "" {
 		return
 	}
 
+	for _, rule := range l.rules() {
+		rule.Check(ctx)
+	}
+}
+
+// rules builds this linter's rule set. Keeping the set as data — rather than a
+// sequence of hand-written calls — is what lets rules be selected or grouped
+// later without touching the rules themselves.
+func (l *Documentation) rules() []pkg.Rule {
+	m := l.module
 	errorList := l.ErrorList.WithModule(m.GetName())
 
-	rules.NewReadmeRule().CheckReadme(m, errorList.WithMaxLevel(l.cfg.Rules.ReadmeRule.GetLevel()))
-
-	rules.NewBilingualRule().CheckBilingual(m, errorList.WithMaxLevel(l.cfg.Rules.BilingualRule.GetLevel()))
-
-	rules.NewCyrillicInEnglishRule().CheckFiles(m, errorList.WithMaxLevel(l.cfg.Rules.CyrillicInEnglishRule.GetLevel()))
-
-	rules.NewNoLangKeyRule().CheckFiles(m, errorList.WithMaxLevel(l.cfg.Rules.NoLangKeyRule.GetLevel()))
-
-	rules.NewMarkdownRule().CheckFiles(m, errorList.WithMaxLevel(l.cfg.Rules.MarkdownlintRule.GetLevel()))
-
-	rules.NewSizeRule().CheckSize(m, errorList.WithMaxLevel(l.cfg.Rules.SizeRule.GetLevel()))
-
-	rules.NewFrontMatterRule().CheckFiles(m, errorList.WithMaxLevel(l.cfg.Rules.FrontMatterRule.GetLevel()))
+	return []pkg.Rule{
+		rules.NewReadmeRule(m, errorList.WithMaxLevel(l.cfg.Rules.ReadmeRule.GetLevel())),
+		rules.NewBilingualRule(m, errorList.WithMaxLevel(l.cfg.Rules.BilingualRule.GetLevel())),
+		rules.NewCyrillicInEnglishRule(m, errorList.WithMaxLevel(l.cfg.Rules.CyrillicInEnglishRule.GetLevel())),
+		rules.NewNoLangKeyRule(m, errorList.WithMaxLevel(l.cfg.Rules.NoLangKeyRule.GetLevel())),
+		rules.NewMarkdownRule(m, errorList.WithMaxLevel(l.cfg.Rules.MarkdownlintRule.GetLevel())),
+	}
 }
 
 func (l *Documentation) Name() string {

@@ -38,13 +38,12 @@ git:
   to: /src
 `)
 
-	rule := NewWerfRule()
 	errorList := errors.NewLintRuleErrorsList()
 
 	validModule := mocks.NewModuleMock(mc)
 	validModule.GetPathMock.Return(validDir)
 
-	rule.ValidateWerfTemplates(validModule, errorList)
+	NewWerfRule(validModule, errorList).Check(t.Context())
 	assert.False(t, errorList.ContainsErrors(), "Expected no errors for valid Werf file")
 
 	// Module with an invalid werf.inc.yaml (image name contains an underscore).
@@ -59,7 +58,7 @@ fromImage: scratch
 	invalidModule := mocks.NewModuleMock(mc)
 	invalidModule.GetPathMock.Return(invalidDir)
 
-	rule.ValidateWerfTemplates(invalidModule, errorList)
+	NewWerfRule(invalidModule, errorList).Check(t.Context())
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for invalid Werf file")
 	assert.Contains(t, errorList.GetErrors()[0].Text, "must not contain underscores")
 	assert.Equal(t, filepath.ToSlash(filepath.Join("images", "test-image", "werf.inc.yaml")),

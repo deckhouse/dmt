@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/deckhouse/dmt/pkg"
+	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 // registryMockModule is a mock implementation of module.Module for testing
@@ -68,7 +69,7 @@ func TestNewRegistryRule(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := NewRegistryRule()
+			result := NewRegistryRule(nil, errors.NewLintRuleErrorsList())
 			assert.Equal(t, tt.expected.Name, result.Name)
 		})
 	}

@@ -61,6 +61,13 @@ type ModuleMock struct {
 	beforeGetStorageCounter uint64
 	GetStorageMock          mModuleMockGetStorage
 
+	funcGetValues          func() (m1 map[string]any)
+	funcGetValuesOrigin    string
+	inspectFuncGetValues   func()
+	afterGetValuesCounter  uint64
+	beforeGetValuesCounter uint64
+	GetValuesMock          mModuleMockGetValues
+
 	funcGetWerfFile          func() (s1 string)
 	funcGetWerfFileOrigin    string
 	inspectFuncGetWerfFile   func()
@@ -88,6 +95,8 @@ func NewModuleMock(t minimock.Tester) *ModuleMock {
 	m.GetPathMock = mModuleMockGetPath{mock: m}
 
 	m.GetStorageMock = mModuleMockGetStorage{mock: m}
+
+	m.GetValuesMock = mModuleMockGetValues{mock: m}
 
 	m.GetWerfFileMock = mModuleMockGetWerfFile{mock: m}
 
@@ -1212,6 +1221,192 @@ func (m *ModuleMock) MinimockGetStorageInspect() {
 	}
 }
 
+type mModuleMockGetValues struct {
+	optional           bool
+	mock               *ModuleMock
+	defaultExpectation *ModuleMockGetValuesExpectation
+	expectations       []*ModuleMockGetValuesExpectation
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ModuleMockGetValuesExpectation specifies expectation struct of the Module.GetValues
+type ModuleMockGetValuesExpectation struct {
+	mock *ModuleMock
+
+	results      *ModuleMockGetValuesResults
+	returnOrigin string
+	Counter      uint64
+}
+
+// ModuleMockGetValuesResults contains results of the Module.GetValues
+type ModuleMockGetValuesResults struct {
+	m1 map[string]any
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetValues *mModuleMockGetValues) Optional() *mModuleMockGetValues {
+	mmGetValues.optional = true
+	return mmGetValues
+}
+
+// Expect sets up expected params for Module.GetValues
+func (mmGetValues *mModuleMockGetValues) Expect() *mModuleMockGetValues {
+	if mmGetValues.mock.funcGetValues != nil {
+		mmGetValues.mock.t.Fatalf("ModuleMock.GetValues mock is already set by Set")
+	}
+
+	if mmGetValues.defaultExpectation == nil {
+		mmGetValues.defaultExpectation = &ModuleMockGetValuesExpectation{}
+	}
+
+	return mmGetValues
+}
+
+// Inspect accepts an inspector function that has same arguments as the Module.GetValues
+func (mmGetValues *mModuleMockGetValues) Inspect(f func()) *mModuleMockGetValues {
+	if mmGetValues.mock.inspectFuncGetValues != nil {
+		mmGetValues.mock.t.Fatalf("Inspect function is already set for ModuleMock.GetValues")
+	}
+
+	mmGetValues.mock.inspectFuncGetValues = f
+
+	return mmGetValues
+}
+
+// Return sets up results that will be returned by Module.GetValues
+func (mmGetValues *mModuleMockGetValues) Return(m1 map[string]any) *ModuleMock {
+	if mmGetValues.mock.funcGetValues != nil {
+		mmGetValues.mock.t.Fatalf("ModuleMock.GetValues mock is already set by Set")
+	}
+
+	if mmGetValues.defaultExpectation == nil {
+		mmGetValues.defaultExpectation = &ModuleMockGetValuesExpectation{mock: mmGetValues.mock}
+	}
+	mmGetValues.defaultExpectation.results = &ModuleMockGetValuesResults{m1}
+	mmGetValues.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetValues.mock
+}
+
+// Set uses given function f to mock the Module.GetValues method
+func (mmGetValues *mModuleMockGetValues) Set(f func() (m1 map[string]any)) *ModuleMock {
+	if mmGetValues.defaultExpectation != nil {
+		mmGetValues.mock.t.Fatalf("Default expectation is already set for the Module.GetValues method")
+	}
+
+	if len(mmGetValues.expectations) > 0 {
+		mmGetValues.mock.t.Fatalf("Some expectations are already set for the Module.GetValues method")
+	}
+
+	mmGetValues.mock.funcGetValues = f
+	mmGetValues.mock.funcGetValuesOrigin = minimock.CallerInfo(1)
+	return mmGetValues.mock
+}
+
+// Times sets number of times Module.GetValues should be invoked
+func (mmGetValues *mModuleMockGetValues) Times(n uint64) *mModuleMockGetValues {
+	if n == 0 {
+		mmGetValues.mock.t.Fatalf("Times of ModuleMock.GetValues mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetValues.expectedInvocations, n)
+	mmGetValues.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetValues
+}
+
+func (mmGetValues *mModuleMockGetValues) invocationsDone() bool {
+	if len(mmGetValues.expectations) == 0 && mmGetValues.defaultExpectation == nil && mmGetValues.mock.funcGetValues == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetValues.mock.afterGetValuesCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetValues.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetValues implements mm_pkg.Module
+func (mmGetValues *ModuleMock) GetValues() (m1 map[string]any) {
+	mm_atomic.AddUint64(&mmGetValues.beforeGetValuesCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetValues.afterGetValuesCounter, 1)
+
+	mmGetValues.t.Helper()
+
+	if mmGetValues.inspectFuncGetValues != nil {
+		mmGetValues.inspectFuncGetValues()
+	}
+
+	if mmGetValues.GetValuesMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetValues.GetValuesMock.defaultExpectation.Counter, 1)
+
+		mm_results := mmGetValues.GetValuesMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetValues.t.Fatal("No results are set for the ModuleMock.GetValues")
+		}
+		return (*mm_results).m1
+	}
+	if mmGetValues.funcGetValues != nil {
+		return mmGetValues.funcGetValues()
+	}
+	mmGetValues.t.Fatalf("Unexpected call to ModuleMock.GetValues.")
+	return
+}
+
+// GetValuesAfterCounter returns a count of finished ModuleMock.GetValues invocations
+func (mmGetValues *ModuleMock) GetValuesAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetValues.afterGetValuesCounter)
+}
+
+// GetValuesBeforeCounter returns a count of ModuleMock.GetValues invocations
+func (mmGetValues *ModuleMock) GetValuesBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetValues.beforeGetValuesCounter)
+}
+
+// MinimockGetValuesDone returns true if the count of the GetValues invocations corresponds
+// the number of defined expectations
+func (m *ModuleMock) MinimockGetValuesDone() bool {
+	if m.GetValuesMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetValuesMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetValuesMock.invocationsDone()
+}
+
+// MinimockGetValuesInspect logs each unmet expectation
+func (m *ModuleMock) MinimockGetValuesInspect() {
+	for _, e := range m.GetValuesMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Error("Expected call to ModuleMock.GetValues")
+		}
+	}
+
+	afterGetValuesCounter := mm_atomic.LoadUint64(&m.afterGetValuesCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetValuesMock.defaultExpectation != nil && afterGetValuesCounter < 1 {
+		m.t.Errorf("Expected call to ModuleMock.GetValues at\n%s", m.GetValuesMock.defaultExpectation.returnOrigin)
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetValues != nil && afterGetValuesCounter < 1 {
+		m.t.Errorf("Expected call to ModuleMock.GetValues at\n%s", m.funcGetValuesOrigin)
+	}
+
+	if !m.GetValuesMock.invocationsDone() && afterGetValuesCounter > 0 {
+		m.t.Errorf("Expected %d calls to ModuleMock.GetValues at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetValuesMock.expectedInvocations), m.GetValuesMock.expectedInvocationsOrigin, afterGetValuesCounter)
+	}
+}
+
 type mModuleMockGetWerfFile struct {
 	optional           bool
 	mock               *ModuleMock
@@ -1414,6 +1609,8 @@ func (m *ModuleMock) MinimockFinish() {
 
 			m.MinimockGetStorageInspect()
 
+			m.MinimockGetValuesInspect()
+
 			m.MinimockGetWerfFileInspect()
 		}
 	})
@@ -1444,5 +1641,6 @@ func (m *ModuleMock) minimockDone() bool {
 		m.MinimockGetObjectStoreDone() &&
 		m.MinimockGetPathDone() &&
 		m.MinimockGetStorageDone() &&
+		m.MinimockGetValuesDone() &&
 		m.MinimockGetWerfFileDone()
 }

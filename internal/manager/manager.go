@@ -19,6 +19,7 @@ package manager
 import (
 	"bytes"
 	"cmp"
+	"context"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -67,10 +68,31 @@ func generateDocumentationURL(linterID, ruleID string) string {
 	return fmt.Sprintf("%s/pkg/linters/%s#%s", baseRepoURL, linterID, ruleID)
 }
 
+// Linter is the common interface implemented by all lint passes. Everything a
+// linter needs — its config, the module it inspects and the error list it
+// reports into — is supplied to its constructor, so Lint takes only a context.
 type Linter interface {
-	Run(m *modules.Module)
 	Name() string
+	Lint(ctx context.Context)
 }
+
+// legacyLinter is the pre-refactor linter shape: a module passed per call
+// instead of per construction. Linters still on it run through legacyAdapter
+// until they are migrated to Lint(ctx).
+type legacyLinter interface {
+	Name() string
+	Run(m *modules.Module)
+}
+
+// legacyAdapter binds a legacyLinter to one module so it satisfies Linter.
+type legacyAdapter struct {
+	linter legacyLinter
+	module *modules.Module
+}
+
+func (a legacyAdapter) Name() string { return a.linter.Name() }
+
+func (a legacyAdapter) Lint(_ context.Context) { a.linter.Run(a.module) }
 
 type Manager struct {
 	cfg     *config.RootConfig
@@ -155,7 +177,7 @@ func decodeValuesFile(path string) (chartutil.Values, error) {
 	return chartutil.ReadValuesFile(valuesFile)
 }
 
-func (m *Manager) Run() {
+func (m *Manager) Run(ctx context.Context) {
 	wg := new(sync.WaitGroup)
 	processingCh := make(chan struct{}, flags.LintersLimit)
 
@@ -172,14 +194,14 @@ func (m *Manager) Run() {
 
 			log.Info("Run linters for module", slog.String("module", module.GetName()))
 
-			for _, linter := range getLintersForModule(module.GetModuleConfig(), m.errors) {
+			for _, linter := range getLintersForModule(module, m.errors) {
 				if flags.LinterName != "" && linter.Name() != flags.LinterName {
 					continue
 				}
 
 				log.Debug("Running linter", slog.String("linter", linter.Name()), slog.String("module", module.GetName()))
 
-				linter.Run(module)
+				linter.Lint(ctx)
 			}
 		}()
 	}
@@ -187,17 +209,19 @@ func (m *Manager) Run() {
 	wg.Wait()
 }
 
-func getLintersForModule(cfg *pkg.LintersSettings, errList *errors.LintRuleErrorsList) []Linter {
+func getLintersForModule(module *modules.Module, errList *errors.LintRuleErrorsList) []Linter {
+	cfg := module.GetModuleConfig()
+
 	return []Linter{
-		openapi.New(&cfg.OpenAPI, errList),
-		no_cyrillic.New(&cfg.NoCyrillic, errList),
-		container.New(&cfg.Container, errList),
-		templates.New(&cfg.Templates, errList),
-		images.New(&cfg.Image, errList),
-		rbac.New(&cfg.RBAC, errList),
-		hooks.New(&cfg.Hooks, errList),
-		moduleLinter.New(&cfg.Module, errList),
-		docs.New(&cfg.Documentation, errList),
+		legacyAdapter{openapi.New(&cfg.OpenAPI, errList), module},
+		legacyAdapter{no_cyrillic.New(&cfg.NoCyrillic, errList), module},
+		legacyAdapter{container.New(&cfg.Container, errList), module},
+		templates.New(&cfg.Templates, module, errList),
+		legacyAdapter{images.New(&cfg.Image, errList), module},
+		legacyAdapter{rbac.New(&cfg.RBAC, errList), module},
+		legacyAdapter{hooks.New(&cfg.Hooks, errList), module},
+		legacyAdapter{moduleLinter.New(&cfg.Module, errList), module},
+		docs.New(&cfg.Documentation, module, errList),
 	}
 }
 

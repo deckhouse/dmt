@@ -30,7 +30,7 @@ import (
 )
 
 func TestNewMarkdownRule(t *testing.T) {
-	rule := NewMarkdownRule()
+	rule := NewMarkdownRule(nil, errors.NewLintRuleErrorsList())
 	assert.Equal(t, MarkdownlintRuleName, rule.GetName())
 	assert.Equal(t, "markdownlint", rule.GetName())
 }
@@ -93,10 +93,10 @@ func TestMarkdownRule_CheckFiles_SkipsSubfolders(t *testing.T) {
 				require.NoError(t, os.WriteFile(fullPath, []byte(content), 0o600))
 			}
 
-			rule := NewMarkdownRule()
 			errorList := errors.NewLintRuleErrorsList()
+			rule := NewMarkdownRule(mockModule, errorList)
 
-			rule.CheckFiles(mockModule, errorList)
+			rule.Check(t.Context())
 
 			errs := errorList.GetErrors()
 			if tt.wantAny {

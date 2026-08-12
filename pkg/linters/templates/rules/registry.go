@@ -18,6 +18,7 @@ package rules
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -37,20 +38,29 @@ const (
 	RegistryRuleName = "registry"
 )
 
-func NewRegistryRule() *RegistryRule {
+func NewRegistryRule(m pkg.Module, errorList *errors.LintRuleErrorsList) *RegistryRule {
 	return &RegistryRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: RegistryRuleName,
 		},
+		module:    m,
+		errorList: errorList.WithRule(RegistryRuleName),
 	}
 }
 
 type RegistryRule struct {
 	pkg.RuleMeta
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-// CheckRegistrySecret checks module registry secret for the module.
-func (r *RegistryRule) CheckRegistrySecret(md *modules.Module, errorList *errors.LintRuleErrorsList) {
+var _ pkg.Rule = (*RegistryRule)(nil)
+
+// Check checks module registry secret for the module.
+func (r *RegistryRule) Check(_ context.Context) {
+	md, errorList := r.module, r.errorList
+
 	registryFile := fsutils.GetFiles(md.GetPath(), false, fsutils.FilterFileByNames("registry-secret.yaml"))
 	if len(registryFile) == 0 {
 		return
@@ -65,8 +75,6 @@ func (r *RegistryRule) CheckRegistrySecret(md *modules.Module, errorList *errors
 	}
 
 	moduleName := md.GetName()
-
-	errorList = errorList.WithRule(r.GetName())
 
 	// Read the file content
 	fileContent, err := os.ReadFile(registryFile[0])
