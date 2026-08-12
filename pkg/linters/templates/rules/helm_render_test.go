@@ -20,15 +20,17 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 func TestHelmRenderRule_Name(t *testing.T) {
-	rule := NewHelmRenderRule()
+	rule := NewHelmRenderRule(nil, errors.NewLintRuleErrorsList())
 	assert.Equal(t, HelmRenderRuleName, rule.GetName())
 }
 
 func TestNewHelmRenderRule(t *testing.T) {
-	rule := NewHelmRenderRule()
+	rule := NewHelmRenderRule(nil, errors.NewLintRuleErrorsList())
 	assert.NotNil(t, rule)
 	assert.IsType(t, &HelmRenderRule{}, rule)
 }

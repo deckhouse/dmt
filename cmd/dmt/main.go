@@ -40,7 +40,7 @@ func main() {
 	execute()
 }
 
-func runLint(dir string) error {
+func runLint(ctx context.Context, dir string) error {
 	if flags.PprofFile != "" {
 		log.Info("Profiling enabled", slog.String("file", flags.PprofFile))
 
@@ -84,7 +84,7 @@ func runLint(dir string) error {
 	metrics.GetClient(dir)
 
 	mng := manager.NewManager(dir, cfg)
-	mng.Run()
+	mng.Run(ctx)
 
 	if flags.Fix {
 		mng.ApplyFixes()
@@ -98,7 +98,7 @@ func runLint(dir string) error {
 	metrics.SetDmtRuntimeDurationSeconds()
 
 	metricsClient := metrics.GetClient(dir)
-	metricsClient.Send(context.Background())
+	metricsClient.Send(ctx)
 
 	if mng.HasCriticalErrors() {
 		return errors.New("critical errors found")

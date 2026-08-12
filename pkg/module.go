@@ -48,4 +48,7 @@ type Module interface {
 
 	// GetStorage returns a map of all parsed Kubernetes resources indexed by ResourceIndex
 	GetStorage() map[storage.ResourceIndex]storage.StoreObject
+
+	// GetValues returns the module's composed Helm values
+	GetValues() map[string]any
 }

@@ -4,6 +4,7 @@
 package rules
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -24,23 +25,28 @@ var (
 	langKeyRe            = regexp.MustCompile(`(?m)^lang:\s`)
 )
 
-func NewNoLangKeyRule() *NoLangKeyRule {
+func NewNoLangKeyRule(m pkg.Module, errorList *errors.LintRuleErrorsList) *NoLangKeyRule {
 	return &NoLangKeyRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: NoLangKeyRuleName,
 		},
+		module:    m,
+		errorList: errorList.WithRule(NoLangKeyRuleName),
 	}
 }
 
 type NoLangKeyRule struct {
 	pkg.RuleMeta
 	pkg.PathRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func (r *NoLangKeyRule) CheckFiles(m pkg.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+var _ pkg.Rule = (*NoLangKeyRule)(nil)
 
-	modulePath := m.GetPath()
+func (r *NoLangKeyRule) Check(_ context.Context) {
+	modulePath := r.module.GetPath()
 	if modulePath == "" {
 		return
 	}
@@ -54,12 +60,13 @@ func (r *NoLangKeyRule) CheckFiles(m pkg.Module, errorList *errors.LintRuleError
 			continue
 		}
 
-		r.checkFile(m, fileName, errorList)
+		r.checkFile(fileName)
 	}
 }
 
-func (r *NoLangKeyRule) checkFile(m pkg.Module, fileName string, errorList *errors.LintRuleErrorsList) {
-	relPath := fsutils.Rel(m.GetPath(), fileName)
+func (r *NoLangKeyRule) checkFile(fileName string) {
+	errorList := r.errorList
+	relPath := fsutils.Rel(r.module.GetPath(), fileName)
 
 	if !r.Enabled(relPath) {
 		return

@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,18 +35,26 @@ const (
 
 type ClusterDomainRule struct {
 	pkg.RuleMeta
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func NewClusterDomainRule() *ClusterDomainRule {
+func NewClusterDomainRule(m pkg.Module, errorList *errors.LintRuleErrorsList) *ClusterDomainRule {
 	return &ClusterDomainRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: ClusterDomainRuleName,
 		},
+		module:    m,
+		errorList: errorList.WithRule(ClusterDomainRuleName),
 	}
 }
 
-func (r *ClusterDomainRule) ValidateClusterDomainInTemplates(m pkg.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithFilePath(m.GetPath()).WithRule(r.GetName())
+var _ pkg.Rule = (*ClusterDomainRule)(nil)
+
+func (r *ClusterDomainRule) Check(_ context.Context) {
+	m := r.module
+	errorList := r.errorList.WithFilePath(m.GetPath())
 
 	templatesPath := filepath.Join(m.GetPath(), "templates")
 

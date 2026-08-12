@@ -31,7 +31,7 @@ import (
 )
 
 func TestNewNoLangKeyRule(t *testing.T) {
-	rule := NewNoLangKeyRule()
+	rule := NewNoLangKeyRule(nil, errors.NewLintRuleErrorsList())
 	assert.Equal(t, NoLangKeyRuleName, rule.GetName())
 	assert.Equal(t, "no-lang-key", rule.GetName())
 }
@@ -237,10 +237,10 @@ func TestNoLangKeyRule_CheckFiles(t *testing.T) {
 				require.NoError(t, os.WriteFile(fullPath, []byte(content), 0o600))
 			}
 
-			rule := NewNoLangKeyRule()
 			errorList := errors.NewLintRuleErrorsList()
+			rule := NewNoLangKeyRule(mockModule, errorList)
 
-			rule.CheckFiles(mockModule, errorList)
+			rule.Check(t.Context())
 
 			errs := errorList.GetErrors()
 			assert.Len(t, errs, tt.wantErrors)
@@ -259,10 +259,10 @@ func TestNoLangKeyRule_CheckFiles_EmptyModulePath(t *testing.T) {
 	mockModule := mocks.NewModuleMock(mc)
 	mockModule.GetPathMock.Return("")
 
-	rule := NewNoLangKeyRule()
 	errorList := errors.NewLintRuleErrorsList()
+	rule := NewNoLangKeyRule(mockModule, errorList)
 
-	rule.CheckFiles(mockModule, errorList)
+	rule.Check(t.Context())
 
 	errs := errorList.GetErrors()
 	assert.Empty(t, errs)
@@ -284,13 +284,13 @@ func TestNoLangKeyRule_CheckFiles_Excluded(t *testing.T) {
 		0o600,
 	))
 
-	rule := NewNoLangKeyRule()
+	errorList := errors.NewLintRuleErrorsList()
+	rule := NewNoLangKeyRule(mockModule, errorList)
 	rule.ExcludeStringRules = []pkg.StringRuleExclude{
 		pkg.StringRuleExclude("docs/EXCLUDED.md"),
 	}
-	errorList := errors.NewLintRuleErrorsList()
 
-	rule.CheckFiles(mockModule, errorList)
+	rule.Check(t.Context())
 
 	errs := errorList.GetErrors()
 	assert.Empty(t, errs, "Expected excluded file to produce no errors")
@@ -311,10 +311,10 @@ func TestNoLangKeyRule_CheckFiles_ErrorLineNumber(t *testing.T) {
 		0o600,
 	))
 
-	rule := NewNoLangKeyRule()
 	errorList := errors.NewLintRuleErrorsList()
+	rule := NewNoLangKeyRule(mockModule, errorList)
 
-	rule.CheckFiles(mockModule, errorList)
+	rule.Check(t.Context())
 
 	errs := errorList.GetErrors()
 	require.Len(t, errs, 1)

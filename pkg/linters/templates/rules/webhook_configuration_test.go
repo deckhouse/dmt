@@ -53,10 +53,10 @@ func TestWebhookConfigurationRule_OnlyWeight(t *testing.T) {
 	mod := mocks.NewModuleMock(mc)
 	mod.GetStorageMock.Return(storage)
 
-	rule := NewWebhookConfigurationRule(nil)
 	errorList := errors.NewLintRuleErrorsList()
+	rule := NewWebhookConfigurationRule(nil, mod, errorList)
 
-	rule.ValidateWebhookConfigurationAnnotations(mod, errorList)
+	rule.Check(t.Context())
 	assert.False(t, errorList.ContainsErrors())
 }
 
@@ -71,10 +71,10 @@ func TestWebhookConfigurationRule_OnlyDeployDependencySuffixed(t *testing.T) {
 	mod := mocks.NewModuleMock(mc)
 	mod.GetStorageMock.Return(storage)
 
-	rule := NewWebhookConfigurationRule(nil)
 	errorList := errors.NewLintRuleErrorsList()
+	rule := NewWebhookConfigurationRule(nil, mod, errorList)
 
-	rule.ValidateWebhookConfigurationAnnotations(mod, errorList)
+	rule.Check(t.Context())
 	assert.False(t, errorList.ContainsErrors())
 }
 
@@ -89,10 +89,10 @@ func TestWebhookConfigurationRule_BothWeightAndDeployDependencySuffixed(t *testi
 	mod := mocks.NewModuleMock(mc)
 	mod.GetStorageMock.Return(storage)
 
-	rule := NewWebhookConfigurationRule(nil)
 	errorList := errors.NewLintRuleErrorsList()
+	rule := NewWebhookConfigurationRule(nil, mod, errorList)
 
-	rule.ValidateWebhookConfigurationAnnotations(mod, errorList)
+	rule.Check(t.Context())
 	assert.False(t, errorList.ContainsErrors())
 }
 
@@ -106,10 +106,10 @@ func TestWebhookConfigurationRule_NeitherAnnotation(t *testing.T) {
 	mod := mocks.NewModuleMock(mc)
 	mod.GetStorageMock.Return(storage)
 
-	rule := NewWebhookConfigurationRule(nil)
 	errorList := errors.NewLintRuleErrorsList()
+	rule := NewWebhookConfigurationRule(nil, mod, errorList)
 
-	rule.ValidateWebhookConfigurationAnnotations(mod, errorList)
+	rule.Check(t.Context())
 	assert.True(t, errorList.ContainsErrors())
 }
 
@@ -123,10 +123,10 @@ func TestWebhookConfigurationRule_MutatingWebhookConfiguration(t *testing.T) {
 	mod := mocks.NewModuleMock(mc)
 	mod.GetStorageMock.Return(storage)
 
-	rule := NewWebhookConfigurationRule(nil)
 	errorList := errors.NewLintRuleErrorsList()
+	rule := NewWebhookConfigurationRule(nil, mod, errorList)
 
-	rule.ValidateWebhookConfigurationAnnotations(mod, errorList)
+	rule.Check(t.Context())
 	assert.False(t, errorList.ContainsErrors())
 }
 
@@ -147,10 +147,10 @@ func TestWebhookConfigurationRule_SkipsNonWebhookResources(t *testing.T) {
 	mod := mocks.NewModuleMock(mc)
 	mod.GetStorageMock.Return(storage)
 
-	rule := NewWebhookConfigurationRule(nil)
 	errorList := errors.NewLintRuleErrorsList()
+	rule := NewWebhookConfigurationRule(nil, mod, errorList)
 
-	rule.ValidateWebhookConfigurationAnnotations(mod, errorList)
+	rule.Check(t.Context())
 	assert.False(t, errorList.ContainsErrors())
 }
 
@@ -166,10 +166,10 @@ func TestWebhookConfigurationRule_DeployOnNotEnough(t *testing.T) {
 	mod := mocks.NewModuleMock(mc)
 	mod.GetStorageMock.Return(storage)
 
-	rule := NewWebhookConfigurationRule(nil)
 	errorList := errors.NewLintRuleErrorsList()
+	rule := NewWebhookConfigurationRule(nil, mod, errorList)
 
-	rule.ValidateWebhookConfigurationAnnotations(mod, errorList)
+	rule.Check(t.Context())
 	assert.True(t, errorList.ContainsErrors())
 }
 
@@ -184,10 +184,10 @@ func TestWebhookConfigurationRule_ExcludedResource(t *testing.T) {
 	exclude := []pkg.KindRuleExclude{
 		{Kind: "ValidatingWebhookConfiguration", Name: "excluded-hook"},
 	}
-	rule := NewWebhookConfigurationRule(exclude)
 	errorList := errors.NewLintRuleErrorsList()
+	rule := NewWebhookConfigurationRule(exclude, mod, errorList)
 
-	rule.ValidateWebhookConfigurationAnnotations(mod, errorList)
+	rule.Check(t.Context())
 	assert.False(t, errorList.ContainsErrors())
 }
 
@@ -209,9 +209,9 @@ func TestWebhookConfigurationRule_ExcludedResourceDoesNotAffectOthers(t *testing
 	exclude := []pkg.KindRuleExclude{
 		{Kind: "ValidatingWebhookConfiguration", Name: "excluded-hook"},
 	}
-	rule := NewWebhookConfigurationRule(exclude)
 	errorList := errors.NewLintRuleErrorsList()
+	rule := NewWebhookConfigurationRule(exclude, mod, errorList)
 
-	rule.ValidateWebhookConfigurationAnnotations(mod, errorList)
+	rule.Check(t.Context())
 	assert.True(t, errorList.ContainsErrors())
 }

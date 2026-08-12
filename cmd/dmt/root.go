@@ -18,6 +18,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -268,7 +269,7 @@ func runTests(dir string, opts ...test.Option) error {
 	return nil
 }
 
-func lintCmdFunc(_ *cobra.Command, args []string) {
+func lintCmdFunc(cmd *cobra.Command, args []string) {
 	var dirs = args[0:]
 
 	if len(dirs) == 0 {
@@ -276,12 +277,12 @@ func lintCmdFunc(_ *cobra.Command, args []string) {
 	}
 
 	// Process all directories and combine results
-	if err := runLintMultiple(dirs); err != nil {
+	if err := runLintMultiple(cmd.Context(), dirs); err != nil {
 		os.Exit(1)
 	}
 }
 
-func runLintMultiple(dirs []string) error {
+func runLintMultiple(ctx context.Context, dirs []string) error {
 	var hasErrors bool
 
 	// Process each directory separately
@@ -295,7 +296,7 @@ func runLintMultiple(dirs []string) error {
 		log.Info("Processing directory", slog.String("directory", expandedDir))
 
 		// Run lint for this directory as a separate execution
-		if err := runLint(expandedDir); err != nil {
+		if err := runLint(ctx, expandedDir); err != nil {
 			log.Error("Error processing directory", slog.String("directory", expandedDir), log.Err(err))
 
 			hasErrors = true

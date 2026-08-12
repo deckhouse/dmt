@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -36,10 +37,14 @@ var enabledModulesRe = regexp.MustCompile(`\.Values\.global\.enabledModules\s*\|
 type EnabledModulesRule struct {
 	pkg.RuleMeta
 	pkg.PathRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
 func NewEnabledModulesRule(excludeFileRules []pkg.StringRuleExclude,
-	excludeDirectoryRules []pkg.DirectoryRuleExclude) *EnabledModulesRule {
+	excludeDirectoryRules []pkg.DirectoryRuleExclude,
+	m pkg.Module, errorList *errors.LintRuleErrorsList) *EnabledModulesRule {
 	return &EnabledModulesRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: EnabledModulesRuleName,
@@ -48,11 +53,16 @@ func NewEnabledModulesRule(excludeFileRules []pkg.StringRuleExclude,
 			ExcludeStringRules:    excludeFileRules,
 			ExcludeDirectoryRules: excludeDirectoryRules,
 		},
+		module:    m,
+		errorList: errorList.WithRule(EnabledModulesRuleName),
 	}
 }
 
-func (r *EnabledModulesRule) CheckEnabledModules(m pkg.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithFilePath(m.GetPath()).WithRule(r.GetName())
+var _ pkg.Rule = (*EnabledModulesRule)(nil)
+
+func (r *EnabledModulesRule) Check(_ context.Context) {
+	m := r.module
+	errorList := r.errorList.WithFilePath(m.GetPath())
 
 	templatesPath := filepath.Join(m.GetPath(), "templates")
 

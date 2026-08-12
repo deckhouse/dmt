@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"strings"
 
 	"github.com/tidwall/gjson"
@@ -32,20 +33,27 @@ const (
 	WerfRuleName = "werf"
 )
 
-func NewWerfRule() *WerfRule {
+func NewWerfRule(m pkg.Module, errorList *errors.LintRuleErrorsList) *WerfRule {
 	return &WerfRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: WerfRuleName,
 		},
+		module:    m,
+		errorList: errorList.WithRule(WerfRuleName),
 	}
 }
 
 type WerfRule struct {
 	pkg.RuleMeta
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func (r *WerfRule) ValidateWerfTemplates(m pkg.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+var _ pkg.Rule = (*WerfRule)(nil)
+
+func (r *WerfRule) Check(_ context.Context) {
+	m, errorList := r.module, r.errorList
 
 	imageFiles, err := werf.GetModuleImagesWerfFiles(m.GetPath())
 	if err != nil {
