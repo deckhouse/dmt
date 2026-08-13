@@ -28,7 +28,7 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/internal/modules"
 	pkgerrors "github.com/deckhouse/dmt/pkg/errors"
 )
 
@@ -140,7 +140,7 @@ func (t *Tester) runCase(modulePath string, c testCase, errorList *pkgerrors.Tes
 		return
 	}
 
-	files, err := module.RenderModuleWithValues(modulePath, userValues)
+	files, err := modules.RenderModuleWithValues(modulePath, userValues)
 	if err != nil {
 		errorList.Errorf("testcase %q: render failed: %s", c.name, err.Error())
 		return

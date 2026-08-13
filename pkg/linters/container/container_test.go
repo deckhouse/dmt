@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
@@ -33,7 +33,7 @@ func TestContainer_Run_EmptyModule(t *testing.T) {
 	errList := errors.NewLintRuleErrorsList()
 	linter := New(cfg, errList)
 
-	mod := &module.Module{} // Module with nil objectStore
+	mod := &modules.Module{} // Module with nil objectStore
 	linter.Run(mod)
 	// No errors expected
 	assert.Empty(t, errList.GetErrors())

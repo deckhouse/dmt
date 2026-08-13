@@ -99,6 +99,7 @@ type DocumentationLinterRules struct {
 	BilingualRule         RuleConfig
 	CyrillicInEnglishRule RuleConfig
 	NoLangKeyRule         RuleConfig
+	MarkdownlintRule      RuleConfig
 }
 
 type NoCyrillicLinterConfig struct {
@@ -156,6 +157,7 @@ type TemplatesLinterRules struct {
 	EnabledModulesRule       RuleConfig
 	WebhookConfigurationRule RuleConfig
 	MountPointsRule          RuleConfig
+	HelmRenderRule           RuleConfig
 }
 
 type PrometheusRuleSettings struct {

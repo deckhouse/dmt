@@ -1,0 +1,6 @@
+description: >
+  .helmignore lists directories without trailing slash (hooks, images).
+  The rule must recognise these patterns as covering the directories.
+  No errors expected.
+module: module
+expectClean: true

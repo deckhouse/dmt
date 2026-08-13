@@ -81,19 +81,20 @@ const (
 )
 
 type DeckhouseModule struct {
-	Name          string               `json:"name"`
-	Critical      bool                 `json:"critical,omitempty"`
-	Namespace     string               `json:"namespace"`
-	Weight        uint32               `json:"weight,omitempty"`
-	Tags          []string             `json:"tags"`
-	Subsystems    []string             `json:"subsystems,omitempty"`
-	Stage         string               `json:"stage"`
-	Description   string               `json:"description,omitempty"`
-	Descriptions  ModuleDescriptions   `json:"descriptions,omitempty"`
-	Requirements  *ModuleRequirements  `json:"requirements,omitempty"`
-	Accessibility *ModuleAccessibility `json:"accessibility,omitempty"`
-	Update        *ModuleUpdate        `json:"update,omitempty"`
-	Disable       *ModuleDisable       `json:"disable,omitempty"`
+	Name           string               `json:"name"`
+	Critical       bool                 `json:"critical,omitempty"`
+	Namespace      string               `json:"namespace"`
+	Weight         uint32               `json:"weight,omitempty"`
+	Tags           []string             `json:"tags"`
+	Subsystems     []string             `json:"subsystems,omitempty"`
+	Stage          string               `json:"stage"`
+	Description    string               `json:"description,omitempty"`
+	ExclusiveGroup string               `json:"exclusiveGroup,omitempty"`
+	Descriptions   ModuleDescriptions   `json:"descriptions,omitempty"`
+	Requirements   *ModuleRequirements  `json:"requirements,omitempty"`
+	Accessibility  *ModuleAccessibility `json:"accessibility,omitempty"`
+	Update         *ModuleUpdate        `json:"update,omitempty"`
+	Disable        *ModuleDisable       `json:"disable,omitempty"`
 }
 
 type ModuleDescriptions struct {
@@ -233,7 +234,7 @@ func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *e
 
 	var yml DeckhouseModule
 
-	err = yaml.Unmarshal(yamlFile, &yml)
+	err = yaml.UnmarshalStrict(yamlFile, &yml)
 	if err != nil {
 		errorList.Errorf("Cannot parse file %q: %s", ModuleConfigFilename, err)
 

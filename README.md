@@ -38,7 +38,7 @@ DMT includes **9 specialized linters** to validate different aspects of your Dec
 | Linter | Purpose | Key Checks |
 |--------|---------|------------|
 | [**Container**](pkg/linters/container/README.md) | Container configuration validation | Duplicate names, env vars, security contexts, probes, resource limits, mount-points |
-| [**Documentation**](pkg/linters/docs/README.md) | Documentation quality | README presence, bilingual support, no cyrillic in English docs |
+| [**Documentation**](pkg/linters/docs/README.md) | Documentation quality | README presence, bilingual support, no cyrillic in English docs, markdown style |
 | [**Hooks**](pkg/linters/hooks/README.md) | Hook validation | Hook syntax, ingress configurations |
 | [**Images**](pkg/linters/images/README.md) | Image build instructions | Dockerfile best practices, werf configuration |
 | [**Module**](pkg/linters/module/README.md) | Module structure | module.yaml format, OpenAPI conversions, oss.yaml, license files |
@@ -95,7 +95,7 @@ sh -c "$(wget -qO- https://raw.githubusercontent.com/deckhouse/dmt/main/tools/in
 
 **Install specific version:**
 ```bash
-sh -c "$(curl -fsSL https://raw.githubusercontent.com/deckhouse/dmt/main/tools/install.sh)" "" --version v1.0.0
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/deckhouse/dmt/main/tools/install.sh)" "" --version v0.1.98
 ```
 
 **Install to custom directory:**
@@ -117,10 +117,10 @@ Download the latest release for your platform from the [releases page](https://g
 
 ### Method 3: Go Install
 
-If you have Go installed (requires Go 1.24+):
+If you have Go installed (requires Go 1.25+):
 
 ```bash
-go install github.com/deckhouse/dmt@latest
+go install github.com/deckhouse/dmt/cmd/dmt@latest
 ```
 
 > **Note**: Ensure `~/go/bin` is in your PATH after installation.

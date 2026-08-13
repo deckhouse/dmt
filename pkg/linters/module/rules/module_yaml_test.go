@@ -600,6 +600,32 @@ disable:
 	assert.True(t, containsText(errorList, "'disable.message' must be removed on Deckhouse >= v1.77"), "expected disable.message removal error")
 }
 
+func TestCheckDefinitionFile_DuplicateKeys(t *testing.T) {
+	tempDir := t.TempDir()
+	moduleFilePath := filepath.Join(tempDir, ModuleConfigFilename)
+
+	// Test duplicate keys in module.yaml (simulates the real bug:
+	// descriptions.en defined twice)
+	err := os.WriteFile(moduleFilePath, []byte(`
+name: state-snapshotter
+stage: Preview
+descriptions:
+  en: "State snapshotter module"
+  en: "Модуль State snapshotter"
+requirements:
+  deckhouse: ">= 1.72"
+namespace: d8-state-snapshotter
+`), 0600)
+	require.NoError(t, err)
+
+	rule := NewDefinitionFileRule(false)
+	errorList := errors.NewLintRuleErrorsList()
+
+	rule.CheckDefinitionFile(tempDir, errorList)
+	assert.True(t, errorList.ContainsErrors(), "Expected errors for duplicate keys in module.yaml")
+	assert.Contains(t, errorList.GetErrors()[0].Text, "Cannot parse file")
+}
+
 func TestCheckDefinitionFile_FileErrors(t *testing.T) {
 	tempDir := t.TempDir()
 	moduleFilePath := filepath.Join(tempDir, ModuleConfigFilename)

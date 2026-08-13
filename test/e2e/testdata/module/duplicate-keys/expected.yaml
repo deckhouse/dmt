@@ -1,0 +1,9 @@
+description: >
+  A module with duplicate keys in module.yaml (descriptions.en defined twice)
+  must be flagged by the definition-file linter.
+module: module
+expect:
+  - linter: module
+    rule: definition-file
+    level: error
+    textContains: "Cannot parse file"

@@ -25,7 +25,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
-	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
@@ -55,7 +55,7 @@ type GrafanaRule struct {
 	pkg.BoolRule
 }
 
-func (r *GrafanaRule) ValidateGrafanaDashboards(m *module.Module, errorList *errors.LintRuleErrorsList) {
+func (r *GrafanaRule) ValidateGrafanaDashboards(m *modules.Module, errorList *errors.LintRuleErrorsList) {
 	if !r.Enabled() {
 		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
 	}
@@ -109,7 +109,7 @@ func (r *GrafanaRule) ValidateGrafanaDashboards(m *module.Module, errorList *err
 }
 
 // validateDashboardFiles validates individual grafana dashboard files
-func (r *GrafanaRule) validateDashboardFiles(m *module.Module, errorList *errors.LintRuleErrorsList) {
+func (r *GrafanaRule) validateDashboardFiles(m *modules.Module, errorList *errors.LintRuleErrorsList) {
 	searchPath := filepath.Join(m.GetPath(), "monitoring", "grafana-dashboards")
 
 	entries := fsutils.GetFiles(searchPath, true, fsutils.FilterFileByExtensions(".json", ".tpl"))

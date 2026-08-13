@@ -17,7 +17,7 @@ limitations under the License.
 package container
 
 import (
-	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
@@ -44,7 +44,7 @@ func New(containerCfg *pkg.ContainerLinterConfig, errorList *errors.LintRuleErro
 	}
 }
 
-func (l *Container) Run(m *module.Module) {
+func (l *Container) Run(m *modules.Module) {
 	if m == nil {
 		return
 	}

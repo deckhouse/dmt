@@ -1,0 +1,15 @@
+description: >
+  .helmignore lists hooks/ and module.yaml but the module also has images/
+  and openapi/ directories. The rule must report each uncovered directory.
+module: module
+expect:
+  - linter: module
+    rule: helmignore
+    level: warn
+    textContains: "Directory 'images/' is not listed in .helmignore"
+    count: 1
+  - linter: module
+    rule: helmignore
+    level: warn
+    textContains: "Directory 'openapi/' is not listed in .helmignore"
+    count: 1

@@ -4,7 +4,7 @@
 package docs
 
 import (
-	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/docs/rules"
@@ -30,7 +30,7 @@ func New(cfg *pkg.DocumentationLinterConfig, errorList *errors.LintRuleErrorsLis
 	}
 }
 
-func (l *Documentation) Run(m *module.Module) {
+func (l *Documentation) Run(m *modules.Module) {
 	if m == nil || m.GetPath() == "" {
 		return
 	}
@@ -44,6 +44,7 @@ func (l *Documentation) Run(m *module.Module) {
 	sizeExcludeFiles := l.cfg.ExcludeRules.FileSize.Files.Get()
 	sizeExcludeDirs := l.cfg.ExcludeRules.FileSize.Directories.Get()
 
+<<<<<<< HEAD
 	rules.NewCyrillicInEnglishRule().
 		WithFileSizeExcludes(sizeExcludeFiles, sizeExcludeDirs).
 		CheckFiles(m, errorList.WithMaxLevel(l.cfg.Rules.CyrillicInEnglishRule.GetLevel()))
@@ -51,6 +52,11 @@ func (l *Documentation) Run(m *module.Module) {
 	rules.NewNoLangKeyRule().
 		WithFileSizeExcludes(sizeExcludeFiles, sizeExcludeDirs).
 		CheckFiles(m, errorList.WithMaxLevel(l.cfg.Rules.NoLangKeyRule.GetLevel()))
+=======
+	rules.NewNoLangKeyRule().CheckFiles(m, errorList.WithMaxLevel(l.cfg.Rules.NoLangKeyRule.GetLevel()))
+
+	rules.NewMarkdownRule().CheckFiles(m, errorList.WithMaxLevel(l.cfg.Rules.MarkdownlintRule.GetLevel()))
+>>>>>>> fb41aeaeedb012a3e2ffed187313c9b017b78194
 }
 
 func (l *Documentation) Name() string {

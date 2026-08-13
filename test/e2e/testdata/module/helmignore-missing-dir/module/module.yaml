@@ -1,0 +1,8 @@
+name: helmignore-missing
+namespace: d8-helmignore-missing
+stage: General Availability
+requirements:
+  deckhouse: ">= 1.68.0"
+descriptions:
+  en: E2E test - images/ directory missing from .helmignore.
+  ru: E2E тест - images/ директория отсутствует в .helmignore.

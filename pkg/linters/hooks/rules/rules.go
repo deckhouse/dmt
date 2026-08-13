@@ -26,7 +26,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
-	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -48,7 +48,7 @@ func NewHookRule(cfg *pkg.HooksLinterConfig) *HookRule {
 	}
 }
 
-func (l *HookRule) CheckCopyCustomCertificateRule(m *module.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+func (l *HookRule) CheckCopyCustomCertificateRule(m *modules.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(l.GetName()).WithFilePath(object.GetPath())
 
 	const (

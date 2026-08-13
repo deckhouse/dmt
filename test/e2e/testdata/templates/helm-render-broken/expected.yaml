@@ -1,0 +1,9 @@
+description: >
+  A module whose template calls {{ fail }} fails to render. Rendering is strict
+  (as in deckhouse/d8 via action.ChartRender), so the fail aborts the whole render
+  and the manager reports the module as uncreatable, with the render error attached.
+module: module
+expect:
+  - linter: manager
+    level: error
+    textContains: "cannot create module"

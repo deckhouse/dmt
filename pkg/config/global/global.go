@@ -96,6 +96,7 @@ type DocumentationRules struct {
 	ReadmeRule             RuleConfig `mapstructure:"readme"`
 	NoCyrillicExcludeRules RuleConfig `mapstructure:"cyrillic-in-english"`
 	NoLangKeyRule          RuleConfig `mapstructure:"no-lang-key"`
+	MarkdownlintRule       RuleConfig `mapstructure:"markdownlint"`
 }
 
 type OpenAPILinterConfig struct {
@@ -133,6 +134,7 @@ type TemplatesLinterRules struct {
 	VPARule                  RuleConfig `mapstructure:"vpa"`
 	PDBRule                  RuleConfig `mapstructure:"pdb"`
 	IngressRule              RuleConfig `mapstructure:"ingress"`
+	HTTPRouteRule            RuleConfig `mapstructure:"httproute"`
 	PrometheusRule           RuleConfig `mapstructure:"prometheus-rules"`
 	GrafanaRule              RuleConfig `mapstructure:"grafana-dashboards"`
 	KubeRBACProxyRule        RuleConfig `mapstructure:"kube-rbac-proxy"`
@@ -142,6 +144,7 @@ type TemplatesLinterRules struct {
 	EnabledModulesRule       RuleConfig `mapstructure:"enabled-modules"`
 	WebhookConfigurationRule RuleConfig `mapstructure:"webhook-configuration-annotations"`
 	MountPointsRule          RuleConfig `mapstructure:"mount-points"`
+	HelmRenderRule           RuleConfig `mapstructure:"helm-render"`
 }
 
 func (c LinterConfig) IsWarn() bool {

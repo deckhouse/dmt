@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/internal/modules"
 )
 
 func (m *Manager) validateModule(path string) error {
@@ -15,14 +15,14 @@ func (m *Manager) validateModule(path string) error {
 
 	errorList := m.errors.WithLinterID("module").WithRule("definition-file").WithFilePath(path)
 	// validate module.yaml and Chart.yaml
-	chartYamlFile, err := module.ParseChartFile(path)
+	chartYamlFile, err := modules.ParseChartFile(path)
 	if err != nil {
 		err = fmt.Errorf("failed to parse Chart.yaml: %w", err)
 		errs = errors.Join(errs, err)
 		errorList.Error(err.Error())
 	}
 
-	moduleYamlFile, err := module.ParseModuleConfigFile(path)
+	moduleYamlFile, err := modules.ParseModuleConfigFile(path)
 	if err != nil {
 		err = fmt.Errorf("failed to parse module.yaml: %w", err)
 		errs = errors.Join(errs, err)
@@ -61,7 +61,7 @@ func (m *Manager) validateModule(path string) error {
 		errorList.Errorf("%s", err.Error())
 	}
 
-	moduleName := module.GetModuleName(moduleYamlFile, chartYamlFile)
+	moduleName := modules.GetModuleName(moduleYamlFile, chartYamlFile)
 	if moduleName == "" && chartYamlFile == nil {
 		err := fmt.Errorf("module `name` property is empty")
 		errs = errors.Join(errs, err)

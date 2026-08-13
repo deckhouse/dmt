@@ -1,0 +1,8 @@
+description: >
+  A module that ships an Ingress without a matching HTTPRoute must not be
+  flagged by httproute-rules when that Ingress is listed under
+  templates.exclude-rules.httproute in .dmtlint.yaml.
+module: module
+expectPass:
+  - linter: templates
+    rule: httproute-rules

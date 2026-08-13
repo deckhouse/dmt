@@ -1,0 +1,9 @@
+description: >-
+  The only markdownlint-violating file lives in a docs/ subfolder
+  (docs/internal/BROKEN.md, which would trigger MD041/MD012/MD047 if scanned).
+  The documentation linter's markdownlint rule scans only top-level docs/*.md
+  files, so it must report nothing for this module. This proves subfolders under
+  docs/ are excluded from documentation linting; a regression that re-enabled
+  recursion would make this case fail.
+expectPass:
+  - {linter: documentation, rule: markdownlint}

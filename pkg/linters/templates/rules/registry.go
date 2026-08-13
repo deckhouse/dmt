@@ -28,7 +28,7 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
-	"github.com/deckhouse/dmt/internal/module"
+	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
@@ -50,7 +50,7 @@ type RegistryRule struct {
 }
 
 // CheckRegistrySecret checks module registry secret for the module.
-func (r *RegistryRule) CheckRegistrySecret(md *module.Module, errorList *errors.LintRuleErrorsList) {
+func (r *RegistryRule) CheckRegistrySecret(md *modules.Module, errorList *errors.LintRuleErrorsList) {
 	registryFile := fsutils.GetFiles(md.GetPath(), false, fsutils.FilterFileByNames("registry-secret.yaml"))
 	if len(registryFile) == 0 {
 		return
@@ -80,7 +80,7 @@ func (r *RegistryRule) CheckRegistrySecret(md *module.Module, errorList *errors.
 	if bytes.Contains(fileContent, globalPattern) {
 		// Check if module has its own registry.dockercfg configuration
 		// Convert module name to camelCase for Kubernetes values
-		camelCaseModuleName := module.ToLowerCamel(moduleName)
+		camelCaseModuleName := modules.ToLowerCamel(moduleName)
 
 		modulePattern := fmt.Appendf(nil, ".Values.%s.registry.dockercfg", camelCaseModuleName)
 		if !bytes.Contains(fileContent, modulePattern) {

@@ -1,0 +1,8 @@
+name: helmignore-no-slash
+namespace: d8-helmignore-no-slash
+stage: General Availability
+requirements:
+  deckhouse: ">= 1.68.0"
+descriptions:
+  en: E2E test - directory covered in .helmignore without trailing slash.
+  ru: E2E тест - директория покрыта без завершающего слеша.

@@ -1,0 +1,8 @@
+name: helmignore-multi-miss
+namespace: d8-helmignore-multi-miss
+stage: General Availability
+requirements:
+  deckhouse: ">= 1.68.0"
+descriptions:
+  en: E2E test - multiple directories missing from .helmignore.
+  ru: E2E тест - несколько директорий не покрыты в .helmignore.
