@@ -19,7 +19,7 @@ DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 VERSION_PKG="github.com/deckhouse/dmt/internal/version"
 
-go run github.com/mitchellh/gox@latest -osarch="linux/amd64 linux/arm64 darwin/amd64 darwin/arm64" \
+go run github.com/mitchellh/gox@latest -osarch="linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64" \
     -output="release-build/$VERSION/{{.OS}}-{{.Arch}}/bin/dmt" \
     -ldflags="-s -w -X ${VERSION_PKG}.Version=$VERSION -X ${VERSION_PKG}.Commit=$COMMIT -X ${VERSION_PKG}.Date=$DATE" \
         github.com/deckhouse/dmt/cmd/dmt
