@@ -1,0 +1,8 @@
+name: enabled-script-empty
+namespace: d8-enabled-script-empty
+stage: General Availability
+requirements:
+  deckhouse: ">= 1.68.0"
+descriptions:
+  en: E2E test - module ships an empty enabled file (must not warn).
+  ru: E2E тест - модуль содержит пустой enabled-файл (не должно быть предупреждения).

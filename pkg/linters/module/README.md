@@ -8,7 +8,7 @@ The Module linter performs automated checks on Deckhouse modules to validate con
 
 ## Rules
 
-The Module linter includes **8 validation rules**:
+The Module linter includes **9 validation rules**:
 
 | Rule | Description | Configurable |
 |------|-------------|--------------|
@@ -20,6 +20,7 @@ The Module linter includes **8 validation rules**:
 | [**requirements**](#requirements) | Validates version requirements for features | ❌ No |
 | [**package-yaml**](#package-yaml) | Validates `package.yaml` metadata and new requirements schema | ✅ Yes |
 | [**legacy-release-file**](#legacy-release-file) | Checks for deprecated `release.yaml` file | ❌ No |
+| [**enabled-script**](#enabled-script) | Warns about the deprecated `enabled` script mechanism | ❌ No |
 
 "Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
@@ -542,6 +543,23 @@ release.yaml
 
 # New (required)
 version.json
+```
+
+---
+
+### Enabled script
+
+Warns when a module ships a non-empty `enabled` file (the "enabled script").
+
+**Purpose:** The enabled-script mechanism is deprecated. Modules must not decide their own enablement via an `enabled` script; this rule flags the leftover file so it can be removed.
+
+**Validation:**
+- ⚠️ A non-empty `enabled` file triggers a **warning** (an empty or absent file is fine)
+
+**Migration:**
+```bash
+# Deprecated — remove the file
+enabled
 ```
 
 ---

@@ -58,6 +58,7 @@ func (l *Module) Run(m *modules.Module) {
 	rules.NewPackageYAMLRule().CheckPackageYAML(m.GetPath(), errorList.WithMaxLevel(l.cfg.Rules.PackageYAMLRule.GetLevel()))
 	rules.NewModulePackageConsistencyRule().CheckModulePackageConsistency(m.GetPath(), errorList.WithMaxLevel(l.cfg.Rules.ModulePackageConsistencyRule.GetLevel()))
 	rules.NewLegacyReleaseFileRule().CheckLegacyReleaseFile(m.GetPath(), errorList.WithMaxLevel(l.cfg.Rules.LegacyReleaseFileRule.GetLevel()))
+	rules.NewEnabledScriptRule().CheckEnabledScript(m.GetPath(), errorList.WithMaxLevel(l.cfg.Rules.EnabledScriptRule.GetLevel()))
 }
 
 func (l *Module) Name() string {

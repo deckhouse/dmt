@@ -1,0 +1,11 @@
+description: >
+  A module that ships a non-empty `enabled` script. The enabled-script mechanism
+  is deprecated, so the module linter must emit a warning (and nothing else).
+module: module
+exhaustive: true
+expect:
+  - linter: module
+    rule: enabled-script
+    level: warn
+    textContains: 'enabled-script mechanism is deprecated'
+    count: 1
