@@ -4,9 +4,10 @@ name: CI
 # the dmt build from this branch lints the real deckhouse codebase and the
 # modules-template reference module without regressions.
 #
-# Runs on pull_request / manual dispatch only. Branch-push CI (go mod,
-# golangci-lint, tests) lives in push-ci.yml, kept separate so the DMT verify
-# jobs never appear as "skipped" on push-triggered runs.
+# Runs on pull_request, on push to main (post-merge verification), and on manual
+# dispatch. Branch-push CI for non-main branches (go mod, golangci-lint, tests)
+# lives in push-ci.yml, kept separate so the DMT verify jobs never appear as
+# "skipped" on push-triggered runs.
 #
 # Ordering: the DMT verify jobs `needs: [golangci-lint, tests]`, so they only
 # start after those pass.
@@ -14,6 +15,8 @@ name: CI
 # Bypass: if a DMT verify lint fails but the PR carries the "dmtlint-verify-skip"
 # label, that check passes (the failure is acknowledged and merge is allowed).
 on:
+  push:
+    branches: [ main ]
   pull_request:
     types: [ opened, synchronize, reopened, labeled, unlabeled ]
   workflow_dispatch:
