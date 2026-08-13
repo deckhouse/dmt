@@ -1,19 +1,19 @@
 name: CI
 
-# Standard CI (go mod, golangci-lint, tests) plus — on PRs / manual dispatch —
-# verification that the dmt build from this branch lints the real deckhouse
-# codebase and the modules-template reference module without regressions.
+# PR checks: standard CI (go mod, golangci-lint, tests) plus verification that
+# the dmt build from this branch lints the real deckhouse codebase and the
+# modules-template reference module without regressions.
+#
+# Runs on pull_request / manual dispatch only. Branch-push CI (go mod,
+# golangci-lint, tests) lives in push-ci.yml, kept separate so the DMT verify
+# jobs never appear as "skipped" on push-triggered runs.
 #
 # Ordering: the DMT verify jobs `needs: [golangci-lint, tests]`, so they only
-# start after those pass. They are gated to pull_request / workflow_dispatch
-# (not raw branch pushes) so the expensive deckhouse clone+lint stays PR-bound
-# and the skip-label bypass stays meaningful.
+# start after those pass.
 #
 # Bypass: if a DMT verify lint fails but the PR carries the "dmtlint-verify-skip"
 # label, that check passes (the failure is acknowledged and merge is allowed).
 on:
-  push:
-    branches-ignore: [ main ]
   pull_request:
     types: [ opened, synchronize, reopened, labeled, unlabeled ]
   workflow_dispatch:
@@ -93,9 +93,6 @@ jobs:
   lint-deckhouse:
     name: DMT verify deckhouse
     needs: [ golangci-lint, tests ]
-    # Skip on raw branch pushes — deckhouse clone+lint is expensive and the
-    # skip-label only makes sense on PRs.
-    if: github.event_name != 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Check skip label
@@ -147,8 +144,6 @@ jobs:
   lint-modules-template:
     name: DMT verify modules-template
     needs: [ golangci-lint, tests ]
-    # Skip on raw branch pushes — see lint-deckhouse above.
-    if: github.event_name != 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Check skip label
