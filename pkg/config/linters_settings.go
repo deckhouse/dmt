@@ -109,6 +109,7 @@ type ModuleSettings struct {
 	Conversions       ConversionsRuleSettings          `mapstructure:"conversions"`
 	Helmignore        HelmignoreRuleSettings           `mapstructure:"helmignore"`
 	LegacyReleaseFile RuleConfig                       `mapstructure:"legacy-release-file"`
+	EnabledScript     RuleConfig                       `mapstructure:"enabled-script"`
 
 	Impact string `mapstructure:"impact"`
 }

@@ -1,0 +1,6 @@
+description: >
+  A module with an empty `enabled` file. An empty enabled script does not
+  activate the deprecated mechanism, so the enabled-script rule must not fire
+  and the module must stay clean.
+module: module
+expectClean: true

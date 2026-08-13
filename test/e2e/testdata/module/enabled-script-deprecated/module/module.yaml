@@ -1,0 +1,8 @@
+name: enabled-script-deprecated
+namespace: d8-enabled-script-deprecated
+stage: General Availability
+requirements:
+  deckhouse: ">= 1.68.0"
+descriptions:
+  en: E2E test - module ships a non-empty enabled script (deprecated mechanism).
+  ru: E2E тест - модуль содержит непустой enabled-скрипт (устаревший механизм).

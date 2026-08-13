@@ -123,6 +123,7 @@ type ModuleLinterRules struct {
 	PackageYAMLRule              RuleConfig `mapstructure:"package-yaml"`
 	ModulePackageConsistencyRule RuleConfig `mapstructure:"module-package-consistency"`
 	LegacyReleaseFileRule        RuleConfig `mapstructure:"legacy-release-file"`
+	EnabledScriptRule            RuleConfig `mapstructure:"enabled-script"`
 }
 
 type TemplatesLinterConfig struct {

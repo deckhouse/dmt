@@ -239,6 +239,7 @@ type ModuleLinterRules struct {
 	PackageYAMLRule              RuleConfig
 	ModulePackageConsistencyRule RuleConfig
 	LegacyReleaseFileRule        RuleConfig
+	EnabledScriptRule            RuleConfig
 }
 type OSSRuleSettings struct {
 	Disable bool
