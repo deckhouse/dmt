@@ -17,6 +17,7 @@ limitations under the License.
 package fsutils
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -30,6 +31,40 @@ import (
 
 // evalSymlinkCache is a cache for evaluated symlinks to avoid multiple evaluations
 var evalSymlinkCache sync.Map
+
+// MaxLintableFileSize bounds how large a file dmt will read into memory while
+// linting. Files above it are generated data blobs (bundled Grafana dashboards,
+// rendered openapi, CRD bundles), not hand-written sources; reading a
+// multi-gigabyte file just to scan it would exhaust memory and flood the log.
+const MaxLintableFileSize = 10 << 20 // 10 MiB
+
+// ErrFileTooLarge is returned by ReadFile when a file exceeds MaxLintableFileSize.
+var ErrFileTooLarge = errors.New("file too large to lint")
+
+// ReadFile reads the named file like os.ReadFile but refuses files larger than
+// MaxLintableFileSize, returning ErrFileTooLarge instead of loading a huge file
+// into memory. Callers that scan discovered files should treat ErrFileTooLarge
+// as "skip this file" rather than a hard failure.
+func ReadFile(path string) ([]byte, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+
+	if info.Size() > MaxLintableFileSize {
+		return nil, fmt.Errorf("%w: %s (%d bytes)", ErrFileTooLarge, path, info.Size())
+	}
+
+	return os.ReadFile(path)
+}
+
+// IsFileTooLarge reports whether err was produced by ReadFile refusing an
+// oversized file. Linters that scan discovered files use it to skip such files
+// rather than failing. It exists so callers need not import the standard errors
+// package, which many of them alias to dmt's own errors package.
+func IsFileTooLarge(err error) bool {
+	return errors.Is(err, ErrFileTooLarge)
+}
 
 // IsDir checks if the given path is a directory
 func IsDir(path string) bool {

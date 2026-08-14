@@ -70,7 +70,7 @@ func (r *GrafanaRule) ValidateGrafanaDashboards(m *modules.Module, errorList *er
 		return
 	}
 
-	content, err := os.ReadFile(monitoringFilePath)
+	content, err := fsutils.ReadFile(monitoringFilePath)
 	if err != nil {
 		errorList.WithFilePath(monitoringFilePath).
 			Errorf("Cannot read 'templates/monitoring.yaml' file: %s", err)
@@ -121,7 +121,7 @@ func (r *GrafanaRule) validateDashboardFiles(m *modules.Module, errorList *error
 
 // validateDashboardFile validates a single grafana dashboard file
 func (r *GrafanaRule) validateDashboardFile(filePath string, errorList *errors.LintRuleErrorsList) {
-	content, err := os.ReadFile(filePath)
+	content, err := fsutils.ReadFile(filePath)
 	if err != nil {
 		errorList.WithFilePath(filePath).Errorf("failed to read dashboard file: %s", err)
 		return

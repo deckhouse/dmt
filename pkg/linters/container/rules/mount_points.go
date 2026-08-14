@@ -28,6 +28,7 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
+	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -148,7 +149,7 @@ func collectMountPointsDirs(modulePath string) map[string]bool {
 			return nil
 		}
 
-		data, err := os.ReadFile(path)
+		data, err := fsutils.ReadFile(path)
 		if err != nil {
 			log.Warn("mount-points read error", slog.String("path", path), log.Err(err))
 			return nil

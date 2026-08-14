@@ -237,6 +237,14 @@ linters-settings:
   
   documentation:
     impact: error
+    exclude-rules:
+      # Silence the "file too large" warning for generated/bundled docs
+      # (size check only; content checks are unaffected)
+      file-size:
+        files:
+          - docs/generated-reference.md
+        directories:
+          - docs/generated/
   
   templates:
     impact: error

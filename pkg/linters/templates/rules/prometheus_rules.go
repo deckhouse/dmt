@@ -28,6 +28,7 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 
+	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/promtool"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
@@ -106,7 +107,7 @@ func (r *PrometheusRule) ValidatePrometheusRules(m pkg.Module, errorList *errors
 		return
 	}
 
-	content, err := os.ReadFile(monitoringFilePath)
+	content, err := fsutils.ReadFile(monitoringFilePath)
 	if err != nil {
 		errorList.WithFilePath(monitoringFilePath).
 			Errorf("Cannot read 'templates/monitoring.yaml' file: %s", err)

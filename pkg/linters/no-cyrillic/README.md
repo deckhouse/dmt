@@ -56,6 +56,16 @@ The linter intelligently skips files where cyrillic is expected or acceptable:
 - **Linter itself**:
   - `no_cyrillic.go` and `no_cyrillic_test.go` - The linter's own code
 
+**Large files:**
+
+Files larger than 10 MiB are not read into memory or scanned. Such files are almost always generated data blobs (bundled Grafana dashboards, rendered OpenAPI, CRD bundles) rather than hand-written sources, and reading a multi-gigabyte file just to scan for cyrillic would exhaust memory. Instead of failing, the linter reports a **warning** so the skipped file stays visible:
+
+```
+file is too large (N bytes) to check for Cyrillic letters and was skipped; exclude the file or its directory in the no-cyrillic rules to silence this warning
+```
+
+To silence it, exclude the file or its directory via the standard `exclude-rules` (see [Configuration](#configuration)) — the same exclusions that skip a file from cyrillic checking also suppress this warning.
+
 **Why it matters:**
 
 1. **International Collaboration**: Code with cyrillic characters is inaccessible to developers who don't read Russian
