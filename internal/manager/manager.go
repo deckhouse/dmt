@@ -218,7 +218,7 @@ func getLintersForModule(module *modules.Module, errList *errors.LintRuleErrorsL
 		legacyAdapter{container.New(&cfg.Container, errList), module},
 		templates.New(&cfg.Templates, module, errList),
 		legacyAdapter{images.New(&cfg.Image, errList), module},
-		legacyAdapter{rbac.New(&cfg.RBAC, errList), module},
+		rbac.New(&cfg.RBAC, module, errList),
 		legacyAdapter{hooks.New(&cfg.Hooks, errList), module},
 		legacyAdapter{moduleLinter.New(&cfg.Module, errList), module},
 		docs.New(&cfg.Documentation, module, errList),
