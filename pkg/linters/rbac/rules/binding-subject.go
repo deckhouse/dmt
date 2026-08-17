@@ -17,10 +17,11 @@ limitations under the License.
 package rules
 
 import (
+	"context"
+
 	v1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -30,7 +31,8 @@ const (
 	BindingSubjectRuleName = "binding-subject"
 )
 
-func NewBindingSubjectRule(excludeRules []pkg.StringRuleExclude) *BindingSubjectRule {
+func NewBindingSubjectRule(excludeRules []pkg.StringRuleExclude,
+	m pkg.Module, errorList *errors.LintRuleErrorsList) *BindingSubjectRule {
 	return &BindingSubjectRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: BindingSubjectRuleName,
@@ -38,16 +40,23 @@ func NewBindingSubjectRule(excludeRules []pkg.StringRuleExclude) *BindingSubject
 		StringRule: pkg.StringRule{
 			ExcludeRules: excludeRules,
 		},
+		module:    m,
+		errorList: errorList.WithRule(BindingSubjectRuleName),
 	}
 }
 
 type BindingSubjectRule struct {
 	pkg.RuleMeta
 	pkg.StringRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func (r *BindingSubjectRule) ObjectBindingSubjectServiceAccountCheck(m *modules.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+var _ pkg.Rule = (*BindingSubjectRule)(nil)
+
+func (r *BindingSubjectRule) Check(_ context.Context) {
+	m, errorList := r.module, r.errorList
 	converter := runtime.DefaultUnstructuredConverter
 
 	for _, object := range m.GetStorage() {

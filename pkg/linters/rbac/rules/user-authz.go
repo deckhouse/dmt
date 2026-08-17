@@ -17,11 +17,11 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/iancoleman/strcase"
 
-	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
@@ -30,24 +30,35 @@ const (
 	UserAuthZRuleName = "user-authz"
 )
 
-func NewUserAuthZRule() *UserAuthZRule {
+func NewUserAuthZRule(m pkg.Module, errorList *errors.LintRuleErrorsList) *UserAuthZRule {
 	return &UserAuthZRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: UserAuthZRuleName,
 		},
+		module: m,
+		// Deliberately NOT scoped with WithRule: this rule has never stamped a
+		// rule ID, so its findings are reported with an empty RuleID. Preserved
+		// as-is to keep this refactor output-neutral; fixing it is a separate
+		// change because it alters every user-authz finding.
+		errorList: errorList,
 	}
 }
 
 type UserAuthZRule struct {
 	pkg.RuleMeta
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
+var _ pkg.Rule = (*UserAuthZRule)(nil)
+
 /*
-objectUserAuthzClusterRolePath validates that files for user-authz contains only cluster roles.
+Check validates that files for user-authz contains only cluster roles.
 Also, it validates that role names equals to d8:user-authz:<ChartName>:<AccessLevel>
 */
-func (*UserAuthZRule) ObjectUserAuthzClusterRolePath(m *modules.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithModule(m.GetName())
+func (r *UserAuthZRule) Check(_ context.Context) {
+	m, errorList := r.module, r.errorList
 
 	for _, object := range m.GetStorage() {
 		errorListObj := errorList.WithObjectID(object.Identity()).WithFilePath(object.GetPath())
