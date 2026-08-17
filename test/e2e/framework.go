@@ -35,6 +35,7 @@ limitations under the License.
 package e2e
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -190,7 +191,7 @@ func Lint(moduleDir string) ([]pkg.LinterError, error) {
 	metrics.GetClient(target)
 
 	mng := manager.NewManager(target, cfg)
-	mng.Run()
+	mng.Run(context.Background())
 
 	return mng.GetErrors(), nil
 }
@@ -221,7 +222,7 @@ func RunFix(moduleDir string) ([]pkg.LinterError, error) {
 	metrics.GetClient(target)
 
 	mng := manager.NewManager(target, cfg)
-	mng.Run()
+	mng.Run(context.Background())
 
 	mng.ApplyFixes()
 

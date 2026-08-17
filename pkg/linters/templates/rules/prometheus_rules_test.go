@@ -199,9 +199,9 @@ func TestValidatePrometheusRules(t *testing.T) {
 			mockModuleProm.GetPathMock.Return(modulePath)
 
 			// Run validation
-			rule := NewPrometheusRule(nil)
 			errorList := errors.NewLintRuleErrorsList()
-			rule.ValidatePrometheusRules(mockModuleProm, errorList)
+			rule := NewPrometheusRule(nil, mockModuleProm, errorList)
+			rule.Check(t.Context())
 
 			// Assert errors
 			if len(tt.expectedErrors) == 0 {

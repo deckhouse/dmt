@@ -129,10 +129,10 @@ spec:
 			errorList := errors.NewLintRuleErrorsList()
 
 			// Create rule
-			rule := NewClusterDomainRule()
+			rule := NewClusterDomainRule(mockModule, errorList)
 
 			// Run validation
-			rule.ValidateClusterDomainInTemplates(mockModule, errorList)
+			rule.Check(t.Context())
 
 			// Check results
 			errs := errorList.GetErrors()

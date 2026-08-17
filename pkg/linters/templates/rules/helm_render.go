@@ -19,7 +19,6 @@ package rules
 import (
 	"context"
 
-	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/internal/modules/render"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -27,25 +26,32 @@ import (
 
 const HelmRenderRuleName = "helm-render"
 
-func NewHelmRenderRule() *HelmRenderRule {
+func NewHelmRenderRule(m pkg.Module, errorList *errors.LintRuleErrorsList) *HelmRenderRule {
 	return &HelmRenderRule{
-		RuleMeta: pkg.RuleMeta{Name: HelmRenderRuleName},
+		RuleMeta:  pkg.RuleMeta{Name: HelmRenderRuleName},
+		module:    m,
+		errorList: errorList.WithRule(HelmRenderRuleName),
 	}
 }
 
 type HelmRenderRule struct {
 	pkg.RuleMeta
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
+
+var _ pkg.Rule = (*HelmRenderRule)(nil)
 
 // Check strictly renders module templates through nelm's public action.ChartRender
 // and reports any rendering error as a lint finding. Strict rendering (no LintMode)
 // catches template errors the main lenient render suppresses. Image references
 // resolve from the module's pre-computed .Values (global.modulesImages, scanned
 // from images/), so no helm_lib template override is needed here.
-func (r *HelmRenderRule) Check(m *modules.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+func (r *HelmRenderRule) Check(ctx context.Context) {
+	m, errorList := r.module, r.errorList
 
-	_, err := render.Render(context.Background(), m.GetNamespace(), m.GetName(), render.Options{
+	_, err := render.Render(ctx, m.GetNamespace(), m.GetName(), render.Options{
 		Path:             m.GetPath(),
 		Values:           m.GetValues(),
 		ExtraAPIVersions: render.ExtraAPIVersions(),

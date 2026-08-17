@@ -17,6 +17,8 @@ limitations under the License.
 package rules
 
 import (
+	"context"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -30,7 +32,8 @@ const (
 	ServicePortRuleName = "service-port"
 )
 
-func NewServicePortRule(excludeRules []pkg.ServicePortExclude) *ServicePortRule {
+func NewServicePortRule(excludeRules []pkg.ServicePortExclude,
+	m pkg.Module, errorList *errors.LintRuleErrorsList) *ServicePortRule {
 	return &ServicePortRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: ServicePortRuleName,
@@ -38,16 +41,29 @@ func NewServicePortRule(excludeRules []pkg.ServicePortExclude) *ServicePortRule 
 		ServicePortRule: pkg.ServicePortRule{
 			ExcludeRules: excludeRules,
 		},
+		module:    m,
+		errorList: errorList.WithRule(ServicePortRuleName),
 	}
 }
 
 type ServicePortRule struct {
 	pkg.RuleMeta
 	pkg.ServicePortRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func (r *ServicePortRule) ObjectServiceTargetPort(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.GetPath())
+var _ pkg.Rule = (*ServicePortRule)(nil)
+
+func (r *ServicePortRule) Check(_ context.Context) {
+	for _, object := range r.module.GetStorage() {
+		r.checkObject(object)
+	}
+}
+
+func (r *ServicePortRule) checkObject(object storage.StoreObject) {
+	errorList := r.errorList.WithFilePath(object.GetPath())
 
 	switch object.Unstructured.GetKind() {
 	case "Service":

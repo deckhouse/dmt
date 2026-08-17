@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"fmt"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -25,7 +26,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -35,7 +35,7 @@ const (
 	PDBRuleName = "pdb"
 )
 
-func NewPDBRule(excludeRules []pkg.KindRuleExclude) *PDBRule {
+func NewPDBRule(excludeRules []pkg.KindRuleExclude, m pkg.Module, errorList *errors.LintRuleErrorsList) *PDBRule {
 	return &PDBRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: PDBRuleName,
@@ -43,13 +43,20 @@ func NewPDBRule(excludeRules []pkg.KindRuleExclude) *PDBRule {
 		KindRule: pkg.KindRule{
 			ExcludeRules: excludeRules,
 		},
+		module:    m,
+		errorList: errorList.WithRule(PDBRuleName),
 	}
 }
 
 type PDBRule struct {
 	pkg.RuleMeta
 	pkg.KindRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
+
+var _ pkg.Rule = (*PDBRule)(nil)
 
 type nsLabelSelector struct {
 	namespace string
@@ -60,10 +67,10 @@ func (s *nsLabelSelector) Matches(namespace string, labelSet labels.Set) bool {
 	return s.namespace == namespace && s.selector.Matches(labelSet)
 }
 
-// controllerMustHavePDB adds linting errors if there are pods from controllers which are not covered (except DaemonSets)
+// Check adds linting errors if there are pods from controllers which are not covered (except DaemonSets)
 // by a PodDisruptionBudget
-func (r *PDBRule) ControllerMustHavePDB(md *modules.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+func (r *PDBRule) Check(_ context.Context) {
+	md, errorList := r.module, r.errorList
 
 	pdbSelectors := collectPDBSelectors(md, errorList)
 
@@ -90,7 +97,7 @@ func (r *PDBRule) ControllerMustHavePDB(md *modules.Module, errorList *errors.Li
 }
 
 // collectPDBSelectors collects selectors for matching pods
-func collectPDBSelectors(md *modules.Module, errorList *errors.LintRuleErrorsList) []nsLabelSelector {
+func collectPDBSelectors(md pkg.Module, errorList *errors.LintRuleErrorsList) []nsLabelSelector {
 	var selectors []nsLabelSelector
 
 	for _, object := range md.GetStorage() {

@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,7 +26,6 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
-	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
@@ -34,7 +34,7 @@ const (
 	GrafanaRuleName = "grafana-dashboards"
 )
 
-func NewGrafanaRule(cfg *pkg.TemplatesLinterConfig) *GrafanaRule {
+func NewGrafanaRule(cfg *pkg.TemplatesLinterConfig, m pkg.Module, errorList *errors.LintRuleErrorsList) *GrafanaRule {
 	var exclude bool
 	if cfg != nil {
 		exclude = cfg.GrafanaDashboardsSettings.Disable
@@ -47,20 +47,30 @@ func NewGrafanaRule(cfg *pkg.TemplatesLinterConfig) *GrafanaRule {
 		BoolRule: pkg.BoolRule{
 			Exclude: exclude,
 		},
+		module:    m,
+		errorList: errorList.WithRule(GrafanaRuleName),
 	}
 }
 
 type GrafanaRule struct {
 	pkg.RuleMeta
 	pkg.BoolRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func (r *GrafanaRule) ValidateGrafanaDashboards(m *modules.Module, errorList *errors.LintRuleErrorsList) {
+var _ pkg.Rule = (*GrafanaRule)(nil)
+
+func (r *GrafanaRule) Check(_ context.Context) {
+	m := r.module
+	errorList := r.errorList
+
 	if !r.Enabled() {
 		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
 	}
 
-	errorList = errorList.WithFilePath(m.GetPath()).WithRule(r.GetName())
+	errorList = errorList.WithFilePath(m.GetPath())
 
 	monitoringFilePath := filepath.Join(m.GetPath(), "templates", "monitoring.yaml")
 	if info, _ := os.Stat(monitoringFilePath); info == nil {
@@ -109,7 +119,7 @@ func (r *GrafanaRule) ValidateGrafanaDashboards(m *modules.Module, errorList *er
 }
 
 // validateDashboardFiles validates individual grafana dashboard files
-func (r *GrafanaRule) validateDashboardFiles(m *modules.Module, errorList *errors.LintRuleErrorsList) {
+func (r *GrafanaRule) validateDashboardFiles(m pkg.Module, errorList *errors.LintRuleErrorsList) {
 	searchPath := filepath.Join(m.GetPath(), "monitoring", "grafana-dashboards")
 
 	entries := fsutils.GetFiles(searchPath, true, fsutils.FilterFileByExtensions(".json", ".tpl"))

@@ -8,15 +8,15 @@ import (
 
 func TestRunLintMultiple(t *testing.T) {
 	// Test with empty directories list
-	err := runLintMultiple([]string{})
+	err := runLintMultiple(t.Context(), []string{})
 	require.NoError(t, err, "Should handle empty directories list")
 
 	// Test with single directory
-	err = runLintMultiple([]string{"."})
+	err = runLintMultiple(t.Context(), []string{"."})
 	require.NoError(t, err, "Should handle single directory")
 
 	// Test with multiple directories
-	err = runLintMultiple([]string{".", "."})
+	err = runLintMultiple(t.Context(), []string{".", "."})
 	require.NoError(t, err, "Should handle multiple directories")
 }
 

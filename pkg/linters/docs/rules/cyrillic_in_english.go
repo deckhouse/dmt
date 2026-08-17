@@ -4,6 +4,7 @@
 package rules
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -28,23 +29,28 @@ var (
 	markdownExtensions = []string{".md", ".markdown"}
 )
 
-func NewCyrillicInEnglishRule() *CyrillicInEnglishRule {
+func NewCyrillicInEnglishRule(m pkg.Module, errorList *errors.LintRuleErrorsList) *CyrillicInEnglishRule {
 	return &CyrillicInEnglishRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: CyrillicInEnglishRuleName,
 		},
+		module:    m,
+		errorList: errorList.WithRule(CyrillicInEnglishRuleName),
 	}
 }
 
 type CyrillicInEnglishRule struct {
 	pkg.RuleMeta
 	pkg.PathRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func (r *CyrillicInEnglishRule) CheckFiles(m pkg.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+var _ pkg.Rule = (*CyrillicInEnglishRule)(nil)
 
-	modulePath := m.GetPath()
+func (r *CyrillicInEnglishRule) Check(_ context.Context) {
+	modulePath := r.module.GetPath()
 	if modulePath == "" {
 		return
 	}
@@ -59,12 +65,13 @@ func (r *CyrillicInEnglishRule) CheckFiles(m pkg.Module, errorList *errors.LintR
 			continue
 		}
 
-		r.checkFile(m, fileName, errorList)
+		r.checkFile(fileName)
 	}
 }
 
-func (r *CyrillicInEnglishRule) checkFile(m pkg.Module, fileName string, errorList *errors.LintRuleErrorsList) {
-	relPath := fsutils.Rel(m.GetPath(), fileName)
+func (r *CyrillicInEnglishRule) checkFile(fileName string) {
+	errorList := r.errorList
+	relPath := fsutils.Rel(r.module.GetPath(), fileName)
 
 	if !r.Enabled(relPath) {
 		return
