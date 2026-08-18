@@ -46,6 +46,8 @@ func (l *Documentation) Run(m *modules.Module) {
 	rules.NewNoLangKeyRule().CheckFiles(m, errorList.WithMaxLevel(l.cfg.Rules.NoLangKeyRule.GetLevel()))
 
 	rules.NewMarkdownRule().CheckFiles(m, errorList.WithMaxLevel(l.cfg.Rules.MarkdownlintRule.GetLevel()))
+
+	rules.NewSizeRule().CheckSize(m, errorList.WithMaxLevel(l.cfg.Rules.SizeRule.GetLevel()))
 }
 
 func (l *Documentation) Name() string {
