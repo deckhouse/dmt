@@ -1,0 +1,8 @@
+name: e2e-module-weight-required-missing
+namespace: e2e-module-weight-required-missing
+stage: Experimental
+descriptions:
+  en: "Module used to verify the weight-required lint (weight missing)"
+  ru: "Модуль для проверки правила weight-required (вес отсутствует)"
+requirements:
+  deckhouse: ">= 1.68"

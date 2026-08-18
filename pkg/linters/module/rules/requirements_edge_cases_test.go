@@ -693,6 +693,7 @@ func TestBootstrappedDeprecationCheck(t *testing.T) {
 				Name:      "test-module",
 				Namespace: "test",
 				Stage:     "Experimental",
+				Weight:    950,
 				Requirements: &ModuleRequirements{
 					ModulePlatformRequirements: ModulePlatformRequirements{
 						Deckhouse:    ">= 1.71.0",
@@ -872,6 +873,171 @@ func TestWeightDeprecationCheck(t *testing.T) {
 	}
 }
 
+func TestWeightRequiredCheck(t *testing.T) {
+	helper := NewTestHelper(t)
+
+	const weightRequiredErr = "requirements [weight_required]: external module weight must be between 900 and 999 for non-critical modules that support Deckhouse < 1.72.0"
+
+	tests := []struct {
+		name           string
+		module         *DeckhouseModule
+		expectedErrors []string
+		description    string
+	}{
+		{
+			name: "deckhouse >= 1.68 non-critical without weight - error",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: ">= 1.68.0",
+					},
+				},
+			},
+			expectedErrors: []string{weightRequiredErr},
+			description:    "Should error when a module supporting Deckhouse < 1.72 has no weight",
+		},
+		{
+			name: "deckhouse >= 1.68 non-critical with valid weight - no error",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+				Weight:    950,
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: ">= 1.68.0",
+					},
+				},
+			},
+			expectedErrors: []string{},
+			description:    "Should not error when weight is within 900-999",
+		},
+		{
+			name: "deckhouse >= 1.68 non-critical with out-of-range weight - error",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+				Weight:    500,
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: ">= 1.68.0",
+					},
+				},
+			},
+			expectedErrors: []string{weightRequiredErr},
+			description:    "Should error when weight is set but outside 900-999",
+		},
+		{
+			name: "weight at lower bound 900 - no error",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+				Weight:    900,
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: ">= 1.71.0",
+					},
+				},
+			},
+			expectedErrors: []string{},
+			description:    "900 is inside the allowed range",
+		},
+		{
+			name: "weight at upper bound 999 - no error",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+				Weight:    999,
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: ">= 1.71.0",
+					},
+				},
+			},
+			expectedErrors: []string{},
+			description:    "999 is inside the allowed range",
+		},
+		{
+			name: "weight just below range 899 - error",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+				Weight:    899,
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: ">= 1.71.0",
+					},
+				},
+			},
+			expectedErrors: []string{weightRequiredErr},
+			description:    "899 is just below the allowed range",
+		},
+		{
+			name: "weight just above range 1000 - error",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+				Weight:    1000,
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: ">= 1.71.0",
+					},
+				},
+			},
+			expectedErrors: []string{weightRequiredErr},
+			description:    "1000 is just above the allowed range",
+		},
+		{
+			name: "deckhouse >= 1.72 non-critical without weight - no error",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: ">= 1.72.0",
+					},
+				},
+			},
+			expectedErrors: []string{},
+			description:    "Weight is not required once the module only supports Deckhouse >= 1.72",
+		},
+		{
+			name: "critical module without weight - no weight_required error",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+				Critical:  true,
+				Requirements: &ModuleRequirements{
+					ModulePlatformRequirements: ModulePlatformRequirements{
+						Deckhouse: ">= 1.68.0",
+					},
+				},
+			},
+			expectedErrors: []string{},
+			description:    "weight_required ignores critical modules (zero weight for critical is a separate check)",
+		},
+		{
+			name: "no deckhouse requirement without weight - no error",
+			module: &DeckhouseModule{
+				Name:      "test-module",
+				Namespace: "test",
+			},
+			expectedErrors: []string{},
+			description:    "Out of scope when requirements.deckhouse is not set",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(_ *testing.T) {
+			registry := NewRequirementsRegistry()
+			errorList := errors.NewLintRuleErrorsList()
+			registry.RunAllChecks("", tt.module, errorList)
+			helper.AssertErrors(errorList, tt.expectedErrors)
+		})
+	}
+}
+
 func TestOptionalModulesRequirementCheck(t *testing.T) {
 	helper := NewTestHelper(t)
 
@@ -934,6 +1100,7 @@ func TestOptionalModulesRequirementCheck(t *testing.T) {
 			module: &DeckhouseModule{
 				Name:      "test-module",
 				Namespace: "test",
+				Weight:    950,
 				Requirements: &ModuleRequirements{
 					ModulePlatformRequirements: ModulePlatformRequirements{
 						Deckhouse: ">= 1.70.0",

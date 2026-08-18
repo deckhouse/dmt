@@ -1,0 +1,12 @@
+description: >
+  A non-critical module that still supports Deckhouse < 1.72 (requirements.deckhouse
+  ">= 1.68") must declare weight in the 900-999 range. With weight omitted the module
+  linter reports the requirements weight_required check as an error, mirroring the
+  platform's own "external module weight must be between 900 and 999" validation on
+  Deckhouse < 1.72.
+module: module
+expect:
+  - linter: module
+    rule: requirements
+    level: error
+    textContains: "external module weight must be between 900 and 999"

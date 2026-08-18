@@ -1,6 +1,7 @@
 name: enabled-script-empty
 namespace: d8-enabled-script-empty
 stage: General Availability
+weight: 910
 requirements:
   deckhouse: ">= 1.68.0"
 descriptions:

@@ -53,6 +53,14 @@ const (
 	// MinimalDeckhouseVersionForBootstrappedDeprecation defines the version where bootstrapped was deprecated
 	MinimalDeckhouseVersionForBootstrappedDeprecation = "1.72.0"
 
+	// ExternalModuleWeightMin and ExternalModuleWeightMax bound the weight that
+	// Deckhouse requires for external (non-critical) modules on versions where
+	// weight is still meaningful (< MinimalDeckhouseVersionForWeightDeprecation).
+	// Those versions reject an out-of-range weight with
+	// "external module weight must be between 900 and 999".
+	ExternalModuleWeightMin uint32 = 900
+	ExternalModuleWeightMax uint32 = 999
+
 	// Common patterns used in Go files
 	AppRunPattern = `\w+\.Run\(`
 )
@@ -196,6 +204,25 @@ func NewRequirementsRegistry() *RequirementsRegistry {
 				module.Weight > 0 &&
 				!module.Critical &&
 				deckhouseVersionAtLeast(module, MinimalDeckhouseVersionForWeightDeprecation)
+		},
+	})
+
+	// Weight required check - the counterpart of weight_deprecated. While a
+	// non-critical module can still run on Deckhouse < 1.72, weight is mandatory
+	// and must be in the 900-999 range; Deckhouse itself rejects anything else on
+	// those versions ("external module weight must be between 900 and 999"). A
+	// module without requirements.deckhouse is out of scope here (it is expected to
+	// always be pinned), consistent with the other version-gated checks above.
+	registry.RegisterCheck(RequirementCheck{
+		Name:        "weight_required",
+		Description: "external module weight must be between 900 and 999 for non-critical modules that support Deckhouse < " + MinimalDeckhouseVersionForWeightDeprecation,
+		Detector: func(_ string, module *DeckhouseModule) bool {
+			return module != nil &&
+				!module.Critical &&
+				module.Requirements != nil &&
+				module.Requirements.Deckhouse != "" &&
+				!deckhouseVersionAtLeast(module, MinimalDeckhouseVersionForWeightDeprecation) &&
+				(module.Weight < ExternalModuleWeightMin || module.Weight > ExternalModuleWeightMax)
 		},
 	})
 

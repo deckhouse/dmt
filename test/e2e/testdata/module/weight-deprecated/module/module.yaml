@@ -1,0 +1,9 @@
+name: e2e-module-weight-deprecated
+namespace: e2e-module-weight-deprecated
+stage: Experimental
+weight: 910
+descriptions:
+  en: "Module used to verify the weight-deprecated lint (weight on Deckhouse >= 1.72)"
+  ru: "Модуль для проверки правила weight-deprecated (вес при Deckhouse >= 1.72)"
+requirements:
+  deckhouse: ">= 1.72"

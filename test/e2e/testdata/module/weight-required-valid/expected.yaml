@@ -1,0 +1,9 @@
+description: >
+  A non-critical module supporting Deckhouse < 1.72 with weight inside the 900-999
+  range is accepted: the requirements linter emits no weight-related finding (neither
+  weight_required nor weight_deprecated).
+module: module
+expectAbsent:
+  - linter: module
+    rule: requirements
+    textContains: "weight"

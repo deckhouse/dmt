@@ -426,6 +426,17 @@ This rule automatically detects feature usage and ensures proper version constra
 | **Module-SDK ≥ 0.3** | ≥ 1.71.0 | `module-sdk ≥ 0.3.0` in `go.mod` |
 | **Optional Modules** | ≥ 1.73.0 | `!optional` flag in module requirements |
 
+#### Module Weight
+
+The `weight` field for non-critical modules is validated against the Deckhouse **1.72.0** boundary:
+
+| Module supports | `weight` rule | Check |
+|-----------------|---------------|-------|
+| Deckhouse `< 1.72` (constraint lower bound below 1.72, e.g. `>= 1.68`) | **Required**, must be between **900 and 999** | `weight_required` |
+| Deckhouse `>= 1.72` only (constraint lower bound `>= 1.72`) | Must be **removed** | `weight_deprecated` |
+
+Rationale: on Deckhouse `< 1.72` the platform itself rejects an external module whose weight is outside 900–999 (`external module weight must be between 900 and 999`); from 1.72 the weight is assigned automatically for non-critical modules, so a leftover `weight` must be removed. `critical` modules are exempt from both checks — a critical module only needs a non-zero `weight` (see the [definition-file](#definition-file) rule). `weight_required` applies only when `requirements.deckhouse` is set.
+
 **Validation:**
 - ✅ Minimum version constraints are declared
 - ✅ Version format is valid (semver)
@@ -458,6 +469,8 @@ requirements:
 ❌ Module uses stage field but requirements.deckhouse is not specified
 ❌ requirements.deckhouse version should be >= 1.68.0 (found: >= 1.60.0)
 ❌ Invalid version constraint: "not-a-version"
+❌ requirements [weight_required]: external module weight must be between 900 and 999 for non-critical modules that support Deckhouse < 1.72.0
+❌ requirements [weight_deprecated]: weight must be removed for non-critical modules when Deckhouse >= 1.72.0
 ```
 
 ---

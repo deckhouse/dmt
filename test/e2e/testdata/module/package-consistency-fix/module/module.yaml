@@ -1,5 +1,6 @@
 name: wrong-name
 namespace: e2e
+weight: 910
 requirements:
   deckhouse: ">=0.0.0"
   modules:

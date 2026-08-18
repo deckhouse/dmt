@@ -1,6 +1,7 @@
 name: helmignore-covered
 namespace: d8-helmignore-covered
 stage: General Availability
+weight: 910
 requirements:
   deckhouse: ">= 1.68.0"
 descriptions:
