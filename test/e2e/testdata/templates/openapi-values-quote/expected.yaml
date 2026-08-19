@@ -1,15 +1,97 @@
 description: >
-  A module template that renders a pattern-less OpenAPI string value unquoted must be
-  flagged by the openapi-values-quote rule; a string value constrained by a pattern
-  must not be.
+  Broad coverage for the openapi-values-quote rule. Strings with no
+  pattern/enum/format rendered unquoted are flagged (scalar, nullable, nested,
+  array element); values constrained by pattern/enum/format, integers, quoted and
+  wrapped usages, values embedded in a larger scalar, and block scalars are not.
 module: module
 expect:
   - linter: templates
     rule: openapi-values-quote
     level: error
-    textContains: "greeting"
+    textContains: "e2eQuote.greeting"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuote.nickname"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuote.db.host"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuote.extraArgs"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuote.title"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuote.servers[].host"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuote.servers[].aliases"
+    count: 1
+  # embedded in an unquoted scalar -> wrap advice
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuote.endpoint"
+    count: 1
+  # risky value passed to printf
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuote.label"
+    count: 1
+  # unquoted value of a string map (additionalProperties)
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuote.annotations"
+    count: 1
+  # unquoted subfield reached through `with` over a single object
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuote.conn.dsn"
+    count: 1
+  # cross-template: value reaches a module define that renders it unquoted
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuote.image"
     count: 1
 expectAbsent:
   - linter: templates
     rule: openapi-values-quote
-    textContains: "code"
+    textContains: "e2eQuote.code"
+  - linter: templates
+    rule: openapi-values-quote
+    textContains: "e2eQuote.mode"
+  - linter: templates
+    rule: openapi-values-quote
+    textContains: "e2eQuote.createdAt"
+  - linter: templates
+    rule: openapi-values-quote
+    textContains: "e2eQuote.count"
+  - linter: templates
+    rule: openapi-values-quote
+    textContains: "e2eQuote.db.port"
+  - linter: templates
+    rule: openapi-values-quote
+    textContains: "e2eQuote.labels"
+  - linter: templates
+    rule: openapi-values-quote
+    textContains: "e2eQuote.tags"
+  - linter: templates
+    rule: openapi-values-quote
+    textContains: "e2eQuote.servers[].zone"

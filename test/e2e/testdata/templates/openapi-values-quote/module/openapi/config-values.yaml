@@ -1,9 +1,110 @@
 type: object
 properties:
+  # FLAGGED: string with no pattern/enum/format
   greeting:
     type: string
     default: hello
+  # FLAGGED (embedded in an unquoted scalar): unconstrained string
+  endpoint:
+    type: string
+    default: example.com
+  # FLAGGED (passed to printf): unconstrained string
+  label:
+    type: string
+    default: app
+  # FLAGGED (map value via range): map of unconstrained strings
+  annotations:
+    type: object
+    default:
+      key: value
+    additionalProperties:
+      type: string
+  # FLAGGED (subfield via `with`): single object with an unconstrained string field
+  conn:
+    type: object
+    default:
+      dsn: postgres
+    properties:
+      dsn:
+        type: string
+  # SAFE: constrained by a pattern
   code:
     type: string
     pattern: '^[a-z]+$'
     default: abc
+  # SAFE: constrained by an enum
+  mode:
+    type: string
+    enum: ["Enabled", "Disabled"]
+    default: Enabled
+  # SAFE: constrained by a format
+  createdAt:
+    type: string
+    format: date-time
+    default: "2020-01-01T00:00:00Z"
+  # FLAGGED: nullable string, still an unconstrained string
+  nickname:
+    type: ["string", "null"]
+    default: nick
+  # NOT A STRING: never flagged
+  count:
+    type: integer
+    default: 3
+  # nested object with a flagged string leaf and a safe integer leaf
+  db:
+    type: object
+    default: {}
+    properties:
+      host:
+        type: string
+        default: localhost
+      port:
+        type: integer
+        default: 5432
+  # FLAGGED: array whose items are unconstrained strings
+  extraArgs:
+    type: array
+    default: ["--foo"]
+    items:
+      type: string
+  # SAFE: array whose items are constrained by a pattern
+  labels:
+    type: array
+    default: ["ok"]
+    items:
+      type: string
+      pattern: '^[a-z]+$'
+  # FLAGGED via `with`: unconstrained string scoped by a with block
+  title:
+    type: string
+    default: hi
+  # SAFE (working quote+range): unconstrained string array, every element quoted
+  tags:
+    type: array
+    default: ["a"]
+    items:
+      type: string
+  # array of objects: string subfields are checked through `range $s := … }}{{ $s.field }}`,
+  # and a string-array subfield is checked through a nested range (range-in-range)
+  servers:
+    type: array
+    default:
+      - host: h
+        zone: a
+        aliases: ["x"]
+    items:
+      type: object
+      properties:
+        host:
+          type: string
+        zone:
+          type: string
+          enum: ["a", "b"]
+        aliases:
+          type: array
+          items:
+            type: string
+  # FLAGGED (cross-template): passed to a module define that renders it unquoted
+  image:
+    type: string
+    default: nginx

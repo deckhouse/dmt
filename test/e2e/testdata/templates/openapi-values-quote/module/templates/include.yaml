@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2e-quote-include
+  namespace: e2e-quote
+data:
+  # FLAGGED: risky value rendered unquoted by the module template "e2e-quote.raw"
+  image: {{ include "e2e-quote.raw" .Values.e2eQuote.image }}

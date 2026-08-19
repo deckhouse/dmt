@@ -1,0 +1,30 @@
+description: >
+  Schema-alias coverage for openapi-values-quote through the real module loader:
+  strings reached via $ref / allOf / oneOf without a validation keyword are flagged,
+  while a $ref that carries a pattern is not.
+module: module
+expect:
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuoteRefs.refName"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuoteRefs.allOfName"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuoteRefs.oneOfName"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuoteRefs.anyOfName"
+    count: 1
+expectAbsent:
+  - linter: templates
+    rule: openapi-values-quote
+    textContains: "e2eQuoteRefs.refCode"
