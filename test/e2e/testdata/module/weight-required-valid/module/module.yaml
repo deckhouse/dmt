@@ -1,0 +1,9 @@
+name: e2e-module-weight-required-valid
+namespace: e2e-module-weight-required-valid
+stage: Experimental
+weight: 910
+descriptions:
+  en: "Module used to verify the weight-required lint (valid weight)"
+  ru: "Модуль для проверки правила weight-required (валидный вес)"
+requirements:
+  deckhouse: ">= 1.68"

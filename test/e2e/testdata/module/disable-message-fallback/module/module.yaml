@@ -4,6 +4,7 @@ stage: Experimental
 descriptions:
   en: "Module used to verify the disable.message fallback warning"
   ru: "Модуль для проверки предупреждения о fallback disable.message"
+weight: 910
 requirements:
   deckhouse: ">= 1.60"
 disable:

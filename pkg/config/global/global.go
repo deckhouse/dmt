@@ -97,6 +97,7 @@ type DocumentationRules struct {
 	NoCyrillicExcludeRules RuleConfig `mapstructure:"cyrillic-in-english"`
 	NoLangKeyRule          RuleConfig `mapstructure:"no-lang-key"`
 	MarkdownlintRule       RuleConfig `mapstructure:"markdownlint"`
+	SizeRule               RuleConfig `mapstructure:"size"`
 }
 
 type OpenAPILinterConfig struct {

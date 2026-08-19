@@ -324,6 +324,10 @@ func mapDocumentationRules(linterSettings *pkg.LintersSettings, configSettings *
 	// intentionally NOT used as the fallback here — only an explicit rule-level
 	// markdownlint impact overrides the warn default.
 	rules.MarkdownlintRule.SetLevel(globalRules.MarkdownlintRule.Impact, pkg.Warn.String())
+	// size, like markdownlint, defaults to warn (non-fatal): the linter-level
+	// impact (fallbackImpact) is intentionally NOT used as the fallback here, so
+	// only an explicit rule-level size impact overrides the warn default.
+	rules.SizeRule.SetLevel(globalRules.SizeRule.Impact, pkg.Warn.String())
 }
 
 func mapModuleRules(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings, globalConfig *global.Linters) {

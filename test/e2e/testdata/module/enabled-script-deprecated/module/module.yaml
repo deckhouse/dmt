@@ -1,6 +1,7 @@
 name: enabled-script-deprecated
 namespace: d8-enabled-script-deprecated
 stage: General Availability
+weight: 910
 requirements:
   deckhouse: ">= 1.68.0"
 descriptions:

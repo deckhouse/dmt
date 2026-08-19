@@ -1,6 +1,7 @@
 name: helmignore-missing
 namespace: d8-helmignore-missing
 stage: General Availability
+weight: 910
 requirements:
   deckhouse: ">= 1.68.0"
 descriptions:

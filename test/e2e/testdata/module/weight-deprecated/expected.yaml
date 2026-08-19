@@ -1,0 +1,15 @@
+description: >
+  From Deckhouse 1.72 weight is assigned automatically for non-critical modules, so a
+  module pinned to ">= 1.72" that still declares weight must remove it. The module
+  linter reports the requirements weight_deprecated check as an error, and no
+  weight_required finding is produced (weight is not required at >= 1.72).
+module: module
+expect:
+  - linter: module
+    rule: requirements
+    level: error
+    textContains: "weight must be removed for non-critical modules when Deckhouse >= 1.72.0"
+expectAbsent:
+  - linter: module
+    rule: requirements
+    textContains: "must be between 900 and 999"

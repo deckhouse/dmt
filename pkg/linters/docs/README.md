@@ -15,6 +15,7 @@ Proper documentation is critical for Deckhouse modules as it helps users underst
 | [cyrillic-in-english](#cyrillic-in-english) | Validates English documentation doesn't contain cyrillic characters | ✅ | enabled |
 | [no-lang-key](#no-lang-key) | Validates documentation front matter doesn't contain `lang` key | ✅ | enabled |
 | [markdownlint](#markdownlint) | Validates markdown files in docs/ follow deckhouse markdown style | ✅ | enabled |
+| [size](#size) | Validates the total size of docs/ (excluding docs/internal) does not exceed 15 MB | ✅ | enabled |
 
 "Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
@@ -508,6 +509,70 @@ linters-settings:
       markdownlint:
         impact: error  # fail the run on violations (default is warn)
         # impact: ignored   # disable the rule entirely
+```
+
+---
+
+### size
+
+**Purpose:** Keeps the rendered documentation lightweight by ensuring the total size of the `docs/` directory stays within a 15 MB budget. Oversized documentation usually signals binary assets (large images, videos, archives) that bloat the module artifact and slow down cloning and distribution.
+
+**Description:**
+
+This rule walks the `docs/` directory recursively, sums the size of every file and reports a violation when the total exceeds **15 MB**. The `docs/internal/` subtree is excluded on purpose: it holds content that is not rendered as documentation, so it does not count towards the limit. Every other subfolder is scanned.
+
+Like `markdownlint`, this rule reports at `warn` **by default** — an oversized `docs/` directory is flagged but does not fail the run. The 15 MB limit is fixed and not configurable; only the rule's impact level can be changed.
+
+**What it checks:**
+
+1. Recursively walks the `docs/` directory and sums the size of every file, skipping the `docs/internal/` subtree
+2. Reports a violation (at `warn` by default) when the combined size exceeds 15 MB
+
+**Why it matters:**
+
+Documentation is meant to be text-first. Large binary assets committed under `docs/` inflate the repository and the resulting module artifact, making distribution slower and more expensive. Keeping `docs/` under a fixed budget encourages hosting heavy assets elsewhere (e.g. an external CDN) and linking to them instead.
+
+**Examples:**
+
+❌ **Incorrect** - Heavy binary asset directly under docs/:
+
+```
+my-module/
+└── docs/
+    ├── README.md
+    └── demo.mp4                  # 40 MB screencast at the top level → exceeds the limit
+```
+
+**Error:**
+```
+docs/ directory size exceeds the limit of 15.0 MB
+File: docs/
+Value: 41.2 MB
+```
+
+✅ **Correct** - Rendered docs stay light; non-rendered assets live under docs/internal/:
+
+```
+my-module/
+└── docs/
+    ├── README.md                 # links to the screencast hosted on a CDN
+    ├── README.ru.md
+    ├── guides/                   # regular subfolder → scanned and counted
+    │   └── setup.md
+    └── internal/                 # excluded from the size budget (not rendered)
+        └── data.bin
+```
+
+**Configuration:**
+
+The `size` rule reports at `warn` by default. Only the impact level is configurable — set it to `error` to make an oversized `docs/` fatal, or to `ignored` to disable the rule entirely:
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  documentation:
+    rules:
+      size:
+        impact: warn   # report but do not fail the run (this is the default)
 ```
 
 ---
