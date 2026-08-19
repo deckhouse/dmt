@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2e-quote-refs
+  namespace: e2e-quote-refs
+data:
+  refName: {{ .Values.e2eQuoteRefs.refName }}
+  allOfName: {{ .Values.e2eQuoteRefs.allOfName }}
+  oneOfName: {{ .Values.e2eQuoteRefs.oneOfName }}
+  anyOfName: {{ .Values.e2eQuoteRefs.anyOfName }}
+  refCode: {{ .Values.e2eQuoteRefs.refCode }}

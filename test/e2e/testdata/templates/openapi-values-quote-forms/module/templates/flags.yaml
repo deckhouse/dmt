@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: forms-flags
+  namespace: e2e-quote-forms
+alias: {{ $y := .Values.e2eQuoteForms.aliasScalar }}{{ $y }}
+ml: {{ .Values.e2eQuoteForms.maxLenStr }}
+ee: {{ .Values.e2eQuoteForms.emptyEnumStr }}
+ep: {{ .Values.e2eQuoteForms.emptyPatStr }}
+df: {{ .Values.e2eQuoteForms.defaultStr | default "z" }}
+tr: {{ .Values.e2eQuoteForms.trimStr | trim }}
+idx: {{ index .Values.e2eQuoteForms.idxList 0 }}
+ct: {{ include "forms.chainA" .Values.e2eQuoteForms.ctScalar }}
+ctc:
+{{- include "forms.listItems" .Values.e2eQuoteForms.ctConfig | nindent 2 }}
+pt:
+{{- range $v := .Values.e2eQuoteForms.ptList }}
+  - {{ upper $v }}
+{{- end }}
+av:
+{{- $x := .Values.e2eQuoteForms.arrVar }}
+{{- range $x }}
+  - {{ . }}
+{{- end }}
+ie:
+{{- range $i, $e := .Values.e2eQuoteForms.ieList }}
+  - {{ $e }}
+{{- end }}
+matrix:
+{{- range $row := .Values.e2eQuoteForms.matrix }}
+{{- range $c := $row }}
+  - {{ $c }}
+{{- end }}
+{{- end }}
+deep:
+{{- range $d := .Values.e2eQuoteForms.deepArr }}
+  - {{ $d.spec.name }}
+{{- end }}
+mo:
+{{- range $k, $vv := .Values.e2eQuoteForms.moMap }}
+  {{ $k }}: {{ $vv.field }}
+{{- end }}
+{{- $s := .Values.e2eQuoteForms.withVar }}
+{{- with $s }}
+wv: {{ .field }}
+{{- end }}
+rs:
+{{- range .Values.e2eQuoteForms.ieList }}
+  - {{ $.Values.e2eQuoteForms.rootScoped }}
+{{- end }}

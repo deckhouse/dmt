@@ -2110,21 +2110,33 @@ linters-settings:
 
 **Description:**
 
-The rule reads the module value schema (`openapi/values.yaml` and `openapi/config-values.yaml`), collects every value path whose type resolves to a **string with no `pattern`, `enum`, or `format`**, and then checks the module `templates/` for usages of those values (`.Values.<moduleName>.<path>`). A usage that is rendered as a bare YAML value — not piped through `quote`/`squote` (or another YAML-safe function such as `b64enc`, `toJson`, `sha256sum`), and not wrapped in quotes — is reported.
+The rule reads the module value schema (`openapi/values.yaml` and `openapi/config-values.yaml`), collects every value path whose type resolves to a **string with no `pattern`, `enum`, or `format`**, and then checks the module `templates/` for usages of those values. A usage that is rendered as a bare YAML value — not piped through a YAML-safe function, and not wrapped in quotes — is reported.
+
+Both the direct form `.Values.<moduleName>.<path>` and the root-scoped `$.Values.<moduleName>.<path>` form (used inside `range`/`with` blocks) are recognised.
 
 **What counts as a string:**
 
 - a direct `type: string` property;
 - a nullable string (`type: ["string", "null"]`);
 - a string reached through `$ref`, `allOf`, `oneOf`, or `anyOf`;
-- items of a string array (`type: array` with `items: {type: string}`), checked through `range`.
+- items of a string array (`type: array` with `items: {type: string}`), checked through `range` (`{{ range … }}{{ . }}{{ end }}`);
+- a string sub-field (at any depth) of an array-of-objects element, checked through a named range: `{{ range $s := .Values.mod.servers }}{{ $s.host }}{{ end }}` (and the dot-binding form `{{ range .Values.mod.servers }}{{ .host }}{{ end }}`);
+- an element of a string-array sub-field, checked through a nested range (range-in-range) at any nesting depth: `{{ range $s := .Values.mod.servers }}{{ range $a := $s.aliases }}{{ $a }}{{ end }}{{ end }}`;
+- values of a string map (`type: object` with `additionalProperties: {type: string}`), checked through `{{ range $k, $v := .Values.mod.labels }}{{ $v }}{{ end }}` (map-of-objects and nested maps too);
+- elements of an array of string arrays (`items: {type: array, items: {type: string}}`), checked through a nested range;
+- a string scoped by `with`, both over a scalar (`{{ with .Values.mod.foo }}{{ . }}{{ end }}`) and over a single object (`{{ with .Values.mod.db }}{{ .host }}{{ end }}`);
+- a value copied into a template variable and then emitted (`{{ $x := .Values.mod.foo }}… {{ $x }}`), including aliases of loop element variables and an array bound to a variable and later ranged (`{{ $x := .Values.mod.list }}{{ range $x }}{{ . }}{{ end }}`);
+- a value scoped by `with` over an object **variable** (`{{ with $s }}{{ .host }}{{ end }}`);
+- a value passed to a **module-defined** template that renders it unquoted (`{{ include "mymod.env" .Values.mod.config }}` where `define "mymod.env"` emits `{{ .value }}` or ranges `{{ range .items }}{{ . }}{{ end }}` unquoted), followed transitively across the module's own `define`/`include` chain. External templates (helm_lib, …) are not inspected, so this never fires on them.
 
 **What makes a string safe (not reported):**
 
-- it declares a `pattern`, an `enum`, or a `format` in the schema; **or**
-- every template usage quotes it (`| quote`, `| squote`, or literal `"…"`/`'…'` wrapping), or pipes it through a function whose output is always YAML-safe.
+- it declares a `pattern`, an `enum`, or a `format` in the schema (note: `minLength`/`maxLength` do **not** exempt it — they don't restrict the character set); **or**
+- every template usage wraps it in literal `"…"`/`'…'`, or pipes it through a function whose output is always YAML-safe: `quote`, `squote`, `toJson`/`toRawJson`, `toYaml`, `b64enc`/`b32enc`, `sha1sum`/`sha256sum`/`sha512sum`/`adler32sum` (and their `must…` variants), or `printf` with a `%q` verb.
 
-To keep findings high-confidence, the rule only reports **standalone** values (`key: {{ … }}` or `- {{ … }}`). A value embedded in a larger scalar (`host: prefix-{{ … }}`), used in a condition (`{{ if … }}`), or placed inside a YAML block scalar (`|` / `>`) is not reported.
+The rule reports both a **standalone** value (`key: {{ … }}` / `- {{ … }}`, fix: add `| quote`) and a value **embedded** in a larger unquoted scalar (`host: prefix-{{ … }}`, fix: wrap the whole value in quotes) — the message tells you which fix applies. A risky value passed to a common passthrough function — a string transform (`{{ printf "%s" .Values.mod.foo }}`, `{{ upper $v }}`) or an array/map element accessor (`{{ index .Values.mod.list 0 }}`) — is reported as well, for both `.Values` references and variables. A value used only in a condition (`{{ if … }}`) is not a rendered value and is not reported.
+
+**Known limitations (not reported):** a value inside a YAML block scalar (`|` / `>`), where it is already part of a string and must **not** be quoted; a value passed to an **external** template (helm_lib and other charts, whose bodies are not scanned); a map **key** emitted as `{{ $k }}:` (indistinguishable from a numeric array index without extra type info); a value reached through dynamic access (`dig`/`get`/`pluck`, or a `dict` built inline and passed on); and a `{{ … }}` action that spans multiple physical lines.
 
 **Why it matters:**
 
@@ -2168,6 +2180,16 @@ For string arrays, quote each element inside the loop:
 args:
 {{- range .Values.myModule.extraArgs }}
   - {{ . | quote }}
+{{- end }}
+```
+
+For arrays of objects, quote each risky string sub-field of the element:
+
+```yaml
+hosts:
+{{- range $s := .Values.myModule.servers }}
+  - host: {{ $s.host | quote }}   # host has no pattern/enum/format -> quote it
+    zone: {{ $s.zone }}           # zone is an enum -> fine as is
 {{- end }}
 ```
 

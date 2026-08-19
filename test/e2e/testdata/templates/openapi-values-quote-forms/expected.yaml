@@ -1,0 +1,113 @@
+description: >
+  Covers every openapi-values-quote template form: passthrough over a variable, index,
+  with over an object variable, array-var assignment, aliasing, array-of-arrays,
+  map-of-objects, cross-template (transitive and define-ranges-param), root-scoped
+  $.Values, range index+element, deep object-array sub-fields, and the non-exempting
+  keywords (maxLength / empty enum / empty pattern) — plus the safe forms (squote,
+  toJson, toYaml, b64enc, printf %q) and the unknown-function limitation.
+module: module
+expect:
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuoteForms.aliasScalar"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuoteForms.arrVar"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuoteForms.ctConfig.items"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuoteForms.ctScalar"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuoteForms.deepArr[].spec.name"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuoteForms.defaultStr"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuoteForms.emptyEnumStr"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuoteForms.emptyPatStr"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuoteForms.idxList"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuoteForms.ieList"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuoteForms.matrix[]"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuoteForms.maxLenStr"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuoteForms.moMap[].field"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuoteForms.ptList"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuoteForms.rootScoped"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuoteForms.trimStr"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuoteForms.withVar.field"
+    count: 1
+expectAbsent:
+  - linter: templates
+    rule: openapi-values-quote
+    textContains: "e2eQuoteForms.squoteStr"
+  - linter: templates
+    rule: openapi-values-quote
+    textContains: "e2eQuoteForms.toJsonStr"
+  - linter: templates
+    rule: openapi-values-quote
+    textContains: "e2eQuoteForms.toYamlStr"
+  - linter: templates
+    rule: openapi-values-quote
+    textContains: "e2eQuoteForms.b64Str"
+  - linter: templates
+    rule: openapi-values-quote
+    textContains: "e2eQuoteForms.pqStr"
+  - linter: templates
+    rule: openapi-values-quote
+    textContains: "e2eQuoteForms.unknownFnStr"

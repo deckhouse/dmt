@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2e-quote-args
+  namespace: e2e-quote
+# FLAGGED: element of an unconstrained string array, bound to a range variable
+extraArgs:
+{{- range $arg := .Values.e2eQuote.extraArgs }}
+  - {{ $arg }}
+{{- end }}
+# SAFE: element of a pattern-constrained string array (dot-binding form)
+safeArgs:
+{{- range .Values.e2eQuote.labels }}
+  - {{ . }}
+{{- end }}
+# SAFE: unconstrained string array, elements quoted via the range variable
+tags:
+{{- range $t := .Values.e2eQuote.tags }}
+  - {{ $t | quote }}
+{{- end }}
