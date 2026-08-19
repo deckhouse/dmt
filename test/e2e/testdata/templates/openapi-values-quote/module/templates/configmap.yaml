@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2e-quote
+  namespace: e2e-quote
+data:
+  # pattern-less string rendered unquoted -> must be flagged
+  greeting: {{ .Values.e2eQuote.greeting }}
+  # string with a validation pattern -> must NOT be flagged
+  code: {{ .Values.e2eQuote.code }}

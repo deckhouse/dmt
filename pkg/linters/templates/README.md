@@ -25,6 +25,7 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [crd-enabled-modules](#crd-enabled-modules) | Flags deprecated `has "<module>-crd"` checks in `.Values.global.enabledModules` and autofixes them | ✅ | enabled |
 | [webhook-configuration-annotations](#webhook-configuration-annotations) | Checks webhook configurations have werf.io/weight or deploy-dependency annotations | ✅ | enabled |
 | [mount-points](#mount-points) | Validates that mount-points.yaml directories are used as volumeMounts in pod controllers | ✅ | enabled |
+| [openapi-values-quote](#openapi-values-quote) | Requires templates to quote OpenAPI string values that have no validation pattern | ✅ | enabled |
 
 "Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
@@ -2103,6 +2104,91 @@ linters-settings:
 **Configuration:**
 
 
+### openapi-values-quote
+
+**Purpose:** Ensures that module OpenAPI string values without a validation pattern are always quoted when rendered into templates. An unconstrained string can contain characters that break YAML or silently change the parsed type (for example `123`, `true`, `on`, a value with a leading `0`, or one containing `:` or `#`), so it must be quoted at the point of use.
+
+**Description:**
+
+The rule reads the module value schema (`openapi/values.yaml` and `openapi/config-values.yaml`), collects every value path whose type resolves to a **string with no `pattern`, `enum`, or `format`**, and then checks the module `templates/` for usages of those values (`.Values.<moduleName>.<path>`). A usage that is rendered as a bare YAML value — not piped through `quote`/`squote` (or another YAML-safe function such as `b64enc`, `toJson`, `sha256sum`), and not wrapped in quotes — is reported.
+
+**What counts as a string:**
+
+- a direct `type: string` property;
+- a nullable string (`type: ["string", "null"]`);
+- a string reached through `$ref`, `allOf`, `oneOf`, or `anyOf`;
+- items of a string array (`type: array` with `items: {type: string}`), checked through `range`.
+
+**What makes a string safe (not reported):**
+
+- it declares a `pattern`, an `enum`, or a `format` in the schema; **or**
+- every template usage quotes it (`| quote`, `| squote`, or literal `"…"`/`'…'` wrapping), or pipes it through a function whose output is always YAML-safe.
+
+To keep findings high-confidence, the rule only reports **standalone** values (`key: {{ … }}` or `- {{ … }}`). A value embedded in a larger scalar (`host: prefix-{{ … }}`), used in a condition (`{{ if … }}`), or placed inside a YAML block scalar (`|` / `>`) is not reported.
+
+**Why it matters:**
+
+Rendering an unconstrained string unquoted is a classic source of broken manifests and subtle type bugs: a value like `123456` becomes an integer, `true`/`no` becomes a boolean, and a value containing `:` or a leading `@` can make the document fail to parse. A schema `pattern`/`enum`/`format` already guarantees the value is safe; without one, the template must quote it.
+
+**Examples:**
+
+Given the module schema:
+
+```yaml
+# openapi/config-values.yaml
+type: object
+properties:
+  greeting:            # no pattern -> must be quoted in templates
+    type: string
+  code:                # constrained -> quoting not required
+    type: string
+    pattern: '^[a-z]+$'
+```
+
+❌ **Incorrect** — pattern-less string rendered unquoted:
+
+```yaml
+# templates/configmap.yaml
+data:
+  greeting: {{ .Values.myModule.greeting }}
+```
+
+✅ **Correct** — quote the value:
+
+```yaml
+# templates/configmap.yaml
+data:
+  greeting: {{ .Values.myModule.greeting | quote }}
+  # or: greeting: "{{ .Values.myModule.greeting }}"
+```
+
+For string arrays, quote each element inside the loop:
+
+```yaml
+args:
+{{- range .Values.myModule.extraArgs }}
+  - {{ . | quote }}
+{{- end }}
+```
+
+**Configuration:**
+
+Set the impact level or exclude specific value paths (matched against the dotted path relative to the module values root, e.g. `foo.bar`):
+
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  templates:
+    rules:
+      openapi-values-quote:
+        impact: error
+    exclude-rules:
+      openapi-values-quote:
+        - internal.someLegacyField
+        - extraArgs
+```
+
+
 ## Configuration
 
 The Templates linter can be configured at the module level with rule-specific settings and exclusions.
@@ -2158,6 +2244,8 @@ linters-settings:
       enabled-modules:
         impact: warning
       webhook-configuration-annotations:
+        impact: error
+      openapi-values-quote:
         impact: error
 ```
 
@@ -2223,6 +2311,11 @@ linters-settings:
           name: istio-sidecar-injector
         - kind: MutatingWebhookConfiguration
           name: cert-manager-webhook
+
+      # openapi-values-quote exclusions (by value path, relative to the module values root)
+      openapi-values-quote:
+        - internal.someLegacyField
+        - extraArgs
 ```
 
 ### Complete Configuration Example

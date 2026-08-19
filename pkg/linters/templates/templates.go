@@ -102,6 +102,7 @@ func (l *Templates) rules() []pkg.Rule {
 		rules.NewCRDEnabledModulesRule(m, level(cfg.Rules.CRDEnabledModulesRule)),
 		rules.NewMountPointsRule(cfg.ExcludeRules.MountPoints.Get(), m, level(cfg.Rules.MountPointsRule)),
 		rules.NewHelmRenderRule(m, level(cfg.Rules.HelmRenderRule)),
+		rules.NewOpenAPIValuesQuoteRule(cfg.ExcludeRules.OpenAPIValuesQuote.Get(), m, level(cfg.Rules.OpenAPIValuesQuoteRule)),
 	)
 }
 

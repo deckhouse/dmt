@@ -1,0 +1,9 @@
+type: object
+properties:
+  greeting:
+    type: string
+    default: hello
+  code:
+    type: string
+    pattern: '^[a-z]+$'
+    default: abc
