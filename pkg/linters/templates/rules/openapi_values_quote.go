@@ -450,23 +450,28 @@ func (r *OpenAPIValuesQuoteRule) checkScopedEmissions(
 }
 
 // reportScoped emits the finding for a scoped emission, worded for a scalar value, an
-// array element, or a string sub-field of an array-of-objects element.
+// array element, or a string sub-field of an array-of-objects element. The full value
+// path (e.g. `servers[].host`) is checked against the exclude list so a specific
+// sub-field can be excluded, not only its enclosing array.
 func (r *OpenAPIValuesQuoteRule) reportScoped(
 	relPath string, line int, valuesKey string, scope *loopScope, sub string, wrap bool, errorList *errors.LintRuleErrorsList,
 ) {
+	path := emissionPath(scope, sub)
+	if !r.Enabled(path) {
+		return
+	}
+
 	tail := "is an OpenAPI string without a validation pattern (pattern/enum/format) " + quoteAdvice(wrap)
 
 	el := errorList.WithFilePath(relPath).WithLineNumber(line)
 
 	switch {
 	case scope.kind == "array":
-		el.Errorf("array element from '.Values.%s.%s' %s", valuesKey, scope.valPath, tail)
+		el.Errorf("array element from '.Values.%s.%s' %s", valuesKey, path, tail)
 	case scope.kind == "object" && scope.elemArray:
-		el.Errorf("array element field '.Values.%s.%s[].%s' %s", valuesKey, scope.valPath, sub, tail)
-	case scope.kind == "object":
-		el.Errorf("value '.Values.%s.%s.%s' %s", valuesKey, scope.valPath, sub, tail)
+		el.Errorf("array element field '.Values.%s.%s' %s", valuesKey, path, tail)
 	default:
-		el.Errorf("value '.Values.%s.%s' %s", valuesKey, scope.valPath, tail)
+		el.Errorf("value '.Values.%s.%s' %s", valuesKey, path, tail)
 	}
 }
 
