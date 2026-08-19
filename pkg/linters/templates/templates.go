@@ -111,6 +111,10 @@ func (l *Templates) Run(m *modules.Module) {
 
 	// HelmRender rule
 	rules.NewHelmRenderRule().Check(m, errorList.WithMaxLevel(l.cfg.Rules.HelmRenderRule.GetLevel()))
+
+	// OpenAPIValuesQuote rule: string values without a validation pattern must be quoted in templates
+	rules.NewOpenAPIValuesQuoteRule(l.cfg.ExcludeRules.OpenAPIValuesQuote.Get()).
+		CheckStringValuesQuoted(m, errorList.WithMaxLevel(l.cfg.Rules.OpenAPIValuesQuoteRule.GetLevel()))
 }
 
 func (l *Templates) Name() string {

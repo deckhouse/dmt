@@ -1,0 +1,15 @@
+description: >
+  A module template that renders a pattern-less OpenAPI string value unquoted must be
+  flagged by the openapi-values-quote rule; a string value constrained by a pattern
+  must not be.
+module: module
+expect:
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "greeting"
+    count: 1
+expectAbsent:
+  - linter: templates
+    rule: openapi-values-quote
+    textContains: "code"
