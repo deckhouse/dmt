@@ -24,7 +24,7 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [enabled-modules](#enabled-modules) | Detects usage of `.Values.global.enabledModules` in templates | ✅ | enabled |
 | [webhook-configuration-annotations](#webhook-configuration-annotations) | Checks webhook configurations have werf.io/weight or deploy-dependency annotations | ✅ | enabled |
 | [mount-points](#mount-points) | Validates that mount-points.yaml directories are used as volumeMounts in pod controllers | ✅ | enabled |
-| [openapi-values-quote](#openapi-values-quote) | Requires templates to quote OpenAPI string values that have no validation pattern | ✅ | enabled |
+| [openapi-values-quote](#openapi-values-quote) | Requires templates to quote OpenAPI string values that have no `pattern`/`enum`/`format` | ✅ | enabled |
 
 "Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
@@ -2039,7 +2039,7 @@ linters-settings:
 
 ### openapi-values-quote
 
-**Purpose:** Ensures that module OpenAPI string values without a validation pattern are always quoted when rendered into templates. An unconstrained string can contain characters that break YAML or silently change the parsed type (for example `123`, `true`, `on`, a value with a leading `0`, or one containing `:` or `#`), so it must be quoted at the point of use.
+**Purpose:** Ensures that module OpenAPI string values with no validation keyword (`pattern`, `enum`, or `format`) are always quoted when rendered into templates. An unconstrained string can contain characters that break YAML or silently change the parsed type (for example `123`, `true`, `on`, a value with a leading `0`, or one containing `:` or `#`), so it must be quoted at the point of use.
 
 **Description:**
 
@@ -2055,7 +2055,7 @@ Both the direct form `.Values.<moduleName>.<path>` and the root-scoped `$.Values
 - items of a string array (`type: array` with `items: {type: string}`), checked through `range` (`{{ range … }}{{ . }}{{ end }}`);
 - a string sub-field (at any depth) of an array-of-objects element, checked through a named range: `{{ range $s := .Values.mod.servers }}{{ $s.host }}{{ end }}` (and the dot-binding form `{{ range .Values.mod.servers }}{{ .host }}{{ end }}`);
 - an element of a string-array sub-field, checked through a nested range (range-in-range) at any nesting depth: `{{ range $s := .Values.mod.servers }}{{ range $a := $s.aliases }}{{ $a }}{{ end }}{{ end }}`;
-- values of a string map (`type: object` with `additionalProperties: {type: string}`), checked through `{{ range $k, $v := .Values.mod.labels }}{{ $v }}{{ end }}` (map-of-objects and nested maps too);
+- values of a string map (`type: object` with `additionalProperties: {type: string}`), checked through `{{ range $k, $v := .Values.mod.labels }}{{ $v }}{{ end }}` (a map of objects works too, via `{{ $v.field }}`);
 - elements of an array of string arrays (`items: {type: array, items: {type: string}}`), checked through a nested range;
 - a string scoped by `with`, both over a scalar (`{{ with .Values.mod.foo }}{{ . }}{{ end }}`) and over a single object (`{{ with .Values.mod.db }}{{ .host }}{{ end }}`);
 - a value copied into a template variable and then emitted (`{{ $x := .Values.mod.foo }}… {{ $x }}`), including aliases of loop element variables and an array bound to a variable and later ranged (`{{ $x := .Values.mod.list }}{{ range $x }}{{ . }}{{ end }}`);
@@ -2069,7 +2069,16 @@ Both the direct form `.Values.<moduleName>.<path>` and the root-scoped `$.Values
 
 The rule reports both a **standalone** value (`key: {{ … }}` / `- {{ … }}`, fix: add `| quote`) and a value **embedded** in a larger unquoted scalar (`host: prefix-{{ … }}`, fix: wrap the whole value in quotes) — the message tells you which fix applies. A risky value passed to a common passthrough function — a string transform (`{{ printf "%s" .Values.mod.foo }}`, `{{ upper $v }}`) or an array/map element accessor (`{{ index .Values.mod.list 0 }}`) — is reported as well, for both `.Values` references and variables. A value used only in a condition (`{{ if … }}`) is not a rendered value and is not reported.
 
-**Known limitations (not reported):** a value inside a YAML block scalar (`|` / `>`), where it is already part of a string and must **not** be quoted; a value passed to an **external** template (helm_lib and other charts, whose bodies are not scanned); a map **key** emitted as `{{ $k }}:` (indistinguishable from a numeric array index without extra type info); a value reached through dynamic access (`dig`/`get`/`pluck`, or a `dict` built inline and passed on); and a `{{ … }}` action that spans multiple physical lines.
+**Known limitations (not reported):**
+
+- a value inside a YAML block scalar (`|` / `>`), where it is already part of a string and must **not** be quoted;
+- a value passed to a function that is **not** in the recognised transform/accessor set, nested inside another call (`{{ printf "%s" (index .Values.mod.list 0) }}`), or used as the **subject** of `with`/`range` (`{{ with (index .Values.mod.servers 0) }}`);
+- a value a module `define` renders **through a function** (e.g. `{{ printf "%s" . }}` inside the define — only direct `{{ . }}` / `{{ .field }}` / `{{ range .field }}` forms are traced);
+- a value passed to an **external** template (helm_lib and other charts, whose bodies are not scanned);
+- a map **key** emitted as `{{ $k }}:` (indistinguishable from a numeric array index without extra type info);
+- the values of a **nested map** (`additionalProperties` whose value is itself a map);
+- a value reached through **dynamic access** (`dig` / `get` / `pluck`, or a `dict` built inline and passed on);
+- a `{{ … }}` action that spans multiple physical lines.
 
 **Why it matters:**
 
@@ -2128,7 +2137,7 @@ hosts:
 
 **Configuration:**
 
-Set the impact level or exclude specific value paths (matched against the dotted path relative to the module values root, e.g. `foo.bar`):
+Set the impact level or exclude specific value paths. An exclude is matched (exact string) against the value path **exactly as it appears in the finding message** — a dotted path relative to the module values root, with `[]` marking array elements and array-of-object sub-fields:
 
 ```yaml
 # .dmtlint.yaml
@@ -2139,8 +2148,10 @@ linters-settings:
         impact: error
     exclude-rules:
       openapi-values-quote:
-        - internal.someLegacyField
-        - extraArgs
+        - internal.someLegacyField   # a scalar path
+        - extraArgs                  # a string array (excludes its elements)
+        - servers[].host             # one sub-field of an array of objects
+        - servers                    # the whole array (excludes every sub-field)
 ```
 
 

@@ -1025,6 +1025,24 @@ properties:
 			wantCount: 0,
 		},
 		{
+			name: "object array subfield can be excluded by its full path",
+			valuesSchema: `type: object
+properties:
+  servers:
+    type: array
+    items:
+      type: object
+      properties:
+        host:
+          type: string
+`,
+			files: map[string]string{
+				"templates/cm.yaml": "servers:\n{{- range $s := .Values." + valuesKey + ".servers }}\n  host: {{ $s.host }}\n{{- end }}\n",
+			},
+			excludes:  []string{"servers[].host"},
+			wantCount: 0,
+		},
+		{
 			name: "unquoted subfield of an object array nested in an object array is flagged",
 			valuesSchema: `type: object
 properties:
