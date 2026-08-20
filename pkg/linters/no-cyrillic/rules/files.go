@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"os"
 	"regexp"
 	"strings"
@@ -31,13 +32,18 @@ const (
 )
 
 var (
+	// Extensions must include the leading dot to match filepath.Ext, which is
+	// what fsutils.FilterFileByExtensions compares against.
+	fileExtensions = []string{".yaml", ".yml", ".json", ".go"}
+
 	skipDocRe  = `doc-ru-.+\.y[a]?ml$|\.ru\.y[a]?ml$|\.ru\.json$|\.ru\.md$|\.ru\.html$|_RU\.md$|_ru\.html$|docs/site/_.+|docs/documentation/_.+|tools/spelling/.+|openapi/conversions/.+|module.yaml|ru\..+`
 	skipSelfRe = `no_cyrillic(_test)?.go$`
 	skipI18NRe = `/i18n/`
 )
 
 func NewFilesRule(excludeFileRules []pkg.StringRuleExclude,
-	excludeDirectoryRules []pkg.DirectoryRuleExclude) *FilesRule {
+	excludeDirectoryRules []pkg.DirectoryRuleExclude,
+	m pkg.Module, errorList *errors.LintRuleErrorsList) *FilesRule {
 	return &FilesRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: FilesRuleName,
@@ -47,8 +53,10 @@ func NewFilesRule(excludeFileRules []pkg.StringRuleExclude,
 			ExcludeDirectoryRules: excludeDirectoryRules,
 		},
 		skipDocRe:  regexp.MustCompile(skipDocRe),
-		skipI18NRe: regexp.MustCompile(skipSelfRe),
-		skipSelfRe: regexp.MustCompile(skipI18NRe),
+		skipI18NRe: regexp.MustCompile(skipI18NRe),
+		skipSelfRe: regexp.MustCompile(skipSelfRe),
+		module:     m,
+		errorList:  errorList.WithRule(FilesRuleName),
 	}
 }
 
@@ -59,12 +67,32 @@ type FilesRule struct {
 	skipDocRe  *regexp.Regexp
 	skipI18NRe *regexp.Regexp
 	skipSelfRe *regexp.Regexp
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func (r *FilesRule) CheckFile(m pkg.Module, fileName string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+var _ pkg.Rule = (*FilesRule)(nil)
 
-	fName := fsutils.Rel(m.GetPath(), fileName)
+func (r *FilesRule) Check(_ context.Context) {
+	modulePath := r.module.GetPath()
+	// Guard the walk: fsutils.GetFiles("") would traverse the working directory.
+	if modulePath == "" {
+		return
+	}
+
+	for _, fileName := range fsutils.GetFiles(modulePath, false,
+		fsutils.FilterFileByExtensions(fileExtensions...)) {
+		r.checkFile(fileName)
+	}
+}
+
+// checkFile must stay a separate method rather than being inlined into the loop
+// above: its early returns end the check for one file, not for the whole rule.
+func (r *FilesRule) checkFile(fileName string) {
+	errorList := r.errorList
+
+	fName := fsutils.Rel(r.module.GetPath(), fileName)
 	if !r.Enabled(fName) {
 		// TODO: add metrics
 		return

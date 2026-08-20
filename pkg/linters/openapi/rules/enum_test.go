@@ -171,9 +171,9 @@ components:
 					EnumFileExcludes: tt.excludeFiles,
 				},
 			}
-			rule := NewEnumRule(cfg, "test")
 			errorList := errors.NewLintRuleErrorsList()
-			rule.Run(filePath, errorList)
+			rule := NewEnumRule(cfg, moduleAt(t, "test"), errorList)
+			rule.checkFile(filePath)
 
 			errs := errorList.GetErrors()
 			if tt.wantErrors == nil {

@@ -17,6 +17,8 @@ limitations under the License.
 package rules
 
 import (
+	"context"
+
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/deckhouse/dmt/internal/storage"
@@ -28,7 +30,8 @@ const (
 	NoNewPrivilegesRuleName = "no-new-privileges"
 )
 
-func NewNoNewPrivilegesRule(excludeRules []pkg.ContainerRuleExclude) *NoNewPrivilegesRule {
+func NewNoNewPrivilegesRule(excludeRules []pkg.ContainerRuleExclude,
+	objects []ObjectContainers, errorList *errors.LintRuleErrorsList) *NoNewPrivilegesRule {
 	return &NoNewPrivilegesRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: NoNewPrivilegesRuleName,
@@ -36,19 +39,34 @@ func NewNoNewPrivilegesRule(excludeRules []pkg.ContainerRuleExclude) *NoNewPrivi
 		ContainerRule: pkg.ContainerRule{
 			ExcludeRules: excludeRules,
 		},
+		objects:   objects,
+		errorList: errorList.WithRule(NoNewPrivilegesRuleName),
 	}
 }
 
 type NoNewPrivilegesRule struct {
 	pkg.RuleMeta
 	pkg.ContainerRule
+
+	objects   []ObjectContainers
+	errorList *errors.LintRuleErrorsList
 }
 
 // ContainerNoNewPrivileges checks that containers have allowPrivilegeEscalation set to false
 // This prevents privilege escalation attacks by ensuring containers cannot gain additional privileges
 // Reference: CIS Kubernetes Benchmark 5.2.5
-func (r *NoNewPrivilegesRule) ContainerNoNewPrivileges(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.ShortPath())
+var _ pkg.Rule = (*NoNewPrivilegesRule)(nil)
+
+func (r *NoNewPrivilegesRule) Check(_ context.Context) {
+	for _, oc := range r.objects {
+		r.checkObject(oc.Object, oc.All)
+	}
+}
+
+// checkObject must stay a separate method rather than being inlined into the
+// loop above: its early returns end the check for one object, not for the rule.
+func (r *NoNewPrivilegesRule) checkObject(object storage.StoreObject, containers []corev1.Container) {
+	errorList := r.errorList.WithFilePath(object.ShortPath())
 
 	switch object.Unstructured.GetKind() {
 	case "Deployment", "DaemonSet", "StatefulSet", "Pod", "Job", "CronJob":

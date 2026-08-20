@@ -21,7 +21,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/templates/rules"
@@ -35,11 +34,11 @@ const (
 type Templates struct {
 	name, desc string
 	cfg        *pkg.TemplatesLinterConfig
-	module     *modules.Module
+	module     pkg.Module
 	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *pkg.TemplatesLinterConfig, m *modules.Module, errorList *errors.LintRuleErrorsList) *Templates {
+func New(cfg *pkg.TemplatesLinterConfig, m pkg.Module, errorList *errors.LintRuleErrorsList) *Templates {
 	return &Templates{
 		name:      ID,
 		desc:      "Lint templates",

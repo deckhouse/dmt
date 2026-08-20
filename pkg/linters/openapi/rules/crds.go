@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -30,10 +31,13 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
+const CRDsRuleName = "deckhouse-crds"
+
 type DeckhouseCRDsRule struct {
 	pkg.RuleMeta
 	pkg.StringRule
-	rootPath string
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
 const CrdsDir = "crds"
@@ -42,15 +46,17 @@ var (
 	sep = regexp.MustCompile("(?:^|\\s*\n)---\\s*")
 )
 
-func NewDeckhouseCRDsRule(cfg *pkg.OpenAPILinterConfig, rootPath string) *DeckhouseCRDsRule {
+func NewDeckhouseCRDsRule(cfg *pkg.OpenAPILinterConfig,
+	m pkg.Module, errorList *errors.LintRuleErrorsList) *DeckhouseCRDsRule {
 	return &DeckhouseCRDsRule{
 		RuleMeta: pkg.RuleMeta{
-			Name: "deckhouse-crds",
+			Name: CRDsRuleName,
 		},
 		StringRule: pkg.StringRule{
 			ExcludeRules: cfg.ExcludeRules.CRDNamesExcludes.Get(),
 		},
-		rootPath: rootPath,
+		module:    m,
+		errorList: errorList.WithRule(CRDsRuleName),
 	}
 }
 
@@ -202,10 +208,23 @@ func checkDeprecatedInPropertiesRecursively(data any, errorList *errors.LintRule
 	}
 }
 
-func (r *DeckhouseCRDsRule) Run(moduleName, path string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+var _ pkg.Rule = (*DeckhouseCRDsRule)(nil)
 
-	shortPath, _ := filepath.Rel(r.rootPath, path)
+func (r *DeckhouseCRDsRule) Check(_ context.Context) {
+	moduleName := r.module.GetName()
+
+	for _, path := range crdFiles(r.module.GetPath()) {
+		r.checkFile(moduleName, path)
+	}
+}
+
+// checkFile must stay a separate method rather than being inlined into the
+// loop above: it is the entry point the unit tests drive directly, with paths
+// the walk in Check would never yield.
+func (r *DeckhouseCRDsRule) checkFile(moduleName, path string) {
+	errorList := r.errorList
+
+	shortPath, _ := filepath.Rel(r.module.GetPath(), path)
 
 	fileContent, err := os.ReadFile(path)
 	if err != nil {

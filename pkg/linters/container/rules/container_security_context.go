@@ -17,6 +17,8 @@ limitations under the License.
 package rules
 
 import (
+	"context"
+
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/deckhouse/dmt/internal/storage"
@@ -28,7 +30,8 @@ const (
 	ContainerSecurityContextRuleName = "security-context"
 )
 
-func NewContainerSecurityContextRule(excludeRules []pkg.ContainerRuleExclude) *ContainerSecurityContextRule {
+func NewContainerSecurityContextRule(excludeRules []pkg.ContainerRuleExclude,
+	objects []ObjectContainers, errorList *errors.LintRuleErrorsList) *ContainerSecurityContextRule {
 	return &ContainerSecurityContextRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: ContainerSecurityContextRuleName,
@@ -36,16 +39,31 @@ func NewContainerSecurityContextRule(excludeRules []pkg.ContainerRuleExclude) *C
 		ContainerRule: pkg.ContainerRule{
 			ExcludeRules: excludeRules,
 		},
+		objects:   objects,
+		errorList: errorList.WithRule(ContainerSecurityContextRuleName),
 	}
 }
 
 type ContainerSecurityContextRule struct {
 	pkg.RuleMeta
 	pkg.ContainerRule
+
+	objects   []ObjectContainers
+	errorList *errors.LintRuleErrorsList
 }
 
-func (r *ContainerSecurityContextRule) ContainerSecurityContext(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.GetPath())
+var _ pkg.Rule = (*ContainerSecurityContextRule)(nil)
+
+func (r *ContainerSecurityContextRule) Check(_ context.Context) {
+	for _, oc := range r.objects {
+		r.checkObject(oc.Object, oc.All)
+	}
+}
+
+// checkObject must stay a separate method rather than being inlined into the
+// loop above: its early returns end the check for one object, not for the rule.
+func (r *ContainerSecurityContextRule) checkObject(object storage.StoreObject, containers []corev1.Container) {
+	errorList := r.errorList.WithFilePath(object.GetPath())
 
 	for i := range containers {
 		c := &containers[i]

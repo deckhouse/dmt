@@ -596,7 +596,7 @@ requirements:
 			}
 
 			errorList := errors.NewLintRuleErrorsList()
-			NewPackageYAMLRule().CheckPackageYAML(modulePath, errorList)
+			NewPackageYAMLRule(moduleAt(t, modulePath), errorList).Check(t.Context())
 			errs := errorList.GetErrors()
 			require.Len(t, errs, len(tt.expectedErrors))
 

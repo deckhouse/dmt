@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -28,11 +29,13 @@ import (
 const ModulePackageConsistencyRuleName = "module-package-consistency"
 
 // NewModulePackageConsistencyRule creates a rule for cross-validating module.yaml against package.yaml.
-func NewModulePackageConsistencyRule() *ModulePackageConsistencyRule {
+func NewModulePackageConsistencyRule(m pkg.Module, errorList *errors.LintRuleErrorsList) *ModulePackageConsistencyRule {
 	return &ModulePackageConsistencyRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: ModulePackageConsistencyRuleName,
 		},
+		module:    m,
+		errorList: errorList.WithRule(ModulePackageConsistencyRuleName),
 	}
 }
 
@@ -40,12 +43,18 @@ func NewModulePackageConsistencyRule() *ModulePackageConsistencyRule {
 // when both files exist in the module directory.
 type ModulePackageConsistencyRule struct {
 	pkg.RuleMeta
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
 // CheckModulePackageConsistency compares overlapping fields between module.yaml and package.yaml.
 // Skips modules that have only one of the two files — without both there is nothing to cross-validate.
-func (r *ModulePackageConsistencyRule) CheckModulePackageConsistency(modulePath string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+var _ pkg.Rule = (*ModulePackageConsistencyRule)(nil)
+
+func (r *ModulePackageConsistencyRule) Check(_ context.Context) {
+	modulePath := r.module.GetPath()
+	errorList := r.errorList
 
 	module, err := getDeckhouseModule(modulePath, errorList.WithFilePath(ModuleConfigFilename))
 	if err != nil {

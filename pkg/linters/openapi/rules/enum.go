@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	stdErrors "errors"
 	"fmt"
 	"path/filepath"
@@ -29,9 +30,12 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
+const EnumRuleName = "enum"
+
 type EnumRule struct {
-	cfg      *pkg.OpenAPILinterConfig
-	rootPath string
+	cfg       *pkg.OpenAPILinterConfig
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 	pkg.RuleMeta
 }
 
@@ -39,22 +43,35 @@ var (
 	arrayPathRegex = regexp.MustCompile(`[\d+]`)
 )
 
-func NewEnumRule(cfg *pkg.OpenAPILinterConfig, rootPath string) *EnumRule {
+func NewEnumRule(cfg *pkg.OpenAPILinterConfig,
+	m pkg.Module, errorList *errors.LintRuleErrorsList) *EnumRule {
 	return &EnumRule{
 		cfg: cfg,
 		RuleMeta: pkg.RuleMeta{
-			Name: "enum",
+			Name: EnumRuleName,
 		},
-		rootPath: rootPath,
+		module:    m,
+		errorList: errorList.WithRule(EnumRuleName),
 	}
 }
 
-func (e *EnumRule) Run(path string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(e.GetName())
+var _ pkg.Rule = (*EnumRule)(nil)
 
-	validator := newEnumValidator(e.cfg)
+func (r *EnumRule) Check(_ context.Context) {
+	for _, path := range openAPIAndCRDFiles(r.module.GetPath()) {
+		r.checkFile(path)
+	}
+}
 
-	shortPath, _ := filepath.Rel(e.rootPath, path)
+// checkFile must stay a separate method rather than being inlined into the
+// loop above: it is the entry point the unit tests drive directly, with paths
+// the walk in Check would never yield.
+func (r *EnumRule) checkFile(path string) {
+	errorList := r.errorList
+
+	validator := newEnumValidator(r.cfg)
+
+	shortPath, _ := filepath.Rel(r.module.GetPath(), path)
 	if err := openapi.Parse(validator.run, path); err != nil {
 		errorList.WithFilePath(shortPath).Errorf("openAPI file is not valid:\n%s", err)
 	}

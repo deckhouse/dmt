@@ -111,10 +111,10 @@ func TestFilesRule_CheckFile_SkipPatterns(t *testing.T) {
 				t.Fatalf("failed to create test file: %v", err)
 			}
 
-			rule := NewFilesRule(nil, nil)
 			errorList := &errors.LintRuleErrorsList{}
+			rule := NewFilesRule(nil, nil, mockModule, errorList)
 
-			rule.CheckFile(mockModule, testFile, errorList)
+			rule.checkFile(testFile)
 
 			errs := errorList.GetErrors()
 			if tt.wantSkipped && len(errs) > 0 {
@@ -144,10 +144,10 @@ func TestFilesRule_CheckFile_NoCyrillicNotReported(t *testing.T) {
 				t.Fatalf("failed to create test file: %v", err)
 			}
 
-			rule := NewFilesRule(nil, nil)
 			errorList := &errors.LintRuleErrorsList{}
+			rule := NewFilesRule(nil, nil, mockModule, errorList)
 
-			rule.CheckFile(mockModule, testFile, errorList)
+			rule.checkFile(testFile)
 
 			if errs := errorList.GetErrors(); len(errs) > 0 {
 				t.Errorf("expected no errors for cyrillic-free file %q, got %d", relPath, len(errs))
@@ -177,10 +177,10 @@ func TestFilesRule_CheckFile_ExcludeDirectories(t *testing.T) {
 	excludeDirs := []pkg.DirectoryRuleExclude{
 		pkg.DirectoryRuleExclude("vendor"),
 	}
-	rule := NewFilesRule(nil, excludeDirs)
 	errorList := &errors.LintRuleErrorsList{}
+	rule := NewFilesRule(nil, excludeDirs, mockModule, errorList)
 
-	rule.CheckFile(mockModule, testFile, errorList)
+	rule.checkFile(testFile)
 
 	if errs := errorList.GetErrors(); len(errs) > 0 {
 		t.Errorf("expected file under excluded directory to be skipped, got %d errors", len(errs))
@@ -207,11 +207,11 @@ func TestFilesRule_CheckFile_WithMock(t *testing.T) {
 	mockModule.GetPathMock.Return(tempDir)
 
 	// Create rule and error list
-	rule := NewFilesRule(nil, nil)
 	errorList := &errors.LintRuleErrorsList{}
+	rule := NewFilesRule(nil, nil, mockModule, errorList)
 
 	// Test the rule
-	rule.CheckFile(mockModule, testFile, errorList)
+	rule.checkFile(testFile)
 
 	// Verify that cyrillic was detected
 	errs := errorList.GetErrors()
@@ -240,11 +240,11 @@ func TestFilesRule_CheckFile_SkipRussianFile(t *testing.T) {
 	mockModule.GetPathMock.Return(tempDir)
 
 	// Create rule and error list
-	rule := NewFilesRule(nil, nil)
 	errorList := &errors.LintRuleErrorsList{}
+	rule := NewFilesRule(nil, nil, mockModule, errorList)
 
 	// Test the rule
-	rule.CheckFile(mockModule, testFile, errorList)
+	rule.checkFile(testFile)
 
 	// Verify that Russian file was skipped (no errors)
 	errs := errorList.GetErrors()
@@ -273,11 +273,11 @@ func TestFilesRule_CheckFile_SkipRussianYAMLFile(t *testing.T) {
 	mockModule.GetPathMock.Return(tempDir)
 
 	// Create rule and error list
-	rule := NewFilesRule(nil, nil)
 	errorList := &errors.LintRuleErrorsList{}
+	rule := NewFilesRule(nil, nil, mockModule, errorList)
 
 	// Test the rule
-	rule.CheckFile(mockModule, testFile, errorList)
+	rule.checkFile(testFile)
 
 	// Verify that Russian YAML file was skipped (no errors)
 	errs := errorList.GetErrors()
@@ -309,11 +309,11 @@ func TestFilesRule_CheckFile_WithExcludeRules(t *testing.T) {
 	excludeRules := []pkg.StringRuleExclude{
 		pkg.StringRuleExclude("excluded.go"),
 	}
-	rule := NewFilesRule(excludeRules, nil)
 	errorList := &errors.LintRuleErrorsList{}
+	rule := NewFilesRule(excludeRules, nil, mockModule, errorList)
 
 	// Test the rule
-	rule.CheckFile(mockModule, testFile, errorList)
+	rule.checkFile(testFile)
 
 	// Verify that file was excluded (no errors)
 	errs := errorList.GetErrors()
@@ -382,10 +382,10 @@ func TestFilesRule_CheckFile_DirectoryExcludeNotPrefix(t *testing.T) {
 			excludeDirs := []pkg.DirectoryRuleExclude{
 				pkg.DirectoryRuleExclude("images/stronghold"),
 			}
-			rule := NewFilesRule(nil, excludeDirs)
 			errorList := &errors.LintRuleErrorsList{}
+			rule := NewFilesRule(nil, excludeDirs, mockModule, errorList)
 
-			rule.CheckFile(mockModule, testFile, errorList)
+			rule.checkFile(testFile)
 
 			errs := errorList.GetErrors()
 			if tt.wantSkipped && len(errs) > 0 {
@@ -421,10 +421,10 @@ func TestFilesRule_CheckFile_directory_exclude_trailing_slash(t *testing.T) {
 	excludeDirs := []pkg.DirectoryRuleExclude{
 		pkg.DirectoryRuleExclude("vendor/"),
 	}
-	rule := NewFilesRule(nil, excludeDirs)
 	errorList := &errors.LintRuleErrorsList{}
+	rule := NewFilesRule(nil, excludeDirs, mockModule, errorList)
 
-	rule.CheckFile(mockModule, testFile, errorList)
+	rule.checkFile(testFile)
 
 	if errs := errorList.GetErrors(); len(errs) > 0 {
 		t.Errorf("expected file under excluded directory (with trailing slash) to be skipped, got %d errors", len(errs))

@@ -107,8 +107,7 @@ func TestMountPointsContainerRule_AllDeclared(t *testing.T) {
 	assert.NoError(t, err)
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil, tmpDir)
-	rule.CheckMountPaths(obj, containers, errorList)
+	NewMountPointsRule(nil, tmpDir, oneObject(obj, containers), errorList).Check(t.Context())
 
 	assert.Len(t, errorList.GetErrors(), 0)
 }
@@ -130,8 +129,7 @@ func TestMountPointsContainerRule_MissingDeclared(t *testing.T) {
 	assert.NoError(t, err)
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil, tmpDir)
-	rule.CheckMountPaths(obj, containers, errorList)
+	NewMountPointsRule(nil, tmpDir, oneObject(obj, containers), errorList).Check(t.Context())
 
 	errs := errorList.GetErrors()
 	assert.Len(t, errs, 1)
@@ -152,8 +150,7 @@ func TestMountPointsContainerRule_NoMountPointsFiles(t *testing.T) {
 	assert.NoError(t, err)
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil, tmpDir)
-	rule.CheckMountPaths(obj, containers, errorList)
+	NewMountPointsRule(nil, tmpDir, oneObject(obj, containers), errorList).Check(t.Context())
 
 	assert.Len(t, errorList.GetErrors(), 0)
 }
@@ -175,8 +172,7 @@ func TestMountPointsContainerRule_ExcludedPath(t *testing.T) {
 	assert.NoError(t, err)
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule([]pkg.StringRuleExclude{"/etc/excluded"}, tmpDir)
-	rule.CheckMountPaths(obj, containers, errorList)
+	NewMountPointsRule([]pkg.StringRuleExclude{"/etc/excluded"}, tmpDir, oneObject(obj, containers), errorList).Check(t.Context())
 
 	assert.Len(t, errorList.GetErrors(), 0)
 }
@@ -198,8 +194,7 @@ func TestMountPointsContainerRule_NonPodController(t *testing.T) {
 	assert.NoError(t, err)
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil, tmpDir)
-	rule.CheckMountPaths(obj, containers, errorList)
+	NewMountPointsRule(nil, tmpDir, oneObject(obj, containers), errorList).Check(t.Context())
 
 	assert.Len(t, errorList.GetErrors(), 0)
 }
@@ -221,8 +216,7 @@ func TestMountPointsContainerRule_TrailingSlash(t *testing.T) {
 	assert.NoError(t, err)
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil, tmpDir)
-	rule.CheckMountPaths(obj, containers, errorList)
+	NewMountPointsRule(nil, tmpDir, oneObject(obj, containers), errorList).Check(t.Context())
 
 	assert.Len(t, errorList.GetErrors(), 0)
 }
@@ -247,8 +241,7 @@ files:
 	assert.NoError(t, err)
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil, tmpDir)
-	rule.CheckMountPaths(obj, containers, errorList)
+	NewMountPointsRule(nil, tmpDir, oneObject(obj, containers), errorList).Check(t.Context())
 
 	assert.Len(t, errorList.GetErrors(), 0)
 }
@@ -270,8 +263,7 @@ func TestMountPointsContainerRule_DaemonSetAndStatefulSet(t *testing.T) {
 	assert.NoError(t, err)
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil, tmpDir)
-	rule.CheckMountPaths(dsObj, dsContainers, errorList)
+	NewMountPointsRule(nil, tmpDir, oneObject(dsObj, dsContainers), errorList).Check(t.Context())
 	assert.Len(t, errorList.GetErrors(), 0)
 
 	stsObj := objectWithMounts("StatefulSet", "sts", "/etc/sts")
@@ -279,8 +271,7 @@ func TestMountPointsContainerRule_DaemonSetAndStatefulSet(t *testing.T) {
 	assert.NoError(t, err)
 
 	errorList = errors.NewLintRuleErrorsList()
-	rule = NewMountPointsRule(nil, tmpDir)
-	rule.CheckMountPaths(stsObj, stsContainers, errorList)
+	NewMountPointsRule(nil, tmpDir, oneObject(stsObj, stsContainers), errorList).Check(t.Context())
 	assert.Len(t, errorList.GetErrors(), 0)
 }
 
@@ -301,8 +292,7 @@ func TestMountPointsContainerRule_BuiltinExcludedSys(t *testing.T) {
 	assert.NoError(t, err)
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil, tmpDir)
-	rule.CheckMountPaths(obj, containers, errorList)
+	NewMountPointsRule(nil, tmpDir, oneObject(obj, containers), errorList).Check(t.Context())
 
 	assert.Len(t, errorList.GetErrors(), 0)
 }
@@ -324,8 +314,7 @@ func TestMountPointsContainerRule_BuiltinExcludedDev(t *testing.T) {
 	assert.NoError(t, err)
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil, tmpDir)
-	rule.CheckMountPaths(obj, containers, errorList)
+	NewMountPointsRule(nil, tmpDir, oneObject(obj, containers), errorList).Check(t.Context())
 
 	assert.Len(t, errorList.GetErrors(), 0)
 }
@@ -347,8 +336,7 @@ func TestMountPointsContainerRule_BuiltinExcludedProc(t *testing.T) {
 	assert.NoError(t, err)
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil, tmpDir)
-	rule.CheckMountPaths(obj, containers, errorList)
+	NewMountPointsRule(nil, tmpDir, oneObject(obj, containers), errorList).Check(t.Context())
 
 	assert.Len(t, errorList.GetErrors(), 0)
 }
@@ -370,8 +358,7 @@ func TestMountPointsContainerRule_BuiltinExcludedDoesNotSuppressMissing(t *testi
 	assert.NoError(t, err)
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil, tmpDir)
-	rule.CheckMountPaths(obj, containers, errorList)
+	NewMountPointsRule(nil, tmpDir, oneObject(obj, containers), errorList).Check(t.Context())
 
 	errs := errorList.GetErrors()
 	assert.Len(t, errs, 1)

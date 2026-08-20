@@ -17,6 +17,8 @@ limitations under the License.
 package rules
 
 import (
+	"context"
+
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/deckhouse/dmt/internal/storage"
@@ -28,20 +30,35 @@ const (
 	EnvVariablesDuplicatesRuleName = "env-variables-duplicates"
 )
 
-func NewEnvVariablesDuplicatesRule() *EnvVariablesDuplicatesRule {
+func NewEnvVariablesDuplicatesRule(objects []ObjectContainers, errorList *errors.LintRuleErrorsList) *EnvVariablesDuplicatesRule {
 	return &EnvVariablesDuplicatesRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: EnvVariablesDuplicatesRuleName,
 		},
+		objects:   objects,
+		errorList: errorList.WithRule(EnvVariablesDuplicatesRuleName),
 	}
 }
 
 type EnvVariablesDuplicatesRule struct {
 	pkg.RuleMeta
+
+	objects   []ObjectContainers
+	errorList *errors.LintRuleErrorsList
 }
 
-func (r *EnvVariablesDuplicatesRule) ContainerEnvVariablesDuplicates(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+var _ pkg.Rule = (*EnvVariablesDuplicatesRule)(nil)
+
+func (r *EnvVariablesDuplicatesRule) Check(_ context.Context) {
+	for _, oc := range r.objects {
+		r.checkObject(oc.Object, oc.All)
+	}
+}
+
+// checkObject must stay a separate method rather than being inlined into the
+// loop above: its early returns end the check for one object, not for the rule.
+func (r *EnvVariablesDuplicatesRule) checkObject(object storage.StoreObject, containers []corev1.Container) {
+	errorList := r.errorList.WithFilePath(object.GetPath())
 
 	for i := range containers {
 		c := &containers[i]

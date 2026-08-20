@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	stderrors "errors"
 	"fmt"
 	"os"
@@ -36,17 +37,22 @@ const (
 )
 
 // NewPackageYAMLRule creates a rule for validating package.yaml.
-func NewPackageYAMLRule() *PackageYAMLRule {
+func NewPackageYAMLRule(m pkg.Module, errorList *errors.LintRuleErrorsList) *PackageYAMLRule {
 	return &PackageYAMLRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: PackageYAMLRuleName,
 		},
+		module:    m,
+		errorList: errorList.WithRule(PackageYAMLRuleName),
 	}
 }
 
 // PackageYAMLRule validates the module package.yaml file.
 type PackageYAMLRule struct {
 	pkg.RuleMeta
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
 // ModulePackage describes package.yaml fields used by module lint rules.
@@ -137,8 +143,11 @@ func getModulePackage(modulePath string, errorList *errors.LintRuleErrorsList) (
 }
 
 // CheckPackageYAML validates package.yaml in the module root.
-func (r *PackageYAMLRule) CheckPackageYAML(modulePath string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+var _ pkg.Rule = (*PackageYAMLRule)(nil)
+
+func (r *PackageYAMLRule) Check(_ context.Context) {
+	modulePath := r.module.GetPath()
+	errorList := r.errorList
 
 	modulePackage, err := getModulePackage(modulePath, errorList)
 	if err != nil {

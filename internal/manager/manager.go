@@ -75,24 +75,6 @@ type Linter interface {
 	Lint(ctx context.Context)
 }
 
-// legacyLinter is the pre-refactor linter shape: a module passed per call
-// instead of per construction. Linters still on it run through legacyAdapter
-// until they are migrated to Lint(ctx).
-type legacyLinter interface {
-	Name() string
-	Run(m *modules.Module)
-}
-
-// legacyAdapter binds a legacyLinter to one module so it satisfies Linter.
-type legacyAdapter struct {
-	linter legacyLinter
-	module *modules.Module
-}
-
-func (a legacyAdapter) Name() string { return a.linter.Name() }
-
-func (a legacyAdapter) Lint(_ context.Context) { a.linter.Run(a.module) }
-
 type Manager struct {
 	cfg     *config.RootConfig
 	Modules []*modules.Module
@@ -207,14 +189,14 @@ func getLintersForModule(module *modules.Module, errList *errors.LintRuleErrorsL
 	cfg := module.GetModuleConfig()
 
 	return []Linter{
-		legacyAdapter{openapi.New(&cfg.OpenAPI, errList), module},
-		legacyAdapter{no_cyrillic.New(&cfg.NoCyrillic, errList), module},
-		legacyAdapter{container.New(&cfg.Container, errList), module},
+		openapi.New(&cfg.OpenAPI, module, errList),
+		no_cyrillic.New(&cfg.NoCyrillic, module, errList),
+		container.New(&cfg.Container, module, errList),
 		templates.New(&cfg.Templates, module, errList),
-		legacyAdapter{images.New(&cfg.Image, errList), module},
+		images.New(&cfg.Image, module, errList),
 		rbac.New(&cfg.RBAC, module, errList),
-		legacyAdapter{hooks.New(&cfg.Hooks, errList), module},
-		legacyAdapter{moduleLinter.New(&cfg.Module, errList), module},
+		hooks.New(&cfg.Hooks, module, errList),
+		moduleLinter.New(&cfg.Module, module, errList),
 		docs.New(&cfg.Documentation, module, errList),
 	}
 }

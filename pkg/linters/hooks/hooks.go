@@ -17,7 +17,8 @@ limitations under the License.
 package hooks
 
 import (
-	"github.com/deckhouse/dmt/internal/modules"
+	"context"
+
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/hooks/rules"
@@ -27,30 +28,43 @@ import (
 type Hooks struct {
 	name, desc string
 	cfg        *pkg.HooksLinterConfig
+	module     pkg.Module
 	ErrorList  *errors.LintRuleErrorsList
 }
 
 const ID = "hooks"
 
-func New(cfg *pkg.HooksLinterConfig, errorList *errors.LintRuleErrorsList) *Hooks {
+func New(cfg *pkg.HooksLinterConfig, m pkg.Module, errorList *errors.LintRuleErrorsList) *Hooks {
 	return &Hooks{
 		name:      ID,
 		desc:      "Lint hooks",
 		cfg:       cfg,
+		module:    m,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.Impact),
 	}
 }
 
-func (h *Hooks) Run(m *modules.Module) {
-	if m == nil {
+func (h *Hooks) Lint(ctx context.Context) {
+	if h.module == nil {
 		return
 	}
 
-	errorList := h.ErrorList.WithModule(m.GetName())
+	for _, rule := range h.rules() {
+		rule.Check(ctx)
+	}
+}
 
-	r := rules.NewHookRule(h.cfg)
-	for _, object := range m.GetStorage() {
-		r.CheckCopyCustomCertificateRule(m, object, errorList)
+// rules builds this linter's rule set. Keeping the set as data — rather than a
+// sequence of hand-written calls — is what lets rules be selected or grouped
+// later without touching the rules themselves.
+func (h *Hooks) rules() []pkg.Rule {
+	m := h.module
+
+	// The rule gets the linter-level error list unchanged: cfg.Rules.HooksRule is
+	// fed from the linter impact (mapSimpleLinterRules in internal/modules), which
+	// New already applied, so scoping by it here would be a no-op.
+	return []pkg.Rule{
+		rules.NewHookRule(h.cfg, m, h.ErrorList.WithModule(m.GetName())),
 	}
 }
 

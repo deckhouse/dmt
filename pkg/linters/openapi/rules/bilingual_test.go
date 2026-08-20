@@ -94,11 +94,11 @@ func TestBilingualRule(t *testing.T) {
 			}
 
 			cfg := &pkg.OpenAPILinterConfig{}
-			rule := NewBilingualRule(cfg, dir)
 			errorList := errors.NewLintRuleErrorsList()
+			rule := NewBilingualRule(cfg, moduleAt(t, dir), errorList)
 
 			filePath := filepath.Join(dir, tt.checkFile)
-			rule.Run(filePath, errorList)
+			rule.checkFile(filePath)
 
 			errs := errorList.GetErrors()
 			if tt.wantErrors == nil {
@@ -120,11 +120,11 @@ func TestBilingualRuleRespectsMaxLevel(t *testing.T) {
 	filePath := filepath.Join(dir, "my-crd.yaml")
 	require.NoError(t, os.WriteFile(filePath, []byte("apiVersion: apiextensions.k8s.io/v1"), 0o600))
 
-	rule := NewBilingualRule(&pkg.OpenAPILinterConfig{}, dir)
 	warnLevel := pkg.Warn
 	errorList := errors.NewLintRuleErrorsList().WithMaxLevel(&warnLevel)
+	rule := NewBilingualRule(&pkg.OpenAPILinterConfig{}, moduleAt(t, dir), errorList)
 
-	rule.Run(filePath, errorList)
+	rule.checkFile(filePath)
 
 	errs := errorList.GetErrors()
 	require.Len(t, errs, 1)

@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -44,9 +45,13 @@ var (
 type PatchesRule struct {
 	pkg.RuleMeta
 	pkg.BoolRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func NewPatchesRule(disable bool) *PatchesRule {
+func NewPatchesRule(disable bool,
+	m pkg.Module, errorList *errors.LintRuleErrorsList) *PatchesRule {
 	return &PatchesRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: PatchesRuleName,
@@ -54,15 +59,20 @@ func NewPatchesRule(disable bool) *PatchesRule {
 		BoolRule: pkg.BoolRule{
 			Exclude: disable,
 		},
+		module:    m,
+		errorList: errorList.WithRule(PatchesRuleName),
 	}
 }
 
-func (r *PatchesRule) CheckPatches(moduleDir string, errorList *errors.LintRuleErrorsList) {
+var _ pkg.Rule = (*PatchesRule)(nil)
+
+func (r *PatchesRule) Check(_ context.Context) {
+	moduleDir := r.module.GetPath()
+
+	errorList := r.errorList
 	if !r.Enabled() {
 		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
 	}
-
-	errorList = errorList.WithRule(r.Name)
 
 	files := fsutils.GetFiles(moduleDir, false, fsutils.FilterFileByExtensions(".patch"))
 

@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	stderrors "errors"
 	"os"
 	"path/filepath"
@@ -63,16 +64,21 @@ var (
 	versionConstraintRegex = regexp.MustCompile(`([><=]=?|!=)\s*v?(\d+(?:\.\d+){0,2})`)
 )
 
-func NewRequirementsRule() *RequirementsRule {
+func NewRequirementsRule(m pkg.Module, errorList *errors.LintRuleErrorsList) *RequirementsRule {
 	return &RequirementsRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: RequirementsRuleName,
 		},
+		module:    m,
+		errorList: errorList.WithRule(RequirementsRuleName),
 	}
 }
 
 type RequirementsRule struct {
 	pkg.RuleMeta
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
 // ComponentType represents the type of component for requirements validation
@@ -436,8 +442,11 @@ func deckhouseVersionAtLeast(module *DeckhouseModule, minVersion string) bool {
 	return !minAllowed.LessThan(minVer)
 }
 
-func (r *RequirementsRule) CheckRequirements(modulePath string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName()).WithFilePath(ModuleConfigFilename)
+var _ pkg.Rule = (*RequirementsRule)(nil)
+
+func (r *RequirementsRule) Check(_ context.Context) {
+	modulePath := r.module.GetPath()
+	errorList := r.errorList.WithFilePath(ModuleConfigFilename)
 
 	moduleDescriptions, err := getDeckhouseModule(modulePath, errorList)
 	if err != nil {

@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	errs "errors"
 	"os"
 	"path/filepath"
@@ -30,20 +31,28 @@ const (
 	legacyReleaseFilename     = "release.yaml"
 )
 
-func NewLegacyReleaseFileRule() *LegacyReleaseFileRule {
+func NewLegacyReleaseFileRule(m pkg.Module, errorList *errors.LintRuleErrorsList) *LegacyReleaseFileRule {
 	return &LegacyReleaseFileRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: LegacyReleaseFileRuleName,
 		},
+		module:    m,
+		errorList: errorList.WithRule(LegacyReleaseFileRuleName),
 	}
 }
 
 type LegacyReleaseFileRule struct {
 	pkg.RuleMeta
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func (r *LegacyReleaseFileRule) CheckLegacyReleaseFile(modulePath string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName()).WithFilePath(legacyReleaseFilename)
+var _ pkg.Rule = (*LegacyReleaseFileRule)(nil)
+
+func (r *LegacyReleaseFileRule) Check(_ context.Context) {
+	modulePath := r.module.GetPath()
+	errorList := r.errorList.WithFilePath(legacyReleaseFilename)
 
 	_, err := os.Stat(filepath.Join(modulePath, legacyReleaseFilename))
 	if errs.Is(err, os.ErrNotExist) {

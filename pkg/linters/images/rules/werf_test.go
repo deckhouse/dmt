@@ -3,19 +3,32 @@ package rules
 import (
 	"testing"
 
+	"github.com/gojuno/minimock/v3"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/deckhouse/dmt/internal/mocks"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
+// werfRuleFor builds a WerfRule over a module that reports the given werf.yaml
+// content, so tests can drive the rule through its real entry point, Check.
+func werfRuleFor(t *testing.T, data string, errorList *errors.LintRuleErrorsList) *WerfRule {
+	t.Helper()
+
+	m := mocks.NewModuleMock(minimock.NewController(t))
+	m.GetNameMock.Return("test-module")
+	m.GetWerfFileMock.Return(data)
+
+	return NewWerfRule(false, m, errorList)
+}
+
 func TestNewWerfRule(t *testing.T) {
-	rule := NewWerfRule(false)
+	rule := NewWerfRule(false, nil, errors.NewLintRuleErrorsList())
 	assert.NotNil(t, rule)
 	assert.Equal(t, "werf", rule.GetName())
 }
 
 func TestWerfRule_LintWerfFile_ValidBaseImage(t *testing.T) {
-	rule := NewWerfRule(false)
 	errorList := errors.NewLintRuleErrorsList()
 
 	validWerfData := `
@@ -24,12 +37,11 @@ fromImage: base/disstroless
 final: true
 `
 
-	rule.LintWerfFile("test-module", validWerfData, errorList)
+	werfRuleFor(t, validWerfData, errorList).Check(t.Context())
 	assert.False(t, errorList.ContainsErrors(), "Expected no errors for valid base image")
 }
 
 func TestWerfRule_LintWerfFile_InvalidBaseImage(t *testing.T) {
-	rule := NewWerfRule(false)
 	errorList := errors.NewLintRuleErrorsList()
 
 	invalidWerfData := `
@@ -38,13 +50,12 @@ fromImage: disstroless
 final: true
 `
 
-	rule.LintWerfFile("test-module", invalidWerfData, errorList)
+	werfRuleFor(t, invalidWerfData, errorList).Check(t.Context())
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for invalid base image")
 	assert.Contains(t, errorList.GetErrors()[0].Text, "Invalid `fromImage:` value - image should be in format `base/<name>`, got \"disstroless\"")
 }
 
 func TestWerfRule_LintWerfFile_ArtifactDirective(t *testing.T) {
-	rule := NewWerfRule(false)
 	errorList := errors.NewLintRuleErrorsList()
 
 	werfDataWithArtifact := `
@@ -54,13 +65,12 @@ fromImage: base/disstroless
 final: true
 `
 
-	rule.LintWerfFile("test-module", werfDataWithArtifact, errorList)
+	werfRuleFor(t, werfDataWithArtifact, errorList).Check(t.Context())
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for deprecated artifact directive")
 	assert.Contains(t, errorList.GetErrors()[0].Text, "Use `from:` or `fromImage:` and `final: false` directives instead of `artifact:`")
 }
 
 func TestWerfRule_LintWerfFile_NonFinalImage(t *testing.T) {
-	rule := NewWerfRule(false)
 	errorList := errors.NewLintRuleErrorsList()
 
 	nonFinalWerfData := `
@@ -69,12 +79,11 @@ fromImage: disstroless
 final: false
 `
 
-	rule.LintWerfFile("test-module", nonFinalWerfData, errorList)
+	werfRuleFor(t, nonFinalWerfData, errorList).Check(t.Context())
 	assert.False(t, errorList.ContainsErrors(), "Expected no errors for non-final image")
 }
 
 func TestWerfRule_LintWerfFile_NoFromImageField(t *testing.T) {
-	rule := NewWerfRule(false)
 	errorList := errors.NewLintRuleErrorsList()
 
 	werfDataNoFromImage := `
@@ -82,12 +91,11 @@ image: test-module/test-image
 final: true
 `
 
-	rule.LintWerfFile("test-module", werfDataNoFromImage, errorList)
+	werfRuleFor(t, werfDataNoFromImage, errorList).Check(t.Context())
 	assert.False(t, errorList.ContainsErrors(), "Expected no errors when no 'fromImage' field is present")
 }
 
 func TestWerfRule_LintWerfFile_EmptyFromImageField(t *testing.T) {
-	rule := NewWerfRule(false)
 	errorList := errors.NewLintRuleErrorsList()
 
 	werfDataEmptyFromImage := `
@@ -96,12 +104,11 @@ fromImage: ""
 final: true
 `
 
-	rule.LintWerfFile("test-module", werfDataEmptyFromImage, errorList)
+	werfRuleFor(t, werfDataEmptyFromImage, errorList).Check(t.Context())
 	assert.False(t, errorList.ContainsErrors(), "Expected no errors when 'fromImage' field is empty")
 }
 
 func TestWerfRule_LintWerfFile_WhitespaceFromImageField(t *testing.T) {
-	rule := NewWerfRule(false)
 	errorList := errors.NewLintRuleErrorsList()
 
 	werfDataWhitespaceFromImage := `
@@ -110,12 +117,11 @@ fromImage: "   "
 final: true
 `
 
-	rule.LintWerfFile("test-module", werfDataWhitespaceFromImage, errorList)
+	werfRuleFor(t, werfDataWhitespaceFromImage, errorList).Check(t.Context())
 	assert.False(t, errorList.ContainsErrors(), "Expected no errors when 'fromImage' field contains only whitespace")
 }
 
 func TestWerfRule_LintWerfFile_MultipleDocuments(t *testing.T) {
-	rule := NewWerfRule(false)
 	errorList := errors.NewLintRuleErrorsList()
 
 	multipleDocsData := `
@@ -133,7 +139,7 @@ fromImage: base/alpine:3.18
 final: true
 `
 
-	rule.LintWerfFile("test-module", multipleDocsData, errorList)
+	werfRuleFor(t, multipleDocsData, errorList).Check(t.Context())
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for invalid base image in second document")
 
 	errorListErrors := errorList.GetErrors()
@@ -142,7 +148,6 @@ final: true
 }
 
 func TestWerfRule_LintWerfFile_InvalidYAML(t *testing.T) {
-	rule := NewWerfRule(false)
 	errorList := errors.NewLintRuleErrorsList()
 
 	invalidYAMLData := `
@@ -152,35 +157,31 @@ final: true
   invalid: indentation: here
 `
 
-	rule.LintWerfFile("test-module", invalidYAMLData, errorList)
+	werfRuleFor(t, invalidYAMLData, errorList).Check(t.Context())
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for invalid YAML")
 	assert.Contains(t, errorList.GetErrors()[0].Text, "Invalid YAML document")
 }
 
 func TestWerfRule_LintWerfFile_EmptyFile(t *testing.T) {
-	rule := NewWerfRule(false)
 	errorList := errors.NewLintRuleErrorsList()
 
 	emptyData := ""
 
-	rule.LintWerfFile("test-module", emptyData, errorList)
+	werfRuleFor(t, emptyData, errorList).Check(t.Context())
 	assert.False(t, errorList.ContainsErrors(), "Expected no errors for empty file")
 }
 
 func TestWerfRule_LintWerfFile_WhitespaceOnlyFile(t *testing.T) {
-	rule := NewWerfRule(false)
 	errorList := errors.NewLintRuleErrorsList()
 
 	whitespaceData := "   \n\t  \n"
 
-	rule.LintWerfFile("test-module", whitespaceData, errorList)
+	werfRuleFor(t, whitespaceData, errorList).Check(t.Context())
 	assert.False(t, errorList.ContainsErrors(), "Expected no errors for whitespace-only file")
 }
 
 // TestSplitManifests indirectly through LintWerfFile
 func TestWerfRule_LintWerfFile_SplitManifests(t *testing.T) {
-	rule := NewWerfRule(false)
-
 	// Test multiple documents
 	multipleDocsData := `
 ---
@@ -194,14 +195,12 @@ final: true
 `
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule.LintWerfFile("test-module", multipleDocsData, errorList)
+	werfRuleFor(t, multipleDocsData, errorList).Check(t.Context())
 	assert.False(t, errorList.ContainsErrors(), "Expected no errors for valid multiple documents")
 }
 
 // TestIsWerfImagesCorrect indirectly through LintWerfFile
 func TestWerfRule_LintWerfFile_ImageValidation(t *testing.T) {
-	rule := NewWerfRule(false)
-
 	// Test various image paths through the public interface
 	testCases := []struct {
 		name        string
@@ -258,7 +257,7 @@ final: true
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			errorList := errors.NewLintRuleErrorsList()
-			rule.LintWerfFile("test-module", tc.werfData, errorList)
+			werfRuleFor(t, tc.werfData, errorList).Check(t.Context())
 
 			if tc.expectError {
 				assert.True(t, errorList.ContainsErrors(), "Expected errors for invalid image path")
@@ -270,8 +269,6 @@ final: true
 }
 
 func TestWerfRule_LintWerfFile_ImageSpecConfigUser(t *testing.T) {
-	rule := NewWerfRule(false)
-
 	testCases := []struct {
 		name        string
 		werfData    string
@@ -330,7 +327,7 @@ imageSpec:
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			errorList := errors.NewLintRuleErrorsList()
-			rule.LintWerfFile("test-module", tc.werfData, errorList)
+			werfRuleFor(t, tc.werfData, errorList).Check(t.Context())
 
 			if tc.expectError {
 				assert.True(t, errorList.ContainsErrors(), "Expected errors for non-empty imageSpec.config.user")
@@ -346,7 +343,6 @@ imageSpec:
 }
 
 func TestWerfRule_LintWerfFile_MultipleErrors(t *testing.T) {
-	rule := NewWerfRule(false)
 	errorList := errors.NewLintRuleErrorsList()
 
 	// Test case with both invalid fromImage and non-empty imageSpec.config.user
@@ -359,7 +355,7 @@ imageSpec:
     user: "1000:1000"
 `
 
-	rule.LintWerfFile("test-module", werfDataWithMultipleIssues, errorList)
+	werfRuleFor(t, werfDataWithMultipleIssues, errorList).Check(t.Context())
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for multiple issues")
 
 	errs := errorList.GetErrors()

@@ -17,66 +17,66 @@ limitations under the License.
 package openapi
 
 import (
-	"os"
-	"path/filepath"
-	"regexp"
-	"strings"
+	"context"
 
-	"github.com/deckhouse/dmt/internal/fsutils"
-	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/openapi/rules"
+)
+
+const (
+	ID = "openapi"
 )
 
 // OpenAPI linter
 type OpenAPI struct {
 	name, desc string
 	cfg        *pkg.OpenAPILinterConfig
+	module     pkg.Module
 	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *pkg.OpenAPILinterConfig, errorList *errors.LintRuleErrorsList) *OpenAPI {
+func New(cfg *pkg.OpenAPILinterConfig, m pkg.Module, errorList *errors.LintRuleErrorsList) *OpenAPI {
 	return &OpenAPI{
-		name:      "openapi",
+		name:      ID,
 		desc:      "Linter will check openapi values is correct",
 		cfg:       cfg,
-		ErrorList: errorList.WithLinterID("openapi").WithMaxLevel(cfg.Impact),
+		module:    m,
+		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.Impact),
 	}
 }
 
-func (o *OpenAPI) Run(m *modules.Module) {
-	errorLists := o.ErrorList.WithModule(m.GetName())
-
-	// check openAPI files
-	openAPIFiles := fsutils.GetFiles(m.GetPath(), true, filterOpenAPIfiles)
-
-	enumValidator := rules.NewEnumRule(o.cfg, m.GetPath())
-	haValidator := rules.NewHARule(o.cfg, m.GetPath())
-
-	for _, file := range openAPIFiles {
-		enumValidator.Run(file, errorLists)
-		haValidator.Run(file, errorLists)
+func (o *OpenAPI) Lint(ctx context.Context) {
+	if o.module == nil {
+		return
 	}
 
-	// check only CRDs files
-	crdFiles := fsutils.GetFiles(m.GetPath(), true, filterCRDsfiles)
-	crdValidator := rules.NewDeckhouseCRDsRule(o.cfg, m.GetPath())
-	keyValidator := rules.NewKeysRule(o.cfg, m.GetPath())
-
-	for _, file := range crdFiles {
-		enumValidator.Run(file, errorLists)
-		haValidator.Run(file, errorLists)
-		keyValidator.Run(file, errorLists)
-		crdValidator.Run(m.GetName(), file, errorLists)
+	for _, rule := range o.rules() {
+		rule.Check(ctx)
 	}
+}
 
-	// bilingual check: ensure top-level crds/ files have doc-ru- translation
-	bilingualErrorList := errorLists.WithMaxLevel(o.cfg.Rules.BilingualRule.GetLevel())
-	bilingualValidator := rules.NewBilingualRule(o.cfg, m.GetPath())
+// rules builds this linter's rule set. Keeping the set as data — rather than a
+// sequence of hand-written calls — is what lets rules be selected or grouped
+// later without touching the rules themselves.
+//
+// Each rule now owns its own file discovery: enum and high-availability walk
+// openapi/ plus crds/, keys and deckhouse-crds only crds/, and bilingual only
+// the top level of crds/.
+func (o *OpenAPI) rules() []pkg.Rule {
+	m := o.module
+	cfg := o.cfg
+	errorList := o.ErrorList.WithModule(m.GetName())
 
-	for _, file := range bilingualCRDFiles(m.GetPath()) {
-		bilingualValidator.Run(file, bilingualErrorList)
+	// Only BilingualRule has a real per-rule level: mapOpenAPIRules reads its
+	// global impact. The other four are filled by mapSimpleLinterRules from the
+	// linter impact New already applied, so scoping by them would be a no-op.
+	return []pkg.Rule{
+		rules.NewEnumRule(cfg, m, errorList),
+		rules.NewHARule(cfg, m, errorList),
+		rules.NewKeysRule(cfg, m, errorList),
+		rules.NewDeckhouseCRDsRule(cfg, m, errorList),
+		rules.NewBilingualRule(cfg, m, errorList.WithMaxLevel(cfg.Rules.BilingualRule.GetLevel())),
 	}
 }
 
@@ -86,67 +86,4 @@ func (o *OpenAPI) Name() string {
 
 func (o *OpenAPI) Desc() string {
 	return o.desc
-}
-
-var openapiYamlRegex = regexp.MustCompile(`^openapi/.*\.ya?ml$`)
-
-func filterOpenAPIfiles(rootPath, path string) bool {
-	path = fsutils.Rel(rootPath, path)
-
-	filename := filepath.Base(path)
-	if strings.HasSuffix(filename, "-tests.yaml") {
-		return false
-	}
-
-	if strings.HasPrefix(filename, "doc-ru-") {
-		return false
-	}
-
-	return openapiYamlRegex.MatchString(path)
-}
-
-var crdsYamlRegex = regexp.MustCompile(`^crds/.*\.ya?ml$`)
-
-func filterCRDsfiles(rootPath, path string) bool {
-	path = fsutils.Rel(rootPath, path)
-
-	filename := filepath.Base(path)
-	if strings.HasSuffix(filename, "-tests.yaml") {
-		return false
-	}
-
-	if strings.HasPrefix(filename, "doc-ru-") {
-		return false
-	}
-
-	return crdsYamlRegex.MatchString(path)
-}
-
-func bilingualCRDFiles(rootPath string) []string {
-	crdsPath := filepath.Join(rootPath, "crds")
-
-	entries, err := os.ReadDir(crdsPath)
-	if err != nil {
-		return nil
-	}
-
-	result := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if !entry.Type().IsRegular() {
-			continue
-		}
-
-		filename := entry.Name()
-		if !strings.HasSuffix(filename, ".yaml") && !strings.HasSuffix(filename, ".yml") {
-			continue
-		}
-
-		if strings.HasSuffix(filename, "-tests.yaml") {
-			continue
-		}
-
-		result = append(result, filepath.Join(crdsPath, filename))
-	}
-
-	return result
 }
