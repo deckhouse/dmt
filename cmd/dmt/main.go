@@ -91,6 +91,7 @@ func runLint(dir string) error {
 	}
 
 	mng.PrintResult()
+	mng.PrintStatistics()
 
 	metrics.SetDmtInfo()
 	metrics.SetLinterWarningsMetrics(cfg.GlobalSettings)
