@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"os"
@@ -25,7 +26,6 @@ import (
 	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
-	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/pkg"
 	pkgerrors "github.com/deckhouse/dmt/pkg/errors"
 )
@@ -45,7 +45,8 @@ var fileToSkipRe = regexp.MustCompile(
 )
 
 func NewLicenseRule(excludeFilesRules []pkg.StringRuleExclude,
-	excludeDirectoryRules []pkg.DirectoryRuleExclude) *LicenseRule {
+	excludeDirectoryRules []pkg.DirectoryRuleExclude,
+	m pkg.Module, errorList *pkgerrors.LintRuleErrorsList) *LicenseRule {
 	return &LicenseRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: LicenseRuleName,
@@ -54,16 +55,24 @@ func NewLicenseRule(excludeFilesRules []pkg.StringRuleExclude,
 			ExcludeStringRules:    excludeFilesRules,
 			ExcludeDirectoryRules: excludeDirectoryRules,
 		},
+		module:    m,
+		errorList: errorList.WithRule(LicenseRuleName),
 	}
 }
 
 type LicenseRule struct {
 	pkg.RuleMeta
 	pkg.PathRule
+
+	module    pkg.Module
+	errorList *pkgerrors.LintRuleErrorsList
 }
 
-func (r *LicenseRule) CheckFiles(mod *modules.Module, errorList *pkgerrors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+var _ pkg.Rule = (*LicenseRule)(nil)
+
+func (r *LicenseRule) Check(_ context.Context) {
+	mod := r.module
+	errorList := r.errorList
 
 	// Use new parser if available
 	parser := NewLicenseParser()

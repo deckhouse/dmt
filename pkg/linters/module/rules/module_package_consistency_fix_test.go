@@ -35,7 +35,7 @@ func checkAndFix(t *testing.T, modulePath string) int {
 	t.Helper()
 
 	errorList := errors.NewLintRuleErrorsList()
-	NewModulePackageConsistencyRule().CheckModulePackageConsistency(modulePath, errorList)
+	NewModulePackageConsistencyRule(moduleAt(t, modulePath), errorList).Check(t.Context())
 
 	fixes := errorList.GetFixes()
 	for _, fix := range fixes {
@@ -93,13 +93,13 @@ requirements:
 `)
 
 	// before fix: there are findings
-	require.True(t, runConsistencyCheck(modulePath).ContainsErrors())
+	require.True(t, runConsistencyCheck(t, modulePath).ContainsErrors())
 
 	applied := checkAndFix(t, modulePath)
 	assert.Positive(t, applied)
 
 	// after fix: no findings remain
-	assert.False(t, runConsistencyCheck(modulePath).ContainsErrors())
+	assert.False(t, runConsistencyCheck(t, modulePath).ContainsErrors())
 
 	fixed := readModuleYAML(t, modulePath)
 
@@ -135,7 +135,7 @@ requirements:
 
 	checkAndFix(t, modulePath)
 
-	assert.False(t, runConsistencyCheck(modulePath).ContainsErrors())
+	assert.False(t, runConsistencyCheck(t, modulePath).ContainsErrors())
 
 	fixed := readModuleYAML(t, modulePath)
 	assert.Contains(t, fixed, "extra-module:")
@@ -162,7 +162,7 @@ requirements:
 
 	checkAndFix(t, modulePath)
 
-	assert.False(t, runConsistencyCheck(modulePath).ContainsErrors())
+	assert.False(t, runConsistencyCheck(t, modulePath).ContainsErrors())
 	assert.Contains(t, readModuleYAML(t, modulePath), "!optional")
 }
 
@@ -184,7 +184,7 @@ requirements:
 
 	checkAndFix(t, modulePath)
 
-	assert.False(t, runConsistencyCheck(modulePath).ContainsErrors())
+	assert.False(t, runConsistencyCheck(t, modulePath).ContainsErrors())
 	assert.NotContains(t, readModuleYAML(t, modulePath), "ghost-module")
 }
 

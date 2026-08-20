@@ -27,9 +27,11 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
-func runConsistencyCheck(modulePath string) *errors.LintRuleErrorsList {
+func runConsistencyCheck(t *testing.T, modulePath string) *errors.LintRuleErrorsList {
+	t.Helper()
+
 	errorList := errors.NewLintRuleErrorsList()
-	NewModulePackageConsistencyRule().CheckModulePackageConsistency(modulePath, errorList)
+	NewModulePackageConsistencyRule(moduleAt(t, modulePath), errorList).Check(t.Context())
 
 	return errorList
 }
@@ -48,21 +50,21 @@ func writeFile(t *testing.T, dir, name, content string) {
 
 func TestConsistencyNoFiles(t *testing.T) {
 	modulePath := t.TempDir()
-	errorList := runConsistencyCheck(modulePath)
+	errorList := runConsistencyCheck(t, modulePath)
 	assert.False(t, errorList.ContainsErrors())
 }
 
 func TestConsistencyOnlyModuleYAML(t *testing.T) {
 	modulePath := t.TempDir()
 	writeFile(t, modulePath, ModuleConfigFilename, "name: stronghold\nnamespace: test\n")
-	errorList := runConsistencyCheck(modulePath)
+	errorList := runConsistencyCheck(t, modulePath)
 	assert.False(t, errorList.ContainsErrors())
 }
 
 func TestConsistencyOnlyPackageYAML(t *testing.T) {
 	modulePath := t.TempDir()
 	writeFile(t, modulePath, PackageConfigFilename, "name: stronghold\napiVersion: v2\n")
-	errorList := runConsistencyCheck(modulePath)
+	errorList := runConsistencyCheck(t, modulePath)
 	assert.False(t, errorList.ContainsErrors())
 }
 
@@ -72,7 +74,7 @@ func TestConsistencyNameMatch(t *testing.T) {
 	modulePath := t.TempDir()
 	writeFile(t, modulePath, ModuleConfigFilename, "name: stronghold\nnamespace: test\n")
 	writeFile(t, modulePath, PackageConfigFilename, "name: stronghold\napiVersion: v2\n")
-	errorList := runConsistencyCheck(modulePath)
+	errorList := runConsistencyCheck(t, modulePath)
 	assert.False(t, errorList.ContainsErrors())
 }
 
@@ -80,7 +82,7 @@ func TestConsistencyNameMismatch(t *testing.T) {
 	modulePath := t.TempDir()
 	writeFile(t, modulePath, ModuleConfigFilename, "name: stronghold\nnamespace: test\n")
 	writeFile(t, modulePath, PackageConfigFilename, "name: different-name\napiVersion: v2\n")
-	errorList := runConsistencyCheck(modulePath)
+	errorList := runConsistencyCheck(t, modulePath)
 
 	errs := errorList.GetErrors()
 	require.Len(t, errs, 1)
@@ -93,7 +95,7 @@ func TestConsistencyNameEmptyInModule(t *testing.T) {
 	modulePath := t.TempDir()
 	writeFile(t, modulePath, ModuleConfigFilename, "namespace: test\n")
 	writeFile(t, modulePath, PackageConfigFilename, "name: stronghold\napiVersion: v2\n")
-	errorList := runConsistencyCheck(modulePath)
+	errorList := runConsistencyCheck(t, modulePath)
 	assert.False(t, errorList.ContainsErrors())
 }
 
@@ -103,7 +105,7 @@ func TestConsistencyDeckhouseMatch(t *testing.T) {
 	modulePath := t.TempDir()
 	writeFile(t, modulePath, ModuleConfigFilename, "name: stronghold\nnamespace: test\nrequirements:\n  deckhouse: \">= 1.77\"\n")
 	writeFile(t, modulePath, PackageConfigFilename, "name: stronghold\napiVersion: v2\nrequirements:\n  deckhouse:\n    constraint: \">= 1.77\"\n")
-	errorList := runConsistencyCheck(modulePath)
+	errorList := runConsistencyCheck(t, modulePath)
 	assert.False(t, errorList.ContainsErrors())
 }
 
@@ -111,7 +113,7 @@ func TestConsistencyDeckhouseMismatch(t *testing.T) {
 	modulePath := t.TempDir()
 	writeFile(t, modulePath, ModuleConfigFilename, "name: stronghold\nnamespace: test\nrequirements:\n  deckhouse: \">= 1.77\"\n")
 	writeFile(t, modulePath, PackageConfigFilename, "name: stronghold\napiVersion: v2\nrequirements:\n  deckhouse:\n    constraint: \">= 1.76\"\n")
-	errorList := runConsistencyCheck(modulePath)
+	errorList := runConsistencyCheck(t, modulePath)
 
 	errs := errorList.GetErrors()
 	require.Len(t, errs, 1)
@@ -122,7 +124,7 @@ func TestConsistencyDeckhouseMissingInPackage(t *testing.T) {
 	modulePath := t.TempDir()
 	writeFile(t, modulePath, ModuleConfigFilename, "name: stronghold\nnamespace: test\nrequirements:\n  deckhouse: \">= 1.77\"\n")
 	writeFile(t, modulePath, PackageConfigFilename, "name: stronghold\napiVersion: v2\nrequirements:\n  deckhouse:\n    constraint: \"\"\n")
-	errorList := runConsistencyCheck(modulePath)
+	errorList := runConsistencyCheck(t, modulePath)
 
 	errs := errorList.GetErrors()
 	require.Len(t, errs, 1)
@@ -133,7 +135,7 @@ func TestConsistencyDeckhouseNotInModule(t *testing.T) {
 	modulePath := t.TempDir()
 	writeFile(t, modulePath, ModuleConfigFilename, "name: stronghold\nnamespace: test\n")
 	writeFile(t, modulePath, PackageConfigFilename, "name: stronghold\napiVersion: v2\nrequirements:\n  deckhouse:\n    constraint: \">= 1.77\"\n")
-	errorList := runConsistencyCheck(modulePath)
+	errorList := runConsistencyCheck(t, modulePath)
 	assert.False(t, errorList.ContainsErrors())
 }
 
@@ -143,7 +145,7 @@ func TestConsistencyKubernetesMatch(t *testing.T) {
 	modulePath := t.TempDir()
 	writeFile(t, modulePath, ModuleConfigFilename, "name: stronghold\nnamespace: test\nrequirements:\n  kubernetes: \">= 1.27\"\n")
 	writeFile(t, modulePath, PackageConfigFilename, "name: stronghold\napiVersion: v2\nrequirements:\n  kubernetes:\n    constraint: \">= 1.27\"\n")
-	errorList := runConsistencyCheck(modulePath)
+	errorList := runConsistencyCheck(t, modulePath)
 	assert.False(t, errorList.ContainsErrors())
 }
 
@@ -151,7 +153,7 @@ func TestConsistencyKubernetesMismatch(t *testing.T) {
 	modulePath := t.TempDir()
 	writeFile(t, modulePath, ModuleConfigFilename, "name: stronghold\nnamespace: test\nrequirements:\n  kubernetes: \">= 1.27\"\n")
 	writeFile(t, modulePath, PackageConfigFilename, "name: stronghold\napiVersion: v2\nrequirements:\n  kubernetes:\n    constraint: \">= 1.26\"\n")
-	errorList := runConsistencyCheck(modulePath)
+	errorList := runConsistencyCheck(t, modulePath)
 
 	errs := errorList.GetErrors()
 	require.Len(t, errs, 1)
@@ -178,7 +180,7 @@ requirements:
       - name: some-module
         constraint: ">= 1.0.0"
 `)
-	errorList := runConsistencyCheck(modulePath)
+	errorList := runConsistencyCheck(t, modulePath)
 	assert.False(t, errorList.ContainsErrors())
 }
 
@@ -200,7 +202,7 @@ requirements:
       - name: some-module
         constraint: ">= 1.0.0"
 `)
-	errorList := runConsistencyCheck(modulePath)
+	errorList := runConsistencyCheck(t, modulePath)
 	assert.False(t, errorList.ContainsErrors())
 }
 
@@ -220,7 +222,7 @@ requirements:
   modules:
     mandatory: []
 `)
-	errorList := runConsistencyCheck(modulePath)
+	errorList := runConsistencyCheck(t, modulePath)
 
 	errs := errorList.GetErrors()
 	require.Len(t, errs, 1)
@@ -243,7 +245,7 @@ requirements:
   modules:
     conditional: []
 `)
-	errorList := runConsistencyCheck(modulePath)
+	errorList := runConsistencyCheck(t, modulePath)
 
 	errs := errorList.GetErrors()
 	require.Len(t, errs, 1)
@@ -268,7 +270,7 @@ requirements:
       - name: some-module
         constraint: ">= 1.0.0"
 `)
-	errorList := runConsistencyCheck(modulePath)
+	errorList := runConsistencyCheck(t, modulePath)
 
 	errs := errorList.GetErrors()
 	require.Len(t, errs, 1)
@@ -293,7 +295,7 @@ requirements:
       - name: some-module
         constraint: ">= 1.0.0"
 `)
-	errorList := runConsistencyCheck(modulePath)
+	errorList := runConsistencyCheck(t, modulePath)
 
 	errs := errorList.GetErrors()
 	require.Len(t, errs, 1)
@@ -318,7 +320,7 @@ requirements:
       - name: some-module
         constraint: ">= 2.0.0"
 `)
-	errorList := runConsistencyCheck(modulePath)
+	errorList := runConsistencyCheck(t, modulePath)
 
 	errs := errorList.GetErrors()
 	require.Len(t, errs, 1)
@@ -345,7 +347,7 @@ requirements:
       - name: extra-module
         constraint: ">= 2.0.0"
 `)
-	errorList := runConsistencyCheck(modulePath)
+	errorList := runConsistencyCheck(t, modulePath)
 
 	errs := errorList.GetErrors()
 	require.Len(t, errs, 1)
@@ -367,7 +369,7 @@ requirements:
       - name: extra-module
         constraint: ">= 1.0.0"
 `)
-	errorList := runConsistencyCheck(modulePath)
+	errorList := runConsistencyCheck(t, modulePath)
 
 	errs := errorList.GetErrors()
 	require.Len(t, errs, 1)
@@ -387,7 +389,7 @@ requirements:
 name: stronghold
 apiVersion: v2
 `)
-	errorList := runConsistencyCheck(modulePath)
+	errorList := runConsistencyCheck(t, modulePath)
 
 	errs := errorList.GetErrors()
 	require.Len(t, errs, 1)
@@ -417,7 +419,7 @@ requirements:
           - name: cloud-provider-aws
             constraint: ">= 1.0.0"
 `)
-	errorList := runConsistencyCheck(modulePath)
+	errorList := runConsistencyCheck(t, modulePath)
 	assert.False(t, errorList.ContainsErrors())
 }
 
@@ -451,7 +453,7 @@ requirements:
       - name: optional-mod
         constraint: ">= 1.0.0"
 `)
-	errorList := runConsistencyCheck(modulePath)
+	errorList := runConsistencyCheck(t, modulePath)
 	assert.False(t, errorList.ContainsErrors())
 }
 
@@ -479,7 +481,7 @@ requirements:
     mandatory: []
     conditional: []
 `)
-	errorList := runConsistencyCheck(modulePath)
+	errorList := runConsistencyCheck(t, modulePath)
 
 	errs := errorList.GetErrors()
 	require.Len(t, errs, 5)
@@ -501,7 +503,7 @@ func TestConsistencyInvalidModuleYAMLIgnoresConsistency(t *testing.T) {
 	modulePath := t.TempDir()
 	writeFile(t, modulePath, ModuleConfigFilename, `invalid: yaml: [[[`)
 	writeFile(t, modulePath, PackageConfigFilename, "name: stronghold\napiVersion: v2\n")
-	errorList := runConsistencyCheck(modulePath)
+	errorList := runConsistencyCheck(t, modulePath)
 	errs := errorList.GetErrors()
 	// broken module.yaml -> parse error, consistency checks are skipped
 	require.Len(t, errs, 1)

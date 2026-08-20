@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"os"
@@ -36,7 +37,8 @@ const (
 )
 
 // NewOSSRule creates an OSS attribution rule instance.
-func NewOSSRule(disable bool, versionNotSemverExclude []pkg.StringRuleExclude) *OSSRule {
+func NewOSSRule(disable bool, versionNotSemverExclude []pkg.StringRuleExclude,
+	m pkg.Module, errorList *errors.LintRuleErrorsList) *OSSRule {
 	return &OSSRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: OSSRuleName,
@@ -47,6 +49,8 @@ func NewOSSRule(disable bool, versionNotSemverExclude []pkg.StringRuleExclude) *
 		versionNotSemver: pkg.StringRule{
 			ExcludeRules: versionNotSemverExclude,
 		},
+		module:    m,
+		errorList: errorList.WithRule(OSSRuleName),
 	}
 }
 
@@ -56,6 +60,9 @@ type OSSRule struct {
 
 	// versionNotSemver disables the semver-compatibility warning for projects matched by oss.yaml id
 	versionNotSemver pkg.StringRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
 const (
@@ -64,8 +71,11 @@ const (
 )
 
 // OssModuleRule validates oss.yaml only for modules that contain image build sources.
-func (r *OSSRule) OssModuleRule(moduleRoot string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName()).WithFilePath(filepath.Join(moduleRoot, ossFilename))
+var _ pkg.Rule = (*OSSRule)(nil)
+
+func (r *OSSRule) Check(_ context.Context) {
+	moduleRoot := r.module.GetPath()
+	errorList := r.errorList.WithFilePath(filepath.Join(moduleRoot, ossFilename))
 
 	if !r.Enabled() {
 		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))

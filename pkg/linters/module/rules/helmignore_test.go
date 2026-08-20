@@ -48,7 +48,7 @@ func TestNewHelmignoreRule(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rule := NewHelmignoreRule(tt.disable)
+			rule := NewHelmignoreRule(tt.disable, nil, errors.NewLintRuleErrorsList())
 			assert.Equal(t, HelmignoreRuleName, rule.GetName())
 			assert.Equal(t, tt.expected, rule.Enabled())
 		})
@@ -284,11 +284,11 @@ func TestHelmignoreRule_CheckHelmignore(t *testing.T) {
 			}
 
 			// Create rule and error list
-			rule := NewHelmignoreRule(false)
 			errorList := errors.NewLintRuleErrorsList()
+			rule := NewHelmignoreRule(false, moduleAt(t, tempDir), errorList)
 
 			// Run the check
-			rule.CheckHelmignore(tempDir, errorList)
+			rule.Check(t.Context())
 
 			// Check errors
 			errs := errorList.GetErrors()

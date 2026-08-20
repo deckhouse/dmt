@@ -17,7 +17,8 @@ limitations under the License.
 package module
 
 import (
-	"github.com/deckhouse/dmt/internal/modules"
+	"context"
+
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/module/rules"
@@ -27,38 +28,61 @@ import (
 type Module struct {
 	name, desc string
 	cfg        *pkg.ModuleLinterConfig
+	module     pkg.Module
 	ErrorList  *errors.LintRuleErrorsList
 }
 
 const ID = "module"
 
-func New(cfg *pkg.ModuleLinterConfig, errorList *errors.LintRuleErrorsList) *Module {
+func New(cfg *pkg.ModuleLinterConfig, m pkg.Module, errorList *errors.LintRuleErrorsList) *Module {
 	return &Module{
 		name:      ID,
 		desc:      "Lint module rules",
 		cfg:       cfg,
+		module:    m,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.Impact),
 	}
 }
 
-func (l *Module) Run(m *modules.Module) {
-	if m == nil {
+func (l *Module) Lint(ctx context.Context) {
+	if l.module == nil {
 		return
 	}
 
+	for _, rule := range l.rules() {
+		rule.Check(ctx)
+	}
+}
+
+// rules builds this linter's rule set. Keeping the set as data — rather than a
+// sequence of hand-written calls — is what lets rules be selected or grouped
+// later without touching the rules themselves.
+//
+// The per-rule impact levels here are real: mapModuleRules reads global per-rule
+// impacts and only falls back to the linter's, so every rule is scoped by its own.
+func (l *Module) rules() []pkg.Rule {
+	m := l.module
+	cfg := l.cfg
 	errorList := l.ErrorList.WithModule(m.GetName())
 
-	rules.NewDefinitionFileRule(l.cfg.DefinitionFileRuleSettings.Disable).CheckDefinitionFile(m.GetPath(), errorList.WithMaxLevel(l.cfg.Rules.DefinitionFileRule.GetLevel()))
-	rules.NewOSSRule(l.cfg.OSSRuleSettings.Disable, l.cfg.ExcludeRules.OSS.VersionNotSemver).OssModuleRule(m.GetPath(), errorList.WithMaxLevel(l.cfg.Rules.OSSRule.GetLevel()))
-	rules.NewConversionsRule(l.cfg.ConversionsRuleSettings.Disable).CheckConversions(m.GetPath(), errorList.WithMaxLevel(l.cfg.Rules.ConversionRule.GetLevel()))
-	rules.NewHelmignoreRule(l.cfg.HelmignoreRuleSettings.Disable).CheckHelmignore(m.GetPath(), errorList.WithMaxLevel(l.cfg.Rules.HelmignoreRule.GetLevel()))
-	rules.NewLicenseRule(l.cfg.ExcludeRules.License.Files.Get(), l.cfg.ExcludeRules.License.Directories.Get()).
-		CheckFiles(m, errorList.WithMaxLevel(l.cfg.Rules.LicenseRule.GetLevel()))
-	rules.NewRequirementsRule().CheckRequirements(m.GetPath(), errorList.WithMaxLevel(l.cfg.Rules.RequarementsRule.GetLevel()))
-	rules.NewPackageYAMLRule().CheckPackageYAML(m.GetPath(), errorList.WithMaxLevel(l.cfg.Rules.PackageYAMLRule.GetLevel()))
-	rules.NewModulePackageConsistencyRule().CheckModulePackageConsistency(m.GetPath(), errorList.WithMaxLevel(l.cfg.Rules.ModulePackageConsistencyRule.GetLevel()))
-	rules.NewLegacyReleaseFileRule().CheckLegacyReleaseFile(m.GetPath(), errorList.WithMaxLevel(l.cfg.Rules.LegacyReleaseFileRule.GetLevel()))
-	rules.NewEnabledScriptRule().CheckEnabledScript(m.GetPath(), errorList.WithMaxLevel(l.cfg.Rules.EnabledScriptRule.GetLevel()))
+	// level scopes errorList to the configured impact of a single rule.
+	level := func(rule pkg.RuleConfig) *errors.LintRuleErrorsList {
+		return errorList.WithMaxLevel(rule.GetLevel())
+	}
+
+	return []pkg.Rule{
+		rules.NewDefinitionFileRule(cfg.DefinitionFileRuleSettings.Disable, m, level(cfg.Rules.DefinitionFileRule)),
+		rules.NewOSSRule(cfg.OSSRuleSettings.Disable, cfg.ExcludeRules.OSS.VersionNotSemver, m, level(cfg.Rules.OSSRule)),
+		rules.NewConversionsRule(cfg.ConversionsRuleSettings.Disable, m, level(cfg.Rules.ConversionRule)),
+		rules.NewHelmignoreRule(cfg.HelmignoreRuleSettings.Disable, m, level(cfg.Rules.HelmignoreRule)),
+		rules.NewLicenseRule(cfg.ExcludeRules.License.Files.Get(), cfg.ExcludeRules.License.Directories.Get(),
+			m, level(cfg.Rules.LicenseRule)),
+		rules.NewRequirementsRule(m, level(cfg.Rules.RequarementsRule)),
+		rules.NewPackageYAMLRule(m, level(cfg.Rules.PackageYAMLRule)),
+		rules.NewModulePackageConsistencyRule(m, level(cfg.Rules.ModulePackageConsistencyRule)),
+		rules.NewLegacyReleaseFileRule(m, level(cfg.Rules.LegacyReleaseFileRule)),
+		rules.NewEnabledScriptRule(m, level(cfg.Rules.EnabledScriptRule)),
+	}
 }
 
 func (l *Module) Name() string {

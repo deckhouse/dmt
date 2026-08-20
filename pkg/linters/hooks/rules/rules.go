@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"go/parser"
 	"go/token"
 	"maps"
@@ -26,36 +27,55 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
-	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
+const (
+	IngressRuleName = "ingress"
+)
+
 type HookRule struct {
 	pkg.RuleMeta
 	pkg.BoolRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func NewHookRule(cfg *pkg.HooksLinterConfig) *HookRule {
+func NewHookRule(cfg *pkg.HooksLinterConfig,
+	m pkg.Module, errorList *errors.LintRuleErrorsList) *HookRule {
 	return &HookRule{
 		RuleMeta: pkg.RuleMeta{
-			Name: "ingress",
+			Name: IngressRuleName,
 		},
 		BoolRule: pkg.BoolRule{
 			Exclude: cfg.IngressRuleSettings.Disable,
 		},
+		module:    m,
+		errorList: errorList.WithRule(IngressRuleName),
 	}
 }
 
-func (l *HookRule) CheckCopyCustomCertificateRule(m *modules.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(l.GetName()).WithFilePath(object.GetPath())
+var _ pkg.Rule = (*HookRule)(nil)
+
+func (r *HookRule) Check(_ context.Context) {
+	for _, object := range r.module.GetStorage() {
+		r.checkObject(object)
+	}
+}
+
+// checkObject must stay a separate method rather than being inlined into the
+// loop above: its early returns end the check for one object, not for the rule.
+func (r *HookRule) checkObject(object storage.StoreObject) {
+	errorList := r.errorList.WithFilePath(object.GetPath())
 
 	const (
 		copyCustomCertificateImport = `"github.com/deckhouse/deckhouse/go_lib/hooks/copy_custom_certificate"`
 	)
 
-	if !l.Enabled() {
+	if !r.Enabled() {
 		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
 	}
 
@@ -63,7 +83,7 @@ func (l *HookRule) CheckCopyCustomCertificateRule(m *modules.Module, object stor
 		return
 	}
 
-	hooksDir := filepath.Join(m.GetPath(), "hooks")
+	hooksDir := filepath.Join(r.module.GetPath(), "hooks")
 
 	files := fsutils.GetFiles(hooksDir, false, filterCopyCustomCertificateHook)
 	if len(files) > 0 {

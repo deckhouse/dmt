@@ -17,6 +17,8 @@ limitations under the License.
 package rules
 
 import (
+	"context"
+
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -29,7 +31,8 @@ const (
 	PriorityClassRuleName = "object-priority-class"
 )
 
-func NewPriorityClassRule(excludeRules []pkg.KindRuleExclude) *PriorityClassRule {
+func NewPriorityClassRule(excludeRules []pkg.KindRuleExclude,
+	m pkg.Module, errorList *errors.LintRuleErrorsList) *PriorityClassRule {
 	return &PriorityClassRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: PriorityClassRuleName,
@@ -37,16 +40,31 @@ func NewPriorityClassRule(excludeRules []pkg.KindRuleExclude) *PriorityClassRule
 		KindRule: pkg.KindRule{
 			ExcludeRules: excludeRules,
 		},
+		module:    m,
+		errorList: errorList.WithRule(PriorityClassRuleName),
 	}
 }
 
 type PriorityClassRule struct {
 	pkg.RuleMeta
 	pkg.KindRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func (r *PriorityClassRule) ObjectPriorityClass(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+var _ pkg.Rule = (*PriorityClassRule)(nil)
+
+func (r *PriorityClassRule) Check(_ context.Context) {
+	for _, object := range r.module.GetStorage() {
+		r.checkObject(object)
+	}
+}
+
+// checkObject must stay a separate method rather than being inlined into the
+// loop above: its early returns end the check for one object, not for the rule.
+func (r *PriorityClassRule) checkObject(object storage.StoreObject) {
+	errorList := r.errorList.WithFilePath(object.GetPath())
 
 	if !isPriorityClassSupportedKind(object.Unstructured.GetKind()) {
 		return

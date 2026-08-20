@@ -19,7 +19,6 @@ package rbac
 import (
 	"context"
 
-	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules"
@@ -33,11 +32,11 @@ const (
 type Rbac struct {
 	name, desc string
 	cfg        *pkg.RBACLinterConfig
-	module     *modules.Module
+	module     pkg.Module
 	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *pkg.RBACLinterConfig, m *modules.Module, errorList *errors.LintRuleErrorsList) *Rbac {
+func New(cfg *pkg.RBACLinterConfig, m pkg.Module, errorList *errors.LintRuleErrorsList) *Rbac {
 	return &Rbac{
 		name:      ID,
 		desc:      "Lint rbac objects",

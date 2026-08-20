@@ -30,7 +30,7 @@ import (
 )
 
 func TestNewEnabledScriptRule(t *testing.T) {
-	rule := NewEnabledScriptRule()
+	rule := NewEnabledScriptRule(nil, errors.NewLintRuleErrorsList())
 	assert.Equal(t, EnabledScriptRuleName, rule.GetName())
 }
 
@@ -78,10 +78,10 @@ func TestEnabledScriptRule_CheckEnabledScript(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			rule := NewEnabledScriptRule()
 			errorList := errors.NewLintRuleErrorsList()
+			rule := NewEnabledScriptRule(moduleAt(t, tempDir), errorList)
 
-			rule.CheckEnabledScript(tempDir, errorList)
+			rule.Check(t.Context())
 
 			errs := errorList.GetErrors()
 

@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,25 +29,41 @@ import (
 
 const docRuPrefix = "doc-ru-"
 
+const BilingualRuleName = "bilingual"
+
 type BilingualRule struct {
 	pkg.RuleMeta
-	rootPath string
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func NewBilingualRule(_ *pkg.OpenAPILinterConfig, rootPath string) *BilingualRule {
+func NewBilingualRule(_ *pkg.OpenAPILinterConfig,
+	m pkg.Module, errorList *errors.LintRuleErrorsList) *BilingualRule {
 	return &BilingualRule{
 		RuleMeta: pkg.RuleMeta{
-			Name: "bilingual",
+			Name: BilingualRuleName,
 		},
-		rootPath: rootPath,
+		module:    m,
+		errorList: errorList.WithRule(BilingualRuleName),
 	}
 }
 
 // Run checks that the given resource file has a corresponding doc-ru- translation file.
-func (r *BilingualRule) Run(path string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+var _ pkg.Rule = (*BilingualRule)(nil)
 
-	shortPath := fsutils.Rel(r.rootPath, path)
+func (r *BilingualRule) Check(_ context.Context) {
+	for _, path := range bilingualCRDFiles(r.module.GetPath()) {
+		r.checkFile(path)
+	}
+}
+
+// checkFile must stay a separate method rather than being inlined into the
+// loop above: it is the entry point the unit tests drive directly, with paths
+// the walk in Check would never yield.
+func (r *BilingualRule) checkFile(path string) {
+	errorList := r.errorList
+
+	shortPath := fsutils.Rel(r.module.GetPath(), path)
 	filename := filepath.Base(path)
 	dir := filepath.Dir(path)
 

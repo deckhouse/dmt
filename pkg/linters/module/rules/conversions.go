@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"os"
@@ -37,7 +38,8 @@ const (
 	ConversionsRuleName = "conversions"
 )
 
-func NewConversionsRule(disable bool) *ConversionsRule {
+func NewConversionsRule(disable bool,
+	m pkg.Module, errorList *errors.LintRuleErrorsList) *ConversionsRule {
 	return &ConversionsRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: ConversionsRuleName,
@@ -45,12 +47,17 @@ func NewConversionsRule(disable bool) *ConversionsRule {
 		BoolRule: pkg.BoolRule{
 			Exclude: disable,
 		},
+		module:    m,
+		errorList: errorList.WithRule(ConversionsRuleName),
 	}
 }
 
 type ConversionsRule struct {
 	pkg.RuleMeta
 	pkg.BoolRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
 const (
@@ -74,8 +81,11 @@ type configValues struct {
 	ConfigVersion int `json:"x-config-version"`
 }
 
-func (r *ConversionsRule) CheckConversions(modulePath string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+var _ pkg.Rule = (*ConversionsRule)(nil)
+
+func (r *ConversionsRule) Check(_ context.Context) {
+	modulePath := r.module.GetPath()
+	errorList := r.errorList
 
 	if !r.Enabled() {
 		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))

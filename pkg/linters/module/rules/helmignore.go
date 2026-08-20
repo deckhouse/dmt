@@ -19,6 +19,7 @@ package rules
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -53,7 +54,8 @@ var moduleTemplateExclude = map[string]bool{
 	"values.yaml": true,
 }
 
-func NewHelmignoreRule(disable bool) *HelmignoreRule {
+func NewHelmignoreRule(disable bool,
+	m pkg.Module, errorList *errors.LintRuleErrorsList) *HelmignoreRule {
 	return &HelmignoreRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: HelmignoreRuleName,
@@ -61,16 +63,24 @@ func NewHelmignoreRule(disable bool) *HelmignoreRule {
 		BoolRule: pkg.BoolRule{
 			Exclude: disable,
 		},
+		module:    m,
+		errorList: errorList.WithRule(HelmignoreRuleName),
 	}
 }
 
 type HelmignoreRule struct {
 	pkg.RuleMeta
 	pkg.BoolRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func (r *HelmignoreRule) CheckHelmignore(modulePath string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+var _ pkg.Rule = (*HelmignoreRule)(nil)
+
+func (r *HelmignoreRule) Check(_ context.Context) {
+	modulePath := r.module.GetPath()
+	errorList := r.errorList
 
 	if !r.Enabled() {
 		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))

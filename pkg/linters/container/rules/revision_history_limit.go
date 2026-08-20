@@ -17,6 +17,8 @@ limitations under the License.
 package rules
 
 import (
+	"context"
+
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -29,20 +31,35 @@ const (
 	RevisionHistoryLimitRuleName = "object-revision-history-limit"
 )
 
-func NewRevisionHistoryLimitRule() *RevisionHistoryLimitRule {
+func NewRevisionHistoryLimitRule(m pkg.Module, errorList *errors.LintRuleErrorsList) *RevisionHistoryLimitRule {
 	return &RevisionHistoryLimitRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: RevisionHistoryLimitRuleName,
 		},
+		module:    m,
+		errorList: errorList.WithRule(RevisionHistoryLimitRuleName),
 	}
 }
 
 type RevisionHistoryLimitRule struct {
 	pkg.RuleMeta
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func (r *RevisionHistoryLimitRule) ObjectRevisionHistoryLimit(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+var _ pkg.Rule = (*RevisionHistoryLimitRule)(nil)
+
+func (r *RevisionHistoryLimitRule) Check(_ context.Context) {
+	for _, object := range r.module.GetStorage() {
+		r.checkObject(object)
+	}
+}
+
+// checkObject must stay a separate method rather than being inlined into the
+// loop above: its early returns end the check for one object, not for the rule.
+func (r *RevisionHistoryLimitRule) checkObject(object storage.StoreObject) {
+	errorList := r.errorList.WithFilePath(object.GetPath())
 
 	if object.Unstructured.GetKind() == "Deployment" {
 		converter := runtime.DefaultUnstructuredConverter

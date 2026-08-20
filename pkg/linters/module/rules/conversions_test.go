@@ -47,7 +47,7 @@ func TestNewConversionsRule(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rule := NewConversionsRule(tt.disable)
+			rule := NewConversionsRule(tt.disable, nil, errors.NewLintRuleErrorsList())
 			assert.Equal(t, ConversionsRuleName, rule.GetName())
 			assert.Equal(t, tt.expected, rule.Enabled())
 		})
@@ -234,10 +234,10 @@ description:
 			err := tt.setup(tempDir)
 			require.NoError(t, err)
 
-			rule := NewConversionsRule(false)
 			errorList := errors.NewLintRuleErrorsList()
+			rule := NewConversionsRule(false, moduleAt(t, tempDir), errorList)
 
-			rule.CheckConversions(tempDir, errorList)
+			rule.Check(t.Context())
 
 			errs := errorList.GetErrors()
 			assert.Len(t, errs, len(tt.expectedErrors), "Expected %d errors, got %d", len(tt.expectedErrors), len(errs))

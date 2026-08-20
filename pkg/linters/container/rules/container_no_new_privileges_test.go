@@ -119,7 +119,6 @@ func TestNoNewPrivilegesRule_ContainerNoNewPrivileges(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rule := NewNoNewPrivilegesRule([]pkg.ContainerRuleExclude{})
 			errorList := errors.NewLintRuleErrorsList()
 
 			obj := storage.StoreObject{
@@ -132,7 +131,7 @@ func TestNoNewPrivilegesRule_ContainerNoNewPrivileges(t *testing.T) {
 				},
 			}
 
-			rule.ContainerNoNewPrivileges(obj, tt.containers, errorList)
+			NewNoNewPrivilegesRule([]pkg.ContainerRuleExclude{}, oneObject(obj, tt.containers), errorList).Check(t.Context())
 			errs := errorList.GetErrors()
 
 			if len(tt.expectedErrors) == 0 {
@@ -157,7 +156,6 @@ func TestNoNewPrivilegesRule_WithExclusions(t *testing.T) {
 		},
 	}
 
-	rule := NewNoNewPrivilegesRule(excludeRules)
 	errorList := errors.NewLintRuleErrorsList()
 
 	obj := storage.StoreObject{
@@ -177,7 +175,7 @@ func TestNoNewPrivilegesRule_WithExclusions(t *testing.T) {
 		},
 	}}
 
-	rule.ContainerNoNewPrivileges(obj, containers, errorList)
+	NewNoNewPrivilegesRule(excludeRules, oneObject(obj, containers), errorList).Check(t.Context())
 	errs := errorList.GetErrors()
 
 	assert.Empty(t, errs, "Excluded container should not generate errors")

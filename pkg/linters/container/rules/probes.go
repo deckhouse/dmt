@@ -17,6 +17,8 @@ limitations under the License.
 package rules
 
 import (
+	"context"
+
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/deckhouse/dmt/internal/storage"
@@ -29,7 +31,8 @@ const (
 	ReadinessRuleName = "readiness-probe"
 )
 
-func NewLivenessRule(excludeRules []pkg.ContainerRuleExclude) *LivenessRule {
+func NewLivenessRule(excludeRules []pkg.ContainerRuleExclude,
+	objects []ObjectContainers, errorList *errors.LintRuleErrorsList) *LivenessRule {
 	return &LivenessRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: LivenessRuleName,
@@ -37,15 +40,21 @@ func NewLivenessRule(excludeRules []pkg.ContainerRuleExclude) *LivenessRule {
 		ContainerRule: pkg.ContainerRule{
 			ExcludeRules: excludeRules,
 		},
+		objects:   objects,
+		errorList: errorList.WithRule(LivenessRuleName),
 	}
 }
 
 type LivenessRule struct {
 	pkg.RuleMeta
 	pkg.ContainerRule
+
+	objects   []ObjectContainers
+	errorList *errors.LintRuleErrorsList
 }
 
-func NewReadinessRule(excludeRules []pkg.ContainerRuleExclude) *ReadinessRuleNameRule {
+func NewReadinessRule(excludeRules []pkg.ContainerRuleExclude,
+	objects []ObjectContainers, errorList *errors.LintRuleErrorsList) *ReadinessRuleNameRule {
 	return &ReadinessRuleNameRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: ReadinessRuleName,
@@ -53,12 +62,17 @@ func NewReadinessRule(excludeRules []pkg.ContainerRuleExclude) *ReadinessRuleNam
 		ContainerRule: pkg.ContainerRule{
 			ExcludeRules: excludeRules,
 		},
+		objects:   objects,
+		errorList: errorList.WithRule(ReadinessRuleName),
 	}
 }
 
 type ReadinessRuleNameRule struct {
 	pkg.RuleMeta
 	pkg.ContainerRule
+
+	objects   []ObjectContainers
+	errorList *errors.LintRuleErrorsList
 }
 
 func probeHandlerIsNotValid(probe v1.ProbeHandler) bool {
@@ -87,8 +101,23 @@ func probeHandlerIsNotValid(probe v1.ProbeHandler) bool {
 }
 
 // check livenessProbe exist and correct
-func (r *LivenessRule) CheckProbe(object storage.StoreObject, containers []v1.Container, errorList *errors.LintRuleErrorsList) { //nolint: dupl // we have doubled code in probes because it's separate rules and we need to edit them separate
-	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.GetPath())
+var _ pkg.Rule = (*LivenessRule)(nil)
+
+func (r *LivenessRule) Check(_ context.Context) {
+	for _, oc := range r.objects {
+		// probe rules only ever ran on non-init containers
+		if len(oc.NotInit) == 0 {
+			continue
+		}
+
+		r.checkObject(oc.Object, oc.NotInit)
+	}
+}
+
+// checkObject must stay a separate method rather than being inlined into the
+// loop above: its early returns end the check for one object, not for the rule.
+func (r *LivenessRule) checkObject(object storage.StoreObject, containers []v1.Container) { //nolint: dupl // we have doubled code in probes because it's separate rules and we need to edit them separate
+	errorList := r.errorList.WithFilePath(object.GetPath())
 
 	if !isPodController(object.Unstructured.GetKind()) {
 		return
@@ -117,8 +146,23 @@ func (r *LivenessRule) CheckProbe(object storage.StoreObject, containers []v1.Co
 }
 
 // check readinessProbe exist and correct
-func (r *ReadinessRuleNameRule) CheckProbe(object storage.StoreObject, containers []v1.Container, errorList *errors.LintRuleErrorsList) { //nolint: dupl // we have doubled code in probes because it's separate rules and we need to edit them separate
-	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.GetPath())
+var _ pkg.Rule = (*ReadinessRuleNameRule)(nil)
+
+func (r *ReadinessRuleNameRule) Check(_ context.Context) {
+	for _, oc := range r.objects {
+		// probe rules only ever ran on non-init containers
+		if len(oc.NotInit) == 0 {
+			continue
+		}
+
+		r.checkObject(oc.Object, oc.NotInit)
+	}
+}
+
+// checkObject must stay a separate method rather than being inlined into the
+// loop above: its early returns end the check for one object, not for the rule.
+func (r *ReadinessRuleNameRule) checkObject(object storage.StoreObject, containers []v1.Container) { //nolint: dupl // we have doubled code in probes because it's separate rules and we need to edit them separate
+	errorList := r.errorList.WithFilePath(object.GetPath())
 
 	if !isPodController(object.Unstructured.GetKind()) {
 		return

@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"strings"
 
 	"github.com/deckhouse/dmt/internal/storage"
@@ -28,7 +29,8 @@ const (
 	NamespaceLabelsRuleName = "object-namespace-labels"
 )
 
-func NewNamespaceLabelsRule(excludeRules []pkg.KindRuleExclude) *NamespaceLabelsRule {
+func NewNamespaceLabelsRule(excludeRules []pkg.KindRuleExclude,
+	m pkg.Module, errorList *errors.LintRuleErrorsList) *NamespaceLabelsRule {
 	return &NamespaceLabelsRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: NamespaceLabelsRuleName,
@@ -36,16 +38,33 @@ func NewNamespaceLabelsRule(excludeRules []pkg.KindRuleExclude) *NamespaceLabels
 		KindRule: pkg.KindRule{
 			ExcludeRules: excludeRules,
 		},
+		module:    m,
+		errorList: errorList.WithRule(NamespaceLabelsRuleName),
 	}
 }
 
 type NamespaceLabelsRule struct {
 	pkg.RuleMeta
 	pkg.KindRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func (r *NamespaceLabelsRule) ObjectNamespaceLabels(object storage.StoreObject, storageMap map[storage.ResourceIndex]storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+var _ pkg.Rule = (*NamespaceLabelsRule)(nil)
+
+func (r *NamespaceLabelsRule) Check(_ context.Context) {
+	storageMap := r.module.GetStorage()
+
+	for _, object := range storageMap {
+		r.checkObject(object, storageMap)
+	}
+}
+
+// checkObject must stay a separate method rather than being inlined into the
+// loop above: its early returns end the check for one object, not for the rule.
+func (r *NamespaceLabelsRule) checkObject(object storage.StoreObject, storageMap map[storage.ResourceIndex]storage.StoreObject) {
+	errorList := r.errorList.WithFilePath(object.GetPath())
 
 	if object.Unstructured.GetKind() != "Namespace" || !strings.HasPrefix(object.Unstructured.GetName(), "d8-") {
 		return

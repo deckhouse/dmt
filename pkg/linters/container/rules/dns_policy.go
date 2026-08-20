@@ -17,6 +17,8 @@ limitations under the License.
 package rules
 
 import (
+	"context"
+
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -29,7 +31,8 @@ const (
 	DNSPolicyRuleName = "dns-policy"
 )
 
-func NewDNSPolicyRule(excludeRules []pkg.KindRuleExclude) *DNSPolicyRule {
+func NewDNSPolicyRule(excludeRules []pkg.KindRuleExclude,
+	m pkg.Module, errorList *errors.LintRuleErrorsList) *DNSPolicyRule {
 	return &DNSPolicyRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: DNSPolicyRuleName,
@@ -37,16 +40,31 @@ func NewDNSPolicyRule(excludeRules []pkg.KindRuleExclude) *DNSPolicyRule {
 		KindRule: pkg.KindRule{
 			ExcludeRules: excludeRules,
 		},
+		module:    m,
+		errorList: errorList.WithRule(DNSPolicyRuleName),
 	}
 }
 
 type DNSPolicyRule struct {
 	pkg.RuleMeta
 	pkg.KindRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func (r *DNSPolicyRule) ObjectDNSPolicy(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.GetPath())
+var _ pkg.Rule = (*DNSPolicyRule)(nil)
+
+func (r *DNSPolicyRule) Check(_ context.Context) {
+	for _, object := range r.module.GetStorage() {
+		r.checkObject(object)
+	}
+}
+
+// checkObject must stay a separate method rather than being inlined into the
+// loop above: its early returns end the check for one object, not for the rule.
+func (r *DNSPolicyRule) checkObject(object storage.StoreObject) {
+	errorList := r.errorList.WithFilePath(object.GetPath())
 
 	if !r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {
 		// TODO: add metrics

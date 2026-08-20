@@ -525,9 +525,9 @@ spec:
 				cfg.ExcludeRules.CRDNamesExcludes = []string{"excluded.deckhouse.io"}
 			}
 
-			rule := NewDeckhouseCRDsRule(cfg, "test")
 			errorList := errors.NewLintRuleErrorsList()
-			rule.Run(tt.moduleName, filePath, errorList)
+			rule := NewDeckhouseCRDsRule(cfg, moduleAt(t, "test"), errorList)
+			rule.checkFile(tt.moduleName, filePath)
 
 			errs := errorList.GetErrors()
 			if tt.wantErrors == nil {

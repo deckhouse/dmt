@@ -6,7 +6,6 @@ package docs
 import (
 	"context"
 
-	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/docs/rules"
@@ -20,11 +19,11 @@ const (
 type Documentation struct {
 	name, desc string
 	cfg        *pkg.DocumentationLinterConfig
-	module     *modules.Module
+	module     pkg.Module
 	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *pkg.DocumentationLinterConfig, m *modules.Module, errorList *errors.LintRuleErrorsList) *Documentation {
+func New(cfg *pkg.DocumentationLinterConfig, m pkg.Module, errorList *errors.LintRuleErrorsList) *Documentation {
 	return &Documentation{
 		name:      ID,
 		desc:      "Documentation linter checks module documentation requirements",

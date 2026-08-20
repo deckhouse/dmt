@@ -18,6 +18,7 @@ package rules
 
 import (
 	"bytes"
+	"context"
 	errs "errors"
 	"os"
 	"path/filepath"
@@ -31,22 +32,30 @@ const (
 	enabledScriptFilename = "enabled"
 )
 
-func NewEnabledScriptRule() *EnabledScriptRule {
+func NewEnabledScriptRule(m pkg.Module, errorList *errors.LintRuleErrorsList) *EnabledScriptRule {
 	return &EnabledScriptRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: EnabledScriptRuleName,
 		},
+		module:    m,
+		errorList: errorList.WithRule(EnabledScriptRuleName),
 	}
 }
 
 type EnabledScriptRule struct {
 	pkg.RuleMeta
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
 // CheckEnabledScript warns when a module ships a non-empty `enabled` script.
 // The enabled-script mechanism is deprecated and should be removed.
-func (r *EnabledScriptRule) CheckEnabledScript(modulePath string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName()).WithFilePath(enabledScriptFilename)
+var _ pkg.Rule = (*EnabledScriptRule)(nil)
+
+func (r *EnabledScriptRule) Check(_ context.Context) {
+	modulePath := r.module.GetPath()
+	errorList := r.errorList.WithFilePath(enabledScriptFilename)
 
 	data, err := os.ReadFile(filepath.Join(modulePath, enabledScriptFilename))
 	if errs.Is(err, os.ErrNotExist) {

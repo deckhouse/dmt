@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/name"
@@ -33,7 +34,8 @@ const (
 
 const defaultRegistry = "registry.example.com/deckhouse"
 
-func NewImageDigestRule(excludeRules []pkg.ContainerRuleExclude) *ImageDigestRule {
+func NewImageDigestRule(excludeRules []pkg.ContainerRuleExclude,
+	objects []ObjectContainers, errorList *errors.LintRuleErrorsList) *ImageDigestRule {
 	return &ImageDigestRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: ImageDigestRuleName,
@@ -41,16 +43,31 @@ func NewImageDigestRule(excludeRules []pkg.ContainerRuleExclude) *ImageDigestRul
 		ContainerRule: pkg.ContainerRule{
 			ExcludeRules: excludeRules,
 		},
+		objects:   objects,
+		errorList: errorList.WithRule(ImageDigestRuleName),
 	}
 }
 
 type ImageDigestRule struct {
 	pkg.RuleMeta
 	pkg.ContainerRule
+
+	objects   []ObjectContainers
+	errorList *errors.LintRuleErrorsList
 }
 
-func (r *ImageDigestRule) ContainerImageDigestCheck(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+var _ pkg.Rule = (*ImageDigestRule)(nil)
+
+func (r *ImageDigestRule) Check(_ context.Context) {
+	for _, oc := range r.objects {
+		r.checkObject(oc.Object, oc.All)
+	}
+}
+
+// checkObject must stay a separate method rather than being inlined into the
+// loop above: its early returns end the check for one object, not for the rule.
+func (r *ImageDigestRule) checkObject(object storage.StoreObject, containers []corev1.Container) {
+	errorList := r.errorList.WithFilePath(object.GetPath())
 
 	for i := range containers {
 		c := &containers[i]

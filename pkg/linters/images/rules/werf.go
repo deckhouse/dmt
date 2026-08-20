@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"strings"
@@ -48,9 +49,15 @@ type werfFile struct {
 type WerfRule struct {
 	pkg.RuleMeta
 	pkg.BoolRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func NewWerfRule(disable bool) *WerfRule {
+var _ pkg.Rule = (*WerfRule)(nil)
+
+func NewWerfRule(disable bool,
+	m pkg.Module, errorList *errors.LintRuleErrorsList) *WerfRule {
 	return &WerfRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: werfRuleName,
@@ -58,6 +65,8 @@ func NewWerfRule(disable bool) *WerfRule {
 		BoolRule: pkg.BoolRule{
 			Exclude: disable,
 		},
+		module:    m,
+		errorList: errorList.WithRule(werfRuleName),
 	}
 }
 
@@ -73,13 +82,17 @@ func isModuleExcluded(moduleName string) bool {
 	return false
 }
 
-func (r *WerfRule) LintWerfFile(moduleName, data string, errorList *errors.LintRuleErrorsList) {
+func (r *WerfRule) Check(_ context.Context) {
+	r.lintWerfFile(r.module.GetName(), r.module.GetWerfFile())
+}
+
+// lintWerfFile keeps the module name and the werf content as explicit
+// parameters so the rule's logic stays unit-testable on raw input.
+func (r *WerfRule) lintWerfFile(moduleName, data string) {
+	errorList := r.errorList
 	if !r.Enabled() {
 		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
 	}
-
-	// Set rule name for all errors in this function
-	errorList = errorList.WithRule(r.GetName())
 
 	// Split YAML documents
 	werfDocs := splitManifests(data)

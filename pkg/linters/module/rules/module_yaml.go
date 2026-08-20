@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	errs "errors"
 	"os"
 	"path/filepath"
@@ -60,7 +61,8 @@ var ValidBundles = []string{
 	"Default",
 }
 
-func NewDefinitionFileRule(disable bool) *DefinitionFileRule {
+func NewDefinitionFileRule(disable bool,
+	m pkg.Module, errorList *errors.LintRuleErrorsList) *DefinitionFileRule {
 	return &DefinitionFileRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: DefinitionFileRuleName,
@@ -68,12 +70,17 @@ func NewDefinitionFileRule(disable bool) *DefinitionFileRule {
 		BoolRule: pkg.BoolRule{
 			Exclude: disable,
 		},
+		module:    m,
+		errorList: errorList.WithRule(DefinitionFileRuleName),
 	}
 }
 
 type DefinitionFileRule struct {
 	pkg.RuleMeta
 	pkg.BoolRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
 const (
@@ -207,8 +214,11 @@ func convertURLToModuleName(repoURL string) string {
 	return parts[len(parts)-1]
 }
 
-func (r *DefinitionFileRule) CheckDefinitionFile(modulePath string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName()).WithFilePath(ModuleConfigFilename)
+var _ pkg.Rule = (*DefinitionFileRule)(nil)
+
+func (r *DefinitionFileRule) Check(_ context.Context) {
+	modulePath := r.module.GetPath()
+	errorList := r.errorList.WithFilePath(ModuleConfigFilename)
 
 	if !r.Enabled() {
 		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
