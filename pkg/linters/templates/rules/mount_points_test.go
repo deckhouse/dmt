@@ -572,6 +572,39 @@ func TestMountPointsRule_BuiltinExcludedSys(t *testing.T) {
 	assert.Len(t, errs, 0)
 }
 
+func TestMountPointsRule_BuiltinExcludedCgroup(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "mount-points-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	imagesDir := filepath.Join(tmpDir, "images", "app")
+	if err := os.MkdirAll(imagesDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	mountPointsYAML := `dirs:
+  - /sys/fs/cgroup
+  - /etc/app
+`
+	if err := os.WriteFile(filepath.Join(imagesDir, "mount-points.yaml"), []byte(mountPointsYAML), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	storageMap := map[storage.ResourceIndex]storage.StoreObject{
+		{Kind: "Deployment", Name: "app", Namespace: "default"}: deploymentWithMounts("app", "/etc/app"),
+	}
+
+	errorList := errors.NewLintRuleErrorsList()
+	rule := NewMountPointsRule(nil)
+	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+
+	// /sys/fs/cgroup is built-in excluded, /etc/app is in templates → 0 errors
+	errs := errorList.GetErrors()
+	assert.Len(t, errs, 0)
+}
+
 func TestMountPointsRule_BuiltinExcludedDev(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "mount-points-test")
 	if err != nil {

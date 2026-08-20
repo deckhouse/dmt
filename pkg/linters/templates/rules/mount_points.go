@@ -39,10 +39,11 @@ type mountPointsFile struct {
 // builtinExcludedPaths are system paths that are always available on Linux hosts
 // and should not be required in mount-points.yaml.
 var builtinExcludedPaths = map[string]bool{
-	"/sys":  true,
-	"/dev":  true,
-	"/proc": true,
-	"/tmp":  true,
+	"/sys":           true,
+	"/sys/fs/cgroup": true,
+	"/dev":           true,
+	"/proc":          true,
+	"/tmp":           true,
 }
 
 func NewMountPointsRule(excludeRules []pkg.StringRuleExclude) *MountPointsRule {
@@ -66,8 +67,8 @@ type MountPointsRule struct {
 //
 // Direction: mount-points.yaml → templates.
 //
-// Built-in excluded paths: /sys, /dev, /proc — these Linux system paths
-// are always available and do not need to be declared in mount-points.yaml.
+// Built-in excluded paths: /sys, /sys/fs/cgroup, /dev, /proc, /tmp — these Linux
+// system paths are always available and do not need to be declared in mount-points.yaml.
 //
 // Module-specific exclusions are configured via dmtlint.yaml:
 //
