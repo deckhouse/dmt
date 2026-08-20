@@ -1,0 +1,60 @@
+description: >
+  YAML document-separator injection (`\n---\n`) coverage for the openapi-values-quote
+  rule. An unconstrained OpenAPI string (no pattern/enum/format) that ends up holding a
+  newline + `---` + newline breaks out of its scalar when rendered UNQUOTED and injects a
+  whole rogue YAML document (e.g. a Secret) into the manifest stream. Because module
+  values are unconstrained, a template can never assume they are injection-safe, so the
+  rule must flag every unquoted injection surface — scalar, array element, map value,
+  nested object field, `with`-scoped scalar, and array-of-objects subfield — and must
+  stay silent when the value is neutralised with `| quote` (which escapes the newlines)
+  or constrained by a `pattern` that makes `\n---\n` unrepresentable. The dangerous
+  values are given `\n---\n` defaults so the threat is concrete: rendered with dmt's
+  synthetic values these unquoted usages actually emit extra `Secret` documents into the
+  object store (verifiable at render), whereas every quoted usage does not.
+module: module
+expect:
+  # scalar rendered unquoted -> the `\n---\n` in its value injects a Secret document
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eYamlInjection.injectedScalar"
+    count: 1
+  # unquoted element of a string array -> a `\n---\n` element injects a document
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eYamlInjection.injectedArgs"
+    count: 1
+  # unquoted value of a string map -> a `\n---\n` value injects a document
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eYamlInjection.injectedAnnotations"
+    count: 1
+  # unquoted nested object field -> a `\n---\n` value injects a document
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eYamlInjection.injectedConn.dsn"
+    count: 1
+  # unconstrained string scoped by `with`, rendered unquoted -> injection
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eYamlInjection.withScalar"
+    count: 1
+  # unquoted `host` subfield of an array-of-objects element -> injection
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eYamlInjection.servers[].host"
+    count: 1
+expectAbsent:
+  # the same dangerous value used only through quote is not injectable -> not reported
+  - linter: templates
+    rule: openapi-values-quote
+    textContains: "e2eYamlInjection.mitigatedScalar"
+  # a pattern that forbids newlines/`---` makes injection impossible -> not reported
+  - linter: templates
+    rule: openapi-values-quote
+    textContains: "e2eYamlInjection.safeCode"

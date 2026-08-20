@@ -1,0 +1,74 @@
+description: >
+  Broad YAML-injection coverage for the openapi-values-quote rule, beyond the `\n---\n`
+  document separator. Each unconstrained string default is a different hazard that a
+  bare (unquoted) render turns real: `\n...\n` truncates the document; an indented
+  `\n  key: val` injects a sibling key into the mapping; `no` / `0755` / `~` are silently
+  coerced to bool / octal-int / null; ` # …` truncates the value as a comment; a leading
+  `[` or `{` turns the string into a list or map; a leading `!` or `&` is eaten as a tag
+  or anchor. All of these render to VALID YAML, so the module loads and the rule can be
+  asserted: every unquoted usage must be flagged, and the same value must be silent when
+  neutralised with `| quote` or constrained by a `pattern`. Payloads that instead make
+  the document unparseable (bare `key: value`, leading `@`, `*undefined`, a column-0 key)
+  are a documented e2e limitation (see README.md): dmt aborts module creation on them, so
+  the rule finding cannot be observed here.
+module: module
+expect:
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eYamlHazards.docEnd"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eYamlHazards.keyInject"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eYamlHazards.coerceBool"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eYamlHazards.coerceOctal"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eYamlHazards.coerceNull"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eYamlHazards.truncHash"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eYamlHazards.flowSeq"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eYamlHazards.flowMap"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eYamlHazards.tagBang"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eYamlHazards.anchorAmp"
+    count: 1
+expectAbsent:
+  # dangerous value used only through `| quote` -> not reported
+  - linter: templates
+    rule: openapi-values-quote
+    textContains: "e2eYamlHazards.safeQuoted"
+  # pattern-constrained value -> not reported
+  - linter: templates
+    rule: openapi-values-quote
+    textContains: "e2eYamlHazards.safePattern"

@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2e-yaml-injection-nested
+  namespace: e2e-yaml-injection
+data:
+  # FLAGGED: unconstrained nested string field rendered unquoted -> `\n---\n` injection.
+  dsn: {{ .Values.e2eYamlInjection.injectedConn.dsn }}
