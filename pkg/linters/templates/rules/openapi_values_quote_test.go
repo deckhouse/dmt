@@ -97,6 +97,54 @@ properties:
 			wantCount: 0,
 		},
 		{
+			name: "value placed as a block via nindent is not flagged",
+			valuesSchema: `type: object
+properties:
+  foo:
+    type: string
+`,
+			files: map[string]string{
+				"templates/cm.yaml": "data:\n  foo: {{ .Values." + valuesKey + ".foo | nindent 4 }}\n",
+			},
+			wantCount: 0,
+		},
+		{
+			name: "value placed as a block via indent is not flagged",
+			valuesSchema: `type: object
+properties:
+  foo:
+    type: string
+`,
+			files: map[string]string{
+				"templates/cm.yaml": "data:\n  foo: {{ .Values." + valuesKey + ".foo | indent 4 }}\n",
+			},
+			wantCount: 0,
+		},
+		{
+			name: "base64 value expanded via b64dec|nindent is not flagged",
+			valuesSchema: `type: object
+properties:
+  foo:
+    type: string
+`,
+			files: map[string]string{
+				"templates/cm.yaml": "data:\n{{ .Values." + valuesKey + ".foo | b64dec | nindent 2 }}\n",
+			},
+			wantCount: 0,
+		},
+		{
+			name: "value consumed by fail is never emitted, not flagged",
+			valuesSchema: `type: object
+properties:
+  foo:
+    type: string
+`,
+			files: map[string]string{
+				"templates/cm.yaml": "data:\n  {{ cat \"missing key:\" .Values." + valuesKey + ".foo | fail }}\n",
+			},
+			wantCount: 0,
+		},
+		{
 			name: "string with pattern is not flagged",
 			valuesSchema: `type: object
 properties:

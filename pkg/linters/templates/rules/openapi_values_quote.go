@@ -51,6 +51,17 @@ var safeFuncs = map[string]struct{}{
 	"sha1sum": {}, "sha256sum": {}, "sha512sum": {}, "adler32sum": {},
 }
 
+// blockOrSinkFuncs are pipeline functions after which quoting is impossible or
+// meaningless, so a value routed through one of them is exempt from this rule:
+//   - nindent/indent place the value as an indented (multi-line) block — e.g. a CA
+//     bundle under a `key: |` block scalar, or a base64 blob expanded via `b64dec`;
+//     wrapping such output in quotes would corrupt it, so "must be quoted" never applies.
+//   - fail consumes the value into an aborting error message that is never rendered
+//     into the manifest, so it cannot be a YAML-injection vector.
+var blockOrSinkFuncs = map[string]struct{}{
+	"nindent": {}, "indent": {}, "fail": {},
+}
+
 // templateActionRe matches a single Go-template action {{ ... }}, capturing the
 // inner expression with the surrounding whitespace/`-` trim markers stripped.
 var templateActionRe = regexp.MustCompile(`{{-?\s*(.*?)\s*-?}}`)
@@ -1192,12 +1203,18 @@ func isParenWrapped(s string) bool {
 	return false
 }
 
-// pipelineIsSafe reports whether any function stage of the pipeline is known to emit
-// a YAML-safe scalar (see safeFuncs).
+// pipelineIsSafe reports whether the pipeline routes the value through a stage that
+// makes an explicit quote unnecessary — either because the stage emits a YAML-safe
+// scalar (see safeFuncs) or because the value is placed as a block / never emitted
+// (see blockOrSinkFuncs), in which case quoting is impossible or meaningless.
 func pipelineIsSafe(inner string) bool {
 	stages := splitPipeline(inner)
 	for _, stage := range stages[1:] {
-		if _, ok := safeFuncs[firstToken(stage)]; ok {
+		tok := firstToken(stage)
+		if _, ok := safeFuncs[tok]; ok {
+			return true
+		}
+		if _, ok := blockOrSinkFuncs[tok]; ok {
 			return true
 		}
 	}
