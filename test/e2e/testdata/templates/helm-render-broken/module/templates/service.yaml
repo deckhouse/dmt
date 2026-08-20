@@ -1,0 +1,16 @@
+# A second, well-formed resource that renders fine. It exists to prove that when
+# the sibling configmap.yaml aborts the render (fail), dmt drops ONLY that template
+# and still renders this Service — which the object-based linters then check (its
+# numeric targetPort trips the templates `service-port` rule).
+apiVersion: v1
+kind: Service
+metadata:
+  name: helm-render-broken-svc
+  namespace: e2e-helm-render-broken
+spec:
+  selector:
+    app: e2e-app
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080

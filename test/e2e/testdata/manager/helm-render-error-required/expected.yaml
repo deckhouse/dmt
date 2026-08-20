@@ -1,12 +1,12 @@
 description: >
-  A module whose configmap.yaml calls {{ fail }} aborts rendering that one
-  template. dmt drops only the failing template and renders the rest, so the
+  A second, structurally different render abort: postgres.yaml's `required` builtin
+  fails because a mandatory value is never provided during a dmt lint. Like the
+  `fail`-based case, dmt drops only that template and renders the rest, so the
   sibling Service still renders and is object-linted (its numeric targetPort trips
   templates `service-port`), while a non-fatal `manager` warning names the skipped
   template and no error-level `cannot create module` nor `templates` `helm-render`
-  finding appears. See manager/helm-render-error-required for the other
-  tolerant-render case, and manager/enabled-dependency-renders for the
-  enabled-dependency path.
+  finding appears. Proves dmt localizes any render abort to the offending resource
+  instead of failing the lint or dropping the whole chart.
 module: module
 expect:
   - linter: manager

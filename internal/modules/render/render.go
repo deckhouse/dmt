@@ -22,7 +22,11 @@ import (
 	"fmt"
 	"io"
 	stdlog "log"
+	"log/slog"
 	"os"
+	"path"
+	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/werf/nelm/pkg/action"
@@ -30,6 +34,8 @@ import (
 	"github.com/werf/nelm/pkg/helm/pkg/chart/loader"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
+
+	"github.com/deckhouse/deckhouse/pkg/log"
 )
 
 func init() {
@@ -71,17 +77,31 @@ type Options struct {
 	// ExtraAPIVersions extends .Capabilities.APIVersions (e.g. VPA, cert-manager,
 	// gateway kinds) so templates gating on them render offline.
 	ExtraAPIVersions []string
+	// OnDrop, if set, is called once for each template the tolerant render had to
+	// neutralize to make the chart render: templatePath is the chart-relative path
+	// (e.g. "templates/postgres.yaml") and renderErr is the abort that caused the
+	// drop. Linting callers use it to surface a warning; others may leave it nil.
+	OnDrop func(templatePath, renderErr string)
 }
 
 // Render renders the chart at opts.Path with nelm's public action.ChartRender,
-// offline (no cluster) and strictly: the first template error aborts the render.
-// This is the same public entrypoint deckhouse-controller and d8-package-plugin use,
-// so dmt renders modules the way they are actually installed. nelm parses the
-// manifests, so callers get []Object and need no manifest splitting.
+// offline (no cluster). This is the same public entrypoint deckhouse-controller
+// and d8-package-plugin use, so dmt renders modules the way they are actually
+// installed. nelm parses the manifests, so callers get []Object and need no
+// manifest splitting.
 //
 // Before rendering it injects an image-resolution override (see injectImageStub) so
 // image names dmt cannot know offline — werf-computed names, werf-defined aliases —
 // still resolve instead of aborting the render, and removes it again afterwards.
+//
+// The render is tolerant per template. A single manifest template that aborts the
+// render — an intentional `fail`, or a `required` on a value dmt cannot supply
+// offline — would otherwise abort the WHOLE chart and hide every other resource
+// from the linters. Instead Render neutralizes just that one template and
+// re-renders, so the remaining resources are still returned and linted; every
+// neutralized template is restored before Render returns. An error that cannot be
+// localized to a droppable manifest template (a failing partial, a values/schema
+// error) is a genuine render failure and is surfaced to the caller.
 func Render(ctx context.Context, namespace, releaseName string, opts Options) ([]Object, error) {
 	if releaseName == "" {
 		return nil, fmt.Errorf("helm chart must have a name")
@@ -99,9 +119,34 @@ func Render(ctx context.Context, namespace, releaseName string, opts Options) ([
 	}
 	defer cleanup()
 
-	res, err := renderChart(ctx, namespace, releaseName, valuesFile, opts)
-	if err != nil {
-		return nil, err
+	// Neutralized templates are restored once the render loop settles.
+	neutralizer := newTemplateNeutralizer(opts.Path)
+	defer neutralizer.restore()
+
+	var res *action.ChartRenderResultV2
+
+	for {
+		var renderErr error
+
+		res, renderErr = renderChart(ctx, namespace, releaseName, valuesFile, opts)
+		if renderErr == nil {
+			break
+		}
+
+		// Localize the failure to a droppable manifest template and blank just that
+		// one, then re-render the rest. Give up (surface the error) when the failure
+		// is not a droppable template or that template was already neutralized.
+		rel := failingManifestTemplate(renderErr)
+		if rel == "" || !neutralizer.neutralize(rel) {
+			return nil, renderErr
+		}
+
+		if opts.OnDrop != nil {
+			opts.OnDrop(rel, renderErr.Error())
+		}
+
+		log.Debug("dmt: template failed to render; dropping it and continuing with the rest of the chart",
+			slog.String("chart", releaseName), slog.String("template", rel), log.Err(renderErr))
 	}
 
 	objects := make([]Object, 0, len(res.Resources))
@@ -179,4 +224,101 @@ func writeTempValues(values map[string]any) (string, func(), error) {
 	}
 
 	return f.Name(), cleanup, nil
+}
+
+// failingTemplateRe extracts the chart-relative template path from a nelm render
+// error. nelm formats a template execution failure as
+//
+//	... execution error at (<chart-name>/templates/foo.yaml:LINE:COL): <message>
+//
+// so the capture group holds "<chart-name>/templates/foo.yaml".
+var failingTemplateRe = regexp.MustCompile(`\(([^():]+):\d+:\d+\)`)
+
+// failingManifestTemplate returns the chart-dir-relative path (forward-slashed,
+// e.g. "templates/postgres.yaml") of the manifest template a render error is
+// localized to, or "" when the error cannot be attributed to a droppable manifest
+// template. Only non-partial YAML templates under templates/ are droppable:
+// blanking a partial (_*.tpl, helm_lib) or reacting to a values/schema error would
+// not make the rest of the chart renderable, so those are surfaced to the caller.
+func failingManifestTemplate(err error) string {
+	if err == nil {
+		return ""
+	}
+
+	m := failingTemplateRe.FindStringSubmatch(err.Error())
+	if m == nil {
+		return ""
+	}
+
+	// The path is chart-name-prefixed (e.g. "commander/templates/foo.yaml"); the
+	// on-disk layout has no such prefix, so drop the leading segment.
+	_, rel, found := strings.Cut(m[1], "/")
+	if !found || !strings.HasPrefix(rel, "templates/") {
+		return ""
+	}
+
+	if strings.HasPrefix(path.Base(rel), "_") {
+		return ""
+	}
+
+	switch strings.ToLower(path.Ext(rel)) {
+	case ".yaml", ".yml":
+		return rel
+	default:
+		return ""
+	}
+}
+
+// templateNeutralizer blanks manifest templates that abort the render so the rest
+// of the chart can render, then restores each one (content and mode) afterwards.
+type templateNeutralizer struct {
+	chartDir string
+	backups  map[string]neutralizedFile
+}
+
+type neutralizedFile struct {
+	content []byte
+	mode    os.FileMode
+}
+
+func newTemplateNeutralizer(chartDir string) *templateNeutralizer {
+	return &templateNeutralizer{chartDir: chartDir, backups: map[string]neutralizedFile{}}
+}
+
+// neutralize replaces the template at rel (chart-relative, forward-slashed) with a
+// comment-only file so it renders no resources. It returns false when the template
+// was already neutralized (so the caller stops instead of looping) or the file
+// cannot be read/written.
+func (n *templateNeutralizer) neutralize(rel string) bool {
+	if _, done := n.backups[rel]; done {
+		return false
+	}
+
+	full := filepath.Join(n.chartDir, filepath.FromSlash(rel))
+
+	info, err := os.Stat(full)
+	if err != nil {
+		return false
+	}
+
+	orig, err := os.ReadFile(full)
+	if err != nil {
+		return false
+	}
+
+	if err := os.WriteFile(full, []byte("# dmt: template neutralized after render failure\n"), info.Mode().Perm()); err != nil {
+		return false
+	}
+
+	n.backups[rel] = neutralizedFile{content: orig, mode: info.Mode().Perm()}
+
+	return true
+}
+
+// restore rewrites every neutralized template with its original content and mode.
+func (n *templateNeutralizer) restore() {
+	for rel, f := range n.backups {
+		full := filepath.Join(n.chartDir, filepath.FromSlash(rel))
+		_ = os.WriteFile(full, f.content, f.mode)
+	}
 }

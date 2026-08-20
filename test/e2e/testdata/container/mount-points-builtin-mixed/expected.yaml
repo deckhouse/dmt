@@ -7,3 +7,13 @@ expect:
     rule: mount-points
     level: warn
     textContains: 'mountPath "/etc/missing" is not declared'
+    count: 1
+# The built-in-excluded paths mounted alongside /etc/missing must NOT be flagged —
+# this is what distinguishes the "mixed" case from mount-points-missing.
+expectAbsent:
+  - linter: container
+    rule: mount-points
+    textContains: 'mountPath "/sys"'
+  - linter: container
+    rule: mount-points
+    textContains: 'mountPath "/proc"'
