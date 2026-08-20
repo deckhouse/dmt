@@ -144,6 +144,7 @@ type TemplatesLinterRules struct {
 	RegistryRule             RuleConfig
 	HTTPRouteRule            RuleConfig
 	EnabledModulesRule       RuleConfig
+	CRDEnabledModulesRule    RuleConfig
 	WebhookConfigurationRule RuleConfig
 	MountPointsRule          RuleConfig
 	HelmRenderRule           RuleConfig
@@ -164,6 +165,7 @@ type TemplatesExcludeRules struct {
 	Ingress              KindRuleExcludeList
 	HTTPRoute            KindRuleExcludeList
 	EnabledModules       EnabledModulesExcludeRule
+	CRDEnabledModules    EnabledModulesExcludeRule
 	WebhookConfiguration KindRuleExcludeList
 	MountPoints          StringRuleExcludeList
 }
