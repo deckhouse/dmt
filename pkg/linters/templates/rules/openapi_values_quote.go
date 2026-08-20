@@ -1222,6 +1222,7 @@ func pipelineIsSafe(inner string) bool {
 		if _, ok := safeFuncs[tok]; ok {
 			return true
 		}
+
 		if _, ok := blockOrSinkFuncs[tok]; ok {
 			return true
 		}
