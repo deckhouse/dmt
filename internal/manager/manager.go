@@ -26,6 +26,7 @@ import (
 	"strings"
 	"sync"
 	"text/tabwriter"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/kyokomi/emoji"
@@ -76,6 +77,10 @@ type Manager struct {
 	Modules []*modules.Module
 
 	errors *errors.LintRuleErrorsList
+
+	// startedAt marks the beginning of the run; PrintStatistics reports the
+	// wall-clock time elapsed since it, matching the mirror summary's Elapsed line.
+	startedAt time.Time
 }
 
 func NewManager(dir string, rootConfig *config.RootConfig) *Manager {
@@ -83,7 +88,8 @@ func NewManager(dir string, rootConfig *config.RootConfig) *Manager {
 	m := &Manager{
 		cfg: rootConfig,
 
-		errors: errors.NewLintRuleErrorsList().WithMaxLevel(&managerLevel),
+		errors:    errors.NewLintRuleErrorsList().WithMaxLevel(&managerLevel),
+		startedAt: time.Now(),
 	}
 
 	return m.initManager(dir)
