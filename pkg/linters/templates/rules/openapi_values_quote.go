@@ -1040,7 +1040,7 @@ func (r *OpenAPIValuesQuoteRule) checkInclude(
 	emits map[string]defineEmit, errorList *errors.LintRuleErrorsList,
 ) {
 	emit, ok := emits[name]
-	if !ok || pipelineIsSafe(inner) {
+	if !ok || pipelineHasSafeFunc(inner) {
 		return
 	}
 
@@ -1211,19 +1211,37 @@ func isParenWrapped(s string) bool {
 	return false
 }
 
-// pipelineIsSafe reports whether the pipeline routes the value through a stage that
-// makes an explicit quote unnecessary — either because the stage emits a YAML-safe
-// scalar (see safeFuncs) or because the value is placed as a block / never emitted
-// (see blockOrSinkFuncs), in which case quoting is impossible or meaningless.
-func pipelineIsSafe(inner string) bool {
-	stages := splitPipeline(inner)
-	for _, stage := range stages[1:] {
-		tok := firstToken(stage)
-		if _, ok := safeFuncs[tok]; ok {
+// pipelineHasSafeFunc reports whether any stage of the pipeline emits a YAML-safe
+// scalar (see safeFuncs) — i.e. the value's own rendered output is quoted or encoded.
+// This is the check to use when a value is emitted transitively (e.g. inside an
+// included template), where only real quoting of the output — not block re-indenting —
+// can protect it.
+func pipelineHasSafeFunc(inner string) bool {
+	for _, stage := range splitPipeline(inner)[1:] {
+		if _, ok := safeFuncs[firstToken(stage)]; ok {
 			return true
 		}
+	}
 
-		if _, ok := blockOrSinkFuncs[tok]; ok {
+	return false
+}
+
+// pipelineIsSafe reports whether the value emitted directly by this action needs no
+// explicit quote — either because a stage emits a YAML-safe scalar (pipelineHasSafeFunc)
+// or because the value is placed as a block / never emitted (see blockOrSinkFuncs), in
+// which case quoting is impossible or meaningless.
+//
+// blockOrSinkFuncs only exempts a value flowing directly into the pipeline. For an
+// include/template argument the value is emitted inside the callee (see checkInclude),
+// where an outer nindent/indent re-indents but does not quote it, so that path uses
+// pipelineHasSafeFunc instead.
+func pipelineIsSafe(inner string) bool {
+	if pipelineHasSafeFunc(inner) {
+		return true
+	}
+
+	for _, stage := range splitPipeline(inner)[1:] {
+		if _, ok := blockOrSinkFuncs[firstToken(stage)]; ok {
 			return true
 		}
 	}
