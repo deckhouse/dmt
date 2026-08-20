@@ -1,5 +1,5 @@
 description: >
-  .helmignore lists directories without trailing slash (hooks, images).
+  .helmignore lists directories without a trailing slash (hooks, openapi, docs).
   The rule must recognise these patterns as covering the directories.
   No errors expected.
 module: module

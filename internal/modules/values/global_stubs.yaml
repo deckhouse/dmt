@@ -6,8 +6,24 @@
 global:
   # https.mode below is CertManager, and deckhouse_lib_helm fails a module that
   # inherits it unless cert-manager is enabled — keep the two consistent.
+  # The rest are modules commonly gated on with
+  # `has "<name>" .Values.global.enabledModules`, kept enabled so those guards
+  # pass during the offline render (vertical-pod-autoscaler, the managed-services
+  # data stores, and operator-postgres).
   enabledModules:
     - cert-manager
+    - vertical-pod-autoscaler
+    - managed-cassandra
+    - managed-clickhouse
+    - managed-hive-metastore
+    - managed-kafka
+    - managed-memcached
+    - managed-opensearch
+    - managed-postgres
+    - managed-starrocks
+    - managed-trino
+    - managed-valkey
+    - operator-postgres
   clusterIsBootstrapped: true
   highAvailability: false
   defaultClusterStorageClass: ""

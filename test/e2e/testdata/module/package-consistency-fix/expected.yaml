@@ -27,3 +27,9 @@ expect:
     rule: readme
     level: error
     textContains: "README.md file is missing in docs/ directory"
+# The case's own rule: the module-package-consistency divergences (name/deckhouse/
+# modules) are all auto-fixable, so after --fix none remain. Names the rule the
+# case is about rather than relying on `exhaustive` alone.
+expectAbsent:
+  - linter: module
+    rule: module-package-consistency

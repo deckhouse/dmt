@@ -32,17 +32,23 @@ import (
 	dmtErrors "github.com/deckhouse/dmt/pkg/errors"
 )
 
-// RunRender strictly renders the module's chart through nelm's public
-// action.ChartRender and stores the resulting objects for the linters. Strict
-// rendering mirrors how deckhouse-controller installs the module: a template error
-// fails the whole render, so the module is reported rather than half-linted. Image
-// references resolve from dmt's value stubs (global.modulesImages, scanned from
-// images/).
+// RunRender renders the module's chart through nelm's public action.ChartRender
+// and stores the resulting objects for the linters. The render is tolerant per
+// template (see render.Render): a template that aborts — an intentional `fail`, or
+// a `required` on a value dmt cannot supply offline — is dropped and reported as a
+// non-fatal warning, so the rest of the chart is still stored and linted. Only a
+// render error that cannot be localized to a droppable template fails module
+// creation. Image references resolve from dmt's value stubs (global.modulesImages,
+// scanned from images/).
 func RunRender(m *Module, vals chartutil.Values, objectStore *storage.UnstructuredObjectStore, errorList *dmtErrors.LintRuleErrorsList) error {
 	objects, err := render.Render(context.Background(), m.GetNamespace(), m.GetName(), render.Options{
 		Path:             m.GetPath(),
 		Values:           vals,
 		ExtraAPIVersions: render.ExtraAPIVersions(),
+		OnDrop: func(templatePath, cause string) {
+			errorList.WithModule(m.GetName()).WithFilePath(templatePath).WithValue(cause).
+				Warnf("template %q failed to render and was skipped; the rest of the chart was still linted", templatePath)
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("helm chart render: %w", err)

@@ -1,0 +1,16 @@
+{{- /*
+  Mirrors a real module template (commander/templates/postgres.yaml) that aborts
+  rendering unless operator-postgres is enabled. operator-postgres is a standard
+  dmt-enabled module (global-openapi/values.yaml -> enabledModules x-dmt-default),
+  so this guard passes during a dmt lint and the ConfigMap renders and is linted —
+  it is NOT dropped.
+*/ -}}
+{{- if not (has "operator-postgres" .Values.global.enabledModules) }}
+  {{- fail "operator-postgres module is required for internal postgres mode" }}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: commander-postgres
+  namespace: d8-commander
+data: {}

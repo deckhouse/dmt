@@ -3,4 +3,9 @@ description: >
   because they are built-in excluded system paths. /etc/app is in
   the template, so no warnings at all.
 module: module
-expect: []
+# All mount paths are built-in-excluded (/sys, /dev, /proc) and the declared
+# /etc/app is used, so the templates mount-points rule must stay silent. The rule
+# provably fires elsewhere (templates/mount-points-files), so this guard is live.
+expectPass:
+  - linter: templates
+    rule: mount-points
