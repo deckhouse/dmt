@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2e-yaml-hazards-truncation
+  namespace: e2e-yaml-hazards
+data:
+  # FLAGGED: unquoted value containing ` #` -> the part after it is parsed as a YAML
+  # comment and silently dropped (verified: only `visible` survives).
+  field: {{ .Values.e2eYamlHazards.truncHash }}

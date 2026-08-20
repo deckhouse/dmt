@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2e-yaml-hazards-doc-end
+  namespace: e2e-yaml-hazards
+data:
+  # FLAGGED: unquoted value carrying `\n...\n` -> the doc-end marker truncates everything
+  # below it (the `dropped` field silently disappears from the rendered manifest).
+  field: {{ .Values.e2eYamlHazards.docEnd }}
+  dropped: this-field-is-truncated-away

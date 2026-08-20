@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2e-yaml-injection-safe
+  namespace: e2e-yaml-injection
+data:
+  # SAFE: the same dangerous value, piped through quote -> the `\n---\n` payload is
+  # escaped and stays inside the scalar, so no rogue document is injected. For a
+  # multi-line value only `| quote` is a correct fix; a raw double-quote wrap would
+  # embed real newlines and produce invalid YAML.
+  scalarQuoted: {{ .Values.e2eYamlInjection.injectedScalar | quote }}
+  # SAFE: a value used only through quote -> never injectable.
+  mitigated: {{ .Values.e2eYamlInjection.mitigatedScalar | quote }}
+  # SAFE: constrained by a pattern that forbids newlines and `---`, so injection is
+  # impossible per schema and quoting is not required.
+  code: {{ .Values.e2eYamlInjection.safeCode }}
+# SAFE: every array element quoted inside the range.
+safeArgs:
+{{- range .Values.e2eYamlInjection.injectedArgs }}
+  - {{ . | quote }}
+{{- end }}

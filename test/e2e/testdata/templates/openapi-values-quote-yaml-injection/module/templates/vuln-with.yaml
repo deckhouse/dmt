@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2e-yaml-injection-with
+  namespace: e2e-yaml-injection
+data:
+{{- with .Values.e2eYamlInjection.withScalar }}
+  # FLAGGED: unconstrained string scoped by `with`, rendered unquoted -> `\n---\n`
+  # in the value injects a document.
+  scoped: {{ . }}
+{{- end }}

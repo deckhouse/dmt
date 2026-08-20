@@ -1,0 +1,59 @@
+type: object
+# Each property below is an unconstrained OpenAPI string (no pattern/enum/format) whose
+# default is a different YAML-injection payload. Rendered UNQUOTED every one of them is a
+# hazard; the openapi-values-quote rule must flag each, and stay silent when it is quoted
+# or pattern-constrained. The payloads here all render to VALID YAML (so the module loads
+# and the rule can be asserted) — the harm is a wrong structure or a silently changed
+# type, verified against dmt's real render. Payloads that instead make the document
+# unparseable are documented in README.md as a known e2e limitation, not covered here.
+properties:
+  # STRUCTURAL: `\n...\n` document-end marker truncates the rest of the document.
+  docEnd:
+    type: string
+    default: "legit\n...\n"
+  # STRUCTURAL: `\n  key: val` (indented to match the field) injects a sibling key into
+  # the current mapping — no new document needed. Verified: adds `injected: pwned`.
+  keyInject:
+    type: string
+    default: "legit\n  injected: pwned"
+  # TYPE COERCION: `no` parses as boolean false (the "Norway problem").
+  coerceBool:
+    type: string
+    default: "no"
+  # TYPE COERCION: `0755` parses as an octal integer (493).
+  coerceOctal:
+    type: string
+    default: "0755"
+  # TYPE COERCION: `~` parses as null.
+  coerceNull:
+    type: string
+    default: "~"
+  # TRUNCATION: everything after ` #` is treated as a comment and silently dropped.
+  truncHash:
+    type: string
+    default: "visible # hidden-secret"
+  # TYPE CHANGE: a leading `[` starts a flow sequence -> the string becomes a list.
+  flowSeq:
+    type: string
+    default: "[a, b]"
+  # TYPE CHANGE: a leading `{` starts a flow mapping -> the string becomes a map.
+  flowMap:
+    type: string
+    default: "{a: b}"
+  # INDICATOR: a leading `!` is read as a YAML tag; verified the value renders empty.
+  tagBang:
+    type: string
+    default: "!badtag"
+  # INDICATOR: a leading `&` is read as an anchor definition; verified it is stripped.
+  anchorAmp:
+    type: string
+    default: "&anchor kept"
+  # SAFE (mitigated at use site): a dangerous value used only through `| quote`.
+  safeQuoted:
+    type: string
+    default: "legit\n---\nkind: Secret"
+  # SAFE (constrained by schema): a pattern that forbids every hazardous character.
+  safePattern:
+    type: string
+    pattern: '^[a-z]+$'
+    default: safe

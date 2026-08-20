@@ -1,0 +1,13 @@
+description: >
+  Negative control for the `\n---\n` YAML document-separator injection scenario. The
+  module holds the same dangerous unconstrained strings (each default carries a
+  newline + `---` + newline payload) but every template usage neutralises them —
+  `| quote` on the scalar, nested field, `with`-scoped value, array elements and the
+  array-of-objects `host` subfield, plus a `pattern`-constrained value used bare. A
+  correctly hardened module must produce NO openapi-values-quote findings (no false
+  positives), and the render must not emit any injected document.
+module: module
+expectPass:
+  # the rule must be completely silent on a module that quotes/constrains every value
+  - linter: templates
+    rule: openapi-values-quote

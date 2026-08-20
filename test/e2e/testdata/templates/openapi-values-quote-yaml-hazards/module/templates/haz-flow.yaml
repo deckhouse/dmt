@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2e-yaml-hazards-flow
+  namespace: e2e-yaml-hazards
+data:
+  # FLAGGED: unquoted value beginning with `[` -> parsed as a flow sequence (list),
+  # changing the value's type from string to array.
+  asSeq: {{ .Values.e2eYamlHazards.flowSeq }}
+  # FLAGGED: unquoted value beginning with `{` -> parsed as a flow mapping (object).
+  asMap: {{ .Values.e2eYamlHazards.flowMap }}
