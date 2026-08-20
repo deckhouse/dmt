@@ -4,3 +4,9 @@ description: >
   semver-compatibility warning must be suppressed, leaving a clean run.
 module: module
 expectClean: true
+# Name the excluded rule explicitly: the sibling oss-version-not-semver produces
+# exactly this finding, so expectPass fails if the exclude stops working.
+expectPass:
+  - linter: module
+    rule: oss
+    textContains: "is not semver-compatible"

@@ -3,4 +3,9 @@ description: >
   because they are built-in excluded system paths, even when
   they are not declared in mount-points.yaml.
 module: module
-expect: []
+# The deployment mounts only built-in-excluded paths (/sys, /dev), so the
+# container mount-points rule must stay silent; expectPass fails the moment a
+# built-in path stops being excluded.
+expectPass:
+  - linter: container
+    rule: mount-points

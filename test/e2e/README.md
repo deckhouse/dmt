@@ -141,6 +141,38 @@ go test ./test/e2e/ -run 'TestE2E/<linter>/<your-case>' -v
 | `templates/registry` | `registry` (global dockercfg without module override) |
 | `templates/enabled-modules` | `enabled-modules` (deprecated `.Values.global.enabledModules | has`) |
 
+### manager (module creation)
+
+These cases exercise how the lint pipeline handles templates that abort the helm
+render. dmt renders offline and cannot reproduce all the cluster state a template
+gates on, so it handles aborts two ways:
+
+1. **Enabled dependencies.** Modules commonly gate rendering on
+   `has "<module>" .Values.global.enabledModules`. dmt seeds `global.enabledModules`
+   with a default set (see `internal/modules/values/global-openapi/values.yaml` ->
+   `enabledModules` `x-dmt-default`: cert-manager, vertical-pod-autoscaler, the
+   managed-services data stores, operator-postgres, ...), so a guard on any of those
+   passes and the guarded resource renders and is linted normally.
+
+2. **Tolerant per-template render.** For an abort dmt cannot satisfy — a `fail` on a
+   module NOT in that default set, or a `required` on a value dmt never sets —
+   `render.Render` localizes the abort to the offending manifest template,
+   neutralizes just that one, and re-renders, so the remaining resources are still
+   produced and linted. `NewModule` succeeds and each dropped template is reported as
+   a single non-fatal `manager` **warning** (`template "..." failed to render and was
+   skipped`) rather than the error-level `cannot create module` it used to fail with.
+   An abort that cannot be localized to a droppable manifest template (a failing
+   `_*.tpl` partial, a values/schema error) is a genuine render failure and still
+   surfaces as an error-level `manager` `cannot create module`.
+
+Every fixture ships a valid `service.yaml` whose numeric targetPort trips the
+templates `service-port` rule, proving the chart was rendered AND object-linted.
+
+| Case | Exercises |
+|------|-----------|
+| `manager/enabled-dependency-renders` | `has "operator-postgres"` guard passes because operator-postgres is a standard-enabled module → postgres.yaml renders (no drop, no warn); the Service is object-linted |
+| `manager/helm-render-error-required` | `{{ required }}` (a mandatory value is missing) drops only that template through the same per-template path, with the same `manager` warn; the sibling Service still renders and is object-linted |
+
 ## Running
 
 ```bash

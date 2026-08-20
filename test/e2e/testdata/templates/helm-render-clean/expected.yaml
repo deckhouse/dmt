@@ -1,8 +1,9 @@
 description: >
-  A valid module with renderable templates must pass the helm-render rule
-  without producing any findings. Other linters may produce findings for
-  the minimal module structure, but none from helm-render.
+  A valid module with renderable templates must render cleanly: the templates
+  linter (helm-render and every other templates rule) produces no findings. Other
+  linters may still flag the minimal module structure (definition-file, helmignore,
+  readme). The sibling templates/mount-points-files et al. prove templates rules do
+  fire when warranted, so this expectPass is a live guard.
 module: module
-expectAbsent:
+expectPass:
   - linter: templates
-    rule: helm-render

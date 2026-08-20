@@ -279,7 +279,24 @@ properties:
       - ["cert-manager", "vertical-pod-autoscaler", "vertical-pod-autoscaler-crd", "prometheus", "prometheus-crd", "operator-prometheus", "operator-prometheus-crd"]
       - ["cert-manager", "prometheus", "priority-class"]
     x-dmt-default:
-      ["cert-manager", "vertical-pod-autoscaler", "vertical-pod-autoscaler-crd", "prometheus", "prometheus-crd", "operator-prometheus", "operator-prometheus-crd"]
+      - cert-manager
+      - vertical-pod-autoscaler
+      - vertical-pod-autoscaler-crd
+      - prometheus
+      - prometheus-crd
+      - operator-prometheus
+      - operator-prometheus-crd
+      - managed-cassandra
+      - managed-clickhouse
+      - managed-hive-metastore
+      - managed-kafka
+      - managed-memcached
+      - managed-opensearch
+      - managed-postgres
+      - managed-starrocks
+      - managed-trino
+      - managed-valkey
+      - operator-postgres
   discovery:
     additionalProperties: true
     type: object

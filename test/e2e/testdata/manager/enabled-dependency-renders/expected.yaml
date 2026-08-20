@@ -1,0 +1,20 @@
+description: >
+  A module whose postgres.yaml renders only when operator-postgres is enabled
+  (`{{- if not (has "operator-postgres" .Values.global.enabledModules) }}{{ fail }}`,
+  mirroring the real commander/templates/postgres.yaml). operator-postgres is a
+  standard dmt-enabled module (in the default global.enabledModules x-dmt-default),
+  so the guard passes, postgres.yaml renders, and the whole module is linted — no
+  template is dropped (no `manager` "failed to render and was skipped" warning) and
+  no `cannot create module` / `helm-render` error appears. The sibling Service's
+  numeric targetPort trips templates `service-port`, confirming the chart rendered
+  and was object-linted. This is the fix for `dmt lint` failing with "cannot create
+  module ...: operator-postgres module is required for internal postgres mode".
+module: module
+expect:
+  - linter: templates
+    rule: service-port
+    textContains: "Service port must use a named (non-numeric) target port"
+expectAbsent:
+  - linter: manager
+  - linter: templates
+    rule: helm-render

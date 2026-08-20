@@ -1,0 +1,14 @@
+{{- /*
+  A different render-failure shape than the `fail`-based case: the `required`
+  builtin aborts rendering because a mandatory value is never provided during a
+  dmt lint (the key is absent, so `required` evaluates to an error). dmt drops
+  only this template and renders the rest of the chart (see service.yaml), instead
+  of failing the whole render.
+*/ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: commander-postgres
+  namespace: d8-commander
+data:
+  password: {{ required "postgres password is required for internal postgres mode" .Values.postgresPasswordNeverSet }}
