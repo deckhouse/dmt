@@ -43,6 +43,7 @@ Proper container configuration is critical for cluster stability, security, and 
 | [readiness-probe](#readiness-probe) | Validates readiness probe configuration | ✅ | enabled |
 | [no-new-privileges](#no-new-privileges) | Validates containers don't allow privilege escalation | ✅ | enabled |
 | [seccomp-profile](#seccomp-profile) | Validates seccomp profile configuration | ✅ | enabled |
+| [sys-cgroup-mount](#sys-cgroup-mount) | Requires `/sys/fs/cgroup` when a container mounts the host `/sys` | ✅ | enabled |
 
 "Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
@@ -1899,3 +1900,96 @@ Error: Pod running in hostNetwork and it's container port doesn't fit the range 
              ports:
                - containerPort: 4250  # Within [4200-4299]
    ```
+
+---
+
+### sys-cgroup-mount
+
+**Purpose:** Ensures that a container mounting the host `/sys` also mounts `/sys/fs/cgroup`, so the workload keeps access to cgroup data on a hardened container runtime.
+
+**Description:**
+
+On a hardened containerd (integrity checks and a fully read-only root, as used by the CSE edition) the recursive bind that normally carries the nested `/sys/fs/cgroup` submount along with `/sys` does not apply. A container that reads cgroup data therefore has to mount `/sys/fs/cgroup` explicitly. The extra read-only mount is harmless on ordinary runtimes (there the submount is already present), so declaring it keeps a module portable to the CSE edition by default.
+
+**What it checks:**
+
+The rule is self-scoping — it fires only for containers that actually mount `/sys`. For every such container (in `Deployment`, `DaemonSet`, `StatefulSet`, `Pod`, `Job` or `CronJob`) it requires a matching `/sys/fs/cgroup` volumeMount in the **same** container, because mounts are per-container. Containers that do not mount `/sys` are never touched.
+
+**Why it matters:**
+
+Without the explicit cgroup mount, a workload that relies on cgroup data (metrics/monitoring agents, storage drivers such as ceph/nfs, and similar node-level components) silently passes on an ordinary runtime but breaks on the hardened runtime used by the CSE edition, where the nested mount is not propagated.
+
+**Examples:**
+
+❌ **Incorrect** - mounts `/sys` but not `/sys/fs/cgroup`:
+
+```yaml
+spec:
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: my-image
+          volumeMounts:
+            - name: sys
+              mountPath: /sys
+              readOnly: true
+      volumes:
+        - name: sys
+          hostPath:
+            path: /sys
+```
+
+✅ **Correct** - mounts both:
+
+```yaml
+spec:
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: my-image
+          volumeMounts:
+            - name: sys
+              mountPath: /sys
+              readOnly: true
+            - name: cgroup
+              mountPath: /sys/fs/cgroup
+              readOnly: true
+      volumes:
+        - name: sys
+          hostPath:
+            path: /sys
+        - name: cgroup
+          hostPath:
+            path: /sys/fs/cgroup
+```
+
+> **Warning:** this rule defaults to `warn`, not `error` — a missing cgroup mount only breaks on the hardened (read-only) containerd used by the CSE edition, so it is reported as a portability warning. Set `impact: error` to enforce it as a hard failure.
+
+**Configuration:**
+
+Raise the severity to a hard error (the default is `warn`). Per-rule impact for container rules is set under the `global` section:
+
+```yaml
+# .dmtlint.yaml
+global:
+  linters-settings:
+    container:
+      rules:
+        sys-cgroup-mount:
+          impact: error   # error | warn (default: warn)
+```
+
+Opt a container out of the rule when it is known not to need cgroup data:
+
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  container:
+    exclude-rules:
+      sys-cgroup-mount:
+        - kind: DaemonSet
+          name: network-agent
+          container: agent
+```

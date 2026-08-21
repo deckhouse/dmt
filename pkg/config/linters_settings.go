@@ -71,6 +71,7 @@ type ContainerExcludeRules struct {
 	SecurityContext        ContainerRuleExcludeList `mapstructure:"security-context"`
 	Liveness               ContainerRuleExcludeList `mapstructure:"liveness-probe"`
 	Readiness              ContainerRuleExcludeList `mapstructure:"readiness-probe"`
+	SysCgroupMount         ContainerRuleExcludeList `mapstructure:"sys-cgroup-mount"`
 
 	Description StringRuleExcludeList `mapstructure:"description"`
 	MountPoints StringRuleExcludeList `mapstructure:"mount-points"`

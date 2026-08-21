@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-agent
+  namespace: e2e-sys-cgroup-mount-missing
+spec:
+  selector:
+    matchLabels:
+      app: node-agent
+  template:
+    metadata:
+      labels:
+        app: node-agent
+    spec:
+      containers:
+      - name: agent
+        image: test:latest
+        volumeMounts:
+        - name: sys
+          mountPath: /sys
+          readOnly: true
+      volumes:
+      - name: sys
+        hostPath:
+          path: /sys

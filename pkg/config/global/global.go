@@ -68,6 +68,7 @@ type ContainerRules struct {
 	LivenessRule                 RuleConfig `mapstructure:"liveness-probe"`
 	ReadinessRule                RuleConfig `mapstructure:"readiness-probe"`
 	MountPointsRule              RuleConfig `mapstructure:"mount-points"`
+	SysCgroupMountRule           RuleConfig `mapstructure:"sys-cgroup-mount"`
 }
 
 type ImagesLinterConfig struct {
