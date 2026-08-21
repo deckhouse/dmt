@@ -16,6 +16,7 @@ Proper documentation is critical for Deckhouse modules as it helps users underst
 | [no-lang-key](#no-lang-key) | Validates documentation front matter doesn't contain `lang` key | ✅ | enabled |
 | [markdownlint](#markdownlint) | Validates markdown files in docs/ follow deckhouse markdown style | ✅ | enabled |
 | [size](#size) | Validates the total size of docs/ (excluding docs/internal) does not exceed 15 MB | ✅ | enabled |
+| [front-matter](#front-matter) | Validates that YAML front matter in docs/ markdown files is well-formed | ✅ | enabled |
 
 "Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
@@ -573,6 +574,106 @@ linters-settings:
     rules:
       size:
         impact: warn   # report but do not fail the run (this is the default)
+```
+
+---
+
+### front-matter
+
+**Purpose:** Ensures the YAML front matter of markdown files under `docs/` is well-formed, so a broken front matter is caught at lint time instead of breaking the documentation site build.
+
+**Description:**
+
+The documentation site is rendered (Hugo) from the module's `docs/` tree. A markdown file whose YAML front matter is malformed — a `---` block that is opened but never closed, or invalid YAML between the delimiters — aborts that render. `markdownlint` does not parse front matter as YAML, and `no-lang-key` only looks for a `lang:` key, so a broken front matter is otherwise caught nowhere at lint time and surfaces only later as an opaque site-build failure. This rule parses the front matter of each file and reports a broken one, with its path, up front.
+
+Only files that actually begin with a `---` front matter delimiter (optionally after a UTF-8 BOM) are checked; a file without front matter has nothing to validate and is skipped. A `---` used as a thematic break in the body is not treated as front matter.
+
+Unlike the style/soft `markdownlint` and `size` rules, `front-matter` is a correctness check and reports at `error` **by default** — with one exception: valid YAML between the delimiters that is not a mapping (a bare scalar or sequence) is reported at `warn`, not `error`. That sub-case is the softest, most false-positive-prone signal (an author may have opened `---` for something other than metadata), so it must not fail CI; a syntax error inside the block and an unterminated block stay at `error`.
+
+**What it checks:**
+
+1. Scans `.md` files under `docs/` recursively, excluding the non-rendered `docs/internal/` subtree (the same subtree the `size` rule excludes)
+2. For each file that opens with a `---` delimiter: verifies the block is closed by a matching `---` (unterminated → **error**) and that the content parses as a YAML **mapping** (a syntax error → **error**; valid YAML that is not a mapping, e.g. a bare scalar or sequence → **warn**, since Hugo needs key: value metadata)
+
+**Why it matters:**
+
+1. **Shift-left detection**: a broken front matter is caught in the module's own CI, not at site-build time
+2. **Clear diagnostics**: the finding names the exact file, instead of an opaque render error
+3. **Documentation reliability**: keeps the documentation site building for every module
+
+**Examples:**
+
+❌ **Incorrect** - unterminated front matter (the `---` block is never closed):
+
+```markdown
+---
+title: "Broken module"
+description: this front matter block is never closed
+
+# Broken module
+```
+
+**Error:**
+```
+unterminated YAML front matter: the block opened by "---" on line 1 is never closed by a matching "---"
+File: docs/README.md
+```
+
+❌ **Incorrect** - invalid YAML between the delimiters:
+
+```markdown
+---
+title: "unterminated
+---
+
+# Heading
+```
+
+**Error:**
+```
+invalid YAML front matter:
+  ...
+File: docs/README.md
+```
+
+⚠️ **Warning** (not an error) - valid YAML that is not a mapping (Hugo needs key: value metadata):
+
+```markdown
+---
+just a plain sentence
+---
+
+# Heading
+```
+
+**Warning:**
+```
+front matter between "---" delimiters must be a YAML mapping (key: value metadata), got string
+File: docs/README.md
+```
+
+✅ **Correct** - well-formed front matter:
+
+```markdown
+---
+title: "OK module"
+description: a valid, properly closed front matter block
+---
+
+# OK module
+```
+
+**Configuration:**
+
+`front-matter` reports at `error` by default. A per-rule impact override is read only from the global layer:
+```yaml
+# .dmtlint.yaml
+global:
+  linters-settings:
+    documentation:
+      rules:
+        front-matter:
+          impact: error   # error | warn (default: error)
 ```
 
 ---

@@ -1,0 +1,7 @@
+description: >
+  A doc-ru- translation file with valid YAML must NOT be flagged by the
+  doc-ru-yaml rule.
+module: module
+expectAbsent:
+  - linter: openapi
+    rule: doc-ru-yaml

@@ -1,0 +1,10 @@
+description: >
+  A docs/ markdown file whose "---" block contains valid YAML that is not a
+  mapping (a bare scalar) must be reported by the front-matter rule at warn
+  level, not error: this softest, false-positive-prone sub-case must not fail CI.
+module: module
+expect:
+  - linter: documentation
+    rule: front-matter
+    level: warn
+    textContains: 'must be a YAML mapping'

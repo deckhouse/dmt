@@ -99,6 +99,7 @@ type DocumentationRules struct {
 	NoLangKeyRule          RuleConfig `mapstructure:"no-lang-key"`
 	MarkdownlintRule       RuleConfig `mapstructure:"markdownlint"`
 	SizeRule               RuleConfig `mapstructure:"size"`
+	FrontMatterRule        RuleConfig `mapstructure:"front-matter"`
 }
 
 type OpenAPILinterConfig struct {
@@ -108,6 +109,7 @@ type OpenAPILinterConfig struct {
 
 type OpenAPIRules struct {
 	BilingualRule RuleConfig `mapstructure:"bilingual"`
+	DocRuYAMLRule RuleConfig `mapstructure:"doc-ru-yaml"`
 }
 
 type ModuleLinterConfig struct {
