@@ -296,6 +296,16 @@ func mapContainerRules(linterSettings *pkg.LintersSettings, configSettings *conf
 		globalConfig.Container.Rules.MountPointsRule.Impact,
 		configSettings.Container.Impact,
 	)
+	// sys-cgroup-mount defaults to warn: a container that mounts /sys but not
+	// /sys/fs/cgroup only breaks on a hardened (read-only) containerd such as the
+	// CSE edition, so a missing cgroup mount is a portability warning rather than
+	// an error. A per-rule impact in config still overrides this default. warn is
+	// passed explicitly because the container linter fallback impact
+	// (configSettings.Container.Impact) defaults to "error".
+	linterSettings.Container.Rules.SysCgroupMountRule.SetLevel(
+		globalConfig.Container.Rules.SysCgroupMountRule.Impact,
+		pkg.Warn.String(),
+	)
 }
 
 // mapImageRules configures Image linter rules
@@ -364,6 +374,13 @@ func mapTemplatesRules(linterSettings *pkg.LintersSettings, configSettings *conf
 	rules.ClusterDomainRule.SetLevel(globalRules.ClusterDomainRule.Impact, fallbackImpact)
 	rules.RegistryRule.SetLevel(globalRules.RegistryRule.Impact, fallbackImpact)
 	rules.EnabledModulesRule.SetLevel(globalRules.EnabledModulesRule.Impact, fallbackImpact)
+
+	// crd-enabled-modules defaults to warn: the "-crd" tokens still resolve via a
+	// backward-compatibility shim, so a deprecated reference is a warning rather than
+	// an error. A per-rule impact in config still overrides this default. warn is
+	// passed explicitly because the linter fallback impact defaults to "error".
+	rules.CRDEnabledModulesRule.SetLevel(globalRules.CRDEnabledModulesRule.Impact, pkg.Warn.String())
+
 	rules.MountPointsRule.SetLevel(globalRules.MountPointsRule.Impact, fallbackImpact)
 	rules.WebhookConfigurationRule.SetLevel(globalRules.WebhookConfigurationRule.Impact, fallbackImpact)
 	rules.HelmRenderRule.SetLevel(globalRules.HelmRenderRule.Impact, fallbackImpact)
@@ -435,6 +452,7 @@ func mapContainerExclusions(linterSettings *pkg.LintersSettings, configSettings 
 	excludes.Readiness = configExcludes.Readiness.Get()
 	excludes.SeccompProfile = configExcludes.SeccompProfile.Get()
 	excludes.NoNewPrivileges = configExcludes.NoNewPrivileges.Get()
+	excludes.SysCgroupMount = configExcludes.SysCgroupMount.Get()
 	excludes.Description = pkg.StringRuleExcludeList(configExcludes.Description)
 	excludes.MountPoints = pkg.StringRuleExcludeList(configExcludes.MountPoints)
 }

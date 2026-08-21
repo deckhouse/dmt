@@ -1,0 +1,8 @@
+name: e2e-crd-enabled-modules-below
+namespace: e2e-crd-enabled-modules-below
+weight: 910
+descriptions:
+  en: "Module used to verify the crd-enabled-modules version gate (Deckhouse >= 1.64)"
+  ru: "Модуль для проверки версионного гейта crd-enabled-modules (Deckhouse >= 1.64)"
+requirements:
+  deckhouse: ">= 1.64"

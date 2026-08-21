@@ -1,0 +1,7 @@
+description: >
+  A container that mounts both /sys and /sys/fs/cgroup must NOT be flagged by the
+  sys-cgroup-mount rule.
+module: module
+expectAbsent:
+  - linter: container
+    rule: sys-cgroup-mount

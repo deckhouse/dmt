@@ -96,6 +96,10 @@ func (l *Container) applyContainerRules(object storage.StoreObject, storageMap m
 			rules.NewMountPointsRule(l.cfg.ExcludeRules.MountPoints.Get(), l.modulePath).
 				CheckMountPaths(object, containers, errorList.WithMaxLevel(l.cfg.Rules.MountPointsRule.GetLevel()))
 		},
+		func(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
+			rules.NewSysCgroupMountRule(l.cfg.ExcludeRules.SysCgroupMount.Get()).
+				CheckSysCgroupMount(object, containers, errorList.WithMaxLevel(l.cfg.Rules.SysCgroupMountRule.GetLevel()))
+		},
 	}
 
 	for _, rule := range containerRules {

@@ -144,6 +144,7 @@ type TemplatesLinterRules struct {
 	RegistryRule             RuleConfig
 	HTTPRouteRule            RuleConfig
 	EnabledModulesRule       RuleConfig
+	CRDEnabledModulesRule    RuleConfig
 	WebhookConfigurationRule RuleConfig
 	MountPointsRule          RuleConfig
 	HelmRenderRule           RuleConfig
@@ -354,6 +355,7 @@ type ContainerLinterRules struct {
 	LivenessRule                 RuleConfig
 	ReadinessRule                RuleConfig
 	MountPointsRule              RuleConfig
+	SysCgroupMountRule           RuleConfig
 }
 
 type ContainerExcludeRules struct {
@@ -373,6 +375,7 @@ type ContainerExcludeRules struct {
 	SecurityContext        ContainerRuleExcludeList
 	Liveness               ContainerRuleExcludeList
 	Readiness              ContainerRuleExcludeList
+	SysCgroupMount         ContainerRuleExcludeList
 
 	Description StringRuleExcludeList
 	MountPoints StringRuleExcludeList

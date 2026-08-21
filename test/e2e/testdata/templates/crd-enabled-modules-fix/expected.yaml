@@ -1,0 +1,10 @@
+description: >
+  Running the lint pipeline with --fix on the same in-scope module as the
+  crd-enabled-modules case rewrites `has "operator-prometheus-crd"` to
+  `has "operator-prometheus"`, so the crd-enabled-modules finding is resolved by the
+  autofix and no longer reported.
+kind: fix
+module: module
+expectAbsent:
+  - linter: templates
+    rule: crd-enabled-modules

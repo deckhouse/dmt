@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-agent
+  namespace: e2e-sys-cgroup-mount-ok
+spec:
+  selector:
+    matchLabels:
+      app: node-agent
+  template:
+    metadata:
+      labels:
+        app: node-agent
+    spec:
+      containers:
+      - name: agent
+        image: test:latest
+        volumeMounts:
+        - name: sys
+          mountPath: /sys
+          readOnly: true
+        - name: cgroup
+          mountPath: /sys/fs/cgroup
+          readOnly: true
+      volumes:
+      - name: sys
+        hostPath:
+          path: /sys
+      - name: cgroup
+        hostPath:
+          path: /sys/fs/cgroup
