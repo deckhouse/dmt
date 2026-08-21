@@ -338,6 +338,10 @@ func mapDocumentationRules(linterSettings *pkg.LintersSettings, configSettings *
 	// impact (fallbackImpact) is intentionally NOT used as the fallback here, so
 	// only an explicit rule-level size impact overrides the warn default.
 	rules.SizeRule.SetLevel(globalRules.SizeRule.Impact, pkg.Warn.String())
+	// front-matter is a correctness check (a broken front matter aborts the docs
+	// render), so it defaults to error via fallbackImpact — unlike the style/soft
+	// markdownlint and size rules above. A per-rule impact in config still overrides.
+	rules.FrontMatterRule.SetLevel(globalRules.FrontMatterRule.Impact, fallbackImpact)
 }
 
 func mapModuleRules(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings, globalConfig *global.Linters) {
@@ -393,6 +397,10 @@ func mapOpenAPIRules(linterSettings *pkg.LintersSettings, configSettings *config
 	fallbackImpact := configSettings.OpenAPI.Impact
 
 	rules.BilingualRule.SetLevel(globalRules.BilingualRule.Impact, fallbackImpact)
+	// doc-ru-yaml is a correctness check (a syntactically broken translation file
+	// aborts the docs render), so it defaults to error via fallbackImpact, matching
+	// the base-file YAML validation. A per-rule impact in config still overrides.
+	rules.DocRuYAMLRule.SetLevel(globalRules.DocRuYAMLRule.Impact, fallbackImpact)
 }
 
 // mapSimpleLinterRules configures rules that use linter-level impact without global overrides

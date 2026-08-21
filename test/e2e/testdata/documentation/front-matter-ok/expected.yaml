@@ -1,0 +1,7 @@
+description: >
+  A docs/ markdown file with a valid, properly closed YAML front matter block
+  must NOT be flagged by the front-matter rule.
+module: module
+expectAbsent:
+  - linter: documentation
+    rule: front-matter

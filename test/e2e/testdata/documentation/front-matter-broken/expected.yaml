@@ -1,0 +1,10 @@
+description: >
+  A docs/ markdown file whose YAML front matter block is opened but never closed
+  must be flagged by the documentation front-matter rule, so the broken file is
+  caught at lint time instead of only breaking the documentation site build.
+module: module
+expect:
+  - linter: documentation
+    rule: front-matter
+    level: error
+    textContains: 'front matter'

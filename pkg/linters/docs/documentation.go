@@ -48,6 +48,8 @@ func (l *Documentation) Run(m *modules.Module) {
 	rules.NewMarkdownRule().CheckFiles(m, errorList.WithMaxLevel(l.cfg.Rules.MarkdownlintRule.GetLevel()))
 
 	rules.NewSizeRule().CheckSize(m, errorList.WithMaxLevel(l.cfg.Rules.SizeRule.GetLevel()))
+
+	rules.NewFrontMatterRule().CheckFiles(m, errorList.WithMaxLevel(l.cfg.Rules.FrontMatterRule.GetLevel()))
 }
 
 func (l *Documentation) Name() string {

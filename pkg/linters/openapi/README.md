@@ -15,6 +15,7 @@ Proper OpenAPI schema validation is critical for module configuration, ensuring 
 | [keys](#keys) | Validates property names don't use banned names | ✅ | enabled |
 | [deckhouse-crds](#deckhouse-crds) | Validates Deckhouse CRD structure and metadata | ✅ | enabled |
 | [bilingual](#bilingual) | Validates translation files (`doc-ru-`) exist for OpenAPI and CRD files | ✅ | enabled |
+| [doc-ru-yaml](#doc-ru-yaml) | Validates that `doc-ru-` translation files are syntactically valid YAML | ✅ | enabled |
 
 "Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
@@ -682,6 +683,70 @@ crds/
 linters-settings:
   openapi:
     impact: error  # Controls the impact level for all openapi rules including bilingual
+```
+
+---
+
+### doc-ru-yaml
+
+**Purpose:** Ensures that `doc-ru-` translation files in `openapi/` and `crds/` are syntactically valid YAML, catching a broken translation at lint time instead of when the documentation site is built from the released module.
+
+**Description:**
+
+`doc-ru-` files are documentation-only Russian translations and are deliberately excluded from the `enum`, `high-availability`, `keys` and `deckhouse-crds` parsing. As a result their YAML syntax is validated nowhere else: a broken `doc-ru-` file passes module linting and only fails much later, as an opaque failure when the documentation site is rendered. This rule closes that gap by parsing every `doc-ru-` file and reporting a syntactically broken one, with its path, up front.
+
+The file is decoded as a YAML **mapping**, exactly like its base file (`internal/openapi` `getFileYAMLContent`): a syntax error, or valid YAML that is not a mapping (a bare scalar or sequence between the delimiters), is reported. Deeper structural expectations belong to the base file's own rules.
+
+**What it checks:**
+
+1. Scans all `doc-ru-*.yaml` / `doc-ru-*.yml` files in `openapi/` and `crds/` (test files `*-tests.yaml` are skipped)
+2. Parses each one as a YAML mapping and reports a violation when parsing fails (syntax error, tab indentation, duplicate key) or when the result is valid YAML but not a mapping (a bare scalar or sequence), which the documentation build cannot consume as a `doc-ru-` overlay
+
+**Why it matters:**
+
+1. **Shift-left detection**: a broken translation is caught in the module's own CI, not at site-build time
+2. **Clear diagnostics**: the finding names the exact file, instead of an opaque documentation build error
+3. **Documentation reliability**: keeps the rendered documentation site building for every module
+
+**Examples:**
+
+❌ **Incorrect** - broken `doc-ru-` YAML:
+
+```yaml
+# openapi/doc-ru-config-values.yaml
+type: object
+properties:
+  foo:
+    description: 'this single-quoted value is never closed
+```
+
+**Error:**
+```
+Error: doc-ru file is not valid YAML:
+  ...
+```
+
+✅ **Correct** - valid `doc-ru-` YAML:
+
+```yaml
+# openapi/doc-ru-config-values.yaml
+type: object
+properties:
+  foo:
+    description: "Описание параметра foo"
+```
+
+**Configuration:**
+
+`doc-ru-yaml` reports at the openapi linter's impact level (`error` by default), matching the base-file YAML validation. A per-rule impact override is read only from the global layer:
+```yaml
+# .dmtlint.yaml
+global:
+  linters-settings:
+    openapi:
+      rules:
+        doc-ru-yaml:
+          impact: error   # error | warn (default: error)
 ```
 
 ---

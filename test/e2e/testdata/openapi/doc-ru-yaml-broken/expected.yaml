@@ -1,0 +1,11 @@
+description: >
+  A doc-ru- translation file with broken YAML syntax must be flagged by the
+  openapi doc-ru-yaml rule. doc-ru- files are excluded from the enum/ha/keys
+  parsing, so this rule is the only place their syntax is validated before the
+  module is released and rendered into the documentation site.
+module: module
+expect:
+  - linter: openapi
+    rule: doc-ru-yaml
+    level: error
+    textContains: 'not valid YAML'

@@ -89,6 +89,7 @@ type DocumentationLinterRules struct {
 	NoLangKeyRule         RuleConfig
 	MarkdownlintRule      RuleConfig
 	SizeRule              RuleConfig
+	FrontMatterRule       RuleConfig
 }
 
 type NoCyrillicLinterConfig struct {
@@ -116,6 +117,7 @@ type OpenAPILinterRules struct {
 	CRDsRule      RuleConfig
 	KeysRule      RuleConfig
 	BilingualRule RuleConfig
+	DocRuYAMLRule RuleConfig
 }
 
 type OpenAPIExcludeRules struct {

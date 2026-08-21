@@ -78,6 +78,15 @@ func (o *OpenAPI) Run(m *modules.Module) {
 	for _, file := range bilingualCRDFiles(m.GetPath()) {
 		bilingualValidator.Run(file, bilingualErrorList)
 	}
+
+	// doc-ru- YAML syntax check: doc-ru- files are excluded from the enum/ha/keys
+	// parsing above, so this is the only place their YAML syntax is validated.
+	docRuErrorList := errorLists.WithMaxLevel(o.cfg.Rules.DocRuYAMLRule.GetLevel())
+	docRuValidator := rules.NewDocRuYAMLRule(o.cfg, m.GetPath())
+
+	for _, file := range fsutils.GetFiles(m.GetPath(), true, filterDocRuYAMLfiles) {
+		docRuValidator.Run(file, docRuErrorList)
+	}
 }
 
 func (o *OpenAPI) Name() string {
@@ -120,6 +129,21 @@ func filterCRDsfiles(rootPath, path string) bool {
 	}
 
 	return crdsYamlRegex.MatchString(path)
+}
+
+var docRuYamlRegex = regexp.MustCompile(`^(openapi|crds)/doc-ru-.*\.ya?ml$`)
+
+// filterDocRuYAMLfiles selects doc-ru- translation files under openapi/ and crds/.
+// These are the files the openapi/crds parsing above deliberately skips, so their
+// YAML syntax is validated by the doc-ru-yaml rule instead.
+func filterDocRuYAMLfiles(rootPath, path string) bool {
+	path = fsutils.Rel(rootPath, path)
+
+	if strings.HasSuffix(filepath.Base(path), "-tests.yaml") {
+		return false
+	}
+
+	return docRuYamlRegex.MatchString(path)
 }
 
 func bilingualCRDFiles(rootPath string) []string {
