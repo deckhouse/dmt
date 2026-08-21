@@ -1,0 +1,8 @@
+description: >
+  A module openapi schema with a well-formed x-deckhouse-validations block (a list
+  of {expression, message} entries whose expressions compile as CEL over self /
+  oldSelf) must NOT be flagged by the deckhouse-validations rule.
+module: module
+expectAbsent:
+  - linter: openapi
+    rule: deckhouse-validations

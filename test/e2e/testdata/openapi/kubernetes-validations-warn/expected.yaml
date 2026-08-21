@@ -1,0 +1,12 @@
+description: >
+  x-kubernetes-validations placed in a module openapi schema is ignored by
+  deckhouse-controller (which validates module config via x-deckhouse-validations),
+  so it is almost always a mix-up and must be flagged by the deckhouse-validations
+  rule. In crds/ the same key is a legitimate, API-server-honored construct and is
+  intentionally not checked (this case only covers openapi/).
+module: module
+expect:
+  - linter: openapi
+    rule: deckhouse-validations
+    level: warn
+    textContains: 'x-kubernetes-validations'

@@ -108,8 +108,9 @@ type OpenAPILinterConfig struct {
 }
 
 type OpenAPIRules struct {
-	BilingualRule RuleConfig `mapstructure:"bilingual"`
-	DocRuYAMLRule RuleConfig `mapstructure:"doc-ru-yaml"`
+	BilingualRule            RuleConfig `mapstructure:"bilingual"`
+	DocRuYAMLRule            RuleConfig `mapstructure:"doc-ru-yaml"`
+	DeckhouseValidationsRule RuleConfig `mapstructure:"deckhouse-validations"`
 }
 
 type ModuleLinterConfig struct {
