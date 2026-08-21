@@ -112,12 +112,13 @@ type OpenAPILinterConfig struct {
 	ExcludeRules OpenAPIExcludeRules
 }
 type OpenAPILinterRules struct {
-	EnumRule      RuleConfig
-	HARule        RuleConfig
-	CRDsRule      RuleConfig
-	KeysRule      RuleConfig
-	BilingualRule RuleConfig
-	DocRuYAMLRule RuleConfig
+	EnumRule                 RuleConfig
+	HARule                   RuleConfig
+	CRDsRule                 RuleConfig
+	KeysRule                 RuleConfig
+	BilingualRule            RuleConfig
+	DocRuYAMLRule            RuleConfig
+	DeckhouseValidationsRule RuleConfig
 }
 
 type OpenAPIExcludeRules struct {

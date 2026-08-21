@@ -16,6 +16,7 @@ Proper OpenAPI schema validation is critical for module configuration, ensuring 
 | [deckhouse-crds](#deckhouse-crds) | Validates Deckhouse CRD structure and metadata | ✅ | enabled |
 | [bilingual](#bilingual) | Validates translation files (`doc-ru-`) exist for OpenAPI and CRD files | ✅ | enabled |
 | [doc-ru-yaml](#doc-ru-yaml) | Validates that `doc-ru-` translation files are syntactically valid YAML | ✅ | enabled |
+| [deckhouse-validations](#deckhouse-validations) | Validates `x-deckhouse-validations` CEL blocks and flags misplaced `x-kubernetes-validations` in `openapi/` schemas | ✅ | enabled |
 
 "Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
@@ -747,6 +748,85 @@ global:
       rules:
         doc-ru-yaml:
           impact: error   # error | warn (default: error)
+```
+
+---
+
+### deckhouse-validations
+
+**Purpose:** Validates the CEL-validation extensions inside a module's `openapi/` schemas — `x-deckhouse-validations` blocks and misplaced `x-kubernetes-validations` keys — catching a malformed block at lint time instead of at runtime, when the module config is applied on a cluster.
+
+**Description:**
+
+`x-deckhouse-validations` is a Deckhouse OpenAPI extension that carries [CEL](https://github.com/google/cel-spec) validation rules for a module's `config-values` / `values`. It is consumed **only** by `deckhouse-controller` when it validates the module configuration (see `deckhouse/deckhouse` `deckhouse-controller/internal/packages/values/schema/cel`), so none of the other openapi rules look at it. A block with the wrong shape — not a list, an entry missing `expression`/`message`, or an expression that is not a valid CEL program — therefore passes module linting and only fails later, at runtime, often with an opaque message. This rule checks the same invariants the controller enforces, up front and with the exact path of the offending block.
+
+The rule is scoped to `openapi/` schemas. In `crds/`, `x-kubernetes-validations` is a legitimate construct honored natively by the Kubernetes API server, so it is intentionally **not** flagged there — only in `openapi/`, where the controller ignores it.
+
+**What it checks:**
+
+1. Scans every `openapi/` schema (the same files the `enum`/`high-availability` rules parse; `*-tests.yaml` and `doc-ru-*` are skipped) and walks it recursively, so nested `x-deckhouse-validations` (e.g. under `properties.<name>`) are checked at any depth.
+2. For each `x-deckhouse-validations` block: it must be a **non-empty list**; each entry must be a **non-empty mapping** with a **non-empty string** `expression` and a **non-empty string** `message`; and each `expression` must **compile as a CEL program** in the same environment the controller uses — the variables `self` and `oldSelf` (transition/immutability rules) declared with the dynamic type. An expression accepted here is accepted by the controller.
+3. Any `x-kubernetes-validations` key found in an `openapi/` schema is flagged as almost certainly a mix-up for `x-deckhouse-validations` (the controller does not honor it there).
+
+> **Note:** expressions are checked for *compilation* only. Because `self`/`oldSelf` are dynamically typed at lint time (the concrete values are unknown), the rule does not statically assert that an expression evaluates to a boolean; that remains a runtime check in the controller.
+
+**Severity:**
+
+All findings of this rule are currently emitted at **`warn`** during the migration period, while modules are brought into line; the structural/CEL checks are intended to become errors afterwards. A per-rule impact override is read only from the global layer:
+
+```yaml
+# .dmtlint.yaml
+global:
+  linters-settings:
+    openapi:
+      rules:
+        deckhouse-validations:
+          impact: warn   # error | warn (default: error; findings currently emitted at warn)
+```
+
+**Examples:**
+
+❌ **Incorrect** — expression is not a valid CEL program:
+
+```yaml
+# openapi/config-values.yaml
+type: object
+properties:
+  replicas:
+    type: integer
+x-deckhouse-validations:
+  - expression: "self.replicas >"     # syntax error
+    message: "replicas must be >= 1"
+```
+
+❌ **Incorrect** — `x-kubernetes-validations` used where the controller expects `x-deckhouse-validations`:
+
+```yaml
+# openapi/config-values.yaml
+type: object
+properties:
+  replicas:
+    type: integer
+x-kubernetes-validations:             # ignored here; use x-deckhouse-validations
+  - rule: "self.replicas >= 1"
+    message: "replicas must be >= 1"
+```
+
+✅ **Correct** — a well-formed block (a plain rule and an immutability/transition rule):
+
+```yaml
+# openapi/config-values.yaml
+type: object
+properties:
+  mode:
+    type: string
+  direct:
+    type: object
+x-deckhouse-validations:
+  - expression: "self.mode == 'Direct' ? has(self.direct) : true"
+    message: "when mode is 'Direct', 'direct' section must be specified"
+  - expression: "self.mode == oldSelf.mode"
+    message: "mode is immutable"
 ```
 
 ---

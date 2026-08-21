@@ -1,0 +1,7 @@
+type: object
+properties:
+  replicas:
+    type: integer
+x-deckhouse-validations:
+  - expression: "self.replicas >"
+    message: "replicas must be >= 1"

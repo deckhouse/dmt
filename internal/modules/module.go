@@ -401,6 +401,12 @@ func mapOpenAPIRules(linterSettings *pkg.LintersSettings, configSettings *config
 	// aborts the docs render), so it defaults to error via fallbackImpact, matching
 	// the base-file YAML validation. A per-rule impact in config still overrides.
 	rules.DocRuYAMLRule.SetLevel(globalRules.DocRuYAMLRule.Impact, fallbackImpact)
+	// deckhouse-validations is a correctness check (a malformed x-deckhouse-validations
+	// block or a non-compiling CEL expression fails module-config validation at
+	// runtime), so it defaults to error via fallbackImpact. Its findings are emitted
+	// at warn for now (explicit .Warnf) during the migration period; flipping them to
+	// .Errorf later needs no wiring change. A per-rule impact in config still overrides.
+	rules.DeckhouseValidationsRule.SetLevel(globalRules.DeckhouseValidationsRule.Impact, fallbackImpact)
 }
 
 // mapSimpleLinterRules configures rules that use linter-level impact without global overrides

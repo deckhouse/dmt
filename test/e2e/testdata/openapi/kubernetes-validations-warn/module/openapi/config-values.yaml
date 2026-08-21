@@ -1,0 +1,7 @@
+type: object
+properties:
+  replicas:
+    type: integer
+x-kubernetes-validations:
+  - rule: "self.replicas >= 1"
+    message: "replicas must be >= 1"

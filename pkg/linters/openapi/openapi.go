@@ -59,6 +59,18 @@ func (o *OpenAPI) Run(m *modules.Module) {
 		haValidator.Run(file, errorLists)
 	}
 
+	// x-deckhouse-validations / x-kubernetes-validations check: these CEL-validation
+	// extensions are consumed only by deckhouse-controller (config-values/values),
+	// so a malformed block is caught nowhere else in the openapi rules. Scoped to
+	// openapi/ files only — in crds/, x-kubernetes-validations is a legitimate,
+	// API-server-honored construct and must not be flagged.
+	validationsErrorList := errorLists.WithMaxLevel(o.cfg.Rules.DeckhouseValidationsRule.GetLevel())
+	validationsValidator := rules.NewDeckhouseValidationsRule(o.cfg, m.GetPath())
+
+	for _, file := range openAPIFiles {
+		validationsValidator.Run(file, validationsErrorList)
+	}
+
 	// check only CRDs files
 	crdFiles := fsutils.GetFiles(m.GetPath(), true, filterCRDsfiles)
 	crdValidator := rules.NewDeckhouseCRDsRule(o.cfg, m.GetPath())

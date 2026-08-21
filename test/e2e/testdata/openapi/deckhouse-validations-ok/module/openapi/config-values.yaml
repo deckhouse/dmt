@@ -1,0 +1,11 @@
+type: object
+properties:
+  mode:
+    type: string
+  direct:
+    type: object
+x-deckhouse-validations:
+  - expression: "self.mode == 'Direct' ? has(self.direct) : true"
+    message: "when mode is 'Direct', 'direct' section must be specified"
+  - expression: "self.mode == oldSelf.mode"
+    message: "mode is immutable"

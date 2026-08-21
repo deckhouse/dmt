@@ -1,0 +1,13 @@
+description: >
+  A module openapi schema whose x-deckhouse-validations block contains an
+  expression that is not a valid CEL program must be flagged by the openapi
+  deckhouse-validations rule. This block is consumed only by deckhouse-controller
+  at module-config validation time, so a broken expression is caught nowhere else
+  and would otherwise only surface at runtime on a cluster. Findings are currently
+  emitted at warn.
+module: module
+expect:
+  - linter: openapi
+    rule: deckhouse-validations
+    level: warn
+    textContains: 'not a valid CEL expression'
