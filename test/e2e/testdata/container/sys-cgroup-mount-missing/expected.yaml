@@ -1,0 +1,10 @@
+description: >
+  A container that mounts the host /sys but not /sys/fs/cgroup is flagged, so the
+  module stays portable to the hardened (read-only) containerd used by the CSE
+  edition where the nested cgroup mount is not propagated automatically.
+module: module
+expect:
+  - linter: container
+    rule: sys-cgroup-mount
+    level: warn
+    textContains: '/sys/fs/cgroup'

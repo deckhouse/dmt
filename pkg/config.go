@@ -353,6 +353,7 @@ type ContainerLinterRules struct {
 	LivenessRule                 RuleConfig
 	ReadinessRule                RuleConfig
 	MountPointsRule              RuleConfig
+	SysCgroupMountRule           RuleConfig
 }
 
 type ContainerExcludeRules struct {
@@ -372,6 +373,7 @@ type ContainerExcludeRules struct {
 	SecurityContext        ContainerRuleExcludeList
 	Liveness               ContainerRuleExcludeList
 	Readiness              ContainerRuleExcludeList
+	SysCgroupMount         ContainerRuleExcludeList
 
 	Description StringRuleExcludeList
 	MountPoints StringRuleExcludeList

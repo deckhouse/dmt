@@ -296,6 +296,16 @@ func mapContainerRules(linterSettings *pkg.LintersSettings, configSettings *conf
 		globalConfig.Container.Rules.MountPointsRule.Impact,
 		configSettings.Container.Impact,
 	)
+	// sys-cgroup-mount defaults to warn: a container that mounts /sys but not
+	// /sys/fs/cgroup only breaks on a hardened (read-only) containerd such as the
+	// CSE edition, so a missing cgroup mount is a portability warning rather than
+	// an error. A per-rule impact in config still overrides this default. warn is
+	// passed explicitly because the container linter fallback impact
+	// (configSettings.Container.Impact) defaults to "error".
+	linterSettings.Container.Rules.SysCgroupMountRule.SetLevel(
+		globalConfig.Container.Rules.SysCgroupMountRule.Impact,
+		pkg.Warn.String(),
+	)
 }
 
 // mapImageRules configures Image linter rules
@@ -441,6 +451,7 @@ func mapContainerExclusions(linterSettings *pkg.LintersSettings, configSettings 
 	excludes.Readiness = configExcludes.Readiness.Get()
 	excludes.SeccompProfile = configExcludes.SeccompProfile.Get()
 	excludes.NoNewPrivileges = configExcludes.NoNewPrivileges.Get()
+	excludes.SysCgroupMount = configExcludes.SysCgroupMount.Get()
 	excludes.Description = pkg.StringRuleExcludeList(configExcludes.Description)
 	excludes.MountPoints = pkg.StringRuleExcludeList(configExcludes.MountPoints)
 }
