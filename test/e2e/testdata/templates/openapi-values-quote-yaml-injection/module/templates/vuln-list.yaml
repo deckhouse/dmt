@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2e-yaml-injection-list
+  namespace: e2e-yaml-injection
+# FLAGGED: unquoted element of an unconstrained string array. The element whose value
+# carries `\n---\n` breaks out of the list and injects the Secret from its default.
+extraArgs:
+{{- range .Values.e2eYamlInjection.injectedArgs }}
+  - {{ . }}
+{{- end }}

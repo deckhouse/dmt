@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2e-yaml-hazards-coercion
+  namespace: e2e-yaml-hazards
+data:
+  # FLAGGED: unquoted string that YAML silently reads as a boolean (`no` -> false).
+  asBool: {{ .Values.e2eYamlHazards.coerceBool }}
+  # FLAGGED: unquoted string read as an octal integer (`0755` -> 493).
+  asOctal: {{ .Values.e2eYamlHazards.coerceOctal }}
+  # FLAGGED: unquoted string read as null (`~`).
+  asNull: {{ .Values.e2eYamlHazards.coerceNull }}

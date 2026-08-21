@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2e-yaml-hazards-safe
+  namespace: e2e-yaml-hazards
+data:
+  # SAFE: a dangerous value neutralised with `| quote` -> stays a single string scalar.
+  quoted: {{ .Values.e2eYamlHazards.safeQuoted | quote }}
+  # SAFE: the boolean-looking value, quoted -> stays the string "no".
+  boolQuoted: {{ .Values.e2eYamlHazards.coerceBool | quote }}
+  # SAFE: constrained by a pattern that forbids hazardous characters -> quoting optional.
+  pattern: {{ .Values.e2eYamlHazards.safePattern }}

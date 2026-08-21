@@ -149,6 +149,7 @@ type TemplatesLinterRules struct {
 	WebhookConfigurationRule RuleConfig `mapstructure:"webhook-configuration-annotations"`
 	MountPointsRule          RuleConfig `mapstructure:"mount-points"`
 	HelmRenderRule           RuleConfig `mapstructure:"helm-render"`
+	OpenAPIValuesQuoteRule   RuleConfig `mapstructure:"openapi-values-quote"`
 }
 
 func (c LinterConfig) IsWarn() bool {

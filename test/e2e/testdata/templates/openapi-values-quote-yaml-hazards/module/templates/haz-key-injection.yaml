@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2e-yaml-hazards-key-injection
+  namespace: e2e-yaml-hazards
+data:
+  # FLAGGED: unquoted value whose payload is indented to match this field, injecting a
+  # sibling key (`injected: pwned`) into `data` without needing a new document.
+  field: {{ .Values.e2eYamlHazards.keyInject }}

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2e-quote-maps
+  namespace: e2e-quote
+annotations:
+# FLAGGED: unquoted value of a string map (additionalProperties), via range
+{{- range $k, $v := .Values.e2eQuote.annotations }}
+  {{ $k }}: {{ $v }}
+{{- end }}
+data:
+# FLAGGED: unquoted string subfield reached through `with` over a single object
+{{- with .Values.e2eQuote.conn }}
+  dsn: {{ .dsn }}
+{{- end }}

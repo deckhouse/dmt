@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2e-yaml-injection-servers
+  namespace: e2e-yaml-injection
+# FLAGGED: unquoted `host` subfield of an array-of-objects element. The element whose
+# host carries `\n---\n` breaks out and injects the Secret from its default.
+hosts:
+{{- range $s := .Values.e2eYamlInjection.servers }}
+  - host: {{ $s.host }}
+{{- end }}

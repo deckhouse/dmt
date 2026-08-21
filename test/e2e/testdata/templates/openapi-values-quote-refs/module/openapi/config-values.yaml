@@ -1,0 +1,28 @@
+type: object
+properties:
+  # FLAGGED: string reached via $ref, no validation
+  refName:
+    $ref: '#/definitions/nameType'
+  # FLAGGED: string via allOf
+  allOfName:
+    allOf:
+      - type: string
+  # FLAGGED: string branch of oneOf
+  oneOfName:
+    oneOf:
+      - type: string
+      - type: integer
+  # FLAGGED: string branch of anyOf
+  anyOfName:
+    anyOf:
+      - type: string
+      - type: integer
+  # SAFE: string via $ref that carries a pattern
+  refCode:
+    $ref: '#/definitions/codeType'
+definitions:
+  nameType:
+    type: string
+  codeType:
+    type: string
+    pattern: '^[a-z]+$'
