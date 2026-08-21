@@ -144,6 +144,7 @@ type TemplatesLinterRules struct {
 	RegistryRule             RuleConfig
 	HTTPRouteRule            RuleConfig
 	EnabledModulesRule       RuleConfig
+	CRDEnabledModulesRule    RuleConfig
 	WebhookConfigurationRule RuleConfig
 	MountPointsRule          RuleConfig
 	HelmRenderRule           RuleConfig

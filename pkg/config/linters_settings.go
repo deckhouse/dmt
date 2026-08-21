@@ -232,6 +232,7 @@ type TemplatesLinterRules struct {
 	ClusterDomainRule        RuleConfig `mapstructure:"cluster-domain"`
 	RegistryRule             RuleConfig `mapstructure:"registry"`
 	EnabledModulesRule       RuleConfig `mapstructure:"enabled-modules"`
+	CRDEnabledModulesRule    RuleConfig `mapstructure:"crd-enabled-modules"`
 	WebhookConfigurationRule RuleConfig `mapstructure:"webhook-configuration-annotations"`
 	MountPointsRule          RuleConfig `mapstructure:"mount-points"`
 	HelmRenderRule           RuleConfig `mapstructure:"helm-render"`

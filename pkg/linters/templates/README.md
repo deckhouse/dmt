@@ -22,6 +22,7 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [registry](#registry) | Validates registry secret configuration | ❌ | enabled |
 | [werf](#werf) | Validates image names in `werf.yaml` do not contain underscores | ❌ | enabled |
 | [enabled-modules](#enabled-modules) | Detects usage of `.Values.global.enabledModules` in templates | ✅ | enabled |
+| [crd-enabled-modules](#crd-enabled-modules) | Flags deprecated `has "<module>-crd"` checks in `.Values.global.enabledModules` and autofixes them | ✅ | enabled |
 | [webhook-configuration-annotations](#webhook-configuration-annotations) | Checks webhook configurations have werf.io/weight or deploy-dependency annotations | ✅ | enabled |
 | [mount-points](#mount-points) | Validates that mount-points.yaml directories are used as volumeMounts in pod controllers | ✅ | enabled |
 
@@ -1852,6 +1853,72 @@ linters-settings:
           - templates/legacy-deployment.yaml  # Exclude specific file
         directories:
           - templates/vendor/                 # Exclude entire directory
+```
+
+### crd-enabled-modules
+
+**Purpose:** Flags deprecated references to standalone `<module>-crd` modules in `.Values.global.enabledModules` checks and offers an autofix that drops the `-crd` suffix. Starting from Deckhouse **v1.65.0** the standalone `*-crd` modules were removed ([deckhouse#9593 "Get rid of crd modules"](https://github.com/deckhouse/deckhouse/pull/9593)) — their CRDs are now installed automatically from the parent module's `crds/` directory, so checking for the `-crd` name is obsolete.
+
+**Description:**
+
+Scans all template files (`.yaml`, `.yml`, `.tpl`) in the `templates/` directory for the pattern `.Values.global.enabledModules | has "<name>-crd"` and reports each occurrence, suggesting the parent module name without the `-crd` suffix. Running `dmt lint --fix` rewrites the references automatically.
+
+The rule is **version-gated**: it only runs for modules whose `module.yaml` `requirements.deckhouse` constraint starts at or above `1.65.0` (the release where the `-crd` modules were removed). Modules that still support older Deckhouse releases — or that declare no `requirements.deckhouse` — are left untouched, since the `-crd` module still exists on those versions.
+
+**What it checks:**
+
+1. All files in the `templates/` directory
+2. Usage of `.Values.global.enabledModules | has "<module-name>-crd"`
+3. Only for modules targeting Deckhouse `>= 1.65.0` via `requirements.deckhouse`
+
+**Why it matters:**
+
+- The standalone `*-crd` modules no longer exist as of Deckhouse v1.65.0; their CRDs ship with the parent module.
+- The `-crd` tokens are kept in `enabledModules` only as a temporary backward-compatibility shim and are slated for removal, after which `has "<module>-crd"` will silently evaluate to `false`.
+- Referencing the obsolete name is brittle and misleading.
+
+**Examples:**
+
+❌ **Incorrect** - Checking a removed `-crd` module:
+
+```yaml
+# templates/prometheus-rules.yaml
+{{- if (.Values.global.enabledModules | has "operator-prometheus-crd") }}
+# ...
+{{- end }}
+```
+
+**Warning:**
+```
+Deprecated "operator-prometheus-crd" reference in .Values.global.enabledModules: standalone "-crd" modules were removed in Deckhouse v1.65.0, use "operator-prometheus" instead.
+```
+
+✅ **Correct** - Checking the parent module:
+
+```yaml
+# templates/prometheus-rules.yaml
+{{- if (.Values.global.enabledModules | has "operator-prometheus") }}
+# ...
+{{- end }}
+```
+
+> **Note:** Deckhouse's recommended long-term replacement for CRD-presence detection is a capability check — `{{- if .Capabilities.APIVersions.Has "monitoring.coreos.com/v1/PodMonitor" }}` — see the [enabled-modules](#enabled-modules) rule. This rule performs the narrower, mechanical `-crd` → parent-module rename, which is always safe and autofixable.
+
+**Autofix:**
+
+`dmt lint --fix` rewrites every `has "<module>-crd"` in a file to `has "<module>"`, touching only the module-name text and leaving the rest of the file byte-for-byte identical. The fix is idempotent, so re-running it is a no-op.
+
+**Configuration:**
+
+The rule reports findings at `warn` level by default (the `-crd` tokens still resolve via a backward-compatibility shim, so it is a deprecation rather than a hard error). Override the severity per module or globally via `impact`:
+
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  templates:
+    rules:
+      crd-enabled-modules:
+        impact: warn   # error | warn (default: warn)
 ```
 
 ### webhook-configuration-annotations

@@ -1,0 +1,12 @@
+description: >
+  A module targeting Deckhouse >= 1.65 (where the standalone "-crd" modules were
+  removed) that checks `.Values.global.enabledModules | has "operator-prometheus-crd"`
+  must be flagged by the templates crd-enabled-modules rule, suggesting the parent
+  module name without the "-crd" suffix.
+module: module
+expect:
+  - linter: templates
+    rule: crd-enabled-modules
+    level: warn
+    textContains: 'use "operator-prometheus"'
+    count: 1

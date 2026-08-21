@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+{{- if .Values.global.enabledModules | has "operator-prometheus-crd" }}
+  name: e2e-crd-config
+{{- else }}
+  name: e2e-crd-config-disabled
+{{- end }}
+  namespace: e2e-crd-enabled-modules-below
+data: {}

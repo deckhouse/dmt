@@ -1,0 +1,8 @@
+name: e2e-crd-enabled-modules-fix
+namespace: e2e-crd-enabled-modules-fix
+weight: 910
+descriptions:
+  en: "Module used to verify the crd-enabled-modules autofix (Deckhouse >= 1.65)"
+  ru: "Модуль для проверки автофикса crd-enabled-modules (Deckhouse >= 1.65)"
+requirements:
+  deckhouse: ">= 1.65"

@@ -364,6 +364,13 @@ func mapTemplatesRules(linterSettings *pkg.LintersSettings, configSettings *conf
 	rules.ClusterDomainRule.SetLevel(globalRules.ClusterDomainRule.Impact, fallbackImpact)
 	rules.RegistryRule.SetLevel(globalRules.RegistryRule.Impact, fallbackImpact)
 	rules.EnabledModulesRule.SetLevel(globalRules.EnabledModulesRule.Impact, fallbackImpact)
+
+	// crd-enabled-modules defaults to warn: the "-crd" tokens still resolve via a
+	// backward-compatibility shim, so a deprecated reference is a warning rather than
+	// an error. A per-rule impact in config still overrides this default. warn is
+	// passed explicitly because the linter fallback impact defaults to "error".
+	rules.CRDEnabledModulesRule.SetLevel(globalRules.CRDEnabledModulesRule.Impact, pkg.Warn.String())
+
 	rules.MountPointsRule.SetLevel(globalRules.MountPointsRule.Impact, fallbackImpact)
 	rules.WebhookConfigurationRule.SetLevel(globalRules.WebhookConfigurationRule.Impact, fallbackImpact)
 	rules.HelmRenderRule.SetLevel(globalRules.HelmRenderRule.Impact, fallbackImpact)
