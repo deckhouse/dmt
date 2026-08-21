@@ -246,7 +246,6 @@ type TemplatesExcludeRules struct {
 	Ingress              KindRuleExcludeList       `mapstructure:"ingress"`
 	HTTPRoute            KindRuleExcludeList       `mapstructure:"httproute"`
 	EnabledModules       EnabledModulesExcludeRule `mapstructure:"enabled-modules"`
-	CRDEnabledModules    EnabledModulesExcludeRule `mapstructure:"crd-enabled-modules"`
 	WebhookConfiguration KindRuleExcludeList       `mapstructure:"webhook-configuration-annotations"`
 	MountPoints          StringRuleExcludeList     `mapstructure:"mount-points"`
 }

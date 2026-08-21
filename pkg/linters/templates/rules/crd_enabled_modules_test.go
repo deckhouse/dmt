@@ -26,7 +26,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/deckhouse/dmt/internal/mocks"
-	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
@@ -196,7 +195,7 @@ x: y
 			modulePath := writeCRDModule(t, tt.moduleYAML, tt.templateFiles)
 
 			errorList := errors.NewLintRuleErrorsList()
-			NewCRDEnabledModulesRule(nil, nil).CheckCRDEnabledModules(crdMockModule(t, modulePath), errorList)
+			NewCRDEnabledModulesRule().CheckCRDEnabledModules(crdMockModule(t, modulePath), errorList)
 
 			errs := errorList.GetErrors()
 			require.Len(t, errs, tt.wantCount)
@@ -223,22 +222,6 @@ x: y
 	}
 }
 
-func TestCRDEnabledModulesRule_Excludes(t *testing.T) {
-	files := map[string]string{
-		"templates/skip-me.yaml": `{{- if .Values.global.enabledModules | has "operator-prometheus-crd" }}
-x: y
-{{- end }}
-`,
-	}
-	modulePath := writeCRDModule(t, moduleYAMLInScope, files)
-
-	errorList := errors.NewLintRuleErrorsList()
-	NewCRDEnabledModulesRule([]pkg.StringRuleExclude{"templates/skip-me.yaml"}, nil).
-		CheckCRDEnabledModules(crdMockModule(t, modulePath), errorList)
-
-	assert.Empty(t, errorList.GetErrors())
-}
-
 func TestCRDEnabledModulesRule_Autofix(t *testing.T) {
 	const templateName = "templates/deployment.yaml"
 
@@ -260,7 +243,7 @@ authn: "on"
 	modulePath := writeCRDModule(t, moduleYAMLInScope, map[string]string{templateName: original})
 
 	errorList := errors.NewLintRuleErrorsList()
-	NewCRDEnabledModulesRule(nil, nil).CheckCRDEnabledModules(crdMockModule(t, modulePath), errorList)
+	NewCRDEnabledModulesRule().CheckCRDEnabledModules(crdMockModule(t, modulePath), errorList)
 
 	fixes := errorList.GetFixes()
 	require.Len(t, fixes, 2, "each -crd finding should carry a fix")
@@ -286,6 +269,6 @@ authn: "on"
 
 	// Re-running the rule on the fixed module must find nothing (idempotency).
 	rerun := errors.NewLintRuleErrorsList()
-	NewCRDEnabledModulesRule(nil, nil).CheckCRDEnabledModules(crdMockModule(t, modulePath), rerun)
+	NewCRDEnabledModulesRule().CheckCRDEnabledModules(crdMockModule(t, modulePath), rerun)
 	assert.Empty(t, rerun.GetErrors())
 }

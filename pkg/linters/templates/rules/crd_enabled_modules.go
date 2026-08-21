@@ -70,18 +70,12 @@ var crdVersionConstraintRegex = regexp.MustCompile(`([><=]=?|!=)\s*v?(\d+(?:\.\d
 
 type CRDEnabledModulesRule struct {
 	pkg.RuleMeta
-	pkg.PathRule
 }
 
-func NewCRDEnabledModulesRule(excludeFileRules []pkg.StringRuleExclude,
-	excludeDirectoryRules []pkg.DirectoryRuleExclude) *CRDEnabledModulesRule {
+func NewCRDEnabledModulesRule() *CRDEnabledModulesRule {
 	return &CRDEnabledModulesRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: CRDEnabledModulesRuleName,
-		},
-		PathRule: pkg.PathRule{
-			ExcludeStringRules:    excludeFileRules,
-			ExcludeDirectoryRules: excludeDirectoryRules,
 		},
 	}
 }
@@ -110,10 +104,6 @@ func (r *CRDEnabledModulesRule) CheckCRDEnabledModules(m pkg.Module, errorList *
 
 	for _, filePath := range files {
 		relPath := fsutils.Rel(m.GetPath(), filePath)
-
-		if !r.Enabled(relPath) {
-			continue
-		}
 
 		content, err := os.ReadFile(filePath)
 		if err != nil {

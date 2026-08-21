@@ -107,10 +107,8 @@ func (l *Templates) Run(m *modules.Module) {
 	).CheckEnabledModules(m, errorList.WithMaxLevel(l.cfg.Rules.EnabledModulesRule.GetLevel()))
 
 	// CRDEnabledModules rule - deprecated references to standalone "-crd" modules
-	rules.NewCRDEnabledModulesRule(
-		l.cfg.ExcludeRules.CRDEnabledModules.Files.Get(),
-		l.cfg.ExcludeRules.CRDEnabledModules.Directories.Get(),
-	).CheckCRDEnabledModules(m, errorList.WithMaxLevel(l.cfg.Rules.CRDEnabledModulesRule.GetLevel()))
+	rules.NewCRDEnabledModulesRule().
+		CheckCRDEnabledModules(m, errorList.WithMaxLevel(l.cfg.Rules.CRDEnabledModulesRule.GetLevel()))
 
 	// MountPoints rule
 	rules.NewMountPointsRule(l.cfg.ExcludeRules.MountPoints.Get()).ValidateMountPoints(m, errorList.WithMaxLevel(l.cfg.Rules.MountPointsRule.GetLevel()))

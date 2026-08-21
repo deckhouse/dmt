@@ -165,7 +165,6 @@ type TemplatesExcludeRules struct {
 	Ingress              KindRuleExcludeList
 	HTTPRoute            KindRuleExcludeList
 	EnabledModules       EnabledModulesExcludeRule
-	CRDEnabledModules    EnabledModulesExcludeRule
 	WebhookConfiguration KindRuleExcludeList
 	MountPoints          StringRuleExcludeList
 }

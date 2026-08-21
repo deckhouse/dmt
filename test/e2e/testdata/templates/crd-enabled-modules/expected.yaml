@@ -7,6 +7,6 @@ module: module
 expect:
   - linter: templates
     rule: crd-enabled-modules
-    level: error
+    level: warn
     textContains: 'use "operator-prometheus"'
     count: 1

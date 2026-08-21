@@ -1888,7 +1888,7 @@ The rule is **version-gated**: it only runs for modules whose `module.yaml` `req
 {{- end }}
 ```
 
-**Error:**
+**Warning:**
 ```
 Deprecated "operator-prometheus-crd" reference in .Values.global.enabledModules: standalone "-crd" modules were removed in Deckhouse v1.65.0, use "operator-prometheus" instead.
 ```
@@ -1910,7 +1910,7 @@ Deprecated "operator-prometheus-crd" reference in .Values.global.enabledModules:
 
 **Configuration:**
 
-Set the severity (defaults to `error`, can be lowered to `warn`) and exclude specific files/directories (paths relative to the module root):
+The rule reports findings at `warn` level by default (the `-crd` tokens still resolve via a backward-compatibility shim, so it is a deprecation rather than a hard error). Override the severity per module or globally via `impact`:
 
 ```yaml
 # .dmtlint.yaml
@@ -1918,13 +1918,7 @@ linters-settings:
   templates:
     rules:
       crd-enabled-modules:
-        impact: warn
-    exclude-rules:
-      crd-enabled-modules:
-        files:
-          - templates/legacy-compat.yaml  # Exclude specific file
-        directories:
-          - templates/vendor/             # Exclude entire directory
+        impact: warn   # error | warn (default: warn)
 ```
 
 ### webhook-configuration-annotations
