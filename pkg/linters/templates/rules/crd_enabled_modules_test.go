@@ -203,12 +203,14 @@ x: y
 
 			for _, want := range tt.wantContains {
 				found := false
+
 				for i := range errs {
 					if containsStr(errs[i].Text, want) {
 						found = true
 						break
 					}
 				}
+
 				assert.Truef(t, found, "expected a finding containing %q, got %+v", want, errs)
 			}
 
@@ -272,6 +274,7 @@ authn: "on"
 
 	fixed, err := os.ReadFile(filepath.Join(modulePath, templateName))
 	require.NoError(t, err)
+
 	got := string(fixed)
 
 	assert.Contains(t, got, `has "operator-prometheus"`)

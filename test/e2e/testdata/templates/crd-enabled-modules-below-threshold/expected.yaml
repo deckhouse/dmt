@@ -1,0 +1,8 @@
+description: >
+  A module that still supports a Deckhouse release below 1.65 (requirements.deckhouse
+  ">= 1.64") must NOT be flagged by the crd-enabled-modules rule, because the standalone
+  "-crd" module still exists on those releases. This guards the version gate.
+module: module
+expectAbsent:
+  - linter: templates
+    rule: crd-enabled-modules

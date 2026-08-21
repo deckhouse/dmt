@@ -1,0 +1,8 @@
+name: e2e-crd-enabled-modules
+namespace: e2e-crd-enabled-modules
+weight: 910
+descriptions:
+  en: "Module used to verify the templates crd-enabled-modules lint (Deckhouse >= 1.65)"
+  ru: "Модуль для проверки правила crd-enabled-modules (Deckhouse >= 1.65)"
+requirements:
+  deckhouse: ">= 1.65"
