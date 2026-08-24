@@ -17,7 +17,7 @@ import (
 )
 
 func TestNewSizeRule(t *testing.T) {
-	rule := NewSizeRule()
+	rule := NewSizeRule(nil, errors.NewLintRuleErrorsList())
 	assert.Equal(t, SizeRuleName, rule.GetName())
 	assert.Equal(t, "size", rule.GetName())
 }
@@ -110,10 +110,9 @@ func TestSizeRule_CheckSize(t *testing.T) {
 				writeSparseFile(t, filepath.Join(tempDir, relPath), size)
 			}
 
-			rule := NewSizeRule()
 			errorList := errors.NewLintRuleErrorsList()
 
-			rule.CheckSize(mockModule, errorList)
+			NewSizeRule(mockModule, errorList).Check(t.Context())
 
 			if tt.wantError {
 				assert.NotEmpty(t, errorList.GetErrors(), "expected an error for oversized docs/ directory")

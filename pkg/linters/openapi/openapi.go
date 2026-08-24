@@ -19,7 +19,6 @@ package openapi
 import (
 	"context"
 
-	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/openapi/rules"
@@ -69,24 +68,22 @@ func (o *OpenAPI) rules() []pkg.Rule {
 	cfg := o.cfg
 	errorList := o.ErrorList.WithModule(m.GetName())
 
-	// Only BilingualRule has a real per-rule level: mapOpenAPIRules reads its
-	// global impact. The other four are filled by mapSimpleLinterRules from the
-	// linter impact New already applied, so scoping by them would be a no-op.
+	// The enum/ha/keys/deckhouse-crds rules have no real per-rule level:
+	// mapSimpleLinterRules fills them from the linter impact New already applied,
+	// so scoping by them would be a no-op. The last three do carry one.
 	return []pkg.Rule{
 		rules.NewEnumRule(cfg, m, errorList),
 		rules.NewHARule(cfg, m, errorList),
 		rules.NewKeysRule(cfg, m, errorList),
 		rules.NewDeckhouseCRDsRule(cfg, m, errorList),
 		rules.NewBilingualRule(cfg, m, errorList.WithMaxLevel(cfg.Rules.BilingualRule.GetLevel())),
-	}
-
-	// doc-ru- YAML syntax check: doc-ru- files are excluded from the enum/ha/keys
-	// parsing above, so this is the only place their YAML syntax is validated.
-	docRuErrorList := errorLists.WithMaxLevel(o.cfg.Rules.DocRuYAMLRule.GetLevel())
-	docRuValidator := rules.NewDocRuYAMLRule(o.cfg, m.GetPath())
-
-	for _, file := range fsutils.GetFiles(m.GetPath(), true, filterDocRuYAMLfiles) {
-		docRuValidator.Run(file, docRuErrorList)
+		// x-deckhouse-validations / x-kubernetes-validations CEL blocks. Scoped to
+		// openapi/ only, inside the rule: in crds/, x-kubernetes-validations is a
+		// legitimate, API-server-honored construct and must not be flagged.
+		rules.NewDeckhouseValidationsRule(cfg, m, errorList.WithMaxLevel(cfg.Rules.DeckhouseValidationsRule.GetLevel())),
+		// doc-ru- files are excluded from the enum/ha/keys parsing above, so this is
+		// the only place their YAML syntax is validated.
+		rules.NewDocRuYAMLRule(cfg, m, errorList.WithMaxLevel(cfg.Rules.DocRuYAMLRule.GetLevel())),
 	}
 }
 

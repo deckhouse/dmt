@@ -314,8 +314,7 @@ func TestMountPointsContainerRule_BuiltinExcludedCgroup(t *testing.T) {
 	assert.NoError(t, err)
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil, tmpDir)
-	rule.CheckMountPaths(obj, containers, errorList)
+	NewMountPointsRule(nil, tmpDir, oneObject(obj, containers), errorList).Check(t.Context())
 
 	assert.Len(t, errorList.GetErrors(), 0)
 }

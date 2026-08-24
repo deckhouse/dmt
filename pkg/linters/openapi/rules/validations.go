@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -72,23 +73,41 @@ const (
 // intended to become errors once modules have migrated.
 type DeckhouseValidationsRule struct {
 	pkg.RuleMeta
-	rootPath string
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func NewDeckhouseValidationsRule(_ *pkg.OpenAPILinterConfig, rootPath string) *DeckhouseValidationsRule {
+func NewDeckhouseValidationsRule(_ *pkg.OpenAPILinterConfig,
+	m pkg.Module, errorList *errors.LintRuleErrorsList) *DeckhouseValidationsRule {
 	return &DeckhouseValidationsRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: DeckhouseValidationsRuleName,
 		},
-		rootPath: rootPath,
+		module:    m,
+		errorList: errorList.WithRule(DeckhouseValidationsRuleName),
 	}
 }
 
-// Run parses an openapi/ schema and walks it for the CEL-validation extensions.
-func (r *DeckhouseValidationsRule) Run(path string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+var _ pkg.Rule = (*DeckhouseValidationsRule)(nil)
 
-	shortPath := fsutils.Rel(r.rootPath, path)
+// Check walks the openapi/ schemas only. crds/ is deliberately out of scope:
+// there x-kubernetes-validations is honored by the API server, so flagging it
+// would be a false positive.
+func (r *DeckhouseValidationsRule) Check(_ context.Context) {
+	for _, path := range openAPIFiles(r.module.GetPath()) {
+		r.checkFile(path)
+	}
+}
+
+// checkFile parses one openapi/ schema and walks it for the CEL-validation
+// extensions. It must stay a separate method rather than being inlined into the
+// loop above: its early returns end the check for one file, not for the rule,
+// and it is the entry point the unit tests drive directly.
+func (r *DeckhouseValidationsRule) checkFile(path string) {
+	errorList := r.errorList
+
+	shortPath := fsutils.Rel(r.module.GetPath(), path)
 
 	data, err := os.ReadFile(path)
 	if err != nil {

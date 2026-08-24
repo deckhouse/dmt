@@ -78,10 +78,10 @@ func TestDocRuYAMLRule_Run(t *testing.T) {
 			filePath := filepath.Join(dir, "doc-ru-config-values.yaml")
 			require.NoError(t, os.WriteFile(filePath, []byte(tt.content), 0o600))
 
-			rule := NewDocRuYAMLRule(&pkg.OpenAPILinterConfig{}, dir)
 			errorList := errors.NewLintRuleErrorsList()
+			rule := NewDocRuYAMLRule(&pkg.OpenAPILinterConfig{}, moduleAt(t, dir), errorList)
 
-			rule.Run(filePath, errorList)
+			rule.checkFile(filePath)
 
 			errs := errorList.GetErrors()
 			if !tt.wantErr {
@@ -103,11 +103,11 @@ func TestDocRuYAMLRule_RespectsMaxLevel(t *testing.T) {
 	filePath := filepath.Join(dir, "doc-ru-config-values.yaml")
 	require.NoError(t, os.WriteFile(filePath, []byte("a: 'b\n"), 0o600))
 
-	rule := NewDocRuYAMLRule(&pkg.OpenAPILinterConfig{}, dir)
 	warnLevel := pkg.Warn
 	errorList := errors.NewLintRuleErrorsList().WithMaxLevel(&warnLevel)
+	rule := NewDocRuYAMLRule(&pkg.OpenAPILinterConfig{}, moduleAt(t, dir), errorList)
 
-	rule.Run(filePath, errorList)
+	rule.checkFile(filePath)
 
 	errs := errorList.GetErrors()
 	require.Len(t, errs, 1)

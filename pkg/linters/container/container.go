@@ -109,6 +109,7 @@ func (l *Container) rules() []pkg.Rule {
 		rules.NewContainerSecurityContextRule(cfg.ExcludeRules.SecurityContext.Get(), objects, level(cfg.Rules.ContainerSecurityContextRule)),
 		rules.NewPortsRule(cfg.ExcludeRules.Ports.Get(), objects, level(cfg.Rules.PortsRule)),
 		rules.NewMountPointsRule(cfg.ExcludeRules.MountPoints.Get(), m.GetPath(), objects, level(cfg.Rules.MountPointsRule)),
+		rules.NewSysCgroupMountRule(cfg.ExcludeRules.SysCgroupMount.Get(), objects, level(cfg.Rules.SysCgroupMountRule)),
 
 		// probe rules, over non-init containers only
 		rules.NewLivenessRule(cfg.ExcludeRules.Liveness.Get(), objects, level(cfg.Rules.LivenessRule)),

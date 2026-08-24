@@ -195,7 +195,7 @@ x: y
 			modulePath := writeCRDModule(t, tt.moduleYAML, tt.templateFiles)
 
 			errorList := errors.NewLintRuleErrorsList()
-			NewCRDEnabledModulesRule().CheckCRDEnabledModules(crdMockModule(t, modulePath), errorList)
+			NewCRDEnabledModulesRule(crdMockModule(t, modulePath), errorList).Check(t.Context())
 
 			errs := errorList.GetErrors()
 			require.Len(t, errs, tt.wantCount)
@@ -243,7 +243,7 @@ authn: "on"
 	modulePath := writeCRDModule(t, moduleYAMLInScope, map[string]string{templateName: original})
 
 	errorList := errors.NewLintRuleErrorsList()
-	NewCRDEnabledModulesRule().CheckCRDEnabledModules(crdMockModule(t, modulePath), errorList)
+	NewCRDEnabledModulesRule(crdMockModule(t, modulePath), errorList).Check(t.Context())
 
 	fixes := errorList.GetFixes()
 	require.Len(t, fixes, 2, "each -crd finding should carry a fix")
@@ -269,6 +269,6 @@ authn: "on"
 
 	// Re-running the rule on the fixed module must find nothing (idempotency).
 	rerun := errors.NewLintRuleErrorsList()
-	NewCRDEnabledModulesRule().CheckCRDEnabledModules(crdMockModule(t, modulePath), rerun)
+	NewCRDEnabledModulesRule(crdMockModule(t, modulePath), rerun).Check(t.Context())
 	assert.Empty(t, rerun.GetErrors())
 }

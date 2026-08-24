@@ -597,8 +597,8 @@ func TestMountPointsRule_BuiltinExcludedCgroup(t *testing.T) {
 	}
 
 	errorList := errors.NewLintRuleErrorsList()
-	rule := NewMountPointsRule(nil)
-	rule.ValidateMountPoints(&mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule := NewMountPointsRule(nil, &mockMountPointsModule{path: tmpDir, storage: storageMap}, errorList)
+	rule.Check(t.Context())
 
 	// /sys/fs/cgroup is built-in excluded, /etc/app is in templates → 0 errors
 	errs := errorList.GetErrors()

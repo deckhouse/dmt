@@ -103,6 +103,7 @@ func (l *Templates) rules() []pkg.Rule {
 			cfg.ExcludeRules.EnabledModules.Files.Get(),
 			cfg.ExcludeRules.EnabledModules.Directories.Get(),
 			m, level(cfg.Rules.EnabledModulesRule)),
+		rules.NewCRDEnabledModulesRule(m, level(cfg.Rules.CRDEnabledModulesRule)),
 		rules.NewMountPointsRule(cfg.ExcludeRules.MountPoints.Get(), m, level(cfg.Rules.MountPointsRule)),
 		rules.NewHelmRenderRule(m, level(cfg.Rules.HelmRenderRule)),
 	)

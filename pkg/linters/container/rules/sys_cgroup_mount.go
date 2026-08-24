@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -35,7 +36,8 @@ const (
 	sysCgroupMountPath = "/sys/fs/cgroup"
 )
 
-func NewSysCgroupMountRule(excludeRules []pkg.ContainerRuleExclude) *SysCgroupMountRule {
+func NewSysCgroupMountRule(excludeRules []pkg.ContainerRuleExclude,
+	objects []ObjectContainers, errorList *errors.LintRuleErrorsList) *SysCgroupMountRule {
 	return &SysCgroupMountRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: SysCgroupMountRuleName,
@@ -43,15 +45,28 @@ func NewSysCgroupMountRule(excludeRules []pkg.ContainerRuleExclude) *SysCgroupMo
 		ContainerRule: pkg.ContainerRule{
 			ExcludeRules: excludeRules,
 		},
+		objects:   objects,
+		errorList: errorList.WithRule(SysCgroupMountRuleName),
 	}
 }
 
 type SysCgroupMountRule struct {
 	pkg.RuleMeta
 	pkg.ContainerRule
+
+	objects   []ObjectContainers
+	errorList *errors.LintRuleErrorsList
 }
 
-// CheckSysCgroupMount verifies that every container mounting the host /sys also
+var _ pkg.Rule = (*SysCgroupMountRule)(nil)
+
+func (r *SysCgroupMountRule) Check(_ context.Context) {
+	for _, oc := range r.objects {
+		r.checkObject(oc.Object, oc.All)
+	}
+}
+
+// checkObject verifies that every container mounting the host /sys also
 // mounts /sys/fs/cgroup.
 //
 // Rationale: on a hardened containerd (integrity checks + full read-only root, as
@@ -63,9 +78,11 @@ type SysCgroupMountRule struct {
 //
 // The rule is self-scoping: it only fires for containers that actually mount /sys.
 // The check is per container, because mounts are per-container — the very
-// container that mounts /sys must also mount /sys/fs/cgroup.
-func (r *SysCgroupMountRule) CheckSysCgroupMount(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+// container that mounts /sys must also mount /sys/fs/cgroup. It stays a separate
+// method rather than being inlined into Check: its early return ends the check
+// for one object, not for the rule.
+func (r *SysCgroupMountRule) checkObject(object storage.StoreObject, containers []corev1.Container) {
+	errorList := r.errorList.WithFilePath(object.ShortPath())
 
 	switch object.Unstructured.GetKind() {
 	case "Deployment", "DaemonSet", "StatefulSet", "Pod", "Job", "CronJob":

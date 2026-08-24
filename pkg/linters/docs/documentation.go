@@ -56,6 +56,8 @@ func (l *Documentation) rules() []pkg.Rule {
 		rules.NewCyrillicInEnglishRule(m, errorList.WithMaxLevel(l.cfg.Rules.CyrillicInEnglishRule.GetLevel())),
 		rules.NewNoLangKeyRule(m, errorList.WithMaxLevel(l.cfg.Rules.NoLangKeyRule.GetLevel())),
 		rules.NewMarkdownRule(m, errorList.WithMaxLevel(l.cfg.Rules.MarkdownlintRule.GetLevel())),
+		rules.NewSizeRule(m, errorList.WithMaxLevel(l.cfg.Rules.SizeRule.GetLevel())),
+		rules.NewFrontMatterRule(m, errorList.WithMaxLevel(l.cfg.Rules.FrontMatterRule.GetLevel())),
 	}
 }
 

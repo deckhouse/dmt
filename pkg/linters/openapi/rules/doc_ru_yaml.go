@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"os"
 
 	"sigs.k8s.io/yaml"
@@ -30,19 +31,31 @@ const DocRuYAMLRuleName = "doc-ru-yaml"
 
 type DocRuYAMLRule struct {
 	pkg.RuleMeta
-	rootPath string
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func NewDocRuYAMLRule(_ *pkg.OpenAPILinterConfig, rootPath string) *DocRuYAMLRule {
+func NewDocRuYAMLRule(_ *pkg.OpenAPILinterConfig,
+	m pkg.Module, errorList *errors.LintRuleErrorsList) *DocRuYAMLRule {
 	return &DocRuYAMLRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: DocRuYAMLRuleName,
 		},
-		rootPath: rootPath,
+		module:    m,
+		errorList: errorList.WithRule(DocRuYAMLRuleName),
 	}
 }
 
-// Run parses a doc-ru- translation file to verify it is syntactically valid YAML.
+var _ pkg.Rule = (*DocRuYAMLRule)(nil)
+
+func (r *DocRuYAMLRule) Check(_ context.Context) {
+	for _, path := range docRuFiles(r.module.GetPath()) {
+		r.checkFile(path)
+	}
+}
+
+// checkFile parses a doc-ru- translation file to verify it is syntactically valid YAML.
 //
 // Rationale: doc-ru- files are documentation-only and are explicitly excluded
 // from the enum/ha/keys/deckhouse-crds parsing, so their YAML syntax is checked
@@ -57,10 +70,14 @@ func NewDocRuYAMLRule(_ *pkg.OpenAPILinterConfig, rootPath string) *DocRuYAMLRul
 // that is valid YAML but not a mapping, e.g. a bare scalar or a sequence between
 // the delimiters — is reported. Deeper structural/semantic expectations still
 // belong to the base file's own rules.
-func (r *DocRuYAMLRule) Run(path string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+//
+// It must stay a separate method rather than being inlined into the loop above:
+// its early return ends the check for one file, not for the rule, and it is the
+// entry point the unit tests drive directly.
+func (r *DocRuYAMLRule) checkFile(path string) {
+	errorList := r.errorList
 
-	shortPath := fsutils.Rel(r.rootPath, path)
+	shortPath := fsutils.Rel(r.module.GetPath(), path)
 
 	data, err := os.ReadFile(path)
 	if err != nil {
