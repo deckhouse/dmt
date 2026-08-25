@@ -99,7 +99,7 @@ func runLint(ctx context.Context, dir string) error {
 	metrics.SetDmtRuntimeDurationSeconds()
 
 	metricsClient := metrics.GetClient(dir)
-	metricsClient.Send(ctx)
+	metricsClient.Send(context.WithoutCancel(ctx))
 
 	if mng.HasCriticalErrors() {
 		return errors.New("critical errors found")
