@@ -47,10 +47,6 @@ func New(imageCfg *pkg.ImageLinterConfig, m pkg.Module, errorList *errors.LintRu
 }
 
 func (l *Images) Lint(ctx context.Context) {
-	if l.module == nil {
-		return
-	}
-
 	for _, rule := range l.rules() {
 		rule.Check(ctx)
 	}
@@ -81,7 +77,7 @@ func (l *Images) rules() []pkg.Rule {
 	}
 }
 
-func (l *Images) Name() string {
+func (l *Images) GetName() string {
 	return l.name
 }
 

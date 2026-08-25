@@ -47,10 +47,6 @@ func New(cfg *pkg.NoCyrillicLinterConfig, m pkg.Module, errorList *errors.LintRu
 }
 
 func (l *NoCyrillic) Lint(ctx context.Context) {
-	if l.module == nil {
-		return
-	}
-
 	for _, rule := range l.rules() {
 		rule.Check(ctx)
 	}
@@ -73,7 +69,7 @@ func (l *NoCyrillic) rules() []pkg.Rule {
 	}
 }
 
-func (l *NoCyrillic) Name() string {
+func (l *NoCyrillic) GetName() string {
 	return l.name
 }
 

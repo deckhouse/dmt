@@ -47,10 +47,6 @@ func New(cfg *pkg.RBACLinterConfig, m pkg.Module, errorList *errors.LintRuleErro
 }
 
 func (l *Rbac) Lint(ctx context.Context) {
-	if l.module == nil {
-		return
-	}
-
 	for _, rule := range l.rules() {
 		rule.Check(ctx)
 	}
@@ -75,7 +71,7 @@ func (l *Rbac) rules() []pkg.Rule {
 	}
 }
 
-func (l *Rbac) Name() string {
+func (l *Rbac) GetName() string {
 	return l.name
 }
 

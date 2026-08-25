@@ -34,10 +34,6 @@ type Container struct {
 	cfg        *pkg.ContainerLinterConfig
 	module     pkg.Module
 	ErrorList  *errors.LintRuleErrorsList
-
-	// objects holds the containers extracted from the module once per run; see
-	// rules.CollectObjectContainers.
-	objects []rules.ObjectContainers
 }
 
 func New(containerCfg *pkg.ContainerLinterConfig, m pkg.Module, errorList *errors.LintRuleErrorsList) *Container {
@@ -51,19 +47,15 @@ func New(containerCfg *pkg.ContainerLinterConfig, m pkg.Module, errorList *error
 }
 
 func (l *Container) Lint(ctx context.Context) {
-	if l.module == nil {
-		return
-	}
-
 	// Extract containers once, before building the rule set: the extraction can
 	// itself report a finding, and it must do so once per object rather than
 	// once per rule. It also applies the gates that decide which rules an object
 	// takes part in at all.
-	l.objects = rules.CollectObjectContainers(
+	objects := rules.CollectObjectContainers(
 		l.module.GetStorage(),
 		l.ErrorList.WithModule(l.module.GetName()))
 
-	for _, rule := range l.rules() {
+	for _, rule := range l.rules(objects) {
 		rule.Check(ctx)
 	}
 }
@@ -73,11 +65,10 @@ func (l *Container) Lint(ctx context.Context) {
 // lets rules be selected or grouped later without touching the rules themselves.
 //
 // Object rules see every rendered object; container and probe rules see only
-// the objects that passed the extraction gates, via l.objects.
-func (l *Container) rules() []pkg.Rule {
+// the objects that passed the extraction gates, via the objects argument.
+func (l *Container) rules(objects []rules.ObjectContainers) []pkg.Rule {
 	m := l.module
 	cfg := l.cfg
-	objects := l.objects
 	errorList := l.ErrorList.WithModule(m.GetName())
 
 	// level scopes errorList to the configured impact of a single rule.
@@ -117,7 +108,7 @@ func (l *Container) rules() []pkg.Rule {
 	}
 }
 
-func (l *Container) Name() string {
+func (l *Container) GetName() string {
 	return l.name
 }
 

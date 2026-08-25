@@ -34,7 +34,7 @@ func New(cfg *pkg.DocumentationLinterConfig, m pkg.Module, errorList *errors.Lin
 }
 
 func (l *Documentation) Lint(ctx context.Context) {
-	if l.module == nil || l.module.GetPath() == "" {
+	if l.module.GetPath() == "" {
 		return
 	}
 
@@ -61,7 +61,7 @@ func (l *Documentation) rules() []pkg.Rule {
 	}
 }
 
-func (l *Documentation) Name() string {
+func (l *Documentation) GetName() string {
 	return l.name
 }
 

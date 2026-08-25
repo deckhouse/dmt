@@ -45,10 +45,6 @@ func New(cfg *pkg.ModuleLinterConfig, m pkg.Module, errorList *errors.LintRuleEr
 }
 
 func (l *Module) Lint(ctx context.Context) {
-	if l.module == nil {
-		return
-	}
-
 	for _, rule := range l.rules() {
 		rule.Check(ctx)
 	}
@@ -85,7 +81,7 @@ func (l *Module) rules() []pkg.Rule {
 	}
 }
 
-func (l *Module) Name() string {
+func (l *Module) GetName() string {
 	return l.name
 }
 

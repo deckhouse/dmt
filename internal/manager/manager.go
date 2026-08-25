@@ -72,7 +72,7 @@ func generateDocumentationURL(linterID, ruleID string) string {
 // linter needs — its config, the module it inspects and the error list it
 // reports into — is supplied to its constructor, so Lint takes only a context.
 type Linter interface {
-	Name() string
+	GetName() string
 	Lint(ctx context.Context)
 }
 
@@ -177,11 +177,11 @@ func (m *Manager) Run(ctx context.Context) {
 			log.Info("Run linters for module", slog.String("module", module.GetName()))
 
 			for _, linter := range getLintersForModule(module, m.errors) {
-				if flags.LinterName != "" && linter.Name() != flags.LinterName {
+				if flags.LinterName != "" && linter.GetName() != flags.LinterName {
 					continue
 				}
 
-				log.Debug("Running linter", slog.String("linter", linter.Name()), slog.String("module", module.GetName()))
+				log.Debug("Running linter", slog.String("linter", linter.GetName()), slog.String("module", module.GetName()))
 
 				linter.Lint(ctx)
 			}

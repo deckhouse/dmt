@@ -47,10 +47,6 @@ func New(cfg *pkg.OpenAPILinterConfig, m pkg.Module, errorList *errors.LintRuleE
 }
 
 func (o *OpenAPI) Lint(ctx context.Context) {
-	if o.module == nil {
-		return
-	}
-
 	for _, rule := range o.rules() {
 		rule.Check(ctx)
 	}
@@ -87,7 +83,7 @@ func (o *OpenAPI) rules() []pkg.Rule {
 	}
 }
 
-func (o *OpenAPI) Name() string {
+func (o *OpenAPI) GetName() string {
 	return o.name
 }
 

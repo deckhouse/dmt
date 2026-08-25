@@ -295,10 +295,6 @@ func handleNestedRBACForUs(m pkg.Module, object storage.StoreObject, errorList *
 	shortPath := object.ShortPath()
 	namespace := object.Unstructured.GetNamespace()
 
-	if m == nil {
-		return
-	}
-
 	parts := strings.Split(
 		strings.TrimPrefix(strings.TrimSuffix(shortPath, "/rbac-for-us.yaml"), "templates/"),
 		string(os.PathSeparator),

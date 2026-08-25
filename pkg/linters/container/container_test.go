@@ -15,7 +15,7 @@ func TestContainer_NameAndDesc(t *testing.T) {
 	errList := errors.NewLintRuleErrorsList()
 	linter := New(cfg, nil, errList)
 
-	assert.Equal(t, ID, linter.Name(), "Name() should return linter ID")
+	assert.Equal(t, ID, linter.GetName(), "GetName() should return linter ID")
 	assert.Equal(t, "Lint container objects", linter.Desc(), "Desc() should return linter description")
 }
 

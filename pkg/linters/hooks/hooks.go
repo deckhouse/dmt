@@ -45,10 +45,6 @@ func New(cfg *pkg.HooksLinterConfig, m pkg.Module, errorList *errors.LintRuleErr
 }
 
 func (h *Hooks) Lint(ctx context.Context) {
-	if h.module == nil {
-		return
-	}
-
 	for _, rule := range h.rules() {
 		rule.Check(ctx)
 	}
@@ -68,7 +64,7 @@ func (h *Hooks) rules() []pkg.Rule {
 	}
 }
 
-func (h *Hooks) Name() string {
+func (h *Hooks) GetName() string {
 	return h.name
 }
 
