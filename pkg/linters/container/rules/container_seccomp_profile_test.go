@@ -115,7 +115,6 @@ func TestSeccompProfileRule_ContainerSeccompProfile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rule := NewSeccompProfileRule([]pkg.ContainerRuleExclude{})
 			errorList := errors.NewLintRuleErrorsList()
 
 			objData := map[string]any{
@@ -136,7 +135,7 @@ func TestSeccompProfileRule_ContainerSeccompProfile(t *testing.T) {
 				Unstructured: unstructured.Unstructured{Object: objData},
 			}
 
-			rule.ContainerSeccompProfile(obj, tt.containers, errorList)
+			NewSeccompProfileRule([]pkg.ContainerRuleExclude{}, oneObject(obj, tt.containers), errorList).Check(t.Context())
 			errs := errorList.GetErrors()
 
 			if len(tt.expectedMessages) == 0 {
@@ -153,7 +152,6 @@ func TestSeccompProfileRule_ContainerSeccompProfile(t *testing.T) {
 }
 
 func TestSeccompProfileRule_PodLevelProfile(t *testing.T) {
-	rule := NewSeccompProfileRule([]pkg.ContainerRuleExclude{})
 	errorList := errors.NewLintRuleErrorsList()
 
 	// Pod with RuntimeDefault at pod level
@@ -179,7 +177,7 @@ func TestSeccompProfileRule_PodLevelProfile(t *testing.T) {
 		// No container-level seccomp profile, should inherit from pod
 	}}
 
-	rule.ContainerSeccompProfile(obj, containers, errorList)
+	NewSeccompProfileRule([]pkg.ContainerRuleExclude{}, oneObject(obj, containers), errorList).Check(t.Context())
 	errs := errorList.GetErrors()
 
 	// Should pass without errors since pod-level RuntimeDefault is inherited
@@ -187,7 +185,6 @@ func TestSeccompProfileRule_PodLevelProfile(t *testing.T) {
 }
 
 func TestSeccompProfileRule_ContainerOverridesPod(t *testing.T) {
-	rule := NewSeccompProfileRule([]pkg.ContainerRuleExclude{})
 	errorList := errors.NewLintRuleErrorsList()
 
 	// Pod with RuntimeDefault, but container overrides with Unconfined
@@ -217,7 +214,7 @@ func TestSeccompProfileRule_ContainerOverridesPod(t *testing.T) {
 		},
 	}}
 
-	rule.ContainerSeccompProfile(obj, containers, errorList)
+	NewSeccompProfileRule([]pkg.ContainerRuleExclude{}, oneObject(obj, containers), errorList).Check(t.Context())
 	errs := errorList.GetErrors()
 
 	assert.Len(t, errs, 1, "Should have one error for Unconfined override")
@@ -233,7 +230,6 @@ func TestSeccompProfileRule_WithExclusions(t *testing.T) {
 		},
 	}
 
-	rule := NewSeccompProfileRule(excludeRules)
 	errorList := errors.NewLintRuleErrorsList()
 
 	obj := storage.StoreObject{
@@ -255,7 +251,7 @@ func TestSeccompProfileRule_WithExclusions(t *testing.T) {
 		},
 	}}
 
-	rule.ContainerSeccompProfile(obj, containers, errorList)
+	NewSeccompProfileRule(excludeRules, oneObject(obj, containers), errorList).Check(t.Context())
 	errs := errorList.GetErrors()
 
 	assert.Empty(t, errs, "Excluded container should not generate errors")

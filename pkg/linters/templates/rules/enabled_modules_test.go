@@ -223,10 +223,10 @@ spec:
 			errorList := errors.NewLintRuleErrorsList()
 
 			// Create rule
-			rule := NewEnabledModulesRule(nil, nil)
+			rule := NewEnabledModulesRule(nil, nil, mockModule, errorList)
 
 			// Run validation
-			rule.CheckEnabledModules(mockModule, errorList)
+			rule.Check(t.Context())
 
 			// Check results
 			errs := errorList.GetErrors()

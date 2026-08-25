@@ -17,6 +17,8 @@ limitations under the License.
 package rules
 
 import (
+	"context"
+
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -26,20 +28,35 @@ const (
 	RecommendedLabelsRuleName = "object-recommended-labels"
 )
 
-func NewRecommendedLabelsRule() *RecommendedLabelsRule {
+func NewRecommendedLabelsRule(m pkg.Module, errorList *errors.LintRuleErrorsList) *RecommendedLabelsRule {
 	return &RecommendedLabelsRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: RecommendedLabelsRuleName,
 		},
+		module:    m,
+		errorList: errorList.WithRule(RecommendedLabelsRuleName),
 	}
 }
 
 type RecommendedLabelsRule struct {
 	pkg.RuleMeta
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func (r *RecommendedLabelsRule) ObjectRecommendedLabels(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+var _ pkg.Rule = (*RecommendedLabelsRule)(nil)
+
+func (r *RecommendedLabelsRule) Check(_ context.Context) {
+	for _, object := range r.module.GetStorage() {
+		r.checkObject(object)
+	}
+}
+
+// checkObject must stay a separate method rather than being inlined into the
+// loop above: its early returns end the check for one object, not for the rule.
+func (r *RecommendedLabelsRule) checkObject(object storage.StoreObject) {
+	errorList := r.errorList.WithFilePath(object.GetPath())
 
 	labels := object.Unstructured.GetLabels()
 	if _, ok := labels["module"]; !ok {

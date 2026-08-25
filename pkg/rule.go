@@ -17,12 +17,24 @@ limitations under the License.
 package pkg
 
 import (
+	"context"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/deckhouse/dmt/internal/storage"
 )
+
+// Rule is the common interface implemented by all lint rules.
+//
+// A rule receives everything it needs — the target it inspects and an already
+// scoped error list — through its constructor, so Check takes nothing but a
+// context. That uniformity is what lets a linter hold its rules as data
+// (see the rules() method on each linter) instead of hand-rolled call sites.
+type Rule interface {
+	GetName() string
+	Check(ctx context.Context)
+}
 
 type RuleMeta struct {
 	Name string

@@ -4,7 +4,8 @@
 package docs
 
 import (
-	"github.com/deckhouse/dmt/internal/modules"
+	"context"
+
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/docs/rules"
@@ -18,41 +19,49 @@ const (
 type Documentation struct {
 	name, desc string
 	cfg        *pkg.DocumentationLinterConfig
+	module     pkg.Module
 	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *pkg.DocumentationLinterConfig, errorList *errors.LintRuleErrorsList) *Documentation {
+func New(cfg *pkg.DocumentationLinterConfig, m pkg.Module, errorList *errors.LintRuleErrorsList) *Documentation {
 	return &Documentation{
 		name:      ID,
 		desc:      "Documentation linter checks module documentation requirements",
 		cfg:       cfg,
+		module:    m,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.Impact),
 	}
 }
 
-func (l *Documentation) Run(m *modules.Module) {
-	if m == nil || m.GetPath() == "" {
+func (l *Documentation) Lint(ctx context.Context) {
+	if l.module.GetPath() == "" {
 		return
 	}
 
-	errorList := l.ErrorList.WithModule(m.GetName())
-
-	rules.NewReadmeRule().CheckReadme(m, errorList.WithMaxLevel(l.cfg.Rules.ReadmeRule.GetLevel()))
-
-	rules.NewBilingualRule().CheckBilingual(m, errorList.WithMaxLevel(l.cfg.Rules.BilingualRule.GetLevel()))
-
-	rules.NewCyrillicInEnglishRule().CheckFiles(m, errorList.WithMaxLevel(l.cfg.Rules.CyrillicInEnglishRule.GetLevel()))
-
-	rules.NewNoLangKeyRule().CheckFiles(m, errorList.WithMaxLevel(l.cfg.Rules.NoLangKeyRule.GetLevel()))
-
-	rules.NewMarkdownRule().CheckFiles(m, errorList.WithMaxLevel(l.cfg.Rules.MarkdownlintRule.GetLevel()))
-
-	rules.NewSizeRule().CheckSize(m, errorList.WithMaxLevel(l.cfg.Rules.SizeRule.GetLevel()))
-
-	rules.NewFrontMatterRule().CheckFiles(m, errorList.WithMaxLevel(l.cfg.Rules.FrontMatterRule.GetLevel()))
+	for _, rule := range l.rules() {
+		rule.Check(ctx)
+	}
 }
 
-func (l *Documentation) Name() string {
+// rules builds this linter's rule set. Keeping the set as data — rather than a
+// sequence of hand-written calls — is what lets rules be selected or grouped
+// later without touching the rules themselves.
+func (l *Documentation) rules() []pkg.Rule {
+	m := l.module
+	errorList := l.ErrorList.WithModule(m.GetName())
+
+	return []pkg.Rule{
+		rules.NewReadmeRule(m, errorList.WithMaxLevel(l.cfg.Rules.ReadmeRule.GetLevel())),
+		rules.NewBilingualRule(m, errorList.WithMaxLevel(l.cfg.Rules.BilingualRule.GetLevel())),
+		rules.NewCyrillicInEnglishRule(m, errorList.WithMaxLevel(l.cfg.Rules.CyrillicInEnglishRule.GetLevel())),
+		rules.NewNoLangKeyRule(m, errorList.WithMaxLevel(l.cfg.Rules.NoLangKeyRule.GetLevel())),
+		rules.NewMarkdownRule(m, errorList.WithMaxLevel(l.cfg.Rules.MarkdownlintRule.GetLevel())),
+		rules.NewSizeRule(m, errorList.WithMaxLevel(l.cfg.Rules.SizeRule.GetLevel())),
+		rules.NewFrontMatterRule(m, errorList.WithMaxLevel(l.cfg.Rules.FrontMatterRule.GetLevel())),
+	}
+}
+
+func (l *Documentation) GetName() string {
 	return l.name
 }
 

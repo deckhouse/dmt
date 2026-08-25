@@ -112,9 +112,9 @@ components:
 					KeyBannedNames: tt.bannedNames,
 				},
 			}
-			rule := NewKeysRule(cfg, "test")
 			errorList := errors.NewLintRuleErrorsList()
-			rule.Run(filePath, errorList)
+			rule := NewKeysRule(cfg, moduleAt(t, "test"), errorList)
+			rule.checkFile(filePath)
 
 			errs := errorList.GetErrors()
 			if tt.wantErrors == nil {

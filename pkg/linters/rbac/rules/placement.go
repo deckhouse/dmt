@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"slices"
@@ -24,7 +25,6 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -34,7 +34,8 @@ const (
 	PlacementRuleName = "placement"
 )
 
-func NewPlacementRule(excludeRules []pkg.KindRuleExclude) *PlacementRule {
+func NewPlacementRule(excludeRules []pkg.KindRuleExclude,
+	m pkg.Module, errorList *errors.LintRuleErrorsList) *PlacementRule {
 	return &PlacementRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: PlacementRuleName,
@@ -42,13 +43,20 @@ func NewPlacementRule(excludeRules []pkg.KindRuleExclude) *PlacementRule {
 		KindRule: pkg.KindRule{
 			ExcludeRules: excludeRules,
 		},
+		module:    m,
+		errorList: errorList.WithRule(PlacementRuleName),
 	}
 }
 
 type PlacementRule struct {
 	pkg.RuleMeta
 	pkg.KindRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
+
+var _ pkg.Rule = (*PlacementRule)(nil)
 
 const (
 	serviceAccountNameDelimiter = "-"
@@ -69,8 +77,8 @@ func isDeckhouseSystemNamespace(actual string) bool {
 	return slices.Contains(deckhouseNamespaces, actual)
 }
 
-func (r *PlacementRule) ObjectRBACPlacement(m *modules.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+func (r *PlacementRule) Check(_ context.Context) {
+	m, errorList := r.module, r.errorList
 
 	for _, object := range m.GetStorage() {
 		errorListObj := errorList.WithObjectID(object.Identity())
@@ -102,7 +110,7 @@ func (r *PlacementRule) ObjectRBACPlacement(m *modules.Module, errorList *errors
 	}
 }
 
-func objectRBACPlacementServiceAccount(m *modules.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+func objectRBACPlacementServiceAccount(m pkg.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	objectName := object.Unstructured.GetName()
 	shortPath := object.ShortPath()
 	namespace := object.Unstructured.GetNamespace()
@@ -185,7 +193,7 @@ func objectRBACPlacementServiceAccount(m *modules.Module, object storage.StoreOb
 	errorList.Errorf("ServiceAccount should be in %q or \"*/rbac-for-us.yaml\"", RootRBACForUsPath)
 }
 
-func objectRBACPlacementClusterRole(m *modules.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+func objectRBACPlacementClusterRole(m pkg.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	objectName := object.Unstructured.GetName()
 	objectKind := object.Unstructured.GetKind()
 	shortPath := object.ShortPath()
@@ -215,7 +223,7 @@ func objectRBACPlacementClusterRole(m *modules.Module, object storage.StoreObjec
 	}
 }
 
-func objectRBACPlacementRole(m *modules.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+func objectRBACPlacementRole(m pkg.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	shortPath := object.ShortPath()
 	errorList = errorList.WithFilePath(shortPath)
 
@@ -239,7 +247,7 @@ func objectRBACPlacementRole(m *modules.Module, object storage.StoreObject, erro
 }
 
 // handleRootRBACForUs applies to templates/rbac-for-us.yaml file's objects
-func handleRootRBACForUs(m *modules.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+func handleRootRBACForUs(m pkg.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	prefix := "d8:" + m.GetName()
 	objectName := object.Unstructured.GetName()
 	objectKind := object.Unstructured.GetKind()
@@ -264,7 +272,7 @@ func handleRootRBACForUs(m *modules.Module, object storage.StoreObject, errorLis
 }
 
 // handleRootRBACToUs applies to templates/rbac-to-us.yaml file's objects
-func handleRootRBACToUs(m *modules.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+func handleRootRBACToUs(m pkg.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	prefix := "access-to-" + m.GetName()
 	objectName := object.Unstructured.GetName()
 	objectKind := object.Unstructured.GetKind()
@@ -281,15 +289,11 @@ func handleRootRBACToUs(m *modules.Module, object storage.StoreObject, errorList
 }
 
 // handleNestedRBACForUs applies to templates/**/rbac-for-us.yaml file's objects
-func handleNestedRBACForUs(m *modules.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+func handleNestedRBACForUs(m pkg.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	objectName := object.Unstructured.GetName()
 	objectKind := object.Unstructured.GetKind()
 	shortPath := object.ShortPath()
 	namespace := object.Unstructured.GetNamespace()
-
-	if m == nil {
-		return
-	}
 
 	parts := strings.Split(
 		strings.TrimPrefix(strings.TrimSuffix(shortPath, "/rbac-for-us.yaml"), "templates/"),
@@ -322,7 +326,7 @@ func handleNestedRBACForUs(m *modules.Module, object storage.StoreObject, errorL
 }
 
 // handleNestedRBACToUs applies to templates/**/rbac-to-us.yaml file's objects
-func handleNestedRBACToUs(m *modules.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+func handleNestedRBACToUs(m pkg.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	objectName := object.Unstructured.GetName()
 	objectKind := object.Unstructured.GetKind()
 	shortPath := object.ShortPath()

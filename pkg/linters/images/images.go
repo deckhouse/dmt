@@ -17,7 +17,8 @@ limitations under the License.
 package images
 
 import (
-	"github.com/deckhouse/dmt/internal/modules"
+	"context"
+
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/images/rules"
@@ -31,32 +32,52 @@ const (
 type Images struct {
 	name, desc string
 	cfg        *pkg.ImageLinterConfig
+	module     pkg.Module
 	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(imageCfg *pkg.ImageLinterConfig, errorList *errors.LintRuleErrorsList) *Images {
+func New(imageCfg *pkg.ImageLinterConfig, m pkg.Module, errorList *errors.LintRuleErrorsList) *Images {
 	return &Images{
 		name:      ID,
 		desc:      "Lint docker images",
 		cfg:       imageCfg,
+		module:    m,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(imageCfg.Impact),
 	}
 }
 
-func (l *Images) Run(m *modules.Module) {
-	if m == nil {
-		return
+func (l *Images) Lint(ctx context.Context) {
+	for _, rule := range l.rules() {
+		rule.Check(ctx)
 	}
-
-	errorList := l.ErrorList.WithModule(m.GetName())
-
-	rules.NewImageRule(l.cfg).CheckImageNamesInDockerFiles(m.GetPath(), errorList.WithRule("image").WithMaxLevel(l.cfg.Rules.ImageRule.GetLevel()))
-	rules.NewDistrolessRule(l.cfg).CheckImageNamesInDockerFiles(m.GetPath(), errorList.WithRule("distroless").WithMaxLevel(l.cfg.Rules.DistrolessRule.GetLevel()))
-	rules.NewWerfRule(l.cfg.Werf.Disable).LintWerfFile(m.GetName(), m.GetWerfFile(), errorList.WithRule("werf").WithMaxLevel(l.cfg.Rules.WerfRule.GetLevel()))
-	rules.NewPatchesRule(l.cfg.Patches.Disable).CheckPatches(m.GetPath(), errorList.WithRule("patches").WithMaxLevel(l.cfg.Rules.PatchesRule.GetLevel()))
 }
 
-func (l *Images) Name() string {
+// rules builds this linter's rule set. Keeping the set as data — rather than a
+// sequence of hand-written calls — is what lets rules be selected or grouped
+// later without touching the rules themselves.
+//
+// Unlike hooks/rbac/no-cyrillic, the per-rule impact levels here are real:
+// mapImageRules reads global per-rule impacts and only falls back to the
+// linter's, so every rule must be scoped by its own level.
+func (l *Images) rules() []pkg.Rule {
+	m := l.module
+	cfg := l.cfg
+	errorList := l.ErrorList.WithModule(m.GetName())
+
+	// level scopes errorList to the configured impact of a single rule.
+	level := func(rule pkg.RuleConfig) *errors.LintRuleErrorsList {
+		return errorList.WithMaxLevel(rule.GetLevel())
+	}
+
+	return []pkg.Rule{
+		rules.NewImageRule(cfg, m, level(cfg.Rules.ImageRule)),
+		rules.NewDistrolessRule(cfg, m, level(cfg.Rules.DistrolessRule)),
+		rules.NewWerfRule(cfg.Werf.Disable, m, level(cfg.Rules.WerfRule)),
+		rules.NewPatchesRule(cfg.Patches.Disable, m, level(cfg.Rules.PatchesRule)),
+	}
+}
+
+func (l *Images) GetName() string {
 	return l.name
 }
 

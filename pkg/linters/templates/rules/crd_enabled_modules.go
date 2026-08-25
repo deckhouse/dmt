@@ -18,6 +18,7 @@ package rules
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -70,22 +71,29 @@ var crdVersionConstraintRegex = regexp.MustCompile(`([><=]=?|!=)\s*v?(\d+(?:\.\d
 
 type CRDEnabledModulesRule struct {
 	pkg.RuleMeta
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func NewCRDEnabledModulesRule() *CRDEnabledModulesRule {
+func NewCRDEnabledModulesRule(m pkg.Module, errorList *errors.LintRuleErrorsList) *CRDEnabledModulesRule {
 	return &CRDEnabledModulesRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: CRDEnabledModulesRuleName,
 		},
+		module:    m,
+		errorList: errorList.WithRule(CRDEnabledModulesRuleName),
 	}
 }
 
-// CheckCRDEnabledModules scans the module templates for deprecated references to
+var _ pkg.Rule = (*CRDEnabledModulesRule)(nil)
+
+// Check scans the module templates for deprecated references to
 // standalone "-crd" modules through .Values.global.enabledModules and reports each
 // one, offering an autofix that drops the "-crd" suffix. The check is gated on the
 // module's target Deckhouse version (see MinimalDeckhouseVersionForCRDModulesRemoval).
-func (r *CRDEnabledModulesRule) CheckCRDEnabledModules(m pkg.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+func (r *CRDEnabledModulesRule) Check(_ context.Context) {
+	m, errorList := r.module, r.errorList
 
 	// The standalone "-crd" modules were removed starting from a specific Deckhouse
 	// version. Only modules that target that version (or newer) must stop referencing

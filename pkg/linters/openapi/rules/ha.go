@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"reflect"
@@ -27,31 +28,47 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
+const HARuleName = "high-availability"
+
 type HARule struct {
 	cfg *pkg.OpenAPILinterConfig
 	pkg.RuleMeta
 	pkg.StringRule
-	rootPath string
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func NewHARule(cfg *pkg.OpenAPILinterConfig, rootPath string) *HARule {
+func NewHARule(cfg *pkg.OpenAPILinterConfig,
+	m pkg.Module, errorList *errors.LintRuleErrorsList) *HARule {
 	return &HARule{
 		cfg: cfg,
 		RuleMeta: pkg.RuleMeta{
-			Name: "high-availability",
+			Name: HARuleName,
 		},
 		StringRule: pkg.StringRule{
 			ExcludeRules: cfg.ExcludeRules.HAAbsoluteKeysExcludes.Get(),
 		},
-		rootPath: rootPath,
+		module:    m,
+		errorList: errorList.WithRule(HARuleName),
 	}
 }
 
-func (e *HARule) Run(path string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(e.GetName())
+var _ pkg.Rule = (*HARule)(nil)
 
-	shortPath, _ := filepath.Rel(e.rootPath, path)
-	haValidator := newHAValidator(e.StringRule)
+func (r *HARule) Check(_ context.Context) {
+	for _, path := range openAPIAndCRDFiles(r.module.GetPath()) {
+		r.checkFile(path)
+	}
+}
+
+// checkFile must stay a separate method rather than being inlined into the
+// loop above: it is the entry point the unit tests drive directly, with paths
+// the walk in Check would never yield.
+func (r *HARule) checkFile(path string) {
+	errorList := r.errorList
+
+	shortPath, _ := filepath.Rel(r.module.GetPath(), path)
+	haValidator := newHAValidator(r.StringRule)
 
 	if err := openapi.Parse(haValidator.run, path); err != nil {
 		errorList.WithFilePath(shortPath).Errorf("openAPI file is not valid:\n%s", err)

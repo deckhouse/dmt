@@ -17,11 +17,11 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/internal/set"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
@@ -32,7 +32,7 @@ const (
 	VPARuleName = "vpa"
 )
 
-func NewVPARule(excludeRules []pkg.KindRuleExclude) *VPARule {
+func NewVPARule(excludeRules []pkg.KindRuleExclude, m pkg.Module, errorList *errors.LintRuleErrorsList) *VPARule {
 	return &VPARule{
 		RuleMeta: pkg.RuleMeta{
 			Name: VPARuleName,
@@ -40,17 +40,24 @@ func NewVPARule(excludeRules []pkg.KindRuleExclude) *VPARule {
 		KindRule: pkg.KindRule{
 			ExcludeRules: excludeRules,
 		},
+		module:    m,
+		errorList: errorList.WithRule(VPARuleName),
 	}
 }
 
 type VPARule struct {
 	pkg.RuleMeta
 	pkg.KindRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-// controllerMustHaveVPA fills linting error regarding VPA
-func (r *VPARule) ControllerMustHaveVPA(md *modules.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+var _ pkg.Rule = (*VPARule)(nil)
+
+// Check fills linting error regarding VPA
+func (r *VPARule) Check(_ context.Context) {
+	md, errorList := r.module, r.errorList
 
 	vpaTargets, vpaContainerNamesMap, vpaUpdateModes := parseTargetsGroups(md, errorList)
 
@@ -84,7 +91,7 @@ func IsPodController(kind string) bool {
 }
 
 // parseTargetsGroups resolves target resource indexes
-func parseTargetsGroups(md *modules.Module, errorList *errors.LintRuleErrorsList) (
+func parseTargetsGroups(md pkg.Module, errorList *errors.LintRuleErrorsList) (
 	map[storage.ResourceIndex]struct{},
 	map[storage.ResourceIndex]set.Set,
 	map[storage.ResourceIndex]UpdateMode,

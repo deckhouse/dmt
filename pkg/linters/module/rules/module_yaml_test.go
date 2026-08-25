@@ -29,15 +29,16 @@ requirements:
 `), 0600)
 	require.NoError(t, err)
 
-	rule := NewDefinitionFileRule(false)
 	errorList := errors.NewLintRuleErrorsList()
+	rule := NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
 
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule.Check(t.Context())
 	assert.False(t, errorList.ContainsErrors(), "Expected no errors for valid module.yaml")
 
 	_ = os.Remove(moduleFilePath)
 	errorList = errors.NewLintRuleErrorsList()
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule = NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
+	rule.Check(t.Context())
 	assert.False(t, errorList.ContainsErrors(), "Expected no errors when module.yaml is missing")
 }
 
@@ -53,10 +54,10 @@ descriptions:
 `), 0600)
 	require.NoError(t, err)
 
-	rule := NewDefinitionFileRule(false)
 	errorList := errors.NewLintRuleErrorsList()
+	rule := NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
 
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule.Check(t.Context())
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for missing 'name' field")
 	assert.Contains(t, errorList.GetErrors()[0].Text, "Field 'name' is required")
 
@@ -70,7 +71,8 @@ descriptions:
 	require.NoError(t, err)
 
 	errorList = errors.NewLintRuleErrorsList()
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule = NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
+	rule.Check(t.Context())
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for 'name' field exceeding 64 characters")
 	assert.Contains(t, errorList.GetErrors()[0].Text, "Field 'name' must not exceed 64 characters")
 
@@ -84,7 +86,8 @@ descriptions:
 	require.NoError(t, err)
 
 	errorList = errors.NewLintRuleErrorsList()
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule = NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
+	rule.Check(t.Context())
 	assert.False(t, errorList.ContainsErrors(), "Expected no errors for valid 'name' field")
 }
 
@@ -207,9 +210,9 @@ descriptions:
 `), 0600)
 	require.NoError(t, err)
 
-	rule := NewDefinitionFileRule(false)
 	errorList := errors.NewLintRuleErrorsList()
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule := NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
+	rule.Check(t.Context())
 	assert.True(t, errorList.ContainsErrors(), "Expected error for critical module with zero weight")
 	assert.Contains(t, errorList.GetErrors()[0].Text, "Field 'weight' must not be zero for critical modules")
 }
@@ -228,9 +231,9 @@ descriptions:
 `), 0600)
 	require.NoError(t, err)
 
-	rule := NewDefinitionFileRule(false)
 	errorList := errors.NewLintRuleErrorsList()
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule := NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
+	rule.Check(t.Context())
 	assert.False(t, errorList.ContainsErrors(), "Expected no error for critical module with non-zero weight")
 }
 
@@ -247,9 +250,9 @@ descriptions:
 `), 0600)
 	require.NoError(t, err)
 
-	rule := NewDefinitionFileRule(false)
 	errorList := errors.NewLintRuleErrorsList()
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule := NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
+	rule.Check(t.Context())
 	assert.True(t, errorList.ContainsErrors(), "Expected error for critical module without weight field")
 	assert.Contains(t, errorList.GetErrors()[0].Text, "Field 'weight' must not be zero for critical modules")
 }
@@ -266,9 +269,9 @@ descriptions:
 `), 0600)
 	require.NoError(t, err)
 
-	rule := NewDefinitionFileRule(false)
 	errorList := errors.NewLintRuleErrorsList()
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule := NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
+	rule.Check(t.Context())
 	assert.True(t, errorList.ContainsErrors(), "Expected error for invalid stage value")
 	assert.Contains(t, errorList.GetErrors()[0].Text, "Field 'stage' is not one of the following values")
 }
@@ -287,9 +290,9 @@ requirements:
 `), 0600)
 	require.NoError(t, err)
 
-	rule := NewDefinitionFileRule(false)
 	errorList := errors.NewLintRuleErrorsList()
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule := NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
+	rule.Check(t.Context())
 	assert.True(t, errorList.ContainsErrors(), "Expected error for invalid deckhouse version in requirements")
 	assert.Contains(t, errorList.GetErrors()[0].Text, "Invalid Deckhouse version requirement")
 }
@@ -304,9 +307,9 @@ stage: Experimental
 `), 0600)
 	require.NoError(t, err)
 
-	rule := NewDefinitionFileRule(false)
 	errorList := errors.NewLintRuleErrorsList()
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule := NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
+	rule.Check(t.Context())
 
 	gotErrors := []string{}
 
@@ -340,10 +343,10 @@ descriptions:
 `), 0600)
 	require.NoError(t, err)
 
-	rule := NewDefinitionFileRule(false)
 	errorList := errors.NewLintRuleErrorsList()
+	rule := NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
 
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule.Check(t.Context())
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for missing 'stage' field")
 	assert.Contains(t, errorList.GetErrors()[0].Text, "Field 'stage' is required")
 
@@ -357,7 +360,8 @@ descriptions:
 	require.NoError(t, err)
 
 	errorList = errors.NewLintRuleErrorsList()
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule = NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
+	rule.Check(t.Context())
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for invalid 'stage' value")
 	assert.Contains(t, errorList.GetErrors()[0].Text, "Field 'stage' is not one of the following values")
 
@@ -371,7 +375,8 @@ descriptions:
 	require.NoError(t, err)
 
 	errorList = errors.NewLintRuleErrorsList()
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule = NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
+	rule.Check(t.Context())
 	assert.False(t, errorList.ContainsErrors(), "Expected no errors for valid 'stage' value")
 }
 
@@ -388,10 +393,10 @@ descriptions:
 `), 0600)
 	require.NoError(t, err)
 
-	rule := NewDefinitionFileRule(false)
 	errorList := errors.NewLintRuleErrorsList()
+	rule := NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
 
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule.Check(t.Context())
 	assert.True(t, errorList.ContainsErrors(), "Expected error for missing 'descriptions.en' field")
 	assert.Contains(t, errorList.GetErrors()[0].Text, "Module `descriptions.en` field is required")
 
@@ -406,7 +411,8 @@ descriptions:
 	require.NoError(t, err)
 
 	errorList = errors.NewLintRuleErrorsList()
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule = NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
+	rule.Check(t.Context())
 	assert.False(t, errorList.ContainsErrors(), "Expected no warnings for present 'descriptions.en' field")
 }
 
@@ -425,10 +431,10 @@ descriptions:
 `), 0600)
 	require.NoError(t, err)
 
-	rule := NewDefinitionFileRule(false)
 	errorList := errors.NewLintRuleErrorsList()
+	rule := NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
 
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule.Check(t.Context())
 	fmt.Println(errorList.GetErrors())
 	assert.True(t, errorList.ContainsErrors(), "Expected error for deprecated 'description' field")
 
@@ -455,7 +461,8 @@ descriptions:
 	require.NoError(t, err)
 
 	errorList = errors.NewLintRuleErrorsList()
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule = NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
+	rule.Check(t.Context())
 	assert.False(t, errorList.ContainsErrors(), "Expected no warnings when 'description' field is not used")
 }
 
@@ -463,14 +470,13 @@ func TestCheckDefinitionFile_DeprecatedDisableMessageField(t *testing.T) {
 	tempDir := t.TempDir()
 	moduleFilePath := filepath.Join(tempDir, ModuleConfigFilename)
 
-	rule := NewDefinitionFileRule(false)
-
 	check := func(t *testing.T, body string) *errors.LintRuleErrorsList {
 		t.Helper()
 		require.NoError(t, os.WriteFile(moduleFilePath, []byte(body), 0600))
 
 		errorList := errors.NewLintRuleErrorsList()
-		rule.CheckDefinitionFile(tempDir, errorList)
+		rule := NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
+		rule.Check(t.Context())
 
 		return errorList
 	}
@@ -618,10 +624,10 @@ namespace: d8-state-snapshotter
 `), 0600)
 	require.NoError(t, err)
 
-	rule := NewDefinitionFileRule(false)
 	errorList := errors.NewLintRuleErrorsList()
+	rule := NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
 
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule.Check(t.Context())
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for duplicate keys in module.yaml")
 	assert.Contains(t, errorList.GetErrors()[0].Text, "Cannot parse file")
 }
@@ -634,10 +640,10 @@ func TestCheckDefinitionFile_FileErrors(t *testing.T) {
 	err := os.WriteFile(moduleFilePath, []byte(`:invalid_yaml`), 0600)
 	require.NoError(t, err)
 
-	rule := NewDefinitionFileRule(false)
 	errorList := errors.NewLintRuleErrorsList()
+	rule := NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
 
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule.Check(t.Context())
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for invalid YAML")
 	assert.Contains(t, errorList.GetErrors()[0].Text, "Cannot parse file")
 
@@ -651,7 +657,8 @@ func TestCheckDefinitionFile_FileErrors(t *testing.T) {
 	}()
 
 	errorList = errors.NewLintRuleErrorsList()
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule = NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
+	rule.Check(t.Context())
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for unreadable file")
 }
 
@@ -667,10 +674,10 @@ descriptions:
 `), 0600)
 	require.NoError(t, err)
 
-	rule := NewDefinitionFileRule(true)
 	errorList := errors.NewLintRuleErrorsList()
+	rule := NewDefinitionFileRule(true, moduleAt(t, tempDir), errorList)
 
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule.Check(t.Context())
 	assert.False(t, errorList.ContainsErrors(), "Expected no errors when rule is disabled")
 }
 
@@ -701,10 +708,10 @@ accessibility:
 `), 0600)
 	require.NoError(t, err)
 
-	rule := NewDefinitionFileRule(false)
 	errorList := errors.NewLintRuleErrorsList()
+	rule := NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
 
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule.Check(t.Context())
 	assert.False(t, errorList.ContainsErrors(), "Expected no errors for valid accessibility configuration")
 
 	// Test missing editions field
@@ -718,7 +725,8 @@ accessibility: {}
 	require.NoError(t, err)
 
 	errorList = errors.NewLintRuleErrorsList()
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule = NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
+	rule.Check(t.Context())
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for missing editions field")
 	assert.Contains(t, errorList.GetErrors()[0].Text, "Field 'accessibility.editions' is required")
 
@@ -738,7 +746,8 @@ accessibility:
 	require.NoError(t, err)
 
 	errorList = errors.NewLintRuleErrorsList()
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule = NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
+	rule.Check(t.Context())
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for invalid edition name")
 	assert.Contains(t, errorList.GetErrors()[0].Text, "Invalid edition name")
 
@@ -758,7 +767,8 @@ accessibility:
 	require.NoError(t, err)
 
 	errorList = errors.NewLintRuleErrorsList()
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule = NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
+	rule.Check(t.Context())
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for invalid bundle name")
 	assert.Contains(t, errorList.GetErrors()[0].Text, "Invalid bundle")
 }
@@ -781,9 +791,9 @@ update:
 `), 0600)
 	require.NoError(t, err)
 
-	rule := NewDefinitionFileRule(false)
 	errorList := errors.NewLintRuleErrorsList()
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule := NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
+	rule.Check(t.Context())
 	assert.False(t, errorList.ContainsErrors(), "Expected no errors for valid update configuration")
 }
 
@@ -803,9 +813,9 @@ update:
 `), 0600)
 	require.NoError(t, err)
 
-	rule := NewDefinitionFileRule(false)
 	errorList := errors.NewLintRuleErrorsList()
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule := NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
+	rule.Check(t.Context())
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for missing from/to fields")
 
 	errorTexts := make([]string, 0, 10) // Preallocate with reasonable capacity
@@ -833,9 +843,9 @@ update:
 `), 0600)
 	require.NoError(t, err)
 
-	rule := NewDefinitionFileRule(false)
 	errorList := errors.NewLintRuleErrorsList()
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule := NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
+	rule.Check(t.Context())
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for from > to")
 	assert.Contains(t, errorList.GetErrors()[0].Text, "'to' version '1.20' must be greater than 'from' version '2.0'")
 }
@@ -856,9 +866,9 @@ update:
 `), 0600)
 	require.NoError(t, err)
 
-	rule := NewDefinitionFileRule(false)
 	errorList := errors.NewLintRuleErrorsList()
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule := NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
+	rule.Check(t.Context())
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for patch versions")
 
 	errorTexts := make([]string, 0, 10) // Preallocate with reasonable capacity
@@ -887,9 +897,9 @@ update:
 `), 0600)
 	require.NoError(t, err)
 
-	rule := NewDefinitionFileRule(false)
 	errorList := errors.NewLintRuleErrorsList()
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule := NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
+	rule.Check(t.Context())
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for unsorted versions")
 	assert.Contains(t, errorList.GetErrors()[0].Text, "Update versions must be sorted by 'from' version ascending")
 }
@@ -914,9 +924,9 @@ update:
 `), 0600)
 	require.NoError(t, err)
 
-	rule := NewDefinitionFileRule(false)
 	errorList := errors.NewLintRuleErrorsList()
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule := NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
+	rule.Check(t.Context())
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for unsorted 'to' versions with same 'from'")
 	assert.Contains(t, errorList.GetErrors()[0].Text, "Update versions must be sorted by 'from' version ascending, then by 'to' version ascending")
 }
@@ -939,9 +949,9 @@ update:
 `), 0600)
 	require.NoError(t, err)
 
-	rule := NewDefinitionFileRule(false)
 	errorList := errors.NewLintRuleErrorsList()
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule := NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
+	rule.Check(t.Context())
 	assert.True(t, errorList.ContainsErrors(), "Expected errors for duplicate to versions")
 	assert.Contains(t, errorList.GetErrors()[0].Text, "Duplicate 'to' version '2.0' with different 'from' versions")
 }
@@ -960,8 +970,8 @@ update:
 `), 0600)
 	require.NoError(t, err)
 
-	rule := NewDefinitionFileRule(false)
 	errorList := errors.NewLintRuleErrorsList()
-	rule.CheckDefinitionFile(tempDir, errorList)
+	rule := NewDefinitionFileRule(false, moduleAt(t, tempDir), errorList)
+	rule.Check(t.Context())
 	assert.False(t, errorList.ContainsErrors(), "Expected no errors for empty versions array")
 }

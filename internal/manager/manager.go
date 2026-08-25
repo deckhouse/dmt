@@ -19,6 +19,7 @@ package manager
 import (
 	"bytes"
 	"cmp"
+	"context"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -67,9 +68,12 @@ func generateDocumentationURL(linterID, ruleID string) string {
 	return fmt.Sprintf("%s/pkg/linters/%s#%s", baseRepoURL, linterID, ruleID)
 }
 
+// Linter is the common interface implemented by all lint passes. Everything a
+// linter needs — its config, the module it inspects and the error list it
+// reports into — is supplied to its constructor, so Lint takes only a context.
 type Linter interface {
-	Run(m *modules.Module)
-	Name() string
+	GetName() string
+	Lint(ctx context.Context)
 }
 
 type Manager struct {
@@ -155,7 +159,7 @@ func decodeValuesFile(path string) (chartutil.Values, error) {
 	return chartutil.ReadValuesFile(valuesFile)
 }
 
-func (m *Manager) Run() {
+func (m *Manager) Run(ctx context.Context) {
 	wg := new(sync.WaitGroup)
 	processingCh := make(chan struct{}, flags.LintersLimit)
 
@@ -172,14 +176,14 @@ func (m *Manager) Run() {
 
 			log.Info("Run linters for module", slog.String("module", module.GetName()))
 
-			for _, linter := range getLintersForModule(module.GetModuleConfig(), m.errors) {
-				if flags.LinterName != "" && linter.Name() != flags.LinterName {
+			for _, linter := range getLintersForModule(module, m.errors) {
+				if flags.LinterName != "" && linter.GetName() != flags.LinterName {
 					continue
 				}
 
-				log.Debug("Running linter", slog.String("linter", linter.Name()), slog.String("module", module.GetName()))
+				log.Debug("Running linter", slog.String("linter", linter.GetName()), slog.String("module", module.GetName()))
 
-				linter.Run(module)
+				linter.Lint(ctx)
 			}
 		}()
 	}
@@ -187,17 +191,19 @@ func (m *Manager) Run() {
 	wg.Wait()
 }
 
-func getLintersForModule(cfg *pkg.LintersSettings, errList *errors.LintRuleErrorsList) []Linter {
+func getLintersForModule(module *modules.Module, errList *errors.LintRuleErrorsList) []Linter {
+	cfg := module.GetModuleConfig()
+
 	return []Linter{
-		openapi.New(&cfg.OpenAPI, errList),
-		no_cyrillic.New(&cfg.NoCyrillic, errList),
-		container.New(&cfg.Container, errList),
-		templates.New(&cfg.Templates, errList),
-		images.New(&cfg.Image, errList),
-		rbac.New(&cfg.RBAC, errList),
-		hooks.New(&cfg.Hooks, errList),
-		moduleLinter.New(&cfg.Module, errList),
-		docs.New(&cfg.Documentation, errList),
+		openapi.New(&cfg.OpenAPI, module, errList),
+		no_cyrillic.New(&cfg.NoCyrillic, module, errList),
+		container.New(&cfg.Container, module, errList),
+		templates.New(&cfg.Templates, module, errList),
+		images.New(&cfg.Image, module, errList),
+		rbac.New(&cfg.RBAC, module, errList),
+		hooks.New(&cfg.Hooks, module, errList),
+		moduleLinter.New(&cfg.Module, module, errList),
+		docs.New(&cfg.Documentation, module, errList),
 	}
 }
 

@@ -20,21 +20,28 @@ const (
 	MarkdownlintRuleName = "markdownlint"
 )
 
-func NewMarkdownRule() *MarkdownRule {
+func NewMarkdownRule(m pkg.Module, errorList *errors.LintRuleErrorsList) *MarkdownRule {
 	return &MarkdownRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: MarkdownlintRuleName,
 		},
+		module:    m,
+		errorList: errorList.WithRule(MarkdownlintRuleName),
 	}
 }
 
 type MarkdownRule struct {
 	pkg.RuleMeta
 	pkg.PathRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func (r *MarkdownRule) CheckFiles(m pkg.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+var _ pkg.Rule = (*MarkdownRule)(nil)
+
+func (r *MarkdownRule) Check(ctx context.Context) {
+	m := r.module
 
 	if !r.Enabled(m.GetName()) {
 		return
@@ -74,17 +81,19 @@ func (r *MarkdownRule) CheckFiles(m pkg.Module, errorList *errors.LintRuleErrors
 		mdFiles = append(mdFiles, fileName)
 	}
 
-	r.checkFiles(modulePath, mdFiles, errorList)
+	r.checkFiles(ctx, modulePath, mdFiles)
 }
 
-func (r *MarkdownRule) checkFiles(modulePath string, files []string, errorList *errors.LintRuleErrorsList) {
+func (r *MarkdownRule) checkFiles(ctx context.Context, modulePath string, files []string) {
 	if len(files) == 0 {
 		return
 	}
 
+	errorList := r.errorList
+
 	cfg := gomarkdownlint.ConfigFromMap(deckhouseMarkdownlintConfig())
 
-	results, err := gomarkdownlint.LintFiles(context.Background(), files, cfg)
+	results, err := gomarkdownlint.LintFiles(ctx, files, cfg)
 	if err != nil {
 		errorList.
 			WithFilePath(modulePath).

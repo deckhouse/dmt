@@ -19,6 +19,7 @@ package rules
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -57,9 +58,15 @@ var regexPatterns = map[string]string{
 type ImageRule struct {
 	pkg.RuleMeta
 	pkg.PrefixRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func NewImageRule(cfg *pkg.ImageLinterConfig) *ImageRule {
+// NOTE: the exclusion list is SkipDistrolessFilePathPrefix, not
+// SkipImageFilePathPrefix. Kept as-is; see pkg/linters/README.md.
+func NewImageRule(cfg *pkg.ImageLinterConfig,
+	m pkg.Module, errorList *errors.LintRuleErrorsList) *ImageRule {
 	return &ImageRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: dockerfileRuleName,
@@ -67,8 +74,12 @@ func NewImageRule(cfg *pkg.ImageLinterConfig) *ImageRule {
 		PrefixRule: pkg.PrefixRule{
 			ExcludeRules: cfg.ExcludeRules.SkipDistrolessFilePathPrefix.Get(),
 		},
+		module:    m,
+		errorList: errorList.WithRule(dockerfileRuleName),
 	}
 }
+
+var _ pkg.Rule = (*ImageRule)(nil)
 
 func isImageNameUnacceptable(imageName string) (bool, string) {
 	for ciVariable, pattern := range regexPatterns {
@@ -81,8 +92,8 @@ func isImageNameUnacceptable(imageName string) (bool, string) {
 	return false, ""
 }
 
-func (r *ImageRule) CheckImageNamesInDockerFiles(modulePath string, errorList *errors.LintRuleErrorsList) {
-	imagesPath := filepath.Join(modulePath, ImagesDir)
+func (r *ImageRule) Check(_ context.Context) {
+	imagesPath := filepath.Join(r.module.GetPath(), ImagesDir)
 	if !fsutils.IsFile(imagesPath) {
 		return
 	}
@@ -96,13 +107,15 @@ func (r *ImageRule) CheckImageNamesInDockerFiles(modulePath string, errorList *e
 			continue
 		}
 
-		r.lintOneDockerfile(path, imagesPath, errorList)
+		r.lintOneDockerfile(path, imagesPath)
 	}
 }
 
-func (*ImageRule) lintOneDockerfile(path, imagesPath string, errorList *errors.LintRuleErrorsList) {
+// lintOneDockerfile must stay a separate method rather than being inlined into
+// the loop above: its early return ends the check for one file, not the rule.
+func (r *ImageRule) lintOneDockerfile(path, imagesPath string) {
 	relativeFilePath := fsutils.Rel(imagesPath, path)
-	errorList = errorList.WithFilePath(relativeFilePath).WithRule(dockerfileRuleName)
+	errorList := r.errorList.WithFilePath(relativeFilePath)
 
 	data, err := os.ReadFile(path)
 	if err != nil {

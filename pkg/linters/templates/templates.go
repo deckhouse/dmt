@@ -17,10 +17,10 @@ limitations under the License.
 package templates
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 
-	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/templates/rules"
@@ -34,90 +34,78 @@ const (
 type Templates struct {
 	name, desc string
 	cfg        *pkg.TemplatesLinterConfig
+	module     pkg.Module
 	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *pkg.TemplatesLinterConfig, errorList *errors.LintRuleErrorsList) *Templates {
+func New(cfg *pkg.TemplatesLinterConfig, m pkg.Module, errorList *errors.LintRuleErrorsList) *Templates {
 	return &Templates{
 		name:      ID,
 		desc:      "Lint templates",
 		cfg:       cfg,
+		module:    m,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.Impact),
 	}
 }
 
-func (l *Templates) Run(m *modules.Module) {
-	if m == nil {
-		return
+func (l *Templates) Lint(ctx context.Context) {
+	for _, rule := range l.rules() {
+		rule.Check(ctx)
 	}
+}
 
+// rules builds this linter's rule set. Keeping the set as data — rather than a
+// sequence of hand-written calls — is what lets rules be selected or grouped
+// later without touching the rules themselves.
+func (l *Templates) rules() []pkg.Rule {
+	m := l.module
+	cfg := l.cfg
 	errorList := l.ErrorList.WithModule(m.GetName())
 
-	// VPA
-	rules.NewVPARule(l.cfg.ExcludeRules.VPAAbsent.Get()).ControllerMustHaveVPA(m, errorList.WithMaxLevel(l.cfg.Rules.VPARule.GetLevel()))
-	// PDB
-	rules.NewPDBRule(l.cfg.ExcludeRules.PDBAbsent.Get()).ControllerMustHavePDB(m, errorList.WithMaxLevel(l.cfg.Rules.PDBRule.GetLevel()))
-	// Ingress
-	ingressRule := rules.NewIngressRule(l.cfg.ExcludeRules.Ingress.Get())
-	// HttpRoute
-	httpRouteRule := rules.NewHTTPRouteRule(l.cfg.ExcludeRules.HTTPRoute.Get())
-	// monitoring
-	prometheusRule := rules.NewPrometheusRule(l.cfg)
-	grafanaRule := rules.NewGrafanaRule(l.cfg)
+	// level scopes errorList to the configured impact of a single rule.
+	level := func(rule pkg.RuleConfig) *errors.LintRuleErrorsList {
+		return errorList.WithMaxLevel(rule.GetLevel())
+	}
 
+	ruleSet := []pkg.Rule{
+		rules.NewVPARule(cfg.ExcludeRules.VPAAbsent.Get(), m, level(cfg.Rules.VPARule)),
+		rules.NewPDBRule(cfg.ExcludeRules.PDBAbsent.Get(), m, level(cfg.Rules.PDBRule)),
+	}
+
+	// The monitoring/ file checks only apply to modules that ship that folder.
+	// The promtool check below is deliberately not gated the same way: it runs
+	// against rendered objects, which exist regardless of the folder.
 	if err := dirExists(m.GetPath(), "monitoring"); err == nil {
-		grafanaRule.ValidateGrafanaDashboards(m, errorList.WithMaxLevel(l.cfg.Rules.GrafanaRule.GetLevel()))
-		prometheusRule.ValidatePrometheusRules(m, errorList.WithMaxLevel(l.cfg.Rules.PrometheusRule.GetLevel()))
+		ruleSet = append(ruleSet,
+			rules.NewGrafanaRule(cfg, m, level(cfg.Rules.GrafanaRule)),
+			rules.NewPrometheusRule(cfg, m, level(cfg.Rules.PrometheusRule)),
+		)
 	} else if !os.IsNotExist(err) {
 		errorList.Errorf("reading the 'monitoring' folder failed: %s", err)
 	}
 
-	rules.NewKubeRbacProxyRule(l.cfg.ExcludeRules.KubeRBACProxy.Get()).
-		NamespaceMustContainKubeRBACProxyCA(m.GetObjectStore(), errorList.WithMaxLevel(l.cfg.Rules.KubeRBACProxyRule.GetLevel()))
-
-	servicePortRule := rules.NewServicePortRule(l.cfg.ExcludeRules.ServicePort.Get())
-
-	for _, object := range m.GetStorage() {
-		servicePortRule.ObjectServiceTargetPort(object, errorList.WithMaxLevel(l.cfg.Rules.ServicePortRule.GetLevel()))
-		prometheusRule.PromtoolRuleCheck(m, object, errorList.WithMaxLevel(l.cfg.Rules.PrometheusRule.GetLevel()))
-		ingressRule.CheckSnippetsRule(object, errorList.WithMaxLevel(l.cfg.Rules.IngressRule.GetLevel()))
-	}
-
-	httpRouteRule.ModuleMustHaveGatewayResources(m, errorList.WithMaxLevel(l.cfg.Rules.HTTPRouteRule.GetLevel()))
-
-	// Cluster domain rule
-	clusterDomainRule := rules.NewClusterDomainRule()
-	clusterDomainRule.ValidateClusterDomainInTemplates(m, errorList.WithMaxLevel(l.cfg.Rules.ClusterDomainRule.GetLevel()))
-
-	// werf file
-	// The following line is commented out because the Werf rule validation is not currently required.
-	// If needed in the future, uncomment and ensure the rule is properly configured.
-	rules.NewWerfRule().ValidateWerfTemplates(m, errorList)
-
-	rules.NewRegistryRule().CheckRegistrySecret(m, errorList.WithMaxLevel(l.cfg.Rules.RegistryRule.GetLevel()))
-
-	// WebhookConfiguration annotations rule
-	rules.NewWebhookConfigurationRule(l.cfg.ExcludeRules.WebhookConfiguration.Get()).
-		ValidateWebhookConfigurationAnnotations(m, errorList.WithMaxLevel(l.cfg.Rules.WebhookConfigurationRule.GetLevel()))
-
-	// EnabledModules rule
-	rules.NewEnabledModulesRule(
-		l.cfg.ExcludeRules.EnabledModules.Files.Get(),
-		l.cfg.ExcludeRules.EnabledModules.Directories.Get(),
-	).CheckEnabledModules(m, errorList.WithMaxLevel(l.cfg.Rules.EnabledModulesRule.GetLevel()))
-
-	// CRDEnabledModules rule - deprecated references to standalone "-crd" modules
-	rules.NewCRDEnabledModulesRule().
-		CheckCRDEnabledModules(m, errorList.WithMaxLevel(l.cfg.Rules.CRDEnabledModulesRule.GetLevel()))
-
-	// MountPoints rule
-	rules.NewMountPointsRule(l.cfg.ExcludeRules.MountPoints.Get()).ValidateMountPoints(m, errorList.WithMaxLevel(l.cfg.Rules.MountPointsRule.GetLevel()))
-
-	// HelmRender rule
-	rules.NewHelmRenderRule().Check(m, errorList.WithMaxLevel(l.cfg.Rules.HelmRenderRule.GetLevel()))
+	return append(ruleSet,
+		rules.NewKubeRbacProxyRule(cfg.ExcludeRules.KubeRBACProxy.Get(), m, level(cfg.Rules.KubeRBACProxyRule)),
+		rules.NewServicePortRule(cfg.ExcludeRules.ServicePort.Get(), m, level(cfg.Rules.ServicePortRule)),
+		rules.NewPromtoolRule(cfg, m, level(cfg.Rules.PrometheusRule)),
+		rules.NewIngressRule(cfg.ExcludeRules.Ingress.Get(), m, level(cfg.Rules.IngressRule)),
+		rules.NewHTTPRouteRule(cfg.ExcludeRules.HTTPRoute.Get(), m, level(cfg.Rules.HTTPRouteRule)),
+		rules.NewClusterDomainRule(m, level(cfg.Rules.ClusterDomainRule)),
+		// The werf rule has no rule-level config, so it reports at the linter's level.
+		rules.NewWerfRule(m, errorList),
+		rules.NewRegistryRule(m, level(cfg.Rules.RegistryRule)),
+		rules.NewWebhookConfigurationRule(cfg.ExcludeRules.WebhookConfiguration.Get(), m, level(cfg.Rules.WebhookConfigurationRule)),
+		rules.NewEnabledModulesRule(
+			cfg.ExcludeRules.EnabledModules.Files.Get(),
+			cfg.ExcludeRules.EnabledModules.Directories.Get(),
+			m, level(cfg.Rules.EnabledModulesRule)),
+		rules.NewCRDEnabledModulesRule(m, level(cfg.Rules.CRDEnabledModulesRule)),
+		rules.NewMountPointsRule(cfg.ExcludeRules.MountPoints.Get(), m, level(cfg.Rules.MountPointsRule)),
+		rules.NewHelmRenderRule(m, level(cfg.Rules.HelmRenderRule)),
+	)
 }
 
-func (l *Templates) Name() string {
+func (l *Templates) GetName() string {
 	return l.name
 }
 

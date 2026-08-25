@@ -17,8 +17,8 @@ limitations under the License.
 package nocyrillic
 
 import (
-	"github.com/deckhouse/dmt/internal/fsutils"
-	"github.com/deckhouse/dmt/internal/modules"
+	"context"
+
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/no-cyrillic/rules"
@@ -28,46 +28,48 @@ const (
 	ID = "no-cyrillic"
 )
 
-var (
-	// Extensions must include the leading dot to match filepath.Ext, which is
-	// what fsutils.FilterFileByExtensions compares against.
-	fileExtensions = []string{".yaml", ".yml", ".json", ".go"}
-)
-
 // NoCyrillic linter
 type NoCyrillic struct {
 	name, desc string
 	cfg        *pkg.NoCyrillicLinterConfig
+	module     pkg.Module
 	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *pkg.NoCyrillicLinterConfig, errorList *errors.LintRuleErrorsList) *NoCyrillic {
+func New(cfg *pkg.NoCyrillicLinterConfig, m pkg.Module, errorList *errors.LintRuleErrorsList) *NoCyrillic {
 	return &NoCyrillic{
 		name:      ID,
 		desc:      "NoCyrillic will check all files in the modules for contains cyrillic symbols",
 		cfg:       cfg,
+		module:    m,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.Impact),
 	}
 }
 
-func (l *NoCyrillic) Run(m *modules.Module) {
-	errorList := l.ErrorList.WithModule(m.GetName())
-
-	if m.GetPath() == "" {
-		return
-	}
-
-	filesRule := rules.NewFilesRule(
-		l.cfg.ExcludeRules.Files.Get(),
-		l.cfg.ExcludeRules.Directories.Get())
-
-	files := fsutils.GetFiles(m.GetPath(), false, fsutils.FilterFileByExtensions(fileExtensions...))
-	for _, fileName := range files {
-		filesRule.CheckFile(m, fileName, errorList)
+func (l *NoCyrillic) Lint(ctx context.Context) {
+	for _, rule := range l.rules() {
+		rule.Check(ctx)
 	}
 }
 
-func (l *NoCyrillic) Name() string {
+// rules builds this linter's rule set. Keeping the set as data — rather than a
+// sequence of hand-written calls — is what lets rules be selected or grouped
+// later without touching the rules themselves.
+func (l *NoCyrillic) rules() []pkg.Rule {
+	m := l.module
+
+	// The rule gets the linter-level error list unchanged: cfg.Rules.NoCyrillicRule
+	// is fed from the linter impact (mapSimpleLinterRules in internal/modules),
+	// which New already applied, so scoping by it here would be a no-op.
+	return []pkg.Rule{
+		rules.NewFilesRule(
+			l.cfg.ExcludeRules.Files.Get(),
+			l.cfg.ExcludeRules.Directories.Get(),
+			m, l.ErrorList.WithModule(m.GetName())),
+	}
+}
+
+func (l *NoCyrillic) GetName() string {
 	return l.name
 }
 

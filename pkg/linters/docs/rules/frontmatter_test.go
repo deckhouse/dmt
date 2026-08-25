@@ -122,10 +122,9 @@ func TestFrontMatterRule_CheckFiles(t *testing.T) {
 				require.NoError(t, os.WriteFile(fullPath, []byte(content), 0o600))
 			}
 
-			rule := NewFrontMatterRule()
 			errorList := errors.NewLintRuleErrorsList()
 
-			rule.CheckFiles(mockModule, errorList)
+			NewFrontMatterRule(mockModule, errorList).Check(t.Context())
 
 			errs := errorList.GetErrors()
 			assert.Len(t, errs, tt.wantFindings)

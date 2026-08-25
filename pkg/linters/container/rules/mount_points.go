@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -52,7 +53,8 @@ var builtinExcludedPaths = map[string]bool{
 	"/tmp":           true,
 }
 
-func NewMountPointsRule(excludeRules []pkg.StringRuleExclude, modulePath string) *MountPointsRule {
+func NewMountPointsRule(excludeRules []pkg.StringRuleExclude, modulePath string,
+	objects []ObjectContainers, errorList *errors.LintRuleErrorsList) *MountPointsRule {
 	return &MountPointsRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: MountPointsRuleName,
@@ -61,6 +63,8 @@ func NewMountPointsRule(excludeRules []pkg.StringRuleExclude, modulePath string)
 			ExcludeRules: excludeRules,
 		},
 		mountPointsDirs: collectMountPointsDirs(modulePath),
+		objects:         objects,
+		errorList:       errorList.WithRule(MountPointsRuleName),
 	}
 }
 
@@ -68,6 +72,9 @@ type MountPointsRule struct {
 	pkg.RuleMeta
 	pkg.StringRule
 	mountPointsDirs map[string]bool
+
+	objects   []ObjectContainers
+	errorList *errors.LintRuleErrorsList
 }
 
 // CheckMountPaths verifies that every volumeMount.mountPath in pod controllers
@@ -85,8 +92,18 @@ type MountPointsRule struct {
 //	    mount-points:
 //	      - /host
 //	      - /etc/iscsi
-func (r *MountPointsRule) CheckMountPaths(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.ShortPath())
+var _ pkg.Rule = (*MountPointsRule)(nil)
+
+func (r *MountPointsRule) Check(_ context.Context) {
+	for _, oc := range r.objects {
+		r.checkObject(oc.Object, oc.All)
+	}
+}
+
+// checkObject must stay a separate method rather than being inlined into the
+// loop above: its early returns end the check for one object, not for the rule.
+func (r *MountPointsRule) checkObject(object storage.StoreObject, containers []corev1.Container) {
+	errorList := r.errorList.WithFilePath(object.ShortPath())
 
 	if len(r.mountPointsDirs) == 0 {
 		return

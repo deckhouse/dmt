@@ -21,11 +21,25 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gojuno/minimock/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/deckhouse/dmt/internal/mocks"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
+
+// moduleAt returns a module that reports path as its root. Every rule in this
+// package takes the module root as its only input, so this is all they need.
+func moduleAt(t *testing.T, path string) pkg.Module {
+	t.Helper()
+
+	m := mocks.NewModuleMock(minimock.NewController(t))
+	m.GetPathMock.Return(path)
+
+	return m
+}
 
 const (
 	// Default directory permissions for test files
@@ -91,10 +105,9 @@ func (h *TestHelper) SetupGoHooks(modulePath, goModContent, mainGoContent string
 }
 
 // RunRequirementsCheck runs the requirements check and returns the error list
-func RunRequirementsCheck(modulePath string) *errors.LintRuleErrorsList {
-	rule := NewRequirementsRule()
+func (h *TestHelper) RunRequirementsCheck(modulePath string) *errors.LintRuleErrorsList {
 	errorList := errors.NewLintRuleErrorsList()
-	rule.CheckRequirements(modulePath, errorList)
+	NewRequirementsRule(moduleAt(h.t, modulePath), errorList).Check(h.t.Context())
 
 	return errorList
 }
@@ -125,7 +138,7 @@ func (h *TestHelper) RunTestCase(tc *TestCase) {
 		require.NoError(h.t, err)
 	}
 
-	errorList := RunRequirementsCheck(modulePath)
+	errorList := h.RunRequirementsCheck(modulePath)
 	h.AssertErrors(errorList, tc.ExpectedErrors)
 }
 

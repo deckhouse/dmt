@@ -18,6 +18,7 @@ package rules
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -36,20 +37,27 @@ const FrontMatterRuleName = "front-matter"
 // itself carries no BOM.
 var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
 
-func NewFrontMatterRule() *FrontMatterRule {
+func NewFrontMatterRule(m pkg.Module, errorList *errors.LintRuleErrorsList) *FrontMatterRule {
 	return &FrontMatterRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: FrontMatterRuleName,
 		},
+		module:    m,
+		errorList: errorList.WithRule(FrontMatterRuleName),
 	}
 }
 
 type FrontMatterRule struct {
 	pkg.RuleMeta
 	pkg.PathRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-// CheckFiles validates the YAML front matter of markdown files under docs/.
+var _ pkg.Rule = (*FrontMatterRule)(nil)
+
+// Check validates the YAML front matter of markdown files under docs/.
 //
 // Rationale: the documentation site is rendered (Hugo) from the module's docs/
 // tree, and a markdown file whose YAML front matter is malformed — an
@@ -64,10 +72,10 @@ type FrontMatterRule struct {
 // docs/internal/ which is not rendered (the same subtree the size rule excludes).
 // Only files that actually begin with a "---" front matter delimiter are checked;
 // a file without front matter has nothing to validate and is skipped.
-func (r *FrontMatterRule) CheckFiles(m pkg.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+func (r *FrontMatterRule) Check(_ context.Context) {
+	errorList := r.errorList
 
-	modulePath := m.GetPath()
+	modulePath := r.module.GetPath()
 	if modulePath == "" {
 		return
 	}

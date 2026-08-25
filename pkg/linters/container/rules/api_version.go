@@ -17,6 +17,8 @@ limitations under the License.
 package rules
 
 import (
+	"context"
+
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -26,20 +28,35 @@ const (
 	APIVersionRuleName = "object-api-version"
 )
 
-func NewAPIVersionRule() *APIVersionRule {
+func NewAPIVersionRule(m pkg.Module, errorList *errors.LintRuleErrorsList) *APIVersionRule {
 	return &APIVersionRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: APIVersionRuleName,
 		},
+		module:    m,
+		errorList: errorList.WithRule(APIVersionRuleName),
 	}
 }
 
 type APIVersionRule struct {
 	pkg.RuleMeta
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func (r *APIVersionRule) ObjectAPIVersion(object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+var _ pkg.Rule = (*APIVersionRule)(nil)
+
+func (r *APIVersionRule) Check(_ context.Context) {
+	for _, object := range r.module.GetStorage() {
+		r.checkObject(object)
+	}
+}
+
+// checkObject must stay a separate method rather than being inlined into the
+// loop above: its early returns end the check for one object, not for the rule.
+func (r *APIVersionRule) checkObject(object storage.StoreObject) {
+	errorList := r.errorList.WithFilePath(object.GetPath())
 
 	version := object.Unstructured.GetAPIVersion()
 

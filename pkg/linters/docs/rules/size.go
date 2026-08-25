@@ -4,6 +4,7 @@
 package rules
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -24,28 +25,35 @@ const (
 	internalDirName = "internal"
 )
 
-func NewSizeRule() *SizeRule {
+func NewSizeRule(m pkg.Module, errorList *errors.LintRuleErrorsList) *SizeRule {
 	return &SizeRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: SizeRuleName,
 		},
+		module:    m,
+		errorList: errorList.WithRule(SizeRuleName),
 	}
 }
 
 type SizeRule struct {
 	pkg.RuleMeta
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-// CheckSize sums the size of the documentation files under the docs/ directory
+var _ pkg.Rule = (*SizeRule)(nil)
+
+// Check sums the size of the documentation files under the docs/ directory
 // and reports an error when the total exceeds maxDocsSizeBytes. The docs/internal
 // subtree is skipped on purpose: it holds content that is not rendered as
 // documentation, so it must not count towards the limit. Every other subfolder is
 // scanned recursively. Oversized docs bloat the module artifact and usually
 // signal binary assets that don't belong there.
-func (r *SizeRule) CheckSize(m pkg.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+func (r *SizeRule) Check(_ context.Context) {
+	errorList := r.errorList
 
-	modulePath := m.GetPath()
+	modulePath := r.module.GetPath()
 	if modulePath == "" {
 		return
 	}

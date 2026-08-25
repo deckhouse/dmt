@@ -186,10 +186,10 @@ x-kubernetes-validations:
 			filePath := filepath.Join(dir, "config-values.yaml")
 			require.NoError(t, os.WriteFile(filePath, []byte(tt.content), 0o600))
 
-			rule := NewDeckhouseValidationsRule(&pkg.OpenAPILinterConfig{}, dir)
 			errorList := errors.NewLintRuleErrorsList()
+			rule := NewDeckhouseValidationsRule(&pkg.OpenAPILinterConfig{}, moduleAt(t, dir), errorList)
 
-			rule.Run(filePath, errorList)
+			rule.checkFile(filePath)
 
 			errs := errorList.GetErrors()
 			require.Len(t, errs, tt.wantCount)
@@ -230,10 +230,10 @@ x-deckhouse-validations:
 `
 	require.NoError(t, os.WriteFile(filePath, []byte(content), 0o600))
 
-	rule := NewDeckhouseValidationsRule(&pkg.OpenAPILinterConfig{}, dir)
 	errorList := errors.NewLintRuleErrorsList()
+	rule := NewDeckhouseValidationsRule(&pkg.OpenAPILinterConfig{}, moduleAt(t, dir), errorList)
 
-	rule.Run(filePath, errorList)
+	rule.checkFile(filePath)
 
 	errs := errorList.GetErrors()
 	// A non-empty mapping without expression and without message: two findings.
@@ -249,10 +249,10 @@ func TestDeckhouseValidationsRule_BrokenYAMLIsSilent(t *testing.T) {
 	filePath := filepath.Join(dir, "config-values.yaml")
 	require.NoError(t, os.WriteFile(filePath, []byte("type: object\n\tbad: indent\n"), 0o600))
 
-	rule := NewDeckhouseValidationsRule(&pkg.OpenAPILinterConfig{}, dir)
 	errorList := errors.NewLintRuleErrorsList()
+	rule := NewDeckhouseValidationsRule(&pkg.OpenAPILinterConfig{}, moduleAt(t, dir), errorList)
 
-	rule.Run(filePath, errorList)
+	rule.checkFile(filePath)
 
 	assert.Empty(t, errorList.GetErrors())
 }

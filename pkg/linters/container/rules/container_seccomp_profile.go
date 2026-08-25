@@ -17,6 +17,8 @@ limitations under the License.
 package rules
 
 import (
+	"context"
+
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/deckhouse/dmt/internal/storage"
@@ -28,7 +30,8 @@ const (
 	SeccompProfileRuleName = "seccomp-profile"
 )
 
-func NewSeccompProfileRule(excludeRules []pkg.ContainerRuleExclude) *SeccompProfileRule {
+func NewSeccompProfileRule(excludeRules []pkg.ContainerRuleExclude,
+	objects []ObjectContainers, errorList *errors.LintRuleErrorsList) *SeccompProfileRule {
 	return &SeccompProfileRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: SeccompProfileRuleName,
@@ -36,19 +39,34 @@ func NewSeccompProfileRule(excludeRules []pkg.ContainerRuleExclude) *SeccompProf
 		ContainerRule: pkg.ContainerRule{
 			ExcludeRules: excludeRules,
 		},
+		objects:   objects,
+		errorList: errorList.WithRule(SeccompProfileRuleName),
 	}
 }
 
 type SeccompProfileRule struct {
 	pkg.RuleMeta
 	pkg.ContainerRule
+
+	objects   []ObjectContainers
+	errorList *errors.LintRuleErrorsList
 }
 
 // ContainerSeccompProfile checks that containers use the default seccomp profile and don't disable seccomp
 // This ensures containers are protected by the default seccomp profile which filters system calls
 // Reference: CIS Kubernetes Benchmark 5.7.2, OWASP Kubernetes Security Cheat Sheet
-func (r *SeccompProfileRule) ContainerSeccompProfile(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName()).WithFilePath(object.ShortPath())
+var _ pkg.Rule = (*SeccompProfileRule)(nil)
+
+func (r *SeccompProfileRule) Check(_ context.Context) {
+	for _, oc := range r.objects {
+		r.checkObject(oc.Object, oc.All)
+	}
+}
+
+// checkObject must stay a separate method rather than being inlined into the
+// loop above: its early returns end the check for one object, not for the rule.
+func (r *SeccompProfileRule) checkObject(object storage.StoreObject, containers []corev1.Container) {
+	errorList := r.errorList.WithFilePath(object.ShortPath())
 
 	switch object.Unstructured.GetKind() {
 	case "Deployment", "DaemonSet", "StatefulSet", "Pod", "Job", "CronJob":

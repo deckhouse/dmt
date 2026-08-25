@@ -17,11 +17,11 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"github.com/deckhouse/dmt/internal/set"
-	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
@@ -30,7 +30,8 @@ const (
 	KubeRbacProxyRuleName = "kube-rbac-proxy"
 )
 
-func NewKubeRbacProxyRule(excludeRules []pkg.StringRuleExclude) *KubeRbacProxyRule {
+func NewKubeRbacProxyRule(excludeRules []pkg.StringRuleExclude,
+	m pkg.Module, errorList *errors.LintRuleErrorsList) *KubeRbacProxyRule {
 	return &KubeRbacProxyRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: KubeRbacProxyRuleName,
@@ -38,16 +39,24 @@ func NewKubeRbacProxyRule(excludeRules []pkg.StringRuleExclude) *KubeRbacProxyRu
 		StringRule: pkg.StringRule{
 			ExcludeRules: excludeRules,
 		},
+		module:    m,
+		errorList: errorList.WithRule(KubeRbacProxyRuleName),
 	}
 }
 
 type KubeRbacProxyRule struct {
 	pkg.RuleMeta
 	pkg.StringRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func (r *KubeRbacProxyRule) NamespaceMustContainKubeRBACProxyCA(objectStore *storage.UnstructuredObjectStore, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+var _ pkg.Rule = (*KubeRbacProxyRule)(nil)
+
+func (r *KubeRbacProxyRule) Check(_ context.Context) {
+	errorList := r.errorList
+	objectStore := r.module.GetObjectStore()
 
 	proxyInNamespaces := set.New()
 

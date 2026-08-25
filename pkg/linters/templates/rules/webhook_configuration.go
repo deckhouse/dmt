@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"strings"
 
 	"github.com/deckhouse/dmt/pkg"
@@ -31,7 +32,8 @@ const (
 	AnnotationDeployDependencyPrefix = "werf.io/deploy-dependency-"
 )
 
-func NewWebhookConfigurationRule(excludeRules []pkg.KindRuleExclude) *WebhookConfigurationRule {
+func NewWebhookConfigurationRule(excludeRules []pkg.KindRuleExclude,
+	m pkg.Module, errorList *errors.LintRuleErrorsList) *WebhookConfigurationRule {
 	return &WebhookConfigurationRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: WebhookConfigurationRuleName,
@@ -39,13 +41,20 @@ func NewWebhookConfigurationRule(excludeRules []pkg.KindRuleExclude) *WebhookCon
 		KindRule: pkg.KindRule{
 			ExcludeRules: excludeRules,
 		},
+		module:    m,
+		errorList: errorList.WithRule(WebhookConfigurationRuleName),
 	}
 }
 
 type WebhookConfigurationRule struct {
 	pkg.RuleMeta
 	pkg.KindRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
+
+var _ pkg.Rule = (*WebhookConfigurationRule)(nil)
 
 // hasDeployDependencyAnnotation checks whether any annotation key starts with
 // "werf.io/deploy-dependency". In practice werf uses suffixed keys such as
@@ -61,8 +70,8 @@ func hasDeployDependencyAnnotation(annotations map[string]string) bool {
 	return false
 }
 
-func (r *WebhookConfigurationRule) ValidateWebhookConfigurationAnnotations(m pkg.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+func (r *WebhookConfigurationRule) Check(_ context.Context) {
+	m, errorList := r.module, r.errorList
 
 	for _, object := range m.GetStorage() {
 		kind := object.Unstructured.GetKind()

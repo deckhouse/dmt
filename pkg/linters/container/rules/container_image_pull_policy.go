@@ -17,6 +17,8 @@ limitations under the License.
 package rules
 
 import (
+	"context"
+
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/deckhouse/dmt/internal/storage"
@@ -28,20 +30,35 @@ const (
 	ImagePullPolicyRuleName = "image-pull-policy"
 )
 
-func NewImagePullPolicyRule() *ImagePullPolicyRule {
+func NewImagePullPolicyRule(objects []ObjectContainers, errorList *errors.LintRuleErrorsList) *ImagePullPolicyRule {
 	return &ImagePullPolicyRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: ImagePullPolicyRuleName,
 		},
+		objects:   objects,
+		errorList: errorList.WithRule(ImagePullPolicyRuleName),
 	}
 }
 
 type ImagePullPolicyRule struct {
 	pkg.RuleMeta
+
+	objects   []ObjectContainers
+	errorList *errors.LintRuleErrorsList
 }
 
-func (r *ImagePullPolicyRule) ContainersImagePullPolicy(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+var _ pkg.Rule = (*ImagePullPolicyRule)(nil)
+
+func (r *ImagePullPolicyRule) Check(_ context.Context) {
+	for _, oc := range r.objects {
+		r.checkObject(oc.Object, oc.All)
+	}
+}
+
+// checkObject must stay a separate method rather than being inlined into the
+// loop above: its early returns end the check for one object, not for the rule.
+func (r *ImagePullPolicyRule) checkObject(object storage.StoreObject, containers []corev1.Container) {
+	errorList := r.errorList.WithFilePath(object.GetPath())
 
 	if object.Unstructured.GetNamespace() == "d8-system" && object.Unstructured.GetKind() == "Deployment" && object.Unstructured.GetName() == "deckhouse" {
 		checkImagePullPolicyAlways(object, containers, errorList)

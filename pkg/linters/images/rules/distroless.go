@@ -19,6 +19,7 @@ package rules
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -44,9 +45,13 @@ var distrolessImagesPrefix = map[string][]string{
 type DistrolessRule struct {
 	pkg.RuleMeta
 	pkg.PrefixRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func NewDistrolessRule(cfg *pkg.ImageLinterConfig) *DistrolessRule {
+func NewDistrolessRule(cfg *pkg.ImageLinterConfig,
+	m pkg.Module, errorList *errors.LintRuleErrorsList) *DistrolessRule {
 	return &DistrolessRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: distrolessRuleName,
@@ -54,11 +59,15 @@ func NewDistrolessRule(cfg *pkg.ImageLinterConfig) *DistrolessRule {
 		PrefixRule: pkg.PrefixRule{
 			ExcludeRules: cfg.ExcludeRules.SkipDistrolessFilePathPrefix.Get(),
 		},
+		module:    m,
+		errorList: errorList.WithRule(distrolessRuleName),
 	}
 }
 
-func (r *DistrolessRule) CheckImageNamesInDockerFiles(modulePath string, errorList *errors.LintRuleErrorsList) {
-	imagesPath := filepath.Join(modulePath, ImagesDir)
+var _ pkg.Rule = (*DistrolessRule)(nil)
+
+func (r *DistrolessRule) Check(_ context.Context) {
+	imagesPath := filepath.Join(r.module.GetPath(), ImagesDir)
 	if !fsutils.IsFile(imagesPath) {
 		return
 	}
@@ -68,13 +77,15 @@ func (r *DistrolessRule) CheckImageNamesInDockerFiles(modulePath string, errorLi
 	})
 
 	for _, path := range filePaths {
-		r.lintOneDockerfile(path, imagesPath, errorList)
+		r.lintOneDockerfile(path, imagesPath)
 	}
 }
 
-func (r *DistrolessRule) lintOneDockerfile(path, imagesPath string, errorList *errors.LintRuleErrorsList) {
+// lintOneDockerfile must stay a separate method rather than being inlined into
+// the loop above: its early return ends the check for one file, not the rule.
+func (r *DistrolessRule) lintOneDockerfile(path, imagesPath string) {
 	relativeFilePath := fsutils.Rel(imagesPath, path)
-	errorList = errorList.WithFilePath(relativeFilePath).WithRule(distrolessRuleName)
+	errorList := r.errorList.WithFilePath(relativeFilePath)
 
 	var (
 		dockerfileFromInstructions []string

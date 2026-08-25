@@ -19,6 +19,7 @@ package rules
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -38,26 +39,36 @@ const (
 	PrometheusRuleName = "prometheus-rules"
 )
 
-func NewPrometheusRule(cfg *pkg.TemplatesLinterConfig) *PrometheusRule {
-	var exclude bool
-	if cfg != nil {
-		exclude = cfg.PrometheusRuleSettings.Disable
-	}
-
+func NewPrometheusRule(cfg *pkg.TemplatesLinterConfig, m pkg.Module, errorList *errors.LintRuleErrorsList) *PrometheusRule {
 	return &PrometheusRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: PrometheusRuleName,
 		},
 		BoolRule: pkg.BoolRule{
-			Exclude: exclude,
+			Exclude: prometheusRuleExcluded(cfg),
 		},
+		module:    m,
+		errorList: errorList.WithRule(PrometheusRuleName),
 	}
+}
+
+func prometheusRuleExcluded(cfg *pkg.TemplatesLinterConfig) bool {
+	if cfg == nil {
+		return false
+	}
+
+	return cfg.PrometheusRuleSettings.Disable
 }
 
 type PrometheusRule struct {
 	pkg.RuleMeta
 	pkg.BoolRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
+
+var _ pkg.Rule = (*PrometheusRule)(nil)
 
 type checkResult struct {
 	success bool
@@ -90,13 +101,14 @@ func (*rulesCacheStruct) Get(hash string) (checkResult, bool) {
 	return res, ok
 }
 
-func (r *PrometheusRule) ValidatePrometheusRules(m pkg.Module, errorList *errors.LintRuleErrorsList) {
+func (r *PrometheusRule) Check(_ context.Context) {
+	errorList := r.errorList
 	if !r.Enabled() {
 		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
 	}
 
-	modulePath := m.GetPath()
-	errorList = errorList.WithFilePath(modulePath).WithRule(r.GetName())
+	modulePath := r.module.GetPath()
+	errorList = errorList.WithFilePath(modulePath)
 
 	monitoringFilePath := filepath.Join(modulePath, "templates", "monitoring.yaml")
 	if info, _ := os.Stat(monitoringFilePath); info == nil {
@@ -164,12 +176,49 @@ func isContentMatching(content []byte, desiredContent string) bool {
 	return false
 }
 
-func (r *PrometheusRule) PromtoolRuleCheck(m pkg.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
+// PromtoolRule runs promtool against every rendered PrometheusRule object.
+//
+// It is a separate rule from PrometheusRule — which validates the module's
+// monitoring/ files — because the two run under different preconditions: the
+// file checks only apply to modules that ship a monitoring/ directory, while
+// promtool applies to any rendered PrometheusRule. Both report under the same
+// rule ID, so findings are indistinguishable in the output.
+type PromtoolRule struct {
+	pkg.RuleMeta
+	pkg.BoolRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
+}
+
+var _ pkg.Rule = (*PromtoolRule)(nil)
+
+func NewPromtoolRule(cfg *pkg.TemplatesLinterConfig, m pkg.Module, errorList *errors.LintRuleErrorsList) *PromtoolRule {
+	return &PromtoolRule{
+		RuleMeta: pkg.RuleMeta{
+			Name: PrometheusRuleName,
+		},
+		BoolRule: pkg.BoolRule{
+			Exclude: prometheusRuleExcluded(cfg),
+		},
+		module:    m,
+		errorList: errorList.WithRule(PrometheusRuleName),
+	}
+}
+
+func (r *PromtoolRule) Check(_ context.Context) {
+	for _, object := range r.module.GetStorage() {
+		r.checkObject(object)
+	}
+}
+
+func (r *PromtoolRule) checkObject(object storage.StoreObject) {
+	errorList := r.errorList
 	if !r.Enabled() {
 		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
 	}
 
-	errorList = errorList.WithFilePath(m.GetPath()).WithRule(r.GetName())
+	errorList = errorList.WithFilePath(r.module.GetPath())
 
 	if object.Unstructured.GetKind() != "PrometheusRule" {
 		return

@@ -18,6 +18,7 @@ package rules
 
 import (
 	"bufio"
+	"context"
 	"os"
 	"regexp"
 	"strings"
@@ -39,7 +40,8 @@ const (
 //	image: {{ include "helm_lib_module_image" (list . "imageName") }}
 var imageRawRegex = regexp.MustCompile(`image:.*helm_lib_module_image.*"([^"]+)"[^"]*$`)
 
-func NewContainerImageNameRule(excludeRules []pkg.ContainerRuleExclude) *ContainerImageNameRule {
+func NewContainerImageNameRule(excludeRules []pkg.ContainerRuleExclude,
+	objects []ObjectContainers, errorList *errors.LintRuleErrorsList) *ContainerImageNameRule {
 	return &ContainerImageNameRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: ContainerImageNameRuleName,
@@ -47,16 +49,34 @@ func NewContainerImageNameRule(excludeRules []pkg.ContainerRuleExclude) *Contain
 		ContainerRule: pkg.ContainerRule{
 			ExcludeRules: excludeRules,
 		},
+		objects:   objects,
+		errorList: errorList.WithRule(ContainerImageNameRuleName),
 	}
 }
 
 type ContainerImageNameRule struct {
 	pkg.RuleMeta
 	pkg.ContainerRule
+
+	objects   []ObjectContainers
+	errorList *errors.LintRuleErrorsList
 }
 
-func (r *ContainerImageNameRule) ContainerImageNameCheck(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+var _ pkg.Rule = (*ContainerImageNameRule)(nil)
+
+func (r *ContainerImageNameRule) Check(_ context.Context) {
+	for _, oc := range r.objects {
+		r.checkObject(oc.Object)
+	}
+}
+
+// checkObject must stay a separate method rather than being inlined into the
+// loop above: its early returns end the check for one object, not for the rule.
+//
+// It takes no containers: this rule reads the raw image references off the
+// object's source file rather than the parsed container specs.
+func (r *ContainerImageNameRule) checkObject(object storage.StoreObject) {
+	errorList := r.errorList.WithFilePath(object.GetPath())
 
 	images, err := FindObjectRawImages(object.AbsPath)
 	if err != nil {

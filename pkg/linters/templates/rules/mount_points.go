@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -46,7 +47,7 @@ var builtinExcludedPaths = map[string]bool{
 	"/tmp":           true,
 }
 
-func NewMountPointsRule(excludeRules []pkg.StringRuleExclude) *MountPointsRule {
+func NewMountPointsRule(excludeRules []pkg.StringRuleExclude, m pkg.Module, errorList *errors.LintRuleErrorsList) *MountPointsRule {
 	return &MountPointsRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: MountPointsRuleName,
@@ -54,15 +55,22 @@ func NewMountPointsRule(excludeRules []pkg.StringRuleExclude) *MountPointsRule {
 		StringRule: pkg.StringRule{
 			ExcludeRules: excludeRules,
 		},
+		module:    m,
+		errorList: errorList.WithRule(MountPointsRuleName),
 	}
 }
 
 type MountPointsRule struct {
 	pkg.RuleMeta
 	pkg.StringRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-// ValidateMountPoints checks that every dir or file declared in mount-points.yaml
+var _ pkg.Rule = (*MountPointsRule)(nil)
+
+// Check checks that every dir or file declared in mount-points.yaml
 // is actually used as a volumeMount.mountPath in at least one pod controller template.
 //
 // Direction: mount-points.yaml → templates.
@@ -77,8 +85,8 @@ type MountPointsRule struct {
 //	    mount-points:
 //	      - /host
 //	      - /etc/multipath
-func (r *MountPointsRule) ValidateMountPoints(m pkg.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+func (r *MountPointsRule) Check(_ context.Context) {
+	m, errorList := r.module, r.errorList
 
 	dirsByFile := collectMountPointsDirs(m, errorList)
 	if len(dirsByFile) == 0 {

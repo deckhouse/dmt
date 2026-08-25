@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"reflect"
@@ -27,27 +28,43 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
+const KeysRuleName = "keys"
+
 type KeysRule struct {
 	cfg *pkg.OpenAPILinterConfig
 	pkg.RuleMeta
-	rootPath string
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func NewKeysRule(cfg *pkg.OpenAPILinterConfig, rootPath string) *KeysRule {
+func NewKeysRule(cfg *pkg.OpenAPILinterConfig,
+	m pkg.Module, errorList *errors.LintRuleErrorsList) *KeysRule {
 	return &KeysRule{
 		cfg: cfg,
 		RuleMeta: pkg.RuleMeta{
-			Name: "keys",
+			Name: KeysRuleName,
 		},
-		rootPath: rootPath,
+		module:    m,
+		errorList: errorList.WithRule(KeysRuleName),
 	}
 }
 
-func (e *KeysRule) Run(path string, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(e.GetName())
+var _ pkg.Rule = (*KeysRule)(nil)
 
-	shortPath, _ := filepath.Rel(e.rootPath, path)
-	haValidator := newKeyValidator(e.cfg)
+func (r *KeysRule) Check(_ context.Context) {
+	for _, path := range crdFiles(r.module.GetPath()) {
+		r.checkFile(path)
+	}
+}
+
+// checkFile must stay a separate method rather than being inlined into the
+// loop above: it is the entry point the unit tests drive directly, with paths
+// the walk in Check would never yield.
+func (r *KeysRule) checkFile(path string) {
+	errorList := r.errorList
+
+	shortPath, _ := filepath.Rel(r.module.GetPath(), path)
+	haValidator := newKeyValidator(r.cfg)
 
 	if err := openapi.Parse(haValidator.run, path); err != nil {
 		errorList.WithFilePath(shortPath).Errorf("openAPI file is not valid:\n%s", err)

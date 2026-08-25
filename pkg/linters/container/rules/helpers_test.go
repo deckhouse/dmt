@@ -1,5 +1,5 @@
 /*
-Copyright 2026 Flant JSC
+Copyright 2025 Flant JSC
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,20 +17,13 @@ limitations under the License.
 package rules
 
 import (
-	"testing"
+	corev1 "k8s.io/api/core/v1"
 
-	"github.com/stretchr/testify/assert"
-
-	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/internal/storage"
 )
 
-func TestHelmRenderRule_Name(t *testing.T) {
-	rule := NewHelmRenderRule(nil, errors.NewLintRuleErrorsList())
-	assert.Equal(t, HelmRenderRuleName, rule.GetName())
-}
-
-func TestNewHelmRenderRule(t *testing.T) {
-	rule := NewHelmRenderRule(nil, errors.NewLintRuleErrorsList())
-	assert.NotNil(t, rule)
-	assert.IsType(t, &HelmRenderRule{}, rule)
+// oneObject wraps a single object and its containers the way the linter would
+// hand them to a rule, so tests can drive Check directly.
+func oneObject(object storage.StoreObject, containers []corev1.Container) []ObjectContainers {
+	return []ObjectContainers{{Object: object, All: containers, NotInit: containers}}
 }

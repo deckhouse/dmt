@@ -17,13 +17,13 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"slices"
 	"strings"
 
 	k8SRbac "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -33,7 +33,8 @@ const (
 	WildcardsRuleName = "wildcards"
 )
 
-func NewWildcardsRule(excludeRules []pkg.KindRuleExclude) *WildcardsRule {
+func NewWildcardsRule(excludeRules []pkg.KindRuleExclude,
+	m pkg.Module, errorList *errors.LintRuleErrorsList) *WildcardsRule {
 	return &WildcardsRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: WildcardsRuleName,
@@ -41,20 +42,27 @@ func NewWildcardsRule(excludeRules []pkg.KindRuleExclude) *WildcardsRule {
 		KindRule: pkg.KindRule{
 			ExcludeRules: excludeRules,
 		},
+		module:    m,
+		errorList: errorList.WithRule(WildcardsRuleName),
 	}
 }
 
 type WildcardsRule struct {
 	pkg.RuleMeta
 	pkg.KindRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-// objectRolesWildcard is a linter for checking the presence
-// of a wildcard in a Role and ClusterRole
-func (r *WildcardsRule) ObjectRolesWildcard(m *modules.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.Name)
+var _ pkg.Rule = (*WildcardsRule)(nil)
 
-	for _, object := range m.GetStorage() {
+// Check is a linter for checking the presence
+// of a wildcard in a Role and ClusterRole
+func (r *WildcardsRule) Check(_ context.Context) {
+	errorList := r.errorList
+
+	for _, object := range r.module.GetStorage() {
 		// check only `rbac-for-us.yaml` files
 		if !strings.HasSuffix(object.ShortPath(), "rbac-for-us.yaml") {
 			continue

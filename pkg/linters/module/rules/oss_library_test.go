@@ -409,11 +409,11 @@ func TestOSSRule_OssModuleRule(t *testing.T) {
 			}
 
 			// Create rule
-			rule := NewOSSRule(tt.disable, tt.versionNotSemverExclude)
 			errorList := errors.NewLintRuleErrorsList()
+			rule := NewOSSRule(tt.disable, tt.versionNotSemverExclude, moduleAt(t, tempDir), errorList)
 
 			// Run the rule
-			rule.OssModuleRule(tempDir, errorList)
+			rule.Check(t.Context())
 
 			// Check errors
 			errs := errorList.GetErrors()

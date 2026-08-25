@@ -17,6 +17,8 @@ limitations under the License.
 package rules
 
 import (
+	"context"
+
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/deckhouse/dmt/internal/storage"
@@ -28,7 +30,8 @@ const (
 	PortsRuleName = "ports"
 )
 
-func NewPortsRule(excludeRules []pkg.ContainerRuleExclude) *PortsRule {
+func NewPortsRule(excludeRules []pkg.ContainerRuleExclude,
+	objects []ObjectContainers, errorList *errors.LintRuleErrorsList) *PortsRule {
 	return &PortsRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: PortsRuleName,
@@ -36,16 +39,31 @@ func NewPortsRule(excludeRules []pkg.ContainerRuleExclude) *PortsRule {
 		ContainerRule: pkg.ContainerRule{
 			ExcludeRules: excludeRules,
 		},
+		objects:   objects,
+		errorList: errorList.WithRule(PortsRuleName),
 	}
 }
 
 type PortsRule struct {
 	pkg.RuleMeta
 	pkg.ContainerRule
+
+	objects   []ObjectContainers
+	errorList *errors.LintRuleErrorsList
 }
 
-func (r *PortsRule) ContainerPorts(object storage.StoreObject, containers []corev1.Container, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+var _ pkg.Rule = (*PortsRule)(nil)
+
+func (r *PortsRule) Check(_ context.Context) {
+	for _, oc := range r.objects {
+		r.checkObject(oc.Object, oc.All)
+	}
+}
+
+// checkObject must stay a separate method rather than being inlined into the
+// loop above: its early returns end the check for one object, not for the rule.
+func (r *PortsRule) checkObject(object storage.StoreObject, containers []corev1.Container) {
+	errorList := r.errorList.WithFilePath(object.GetPath())
 
 	const t = 1024
 

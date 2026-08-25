@@ -125,7 +125,7 @@ func TestSysCgroupMountRule_CheckSysCgroupMount(t *testing.T) {
 			require.NoError(t, err)
 
 			errorList := errors.NewLintRuleErrorsList()
-			NewSysCgroupMountRule(nil).CheckSysCgroupMount(tt.object, containers, errorList)
+			NewSysCgroupMountRule(nil, oneObject(tt.object, containers), errorList).Check(t.Context())
 
 			errs := errorList.GetErrors()
 			require.Len(t, errs, tt.wantCount)
@@ -151,7 +151,7 @@ func TestSysCgroupMountRule_PerContainer(t *testing.T) {
 	require.NoError(t, err)
 
 	errorList := errors.NewLintRuleErrorsList()
-	NewSysCgroupMountRule(nil).CheckSysCgroupMount(object, containers, errorList)
+	NewSysCgroupMountRule(nil, oneObject(object, containers), errorList).Check(t.Context())
 
 	errs := errorList.GetErrors()
 	require.Len(t, errs, 1)
@@ -168,7 +168,7 @@ func TestSysCgroupMountRule_Excludes(t *testing.T) {
 		excludes := []pkg.ContainerRuleExclude{{Kind: "Deployment", Name: "app"}}
 
 		errorList := errors.NewLintRuleErrorsList()
-		NewSysCgroupMountRule(excludes).CheckSysCgroupMount(object, containers, errorList)
+		NewSysCgroupMountRule(excludes, oneObject(object, containers), errorList).Check(t.Context())
 
 		assert.Empty(t, errorList.GetErrors())
 	})
@@ -177,7 +177,7 @@ func TestSysCgroupMountRule_Excludes(t *testing.T) {
 		excludes := []pkg.ContainerRuleExclude{{Kind: "Deployment", Name: "app", Container: "main"}}
 
 		errorList := errors.NewLintRuleErrorsList()
-		NewSysCgroupMountRule(excludes).CheckSysCgroupMount(object, containers, errorList)
+		NewSysCgroupMountRule(excludes, oneObject(object, containers), errorList).Check(t.Context())
 
 		assert.Empty(t, errorList.GetErrors())
 	})
@@ -186,7 +186,7 @@ func TestSysCgroupMountRule_Excludes(t *testing.T) {
 		excludes := []pkg.ContainerRuleExclude{{Kind: "Deployment", Name: "other"}}
 
 		errorList := errors.NewLintRuleErrorsList()
-		NewSysCgroupMountRule(excludes).CheckSysCgroupMount(object, containers, errorList)
+		NewSysCgroupMountRule(excludes, oneObject(object, containers), errorList).Check(t.Context())
 
 		assert.Len(t, errorList.GetErrors(), 1)
 	})

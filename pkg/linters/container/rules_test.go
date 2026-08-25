@@ -3,18 +3,34 @@ package container
 import (
 	"testing"
 
+	"github.com/gojuno/minimock/v3"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
+	"github.com/deckhouse/dmt/internal/mocks"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
-func TestApplyContainerRules_NoContainers(t *testing.T) {
+// moduleWith returns a module whose storage holds exactly the given object, so
+// these tests can drive the linter through its real entry point.
+func moduleWith(t *testing.T, object storage.StoreObject) pkg.Module {
+	t.Helper()
+
+	m := mocks.NewModuleMock(minimock.NewController(t))
+	m.GetNameMock.Return("test-module")
+	m.GetPathMock.Return("")
+	m.GetStorageMock.Return(map[storage.ResourceIndex]storage.StoreObject{
+		{Kind: object.Unstructured.GetKind(), Name: object.Unstructured.GetName()}: object,
+	})
+
+	return m
+}
+
+func TestContainerLint_NoContainers(t *testing.T) {
 	cfg := &pkg.ContainerLinterConfig{}
 	errList := errors.NewLintRuleErrorsList()
-	linter := &Container{cfg: cfg}
 
 	obj := storage.StoreObject{
 		AbsPath: "test.yaml",
@@ -27,7 +43,7 @@ func TestApplyContainerRules_NoContainers(t *testing.T) {
 		},
 	}
 
-	linter.applyContainerRules(obj, make(map[storage.ResourceIndex]storage.StoreObject), errList)
+	New(cfg, moduleWith(t, obj), errList).Lint(t.Context())
 	errs := errList.GetErrors()
 	assert.NotEmpty(t, errs, "Should report errors for missing labels and security context")
 
@@ -52,10 +68,9 @@ func TestApplyContainerRules_NoContainers(t *testing.T) {
 	assert.True(t, foundSecurityContext, "Should report missing SecurityContext")
 }
 
-func TestApplyContainerRules_ContainersError(t *testing.T) {
+func TestContainerLint_ContainersError(t *testing.T) {
 	cfg := &pkg.ContainerLinterConfig{}
 	errList := errors.NewLintRuleErrorsList()
-	linter := &Container{cfg: cfg}
 
 	obj := storage.StoreObject{
 		AbsPath: "test.yaml",
@@ -67,14 +82,13 @@ func TestApplyContainerRules_ContainersError(t *testing.T) {
 		},
 	}
 
-	linter.applyContainerRules(obj, make(map[storage.ResourceIndex]storage.StoreObject), errList)
+	New(cfg, moduleWith(t, obj), errList).Lint(t.Context())
 	assert.NotEmpty(t, errList.GetErrors(), "Error expected if GetAllContainers returns error")
 }
 
-func TestApplyContainerRules_AllRules(t *testing.T) {
+func TestContainerLint_AllRules(t *testing.T) {
 	cfg := &pkg.ContainerLinterConfig{}
 	errList := errors.NewLintRuleErrorsList()
-	linter := &Container{cfg: cfg}
 
 	obj := storage.StoreObject{
 		AbsPath: "test.yaml",
@@ -117,7 +131,7 @@ func TestApplyContainerRules_AllRules(t *testing.T) {
 		},
 	}
 
-	linter.applyContainerRules(obj, make(map[storage.ResourceIndex]storage.StoreObject), errList)
+	New(cfg, moduleWith(t, obj), errList).Lint(t.Context())
 	errs := errList.GetErrors()
 
 	var (

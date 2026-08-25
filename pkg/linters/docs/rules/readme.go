@@ -4,6 +4,7 @@
 package rules
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 
@@ -15,21 +16,28 @@ const (
 	ReadmeRuleName = "readme"
 )
 
-func NewReadmeRule() *ReadmeRule {
+func NewReadmeRule(m pkg.Module, errorList *errors.LintRuleErrorsList) *ReadmeRule {
 	return &ReadmeRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: ReadmeRuleName,
 		},
+		module:    m,
+		errorList: errorList.WithRule(ReadmeRuleName),
 	}
 }
 
 type ReadmeRule struct {
 	pkg.RuleMeta
 	pkg.PathRule
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
 }
 
-func (r *ReadmeRule) CheckReadme(m pkg.Module, errorList *errors.LintRuleErrorsList) {
-	errorList = errorList.WithRule(r.GetName())
+var _ pkg.Rule = (*ReadmeRule)(nil)
+
+func (r *ReadmeRule) Check(_ context.Context) {
+	m, errorList := r.module, r.errorList
 
 	if !r.Enabled(m.GetName()) {
 		return
