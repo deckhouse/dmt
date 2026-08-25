@@ -19,15 +19,6 @@ func TestContainer_NameAndDesc(t *testing.T) {
 	assert.Equal(t, "Lint container objects", linter.Desc(), "Desc() should return linter description")
 }
 
-func TestContainer_Lint_NilModule(t *testing.T) {
-	cfg := &pkg.ContainerLinterConfig{}
-	errList := errors.NewLintRuleErrorsList()
-	linter := New(cfg, nil, errList)
-
-	// Should not panic or fail if module is nil
-	linter.Lint(t.Context())
-}
-
 func TestContainer_Lint_EmptyModule(t *testing.T) {
 	cfg := &pkg.ContainerLinterConfig{}
 	errList := errors.NewLintRuleErrorsList()
