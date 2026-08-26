@@ -25,6 +25,7 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [crd-enabled-modules](#crd-enabled-modules) | Flags deprecated `has "<module>-crd"` checks in `.Values.global.enabledModules` and autofixes them | ✅ | enabled |
 | [webhook-configuration-annotations](#webhook-configuration-annotations) | Checks webhook configurations have werf.io/weight or deploy-dependency annotations | ✅ | enabled |
 | [mount-points](#mount-points) | Validates that mount-points.yaml directories are used as volumeMounts in pod controllers | ✅ | enabled |
+| [openapi-values-quote](#openapi-values-quote) | Requires templates to quote OpenAPI string values that have no `pattern`/`enum`/`format` | ✅ | enabled |
 
 "Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
@@ -2103,6 +2104,124 @@ linters-settings:
 **Configuration:**
 
 
+### openapi-values-quote
+
+**Purpose:** Ensures that module OpenAPI string values with no validation keyword (`pattern`, `enum`, or `format`) are always quoted when rendered into templates. An unconstrained string can contain characters that break YAML or silently change the parsed type (for example `123`, `true`, `on`, a value with a leading `0`, or one containing `:` or `#`), so it must be quoted at the point of use.
+
+**Description:**
+
+The rule reads the module value schema (`openapi/values.yaml` and `openapi/config-values.yaml`), collects every value path whose type resolves to a **string with no `pattern`, `enum`, or `format`**, and then checks the module `templates/` for usages of those values. A usage that is rendered as a bare YAML value — not piped through a YAML-safe function, and not wrapped in quotes — is reported.
+
+Both the direct form `.Values.<moduleName>.<path>` and the root-scoped `$.Values.<moduleName>.<path>` form (used inside `range`/`with` blocks) are recognised.
+
+**What counts as a string:**
+
+- a direct `type: string` property;
+- a nullable string (`type: ["string", "null"]`);
+- a string reached through `$ref`, `allOf`, `oneOf`, or `anyOf`;
+- items of a string array (`type: array` with `items: {type: string}`), checked through `range` (`{{ range … }}{{ . }}{{ end }}`);
+- a string sub-field (at any depth) of an array-of-objects element, checked through a named range: `{{ range $s := .Values.mod.servers }}{{ $s.host }}{{ end }}` (and the dot-binding form `{{ range .Values.mod.servers }}{{ .host }}{{ end }}`);
+- an element of a string-array sub-field, checked through a nested range (range-in-range) at any nesting depth: `{{ range $s := .Values.mod.servers }}{{ range $a := $s.aliases }}{{ $a }}{{ end }}{{ end }}`;
+- values of a string map (`type: object` with `additionalProperties: {type: string}`), checked through `{{ range $k, $v := .Values.mod.labels }}{{ $v }}{{ end }}` (a map of objects works too, via `{{ $v.field }}`);
+- elements of an array of string arrays (`items: {type: array, items: {type: string}}`), checked through a nested range;
+- a string scoped by `with`, both over a scalar (`{{ with .Values.mod.foo }}{{ . }}{{ end }}`) and over a single object (`{{ with .Values.mod.db }}{{ .host }}{{ end }}`);
+- a value copied into a template variable and then emitted (`{{ $x := .Values.mod.foo }}… {{ $x }}`), including aliases of loop element variables and an array bound to a variable and later ranged (`{{ $x := .Values.mod.list }}{{ range $x }}{{ . }}{{ end }}`);
+- a value scoped by `with` over an object **variable** (`{{ with $s }}{{ .host }}{{ end }}`);
+- a value passed to a **module-defined** template that renders it unquoted (`{{ include "mymod.env" .Values.mod.config }}` where `define "mymod.env"` emits `{{ .value }}` or ranges `{{ range .items }}{{ . }}{{ end }}` unquoted), followed transitively across the module's own `define`/`include` chain. External templates (helm_lib, …) are not inspected, so this never fires on them.
+
+**What makes a string safe (not reported):**
+
+- it declares a `pattern`, an `enum`, or a `format` in the schema (note: `minLength`/`maxLength` do **not** exempt it — they don't restrict the character set); **or**
+- every template usage wraps it in literal `"…"`/`'…'`, or pipes it through a function whose output is always YAML-safe: `quote`, `squote`, `toJson`/`toRawJson`, `toYaml`, `b64enc`/`b32enc`, `sha1sum`/`sha256sum`/`sha512sum`/`adler32sum` (and their `must…` variants), or `printf` with a `%q` verb.
+
+The rule reports both a **standalone** value (`key: {{ … }}` / `- {{ … }}`, fix: add `| quote`) and a value **embedded** in a larger unquoted scalar (`host: prefix-{{ … }}`, fix: wrap the whole value in quotes) — the message tells you which fix applies. A risky value passed to a common passthrough function — a string transform (`{{ printf "%s" .Values.mod.foo }}`, `{{ upper $v }}`) or an array/map element accessor (`{{ index .Values.mod.list 0 }}`) — is reported as well, for both `.Values` references and variables. A value used only in a condition (`{{ if … }}`) is not a rendered value and is not reported.
+
+**Known limitations (not reported):**
+
+- a value inside a YAML block scalar (`|` / `>`), where it is already part of a string and must **not** be quoted;
+- a value passed to a function that is **not** in the recognised transform/accessor set, nested inside another call (`{{ printf "%s" (index .Values.mod.list 0) }}`), or used as the **subject** of `with`/`range` (`{{ with (index .Values.mod.servers 0) }}`);
+- a value a module `define` renders **through a function** (e.g. `{{ printf "%s" . }}` inside the define — only direct `{{ . }}` / `{{ .field }}` / `{{ range .field }}` forms are traced);
+- a value passed to an **external** template (helm_lib and other charts, whose bodies are not scanned);
+- a map **key** emitted as `{{ $k }}:` (indistinguishable from a numeric array index without extra type info);
+- the values of a **nested map** (`additionalProperties` whose value is itself a map);
+- a value reached through **dynamic access** (`dig` / `get` / `pluck`, or a `dict` built inline and passed on);
+- a `{{ … }}` action that spans multiple physical lines.
+
+**Why it matters:**
+
+Rendering an unconstrained string unquoted is a classic source of broken manifests and subtle type bugs: a value like `123456` becomes an integer, `true`/`no` becomes a boolean, and a value containing `:` or a leading `@` can make the document fail to parse. A schema `pattern`/`enum`/`format` already guarantees the value is safe; without one, the template must quote it.
+
+**Examples:**
+
+Given the module schema:
+
+```yaml
+# openapi/config-values.yaml
+type: object
+properties:
+  greeting:            # no pattern -> must be quoted in templates
+    type: string
+  code:                # constrained -> quoting not required
+    type: string
+    pattern: '^[a-z]+$'
+```
+
+❌ **Incorrect** — pattern-less string rendered unquoted:
+
+```yaml
+# templates/configmap.yaml
+data:
+  greeting: {{ .Values.myModule.greeting }}
+```
+
+✅ **Correct** — quote the value:
+
+```yaml
+# templates/configmap.yaml
+data:
+  greeting: {{ .Values.myModule.greeting | quote }}
+  # or: greeting: "{{ .Values.myModule.greeting }}"
+```
+
+For string arrays, quote each element inside the loop:
+
+```yaml
+args:
+{{- range .Values.myModule.extraArgs }}
+  - {{ . | quote }}
+{{- end }}
+```
+
+For arrays of objects, quote each risky string sub-field of the element:
+
+```yaml
+hosts:
+{{- range $s := .Values.myModule.servers }}
+  - host: {{ $s.host | quote }}   # host has no pattern/enum/format -> quote it
+    zone: {{ $s.zone }}           # zone is an enum -> fine as is
+{{- end }}
+```
+
+**Configuration:**
+
+Set the impact level or exclude specific value paths. An exclude is matched (exact string) against the value path **exactly as it appears in the finding message** — a dotted path relative to the module values root, with `[]` marking array elements and array-of-object sub-fields:
+
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  templates:
+    rules:
+      openapi-values-quote:
+        impact: error
+    exclude-rules:
+      openapi-values-quote:
+        - internal.someLegacyField   # a scalar path
+        - extraArgs                  # a string array (excludes its elements)
+        - servers[].host             # one sub-field of an array of objects
+        - servers                    # the whole array (excludes every sub-field)
+```
+
+
 ## Configuration
 
 The Templates linter can be configured at the module level with rule-specific settings and exclusions.
@@ -2158,6 +2277,8 @@ linters-settings:
       enabled-modules:
         impact: warning
       webhook-configuration-annotations:
+        impact: error
+      openapi-values-quote:
         impact: error
 ```
 
@@ -2223,6 +2344,11 @@ linters-settings:
           name: istio-sidecar-injector
         - kind: MutatingWebhookConfiguration
           name: cert-manager-webhook
+
+      # openapi-values-quote exclusions (by value path, relative to the module values root)
+      openapi-values-quote:
+        - internal.someLegacyField
+        - extraArgs
 ```
 
 ### Complete Configuration Example

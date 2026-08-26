@@ -1,0 +1,81 @@
+type: object
+# Every string below is unconstrained (no pattern/enum/format) and carries a dangerous
+# `\n---\n` document-separator payload, EXCEPT `safeCode`, which a `pattern` constrains.
+# The templates neutralise all of them, so the openapi-values-quote rule must stay silent.
+properties:
+  # unconstrained string with a `\n---\n` payload
+  scalar:
+    type: string
+    default: |-
+      legit-value
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: would-be-injected
+        namespace: e2e-yaml-injection-safe
+      stringData:
+        pwned: "true"
+  # array of unconstrained strings, one element carrying a `\n---\n` payload
+  args:
+    type: array
+    default:
+      - "--safe-flag"
+      - |-
+        --flag
+        ---
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: would-be-injected-arg
+          namespace: e2e-yaml-injection-safe
+    items:
+      type: string
+  # nested object whose unconstrained string leaf carries a `\n---\n` payload
+  conn:
+    type: object
+    default: {}
+    properties:
+      dsn:
+        type: string
+        default: |-
+          host=db
+          ---
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: would-be-injected-nested
+            namespace: e2e-yaml-injection-safe
+  # `with`-scoped unconstrained string with a `\n---\n` payload
+  withScalar:
+    type: string
+    default: |-
+      legit-value
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: would-be-injected-with
+        namespace: e2e-yaml-injection-safe
+  # array of objects whose `host` subfield is an unconstrained string with a payload
+  servers:
+    type: array
+    default:
+      - host: |-
+          legit-host
+          ---
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: would-be-injected-server
+            namespace: e2e-yaml-injection-safe
+    items:
+      type: object
+      properties:
+        host:
+          type: string
+  # SAFE by schema: a pattern that forbids newlines and `---`
+  safeCode:
+    type: string
+    pattern: '^[a-zA-Z0-9]+$'
+    default: safecode

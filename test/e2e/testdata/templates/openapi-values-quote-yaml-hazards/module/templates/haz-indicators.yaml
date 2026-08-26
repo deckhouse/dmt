@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2e-yaml-hazards-indicators
+  namespace: e2e-yaml-hazards
+data:
+  # FLAGGED: unquoted value beginning with `!` -> read as a YAML tag; the intended text
+  # is lost (verified: renders as an empty value).
+  asTag: {{ .Values.e2eYamlHazards.tagBang }}
+  # FLAGGED: unquoted value beginning with `&` -> read as an anchor definition; the `&`
+  # token is stripped from the stored value.
+  asAnchor: {{ .Values.e2eYamlHazards.anchorAmp }}

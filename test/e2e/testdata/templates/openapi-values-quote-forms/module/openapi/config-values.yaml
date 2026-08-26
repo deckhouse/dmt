@@ -1,0 +1,100 @@
+type: object
+properties:
+  # --- FLAG: template forms ---
+  ptList:                       # passthrough over a loop variable
+    type: array
+    default: ["a"]
+    items: { type: string }
+  idxList:                      # index into an array
+    type: array
+    default: ["a"]
+    items: { type: string }
+  withVar:                      # with over an object variable
+    type: object
+    default: { field: x }
+    properties:
+      field: { type: string }
+  arrVar:                       # array assigned to a variable then ranged
+    type: array
+    default: ["a"]
+    items: { type: string }
+  aliasScalar:                  # value copied into a variable then emitted
+    type: string
+    default: x
+  matrix:                       # array of string arrays (nested range)
+    type: array
+    default: [["a"]]
+    items:
+      type: array
+      items: { type: string }
+  moMap:                        # map of objects (range key/value, emit subfield)
+    type: object
+    default: { k: { field: x } }
+    additionalProperties:
+      type: object
+      properties:
+        field: { type: string }
+  ctScalar:                     # cross-template transitive chain
+    type: string
+    default: x
+  ctConfig:                     # cross-template: define ranges a param subfield
+    type: object
+    default: { items: ["a"] }
+    properties:
+      items:
+        type: array
+        items: { type: string }
+  rootScoped:                   # $.Values.<...> used inside a range
+    type: string
+    default: x
+  ieList:                       # range $i, $e := ... (index+element form)
+    type: array
+    default: ["a"]
+    items: { type: string }
+  deepArr:                      # deeply nested subfield of an object array
+    type: array
+    default: [{ spec: { name: x } }]
+    items:
+      type: object
+      properties:
+        spec:
+          type: object
+          properties:
+            name: { type: string }
+  maxLenStr:                    # maxLength does NOT exempt
+    type: string
+    default: x
+    maxLength: 10
+  emptyEnumStr:                 # empty enum does NOT exempt
+    type: string
+    default: x
+    enum: []
+  emptyPatStr:                  # empty pattern does NOT exempt
+    type: string
+    default: x
+    pattern: ''
+  defaultStr:                   # | default does not make it safe
+    type: string
+    default: x
+  trimStr:                      # | trim does not make it safe
+    type: string
+    default: x
+  # --- ABSENT: safe forms ---
+  squoteStr:
+    type: string
+    default: x
+  toJsonStr:
+    type: string
+    default: x
+  toYamlStr:
+    type: string
+    default: x
+  b64Str:
+    type: string
+    default: x
+  pqStr:                        # printf %q is safe
+    type: string
+    default: x
+  unknownFnStr:                 # unknown (non-curated) function -> not reported (limitation)
+    type: string
+    default: x

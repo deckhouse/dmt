@@ -151,6 +151,7 @@ type TemplatesLinterRules struct {
 	WebhookConfigurationRule RuleConfig
 	MountPointsRule          RuleConfig
 	HelmRenderRule           RuleConfig
+	OpenAPIValuesQuoteRule   RuleConfig
 }
 
 type PrometheusRuleSettings struct {
@@ -170,6 +171,7 @@ type TemplatesExcludeRules struct {
 	EnabledModules       EnabledModulesExcludeRule
 	WebhookConfiguration KindRuleExcludeList
 	MountPoints          StringRuleExcludeList
+	OpenAPIValuesQuote   StringRuleExcludeList
 }
 
 type EnabledModulesExcludeRule struct {

@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2e-yaml-injection-safe
+  namespace: e2e-yaml-injection-safe
+data:
+  # SAFE: `| quote` escapes the `\n---\n`, so it stays inside the scalar.
+  scalar: {{ .Values.e2eYamlInjectionSafe.scalar | quote }}
+  # SAFE: nested string leaf, quoted.
+  dsn: {{ .Values.e2eYamlInjectionSafe.conn.dsn | quote }}
+  # SAFE: constrained by a pattern -> injection impossible per schema, quoting optional.
+  code: {{ .Values.e2eYamlInjectionSafe.safeCode }}
+{{- with .Values.e2eYamlInjectionSafe.withScalar }}
+  # SAFE: `with`-scoped scalar, quoted.
+  scoped: {{ . | quote }}
+{{- end }}
+# SAFE: every array element quoted inside the range.
+args:
+{{- range .Values.e2eYamlInjectionSafe.args }}
+  - {{ . | quote }}
+{{- end }}
+# SAFE: `host` subfield of each array-of-objects element, quoted.
+hosts:
+{{- range $s := .Values.e2eYamlInjectionSafe.servers }}
+  - host: {{ $s.host | quote }}
+{{- end }}

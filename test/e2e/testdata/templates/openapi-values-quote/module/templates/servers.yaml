@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2e-quote-servers
+  namespace: e2e-quote
+hosts:
+{{- range $s := .Values.e2eQuote.servers }}
+  # FLAGGED: unquoted string subfield of an object array element
+  - host: {{ $s.host }}
+    # SAFE: subfield constrained by an enum
+    zone: {{ $s.zone }}
+    aliases:
+    # FLAGGED (range-in-range): unquoted element of a string-array subfield
+    {{- range $a := $s.aliases }}
+      - {{ $a }}
+    {{- end }}
+{{- end }}

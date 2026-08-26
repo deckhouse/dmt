@@ -1,0 +1,123 @@
+type: object
+properties:
+  # FLAGGED: an unconstrained string (no pattern/enum/format). The default carries a
+  # newline + `---` + newline payload: rendered UNQUOTED it breaks out of its scalar
+  # and injects a whole rogue YAML document (a Secret) into the manifest stream.
+  injectedScalar:
+    type: string
+    default: |-
+      legit-value
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: injected-by-scalar
+        namespace: e2e-yaml-injection
+      stringData:
+        pwned: "true"
+  # FLAGGED: array of unconstrained strings; one element carries the `\n---\n` payload,
+  # so an unquoted `- {{ . }}` inside a range injects a document.
+  injectedArgs:
+    type: array
+    default:
+      - "--safe-flag"
+      - |-
+        --injected-flag
+        ---
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: injected-by-arg
+          namespace: e2e-yaml-injection
+        stringData:
+          pwned: "true"
+    items:
+      type: string
+  # FLAGGED: map of unconstrained strings. An unquoted map value inside a range is the
+  # same injection surface; the rule flags it statically (a real `\n---\n` map value
+  # would break out into a new document).
+  injectedAnnotations:
+    type: object
+    default:
+      note: |-
+        ok
+        ---
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: injected-by-map
+          namespace: e2e-yaml-injection
+        data:
+          pwned: "yes"
+    additionalProperties:
+      type: string
+  # FLAGGED: nested object whose unconstrained string leaf carries the `\n---\n` payload
+  # (the default lives on the leaf so dmt's value composition renders it into the field).
+  injectedConn:
+    type: object
+    default: {}
+    properties:
+      dsn:
+        type: string
+        default: |-
+          host=db
+          ---
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: injected-by-nested
+            namespace: e2e-yaml-injection
+          stringData:
+            pwned: "true"
+  # FLAGGED: unconstrained string reached through a `with` block; its `\n---\n` default
+  # injects a document when the scoped `{{ . }}` is rendered unquoted.
+  withScalar:
+    type: string
+    default: |-
+      legit-value
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: injected-by-with
+        namespace: e2e-yaml-injection
+      stringData:
+        pwned: "true"
+  # FLAGGED: array of objects; the `host` subfield is an unconstrained string carrying
+  # the `\n---\n` payload, injected when rendered unquoted inside a named range.
+  servers:
+    type: array
+    default:
+      - host: |-
+          legit-host
+          ---
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: injected-by-server
+            namespace: e2e-yaml-injection
+          stringData:
+            pwned: "true"
+    items:
+      type: object
+      properties:
+        host:
+          type: string
+  # SAFE (mitigated at use site): an unconstrained string with the same dangerous
+  # payload, but every template usage quotes it, so `\n---\n` stays inside the scalar.
+  mitigatedScalar:
+    type: string
+    default: |-
+      legit-value
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: never-injected
+  # SAFE (constrained at the schema): a `pattern` forbids newlines and `-`-only tokens,
+  # so a `\n---\n` value can never validate — the injection is impossible by contract
+  # and the template does not need to quote it.
+  safeCode:
+    type: string
+    pattern: '^[a-zA-Z0-9]+$'
+    default: safecode

@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2e-quote
+  namespace: e2e-quote
+data:
+  # FLAGGED: pattern-less string rendered unquoted
+  greeting: {{ .Values.e2eQuote.greeting }}
+  # SAFE: same string, piped through quote
+  greetingQuoted: {{ .Values.e2eQuote.greeting | quote }}
+  # SAFE: same string, wrapped in quotes
+  greetingWrapped: "{{ .Values.e2eQuote.greeting }}"
+  # SAFE: embedded in a quoted scalar
+  greetingURL: "https://{{ .Values.e2eQuote.greeting }}/health"
+  # FLAGGED: embedded in an UNQUOTED scalar -> wrap the whole value
+  endpointURL: https://{{ .Values.e2eQuote.endpoint }}/health
+  # FLAGGED: risky value passed to printf
+  banner: {{ printf "hello-%s" .Values.e2eQuote.label }}
+  # SAFE: constrained by a pattern
+  code: {{ .Values.e2eQuote.code }}
+  # SAFE: constrained by an enum
+  mode: {{ .Values.e2eQuote.mode }}
+  # SAFE: constrained by a format
+  createdAt: {{ .Values.e2eQuote.createdAt }}
+  # FLAGGED: nullable string rendered unquoted
+  nickname: {{ .Values.e2eQuote.nickname }}
+  # SAFE: not a string
+  count: {{ .Values.e2eQuote.count }}
+  # FLAGGED: nested string rendered unquoted
+  host: {{ .Values.e2eQuote.db.host }}
+  # SAFE: nested integer
+  port: {{ .Values.e2eQuote.db.port }}
+  # SAFE: inside a YAML block scalar (already a literal string)
+  script: |
+    echo {{ .Values.e2eQuote.greeting }}

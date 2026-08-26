@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: forms-safe
+  namespace: e2e-quote-forms
+data:
+  sq: {{ .Values.e2eQuoteForms.squoteStr | squote }}
+  tj: {{ .Values.e2eQuoteForms.toJsonStr | toJson }}
+  ty: {{ .Values.e2eQuoteForms.toYamlStr | toYaml }}
+  b64: {{ .Values.e2eQuoteForms.b64Str | b64enc }}
+  pq: {{ printf "%q" .Values.e2eQuoteForms.pqStr }}
+  uk: {{ indent 2 .Values.e2eQuoteForms.unknownFnStr }}

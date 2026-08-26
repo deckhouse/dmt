@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2e-quote-with
+  namespace: e2e-quote
+{{- with .Values.e2eQuote.title }}
+data:
+  # FLAGGED: scalar string scoped by `with`, emitted unquoted
+  title: {{ . }}
+{{- end }}
