@@ -1,0 +1,9 @@
+description: >
+  The same module as matrix-flag-on, but linted WITHOUT --matrix. The guarded
+  Service is never rendered (enabled defaults to false), so the schema
+  violation is not reached. This documents why matrix mode is needed.
+module: module
+matrix: false
+expectAbsent:
+  - linter: templates
+    rule: schema-validation

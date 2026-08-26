@@ -250,6 +250,7 @@ type TemplatesLinterRules struct {
 	MountPointsRule          RuleConfig `mapstructure:"mount-points"`
 	HelmRenderRule           RuleConfig `mapstructure:"helm-render"`
 	OpenAPIValuesQuoteRule   RuleConfig `mapstructure:"openapi-values-quote"`
+	SchemaValidationRule     RuleConfig `mapstructure:"schema-validation"`
 }
 
 type TemplatesExcludeRules struct {
@@ -263,6 +264,7 @@ type TemplatesExcludeRules struct {
 	WebhookConfiguration KindRuleExcludeList       `mapstructure:"webhook-configuration-annotations"`
 	MountPoints          StringRuleExcludeList     `mapstructure:"mount-points"`
 	OpenAPIValuesQuote   StringRuleExcludeList     `mapstructure:"openapi-values-quote"`
+	SchemaValidation     KindRuleExcludeList       `mapstructure:"schema-validation"`
 }
 
 type EnabledModulesExcludeRule struct {

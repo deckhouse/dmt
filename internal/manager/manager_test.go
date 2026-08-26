@@ -45,8 +45,19 @@ func (s *fakeSource) ConfigDir() string      { return "." }
 func (s *fakeSource) Scopes() []scopes.Scope { return s.scopes }
 func (s *fakeSource) Close()                 { s.closed = true }
 
-func (s *fakeSource) Targets(_ context.Context, _ *config.RootConfig, _ *errors.LintRuleErrorsList) ([]Target, error) {
-	return s.targets, s.err
+func (s *fakeSource) Targets(
+	_ context.Context,
+	_ *config.RootConfig,
+	_ *errors.LintRuleErrorsList,
+	yield func(Target) bool,
+) error {
+	for _, t := range s.targets {
+		if !yield(t) {
+			break
+		}
+	}
+
+	return s.err
 }
 
 // TestModuleCountCountsModulesNotTargets pins the number the summary reports. A

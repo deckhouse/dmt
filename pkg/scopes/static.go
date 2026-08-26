@@ -144,6 +144,7 @@ var staticRules = map[string]set.Set{
 		// They share this ID, so a scope can only ask for both or neither.
 		templatesrules.PrometheusRuleName,
 		templatesrules.RegistryRuleName,
+		templatesrules.SchemaValidationRuleName,
 		templatesrules.ServicePortRuleName,
 		templatesrules.VPARuleName,
 		templatesrules.WebhookConfigurationRuleName,

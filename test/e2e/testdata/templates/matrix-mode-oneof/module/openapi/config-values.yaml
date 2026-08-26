@@ -1,0 +1,20 @@
+type: object
+properties:
+  resourcesMode:
+    type: object
+    default: {}
+    # oneOf branches select the shape by `mode`. The default render picks the
+    # first enum value ("Balanced"); only --matrix expands the oneOf/enum and
+    # reaches the "Static" branch that renders the faulty resource.
+    oneOf:
+      - properties:
+          mode:
+            enum: ["Balanced"]
+      - properties:
+          mode:
+            enum: ["Static"]
+    properties:
+      mode:
+        type: string
+        enum: ["Balanced", "Static"]
+        default: "Balanced"

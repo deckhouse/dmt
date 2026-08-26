@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: log-shipper-agent
+  namespace: d8-log-shipper
+spec:
+  selector:
+    matchLabels:
+      app: log-shipper
+  template:
+    metadata:
+      labels:
+        app: log-shipper
+    spec:
+      containers:
+        - name: vector
+          image: vector:latest
+          resources:
+            # Wrong: memory must live under resources.limits / resources.requests,
+            # not directly under resources. Kubernetes server-side apply rejects
+            # this as "field not declared in schema"; schema-validation catches it
+            # at lint time as an undeclared property.
+            memory: "100Mi"

@@ -27,7 +27,6 @@ import (
 	"github.com/fatih/color"
 
 	"github.com/deckhouse/dmt/pkg"
-	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 // The statistics summary is rendered as a single framed block that intentionally
@@ -113,10 +112,11 @@ type statistics struct {
 	elapsed time.Duration
 }
 
-// collectStatistics tallies every collected finding by severity and by linter.
-// Counts are taken over all findings regardless of the --hide-warnings /
-// --show-ignored display flags: the summary is meant to give the full picture.
-func collectStatistics(errorList *errors.LintRuleErrorsList, modules int, elapsed time.Duration) statistics {
+// collectStatistics tallies the run's findings by severity and by linter. Counts are
+// taken over all of them regardless of the --hide-warnings / --show-ignored display
+// flags: the summary is meant to give the full picture. It is handed the same set
+// PrintResult listed, so the totals cannot disagree with what the user just read.
+func collectStatistics(errs []pkg.LinterError, modules int, elapsed time.Duration) statistics {
 	s := statistics{
 		modules: modules,
 		elapsed: elapsed,
@@ -124,7 +124,6 @@ func collectStatistics(errorList *errors.LintRuleErrorsList, modules int, elapse
 
 	perLinter := make(map[string]int)
 
-	errs := errorList.GetErrors()
 	for idx := range errs {
 		s.total++
 
@@ -160,7 +159,7 @@ func collectStatistics(errorList *errors.LintRuleErrorsList, modules int, elapse
 // styled identically to the deckhouse-cli mirror summaries. It is meant to be
 // called after PrintResult, once all findings have been listed.
 func (m *Manager) PrintStatistics() {
-	fmt.Println(renderStatistics(collectStatistics(m.errors, m.moduleCount(), time.Since(m.startedAt))))
+	fmt.Println(renderStatistics(collectStatistics(m.GetErrors(), m.moduleCount(), time.Since(m.startedAt))))
 }
 
 // renderStatistics formats the statistics as a single multi-line, framed block.

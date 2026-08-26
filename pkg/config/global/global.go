@@ -156,6 +156,7 @@ type TemplatesLinterRules struct {
 	MountPointsRule          RuleConfig `mapstructure:"mount-points"`
 	HelmRenderRule           RuleConfig `mapstructure:"helm-render"`
 	OpenAPIValuesQuoteRule   RuleConfig `mapstructure:"openapi-values-quote"`
+	SchemaValidationRule     RuleConfig `mapstructure:"schema-validation"`
 }
 
 func (c LinterConfig) IsWarn() bool {

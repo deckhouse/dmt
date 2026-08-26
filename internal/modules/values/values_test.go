@@ -3,7 +3,6 @@ package values
 import (
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
 
 	"helm.sh/helm/v3/pkg/chartutil"
@@ -22,7 +21,9 @@ func TestOverrideValues(t *testing.T) {
 		t.Errorf("expected values to be unchanged when vals is nil")
 	}
 
-	// Test override
+	// Test override: vals is merged directly into the .Values tree (no wrapper),
+	// so the original keys are preserved and the override keys are added at the
+	// same level the renderer reads them from.
 	values = &chartutil.Values{"foo": "bar"}
 	vals := &chartutil.Values{"baz": "qux"}
 
@@ -31,17 +32,16 @@ func TestOverrideValues(t *testing.T) {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if v, ok := (*values)["Values"]; !ok {
-		t.Errorf("expected 'Values' key to be present after override")
-	} else {
-		valsMap, ok := v.(chartutil.Values)
-		if !ok {
-			t.Errorf("expected 'Values' to be of type chartutil.Values")
-		}
+	if _, ok := (*values)["Values"]; ok {
+		t.Errorf("did not expect a wrapping 'Values' key; vals must merge into the flat .Values tree")
+	}
 
-		if !reflect.DeepEqual(valsMap, *vals) {
-			t.Errorf("expected 'Values' to equal vals, got: %v", valsMap)
-		}
+	if (*values)["foo"] != "bar" {
+		t.Errorf("expected original key 'foo' to be preserved, got: %v", (*values)["foo"])
+	}
+
+	if (*values)["baz"] != "qux" {
+		t.Errorf("expected override key 'baz' to be merged in, got: %v", (*values)["baz"])
 	}
 }
 
