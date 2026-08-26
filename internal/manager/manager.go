@@ -281,10 +281,14 @@ func (m *Manager) PrintResult() {
 		}
 
 		if err.FilePath != "" {
-			fmt.Fprintf(w, "\t%s\t\t%s\n", "FilePath:", strings.TrimSpace(err.FilePath))
-		}
-
-		if err.LineNumber != 0 {
+			// Render a VSCode-clickable "path:line" reference when the line is known,
+			// so the separate LineNumber line is not needed.
+			filePath := strings.TrimSpace(err.FilePath)
+			if err.LineNumber != 0 {
+				filePath = fmt.Sprintf("%s:%d", filePath, err.LineNumber)
+			}
+			fmt.Fprintf(w, "\t%s\t\t%s\n", "FilePath:", filePath)
+		} else if err.LineNumber != 0 {
 			fmt.Fprintf(w, "\t%s\t\t%d\n", "LineNumber:", err.LineNumber)
 		}
 
