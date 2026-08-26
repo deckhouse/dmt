@@ -287,6 +287,7 @@ func (m *Manager) PrintResult() {
 			if err.LineNumber != 0 {
 				filePath = fmt.Sprintf("%s:%d", filePath, err.LineNumber)
 			}
+
 			fmt.Fprintf(w, "\t%s\t\t%s\n", "FilePath:", filePath)
 		} else if err.LineNumber != 0 {
 			fmt.Fprintf(w, "\t%s\t\t%d\n", "LineNumber:", err.LineNumber)
