@@ -2204,22 +2204,24 @@ hosts:
 
 **Configuration:**
 
-Set the impact level or exclude specific value paths. An exclude is matched (exact string) against the value path **exactly as it appears in the finding message** — a dotted path relative to the module values root, with `[]` marking array elements and array-of-object sub-fields:
+Exclude specific value paths from the check. An exclude is matched by **exact string equality** (not by prefix) against the **path relative to the module values root** — that is, the `'.Values.<moduleName>.<path>'` shown in the finding with its leading `.Values.<moduleName>.` stripped. `[]` appears in that path only for a sub-field of an array-of-objects element (`servers[].host`) or an element of a nested array (`matrix[]`); a plain string array or string map has no `[]` — it is excluded by its own path, which also covers its elements/values:
 
 ```yaml
 # .dmtlint.yaml
 linters-settings:
   templates:
-    rules:
-      openapi-values-quote:
-        impact: error
     exclude-rules:
       openapi-values-quote:
         - internal.someLegacyField   # a scalar path
-        - extraArgs                  # a string array (excludes its elements)
-        - servers[].host             # one sub-field of an array of objects
-        - servers                    # the whole array (excludes every sub-field)
+        - extraArgs                  # a string array — also excludes its elements
+        - labels                     # a string map — also excludes its values
+        - servers[].host             # a sub-field of an array-of-objects element
+        - servers[].zone             # exact match: list each sub-field separately
 ```
+
+Because matching is exact (not prefix), a bare `servers` excludes nothing — the array-of-objects itself is never rendered as a scalar, so no finding ever has that exact path. To silence a whole array-of-objects, list each `servers[].<field>` path you want to exclude.
+
+The finding severity is configured separately with `impact` (default `error`); see [Per-Rule Impact Levels](#per-rule-impact-levels).
 
 
 ## Configuration
