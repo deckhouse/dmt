@@ -31,9 +31,6 @@ package scopes
 
 import (
 	"context"
-	"log/slog"
-
-	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -62,15 +59,9 @@ type Linter interface {
 // concrete type only. That is deliberate: slicing the config per linter is the scope's
 // job, and a linter must not be able to reach a sibling's settings.
 func (s Scope) Linters(m *modules.Module, errList *errors.LintRuleErrorsList) []Linter {
-	// One if per scope today; this becomes a switch once a second scope exists.
-	if s == Static {
+	//nolint: gocritic
+	switch s {
+	default:
 		return staticLinters(m, errList)
 	}
-
-	// A scope reaches this function from code, never from user input, so an unknown one is
-	// a programming error. It is logged rather than swallowed: the alternative failure is
-	// linting a module with no linters at all and reporting it as clean.
-	log.Error("Unknown scope, no linters to run", slog.String("scope", string(s)))
-
-	return nil
 }

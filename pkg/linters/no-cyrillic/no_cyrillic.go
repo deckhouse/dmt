@@ -70,15 +70,6 @@ func (l *NoCyrillic) rules() []pkg.Rule {
 	}
 }
 
-// AllRuleNames returns the IDs of every rule this linter has. It is not knowledge about
-// scopes: the linter only states honestly what it carries. Checking the list against a
-// scope's table is done in pkg/scopes, not here.
-func AllRuleNames() set.Set {
-	return set.New(
-		rules.FilesRuleName,
-	)
-}
-
 func (l *NoCyrillic) GetName() string {
 	return l.name
 }

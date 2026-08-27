@@ -45,9 +45,10 @@ import (
 // rules this scope asks it for. A rule missing from a linter's set does not run.
 //
 // static reads the whole committed source tree, which carries every file the rules look
-// for, so it asks for all of them — but the membership is spelled out rather than implied.
-// static_test.go compares each set against the linter's own AllRuleNames and fails naming
-// the difference, so a rule added to a linter and forgotten here cannot go unnoticed.
+// for, so today it asks for all of them. Nothing enforces that, on purpose: a rule that
+// belongs to a built image and not to the source tree is exactly what scopes exist to
+// express, so this table is the authority and is not checked against what a linter carries.
+// The cost is that a rule added to a linter and forgotten here silently does not run.
 //
 // Sets are keyed by linter, so rule IDs that repeat across linters — bilingual in docs and
 // openapi, werf and mount-points in images/templates/container, ingress in hooks and

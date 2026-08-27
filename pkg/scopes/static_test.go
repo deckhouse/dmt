@@ -17,63 +17,25 @@ limitations under the License.
 package scopes
 
 import (
-	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/deckhouse/dmt/internal/modules"
-	"github.com/deckhouse/dmt/internal/set"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/linters/container"
-	"github.com/deckhouse/dmt/pkg/linters/docs"
-	"github.com/deckhouse/dmt/pkg/linters/hooks"
-	"github.com/deckhouse/dmt/pkg/linters/images"
-	moduleLinter "github.com/deckhouse/dmt/pkg/linters/module"
-	no_cyrillic "github.com/deckhouse/dmt/pkg/linters/no-cyrillic"
-	"github.com/deckhouse/dmt/pkg/linters/openapi"
-	"github.com/deckhouse/dmt/pkg/linters/rbac"
-	"github.com/deckhouse/dmt/pkg/linters/templates"
 )
 
-// allLinterRules pairs each linter with the rules it carries, as the linter itself
-// reports them. It is the reference the scope tables are checked against.
-var allLinterRules = map[string]set.Set{
-	container.ID:    container.AllRuleNames(),
-	docs.ID:         docs.AllRuleNames(),
-	hooks.ID:        hooks.AllRuleNames(),
-	images.ID:       images.AllRuleNames(),
-	moduleLinter.ID: moduleLinter.AllRuleNames(),
-	no_cyrillic.ID:  no_cyrillic.AllRuleNames(),
-	openapi.ID:      openapi.AllRuleNames(),
-	rbac.ID:         rbac.AllRuleNames(),
-	templates.ID:    templates.AllRuleNames(),
-}
-
-// TestStaticAsksForEveryRule is the guard that makes an explicit allowlist safe. static
-// lints the full source tree, so it asks every linter for all of its rules; a rule added
-// to a linter and forgotten in staticRules would otherwise stop running silently, which
-// reads as a clean module rather than as a missing check.
-func TestStaticAsksForEveryRule(t *testing.T) {
-	for id, all := range allLinterRules {
-		t.Run(id, func(t *testing.T) {
-			asked, ok := staticRules[id]
-			require.True(t, ok, "linter %q has no rule set in staticRules", id)
-
-			assert.Empty(t, missingFrom(all, asked),
-				"rules the %s linter has that static never asks for", id)
-			assert.Empty(t, missingFrom(asked, all),
-				"rule IDs static asks %s for that no rule of it carries", id)
-		})
-	}
-}
-
-// TestStaticTableCoversExactlyItsLinters keeps the table and the constructor list in step:
-// a set for a linter static does not build would never be read, and a linter built with a
-// set the table does not hold would run nothing at all.
+// TestStaticTableCoversExactlyItsLinters keeps the table and the constructor list in step.
+// The two failures it catches are the ones the table cannot survive: a set for a linter
+// static does not build is dead weight, and a linter built with no entry in the table gets
+// a nil set and runs nothing at all while reporting the module clean.
+//
+// Note what is deliberately *not* asserted: that static asks each linter for every rule it
+// carries. That would only hold while static is the only scope. A rule meant for a built
+// image and not for the source tree is exactly what scopes exist to express, so the table
+// is the authority on membership and nothing checks it against a linter's full rule set.
 func TestStaticTableCoversExactlyItsLinters(t *testing.T) {
-	built := make([]string, 0, len(allLinterRules))
+	built := make([]string, 0, len(staticRules))
 	for _, l := range staticLinters(&modules.Module{}, errors.NewLintRuleErrorsList()) {
 		built = append(built, l.GetName())
 	}
@@ -83,23 +45,8 @@ func TestStaticTableCoversExactlyItsLinters(t *testing.T) {
 	}
 
 	for _, id := range built {
-		_, ok := staticRules[id]
+		asked, ok := staticRules[id]
 		assert.True(t, ok, "staticLinters builds %q, which staticRules has no set for", id)
+		assert.NotZero(t, asked.Size(), "staticRules asks %q for no rules, so it would run nothing", id)
 	}
-}
-
-// missingFrom returns the members of want that have are absent from got, sorted so the
-// failure message is stable.
-func missingFrom(want, got set.Set) []string {
-	var missing []string
-
-	for name := range want {
-		if !got.Has(name) {
-			missing = append(missing, name)
-		}
-	}
-
-	slices.Sort(missing)
-
-	return missing
 }

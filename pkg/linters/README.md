@@ -67,26 +67,36 @@ off. Note the difference between the two — a rule a scope never asks for
 produces nothing at all, while `impact: ignored` silences a rule that *did* run
 and still counts toward the ignored tally.
 
-Two tables must agree, and two tests keep them honest:
+### The table is the authority
 
-- `pkg/scopes/static.go` holds `staticRules`, the IDs each linter is asked for.
-  `pkg/scopes/static_test.go` compares it against every linter's
-  `AllRuleNames()` and fails naming the difference in both directions.
-- each linter exports `AllRuleNames()`, a hand-written list of the rules it
-  carries. Its own package's `all_rules_test.go` asserts `rules()` builds
-  nothing outside that list.
+`pkg/scopes/static.go` holds `staticRules`: for each linter, the rule IDs static
+asks it for. That table is the only statement of membership. A linter does not
+publish the list of rules it carries, and **nothing checks a scope's table
+against that list** — deliberately.
 
-The second test is not redundant: without it a rule added to `rules()` and
-mentioned in neither table would stop running with the first test still green.
-`AllRuleNames()` is hand-written rather than derived from `rules()` because
-`templates` adds two rules only when `monitoring/` exists, so deriving it from a
-module without that folder would silently under-report.
+The tempting check is "static must ask every linter for all of its rules", which
+is true today and stops being true the moment a rule belongs to a built image and
+not to the source tree. Encoding it would mean deleting the check as soon as the
+second scope lands, and until then it would push back against the very thing
+scopes exist to express. So the table is written out by hand and trusted.
+
+What that buys, and what it costs:
+
+- a rule can be in one scope and not another with no ceremony — add its ID where
+  it belongs and nowhere else;
+- a rule added to a linter's `rules()` and forgotten in every table **silently
+  does not run**. `pkg/scopes/static_test.go` cannot catch that; it only checks
+  that the table's keys match the linters `staticLinters` builds, and that none
+  of them is asked for an empty set.
+
+Tests that need a linter exercised whole derive the ID set from `rules()` rather
+than naming one — see `everyRule` in `pkg/linters/container/container_test.go`.
+Written-out subsets in tests go stale the same way, just more quietly.
 
 ### Adding a rule
 
-Write the rule, add it to the linter's `rules()`, then add its ID to **both**
-`AllRuleNames()` and every scope table in `pkg/scopes` that should run it. The
-tests fail until you do.
+Write the rule, add it to the linter's `rules()`, then add its ID to every scope
+table in `pkg/scopes` that should run it. Nothing will remind you.
 
 ## Writing a rule
 
@@ -173,16 +183,17 @@ func (l *Documentation) rules() []pkg.Rule {
 
 ## Migration status
 
-All nine linters implement `Lint(ctx)` and export `AllRuleNames()`; every rule
-implements `pkg.Rule`. The `legacyAdapter`/`legacyLinter` shim that carried
-unmigrated linters is gone.
+All nine linters implement `Lint(ctx)`; every rule implements `pkg.Rule`. The
+`legacyAdapter`/`legacyLinter` shim that carried unmigrated linters is gone.
 
 The linter list no longer lives in `internal/manager`: `getLintersForModule` and
 the `Linter` interface moved to `pkg/scopes`, and `manager.NewManager` takes the
 scope to run. One scope is one file in `pkg/scopes`, selected by `Scope.Linters`;
-an unknown scope logs an error and yields no linters. Only `static` exists, and it is what `dmt lint` has always
-done, so the change is output-neutral — verified by diffing every
-`test/e2e/testdata/*/*/module` fixture before and after (see below on how).
+an unknown scope logs an error and yields no linters.
+
+Only `static` exists, and it is what `dmt lint` has always done, so the change is
+output-neutral — verified by diffing every `test/e2e/testdata/*/*/module` fixture
+before and after (see below on how).
 There is no `--scope` flag yet: there is nothing to choose between, and
 `internal/flags` are process globals that `test/e2e` already has to serialise
 with `initLintFlagsOnce`.

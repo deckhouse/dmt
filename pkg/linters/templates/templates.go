@@ -113,31 +113,6 @@ func (l *Templates) rules() []pkg.Rule {
 	)
 }
 
-// AllRuleNames returns the IDs of every rule this linter has. It is not knowledge about
-// scopes: the linter only states honestly what it carries. Checking the list against a
-// scope's table is done in pkg/scopes, not here.
-func AllRuleNames() set.Set {
-	return set.New(
-		rules.CRDEnabledModulesRuleName,
-		rules.ClusterDomainRuleName,
-		rules.EnabledModulesRuleName,
-		rules.GrafanaRuleName,
-		rules.HTTPRouteRuleName,
-		rules.HelmRenderRuleName,
-		rules.IngressRuleName,
-		rules.KubeRbacProxyRuleName,
-		rules.MountPointsRuleName,
-		rules.OpenAPIValuesQuoteRuleName,
-		rules.PDBRuleName,
-		rules.PrometheusRuleName,
-		rules.RegistryRuleName,
-		rules.ServicePortRuleName,
-		rules.VPARuleName,
-		rules.WebhookConfigurationRuleName,
-		rules.WerfRuleName,
-	)
-}
-
 func (l *Templates) GetName() string {
 	return l.name
 }

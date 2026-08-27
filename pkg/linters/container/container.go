@@ -115,37 +115,6 @@ func (l *Container) rules(objects []rules.ObjectContainers) []pkg.Rule {
 	}
 }
 
-// AllRuleNames returns the IDs of every rule this linter has. It is not knowledge about
-// scopes: the linter only states honestly what it carries. Checking the list against a
-// scope's table is done in pkg/scopes, not here.
-func AllRuleNames() set.Set {
-	return set.New(
-		rules.APIVersionRuleName,
-		rules.CheckReadOnlyRootFilesystemRuleName,
-		rules.ContainerImageNameRuleName,
-		rules.ContainerSecurityContextRuleName,
-		rules.ControllerSecurityContextRuleName,
-		rules.DNSPolicyRuleName,
-		rules.EnvVariablesDuplicatesRuleName,
-		rules.HostNetworkPortsRuleName,
-		rules.ImageDigestRuleName,
-		rules.ImagePullPolicyRuleName,
-		rules.LivenessRuleName,
-		rules.MountPointsRuleName,
-		rules.NameDuplicatesRuleName,
-		rules.NamespaceLabelsRuleName,
-		rules.NoNewPrivilegesRuleName,
-		rules.PortsRuleName,
-		rules.PriorityClassRuleName,
-		rules.ReadinessRuleName,
-		rules.RecommendedLabelsRuleName,
-		rules.ResourcesRuleName,
-		rules.RevisionHistoryLimitRuleName,
-		rules.SeccompProfileRuleName,
-		rules.SysCgroupMountRuleName,
-	)
-}
-
 func (l *Container) GetName() string {
 	return l.name
 }
