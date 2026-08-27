@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	dockerfileRuleName = "dockerfile"
+	DockerfileRuleName = "dockerfile"
 )
 
 const (
@@ -69,13 +69,13 @@ func NewImageRule(cfg *pkg.ImageLinterConfig,
 	m pkg.Module, errorList *errors.LintRuleErrorsList) *ImageRule {
 	return &ImageRule{
 		RuleMeta: pkg.RuleMeta{
-			Name: dockerfileRuleName,
+			Name: DockerfileRuleName,
 		},
 		PrefixRule: pkg.PrefixRule{
 			ExcludeRules: cfg.ExcludeRules.SkipDistrolessFilePathPrefix.Get(),
 		},
 		module:    m,
-		errorList: errorList.WithRule(dockerfileRuleName),
+		errorList: errorList.WithRule(DockerfileRuleName),
 	}
 }
 

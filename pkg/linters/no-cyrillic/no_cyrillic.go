@@ -19,6 +19,7 @@ package nocyrillic
 import (
 	"context"
 
+	"github.com/deckhouse/dmt/internal/set"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/no-cyrillic/rules"
@@ -33,23 +34,23 @@ type NoCyrillic struct {
 	name, desc string
 	cfg        *pkg.NoCyrillicLinterConfig
 	module     pkg.Module
+	ruleIDs    set.Set
 	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *pkg.NoCyrillicLinterConfig, m pkg.Module, errorList *errors.LintRuleErrorsList) *NoCyrillic {
+func New(cfg *pkg.NoCyrillicLinterConfig, ruleIDs set.Set, m pkg.Module, errorList *errors.LintRuleErrorsList) *NoCyrillic {
 	return &NoCyrillic{
 		name:      ID,
 		desc:      "NoCyrillic will check all files in the modules for contains cyrillic symbols",
 		cfg:       cfg,
 		module:    m,
+		ruleIDs:   ruleIDs,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.Impact),
 	}
 }
 
 func (l *NoCyrillic) Lint(ctx context.Context) {
-	for _, rule := range l.rules() {
-		rule.Check(ctx)
-	}
+	pkg.RunRules(ctx, l.ruleIDs, l.rules())
 }
 
 // rules builds this linter's rule set. Keeping the set as data — rather than a
@@ -67,6 +68,15 @@ func (l *NoCyrillic) rules() []pkg.Rule {
 			l.cfg.ExcludeRules.Directories.Get(),
 			m, l.ErrorList.WithModule(m.GetName())),
 	}
+}
+
+// AllRuleNames returns the IDs of every rule this linter has. It is not knowledge about
+// scopes: the linter only states honestly what it carries. Checking the list against a
+// scope's table is done in pkg/scopes, not here.
+func AllRuleNames() set.Set {
+	return set.New(
+		rules.FilesRuleName,
+	)
 }
 
 func (l *NoCyrillic) GetName() string {

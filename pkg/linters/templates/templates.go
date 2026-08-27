@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/deckhouse/dmt/internal/set"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/templates/rules"
@@ -35,23 +36,29 @@ type Templates struct {
 	name, desc string
 	cfg        *pkg.TemplatesLinterConfig
 	module     pkg.Module
+	ruleIDs    set.Set
 	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *pkg.TemplatesLinterConfig, m pkg.Module, errorList *errors.LintRuleErrorsList) *Templates {
+func New(cfg *pkg.TemplatesLinterConfig, ruleIDs set.Set, m pkg.Module, errorList *errors.LintRuleErrorsList) *Templates {
 	return &Templates{
 		name:      ID,
 		desc:      "Lint templates",
 		cfg:       cfg,
 		module:    m,
+		ruleIDs:   ruleIDs,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.Impact),
 	}
 }
 
 func (l *Templates) Lint(ctx context.Context) {
-	for _, rule := range l.rules() {
-		rule.Check(ctx)
+	// rules() stats monitoring/ and reports a finding of its own when that read fails,
+	// so it must not be built at all for a linter the scope asked no rules from.
+	if l.ruleIDs.Size() == 0 {
+		return
 	}
+
+	pkg.RunRules(ctx, l.ruleIDs, l.rules())
 }
 
 // rules builds this linter's rule set. Keeping the set as data — rather than a
@@ -103,6 +110,31 @@ func (l *Templates) rules() []pkg.Rule {
 		rules.NewMountPointsRule(cfg.ExcludeRules.MountPoints.Get(), m, level(cfg.Rules.MountPointsRule)),
 		rules.NewHelmRenderRule(m, level(cfg.Rules.HelmRenderRule)),
 		rules.NewOpenAPIValuesQuoteRule(cfg.ExcludeRules.OpenAPIValuesQuote.Get(), m, level(cfg.Rules.OpenAPIValuesQuoteRule)),
+	)
+}
+
+// AllRuleNames returns the IDs of every rule this linter has. It is not knowledge about
+// scopes: the linter only states honestly what it carries. Checking the list against a
+// scope's table is done in pkg/scopes, not here.
+func AllRuleNames() set.Set {
+	return set.New(
+		rules.CRDEnabledModulesRuleName,
+		rules.ClusterDomainRuleName,
+		rules.EnabledModulesRuleName,
+		rules.GrafanaRuleName,
+		rules.HTTPRouteRuleName,
+		rules.HelmRenderRuleName,
+		rules.IngressRuleName,
+		rules.KubeRbacProxyRuleName,
+		rules.MountPointsRuleName,
+		rules.OpenAPIValuesQuoteRuleName,
+		rules.PDBRuleName,
+		rules.PrometheusRuleName,
+		rules.RegistryRuleName,
+		rules.ServicePortRuleName,
+		rules.VPARuleName,
+		rules.WebhookConfigurationRuleName,
+		rules.WerfRuleName,
 	)
 }
 
