@@ -132,7 +132,7 @@ go test ./test/e2e/ -run 'TestE2E/<linter>/<your-case>' -v
 | `templates/vpa-misconfigured` | `vpa` (updateMode `Auto`, missing `resourcePolicy.containerPolicies`) |
 | `templates/pdb-mismatch` | `pdb` (PDB selector does not match controller pod labels) |
 | `templates/pdb-helm-hook` | `pdb` (PDB carries helm hook annotations) |
-| `templates/ingress-snippet` | `ingress-rules` (configuration-snippet missing HSTS) |
+| `templates/ingress-snippet` | `ingress-rules` (unsafe configuration-snippet warning and missing HSTS error) |
 | `templates/monitoring-missing-yaml` | `prometheus-rules` + `grafana-dashboards` (monitoring/ without templates/monitoring.yaml) |
 | `templates/grafana-dashboard` | `grafana-dashboards` (deprecated panel type, missing prometheus datasource variable) |
 | `templates/prometheus-promtool` | `prometheus-rules` (invalid PromQL via promtool) |
