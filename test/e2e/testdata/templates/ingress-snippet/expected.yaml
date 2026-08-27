@@ -1,9 +1,13 @@
 description: >
-  An Ingress whose configuration-snippet annotation does not include the
-  required HSTS snippet must be flagged by the ingress-rules rule.
+  An Ingress with an unsafe configuration-snippet and no HSTS protection must
+  produce a migration warning and an HSTS error.
 module: module
 expect:
   - linter: templates
     rule: ingress-rules
+    level: warn
+    textContains: "is unsafe and requires manual migration"
+  - linter: templates
+    rule: ingress-rules
     level: error
-    textContains: "does not contain required snippet"
+    textContains: "to preserve HSTS"
