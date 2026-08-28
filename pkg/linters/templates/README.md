@@ -909,10 +909,10 @@ replacements for them.
 2. An Ingress using `configuration-snippet` must also preserve HSTS through
    either:
    - `nginx.ingress.kubernetes.io/ingress-nginx-hsts: "true"` (preferred), or
-   - the legacy `add_header Strict-Transport-Security` directive inside the
-     snippet.
-3. A legacy HSTS directive is accepted during migration, but the unsafe
-   annotation error remains.
+   - the canonical legacy HSTS directive produced by
+     `helm_lib_module_ingress_configuration_snippet` and shown below.
+3. The canonical legacy HSTS directive is accepted during migration, but the
+   unsafe annotation error remains.
 
 **Why it matters:**
 
@@ -2684,26 +2684,33 @@ Object: namespace = d8-my-module
            - d8-my-module
    ```
 
-### Issue: Ingress missing HSTS configuration
+### Issue: Unsafe Ingress annotation or missing HSTS configuration
 
 **Symptom:**
 ```
-Error: Ingress annotation "nginx.ingress.kubernetes.io/configuration-snippet" does not contain required snippet
+Error: Ingress annotation "nginx.ingress.kubernetes.io/configuration-snippet" is unsafe and requires manual migration.
+Error: Ingress annotation "nginx.ingress.kubernetes.io/configuration-snippet" requires annotation "nginx.ingress.kubernetes.io/ingress-nginx-hsts" to be set to "true" to preserve HSTS.
 ```
 
-**Cause:** Ingress configuration-snippet missing Strict-Transport-Security header.
+**Cause:** The Ingress uses an unsafe snippet annotation. A
+`configuration-snippet` without either the dedicated HSTS annotation or the
+legacy canonical HSTS directive also risks losing HSTS during migration.
 
 **Solutions:**
 
-1. **Use Helm helper:**
+1. **Preserve HSTS with the safe annotation:**
 
    ```yaml
    annotations:
-     nginx.ingress.kubernetes.io/configuration-snippet: |
-{{- include "helm_lib_module_ingress_configuration_snippet" . | nindent 6 }}
+     nginx.ingress.kubernetes.io/ingress-nginx-hsts: "true"
    ```
 
-2. **Exclude Ingress:**
+2. **Migrate the remaining snippet directives to safe annotations or other
+   Kubernetes resources, then remove the unsafe snippet annotation.** Adding
+   the HSTS annotation resolves only the HSTS error; the unsafe annotation
+   error remains until the snippet is removed or excluded.
+
+3. **Temporarily exclude the Ingress if no safe migration is available:**
 
    ```yaml
    # .dmtlint.yaml

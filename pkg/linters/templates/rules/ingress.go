@@ -36,7 +36,7 @@ const (
 	nginxAnnotationPrefix          = "nginx.ingress.kubernetes.io/"
 	configurationSnippetAnnotation = nginxAnnotationPrefix + "configuration-snippet"
 	ingressNginxHSTSAnnotation     = nginxAnnotationPrefix + "ingress-nginx-hsts"
-	legacyHSTSDirective            = "add_header Strict-Transport-Security"
+	legacyHSTSDirective            = `add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;`
 )
 
 var unsafeIngressAnnotations = []string{
@@ -116,9 +116,19 @@ func (r *IngressRule) checkObject(object storage.StoreObject) {
 
 	hasSafeHSTS := annotations[ingressNginxHSTSAnnotation] == "true"
 
-	hasLegacyHSTS := strings.Contains(configurationSnippet, legacyHSTSDirective)
+	hasLegacyHSTS := hasLegacyHSTSDirective(configurationSnippet)
 	if !hasSafeHSTS && !hasLegacyHSTS {
 		objectErrors.Errorf("Ingress annotation %q requires annotation %q to be set to %q to preserve HSTS.",
 			configurationSnippetAnnotation, ingressNginxHSTSAnnotation, "true")
 	}
+}
+
+func hasLegacyHSTSDirective(configurationSnippet string) bool {
+	for line := range strings.SplitSeq(configurationSnippet, "\n") {
+		if strings.TrimSpace(line) == legacyHSTSDirective {
+			return true
+		}
+	}
+
+	return false
 }
