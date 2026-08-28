@@ -65,9 +65,33 @@ func TestIngressRuleHSTSCompatibility(t *testing.T) {
 		{
 			name: "legacy HSTS directive",
 			annotations: map[string]string{
-				configurationSnippetAnnotation: legacyHSTSDirective + " value;",
+				configurationSnippetAnnotation: "  " + legacyHSTSDirective,
 			},
 			wantErrors: 1,
+		},
+		{
+			name: "commented legacy HSTS directive",
+			annotations: map[string]string{
+				configurationSnippetAnnotation: "# " + legacyHSTSDirective,
+			},
+			wantErrors:    2,
+			wantHSTSError: true,
+		},
+		{
+			name: "legacy HSTS directive disables HSTS",
+			annotations: map[string]string{
+				configurationSnippetAnnotation: `add_header Strict-Transport-Security "max-age=0" always;`,
+			},
+			wantErrors:    2,
+			wantHSTSError: true,
+		},
+		{
+			name: "report-only header is not HSTS",
+			annotations: map[string]string{
+				configurationSnippetAnnotation: `add_header Strict-Transport-Security-Report-Only "max-age=31536000" always;`,
+			},
+			wantErrors:    2,
+			wantHSTSError: true,
 		},
 		{
 			name: "HSTS is missing",
