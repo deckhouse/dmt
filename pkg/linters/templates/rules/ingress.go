@@ -106,7 +106,7 @@ func (r *IngressRule) checkObject(object storage.StoreObject) {
 			continue
 		}
 
-		objectErrors.Warnf("Ingress annotation %q is unsafe and requires manual migration.", annotation)
+		objectErrors.Errorf("Ingress annotation %q is unsafe and requires manual migration.", annotation)
 	}
 
 	configurationSnippet, found := annotations[configurationSnippetAnnotation]

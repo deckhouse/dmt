@@ -14,7 +14,7 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [pdb](#pdb) | Validates PodDisruptionBudgets for deployments and statefulsets | ✅ | enabled |
 | [kube-rbac-proxy](#kube-rbac-proxy) | Validates kube-rbac-proxy CA certificates in namespaces | ✅ | enabled |
 | [service-port](#service-port) | Validates services use named target ports | ✅ | enabled |
-| [ingress-rules](#ingress-rules) | Warns about unsafe Ingress snippet annotations and validates HSTS | ✅ | enabled |
+| [ingress-rules](#ingress-rules) | Rejects unsafe Ingress snippet annotations and validates HSTS | ✅ | enabled |
 | [httproute-rules](#httproute-rules) | Validates that every Ingress has a companion HTTPRoute backed by a ListenerSet | ✅ | enabled |
 | [prometheus-rules](#prometheus-rules) | Validates Prometheus rules with promtool and proper templates | ✅ | enabled |
 | [grafana-dashboards](#grafana-dashboards) | Validates Grafana dashboard templates | ✅ | enabled |
@@ -890,7 +890,7 @@ Ingresses using `configuration-snippet` preserve HSTS during migration.
 
 **Description:**
 
-The rule reports a warning when an Ingress uses any of these Critical
+The rule reports an error when an Ingress uses any of these Critical
 annotations:
 
 - `nginx.ingress.kubernetes.io/configuration-snippet`;
@@ -905,14 +905,14 @@ replacements for them.
 
 **What it checks:**
 
-1. Every unsafe snippet annotation produces a migration warning.
+1. Every unsafe snippet annotation produces a migration error.
 2. An Ingress using `configuration-snippet` must also preserve HSTS through
    either:
    - `nginx.ingress.kubernetes.io/ingress-nginx-hsts: "true"` (preferred), or
    - the legacy `add_header Strict-Transport-Security` directive inside the
      snippet.
 3. A legacy HSTS directive is accepted during migration, but the unsafe
-   annotation warning remains.
+   annotation error remains.
 
 **Why it matters:**
 
@@ -952,8 +952,8 @@ spec:
                   name: http
 ```
 
-This produces a warning for the unsafe annotation and an error because neither
-the preferred nor legacy HSTS configuration is present.
+This produces an error for the unsafe annotation and another error because
+neither the preferred nor legacy HSTS configuration is present.
 
 ⚠️ **Legacy HSTS during migration:**
 
@@ -989,7 +989,7 @@ The helper renders the legacy HSTS header:
 add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 ```
 
-This temporarily satisfies the HSTS check, but the unsafe annotation warning
+This temporarily satisfies the HSTS check, but the unsafe annotation error
 remains.
 
 ✅ **Preferred HSTS configuration:**
