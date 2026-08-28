@@ -30,7 +30,7 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
-func TestIngressRuleWarnsAboutUnsafeAnnotations(t *testing.T) {
+func TestIngressRuleReportsUnsafeAnnotationsAsErrors(t *testing.T) {
 	for _, annotation := range unsafeIngressAnnotations {
 		t.Run(annotation, func(t *testing.T) {
 			value := "value"
@@ -41,7 +41,7 @@ func TestIngressRuleWarnsAboutUnsafeAnnotations(t *testing.T) {
 			findings := runIngressRule(t, "Ingress", map[string]string{annotation: value}, nil)
 
 			require.Len(t, findings, 1)
-			assert.Equal(t, pkg.Warn, findings[0].Level)
+			assert.Equal(t, pkg.Error, findings[0].Level)
 			assert.Contains(t, findings[0].Text, annotation)
 		})
 	}
@@ -49,10 +49,10 @@ func TestIngressRuleWarnsAboutUnsafeAnnotations(t *testing.T) {
 
 func TestIngressRuleHSTSCompatibility(t *testing.T) {
 	tests := []struct {
-		name         string
-		annotations  map[string]string
-		wantWarnings int
-		wantErrors   int
+		name          string
+		annotations   map[string]string
+		wantErrors    int
+		wantHSTSError bool
 	}{
 		{
 			name: "safe HSTS annotation",
@@ -60,30 +60,30 @@ func TestIngressRuleHSTSCompatibility(t *testing.T) {
 				configurationSnippetAnnotation: "proxy_set_header X-Test value;",
 				ingressNginxHSTSAnnotation:     "true",
 			},
-			wantWarnings: 1,
+			wantErrors: 1,
 		},
 		{
 			name: "legacy HSTS directive",
 			annotations: map[string]string{
 				configurationSnippetAnnotation: legacyHSTSDirective + " value;",
 			},
-			wantWarnings: 1,
+			wantErrors: 1,
 		},
 		{
 			name: "HSTS is missing",
 			annotations: map[string]string{
 				configurationSnippetAnnotation: "proxy_set_header X-Test value;",
 			},
-			wantWarnings: 1,
-			wantErrors:   1,
+			wantErrors:    2,
+			wantHSTSError: true,
 		},
 		{
 			name: "configuration snippet is empty",
 			annotations: map[string]string{
 				configurationSnippetAnnotation: "",
 			},
-			wantWarnings: 1,
-			wantErrors:   1,
+			wantErrors:    2,
+			wantHSTSError: true,
 		},
 		{
 			name: "safe HSTS annotation is false",
@@ -91,8 +91,8 @@ func TestIngressRuleHSTSCompatibility(t *testing.T) {
 				configurationSnippetAnnotation: "proxy_set_header X-Test value;",
 				ingressNginxHSTSAnnotation:     "false",
 			},
-			wantWarnings: 1,
-			wantErrors:   1,
+			wantErrors:    2,
+			wantHSTSError: true,
 		},
 		{
 			name: "safe HSTS annotation is empty",
@@ -100,8 +100,8 @@ func TestIngressRuleHSTSCompatibility(t *testing.T) {
 				configurationSnippetAnnotation: "proxy_set_header X-Test value;",
 				ingressNginxHSTSAnnotation:     "",
 			},
-			wantWarnings: 1,
-			wantErrors:   1,
+			wantErrors:    2,
+			wantHSTSError: true,
 		},
 		{
 			name: "safe HSTS annotation has another value",
@@ -109,8 +109,8 @@ func TestIngressRuleHSTSCompatibility(t *testing.T) {
 				configurationSnippetAnnotation: "proxy_set_header X-Test value;",
 				ingressNginxHSTSAnnotation:     "TRUE",
 			},
-			wantWarnings: 1,
-			wantErrors:   1,
+			wantErrors:    2,
+			wantHSTSError: true,
 		},
 		{
 			name: "safe annotations without configuration snippet",
@@ -125,21 +125,15 @@ func TestIngressRuleHSTSCompatibility(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			findings := runIngressRule(t, "Ingress", tt.annotations, nil)
 
-			var warnings, ruleErrors int
+			require.Len(t, findings, tt.wantErrors)
 
 			for _, finding := range findings {
-				switch finding.Level {
-				case pkg.Warn:
-					warnings++
-				case pkg.Error:
-					ruleErrors++
-
-					assert.Contains(t, finding.Text, ingressNginxHSTSAnnotation)
-				}
+				assert.Equal(t, pkg.Error, finding.Level)
 			}
 
-			assert.Equal(t, tt.wantWarnings, warnings)
-			assert.Equal(t, tt.wantErrors, ruleErrors)
+			if tt.wantHSTSError {
+				assert.Contains(t, findings[len(findings)-1].Text, ingressNginxHSTSAnnotation)
+			}
 		})
 	}
 }
