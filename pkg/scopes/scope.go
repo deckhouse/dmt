@@ -1,0 +1,67 @@
+/*
+Copyright 2025 Flant JSC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package scopes defines the verification scopes dmt lints in.
+//
+// A scope is a source a module is read from, and it decides both which linters run and
+// which of their rules each one is asked for. Linters and rules know nothing about
+// scopes: a linter is handed its config and a set of rule IDs, and that is the whole of
+// what a scope tells it. Which rules run is therefore a property of the tool, not of a
+// module — .dmtlint.yaml tunes severities and can silence a rule with an ignored impact,
+// but it cannot switch one on or off.
+//
+// This mirrors internal/verify/lint in d8-package-plugin with the declaration inverted:
+// there every linter exports its own scope table and gates its rules itself, so each
+// linter has to know the scopes it lives in. Here the scope owns both tables, which is
+// what keeps the linters unaware.
+package scopes
+
+import (
+	"context"
+
+	"github.com/deckhouse/dmt/internal/modules"
+	"github.com/deckhouse/dmt/pkg/errors"
+)
+
+// Scope names one verification target: the source a module is read from.
+type Scope string
+
+// Static lints a module directory on disk, i.e. the full source tree as committed.
+// A scope for a built image will join it later.
+const Static Scope = "static"
+
+// Linter is the common interface implemented by all lint passes. Everything a linter
+// needs — its config, the rule IDs the scope asked it for, the module it inspects and
+// the error list it reports into — is supplied to its constructor, so Lint takes only a
+// context.
+type Linter interface {
+	GetName() string
+	Lint(ctx context.Context)
+}
+
+// Linters returns the linters this scope runs over the module, each already carrying the
+// set of rule IDs the scope asked it for.
+//
+// It takes *modules.Module rather than pkg.Module because GetModuleConfig lives on the
+// concrete type only. That is deliberate: slicing the config per linter is the scope's
+// job, and a linter must not be able to reach a sibling's settings.
+func (s Scope) Linters(m *modules.Module, errList *errors.LintRuleErrorsList) []Linter {
+	//nolint: gocritic
+	switch s {
+	default:
+		return staticLinters(m, errList)
+	}
+}

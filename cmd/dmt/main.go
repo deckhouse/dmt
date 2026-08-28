@@ -34,6 +34,7 @@ import (
 	"github.com/deckhouse/dmt/internal/metrics"
 	"github.com/deckhouse/dmt/internal/version"
 	"github.com/deckhouse/dmt/pkg/config"
+	"github.com/deckhouse/dmt/pkg/scopes"
 )
 
 func main() {
@@ -83,7 +84,7 @@ func runLint(ctx context.Context, dir string) error {
 	// init metrics storage, should be done before running manager
 	metrics.GetClient(dir)
 
-	mng := manager.NewManager(dir, cfg)
+	mng := manager.NewManager(dir, cfg, scopes.Static)
 	mng.Run(ctx)
 
 	if flags.Fix {

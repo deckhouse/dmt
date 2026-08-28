@@ -19,6 +19,7 @@ package images
 import (
 	"context"
 
+	"github.com/deckhouse/dmt/internal/set"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/images/rules"
@@ -33,23 +34,23 @@ type Images struct {
 	name, desc string
 	cfg        *pkg.ImageLinterConfig
 	module     pkg.Module
+	ruleIDs    set.Set
 	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(imageCfg *pkg.ImageLinterConfig, m pkg.Module, errorList *errors.LintRuleErrorsList) *Images {
+func New(imageCfg *pkg.ImageLinterConfig, ruleIDs set.Set, m pkg.Module, errorList *errors.LintRuleErrorsList) *Images {
 	return &Images{
 		name:      ID,
 		desc:      "Lint docker images",
 		cfg:       imageCfg,
 		module:    m,
+		ruleIDs:   ruleIDs,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(imageCfg.Impact),
 	}
 }
 
 func (l *Images) Lint(ctx context.Context) {
-	for _, rule := range l.rules() {
-		rule.Check(ctx)
-	}
+	pkg.RunRules(ctx, l.ruleIDs, l.rules())
 }
 
 // rules builds this linter's rule set. Keeping the set as data — rather than a

@@ -32,7 +32,7 @@ import (
 )
 
 const (
-	distrolessRuleName = "distroless"
+	DistrolessRuleName = "distroless"
 )
 
 var distrolessImagesPrefix = map[string][]string{
@@ -54,13 +54,13 @@ func NewDistrolessRule(cfg *pkg.ImageLinterConfig,
 	m pkg.Module, errorList *errors.LintRuleErrorsList) *DistrolessRule {
 	return &DistrolessRule{
 		RuleMeta: pkg.RuleMeta{
-			Name: distrolessRuleName,
+			Name: DistrolessRuleName,
 		},
 		PrefixRule: pkg.PrefixRule{
 			ExcludeRules: cfg.ExcludeRules.SkipDistrolessFilePathPrefix.Get(),
 		},
 		module:    m,
-		errorList: errorList.WithRule(distrolessRuleName),
+		errorList: errorList.WithRule(DistrolessRuleName),
 	}
 }
 

@@ -1,8 +1,10 @@
 # Linters and rules
 
-Every lint check in dmt is a **rule**; rules are grouped into **linters**. Both
-have a single interface, so a linter's rule set is data rather than a sequence
-of hand-written calls.
+Every lint check in dmt is a **rule**; rules are grouped into **linters**, and a
+**scope** decides which linters run and which of their rules each one is asked
+for. Both rules and linters have a single interface, so a linter's rule set is
+data rather than a sequence of hand-written calls — which is what lets a scope
+select from it.
 
 This mirrors `internal/verify` in
 [d8-package-plugin](https://fox.flant.com/deckhouse/runtime/plugins/d8-package-plugin/-/tree/main/internal/verify),
@@ -17,9 +19,9 @@ type Rule interface {
 	Check(ctx context.Context)
 }
 
-// internal/manager/manager.go
+// pkg/scopes/scope.go
 type Linter interface {
-	Name() string
+	GetName() string
 	Lint(ctx context.Context)
 }
 ```
@@ -27,6 +29,74 @@ type Linter interface {
 A rule receives everything it needs — the target it inspects and an already
 scoped error list — through its constructor. `Check` therefore takes nothing but
 a context, no matter what the rule actually looks at.
+
+## Scopes
+
+A scope is a source a module is read from. `static` — the only one today — lints
+the committed source tree; a scope for a built image will join it later.
+
+**Linters and rules know nothing about scopes.** A linter is handed its config
+and a `set.Set` of rule IDs, and that is the whole of what a scope tells it:
+
+```go
+func (h *Hooks) Lint(ctx context.Context) {
+	pkg.RunRules(ctx, h.ruleIDs, h.rules())
+}
+```
+
+`pkg.RunRules` checks only the rules whose IDs were asked for. **An empty set
+means no rule at all, never every rule** — silently running everything when a
+table entry is missing looks like a clean module rather than a missing check.
+
+A linter that does observable work *outside* its rules must return early when it
+is asked for nothing. Two do: `container.Lint` calls `CollectObjectContainers`,
+which reports a finding of its own, and `templates.rules()` reports one when the
+`monitoring/` read fails. Both check `l.ruleIDs.Size() == 0` first. This is the
+reason the linter runs its own rules instead of the scope running them for it —
+the scope cannot know which linters have work like this, and could not suppress
+it if it did.
+
+This is the one place dmt deliberately diverges from the reference
+implementation. There each linter exports its own `var Scopes` and gates every
+rule with `if l.runs(ruleID)`, so the linter has to know the scopes it lives in.
+Here `pkg/scopes` owns both tables and the linters stay unaware.
+
+Membership is declared in code, not in config: `.dmtlint.yaml` tunes severities
+and can silence a rule with an ignored impact, but it cannot switch one on or
+off. Note the difference between the two — a rule a scope never asks for
+produces nothing at all, while `impact: ignored` silences a rule that *did* run
+and still counts toward the ignored tally.
+
+### The table is the authority
+
+`pkg/scopes/static.go` holds `staticRules`: for each linter, the rule IDs static
+asks it for. That table is the only statement of membership. A linter does not
+publish the list of rules it carries, and **nothing checks a scope's table
+against that list** — deliberately.
+
+The tempting check is "static must ask every linter for all of its rules", which
+is true today and stops being true the moment a rule belongs to a built image and
+not to the source tree. Encoding it would mean deleting the check as soon as the
+second scope lands, and until then it would push back against the very thing
+scopes exist to express. So the table is written out by hand and trusted.
+
+What that buys, and what it costs:
+
+- a rule can be in one scope and not another with no ceremony — add its ID where
+  it belongs and nowhere else;
+- a rule added to a linter's `rules()` and forgotten in every table **silently
+  does not run**. `pkg/scopes/static_test.go` cannot catch that; it only checks
+  that the table's keys match the linters `staticLinters` builds, and that none
+  of them is asked for an empty set.
+
+Tests that need a linter exercised whole derive the ID set from `rules()` rather
+than naming one — see `everyRule` in `pkg/linters/container/container_test.go`.
+Written-out subsets in tests go stale the same way, just more quietly.
+
+### Adding a rule
+
+Write the rule, add it to the linter's `rules()`, then add its ID to every scope
+table in `pkg/scopes` that should run it. Nothing will remind you.
 
 ## Writing a rule
 
@@ -90,13 +160,11 @@ Conventions:
 
 ```go
 func (l *Documentation) Lint(ctx context.Context) {
-	if l.module == nil || l.module.GetPath() == "" {
+	if l.module.GetPath() == "" {
 		return
 	}
 
-	for _, rule := range l.rules() {
-		rule.Check(ctx)
-	}
+	pkg.RunRules(ctx, l.ruleIDs, l.rules())
 }
 
 func (l *Documentation) rules() []pkg.Rule {
@@ -117,6 +185,18 @@ func (l *Documentation) rules() []pkg.Rule {
 
 All nine linters implement `Lint(ctx)`; every rule implements `pkg.Rule`. The
 `legacyAdapter`/`legacyLinter` shim that carried unmigrated linters is gone.
+
+The linter list no longer lives in `internal/manager`: `getLintersForModule` and
+the `Linter` interface moved to `pkg/scopes`, and `manager.NewManager` takes the
+scope to run. One scope is one file in `pkg/scopes`, selected by `Scope.Linters`;
+an unknown scope logs an error and yields no linters.
+
+Only `static` exists, and it is what `dmt lint` has always done, so the change is
+output-neutral — verified by diffing every `test/e2e/testdata/*/*/module` fixture
+before and after (see below on how).
+There is no `--scope` flag yet: there is nothing to choose between, and
+`internal/flags` are process globals that `test/e2e` already has to serialise
+with `initLintFlagsOnce`.
 
 Linters take `pkg.Module`, not `*modules.Module`, so a linter can be driven end
 to end from a unit test with `mocks.NewModuleMock`.
@@ -211,6 +291,11 @@ And in `templates`:
   This is why the before/after diffs are taken more than once: a single flaky
   line is the linter's own nondeterminism, not a regression. Confirm by diffing
   the baseline binary against *itself*.
+
+- `PrometheusRule` and `PromtoolRule` are two distinct rules sharing the ID
+  `prometheus-rules` (`rules/prometheus_rules.go:45` and `:199`). Since a scope
+  selects by ID, it can only ask for both or neither. Splitting the IDs would
+  change the `RuleID` of existing findings, so it needs its own PR.
 
 A third source of run-to-run noise, unrelated to any rule: the `markdownlint`
 docs rule iterates `results` — a map — so its findings come out in arbitrary

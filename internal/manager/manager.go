@@ -45,15 +45,7 @@ import (
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/linters/container"
-	"github.com/deckhouse/dmt/pkg/linters/docs"
-	"github.com/deckhouse/dmt/pkg/linters/hooks"
-	"github.com/deckhouse/dmt/pkg/linters/images"
-	moduleLinter "github.com/deckhouse/dmt/pkg/linters/module"
-	no_cyrillic "github.com/deckhouse/dmt/pkg/linters/no-cyrillic"
-	"github.com/deckhouse/dmt/pkg/linters/openapi"
-	"github.com/deckhouse/dmt/pkg/linters/rbac"
-	"github.com/deckhouse/dmt/pkg/linters/templates"
+	"github.com/deckhouse/dmt/pkg/scopes"
 )
 
 const (
@@ -68,17 +60,12 @@ func generateDocumentationURL(linterID, ruleID string) string {
 	return fmt.Sprintf("%s/pkg/linters/%s#%s", baseRepoURL, linterID, ruleID)
 }
 
-// Linter is the common interface implemented by all lint passes. Everything a
-// linter needs — its config, the module it inspects and the error list it
-// reports into — is supplied to its constructor, so Lint takes only a context.
-type Linter interface {
-	GetName() string
-	Lint(ctx context.Context)
-}
-
 type Manager struct {
 	cfg     *config.RootConfig
 	Modules []*modules.Module
+
+	// scope decides which linters run and which of their rules each one is asked for.
+	scope scopes.Scope
 
 	errors *errors.LintRuleErrorsList
 
@@ -87,10 +74,11 @@ type Manager struct {
 	startedAt time.Time
 }
 
-func NewManager(dir string, rootConfig *config.RootConfig) *Manager {
+func NewManager(dir string, rootConfig *config.RootConfig, sc scopes.Scope) *Manager {
 	managerLevel := pkg.Error
 	m := &Manager{
-		cfg: rootConfig,
+		cfg:   rootConfig,
+		scope: sc,
 
 		errors:    errors.NewLintRuleErrorsList().WithMaxLevel(&managerLevel),
 		startedAt: time.Now(),
@@ -176,7 +164,7 @@ func (m *Manager) Run(ctx context.Context) {
 
 			log.Info("Run linters for module", slog.String("module", module.GetName()))
 
-			for _, linter := range getLintersForModule(module, m.errors) {
+			for _, linter := range m.scope.Linters(module, m.errors) {
 				if flags.LinterName != "" && linter.GetName() != flags.LinterName {
 					continue
 				}
@@ -189,22 +177,6 @@ func (m *Manager) Run(ctx context.Context) {
 	}
 
 	wg.Wait()
-}
-
-func getLintersForModule(module *modules.Module, errList *errors.LintRuleErrorsList) []Linter {
-	cfg := module.GetModuleConfig()
-
-	return []Linter{
-		openapi.New(&cfg.OpenAPI, module, errList),
-		no_cyrillic.New(&cfg.NoCyrillic, module, errList),
-		container.New(&cfg.Container, module, errList),
-		templates.New(&cfg.Templates, module, errList),
-		images.New(&cfg.Image, module, errList),
-		rbac.New(&cfg.RBAC, module, errList),
-		hooks.New(&cfg.Hooks, module, errList),
-		moduleLinter.New(&cfg.Module, module, errList),
-		docs.New(&cfg.Documentation, module, errList),
-	}
 }
 
 func (m *Manager) PrintResult() {
