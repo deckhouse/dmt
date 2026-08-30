@@ -160,16 +160,9 @@ func (r *WerfRule) lintWerfFile(moduleName, data string) {
 
 		// Validate imageSpec.config.user is not overridden
 		if w.ImageSpec.Config.User != "" {
-			// TODO: remove this check for istio and ingress-nginx modules
-			if moduleName != "istio" && moduleName != "ingress-nginx" {
-				errorList.WithObjectID(fmt.Sprintf("werf.yaml:manifest-%d", i+1)).
-					WithValue("imageSpec.config.user: " + w.ImageSpec.Config.User).
-					Error("`imageSpec.config.user:` parameter should be empty")
-			} else {
-				errorList.WithObjectID(fmt.Sprintf("werf.yaml:manifest-%d", i+1)).
-					WithValue("imageSpec.config.user: " + w.ImageSpec.Config.User).
-					Warn("`imageSpec.config.user:` parameter should be empty")
-			}
+			errorList.WithObjectID(fmt.Sprintf("werf.yaml:manifest-%d", i+1)).
+				WithValue("imageSpec.config.user: " + w.ImageSpec.Config.User).
+				Error("`imageSpec.config.user:` parameter should be empty")
 		}
 	}
 }
