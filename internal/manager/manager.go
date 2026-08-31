@@ -180,7 +180,14 @@ func (m *Manager) Run(ctx context.Context) {
 }
 
 func (m *Manager) PrintResult() {
-	errs := m.errors.GetErrors()
+	PrintResult(m.errors)
+}
+
+// PrintResult renders a finished error list. It is a package function rather than a
+// method only so the remote-lint path, which builds its list without a Manager, prints
+// exactly what a local run prints.
+func PrintResult(errorList *errors.LintRuleErrorsList) {
+	errs := errorList.GetErrors()
 
 	if len(errs) == 0 {
 		return

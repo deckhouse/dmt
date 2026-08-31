@@ -35,6 +35,7 @@ import (
 	"github.com/deckhouse/dmt/internal/bootstrap"
 	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/fsutils"
+	"github.com/deckhouse/dmt/internal/remotelint"
 	"github.com/deckhouse/dmt/internal/rendercmd"
 	"github.com/deckhouse/dmt/internal/test"
 	"github.com/deckhouse/dmt/internal/version"
@@ -270,6 +271,20 @@ func runTests(dir string, opts ...test.Option) error {
 }
 
 func lintCmdFunc(cmd *cobra.Command, args []string) {
+	if flags.Remote != "" {
+		opts := &remotelint.Options{
+			Login:    flags.RemoteLogin,
+			Password: flags.RemotePassword,
+		}
+
+		if err := remotelint.Run(cmd.Context(), flags.Remote, opts); err != nil {
+			log.Error("Error running remote lint", log.Err(err))
+			os.Exit(1)
+		}
+
+		return
+	}
+
 	var dirs = args[0:]
 
 	if len(dirs) == 0 {

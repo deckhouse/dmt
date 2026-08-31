@@ -100,6 +100,7 @@ type DocumentationRules struct {
 	MarkdownlintRule       RuleConfig `mapstructure:"markdownlint"`
 	SizeRule               RuleConfig `mapstructure:"size"`
 	FrontMatterRule        RuleConfig `mapstructure:"front-matter"`
+	ChangelogRule          RuleConfig `mapstructure:"changelog"`
 }
 
 type OpenAPILinterConfig struct {
@@ -129,6 +130,8 @@ type ModuleLinterRules struct {
 	ModulePackageConsistencyRule RuleConfig `mapstructure:"module-package-consistency"`
 	LegacyReleaseFileRule        RuleConfig `mapstructure:"legacy-release-file"`
 	EnabledScriptRule            RuleConfig `mapstructure:"enabled-script"`
+	ReleaseLayoutRule            RuleConfig `mapstructure:"release-layout"`
+	BundleLayoutRule             RuleConfig `mapstructure:"bundle-layout"`
 }
 
 type TemplatesLinterConfig struct {

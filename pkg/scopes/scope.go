@@ -40,8 +40,14 @@ import (
 type Scope string
 
 // Static lints a module directory on disk, i.e. the full source tree as committed.
-// A scope for a built image will join it later.
-const Static Scope = "static"
+// Release and Bundle lint the two images a published module consists of, unpacked
+// from the registry: the bundle is the packaged module itself, the release is the
+// metadata Deckhouse reads to decide whether to install a version.
+const (
+	Static  Scope = "static"
+	Release Scope = "release"
+	Bundle  Scope = "bundle"
+)
 
 // Linter is the common interface implemented by all lint passes. Everything a linter
 // needs — its config, the rule IDs the scope asked it for, the module it inspects and
@@ -59,8 +65,11 @@ type Linter interface {
 // concrete type only. That is deliberate: slicing the config per linter is the scope's
 // job, and a linter must not be able to reach a sibling's settings.
 func (s Scope) Linters(m *modules.Module, errList *errors.LintRuleErrorsList) []Linter {
-	//nolint: gocritic
 	switch s {
+	case Release:
+		return releaseLinters(m, errList)
+	case Bundle:
+		return bundleLinters(m, errList)
 	default:
 		return staticLinters(m, errList)
 	}

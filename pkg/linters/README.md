@@ -32,8 +32,19 @@ a context, no matter what the rule actually looks at.
 
 ## Scopes
 
-A scope is a source a module is read from. `static` — the only one today — lints
-the committed source tree; a scope for a built image will join it later.
+A scope is a source a module is read from. There are three:
+
+| Scope | Source | Run by |
+|---|---|---|
+| `static` | the committed source tree | `dmt lint <dir>` |
+| `bundle` | the packaged module image, `<repo>:<tag>` | `dmt lint --remote <repo>:<tag>` |
+| `release` | the release metadata image, `<repo>/release:<tag>` | the same command |
+
+`--remote` runs both image scopes off one reference: it pulls each image,
+unpacks it to a temporary directory and lints that as a module. The module
+behind an image comes from `modules.NewRemoteModule`, which skips the chart load
+and the render — so `GetChart`, `GetObjectStore` and `GetValues` are nil there,
+and the `release` and `bundle` tables must not ask for a rule that reads them.
 
 **Linters and rules know nothing about scopes.** A linter is handed its config
 and a `set.Set` of rule IDs, and that is the whole of what a scope tells it:
@@ -69,25 +80,27 @@ and still counts toward the ignored tally.
 
 ### The table is the authority
 
-`pkg/scopes/static.go` holds `staticRules`: for each linter, the rule IDs static
-asks it for. That table is the only statement of membership. A linter does not
-publish the list of rules it carries, and **nothing checks a scope's table
-against that list** — deliberately.
+One scope is one file in `pkg/scopes`, and each holds a table — `staticRules`,
+`releaseRules`, `bundleRules` — of the rule IDs that scope asks each linter for.
+That table is the only statement of membership. A linter does not publish the
+list of rules it carries, and **nothing checks a scope's table against that
+list** — deliberately.
 
-The tempting check is "static must ask every linter for all of its rules", which
-is true today and stops being true the moment a rule belongs to a built image and
-not to the source tree. Encoding it would mean deleting the check as soon as the
-second scope lands, and until then it would push back against the very thing
-scopes exist to express. So the table is written out by hand and trusted.
+The tempting check is "a scope must ask every linter for all of its rules". It
+held while `static` was alone and stopped holding the moment `release` and
+`bundle` landed: `release-layout` belongs to a built image and never runs over a
+source tree, `markdownlint` is the other way round. A check like that would push
+back against the very thing scopes exist to express, so the tables are written
+out by hand and trusted.
 
 What that buys, and what it costs:
 
 - a rule can be in one scope and not another with no ceremony — add its ID where
   it belongs and nowhere else;
 - a rule added to a linter's `rules()` and forgotten in every table **silently
-  does not run**. `pkg/scopes/static_test.go` cannot catch that; it only checks
-  that the table's keys match the linters `staticLinters` builds, and that none
-  of them is asked for an empty set.
+  does not run**. `pkg/scopes/scopes_test.go` cannot catch that; it only checks,
+  for every scope, that the table's keys match the linters that scope builds, and
+  that none of them is asked for an empty set.
 
 Tests that need a linter exercised whole derive the ID set from `rules()` rather
 than naming one — see `everyRule` in `pkg/linters/container/container_test.go`.

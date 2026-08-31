@@ -342,6 +342,7 @@ func mapDocumentationRules(linterSettings *pkg.LintersSettings, configSettings *
 	// render), so it defaults to error via fallbackImpact — unlike the style/soft
 	// markdownlint and size rules above. A per-rule impact in config still overrides.
 	rules.FrontMatterRule.SetLevel(globalRules.FrontMatterRule.Impact, fallbackImpact)
+	rules.ChangelogRule.SetLevel(globalRules.ChangelogRule.Impact, fallbackImpact)
 }
 
 func mapModuleRules(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings, globalConfig *global.Linters) {
@@ -359,6 +360,8 @@ func mapModuleRules(linterSettings *pkg.LintersSettings, configSettings *config.
 	rules.ModulePackageConsistencyRule.SetLevel(globalRules.ModulePackageConsistencyRule.Impact, fallbackImpact)
 	rules.LegacyReleaseFileRule.SetLevel(globalRules.LegacyReleaseFileRule.Impact, fallbackImpact)
 	rules.EnabledScriptRule.SetLevel(globalRules.EnabledScriptRule.Impact, fallbackImpact)
+	rules.ReleaseLayoutRule.SetLevel(globalRules.ReleaseLayoutRule.Impact, fallbackImpact)
+	rules.BundleLayoutRule.SetLevel(globalRules.BundleLayoutRule.Impact, fallbackImpact)
 }
 
 // mapTemplatesRules configures Templates linter rules
@@ -602,6 +605,32 @@ func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, r
 	module.linterConfig = remapLinterSettings(&cfg.LintersSettings, &rootConfig.GlobalSettings.Linters)
 
 	return module, nil
+}
+
+// NewRemoteModule builds a module from a directory extracted out of a registry
+// image. An image carries neither a loadable chart nor rendered objects, so this
+// skips the render pipeline NewModule runs: the release and bundle scopes only
+// ask for rules that need the path.
+//
+// The invariant that buys is one those scope tables have to keep — a rule reaching
+// for GetChart, GetObjectStore or GetValues here finds nil. name comes from the
+// image reference rather than module.yaml, because a module.yaml missing from the
+// image is one of the things the layout rules are there to report.
+func NewRemoteModule(path, name string, rootConfig *config.RootConfig) (*Module, error) {
+	// The image ships no .dmtlint.yaml of its own, so severities come from the
+	// config next to the caller, the same file a local run would read.
+	cfg := &config.ModuleConfig{}
+	if err := config.NewLoader(cfg, ".").Load(); err != nil {
+		return nil, fmt.Errorf("can not parse module config: %w", err)
+	}
+
+	cfg.LintersSettings.MergeGlobal(&rootConfig.GlobalSettings.Linters)
+
+	return &Module{
+		name:         name,
+		path:         path,
+		linterConfig: remapLinterSettings(&cfg.LintersSettings, &rootConfig.GlobalSettings.Linters),
+	}, nil
 }
 
 func newModuleFromPath(path string) (*Module, error) {

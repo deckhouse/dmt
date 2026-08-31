@@ -33,6 +33,12 @@ var (
 )
 
 var (
+	Remote         string
+	RemoteLogin    string
+	RemotePassword string
+)
+
+var (
 	PrintVersion      bool
 	Version           string
 	ValuesFile        string
@@ -61,6 +67,10 @@ func InitDefaultFlagSet() *pflag.FlagSet {
 
 func InitLintFlagSet() *pflag.FlagSet {
 	lint := pflag.NewFlagSet("lint", pflag.ContinueOnError)
+
+	lint.StringVarP(&Remote, "remote", "r", "", "lint the published images instead of a directory, e.g. 'registry.example.com/my-module:v0.0.1'")
+	lint.StringVar(&RemoteLogin, "login", "", "registry login, used with --remote")
+	lint.StringVar(&RemotePassword, "password", "", "registry password, used with --remote")
 
 	lint.IntVarP(&LintersLimit, "parallel", "p", numThreads, "number of threads for parallel processing")
 
