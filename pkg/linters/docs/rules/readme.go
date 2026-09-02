@@ -43,12 +43,15 @@ func (r *ReadmeRule) Check(_ context.Context) {
 		return
 	}
 
-	modulePath := m.GetPath()
-	path := filepath.Join(modulePath, "docs", "README.md")
+	// relPath is what the finding names and path is what is read: for a remote scope
+	// the module path is a temporary extraction directory, removed before findings
+	// are printed, so reporting it would point at nothing.
+	relPath := filepath.Join("docs", "README.md")
+	path := filepath.Join(m.GetPath(), relPath)
 
 	if _, err := os.Stat(path); err != nil {
 		errorList.
-			WithFilePath(path).
+			WithFilePath(relPath).
 			Error("README.md file is missing in docs/ directory")
 
 		return
@@ -57,7 +60,7 @@ func (r *ReadmeRule) Check(_ context.Context) {
 	info, err := os.Stat(path)
 	if err != nil {
 		errorList.
-			WithFilePath(path).
+			WithFilePath(relPath).
 			WithValue(err.Error()).
 			Error("failed to check README.md file")
 
@@ -66,7 +69,7 @@ func (r *ReadmeRule) Check(_ context.Context) {
 
 	if info.Size() == 0 {
 		errorList.
-			WithFilePath(path).
+			WithFilePath(relPath).
 			Error("README.md file is empty")
 	}
 }

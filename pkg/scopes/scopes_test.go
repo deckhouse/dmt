@@ -131,6 +131,16 @@ func TestRemoteScopesRunOverAnUnpackedImage(t *testing.T) {
 			}
 
 			assert.Equal(t, tc.wantErr, errorList.ContainsErrors(), "findings: %v", errorList.GetErrors())
+
+			// A remote scope's module path is a temp extraction directory that is
+			// removed before the findings are printed, so a rule that reports the path
+			// it read instead of the path inside the module names a file nobody can
+			// open. This holds every rule either table may be given to that, not just
+			// the ones it holds today.
+			for _, e := range errorList.GetErrors() {
+				assert.NotContains(t, e.FilePath, root,
+					"rule %q reports the extraction directory", e.RuleID)
+			}
 		})
 	}
 }
