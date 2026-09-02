@@ -37,10 +37,10 @@ A scope is a source a module is read from. There are three:
 | Scope | Source | Run by |
 |---|---|---|
 | `static` | the committed source tree | `dmt lint <dir>` |
-| `bundle` | the packaged module image, `<repo>:<tag>` | `dmt lint --remote <repo>:<tag>` |
+| `bundle` | the packaged module image, `<repo>:<tag>` | `dmt lint remote <repo>:<tag>` |
 | `release` | the release metadata image, `<repo>/release:<tag>` | the same command |
 
-`--remote` runs both image scopes off one reference: it pulls each image,
+`dmt lint remote` runs both image scopes off one reference: it pulls each image,
 unpacks it to a temporary directory and lints that as a module. The module
 behind an image comes from `modules.NewRemoteModule`, which skips the chart load
 and the render — so `GetChart`, `GetObjectStore` and `GetValues` are nil there,

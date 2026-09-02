@@ -269,7 +269,7 @@ linters-settings:      # dmt lint <dir>
     impact: error
 
 remote:
-  bundle:              # dmt lint --remote <repo>:<tag>
+  bundle:              # dmt lint remote <repo>:<tag>
     documentation:
       rules:
         changelog:
@@ -326,8 +326,6 @@ dmt lint [directories...] [flags]
 ```
 
 **Flags:**
-- `--remote, -r`: Lint the published images instead of a directory, e.g. `registry.example.com/my-module:v0.0.1`
-- `--login` / `--password`: Registry credentials for `--remote` (the Docker config is used when omitted)
 - `--values-file, -v`: Specify custom values file
 - `--linter`: Run specific linter only
 - `--hide-warnings`: Hide warning-level issues
@@ -348,6 +346,23 @@ dmt lint ./my-module --values-file custom-values.yaml
 
 # Debug mode
 dmt lint ./my-module --log-level debug
+```
+
+#### Lint Remote Command
+
+```bash
+dmt lint remote <repo>:<tag> [flags]
+```
+
+Lints the published images instead of a directory: the bundle at `<repo>:<tag>`
+and the release at `<repo>/release:<tag>`.
+
+**Flags:**
+- `--login` / `--password`: Registry credentials (the Docker config is used when omitted)
+
+**Example:**
+```bash
+dmt lint remote registry.example.com/my-module:v0.0.1
 ```
 
 #### Bootstrap Command

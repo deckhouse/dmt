@@ -33,7 +33,6 @@ var (
 )
 
 var (
-	Remote         string
 	RemoteLogin    string
 	RemotePassword string
 )
@@ -67,10 +66,6 @@ func InitDefaultFlagSet() *pflag.FlagSet {
 
 func InitLintFlagSet() *pflag.FlagSet {
 	lint := pflag.NewFlagSet("lint", pflag.ContinueOnError)
-
-	lint.StringVarP(&Remote, "remote", "r", "", "lint the published images instead of a directory, e.g. 'registry.example.com/my-module:v0.0.1'")
-	lint.StringVar(&RemoteLogin, "login", "", "registry login, used with --remote")
-	lint.StringVar(&RemotePassword, "password", "", "registry password, used with --remote")
 
 	lint.IntVarP(&LintersLimit, "parallel", "p", numThreads, "number of threads for parallel processing")
 
@@ -114,6 +109,15 @@ func InitLintFlagSet() *pflag.FlagSet {
 	}
 
 	return lint
+}
+
+func InitRemoteFlagSet() *pflag.FlagSet {
+	remote := pflag.NewFlagSet("remote", pflag.ContinueOnError)
+
+	remote.StringVar(&RemoteLogin, "login", "", "registry login (the Docker config is used when omitted)")
+	remote.StringVar(&RemotePassword, "password", "", "registry password (the Docker config is used when omitted)")
+
+	return remote
 }
 
 func InitBootstrapFlagSet() *pflag.FlagSet {

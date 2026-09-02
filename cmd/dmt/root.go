@@ -149,7 +149,28 @@ func execute() {
 		},
 	}
 
-	lintCmd.Flags().AddFlagSet(flags.InitLintFlagSet())
+	remoteCmd := &cobra.Command{
+		Use:   "remote <repo>:<tag>",
+		Short: "lint the published images instead of a directory",
+		Long: `Lints a module as it was published: pulls the bundle image at <repo>:<tag> and
+the release image at <repo>/release:<tag>, and runs the scopes that belong to
+them. Severities come from the 'remote.bundle' and 'remote.release' sections of
+the config next to the caller.`,
+		Example:      "  dmt lint remote registry.example.com/my-module:v0.0.1",
+		Args:         cobra.ExactArgs(1),
+		SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return remotelint.Run(cmd.Context(), args[0], &remotelint.Options{
+				Login:    flags.RemoteLogin,
+				Password: flags.RemotePassword,
+			})
+		},
+	}
+	remoteCmd.Flags().AddFlagSet(flags.InitRemoteFlagSet())
+
+	// Persistent, so 'lint remote' inherits --log-level and friends.
+	lintCmd.PersistentFlags().AddFlagSet(flags.InitLintFlagSet())
+	lintCmd.AddCommand(remoteCmd)
 	bootstrapCmd.Flags().AddFlagSet(flags.InitBootstrapFlagSet())
 
 	testCmd := &cobra.Command{
@@ -271,20 +292,6 @@ func runTests(dir string, opts ...test.Option) error {
 }
 
 func lintCmdFunc(cmd *cobra.Command, args []string) {
-	if flags.Remote != "" {
-		opts := &remotelint.Options{
-			Login:    flags.RemoteLogin,
-			Password: flags.RemotePassword,
-		}
-
-		if err := remotelint.Run(cmd.Context(), flags.Remote, opts); err != nil {
-			log.Error("Error running remote lint", log.Err(err))
-			os.Exit(1)
-		}
-
-		return
-	}
-
 	var dirs = args[0:]
 
 	if len(dirs) == 0 {
