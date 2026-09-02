@@ -46,6 +46,18 @@ func TestCutTagFromImagePath(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "registry.example.com:8080/deckhouse/my-module", repository)
 	require.Equal(t, "v0.0.1", tag)
+
+	// A reference with no registry of its own would be normalized to Docker Hub, and
+	// the credentials would go to a registry the caller never named. The last one is
+	// the worst of the three: its port is read as a tag and its host as a repository.
+	for _, imagePath := range []string{
+		"deckhouse/my-module:v0.0.1",
+		"my-module:v1",
+		"registry.example.com:5000",
+	} {
+		_, _, err = cutTagFromImagePath(imagePath)
+		require.ErrorContains(t, err, "registry not found in image path", imagePath)
+	}
 }
 
 // TestExtractLinks covers the two entry kinds whose paths are resolved against
@@ -121,6 +133,54 @@ func TestExtractReportsATruncatedStream(t *testing.T) {
 	}()
 
 	require.ErrorContains(t, extract(t.Context(), pr, t.TempDir()), "registry went away")
+}
+
+// TestExtractRejectsLinksThatResolveOutside covers the escapes that reading the
+// names as text cannot see. Both chains below place a link inside the root whose
+// resolution leaves it, and os.Root catches neither: nothing is written through the
+// link, so the guard has to reject it here — the linters read the extracted tree
+// afterwards with plain os calls.
+func TestExtractRejectsLinksThatResolveOutside(t *testing.T) {
+	// "escaping" is a directory beside the root holding the file a link must not
+	// reach; each chain is followed by the path that would read it.
+	for name, chain := range map[string]struct {
+		entries []*tar.Header
+		read    string
+	}{
+		// "sub/toroot" resolves to the root itself, so the second link is created
+		// beside the root instead of inside "sub".
+		"a link to the root's parent": {
+			entries: []*tar.Header{
+				dirEntry("sub"),
+				symlinkEntry("sub/toroot", ".."),
+				symlinkEntry("sub/toroot/up", ".."),
+			},
+			read: filepath.Join("up", "escaping", "secret.md"),
+		},
+		// Clean("a/../x") is "x", so every check that cleans the target first calls
+		// this one local — while the kernel resolves "a" and only then the "..".
+		"a target whose .. is cancelled by a symlink": {
+			entries: []*tar.Header{
+				symlinkEntry("a", "."),
+				symlinkEntry("b", "a/../escaping"),
+			},
+			read: filepath.Join("b", "secret.md"),
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			outside := t.TempDir()
+			root := filepath.Join(outside, "root")
+			require.NoError(t, os.MkdirAll(filepath.Join(outside, "escaping"), 0o700))
+			require.NoError(t, os.WriteFile(filepath.Join(outside, "escaping", "secret.md"), []byte("secret"), 0o600))
+			require.NoError(t, os.Mkdir(root, 0o700))
+
+			require.ErrorContains(t, extract(t.Context(), tarball(t, chain.entries...), root),
+				"escapes output directory")
+
+			_, err := os.ReadFile(filepath.Join(root, chain.read))
+			require.Error(t, err, "a link planted inside the root must not resolve out of it")
+		})
+	}
 }
 
 func dirEntry(name string) *tar.Header {

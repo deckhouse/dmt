@@ -147,9 +147,18 @@ func cutTagFromImagePath(imagePath string) (string, string, error) {
 		return "", "", fmt.Errorf("digest not supported")
 	}
 
-	ref, err := name.ParseReference(imagePath, name.WithDefaultTag(""))
+	// Without an empty default registry, name invents one: "deckhouse/my-module:v0.0.1"
+	// becomes index.docker.io/deckhouse/my-module, and a bare "registry.example.com:5000"
+	// becomes index.docker.io/library/registry.example.com with "5000" as its tag. The
+	// pull would then send --login/--password to Docker Hub, so the host is required
+	// here rather than guessed.
+	ref, err := name.ParseReference(imagePath, name.WithDefaultTag(""), name.WithDefaultRegistry(""))
 	if err != nil {
 		return "", "", fmt.Errorf("failed to parse image path: %w", err)
+	}
+
+	if ref.Context().RegistryStr() == "" {
+		return "", "", fmt.Errorf("registry not found in image path, expected <registry>/<repo>:<tag>")
 	}
 
 	tag := ref.Identifier()
