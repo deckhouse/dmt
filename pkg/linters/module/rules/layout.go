@@ -60,10 +60,15 @@ func NewReleaseLayoutRule(m pkg.Module, errorList *errors.LintRuleErrorsList) *L
 
 // NewBundleLayoutRule checks the root of a bundle image, which carries the whole
 // packaged module — chart, templates and docs included.
+//
+// The list is what a published bundle actually holds, which is not what its source
+// tree holds: changelog.yaml and version.json ship in the sibling release image, and
+// the ignore file the package carries is .helmignore, not .gitignore.
 func NewBundleLayoutRule(m pkg.Module, errorList *errors.LintRuleErrorsList) *LayoutRule {
 	return newLayoutRule(BundleLayoutRuleName, m, errorList,
-		[]string{".gitignore", "changelog.yaml", "Chart.yaml", "images_digests.json", "version.json", "module.yaml"},
-		[]string{"docs", "templates", "charts"},
+		[]string{".helmignore", "Chart.yaml", "images_digests.json", "module.yaml"},
+		// TODO(human): the directories every bundle must carry.
+		nil,
 	)
 }
 

@@ -31,8 +31,13 @@ import (
 
 func TestLayoutRules(t *testing.T) {
 	releaseFiles := []string{"module.yaml", "version.json", "changelog.yaml"}
-	bundleFiles := []string{".gitignore", "changelog.yaml", "Chart.yaml", "images_digests.json", "version.json", "module.yaml"}
-	bundleDirs := []string{"docs", "templates", "charts"}
+	// The bundle fixture is the root of a real published bundle, not a copy of the
+	// rule's own list — deriving it from the rule would only prove the rule agrees
+	// with itself. registry.deckhouse.io/deckhouse/ce/modules/{sds-node-configurator,
+	// csi-nfs,commander-agent,observability} all carry exactly these, and differ only
+	// in the optional crds/, hooks/ and monitoring/.
+	bundleFiles := []string{".helmignore", "Chart.yaml", "images_digests.json", "module.yaml"}
+	bundleDirs := []string{"charts", "docs", "openapi", "templates"}
 
 	t.Run("release layout is complete", func(t *testing.T) {
 		root := layoutAt(t, releaseFiles, nil)
@@ -58,7 +63,7 @@ func TestLayoutRules(t *testing.T) {
 
 	t.Run("the wrong kind is reported as such", func(t *testing.T) {
 		// docs is a directory in a bundle; a file by that name is not the same thing.
-		root := layoutAt(t, append(bundleFiles, "docs"), []string{"templates", "charts"})
+		root := layoutAt(t, append(bundleFiles, "docs"), []string{"charts", "openapi", "templates"})
 
 		errs := checkLayout(t, NewBundleLayoutRule, root)
 

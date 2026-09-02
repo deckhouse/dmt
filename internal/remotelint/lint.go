@@ -26,6 +26,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/google/go-containerregistry/pkg/name"
 
@@ -54,6 +55,11 @@ type Options struct {
 // Run lints the bundle and release images published under imagePath, e.g.
 // registry.example.com/my-module:v0.0.1.
 func Run(ctx context.Context, imagePath string, opts *Options) error {
+	// Elapsed covers the pulls as well as the linting: for a remote run the download
+	// is most of the wall clock, and a summary that hid it would report a number the
+	// caller cannot reconcile with what they waited for.
+	startedAt := time.Now()
+
 	repository, tag, err := cutTagFromImagePath(imagePath)
 	if err != nil {
 		return fmt.Errorf("failed to cut tag from image path: %w", err)
@@ -85,6 +91,8 @@ func Run(ctx context.Context, imagePath string, opts *Options) error {
 	)
 
 	manager.PrintResult(errorList)
+	// One module read from two images, so the summary counts one module, not two.
+	manager.PrintStatistics(errorList, 1, time.Since(startedAt))
 
 	if pullErr != nil {
 		return pullErr

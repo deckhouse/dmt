@@ -27,6 +27,7 @@ import (
 	"github.com/fatih/color"
 
 	"github.com/deckhouse/dmt/pkg"
+	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 // The statistics summary is rendered as a single framed block that intentionally
@@ -115,15 +116,15 @@ type statistics struct {
 // collectStatistics tallies every collected finding by severity and by linter.
 // Counts are taken over all findings regardless of the --hide-warnings /
 // --show-ignored display flags: the summary is meant to give the full picture.
-func (m *Manager) collectStatistics() statistics {
+func collectStatistics(errorList *errors.LintRuleErrorsList, modules int, elapsed time.Duration) statistics {
 	s := statistics{
-		modules: len(m.Modules),
-		elapsed: time.Since(m.startedAt),
+		modules: modules,
+		elapsed: elapsed,
 	}
 
 	perLinter := make(map[string]int)
 
-	errs := m.errors.GetErrors()
+	errs := errorList.GetErrors()
 	for idx := range errs {
 		s.total++
 
@@ -159,7 +160,15 @@ func (m *Manager) collectStatistics() statistics {
 // styled identically to the deckhouse-cli mirror summaries. It is meant to be
 // called after PrintResult, once all findings have been listed.
 func (m *Manager) PrintStatistics() {
-	fmt.Println(renderStatistics(m.collectStatistics()))
+	PrintStatistics(m.errors, len(m.Modules), time.Since(m.startedAt))
+}
+
+// PrintStatistics renders the summary for a finished error list. It is a package
+// function for the same reason PrintResult is one: the remote-lint path collects
+// its findings without a Manager, and a run that prints findings but no summary
+// reads as a different tool.
+func PrintStatistics(errorList *errors.LintRuleErrorsList, modules int, elapsed time.Duration) {
+	fmt.Println(renderStatistics(collectStatistics(errorList, modules, elapsed)))
 }
 
 // renderStatistics formats the statistics as a single multi-line, framed block.

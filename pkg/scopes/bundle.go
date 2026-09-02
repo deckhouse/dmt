@@ -29,7 +29,9 @@ import (
 
 // bundleRules is the rule membership of the bundle scope: the bundle image
 // (<repo>:<tag>) holds the packaged module — chart, templates, docs and digests —
-// so bundle-layout asks for the whole of that shape.
+// so bundle-layout asks for the whole of that shape. The changelog rule is not part
+// of it: changelog.yaml ships in the release image, and release-layout is what makes
+// its absence a finding there.
 //
 // What it deliberately does not ask for is anything under the templates or container
 // linters. A bundle carries rendered-looking directories but the module behind this
@@ -41,7 +43,6 @@ var bundleRules = map[string]set.Set{
 	),
 	docs.ID: set.New(
 		docsrules.ReadmeRuleName,
-		docsrules.ChangelogRuleName,
 	),
 }
 

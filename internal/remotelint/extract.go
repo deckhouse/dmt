@@ -52,6 +52,13 @@ func extractImage(ctx context.Context, image registry.Image) (string, error) {
 // extract unpacks a tar stream under root, rejecting any entry that would write or
 // point outside it.
 func extract(ctx context.Context, rc io.ReadCloser, root string) error {
+	dir, err := os.OpenRoot(root)
+	if err != nil {
+		return fmt.Errorf("open output directory: %w", err)
+	}
+
+	defer dir.Close()
+
 	tr := tar.NewReader(rc)
 
 	for {
@@ -68,56 +75,68 @@ func extract(ctx context.Context, rc io.ReadCloser, root string) error {
 			return fmt.Errorf("read tar: %w", err)
 		}
 
-		entryPath, err := safeJoin(root, hdr.Name)
+		name, err := safeName(hdr.Name)
 		if err != nil {
 			return err
 		}
 
 		switch hdr.Typeflag {
 		case tar.TypeDir:
-			if err = os.MkdirAll(entryPath, os.FileMode(hdr.Mode)); err != nil {
+			if err = dir.MkdirAll(name, os.FileMode(hdr.Mode)); err != nil {
 				return fmt.Errorf("mkdir %q: %w", hdr.Name, err)
 			}
 		case tar.TypeReg:
-			if err = writeRegularFile(entryPath, tr, os.FileMode(hdr.Mode)); err != nil {
+			if err = writeRegularFile(dir, name, tr, os.FileMode(hdr.Mode)); err != nil {
 				return fmt.Errorf("write file %q: %w", hdr.Name, err)
 			}
 		case tar.TypeSymlink:
-			// A symlink target is resolved by whoever follows it, relative to the
-			// directory the link sits in. So the base is that directory while the
-			// boundary stays the extraction root — passing the entry itself as the
-			// boundary would reject a link to its own sibling.
-			if filepath.IsAbs(hdr.Linkname) || !staysWithin(root, filepath.Dir(entryPath), hdr.Linkname) {
+			// dir stops a link from being followed out of the tree, but the linters
+			// that read the extracted files afterwards use plain os calls, so a link
+			// pointing out of it has to be rejected here as well. A symlink target is
+			// resolved by whoever follows it, relative to the directory the link sits
+			// in. So the base is that directory while the boundary stays the
+			// extraction root — passing the entry itself as the boundary would reject
+			// a link to its own sibling.
+			if filepath.IsAbs(hdr.Linkname) || !staysWithin(filepath.Dir(name), hdr.Linkname) {
 				return fmt.Errorf("symlink %q escapes output directory", hdr.Name)
 			}
 
-			if err = os.Symlink(hdr.Linkname, entryPath); err != nil {
+			if err = dir.Symlink(hdr.Linkname, name); err != nil {
 				return fmt.Errorf("create symlink %q: %w", hdr.Name, err)
 			}
 		case tar.TypeLink:
 			// A hardlink names an already-extracted entry by its path within the
 			// archive, so it resolves against the root and not against this entry.
-			linkPath, err := safeJoin(root, hdr.Linkname)
+			linkName, err := safeName(hdr.Linkname)
 			if err != nil {
 				return err
 			}
 
-			if err = os.Link(linkPath, entryPath); err != nil {
+			if err = dir.Link(linkName, name); err != nil {
 				return fmt.Errorf("create hardlink %q: %w", hdr.Name, err)
 			}
 		}
+	}
+
+	// tr.Next reports io.EOF as soon as it reads the archive terminator, and the
+	// producer writes that terminator from a deferred Close before it records its
+	// own failure — a registry error mid-pull therefore surfaces only on the next
+	// read of the stream. Draining it is what tells a truncated image apart from a
+	// module that is genuinely missing half its files.
+	if _, err := io.Copy(io.Discard, rc); err != nil {
+		return fmt.Errorf("read tar: %w", err)
 	}
 
 	return nil
 }
 
 // writeRegularFile writes one regular tar entry and limits restored permissions to owner bits.
-func writeRegularFile(target string, src io.Reader, mode os.FileMode) error {
-	if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
+func writeRegularFile(dir *os.Root, target string, src io.Reader, mode os.FileMode) error {
+	if err := dir.MkdirAll(filepath.Dir(target), 0o700); err != nil {
 		return fmt.Errorf("create parent directory: %w", err)
 	}
 
-	out, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode&0o700)
+	out, err := dir.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode&0o700)
 	if err != nil {
 		return fmt.Errorf("create file: %w", err)
 	}
@@ -138,23 +157,22 @@ func writeRegularFile(target string, src io.Reader, mode os.FileMode) error {
 	return nil
 }
 
-// safeJoin joins name under root and rejects absolute paths or parent-directory escapes.
-func safeJoin(root, name string) (string, error) {
-	if filepath.IsAbs(name) {
+// safeName cleans a tar entry name into a path relative to the extraction root and
+// rejects absolute paths or parent-directory escapes.
+func safeName(name string) (string, error) {
+	clean := filepath.Clean(filepath.FromSlash(name))
+
+	if filepath.IsAbs(clean) || !staysWithin(".", clean) {
 		return "", fmt.Errorf("path %q escapes output directory", name)
 	}
 
-	if !staysWithin(root, root, name) {
-		return "", fmt.Errorf("path %q escapes output directory", name)
-	}
-
-	return filepath.Join(root, name), nil
+	return clean, nil
 }
 
-// staysWithin reports whether name resolves under root when interpreted relative to base.
-func staysWithin(root, base, name string) bool {
+// staysWithin reports whether name resolves under the extraction root when
+// interpreted relative to base. Both are paths relative to that root.
+func staysWithin(base, name string) bool {
 	target := filepath.Clean(filepath.Join(base, name))
-	rel, err := filepath.Rel(root, target)
 
-	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+	return target != ".." && !strings.HasPrefix(target, ".."+string(filepath.Separator))
 }

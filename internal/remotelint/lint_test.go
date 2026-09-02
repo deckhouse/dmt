@@ -20,6 +20,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -82,6 +83,44 @@ func TestExtractRejectsEscapes(t *testing.T) {
 			require.ErrorContains(t, err, "escapes output directory")
 		})
 	}
+}
+
+// TestExtractRejectsASymlinkChain is the escape a name check cannot see: both links
+// below resolve inside the archive when read as text, but once they are on disk the
+// second one is followed through the first, so the file written through them lands
+// beside the extraction root instead of inside it. Only resolving each path component
+// against what is already on disk — what os.Root does — catches that.
+func TestExtractRejectsASymlinkChain(t *testing.T) {
+	outside := t.TempDir()
+	root := filepath.Join(outside, "root")
+	require.NoError(t, os.Mkdir(root, 0o700))
+
+	err := extract(t.Context(), tarball(t,
+		symlinkEntry("d1", "."),
+		symlinkEntry("d1/d2", ".."),
+		fileEntry("d1/d2/pwned", "x"),
+	), root)
+
+	require.Error(t, err)
+	require.NoFileExists(t, filepath.Join(outside, "pwned"))
+}
+
+// TestExtractReportsATruncatedStream covers a producer that fails part-way through:
+// the tar writer's deferred Close puts a valid archive terminator into the stream
+// before the failure is recorded, so tr.Next sees a clean io.EOF and the extraction
+// looks complete. Without the drain at the end of extract, a registry outage is
+// reported as a module missing its files.
+func TestExtractReportsATruncatedStream(t *testing.T) {
+	pr, pw := io.Pipe()
+
+	go func() {
+		tw := tar.NewWriter(pw)
+		_ = tw.WriteHeader(dirEntry("docs"))
+		_ = tw.Close()
+		_ = pw.CloseWithError(errors.New("registry went away"))
+	}()
+
+	require.ErrorContains(t, extract(t.Context(), pr, t.TempDir()), "registry went away")
 }
 
 func dirEntry(name string) *tar.Header {
