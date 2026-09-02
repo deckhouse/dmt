@@ -109,7 +109,7 @@ func (r *LayoutRule) check(root, name string, wantDir bool) {
 	}
 
 	path := filepath.Join(root, name)
-	errorList := r.errorList.WithFilePath(path)
+	errorList := r.errorList.WithFilePath(name)
 
 	info, err := os.Stat(path)
 
