@@ -33,9 +33,10 @@ func TestLayoutRules(t *testing.T) {
 	releaseFiles := []string{"module.yaml", "version.json", "changelog.yaml"}
 	// The bundle fixture is the root of a real published bundle, not a copy of the
 	// rule's own list — deriving it from the rule would only prove the rule agrees
-	// with itself. registry.deckhouse.io/deckhouse/ce/modules/{sds-node-configurator,
-	// csi-nfs,commander-agent,observability} all carry exactly these, and differ only
-	// in the optional crds/, hooks/ and monitoring/.
+	// with itself. Eight CE bundles (sds-node-configurator, sds-local-volume,
+	// sds-replicated-volume, csi-nfs, console, commander-agent, observability,
+	// secrets-store-integration) all carry these, and differ only in the optional
+	// crds/, hooks/, monitoring/ and .werf/.
 	bundleFiles := []string{".helmignore", "Chart.yaml", "images_digests.json", "module.yaml"}
 	bundleDirs := []string{"charts", "docs", "openapi", "templates"}
 

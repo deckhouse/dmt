@@ -64,11 +64,14 @@ func NewReleaseLayoutRule(m pkg.Module, errorList *errors.LintRuleErrorsList) *L
 // The list is what a published bundle actually holds, which is not what its source
 // tree holds: changelog.yaml and version.json ship in the sibling release image, and
 // the ignore file the package carries is .helmignore, not .gitignore.
+//
+// It is the intersection of eight published CE bundles, not every path they carry —
+// crds/, hooks/, monitoring/ and .werf/ appear in some and not others, so requiring
+// any of them would fail the modules that legitimately have nothing to put there.
 func NewBundleLayoutRule(m pkg.Module, errorList *errors.LintRuleErrorsList) *LayoutRule {
 	return newLayoutRule(BundleLayoutRuleName, m, errorList,
 		[]string{".helmignore", "Chart.yaml", "images_digests.json", "module.yaml"},
-		// TODO(human): the directories every bundle must carry.
-		nil,
+		[]string{"charts", "docs", "openapi", "templates"},
 	)
 }
 
