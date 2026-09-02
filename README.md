@@ -257,6 +257,37 @@ linters-settings:
         - /var/lib/kubelet
 ```
 
+#### Per-scope settings
+
+`linters-settings` configures the source tree. The two images a published module
+consists of are configured separately, under `remote`: they carry different files
+and are linted by different rules, so each gets its own section.
+
+```yaml
+linters-settings:      # dmt lint <dir>
+  openapi:
+    impact: error
+
+remote:
+  bundle:              # dmt lint --remote <repo>:<tag>
+    documentation:
+      rules:
+        changelog:
+          impact: warn
+  release:             # ... the same command, <repo>/release:<tag>
+    module:
+      rules:
+        release-layout:
+          impact: error
+```
+
+A `remote` section has the same shape as `global.linters-settings` — a linter
+`impact` and per-rule impacts. `exclude-rules` are not read there.
+
+The sections are independent: nothing from `linters-settings` or `global` reaches
+a remote scope, and a section left out means the built-in severities rather than
+the ones the source tree happens to be tuned to.
+
 ### Rule: mount-points
 
 The `mount-points` rule validates that volume mounts in pod controllers match the declarations in `mount-points.yaml` files (and vice versa). It runs in two directions:
@@ -295,6 +326,8 @@ dmt lint [directories...] [flags]
 ```
 
 **Flags:**
+- `--remote, -r`: Lint the published images instead of a directory, e.g. `registry.example.com/my-module:v0.0.1`
+- `--login` / `--password`: Registry credentials for `--remote` (the Docker config is used when omitted)
 - `--values-file, -v`: Specify custom values file
 - `--linter`: Run specific linter only
 - `--hide-warnings`: Hide warning-level issues

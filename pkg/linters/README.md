@@ -78,6 +78,23 @@ off. Note the difference between the two — a rule a scope never asks for
 produces nothing at all, while `impact: ignored` silences a rule that *did* run
 and still counts toward the ignored tally.
 
+### Where a scope's severities come from
+
+Membership is code, severity is config, and each scope reads its own section of
+`.dmtlint.yaml`:
+
+| Scope | Section |
+|---|---|
+| `static` | `global.linters-settings` |
+| `bundle` | `remote.bundle` |
+| `release` | `remote.release` |
+
+`Scope.Settings` is the only place that mapping lives, and `remotelint` hands the
+branch it returns to `modules.NewRemoteModule` rather than the whole root config —
+a remote scope has no way to reach the source tree's settings even by accident.
+The sections do not inherit from one another: an image is linted with the
+severities written for it, or with the built-in defaults.
+
 ### The table is the authority
 
 One scope is one file in `pkg/scopes`, and each holds a table — `staticRules`,

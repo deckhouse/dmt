@@ -60,7 +60,8 @@ func Run(ctx context.Context, imagePath string, opts *Options) error {
 	}
 
 	// The image ships no .dmtlint.yaml, so severities come from the config next to
-	// the caller — the same file a local run would read.
+	// the caller — the same file a local run would read, but from its `remote.bundle`
+	// and `remote.release` sections rather than the ones the source tree uses.
 	cfg, err := config.NewDefaultRootConfig(".")
 	if err != nil {
 		return fmt.Errorf("failed to parse default root config: %w", err)
@@ -119,10 +120,7 @@ func lintImage(
 	}
 	defer os.RemoveAll(dir)
 
-	m, err := modules.NewRemoteModule(dir, moduleName, cfg)
-	if err != nil {
-		return fmt.Errorf("failed to read config for %s image: %w", scope, err)
-	}
+	m := modules.NewRemoteModule(dir, moduleName, scope.Settings(cfg))
 
 	for _, linter := range scope.Linters(m, errorList.WithObjectID(string(scope))) {
 		linter.Lint(ctx)

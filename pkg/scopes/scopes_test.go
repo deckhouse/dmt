@@ -26,6 +26,7 @@ import (
 
 	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/internal/set"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
@@ -120,8 +121,7 @@ func TestRemoteScopesRunOverAnUnpackedImage(t *testing.T) {
 				require.NoError(t, os.WriteFile(filepath.Join(root, "docs", "README.md"), []byte("x"), 0o600))
 			}
 
-			m, err := modules.NewRemoteModule(root, "test-module", cfg)
-			require.NoError(t, err)
+			m := modules.NewRemoteModule(root, "test-module", tc.scope.Settings(cfg))
 
 			errorList := errors.NewLintRuleErrorsList()
 			for _, linter := range tc.scope.Linters(m, errorList) {
@@ -131,4 +131,66 @@ func TestRemoteScopesRunOverAnUnpackedImage(t *testing.T) {
 			assert.Equal(t, tc.wantErr, errorList.ContainsErrors(), "findings: %v", errorList.GetErrors())
 		})
 	}
+}
+
+// TestScopeSettings pins the config layout the scopes read: `linters-settings` under
+// `global` configures the source tree, `remote.bundle` and `remote.release` configure
+// the two published images, and neither remote section inherits from the other two.
+// The last part is what the test is really for — a scope silently falling back to the
+// source-tree severities would look like a working config right up until someone
+// relaxes a rule locally and finds the published images relaxed with it.
+func TestScopeSettings(t *testing.T) {
+	dir := t.TempDir()
+
+	dmtlint := `
+global:
+  linters-settings:
+    openapi:
+      rules:
+        bilingual:
+          impact: error
+    module:
+      impact: ignored
+
+linters-settings:
+  openapi:
+    impact: error
+
+remote:
+  release:
+    openapi:
+      rules:
+        bilingual:
+          impact: warn
+  bundle:
+    openapi:
+      rules:
+        bilingual:
+          impact: ignored
+`
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".dmtlint.yaml"), []byte(dmtlint), 0o600))
+
+	cfg, err := config.NewDefaultRootConfig(dir)
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		scope     Scope
+		bilingual string
+	}{
+		{Static, "error"},
+		{Release, "warn"},
+		{Bundle, "ignored"},
+	} {
+		t.Run(string(tc.scope), func(t *testing.T) {
+			assert.Equal(t, tc.bilingual, tc.scope.Settings(cfg).OpenAPI.Rules.BilingualRule.Impact)
+		})
+	}
+
+	// The module linter is configured for the source tree only, so a remote scope must
+	// see it unset and fall back to the built-in severity rather than to `ignored`.
+	assert.Empty(t, Release.Settings(cfg).Module.Impact)
+
+	m := modules.NewRemoteModule(dir, "test-module", Release.Settings(cfg))
+	assert.Equal(t, pkg.Warn, *m.GetModuleConfig().OpenAPI.Rules.BilingualRule.GetLevel())
+	assert.Equal(t, pkg.Error, *m.GetModuleConfig().Module.Impact)
 }

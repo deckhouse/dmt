@@ -33,6 +33,8 @@ import (
 	"context"
 
 	"github.com/deckhouse/dmt/internal/modules"
+	"github.com/deckhouse/dmt/pkg/config"
+	"github.com/deckhouse/dmt/pkg/config/global"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
@@ -48,6 +50,30 @@ const (
 	Release Scope = "release"
 	Bundle  Scope = "bundle"
 )
+
+// Settings returns the linter settings that configure this scope. Each scope reads its
+// own section of .dmtlint.yaml — `linters-settings` under `global` for the source tree,
+// `remote.bundle` and `remote.release` for the two published images — so the same rule
+// can carry a different severity depending on where it is checked. The sections are
+// independent: an image is not linted with the severities the source tree was tuned to,
+// and a section left out means the built-in defaults.
+func (s Scope) Settings(cfg *config.RootConfig) *global.Linters {
+	switch s {
+	case Release:
+		return &cfg.Remote.Release
+	case Bundle:
+		return &cfg.Remote.Bundle
+	default:
+		// The loader always fills GlobalSettings in, but a RootConfig built by hand can
+		// leave it nil. An empty tree is the right answer there: every impact remaps to
+		// its default, which is what a missing config means everywhere else.
+		if cfg.GlobalSettings == nil {
+			return &global.Linters{}
+		}
+
+		return &cfg.GlobalSettings.Linters
+	}
+}
 
 // Linter is the common interface implemented by all lint passes. Everything a linter
 // needs — its config, the rule IDs the scope asked it for, the module it inspects and

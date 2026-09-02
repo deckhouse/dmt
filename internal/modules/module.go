@@ -616,21 +616,19 @@ func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, r
 // for GetChart, GetObjectStore or GetValues here finds nil. name comes from the
 // image reference rather than module.yaml, because a module.yaml missing from the
 // image is one of the things the layout rules are there to report.
-func NewRemoteModule(path, name string, rootConfig *config.RootConfig) (*Module, error) {
-	// The image ships no .dmtlint.yaml of its own, so severities come from the
-	// config next to the caller, the same file a local run would read.
-	cfg := &config.ModuleConfig{}
-	if err := config.NewLoader(cfg, ".").Load(); err != nil {
-		return nil, fmt.Errorf("can not parse module config: %w", err)
-	}
-
-	cfg.LintersSettings.MergeGlobal(&rootConfig.GlobalSettings.Linters)
+func NewRemoteModule(path, name string, linters *global.Linters) *Module {
+	// The image ships no .dmtlint.yaml of its own, and a remote scope is configured
+	// independently of the source tree: severities come from its own `remote.<scope>`
+	// section of the caller's config, so nothing from `linters-settings` leaks in.
+	// An absent section leaves every impact empty, which remaps to the defaults.
+	cfg := &config.LintersSettings{}
+	cfg.MergeGlobal(linters)
 
 	return &Module{
 		name:         name,
 		path:         path,
-		linterConfig: remapLinterSettings(&cfg.LintersSettings, &rootConfig.GlobalSettings.Linters),
-	}, nil
+		linterConfig: remapLinterSettings(cfg, linters),
+	}
 }
 
 func newModuleFromPath(path string) (*Module, error) {
