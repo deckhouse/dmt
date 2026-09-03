@@ -155,8 +155,6 @@ func Flush(ctx context.Context, sections ...*global.Linters) {
 
 	SetDmtInfo()
 
-	// ponytail: a linter set to warn in both remote sections counts twice — dmt_linter_info
-	// carries no scope label. Add one if the metric is ever read as a count.
 	for _, s := range sections {
 		SetLinterWarningsMetrics(s)
 	}

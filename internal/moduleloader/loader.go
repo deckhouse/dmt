@@ -26,7 +26,7 @@ const (
 	moduleYamlFilename = "module.yaml"
 )
 
-// GetModulePaths returns all paths that contain a module (Chart.yaml or module.yaml).
+// GetModulePaths returns all paths that contain a module (module.yaml).
 // modulesDir can be a module directory or a directory that contains helm charts in subdirectories.
 func GetModulePaths(modulesDir string) ([]string, error) {
 	var chartDirs = make([]string, 0)
