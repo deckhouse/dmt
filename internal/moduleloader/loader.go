@@ -23,11 +23,7 @@ import (
 )
 
 const (
-	ChartConfigFilename = "Chart.yaml"
-	ModuleYamlFilename  = "module.yaml"
-	HooksDir            = "hooks"
-	ImagesDir           = "images"
-	OpenAPIDir          = "openapi"
+	moduleYamlFilename = "module.yaml"
 )
 
 // GetModulePaths returns all paths that contain a module (Chart.yaml or module.yaml).
@@ -44,13 +40,8 @@ func GetModulePaths(modulesDir string) ([]string, error) {
 			return nil
 		}
 
-		// A module is identified by having Chart.yaml or module.yaml
-		// OR having Chart.yaml + (hooks|images|openapi) subdirs
-		if isExistsOnFilesystem(path, ModuleYamlFilename) ||
-			(isExistsOnFilesystem(path, ChartConfigFilename) &&
-				(isExistsOnFilesystem(path, HooksDir) ||
-					isExistsOnFilesystem(path, ImagesDir) ||
-					isExistsOnFilesystem(path, OpenAPIDir))) {
+		// A module is identified by having module.yaml
+		if isExistsOnFilesystem(path, moduleYamlFilename) {
 			chartDirs = append(chartDirs, path)
 		}
 
