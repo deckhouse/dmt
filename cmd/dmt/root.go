@@ -35,9 +35,9 @@ import (
 	"github.com/deckhouse/dmt/internal/bootstrap"
 	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/fsutils"
-	"github.com/deckhouse/dmt/internal/remotelint"
+	"github.com/deckhouse/dmt/internal/sources/remote"
 	"github.com/deckhouse/dmt/internal/rendercmd"
-	"github.com/deckhouse/dmt/internal/staticlint"
+	"github.com/deckhouse/dmt/internal/sources/static"
 	"github.com/deckhouse/dmt/internal/test"
 	"github.com/deckhouse/dmt/internal/version"
 	"github.com/deckhouse/dmt/pkg/config"
@@ -168,7 +168,7 @@ the config next to the caller.`,
 				return errors.New("--fix is not supported for remote lint")
 			}
 
-			src, err := remotelint.NewSource(args[0], &remotelint.Options{
+			src, err := remote.NewSource(args[0], &remote.Options{
 				Login:    flags.RemoteLogin,
 				Password: flags.RemotePassword,
 			})
@@ -331,7 +331,7 @@ func runLintMultiple(ctx context.Context, dirs []string) error {
 		log.Info("Processing directory", slog.String("directory", expandedDir))
 
 		// Run lint for this directory as a separate execution
-		if err := runLint(ctx, staticlint.NewSource(expandedDir)); err != nil {
+		if err := runLint(ctx, static.NewSource(expandedDir)); err != nil {
 			log.Error("Error processing directory", slog.String("directory", expandedDir), log.Err(err))
 
 			hasErrors = true

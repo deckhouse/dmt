@@ -6,10 +6,6 @@ for. Both rules and linters have a single interface, so a linter's rule set is
 data rather than a sequence of hand-written calls — which is what lets a scope
 select from it.
 
-This mirrors `internal/verify` in
-[d8-package-plugin](https://fox.flant.com/deckhouse/runtime/plugins/d8-package-plugin/-/tree/main/internal/verify),
-which is where this shape comes from.
-
 ## The interfaces
 
 ```go
@@ -89,7 +85,7 @@ Membership is code, severity is config, and each scope reads its own section of
 | `bundle` | `remote.bundle` |
 | `release` | `remote.release` |
 
-`Scope.Settings` is the only place that mapping lives, and `remotelint` hands the
+`Scope.Settings` is the only place that mapping lives, and `sources/remote` hands the
 branch it returns to `modules.NewRemoteModule` rather than the whole root config —
 a remote scope has no way to reach the source tree's settings even by accident.
 The sections do not inherit from one another: an image is linted with the

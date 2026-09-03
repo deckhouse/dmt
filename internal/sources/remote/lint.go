@@ -14,10 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package remotelint lints a module as it was published, rather than as it sits in a
+// Package remote lints a module as it was published, rather than as it sits in a
 // working tree: it pulls the two images a release produces and runs the scopes that
 // belong to them.
-package remotelint
+package remote
 
 import (
 	"context"

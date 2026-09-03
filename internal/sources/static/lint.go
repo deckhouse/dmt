@@ -14,9 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package staticlint reads the modules to lint from a working tree: the full source
+// Package static reads the modules to lint from a working tree: the full source
 // as committed, rendered the way Deckhouse would render it.
-package staticlint
+package static
 
 import (
 	"context"

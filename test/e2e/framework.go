@@ -48,7 +48,7 @@ import (
 	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/manager"
 	"github.com/deckhouse/dmt/internal/metrics"
-	"github.com/deckhouse/dmt/internal/staticlint"
+	"github.com/deckhouse/dmt/internal/sources/static"
 	"github.com/deckhouse/dmt/internal/test"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
@@ -191,7 +191,7 @@ func Lint(moduleDir string) ([]pkg.LinterError, error) {
 	// Initialize the metrics client so linters that emit metrics don't panic.
 	metrics.GetClient(target)
 
-	mng := manager.New(cfg, staticlint.NewSource(target))
+	mng := manager.New(cfg, static.NewSource(target))
 	defer mng.Close()
 
 	_ = mng.Run(context.Background())
@@ -224,7 +224,7 @@ func RunFix(moduleDir string) ([]pkg.LinterError, error) {
 
 	metrics.GetClient(target)
 
-	mng := manager.New(cfg, staticlint.NewSource(target))
+	mng := manager.New(cfg, static.NewSource(target))
 	defer mng.Close()
 
 	_ = mng.Run(context.Background())

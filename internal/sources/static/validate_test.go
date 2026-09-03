@@ -1,4 +1,4 @@
-package staticlint
+package static
 
 import (
 	"os"
