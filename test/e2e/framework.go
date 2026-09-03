@@ -48,10 +48,10 @@ import (
 	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/manager"
 	"github.com/deckhouse/dmt/internal/metrics"
+	"github.com/deckhouse/dmt/internal/staticlint"
 	"github.com/deckhouse/dmt/internal/test"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
-	"github.com/deckhouse/dmt/pkg/scopes"
 )
 
 // Case kinds. A case either lints a module (KindLint, the default) or runs the
@@ -191,8 +191,10 @@ func Lint(moduleDir string) ([]pkg.LinterError, error) {
 	// Initialize the metrics client so linters that emit metrics don't panic.
 	metrics.GetClient(target)
 
-	mng := manager.NewManager(target, cfg, scopes.Static)
-	mng.Run(context.Background())
+	mng := manager.New(cfg, staticlint.NewSource(target))
+	defer mng.Close()
+
+	_ = mng.Run(context.Background())
 
 	return mng.GetErrors(), nil
 }
@@ -222,8 +224,10 @@ func RunFix(moduleDir string) ([]pkg.LinterError, error) {
 
 	metrics.GetClient(target)
 
-	mng := manager.NewManager(target, cfg, scopes.Static)
-	mng.Run(context.Background())
+	mng := manager.New(cfg, staticlint.NewSource(target))
+	defer mng.Close()
+
+	_ = mng.Run(context.Background())
 
 	mng.ApplyFixes()
 

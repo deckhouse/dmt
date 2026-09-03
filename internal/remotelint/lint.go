@@ -26,16 +26,13 @@ import (
 	"os"
 	"path"
 	"strings"
-	"time"
 
 	"github.com/google/go-containerregistry/pkg/name"
 
 	"github.com/deckhouse/deckhouse/pkg/registry"
 
 	"github.com/deckhouse/dmt/internal/manager"
-	"github.com/deckhouse/dmt/internal/metrics"
 	"github.com/deckhouse/dmt/internal/modules"
-	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/scopes"
@@ -52,89 +49,102 @@ type Options struct {
 	Password string
 }
 
-// Run lints the bundle and release images published under imagePath, e.g.
+// Source reads a module from the two images published under an image path, e.g.
 // registry.example.com/my-module:v0.0.1.
-func Run(ctx context.Context, imagePath string, opts *Options) error {
-	// Elapsed covers the pulls as well as the linting: for a remote run the download
-	// is most of the wall clock, and a summary that hid it would report a number the
-	// caller cannot reconcile with what they waited for.
-	startedAt := time.Now()
+type Source struct {
+	client     registry.Client
+	tag        string
+	moduleName string
 
-	repository, tag, err := cutTagFromImagePath(imagePath)
-	if err != nil {
-		return fmt.Errorf("failed to cut tag from image path: %w", err)
-	}
-
-	// The image ships no .dmtlint.yaml, so severities come from the config next to
-	// the caller — the same file a local run would read, but from its `remote.bundle`
-	// and `remote.release` sections rather than the ones the source tree uses.
-	cfg, err := config.NewDefaultRootConfig(".")
-	if err != nil {
-		return fmt.Errorf("failed to parse default root config: %w", err)
-	}
-
-	// init metrics storage, should be done before printing results, as PrintResult
-	// reports per-error metrics through the shared metrics client.
-	metrics.GetClient(".")
-
-	client := newRegistryClient(repository, opts.Login, opts.Password)
-	moduleName := path.Base(repository)
-
-	level := pkg.Error
-	errorList := errors.NewLintRuleErrorsList().WithMaxLevel(&level)
-
-	// Both images are linted before anything is printed: a registry failure on one
-	// must not swallow what the other already found.
-	pullErr := stderrors.Join(
-		lintImage(ctx, client, tag, scopes.Bundle, moduleName, cfg, errorList),
-		lintImage(ctx, client.WithSegment(releaseSegment), tag, scopes.Release, moduleName, cfg, errorList),
-	)
-
-	manager.PrintResult(errorList)
-	// One module read from two images, so the summary counts one module, not two.
-	manager.PrintStatistics(errorList, 1, time.Since(startedAt))
-
-	if pullErr != nil {
-		return pullErr
-	}
-
-	if errorList.ContainsErrors() {
-		return stderrors.New("critical errors found")
-	}
-
-	return nil
+	// dirs are the extraction directories, removed by Close.
+	dirs []string
 }
 
-// lintImage pulls one image, unpacks it and runs the scope that belongs to it. Which
-// linters that scope runs, and which of their rules, is the scope's business — this
-// only supplies the unpacked module.
-func lintImage(
+var _ manager.Source = (*Source)(nil)
+
+// NewSource resolves the image path up front, so an unusable reference fails before
+// the run prints anything.
+func NewSource(imagePath string, opts *Options) (*Source, error) {
+	repository, tag, err := cutTagFromImagePath(imagePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to cut tag from image path: %w", err)
+	}
+
+	return &Source{
+		client:     newRegistryClient(repository, opts.Login, opts.Password),
+		tag:        tag,
+		moduleName: path.Base(repository),
+	}, nil
+}
+
+// ConfigDir is the caller's working directory: the image ships no .dmtlint.yaml, so
+// severities come from the config next to whoever started the run — read from its
+// `remote.bundle` and `remote.release` sections rather than the ones the source tree
+// uses.
+func (s *Source) ConfigDir() string {
+	return "."
+}
+
+func (s *Source) Scopes() []scopes.Scope {
+	return []scopes.Scope{scopes.Bundle, scopes.Release}
+}
+
+// Close removes the extraction directories. It runs after the findings are printed,
+// which is why every remote rule reports a module-relative path.
+func (s *Source) Close() {
+	for _, dir := range s.dirs {
+		os.RemoveAll(dir)
+	}
+}
+
+// Targets pulls and unpacks both images. Both are attempted before either error is
+// returned: a registry failure on one must not cost the caller what the other holds.
+func (s *Source) Targets(
+	ctx context.Context,
+	cfg *config.RootConfig,
+	_ *errors.LintRuleErrorsList,
+) ([]manager.Target, error) {
+	bundle, bundleErr := s.target(ctx, s.client, scopes.Bundle, cfg)
+	release, releaseErr := s.target(ctx, s.client.WithSegment(releaseSegment), scopes.Release, cfg)
+
+	targets := make([]manager.Target, 0, 2)
+
+	for _, t := range []*manager.Target{bundle, release} {
+		if t != nil {
+			targets = append(targets, *t)
+		}
+	}
+
+	return targets, stderrors.Join(bundleErr, releaseErr)
+}
+
+// target pulls one image and unpacks it into a module. Which linters the scope runs
+// over it, and which of their rules, is the scope's business.
+func (s *Source) target(
 	ctx context.Context,
 	client registry.Client,
-	tag string,
 	scope scopes.Scope,
-	moduleName string,
 	cfg *config.RootConfig,
-	errorList *errors.LintRuleErrorsList,
-) error {
-	image, err := client.GetImage(ctx, tag)
+) (*manager.Target, error) {
+	image, err := client.GetImage(ctx, s.tag)
 	if err != nil {
-		return fmt.Errorf("failed to get %s image: %w", scope, err)
+		return nil, fmt.Errorf("failed to get %s image: %w", scope, err)
 	}
 
 	dir, err := extractImage(ctx, image)
 	if err != nil {
-		return fmt.Errorf("failed to extract %s image: %w", scope, err)
-	}
-	defer os.RemoveAll(dir)
-
-	m := modules.NewRemoteModule(dir, moduleName, scope.Settings(cfg))
-
-	for _, linter := range scope.Linters(m, errorList.WithObjectID(string(scope))) {
-		linter.Lint(ctx)
+		return nil, fmt.Errorf("failed to extract %s image: %w", scope, err)
 	}
 
-	return nil
+	s.dirs = append(s.dirs, dir)
+
+	return &manager.Target{
+		Module: modules.NewRemoteModule(dir, s.moduleName, scope.Settings(cfg)),
+		Scope:  scope,
+		// Both images are the same module, so the summary counts one.
+		ModuleID: s.moduleName,
+		ObjectID: string(scope),
+	}, nil
 }
 
 // cutTagFromImagePath splits an image path into repository and tag, turning

@@ -160,15 +160,7 @@ func collectStatistics(errorList *errors.LintRuleErrorsList, modules int, elapse
 // styled identically to the deckhouse-cli mirror summaries. It is meant to be
 // called after PrintResult, once all findings have been listed.
 func (m *Manager) PrintStatistics() {
-	PrintStatistics(m.errors, len(m.Modules), time.Since(m.startedAt))
-}
-
-// PrintStatistics renders the summary for a finished error list. It is a package
-// function for the same reason PrintResult is one: the remote-lint path collects
-// its findings without a Manager, and a run that prints findings but no summary
-// reads as a different tool.
-func PrintStatistics(errorList *errors.LintRuleErrorsList, modules int, elapsed time.Duration) {
-	fmt.Println(renderStatistics(collectStatistics(errorList, modules, elapsed)))
+	fmt.Println(renderStatistics(collectStatistics(m.errors, m.moduleCount(), time.Since(m.startedAt))))
 }
 
 // renderStatistics formats the statistics as a single multi-line, framed block.

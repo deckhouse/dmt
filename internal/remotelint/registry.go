@@ -17,7 +17,9 @@ limitations under the License.
 package remotelint
 
 import (
+	"cmp"
 	"log/slog"
+	"os"
 
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -26,13 +28,26 @@ import (
 	regclient "github.com/deckhouse/deckhouse/pkg/registry/client"
 )
 
+// Environment variables the registry credentials can come from, so a CI job need not
+// put a secret on the command line, where it lands in the process list and in the
+// job's own command echo.
+const (
+	loginEnv    = "DMT_REGISTRY_LOGIN"
+	passwordEnv = "DMT_REGISTRY_PASSWORD"
+)
+
 func newRegistryClient(registryHost, login, password string) *regclient.Client {
 	return regclient.New(registryHost, regclient.WithAuth(registryAuth(registryHost, login, password)))
 }
 
-// registryAuth resolves credentials for the source registry: explicit login/password
-// first, then the Docker config, then anonymous.
+// registryAuth resolves credentials for the source registry: the explicit
+// login/password first, then DMT_REGISTRY_LOGIN/DMT_REGISTRY_PASSWORD, then the
+// Docker config, then anonymous. Each field falls back on its own, so a CI job can
+// keep the login in the pipeline definition and the password in a secret.
 func registryAuth(registryHost, login, password string) authn.Authenticator {
+	login = cmp.Or(login, os.Getenv(loginEnv))
+	password = cmp.Or(password, os.Getenv(passwordEnv))
+
 	if login != "" {
 		return authn.FromConfig(authn.AuthConfig{
 			Username: login,

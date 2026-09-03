@@ -114,8 +114,8 @@ func InitLintFlagSet() *pflag.FlagSet {
 func InitRemoteFlagSet() *pflag.FlagSet {
 	remote := pflag.NewFlagSet("remote", pflag.ContinueOnError)
 
-	remote.StringVar(&RemoteLogin, "login", "", "registry login (the Docker config is used when omitted)")
-	remote.StringVar(&RemotePassword, "password", "", "registry password (the Docker config is used when omitted)")
+	remote.StringVar(&RemoteLogin, "login", "", "registry login (defaults to $DMT_REGISTRY_LOGIN, then the Docker config)")
+	remote.StringVar(&RemotePassword, "password", "", "registry password (defaults to $DMT_REGISTRY_PASSWORD, then the Docker config)")
 
 	return remote
 }

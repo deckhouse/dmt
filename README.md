@@ -358,11 +358,28 @@ Lints the published images instead of a directory: the bundle at `<repo>:<tag>`
 and the release at `<repo>/release:<tag>`.
 
 **Flags:**
-- `--login` / `--password`: Registry credentials (the Docker config is used when omitted)
+- `--login` / `--password`: Registry credentials
+
+Credentials are resolved in this order: the flags, then the `DMT_REGISTRY_LOGIN` /
+`DMT_REGISTRY_PASSWORD` environment variables, then the Docker config
+(`~/.docker/config.json`), then anonymous access. Each field falls back on its own, so
+the login can come from a flag and the password from a secret. In CI prefer the
+environment variables — a password passed as a flag shows up in the process list and
+in the job log.
+
+The `lint` flags are inherited, so `--linter`, `--hide-warnings`, `--show-ignored` and
+`--log-level` apply here too.
 
 **Example:**
 ```bash
 dmt lint remote registry.example.com/my-module:v0.0.1
+
+# Lint only the module linter in both published images
+dmt lint remote registry.example.com/my-module:v0.0.1 --linter module
+
+# CI: credentials from the environment
+DMT_REGISTRY_LOGIN=license-token DMT_REGISTRY_PASSWORD="$REGISTRY_TOKEN" \
+  dmt lint remote registry.example.com/my-module:v0.0.1
 ```
 
 #### Bootstrap Command
