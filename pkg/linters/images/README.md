@@ -324,7 +324,22 @@ linters-settings:
   images:
     patches:
       disable: false  # Enable patch validation
+    exclude-rules:
+      patches:
+        # Skip whole directories (module-relative path, everything under it)
+        directories:
+          - images/app/ui/.yarn      # vendored yarn patches
+        # Skip individual patch files (module-relative path, exact match)
+        files:
+          - images/app/patches/legacy.patch
 ```
+
+Paths are relative to the module root, exactly as they appear in the finding's
+`FilePath`. A `directories` entry excludes the directory itself and everything
+below it, so `images/app/ui/.yarn` also covers
+`images/app/ui/.yarn/patches/*.patch`. Excluding files silences the
+directory-level checks too once no patch file is left in that directory, so a
+vendored tree needs no `README.md` after being excluded.
 
 **Error Messages:**
 - `Patch file should be in images/<image_name>/patches/ directory`
@@ -349,6 +364,13 @@ linters-settings:
       skip-distroless-file-path-prefix:
         - "updater"          # Skip images/updater/
         - "debug-tools"      # Skip for debug images
+
+      # Exclude files and directories from the patches rule
+      patches:
+        directories:
+          - images/app/ui/.yarn
+        files:
+          - images/app/patches/legacy.patch
     
     # Rule-specific settings
     patches:

@@ -1,0 +1,10 @@
+description: >
+  The same module as images/patches, but with the vendored directory listed in
+  exclude-rules.patches.directories. Both the file-level and the directory-level
+  patches findings must be suppressed.
+module: module
+# Name the excluded rule explicitly: the sibling images/patches case produces
+# exactly these findings, so expectPass fails if the exclude stops working.
+expectPass:
+  - linter: images
+    rule: patches

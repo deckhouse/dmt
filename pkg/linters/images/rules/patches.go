@@ -46,11 +46,18 @@ type PatchesRule struct {
 	pkg.RuleMeta
 	pkg.BoolRule
 
+	// paths skips individual patch files and whole directories, matched by their
+	// module-relative path. It is a named field rather than an embedded
+	// pkg.PathRule because BoolRule already provides Enabled().
+	paths pkg.PathRule
+
 	module    pkg.Module
 	errorList *errors.LintRuleErrorsList
 }
 
 func NewPatchesRule(disable bool,
+	excludeFileRules []pkg.StringRuleExclude,
+	excludeDirectoryRules []pkg.DirectoryRuleExclude,
 	m pkg.Module, errorList *errors.LintRuleErrorsList) *PatchesRule {
 	return &PatchesRule{
 		RuleMeta: pkg.RuleMeta{
@@ -58,6 +65,10 @@ func NewPatchesRule(disable bool,
 		},
 		BoolRule: pkg.BoolRule{
 			Exclude: disable,
+		},
+		paths: pkg.PathRule{
+			ExcludeStringRules:    excludeFileRules,
+			ExcludeDirectoryRules: excludeDirectoryRules,
 		},
 		module:    m,
 		errorList: errorList.WithRule(PatchesRuleName),
@@ -74,7 +85,18 @@ func (r *PatchesRule) Check(_ context.Context) {
 		errorList = errorList.WithMaxLevel(ptr.To(pkg.Ignored))
 	}
 
-	files := fsutils.GetFiles(moduleDir, false, fsutils.FilterFileByExtensions(".patch"))
+	// Excluded files are dropped before the patch directories are derived from
+	// them, so excluding a directory (or every patch file inside it) also silences
+	// the directory-level checks below.
+	files := make([]string, 0)
+
+	for _, file := range fsutils.GetFiles(moduleDir, false, fsutils.FilterFileByExtensions(".patch")) {
+		if !r.paths.Enabled(fsutils.Rel(moduleDir, file)) {
+			continue
+		}
+
+		files = append(files, file)
+	}
 
 	patchDirs := set.New()
 	for _, file := range files {

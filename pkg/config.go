@@ -307,6 +307,13 @@ type ImageLinterRules struct {
 type ImageExcludeRules struct {
 	SkipImageFilePathPrefix      PrefixRuleExcludeList
 	SkipDistrolessFilePathPrefix PrefixRuleExcludeList
+
+	Patches PatchesExcludeRule
+}
+
+type PatchesExcludeRule struct {
+	Files       StringRuleExcludeList
+	Directories DirectoryRuleExcludeList
 }
 
 type PrefixRuleExcludeList []string
