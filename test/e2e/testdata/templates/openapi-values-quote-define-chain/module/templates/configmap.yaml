@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2e-quote-chain
+  namespace: e2e-quote-chain
+data:
+  # SAFE: define reads .Values directly, include output squoted at the call site.
+  publicDomain: {{ include "e2e-quote-chain.public_domain" . | squote }}
+  # SAFE: the whole include is wrapped in parens with squote inside.
+  apiDomain: {{ (include "e2e-quote-chain.api_domain" . | squote) }}
+  # SAFE: chain of includes, output squoted at the call site.
+  webDomain: {{ include "e2e-quote-chain.web_domain" . | squote }}
+  # FLAGGED at this call site: the define's direct .Values read is rendered unquoted.
+  adminHost: {{ include "e2e-quote-chain.admin_host" . }}
+  # FLAGGED at this call site: the chain is rendered unquoted.
+  metricsHost: {{ include "e2e-quote-chain.metrics_host" . }}

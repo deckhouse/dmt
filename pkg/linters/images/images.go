@@ -74,7 +74,10 @@ func (l *Images) rules() []pkg.Rule {
 		rules.NewImageRule(cfg, m, level(cfg.Rules.ImageRule)),
 		rules.NewDistrolessRule(cfg, m, level(cfg.Rules.DistrolessRule)),
 		rules.NewWerfRule(cfg.Werf.Disable, m, level(cfg.Rules.WerfRule)),
-		rules.NewPatchesRule(cfg.Patches.Disable, m, level(cfg.Rules.PatchesRule)),
+		rules.NewPatchesRule(cfg.Patches.Disable,
+			cfg.ExcludeRules.Patches.Files.Get(),
+			cfg.ExcludeRules.Patches.Directories.Get(),
+			m, level(cfg.Rules.PatchesRule)),
 	}
 }
 

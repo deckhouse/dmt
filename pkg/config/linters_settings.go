@@ -100,6 +100,18 @@ type ImageSettings struct {
 type ImageExcludeRules struct {
 	SkipImageFilePathPrefix      PrefixRuleExcludeList `mapstructure:"skip-image-file-path-prefix"`
 	SkipDistrolessFilePathPrefix PrefixRuleExcludeList `mapstructure:"skip-distroless-file-path-prefix"`
+
+	Patches PatchesExcludeRule `mapstructure:"patches"`
+}
+
+// PatchesExcludeRule skips patch files and whole directories, matched by their
+// module-relative path, in the patches rule. Vendored trees such as
+// `images/<image>/ui/.yarn/patches` carry third-party patches that will never
+// follow the `XXX-<name>.patch` layout, so they are excluded rather than
+// disabling the rule for the entire module.
+type PatchesExcludeRule struct {
+	Files       StringRuleExcludeList    `mapstructure:"files"`
+	Directories DirectoryRuleExcludeList `mapstructure:"directories"`
 }
 
 type ModuleSettings struct {

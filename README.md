@@ -234,6 +234,12 @@ linters-settings:
     exclude-rules:
       skip-image-file-path-prefix:
         - images/special-case/
+      # Skip files and directories in the patches rule
+      patches:
+        directories:
+          - images/app/ui/.yarn
+        files:
+          - images/app/patches/legacy.patch
   
   documentation:
     impact: error

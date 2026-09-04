@@ -1,0 +1,22 @@
+type: object
+properties:
+  # Read directly inside a define; the include output is squoted at the call site -> SAFE.
+  publicDomain:
+    type: string
+    default: public.example.com
+  # Read directly inside a define; the call site wraps it as (include ... | squote) -> SAFE.
+  apiDomain:
+    type: string
+    default: api.example.com
+  # Read inside an inner define reached through a chain of includes, squoted -> SAFE.
+  webDomain:
+    type: string
+    default: web.example.com
+  # Read directly inside a define, rendered unquoted at the call site -> FLAGGED there.
+  adminHost:
+    type: string
+    default: admin.example.com
+  # Read through a chain of includes, rendered unquoted at the call site -> FLAGGED there.
+  metricsHost:
+    type: string
+    default: metrics.example.com

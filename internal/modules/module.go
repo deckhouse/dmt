@@ -478,6 +478,8 @@ func mapImageExclusionsAndSettings(linterSettings *pkg.LintersSettings, configSe
 	configExcludes := &configSettings.Images.ExcludeRules
 	excludes.SkipImageFilePathPrefix = pkg.PrefixRuleExcludeList(configExcludes.SkipImageFilePathPrefix)
 	excludes.SkipDistrolessFilePathPrefix = pkg.PrefixRuleExcludeList(configExcludes.SkipDistrolessFilePathPrefix)
+	excludes.Patches.Files = pkg.StringRuleExcludeList(configExcludes.Patches.Files)
+	excludes.Patches.Directories = pkg.DirectoryRuleExcludeList(configExcludes.Patches.Directories)
 
 	// Additional settings
 	linterSettings.Image.Patches.Disable = configSettings.Images.Patches.Disable

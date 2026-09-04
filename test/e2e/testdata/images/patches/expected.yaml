@@ -1,0 +1,14 @@
+description: >
+  A patch vendored by yarn under images/app/ui/.yarn/patches must be flagged by
+  the images patches rule: its name does not match XXX-<patch-name>.patch and
+  the directory has no README.md.
+module: module
+expect:
+  - linter: images
+    rule: patches
+    level: error
+    textContains: "Patch file name should match pattern"
+  - linter: images
+    rule: patches
+    level: error
+    textContains: "Patch file should have a corresponding README file"

@@ -1,0 +1,6 @@
+linters-settings:
+  images:
+    exclude-rules:
+      patches:
+        directories:
+          - images/app/ui/.yarn
