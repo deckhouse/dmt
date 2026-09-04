@@ -167,6 +167,19 @@ func (m *Manager) Run(ctx context.Context) error {
 
 	var prog progress
 
+	lint := func(target Target) {
+		defer func() {
+			// Hand the rendered objects back to the pool as soon as this target is
+			// linted, then free the slot: the source is waiting on it to render the
+			// next one.
+			target.Module.Release()
+			<-processingCh
+			wg.Done()
+		}()
+
+		lintModule(ctx, target.Scope, target.Module, m.errorsFor(target))
+	}
+
 	sourceErr := m.source.Targets(ctx, m.cfg, m.errors.WithLinterID("manager"), func(target Target) bool {
 		processingCh <- struct{}{}
 
@@ -177,18 +190,23 @@ func (m *Manager) Run(ctx context.Context) error {
 
 		wg.Add(1)
 
-		go func() {
-			defer func() {
-				// Hand the rendered objects back to the pool as soon as this target
-				// is linted, then free the slot: the source is waiting on it to
-				// render the next one.
-				target.Module.Release()
-				<-processingCh
-				wg.Done()
-			}()
+		// A variant target shares a directory with the renders still to come, and
+		// rendering writes into it: a helper template is placed in the module's
+		// templates/ for the duration of each render and taken out again. A linter
+		// walking that directory while the next variant renders would see a file
+		// appear and vanish under it — findings against a path that no longer
+		// exists, or a walk that fails outright. So a variant is linted to
+		// completion before the source is let go to render another one.
+		//
+		// Only --matrix produces variant targets. An ordinary run renders each
+		// module once and never waits here, so its linters stay fully parallel.
+		if target.Variant {
+			lint(target)
 
-			lintModule(ctx, target.Scope, target.Module, m.errorsFor(target))
-		}()
+			return true
+		}
+
+		go lint(target)
 
 		return true
 	})
