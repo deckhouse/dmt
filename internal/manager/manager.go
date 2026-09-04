@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -32,18 +31,16 @@ import (
 	"github.com/fatih/color"
 	"github.com/kyokomi/emoji"
 	"github.com/mitchellh/go-wordwrap"
-	"helm.sh/helm/v3/pkg/chartutil"
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/deckhouse/dmt/internal/flags"
-	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/metrics"
-	"github.com/deckhouse/dmt/internal/moduleloader"
 	"github.com/deckhouse/dmt/internal/modules"
-	"github.com/deckhouse/dmt/internal/modules/values"
+	"github.com/deckhouse/dmt/internal/set"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
+	"github.com/deckhouse/dmt/pkg/config/global"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/scopes"
 )
@@ -60,98 +57,85 @@ func generateDocumentationURL(linterID, ruleID string) string {
 	return fmt.Sprintf("%s/pkg/linters/%s#%s", baseRepoURL, linterID, ruleID)
 }
 
+// Target is one unit of work: a module and the scope it is linted in. The unit is a
+// pair rather than a module because a remote run reads one module from two images and
+// lints each in its own scope.
+type Target struct {
+	Module *modules.Module
+	Scope  scopes.Scope
+	// ModuleID is what the source calls one module. Targets sharing it count as one
+	// module in the summary, which is how a remote run reports the two images it read
+	// as the single module they are. It is not the module's name: a tree can hold two
+	// directories declaring the same name, and those are two modules.
+	ModuleID string
+	// ObjectID tags this target's findings. The remote source sets the scope name so
+	// bundle and release findings stay apart in the output; empty means no tag.
+	ObjectID string
+}
+
+// Source supplies the modules a run lints. It is the only thing that differs between
+// linting a source tree and linting the images a release published: everything after
+// the modules exist — running the linters, printing, statistics, metrics — is the
+// Manager's, and identical for both.
+type Source interface {
+	// ConfigDir is the directory .dmtlint.yaml is looked up from and the metrics
+	// labels are derived from. It is read before Targets, to load the config Targets
+	// is then handed.
+	ConfigDir() string
+	// Scopes are the scopes this source produces targets in. Answered without loading
+	// anything, so a run that finds no modules still reports the sections it would
+	// have linted with.
+	Scopes() []scopes.Scope
+	// Targets loads the modules to lint. Findings made while loading go into
+	// errorList; a returned error is one the run could not fold into a finding, e.g.
+	// a registry failure, and is reported after the findings are printed rather than
+	// instead of them.
+	Targets(ctx context.Context, cfg *config.RootConfig, errorList *errors.LintRuleErrorsList) ([]Target, error)
+	// Close releases what the source allocated, e.g. image extraction directories.
+	// It runs after the findings are printed, so a finding must never name a path
+	// that only exists until Close.
+	Close()
+}
+
 type Manager struct {
 	cfg     *config.RootConfig
-	Modules []*modules.Module
-
-	// scope decides which linters run and which of their rules each one is asked for.
-	scope scopes.Scope
-
-	errors *errors.LintRuleErrorsList
-
+	source  Source
+	targets []Target
+	errors  *errors.LintRuleErrorsList
 	// startedAt marks the beginning of the run; PrintStatistics reports the
 	// wall-clock time elapsed since it, matching the mirror summary's Elapsed line.
+	// It is taken before the source loads anything, so for a remote run the pulls
+	// are inside the number the caller waited for.
 	startedAt time.Time
 }
 
-func NewManager(dir string, rootConfig *config.RootConfig, sc scopes.Scope) *Manager {
+func New(cfg *config.RootConfig, src Source) *Manager {
 	managerLevel := pkg.Error
-	m := &Manager{
-		cfg:   rootConfig,
-		scope: sc,
 
+	return &Manager{
+		cfg:       cfg,
+		source:    src,
 		errors:    errors.NewLintRuleErrorsList().WithMaxLevel(&managerLevel),
 		startedAt: time.Now(),
 	}
-
-	return m.initManager(dir)
 }
 
-func (m *Manager) initManager(dir string) *Manager {
-	paths, err := moduleloader.GetModulePaths(dir)
-	if err != nil {
-		log.Error("Error getting module paths", log.Err(err))
-		return m
-	}
+// Run loads the source's targets and lints them. The returned error is the source's:
+// the findings collected before it are still on the Manager, so the caller prints
+// them first and reports the error afterwards.
+func (m *Manager) Run(ctx context.Context) error {
+	targets, sourceErr := m.source.Targets(ctx, m.cfg, m.errors.WithLinterID("manager"))
+	m.targets = targets
 
-	vals, err := decodeValuesFile(flags.ValuesFile)
-	if err != nil {
-		log.Error("Failed to decode values file", log.Err(err))
-	}
+	log.Info("Found modules", slog.Int("count", m.moduleCount()))
 
-	globalValues, err := values.GetGlobalValues(getRootDirectory(dir))
-	if err != nil {
-		log.Error("Failed to get global values", log.Err(err))
-		return m
-	}
-
-	errorList := m.errors.WithLinterID("manager")
-
-	for i := range paths {
-		moduleName := filepath.Base(paths[i])
-		log.Debug("Found module", slog.String("module", moduleName))
-
-		if err := m.validateModule(paths[i]); err != nil {
-			// linting errors are already logged
-			continue
-		}
-
-		mdl, err := modules.NewModule(paths[i], &vals, globalValues, m.cfg, errorList)
-		if err != nil {
-			errorList.
-				WithFilePath(paths[i]).WithModule(moduleName).
-				WithValue(err.Error()).
-				Errorf("cannot create module `%s`", moduleName)
-
-			continue
-		}
-
-		m.Modules = append(m.Modules, mdl)
-	}
-
-	log.Info("Found modules", slog.Int("count", len(m.Modules)))
-
-	return m
-}
-
-func decodeValuesFile(path string) (chartutil.Values, error) {
-	if path == "" {
-		return nil, nil
-	}
-
-	valuesFile, err := fsutils.ExpandDir(path)
-	if err != nil {
-		return nil, err
-	}
-
-	return chartutil.ReadValuesFile(valuesFile)
-}
-
-func (m *Manager) Run(ctx context.Context) {
 	wg := new(sync.WaitGroup)
-	processingCh := make(chan struct{}, flags.LintersLimit)
+	// The send below happens before the goroutine that drains it, so an unbuffered
+	// channel deadlocks. --parallel is a user-supplied number and every caller is not
+	// a cobra command, so the floor lives here rather than at each entry point.
+	processingCh := make(chan struct{}, max(flags.LintersLimit, 1))
 
-	for _, module := range m.Modules {
+	for _, target := range targets {
 		processingCh <- struct{}{}
 
 		wg.Add(1)
@@ -162,25 +146,84 @@ func (m *Manager) Run(ctx context.Context) {
 				wg.Done()
 			}()
 
-			log.Info("Run linters for module", slog.String("module", module.GetName()))
+			log.Info("Run linters for module",
+				slog.String("module", target.Module.GetName()),
+				slog.String("scope", string(target.Scope)),
+			)
 
-			for _, linter := range m.scope.Linters(module, m.errors) {
-				if flags.LinterName != "" && linter.GetName() != flags.LinterName {
-					continue
-				}
-
-				log.Debug("Running linter", slog.String("linter", linter.GetName()), slog.String("module", module.GetName()))
-
-				linter.Lint(ctx)
-			}
+			lintModule(ctx, target.Scope, target.Module, m.errorsFor(target))
 		}()
 	}
 
 	wg.Wait()
+
+	return sourceErr
+}
+
+// Close releases the source's resources. It must be called after the findings are
+// printed: a source may be holding the directory the run linted.
+func (m *Manager) Close() {
+	m.source.Close()
+}
+
+// errorsFor decorates the shared error list for one target.
+func (m *Manager) errorsFor(t Target) *errors.LintRuleErrorsList {
+	if t.ObjectID == "" {
+		return m.errors
+	}
+
+	return m.errors.WithObjectID(t.ObjectID)
+}
+
+// moduleCount counts modules, not targets: a remote run reads one module from two
+// images, and the summary must call that one module.
+func (m *Manager) moduleCount() int {
+	ids := set.New()
+	for _, t := range m.targets {
+		ids.Add(t.ModuleID)
+	}
+
+	return ids.Size()
+}
+
+// MetricsSections returns the config sections this run linted with, in the form
+// metrics.Flush takes. They follow from the source's scopes — `linters-settings` for
+// a source tree, `remote.bundle` and `remote.release` for the published images — so
+// the caller does not have to know which run it started.
+func (m *Manager) MetricsSections() []*global.Linters {
+	sc := m.source.Scopes()
+	sections := make([]*global.Linters, 0, len(sc))
+
+	for _, s := range sc {
+		sections = append(sections, s.Settings(m.cfg))
+	}
+
+	return sections
+}
+
+// lintModule runs the scope's linters over one module.
+func lintModule(ctx context.Context, sc scopes.Scope, m *modules.Module, errorList *errors.LintRuleErrorsList) {
+	for _, linter := range sc.Linters(m, errorList) {
+		if flags.LinterName != "" && linter.GetName() != flags.LinterName {
+			continue
+		}
+
+		log.Debug("Running linter",
+			slog.String("linter", linter.GetName()),
+			slog.String("module", m.GetName()),
+		)
+
+		linter.Lint(ctx)
+	}
 }
 
 func (m *Manager) PrintResult() {
-	errs := m.errors.GetErrors()
+	printResult(m.errors)
+}
+
+// printResult renders a finished error list.
+func printResult(errorList *errors.LintRuleErrorsList) {
+	errs := errorList.GetErrors()
 
 	if len(errs) == 0 {
 		return
@@ -323,24 +366,4 @@ func prepareString(input string) string {
 	}
 
 	return w.String()
-}
-
-func getRootDirectory(dir string) string {
-	for {
-		if fsutils.IsDir(filepath.Join(dir, "global-hooks", "openapi")) &&
-			fsutils.IsDir(filepath.Join(dir, "modules")) &&
-			fsutils.IsFile(filepath.Join(dir, "global-hooks", "openapi", "config-values.yaml")) &&
-			fsutils.IsFile(filepath.Join(dir, "global-hooks", "openapi", "values.yaml")) {
-			return dir
-		}
-
-		parent := filepath.Dir(dir)
-		if dir == parent || parent == "" {
-			break
-		}
-
-		dir = parent
-	}
-
-	return ""
 }

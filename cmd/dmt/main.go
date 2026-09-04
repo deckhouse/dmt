@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"runtime"
@@ -34,14 +35,16 @@ import (
 	"github.com/deckhouse/dmt/internal/metrics"
 	"github.com/deckhouse/dmt/internal/version"
 	"github.com/deckhouse/dmt/pkg/config"
-	"github.com/deckhouse/dmt/pkg/scopes"
 )
 
 func main() {
 	execute()
 }
 
-func runLint(ctx context.Context, dir string) error {
+// runLint is the whole of a lint run: everything but where the modules come from,
+// which is the source's business. Both `dmt lint <dir>` and `dmt lint remote <ref>`
+// enter here, so setup and teardown exist once.
+func runLint(ctx context.Context, src manager.Source) error {
 	if flags.PprofFile != "" {
 		log.Info("Profiling enabled", slog.String("file", flags.PprofFile))
 
@@ -76,16 +79,20 @@ func runLint(ctx context.Context, dir string) error {
 
 	log.Info("DMT version", slog.String("version", version.Version), slog.String("commit", version.Commit), slog.String("date", version.Date))
 
+	dir := src.ConfigDir()
+
 	cfg, err := config.NewDefaultRootConfig(dir)
 	if err != nil {
-		log.Fatal("default root config", log.Err(err)) //nolint:gocritic
+		return fmt.Errorf("default root config: %w", err)
 	}
 
 	// init metrics storage, should be done before running manager
 	metrics.GetClient(dir)
 
-	mng := manager.NewManager(dir, cfg, scopes.Static)
-	mng.Run(ctx)
+	mng := manager.New(cfg, src)
+	defer mng.Close()
+
+	sourceErr := mng.Run(ctx)
 
 	if flags.Fix {
 		mng.ApplyFixes()
@@ -94,13 +101,13 @@ func runLint(ctx context.Context, dir string) error {
 	mng.PrintResult()
 	mng.PrintStatistics()
 
-	metrics.SetDmtInfo()
-	metrics.SetLinterWarningsMetrics(cfg.GlobalSettings)
-	metrics.SetDmtRuntimeDuration()
-	metrics.SetDmtRuntimeDurationSeconds()
+	metrics.Flush(ctx, mng.MetricsSections()...)
 
-	metricsClient := metrics.GetClient(dir)
-	metricsClient.Send(context.WithoutCancel(ctx))
+	// A source failure — a registry that would not answer — is reported after the
+	// findings, never instead of them: whatever was linted still has to be seen.
+	if sourceErr != nil {
+		return sourceErr
+	}
 
 	if mng.HasCriticalErrors() {
 		return errors.New("critical errors found")

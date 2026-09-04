@@ -18,7 +18,7 @@ package metrics
 
 import (
 	"cmp"
-	"fmt"
+	"context"
 	"os"
 	"reflect"
 	"strings"
@@ -77,8 +77,8 @@ func SetDmtInfo() {
 }
 
 // TODO: refactor this ASAP
-func SetLinterWarningsMetrics(cfg *global.Global) {
-	processLinterConfig("", reflect.ValueOf(&cfg.Linters).Elem())
+func SetLinterWarningsMetrics(linters *global.Linters) {
+	processLinterConfig("", reflect.ValueOf(linters).Elem())
 }
 
 func processLinterConfig(parent string, v reflect.Value) {
@@ -96,8 +96,6 @@ func processLinterConfig(parent string, v reflect.Value) {
 			if parent == "" {
 				name = fType.Name
 			}
-
-			fmt.Println(strings.ToLower(name))
 
 			metrics.CounterAdd("dmt_linter_info", 1, prometheus.Labels{
 				"id":     metrics.id,
@@ -140,4 +138,31 @@ func SetDmtRuntimeDurationSeconds() {
 			"id":         metrics.id,
 			"repository": metrics.repository,
 		})
+}
+
+// Flush records the run-level metrics and ships everything collected during the run.
+// Both lint paths end with it: the remote path used to collect its findings metrics
+// through IncDmtLinterErrorsCount and then never send them, which looked like a working
+// run right up until nobody could find its data.
+//
+// sections are the config sections the run linted with — `linters-settings` for the
+// source tree, `remote.bundle` and `remote.release` for the published images.
+func Flush(ctx context.Context, sections ...*global.Linters) {
+	// Nothing was collected without a client, and every setter below writes through it.
+	if metrics == nil {
+		return
+	}
+
+	SetDmtInfo()
+
+	for _, s := range sections {
+		SetLinterWarningsMetrics(s)
+	}
+
+	SetDmtRuntimeDuration()
+	SetDmtRuntimeDurationSeconds()
+
+	// The send must outlive a cancelled run: these metrics describe the run that just
+	// ended, and losing them to its own cancellation is the one case they are for.
+	metrics.Send(context.WithoutCancel(ctx))
 }

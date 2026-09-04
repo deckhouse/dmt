@@ -79,6 +79,8 @@ func (l *Module) rules() []pkg.Rule {
 		rules.NewModulePackageConsistencyRule(m, level(cfg.Rules.ModulePackageConsistencyRule)),
 		rules.NewLegacyReleaseFileRule(m, level(cfg.Rules.LegacyReleaseFileRule)),
 		rules.NewEnabledScriptRule(m, level(cfg.Rules.EnabledScriptRule)),
+		rules.NewReleaseLayoutRule(m, level(cfg.Rules.ReleaseLayoutRule)),
+		rules.NewBundleLayoutRule(m, level(cfg.Rules.BundleLayoutRule)),
 	}
 }
 

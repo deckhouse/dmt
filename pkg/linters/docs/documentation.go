@@ -59,6 +59,7 @@ func (l *Documentation) rules() []pkg.Rule {
 		rules.NewMarkdownRule(m, errorList.WithMaxLevel(l.cfg.Rules.MarkdownlintRule.GetLevel())),
 		rules.NewSizeRule(m, errorList.WithMaxLevel(l.cfg.Rules.SizeRule.GetLevel())),
 		rules.NewFrontMatterRule(m, errorList.WithMaxLevel(l.cfg.Rules.FrontMatterRule.GetLevel())),
+		rules.NewChangelogRule(m, errorList.WithMaxLevel(l.cfg.Rules.ChangelogRule.GetLevel())),
 	}
 }
 

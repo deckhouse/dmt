@@ -8,6 +8,7 @@ require (
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/bmatcuk/doublestar v1.3.4
 	github.com/deckhouse/deckhouse/pkg/log v0.2.1
+	github.com/deckhouse/deckhouse/pkg/registry v0.0.0-20260831072828-0356cb79de29
 	github.com/fatih/color v1.19.0
 	github.com/go-openapi/spec v0.22.4
 	github.com/gogo/protobuf v1.3.2
@@ -80,6 +81,7 @@ require (
 	github.com/containerd/errdefs v0.3.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/platforms v0.2.1 // indirect
+	github.com/containerd/stargz-snapshotter/estargz v0.16.3 // indirect
 	github.com/cyphar/filepath-securejoin v0.4.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dennwc/varint v1.0.0 // indirect
@@ -87,10 +89,10 @@ require (
 	github.com/djherbis/buffer v1.2.0 // indirect
 	github.com/djherbis/nio/v3 v3.0.1 // indirect
 	github.com/dlclark/regexp2 v1.11.4 // indirect
-	github.com/docker/cli v27.1.1+incompatible // indirect
+	github.com/docker/cli v29.2.0+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker v27.4.1+incompatible // indirect
-	github.com/docker/docker-credential-helpers v0.8.2 // indirect
+	github.com/docker/docker-credential-helpers v0.9.3 // indirect
 	github.com/docker/go-connections v0.5.0 // indirect
 	github.com/docker/go-metrics v0.0.1 // indirect
 	github.com/dominikbraun/graph v0.23.0 // indirect
@@ -214,6 +216,7 @@ require (
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
+	github.com/vbatts/tar-split v0.12.1 // indirect
 	github.com/wI2L/jsondiff v0.5.0 // indirect
 	github.com/werf/common-go v0.0.0-20251113140850-a1a98e909e9b // indirect
 	github.com/werf/kubedog v0.13.1-0.20260616105957-2c00b08fb99e // indirect
@@ -277,3 +280,10 @@ require (
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
 )
+
+// deckhouse/pkg/registry pulls docker/cli v29, whose types.AuthConfig no longer
+// converts from docker/docker's registry.AuthConfig — which breaks oras.land/oras-go,
+// reached through werf/nelm and unfixed on every v1.2.x. docker/cli is an indirect
+// requirement of the registry client (go-containerregistry's Docker-config keychain),
+// so holding it at the version the rest of the tree already builds against is enough.
+replace github.com/docker/cli => github.com/docker/cli v27.1.1+incompatible
