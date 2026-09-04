@@ -2898,6 +2898,13 @@ violations, never the absence of a type, so a skipped resource is simply silent.
 than in the Go type — a missing required field, a value outside an enum, a
 `minimum`/`maxLength` bound. Those still surface at apply time.
 
+Nor is the **content** of a binary field judged (`Secret.data`, `ConfigMap.binaryData`,
+a webhook's `caBundle`). Such a field travels as base64, and dmt renders with values
+generated from the module's openapi schema rather than the ones a cluster supplies:
+a chart that passes a value straight through — expecting it to arrive already
+encoded — would otherwise be reported for a payload dmt itself invented. The shape
+around it is still checked, so a `data` that is not a map of strings still fails.
+
 **Why it matters:**
 
 Rendered templates frequently drift from the API they target: a value of the
