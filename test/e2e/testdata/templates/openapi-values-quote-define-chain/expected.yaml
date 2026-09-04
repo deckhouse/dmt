@@ -1,0 +1,33 @@
+description: >
+  A module define that reads .Values directly renders nothing on its own — its output
+  renders at each call site, so the openapi-values-quote rule must judge the quoting
+  there. Quoting the include output (| squote, the parenthesised (include ... | squote)
+  form, and through a chain of includes) is safe and must not be flagged; leaving the
+  include output unquoted is flagged at the call site, naming the template.
+module: module
+expect:
+  # direct .Values read inside a define, rendered unquoted at the call site
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuoteChain.adminHost"
+    count: 1
+  # same, reached through a chain of includes
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuoteChain.metricsHost"
+    count: 1
+expectAbsent:
+  # squoted include output -> safe (this was the reported false positive)
+  - linter: templates
+    rule: openapi-values-quote
+    textContains: "e2eQuoteChain.publicDomain"
+  # (include ... | squote) parenthesised form -> safe
+  - linter: templates
+    rule: openapi-values-quote
+    textContains: "e2eQuoteChain.apiDomain"
+  # squoted output of a chain of includes -> safe
+  - linter: templates
+    rule: openapi-values-quote
+    textContains: "e2eQuoteChain.webDomain"

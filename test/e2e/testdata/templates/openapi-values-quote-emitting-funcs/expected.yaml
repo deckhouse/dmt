@@ -1,0 +1,38 @@
+description: >
+  Emitting helper functions that render a risky OpenAPI string (no pattern/enum/format)
+  unquoted: Helm's `required` and sprig's `ternary` return their value argument verbatim,
+  so an unquoted usage is a YAML-injection surface just like a bare emission and must be
+  flagged (and silent when piped through quote). `tpl` is stronger — it renders the value
+  AS a Go template (template injection), so it is flagged wherever the template argument
+  is an unconstrained value, even when the result is quoted, and stays silent only when
+  the value is constrained by a pattern.
+module: module
+expect:
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuoteFuncs.reqHost"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuoteFuncs.ternHost"
+    count: 1
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "e2eQuoteFuncs.tplSnippet"
+    count: 1
+  # tpl gets the dedicated template-injection message
+  - linter: templates
+    rule: openapi-values-quote
+    level: error
+    textContains: "template injection"
+    count: 1
+expectAbsent:
+  - linter: templates
+    rule: openapi-values-quote
+    textContains: "e2eQuoteFuncs.reqSafeHost"
+  - linter: templates
+    rule: openapi-values-quote
+    textContains: "e2eQuoteFuncs.tplSafeSnippet"

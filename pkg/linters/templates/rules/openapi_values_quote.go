@@ -94,9 +94,14 @@ var varTokenRe = regexp.MustCompile(`\$[A-Za-z_]\w*(?:\.[\w.]+)?|\.[A-Za-z_][\w.
 // unchanged as far as YAML safety goes — so a risky value passed to one still needs
 // quoting. The set is deliberately curated; an unknown leading function is left alone
 // to avoid false positives.
+//
+// It includes the selection helpers `default`/`coalesce`/`ternary` (which return one of
+// their arguments verbatim) and Helm's `required`, which returns its value argument
+// unchanged when present — a very common idiom (`{{ required "msg" .Values.mod.host }}`)
+// that renders the value unquoted just like a bare emission.
 var passthroughFuncs = map[string]struct{}{
 	"printf": {}, "print": {}, "println": {},
-	"default": {}, "coalesce": {}, "cat": {}, "toString": {},
+	"default": {}, "coalesce": {}, "ternary": {}, "required": {}, "cat": {}, "toString": {},
 	"upper": {}, "lower": {}, "title": {}, "untitle": {}, "nospace": {},
 	"trim": {}, "trimAll": {}, "trimPrefix": {}, "trimSuffix": {},
 	"replace": {}, "repeat": {}, "trunc": {}, "substr": {}, "abbrev": {},
@@ -224,25 +229,28 @@ func (r *OpenAPIValuesQuoteRule) Check(_ context.Context) {
 		contents = append(contents, string(content))
 	}
 
-	// Cross-template flow: what each module `define` renders from its parameter, so a
-	// risky value passed to it via include/template can be checked at the call site.
-	defineEmits := resolveDefineEmits(collectDefines(contents))
+	// Cross-template flow: what each module `define` renders — from its parameter or
+	// straight from `.Values` — so a value that reaches it is checked at the call site.
+	defineEmits := resolveDefineEmits(collectDefines(contents, valuesKey, risky))
 
 	for _, f := range parsed {
 		inBlock := computeBlockScalarLines(f.lines)
+		inDefine := computeDefineLines(f.lines)
 
-		r.checkScalars(f.relPath, f.lines, inBlock, valuesKey, risky, errorList)
+		r.checkScalars(f.relPath, f.lines, inBlock, inDefine, valuesKey, risky, errorList)
 		r.checkScopedEmissions(f.relPath, f.lines, inBlock, valuesKey, risky, defineEmits, errorList)
 	}
 }
 
-// checkScalars reports unquoted standalone emissions of scalar string values.
+// checkScalars reports unquoted standalone emissions of scalar string values. Lines
+// inside a `define` body are skipped: that body renders at the call site, where the
+// include's own quoting is judged (see checkInclude / collectDefines).
 func (r *OpenAPIValuesQuoteRule) checkScalars(
-	relPath string, lines []string, inBlock []bool, valuesKey string,
+	relPath string, lines []string, inBlock, inDefine []bool, valuesKey string,
 	risky *riskyPaths, errorList *errors.LintRuleErrorsList,
 ) {
 	for i, line := range lines {
-		if inBlock[i] {
+		if inBlock[i] || inDefine[i] {
 			continue
 		}
 
@@ -327,10 +335,115 @@ func passthroughRisky(inner, valuesKey string, risky *riskyPaths, innermostDot f
 	return "", false
 }
 
+// tplTemplateRisky returns the risky scalar value path passed as the TEMPLATE argument
+// (the first argument) of a `tpl` action, whether given directly, wrapped in parens, or
+// built inside a parenthesised sub-expression, and whether it matched. Only the first
+// argument is inspected — the second is the render context, which is not executed as
+// template source.
+func tplTemplateRisky(inner, valuesKey string, risky *riskyPaths, innermostDot func() *loopScope, findVar func(string) *loopScope) (string, bool) {
+	tmplArg := firstArg(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(inner), "tpl")))
+
+	if p, ok := valuePath(firstToken(unwrapParens(tmplArg)), valuesKey); ok && has(risky.scalar, p) {
+		return p, true
+	}
+
+	for _, tok := range valuesRefRe.FindAllString(tmplArg, -1) {
+		if p, ok := valuePath(tok, valuesKey); ok && has(risky.scalar, p) {
+			return p, true
+		}
+	}
+
+	for _, tok := range varTokenRe.FindAllString(tmplArg, -1) {
+		if scope, sub := emissionScope(tok, innermostDot, findVar); scope != nil {
+			return emissionPath(scope, sub), true
+		}
+	}
+
+	return "", false
+}
+
+// firstArg returns the first whitespace-separated argument of s, treating a parenthesised
+// group or a quoted string as one unit so `(printf "%s" .x) .` yields `(printf "%s" .x)`.
+func firstArg(s string) string {
+	s = strings.TrimSpace(s)
+
+	var (
+		depth int
+		quote byte
+	)
+
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case quote != 0:
+			if c == quote {
+				quote = 0
+			}
+		case c == '"' || c == '\'' || c == '`':
+			quote = c
+		case c == '(':
+			depth++
+		case c == ')':
+			if depth > 0 {
+				depth--
+			}
+		case (c == ' ' || c == '\t') && depth == 0:
+			return s[:i]
+		}
+	}
+
+	return s
+}
+
 // isPassthrough reports whether a leading function forwards a risky argument to its
 // output (a string transform, or an array/map element accessor).
 func isPassthrough(lead string) bool {
 	return has(passthroughFuncs, lead) || has(elementFuncs, lead)
+}
+
+// directScalarEmission returns the risky module value path an action reads straight from
+// `.Values.<module>` and emits unquoted — either directly (`{{ .Values.mod.foo }}`) or
+// through a passthrough function (`{{ printf "%s" .Values.mod.foo }}`) — and whether it
+// matched. It is used to record such reads inside `define` bodies (where they cannot be
+// judged in place) for checking at the define's call sites. pre/post are the line text
+// around the action, so a read already wrapped in quotes in the body is not recorded.
+func directScalarEmission(inner, valuesKey string, risky *riskyPaths, pre, post string) (string, bool) {
+	if pipelineIsSafe(unwrapParens(inner)) {
+		return "", false
+	}
+
+	path, found := directScalarPath(inner, valuesKey, risky)
+	if !found {
+		return "", false
+	}
+
+	if report, _ := analyzeContext(pre, post); !report {
+		return "", false
+	}
+
+	return path, true
+}
+
+// directScalarPath returns the risky `.Values.<module>` scalar path an action reads,
+// whether emitted directly or forwarded through a passthrough function.
+func directScalarPath(inner, valuesKey string, risky *riskyPaths) (string, bool) {
+	lead := leadingCommand(inner)
+
+	if p, ok := valuePath(lead, valuesKey); ok {
+		return p, has(risky.scalar, p)
+	}
+
+	if !isPassthrough(lead) || (lead == "printf" && strings.Contains(inner, "%q")) {
+		return "", false
+	}
+
+	for _, tok := range valuesRefRe.FindAllString(inner, -1) {
+		if p, ok := valuePath(tok, valuesKey); ok && has(risky.scalar, p) {
+			return p, true
+		}
+	}
+
+	return "", false
 }
 
 // emissionPath renders the display value path for a tracked emission.
@@ -354,14 +467,29 @@ func emissionPath(scope *loopScope, sub string) string {
 // `with`-scoped string); elemVar is the element accessor ("$x", or "." for
 // dot-binding). kind is empty for any other block. valPath is the display path used in
 // findings. elemArray marks an object whose sub-fields belong to array elements
-// (`servers[].host`) rather than to a single object (`db.host`).
+// (`servers[].host`) rather than to a single object (`db.host`). isDefine marks a
+// `define` frame, whose body emits nothing at this location — its emissions are judged
+// at the define's call sites, so reporting is deferred while such a frame is on the stack.
 type loopScope struct {
 	rebindDot bool
 	kind      string
 	elemVar   string
 	valPath   string
 	elemArray bool
+	isDefine  bool
 	profile   *riskyPaths
+}
+
+// insideDefine reports whether the scan is currently within a `define` body, where a
+// value emission renders at the call site (see checkInclude), not here.
+func insideDefine(stack []loopScope) bool {
+	for i := range stack {
+		if stack[i].isDefine {
+			return true
+		}
+	}
+
+	return false
 }
 
 // checkScopedEmissions reports unquoted emissions of a risky string reached through a
@@ -395,7 +523,10 @@ func (r *OpenAPIValuesQuoteRule) checkScopedEmissions(
 			case "if":
 				stack = append(stack, loopScope{rebindDot: false})
 				continue
-			case "define", "block":
+			case "define":
+				stack = append(stack, loopScope{rebindDot: true, isDefine: true})
+				continue
+			case "block":
 				stack = append(stack, loopScope{rebindDot: true})
 				continue
 			case "with":
@@ -420,9 +551,31 @@ func (r *OpenAPIValuesQuoteRule) checkScopedEmissions(
 			}
 
 			// Cross-template flow: a risky value passed to a module template that renders
-			// it unquoted (`{{ include "mymod.env" .Values.mod.config }}`).
-			if name, arg, ok := parseInclude(inner); ok {
-				r.checkInclude(relPath, i+1, inner, name, arg, valuesKey, risky, stack, assigned, defineEmits, errorList)
+			// it unquoted (`{{ include "mymod.env" .Values.mod.config }}`), or a template
+			// whose body reads `.Values` directly. Judged only at a real (non-define) call
+			// site; inside a define it is deferred to that define's own call sites. The
+			// action is unwrapped from any enclosing parens first, so a call embedded as
+			// `(include "d" . | squote)` is still recognised (and seen as quoted).
+			unwrapped := unwrapParens(inner)
+			if name, arg, ok := parseInclude(unwrapped); ok {
+				if !insideDefine(stack) {
+					r.checkInclude(relPath, i+1, unwrapped, name, arg, valuesKey, risky, stack, assigned, defineEmits, errorList)
+				}
+
+				continue
+			}
+
+			// `tpl` renders its first argument AS a Go template. An unvalidated value there
+			// is a template-injection surface (arbitrary template execution, not merely a
+			// broken scalar), so quoting the result does not neutralise it and define
+			// deferral does not apply — flag it wherever it appears, once per action.
+			if leadingCommand(inner) == "tpl" {
+				if path, ok := tplTemplateRisky(inner, valuesKey, risky, innermostDotScope, findVarScope); ok && r.Enabled(path) {
+					errorList.WithFilePath(relPath).WithLineNumber(i+1).
+						Errorf("value '.Values.%s.%s' is an OpenAPI string without a validation pattern (pattern/enum/format) and is rendered as a Go template by 'tpl' (template injection); constrain it with a pattern/enum or do not pass it to tpl",
+							valuesKey, path)
+				}
+
 				continue
 			}
 
@@ -430,7 +583,7 @@ func (r *OpenAPIValuesQuoteRule) checkScopedEmissions(
 			// `{{ upper $v }}`, `{{ index .Values.mod.list 0 }}`) — the risky value flows to
 			// the unquoted output.
 			if lead := leadingCommand(inner); isPassthrough(lead) {
-				if path, ok := passthroughRisky(inner, valuesKey, risky, innermostDotScope, findVarScope); ok && !inBlock[i] && !pipelineIsSafe(inner) && r.Enabled(path) {
+				if path, ok := passthroughRisky(inner, valuesKey, risky, innermostDotScope, findVarScope); ok && !inBlock[i] && !insideDefine(stack) && !pipelineIsSafe(inner) && r.Enabled(path) {
 					if report, wrap := analyzeContext(line[:loc[0]], line[loc[1]:]); report {
 						errorList.WithFilePath(relPath).WithLineNumber(i+1).
 							Errorf("value '.Values.%s.%s' is an OpenAPI string without a validation pattern (pattern/enum/format) %s",
@@ -446,7 +599,7 @@ func (r *OpenAPIValuesQuoteRule) checkScopedEmissions(
 				continue
 			}
 
-			if inBlock[i] || pipelineIsSafe(inner) {
+			if inBlock[i] || insideDefine(stack) || pipelineIsSafe(inner) {
 				continue
 			}
 
@@ -762,11 +915,19 @@ func resolveAssigned(name, rhs, valuesKey string, root *riskyPaths, stack []loop
 // emits the bare parameter unquoted, which parameter-relative scalar sub-fields it emits
 // unquoted, which parameter-relative array sub-fields it ranges and emits elements of
 // unquoted, and which templates it forwards its parameter (or a sub-field) to.
+//
+// directScalars are module value paths the body reads straight from `.Values.<module>`
+// (not via the parameter) and emits unquoted; they render unquoted wherever this
+// template's own output is used unquoted, so they are judged at the call site — never at
+// the define, which renders nothing on its own. includes are the templates this body
+// includes unquoted, through which those direct reads propagate transitively.
 type defineInfo struct {
-	bareDot   bool
-	subs      map[string]struct{}
-	arraySubs map[string]struct{}
-	calls     []defineCall
+	bareDot       bool
+	subs          map[string]struct{}
+	arraySubs     map[string]struct{}
+	directScalars map[string]struct{}
+	calls         []defineCall
+	includes      []string
 }
 
 type defineCall struct {
@@ -774,12 +935,15 @@ type defineCall struct {
 	sub  string // "" = forwarded `.`, "a.b" = forwarded `.a.b`
 }
 
-// defineEmit is the resolved (transitive) set of parameter-relative values a template
-// renders unquoted.
+// defineEmit is the resolved (transitive) set of values a template renders unquoted:
+// the parameter-relative ones (bareDot/subs/arraySubs) and the module value paths it
+// reads directly from `.Values.<module>` (directScalars), the latter flagged at the
+// call site whenever the include's output there is left unquoted.
 type defineEmit struct {
-	bareDot   bool
-	subs      map[string]struct{}
-	arraySubs map[string]struct{}
+	bareDot       bool
+	subs          map[string]struct{}
+	arraySubs     map[string]struct{}
+	directScalars map[string]struct{}
 }
 
 // defineFrame is one entry on the block stack while scanning a define body.
@@ -802,10 +966,11 @@ func parseInclude(inner string) (string, string, bool) {
 }
 
 // collectDefines scans the given template contents for `define` blocks and records, per
-// template name, the parameter-relative values it renders unquoted (see defineInfo).
-// Only the module's own defines are seen; external ones (helm_lib, …) are absent and
-// therefore never matched, which keeps cross-template findings free of false positives.
-func collectDefines(contents []string) map[string]*defineInfo {
+// template name, the values it renders unquoted (see defineInfo) — parameter-relative
+// ones and reads straight from `.Values.<module>`. Only the module's own defines are
+// seen; external ones (helm_lib, …) are absent and therefore never matched, which keeps
+// cross-template findings free of false positives.
+func collectDefines(contents []string, valuesKey string, risky *riskyPaths) map[string]*defineInfo {
 	defs := map[string]*defineInfo{}
 
 	for _, content := range contents {
@@ -844,6 +1009,19 @@ func collectDefines(contents []string) map[string]*defineInfo {
 				def, depth, innermost := defineContext(stack)
 				if def == nil || inBlock[i] {
 					continue
+				}
+
+				// A read straight from `.Values.<module>` (at any depth) renders unquoted
+				// wherever this define's output is left unquoted; a nested unquoted include
+				// carries the same reads outward. Both are resolved to call sites later.
+				if p, ok := directScalarEmission(inner, valuesKey, risky, line[:loc[0]], line[loc[1]:]); ok {
+					def.directScalars[p] = struct{}{}
+				}
+
+				if unwrapped := unwrapParens(inner); !pipelineIsSafe(unwrapped) {
+					if incName, _, ok := parseInclude(unwrapped); ok {
+						def.includes = append(def.includes, incName)
+					}
 				}
 
 				switch {
@@ -914,7 +1092,11 @@ func defForName(defs map[string]*defineInfo, inner string) *defineInfo {
 		return info
 	}
 
-	info := &defineInfo{subs: map[string]struct{}{}, arraySubs: map[string]struct{}{}}
+	info := &defineInfo{
+		subs:          map[string]struct{}{},
+		arraySubs:     map[string]struct{}{},
+		directScalars: map[string]struct{}{},
+	}
 	defs[m[1]] = info
 
 	return info
@@ -980,19 +1162,29 @@ func resolveDefineEmits(defs map[string]*defineInfo) map[string]defineEmit {
 	resolve = func(name string, seen map[string]bool) defineEmit {
 		info := defs[name]
 		if info == nil || seen[name] {
-			return defineEmit{subs: map[string]struct{}{}, arraySubs: map[string]struct{}{}}
+			return defineEmit{subs: map[string]struct{}{}, arraySubs: map[string]struct{}{}, directScalars: map[string]struct{}{}}
 		}
 
 		seen[name] = true
 		defer delete(seen, name)
 
-		res := defineEmit{bareDot: info.bareDot, subs: map[string]struct{}{}, arraySubs: map[string]struct{}{}}
+		res := defineEmit{bareDot: info.bareDot, subs: map[string]struct{}{}, arraySubs: map[string]struct{}{}, directScalars: map[string]struct{}{}}
 		for s := range info.subs {
 			res.subs[s] = struct{}{}
 		}
 
 		for s := range info.arraySubs {
 			res.arraySubs[s] = struct{}{}
+		}
+
+		for s := range info.directScalars {
+			res.directScalars[s] = struct{}{}
+		}
+
+		// A `.Values` read in an included template renders unquoted through this one when
+		// the include is unquoted, so its direct reads are absolute (no parameter rebase).
+		for _, incName := range info.includes {
+			mergeSet(res.directScalars, resolve(incName, seen).directScalars, "")
 		}
 
 		for _, call := range info.calls {
@@ -1044,11 +1236,6 @@ func (r *OpenAPIValuesQuoteRule) checkInclude(
 		return
 	}
 
-	desc, ok := resolveValueExpr(leadingCommand(arg), valuesKey, root, stack, assigned)
-	if !ok {
-		return
-	}
-
 	report := func(path string) {
 		if !r.Enabled(path) {
 			return
@@ -1057,6 +1244,17 @@ func (r *OpenAPIValuesQuoteRule) checkInclude(
 		errorList.WithFilePath(relPath).WithLineNumber(line).
 			Errorf("value '.Values.%s.%s' is an OpenAPI string without a validation pattern (pattern/enum/format) and is rendered unquoted by template %q; quote it there or before passing to the template",
 				valuesKey, path, name)
+	}
+
+	// Values the callee reads straight from `.Values` render unquoted here regardless of
+	// the argument passed, so they are flagged whenever this call's output is not quoted.
+	for path := range emit.directScalars {
+		report(path)
+	}
+
+	desc, ok := resolveValueExpr(leadingCommand(arg), valuesKey, root, stack, assigned)
+	if !ok {
+		return
 	}
 
 	switch {
@@ -1179,12 +1377,18 @@ func leadingCommand(inner string) string {
 		return ""
 	}
 
-	s := strings.TrimSpace(stages[0])
+	return firstToken(unwrapParens(stages[0]))
+}
+
+// unwrapParens strips any enclosing parenthesised groups from s, so a call embedded as
+// `(include "d" . | squote)` reads as `include "d" . | squote`.
+func unwrapParens(s string) string {
+	s = strings.TrimSpace(s)
 	for isParenWrapped(s) {
 		s = strings.TrimSpace(s[1 : len(s)-1])
 	}
 
-	return firstToken(s)
+	return s
 }
 
 // isParenWrapped reports whether s is a single parenthesised group, i.e. its first
@@ -1344,6 +1548,48 @@ func stripTrailingComment(s string) string {
 	}
 
 	return s
+}
+
+// computeDefineLines marks, for each line, whether it lies inside a `define` body.
+// Emissions there render at the define's call sites, not in place, so the standalone
+// scanners skip them (collectDefines records them for call-site checking instead). A
+// `block` renders inline, so it is not treated as a define; other blocks (if/with/range)
+// only matter for pairing `end`s so a define's extent is measured correctly.
+func computeDefineLines(lines []string) []bool {
+	res := make([]bool, len(lines))
+
+	var stack []bool // one entry per open block; true marks a `define`
+
+	active := func() bool {
+		for _, isDefine := range stack {
+			if isDefine {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	for i, line := range lines {
+		start := active()
+
+		for _, loc := range templateActionRe.FindAllStringSubmatchIndex(line, -1) {
+			switch firstToken(strings.TrimSpace(line[loc[2]:loc[3]])) {
+			case "define":
+				stack = append(stack, true)
+			case "if", "with", "range", "block":
+				stack = append(stack, false)
+			case "end":
+				if len(stack) > 0 {
+					stack = stack[:len(stack)-1]
+				}
+			}
+		}
+
+		res[i] = start || active()
+	}
+
+	return res
 }
 
 // computeBlockScalarLines marks, for each line, whether it is inside a YAML

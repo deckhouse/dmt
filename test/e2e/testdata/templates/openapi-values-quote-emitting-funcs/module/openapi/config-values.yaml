@@ -1,0 +1,23 @@
+type: object
+properties:
+  # FLAGGED: required returns the value unchanged, unquoted
+  reqHost:
+    type: string
+    default: req.example.com
+  # SAFE: required output piped through quote
+  reqSafeHost:
+    type: string
+    default: reqsafe.example.com
+  # FLAGGED: ternary returns a risky branch unquoted
+  ternHost:
+    type: string
+    default: tern.example.com
+  # FLAGGED (template injection): value rendered as a Go template by tpl
+  tplSnippet:
+    type: string
+    default: tplsnippet
+  # SAFE: pattern-constrained value passed to tpl
+  tplSafeSnippet:
+    type: string
+    pattern: '^[a-z]+$'
+    default: safesnippet

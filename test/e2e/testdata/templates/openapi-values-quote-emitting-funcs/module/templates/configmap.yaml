@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2e-quote-funcs
+  namespace: e2e-quote-funcs
+data:
+  # FLAGGED: required returns the value unquoted
+  reqHost: {{ required "reqHost is required" .Values.e2eQuoteFuncs.reqHost }}
+  # SAFE: required output quoted
+  reqSafeHost: {{ required "reqSafeHost is required" .Values.e2eQuoteFuncs.reqSafeHost | quote }}
+  # FLAGGED: ternary returns a risky branch unquoted
+  ternHost: {{ ternary .Values.e2eQuoteFuncs.ternHost "fallback" true }}
+  # FLAGGED (template injection): value rendered as a template by tpl, unsafe even quoted
+  tplOut: {{ tpl .Values.e2eQuoteFuncs.tplSnippet . | quote }}
+  # SAFE: tpl of a pattern-constrained value
+  tplSafeOut: {{ tpl .Values.e2eQuoteFuncs.tplSafeSnippet . }}

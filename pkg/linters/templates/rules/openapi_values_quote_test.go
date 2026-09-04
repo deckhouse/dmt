@@ -1513,6 +1513,236 @@ properties:
 			},
 			wantCount: 0,
 		},
+
+		// --- (4b) a define that reads `.Values` directly renders at its call sites, so its
+		// quoting is judged there, not inside the define body ---
+		{
+			name: "define reading .Values directly, output squoted by caller, is not flagged",
+			valuesSchema: `type: object
+properties:
+  publicDomain:
+    type: string
+`,
+			files: map[string]string{
+				"templates/_helpers.tpl": "{{- define \"mymod.domain\" -}}\n{{ .Values." + valuesKey + ".publicDomain }}\n{{- end -}}\n",
+				"templates/cm.yaml":      "data:\n  domain: {{ include \"mymod.domain\" . | squote }}\n",
+			},
+			wantCount: 0,
+		},
+		{
+			name: "define reading .Values directly, wrapped as (include ... | squote), is not flagged",
+			valuesSchema: `type: object
+properties:
+  publicDomain:
+    type: string
+`,
+			files: map[string]string{
+				"templates/_helpers.tpl": "{{- define \"mymod.domain\" -}}\n{{ .Values." + valuesKey + ".publicDomain }}\n{{- end -}}\n",
+				"templates/cm.yaml":      "data:\n  domain: {{ (include \"mymod.domain\" . | squote) }}\n",
+			},
+			wantCount: 0,
+		},
+		{
+			name: "define reading .Values directly, output left unquoted by caller, is flagged at the call site",
+			valuesSchema: `type: object
+properties:
+  publicDomain:
+    type: string
+`,
+			files: map[string]string{
+				"templates/_helpers.tpl": "{{- define \"mymod.domain\" -}}\n{{ .Values." + valuesKey + ".publicDomain }}\n{{- end -}}\n",
+				"templates/cm.yaml":      "data:\n  domain: {{ include \"mymod.domain\" . }}\n",
+			},
+			wantCount:    1,
+			wantContains: []string{"value '.Values." + valuesKey + ".publicDomain'", "mymod.domain"},
+		},
+		{
+			name: "define reading .Values directly, unquoted parenthesised include, is flagged",
+			valuesSchema: `type: object
+properties:
+  publicDomain:
+    type: string
+`,
+			files: map[string]string{
+				"templates/_helpers.tpl": "{{- define \"mymod.domain\" -}}\n{{ .Values." + valuesKey + ".publicDomain }}\n{{- end -}}\n",
+				"templates/cm.yaml":      "data:\n  domain: {{ (include \"mymod.domain\" .) }}\n",
+			},
+			wantCount:    1,
+			wantContains: []string{"value '.Values." + valuesKey + ".publicDomain'", "mymod.domain"},
+		},
+		{
+			name: "define that reads .Values through a chain of includes, squoted by caller, is not flagged",
+			valuesSchema: `type: object
+properties:
+  publicDomain:
+    type: string
+`,
+			files: map[string]string{
+				"templates/_helpers.tpl": "{{- define \"mymod.inner\" -}}\n{{ .Values." + valuesKey + ".publicDomain }}\n{{- end -}}\n" +
+					"{{- define \"mymod.domain\" -}}\n{{ include \"mymod.inner\" . }}\n{{- end -}}\n",
+				"templates/cm.yaml": "data:\n  domain: {{ include \"mymod.domain\" . | squote }}\n",
+			},
+			wantCount: 0,
+		},
+		{
+			name: "define that reads .Values through a chain of includes, unquoted by caller, is flagged",
+			valuesSchema: `type: object
+properties:
+  publicDomain:
+    type: string
+`,
+			files: map[string]string{
+				"templates/_helpers.tpl": "{{- define \"mymod.inner\" -}}\n{{ .Values." + valuesKey + ".publicDomain }}\n{{- end -}}\n" +
+					"{{- define \"mymod.domain\" -}}\n{{ include \"mymod.inner\" . }}\n{{- end -}}\n",
+				"templates/cm.yaml": "data:\n  domain: {{ include \"mymod.domain\" . }}\n",
+			},
+			wantCount:    1,
+			wantContains: []string{"value '.Values." + valuesKey + ".publicDomain'", "mymod.domain"},
+		},
+		{
+			name: "define reading .Values directly but quoting it in its own body is not flagged",
+			valuesSchema: `type: object
+properties:
+  publicDomain:
+    type: string
+`,
+			files: map[string]string{
+				"templates/_helpers.tpl": "{{- define \"mymod.domain\" -}}\n{{ .Values." + valuesKey + ".publicDomain | quote }}\n{{- end -}}\n",
+				"templates/cm.yaml":      "data:\n  domain: {{ include \"mymod.domain\" . }}\n",
+			},
+			wantCount: 0,
+		},
+		{
+			name: "define printf-embedding a direct .Values read, unquoted by caller, is flagged",
+			valuesSchema: `type: object
+properties:
+  publicDomain:
+    type: string
+`,
+			files: map[string]string{
+				"templates/_helpers.tpl": "{{- define \"mymod.domain\" -}}\n{{ printf \"%s.example.com\" .Values." + valuesKey + ".publicDomain }}\n{{- end -}}\n",
+				"templates/cm.yaml":      "data:\n  domain: {{ include \"mymod.domain\" . }}\n",
+			},
+			wantCount:    1,
+			wantContains: []string{"value '.Values." + valuesKey + ".publicDomain'", "mymod.domain"},
+		},
+		{
+			name: "define printf-embedding a direct .Values read, squoted by caller, is not flagged",
+			valuesSchema: `type: object
+properties:
+  publicDomain:
+    type: string
+`,
+			files: map[string]string{
+				"templates/_helpers.tpl": "{{- define \"mymod.domain\" -}}\n{{ printf \"%s.example.com\" .Values." + valuesKey + ".publicDomain }}\n{{- end -}}\n",
+				"templates/cm.yaml":      "data:\n  domain: {{ include \"mymod.domain\" . | squote }}\n",
+			},
+			wantCount: 0,
+		},
+		{
+			name: "direct .Values read outside any define is still flagged in place",
+			valuesSchema: `type: object
+properties:
+  publicDomain:
+    type: string
+`,
+			files: map[string]string{
+				"templates/cm.yaml": "data:\n  domain: {{ .Values." + valuesKey + ".publicDomain }}\n",
+			},
+			wantCount:    1,
+			wantContains: []string{"value '.Values." + valuesKey + ".publicDomain'", "must be quoted"},
+		},
+
+		// --- emitting helper functions that render a risky value unquoted ---
+		{
+			name: "value returned by required is flagged",
+			valuesSchema: `type: object
+properties:
+  host:
+    type: string
+`,
+			files: map[string]string{
+				"templates/cm.yaml": "data:\n  host: {{ required \"host is required\" .Values." + valuesKey + ".host }}\n",
+			},
+			wantCount:    1,
+			wantContains: []string{"value '.Values." + valuesKey + ".host'"},
+		},
+		{
+			name: "value returned by required and quoted is not flagged",
+			valuesSchema: `type: object
+properties:
+  host:
+    type: string
+`,
+			files: map[string]string{
+				"templates/cm.yaml": "data:\n  host: {{ required \"host is required\" .Values." + valuesKey + ".host | quote }}\n",
+			},
+			wantCount: 0,
+		},
+		{
+			name: "risky branch of ternary is flagged",
+			valuesSchema: `type: object
+properties:
+  host:
+    type: string
+`,
+			files: map[string]string{
+				"templates/cm.yaml": "data:\n  host: {{ ternary .Values." + valuesKey + ".host \"default\" true }}\n",
+			},
+			wantCount:    1,
+			wantContains: []string{"value '.Values." + valuesKey + ".host'"},
+		},
+		{
+			name: "value passed to tpl is flagged as template injection",
+			valuesSchema: `type: object
+properties:
+  tmpl:
+    type: string
+`,
+			files: map[string]string{
+				"templates/cm.yaml": "data:\n  x: {{ tpl .Values." + valuesKey + ".tmpl . }}\n",
+			},
+			wantCount:    1,
+			wantContains: []string{"value '.Values." + valuesKey + ".tmpl'", "template injection", "tpl"},
+		},
+		{
+			name: "value passed to tpl is flagged even when the result is quoted",
+			valuesSchema: `type: object
+properties:
+  tmpl:
+    type: string
+`,
+			files: map[string]string{
+				"templates/cm.yaml": "data:\n  x: {{ tpl .Values." + valuesKey + ".tmpl . | quote }}\n",
+			},
+			wantCount:    1,
+			wantContains: []string{"template injection"},
+		},
+		{
+			name: "constrained value passed to tpl is not flagged",
+			valuesSchema: `type: object
+properties:
+  tmpl:
+    type: string
+    pattern: '^[a-z]+$'
+`,
+			files: map[string]string{
+				"templates/cm.yaml": "data:\n  x: {{ tpl .Values." + valuesKey + ".tmpl . }}\n",
+			},
+			wantCount: 0,
+		},
+		{
+			name: "risky value only as the tpl context (not the template) is not flagged by tpl",
+			valuesSchema: `type: object
+properties:
+  ctx:
+    type: string
+`,
+			files: map[string]string{
+				"templates/cm.yaml": "data:\n  x: {{ tpl \"literal\" .Values." + valuesKey + ".ctx }}\n",
+			},
+			wantCount: 0,
+		},
 	}
 
 	for _, tt := range tests {
