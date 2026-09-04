@@ -19,6 +19,7 @@ package module
 import (
 	"context"
 
+	"github.com/deckhouse/dmt/internal/set"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/module/rules"
@@ -29,25 +30,25 @@ type Module struct {
 	name, desc string
 	cfg        *pkg.ModuleLinterConfig
 	module     pkg.Module
+	ruleIDs    set.Set
 	ErrorList  *errors.LintRuleErrorsList
 }
 
 const ID = "module"
 
-func New(cfg *pkg.ModuleLinterConfig, m pkg.Module, errorList *errors.LintRuleErrorsList) *Module {
+func New(cfg *pkg.ModuleLinterConfig, ruleIDs set.Set, m pkg.Module, errorList *errors.LintRuleErrorsList) *Module {
 	return &Module{
 		name:      ID,
 		desc:      "Lint module rules",
 		cfg:       cfg,
 		module:    m,
+		ruleIDs:   ruleIDs,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.Impact),
 	}
 }
 
 func (l *Module) Lint(ctx context.Context) {
-	for _, rule := range l.rules() {
-		rule.Check(ctx)
-	}
+	pkg.RunRules(ctx, l.ruleIDs, l.rules())
 }
 
 // rules builds this linter's rule set. Keeping the set as data — rather than a

@@ -22,6 +22,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/deckhouse/dmt/internal/set"
 	"github.com/deckhouse/dmt/internal/storage"
 )
 
@@ -34,6 +35,21 @@ import (
 type Rule interface {
 	GetName() string
 	Check(ctx context.Context)
+}
+
+// RunRules checks only the rules whose IDs the caller asked for.
+//
+// An empty set means no rule at all, never every rule: which rules run is declared by
+// the scope, and silently running everything when a table entry is missing or misspelled
+// is the worst failure available — it looks like a pass.
+func RunRules(ctx context.Context, want set.Set, rules []Rule) {
+	for _, rule := range rules {
+		if !want.Has(rule.GetName()) {
+			continue
+		}
+
+		rule.Check(ctx)
+	}
 }
 
 type RuleMeta struct {

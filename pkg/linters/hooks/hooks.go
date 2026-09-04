@@ -19,6 +19,7 @@ package hooks
 import (
 	"context"
 
+	"github.com/deckhouse/dmt/internal/set"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/hooks/rules"
@@ -29,25 +30,25 @@ type Hooks struct {
 	name, desc string
 	cfg        *pkg.HooksLinterConfig
 	module     pkg.Module
+	ruleIDs    set.Set
 	ErrorList  *errors.LintRuleErrorsList
 }
 
 const ID = "hooks"
 
-func New(cfg *pkg.HooksLinterConfig, m pkg.Module, errorList *errors.LintRuleErrorsList) *Hooks {
+func New(cfg *pkg.HooksLinterConfig, ruleIDs set.Set, m pkg.Module, errorList *errors.LintRuleErrorsList) *Hooks {
 	return &Hooks{
 		name:      ID,
 		desc:      "Lint hooks",
 		cfg:       cfg,
 		module:    m,
+		ruleIDs:   ruleIDs,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.Impact),
 	}
 }
 
 func (h *Hooks) Lint(ctx context.Context) {
-	for _, rule := range h.rules() {
-		rule.Check(ctx)
-	}
+	pkg.RunRules(ctx, h.ruleIDs, h.rules())
 }
 
 // rules builds this linter's rule set. Keeping the set as data — rather than a

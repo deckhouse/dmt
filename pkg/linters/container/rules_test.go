@@ -43,7 +43,8 @@ func TestContainerLint_NoContainers(t *testing.T) {
 		},
 	}
 
-	New(cfg, moduleWith(t, obj), errList).Lint(t.Context())
+	mod := moduleWith(t, obj)
+	New(cfg, everyRule(cfg, mod), mod, errList).Lint(t.Context())
 	errs := errList.GetErrors()
 	assert.NotEmpty(t, errs, "Should report errors for missing labels and security context")
 
@@ -82,7 +83,8 @@ func TestContainerLint_ContainersError(t *testing.T) {
 		},
 	}
 
-	New(cfg, moduleWith(t, obj), errList).Lint(t.Context())
+	mod := moduleWith(t, obj)
+	New(cfg, everyRule(cfg, mod), mod, errList).Lint(t.Context())
 	assert.NotEmpty(t, errList.GetErrors(), "Error expected if GetAllContainers returns error")
 }
 
@@ -131,7 +133,8 @@ func TestContainerLint_AllRules(t *testing.T) {
 		},
 	}
 
-	New(cfg, moduleWith(t, obj), errList).Lint(t.Context())
+	mod := moduleWith(t, obj)
+	New(cfg, everyRule(cfg, mod), mod, errList).Lint(t.Context())
 	errs := errList.GetErrors()
 
 	var (

@@ -19,6 +19,7 @@ package rbac
 import (
 	"context"
 
+	"github.com/deckhouse/dmt/internal/set"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules"
@@ -33,23 +34,23 @@ type Rbac struct {
 	name, desc string
 	cfg        *pkg.RBACLinterConfig
 	module     pkg.Module
+	ruleIDs    set.Set
 	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *pkg.RBACLinterConfig, m pkg.Module, errorList *errors.LintRuleErrorsList) *Rbac {
+func New(cfg *pkg.RBACLinterConfig, ruleIDs set.Set, m pkg.Module, errorList *errors.LintRuleErrorsList) *Rbac {
 	return &Rbac{
 		name:      ID,
 		desc:      "Lint rbac objects",
 		cfg:       cfg,
 		module:    m,
+		ruleIDs:   ruleIDs,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.Impact),
 	}
 }
 
 func (l *Rbac) Lint(ctx context.Context) {
-	for _, rule := range l.rules() {
-		rule.Check(ctx)
-	}
+	pkg.RunRules(ctx, l.ruleIDs, l.rules())
 }
 
 // rules builds this linter's rule set. Keeping the set as data — rather than a

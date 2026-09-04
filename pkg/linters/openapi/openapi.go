@@ -19,6 +19,7 @@ package openapi
 import (
 	"context"
 
+	"github.com/deckhouse/dmt/internal/set"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/openapi/rules"
@@ -33,23 +34,23 @@ type OpenAPI struct {
 	name, desc string
 	cfg        *pkg.OpenAPILinterConfig
 	module     pkg.Module
+	ruleIDs    set.Set
 	ErrorList  *errors.LintRuleErrorsList
 }
 
-func New(cfg *pkg.OpenAPILinterConfig, m pkg.Module, errorList *errors.LintRuleErrorsList) *OpenAPI {
+func New(cfg *pkg.OpenAPILinterConfig, ruleIDs set.Set, m pkg.Module, errorList *errors.LintRuleErrorsList) *OpenAPI {
 	return &OpenAPI{
 		name:      ID,
 		desc:      "Linter will check openapi values is correct",
 		cfg:       cfg,
 		module:    m,
+		ruleIDs:   ruleIDs,
 		ErrorList: errorList.WithLinterID(ID).WithMaxLevel(cfg.Impact),
 	}
 }
 
 func (o *OpenAPI) Lint(ctx context.Context) {
-	for _, rule := range o.rules() {
-		rule.Check(ctx)
-	}
+	pkg.RunRules(ctx, o.ruleIDs, o.rules())
 }
 
 // rules builds this linter's rule set. Keeping the set as data — rather than a

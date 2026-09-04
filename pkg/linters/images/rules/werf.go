@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	werfRuleName = "werf"
+	WerfRuleName = "werf"
 )
 
 type werfFile struct {
@@ -60,13 +60,13 @@ func NewWerfRule(disable bool,
 	m pkg.Module, errorList *errors.LintRuleErrorsList) *WerfRule {
 	return &WerfRule{
 		RuleMeta: pkg.RuleMeta{
-			Name: werfRuleName,
+			Name: WerfRuleName,
 		},
 		BoolRule: pkg.BoolRule{
 			Exclude: disable,
 		},
 		module:    m,
-		errorList: errorList.WithRule(werfRuleName),
+		errorList: errorList.WithRule(WerfRuleName),
 	}
 }
 
