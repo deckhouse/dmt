@@ -123,6 +123,7 @@ func cartesianSeq(axes []Axis) iter.Seq[[]int] {
 // gated by two simultaneous conditions.
 func pairwise(axes []Axis) [][]int {
 	seen := map[string]struct{}{}
+
 	var combos [][]int
 
 	add := func(combo []int) {
@@ -132,6 +133,7 @@ func pairwise(axes []Axis) [][]int {
 		}
 
 		seen[key] = struct{}{}
+
 		combos = append(combos, combo)
 	}
 

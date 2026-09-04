@@ -46,6 +46,7 @@ func TestCombinations_FullCartesian(t *testing.T) {
 
 	// All must be unique.
 	seen := map[string]struct{}{}
+
 	for _, c := range combos {
 		k := comboKey(c)
 		if _, dup := seen[k]; dup {

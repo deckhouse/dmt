@@ -26,7 +26,7 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [webhook-configuration-annotations](#webhook-configuration-annotations) | Checks webhook configurations have werf.io/weight or deploy-dependency annotations | ✅ | enabled |
 | [mount-points](#mount-points) | Validates that mount-points.yaml directories are used as volumeMounts in pod controllers | ✅ | enabled |
 | [openapi-values-quote](#openapi-values-quote) | Requires templates to quote OpenAPI string values that have no `pattern`/`enum`/`format` | ✅ | enabled |
-| [schema-validation](#schema-validation) | Validates every rendered resource against its CRD / Kubernetes schema | ✅ | enabled |
+| [schema-validation](#schema-validation) | Strictly decodes every rendered standard Kubernetes resource against its API type | ✅ | enabled |
 
 "Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
@@ -2867,34 +2867,49 @@ The linter now includes comprehensive validation for Grafana dashboards based on
 
 ### schema-validation
 
-**Purpose:** Validates every rendered manifest against its schema, catching type
-errors, missing required fields, unknown enum values and other structural
-mistakes at lint time — before the resource is ever applied to a cluster.
+**Purpose:** Checks every rendered **standard Kubernetes** resource against the
+API it targets, catching fields of the wrong type and fields the API does not
+declare at lint time — before the resource is ever applied to a cluster.
 
 **Description:**
 
-After the module's templates are rendered, each resulting object is matched to a
-schema by its `apiVersion`/`kind` and validated. Schemas are resolved from three
-sources, in order of precedence:
+After the module's templates are rendered, each resulting object is decoded into
+the Go type that serves its `apiVersion`/`kind` (e.g. `Deployment`, `Service`),
+strictly. Two things are reported:
 
-1. **The module's own CRDs** (`crds/`): their OpenAPI v3 schema is used directly,
-   so a module is authoritative for the resources it defines. The Kubernetes
-   extensions `x-kubernetes-preserve-unknown-fields`, `x-kubernetes-int-or-string`
-   and `nullable` are honored so valid manifests are not falsely rejected.
-2. **Bundled third-party CRD schemas** from
-   [datree/crds-catalog](https://github.com/datreeio/crds-catalog).
-3. **Bundled built-in Kubernetes schemas** (e.g. `Deployment`, `Service`).
+- **a field of the wrong type** — `replicas: "3"` where an integer is expected;
+- **a field the API does not declare** — a typo, a renamed key, or a value put at
+  the wrong level, such as `resources.memory` instead of
+  `resources.limits.memory`. This is the same error server-side apply reports as
+  "field not declared in schema", and each offending field is reported separately,
+  by its full path.
 
-Both bundled sources are compiled into the dmt binary, so validation works fully
-offline. Resources whose kind has **no** known schema are silently skipped — the
-rule only reports schema violations, never the absence of a schema.
+The types come from the `k8s.io/api` version dmt is built against, so the check
+follows whatever Kubernetes release that is. Nothing is downloaded and no schema
+snapshot is embedded, so there is no catalog to regenerate and no way for the
+check to drift from the API types the rest of dmt already uses.
+
+**Custom resources are not checked.** Anything served by a
+CustomResourceDefinition — the module's own CRDs included — has no registered Go
+type and is skipped, as is any other unregistered kind. The rule reports
+violations, never the absence of a type, so a skipped resource is simply silent.
+
+**What it does not catch:** constraints that live in the OpenAPI schema rather
+than in the Go type — a missing required field, a value outside an enum, a
+`minimum`/`maxLength` bound. Those still surface at apply time.
 
 **Why it matters:**
 
-Rendered templates frequently drift from the API they target (a value of the
-wrong type, a renamed field, a typo in an enum). Such issues otherwise surface
-only at `helm install` / apply time. Validating against the real schemas during
-lint moves that feedback left.
+Rendered templates frequently drift from the API they target: a value of the
+wrong type, a renamed field, a key indented one level off. Such issues otherwise
+surface only at `helm install` / apply time. Decoding against the real API types
+during lint moves that feedback left.
+
+Custom resources stay out of scope on purpose: the definition a cluster actually
+serves is not knowable from a source tree, so the only available answers would
+come from a third-party catalog that lags upstream or from a CRD that may not be
+the one installed. A false finding against a stale schema costs more than the
+check is worth.
 
 **Configuration:**
 
@@ -2910,11 +2925,7 @@ linters-settings:
           name: my-resource
 ```
 
-**Updating the bundled schemas:**
+**Which Kubernetes version is checked against:**
 
-The embedded catalog lives at `internal/schemas/data/schemas.tar.gz` and is
-regenerated with:
-
-```bash
-scripts/gen-schemas.sh [k8s-version]   # default: v1.30.0
-```
+Whichever `k8s.io/api` is in `go.mod`. Bumping that dependency is the whole of
+updating this rule — there is nothing else to regenerate.

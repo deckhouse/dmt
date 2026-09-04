@@ -8,4 +8,4 @@ expect:
   - linter: templates
     rule: schema-validation
     level: error
-    textContains: "additional properties 'anotherBogusField' not allowed"
+    textContains: 'unknown field "spec.anotherBogusField"'

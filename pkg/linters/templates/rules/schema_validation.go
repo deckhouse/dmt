@@ -18,19 +18,15 @@ package rules
 
 import (
 	"context"
-	"path/filepath"
-	"sort"
 
-	"github.com/deckhouse/dmt/internal/schemas"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes/scheme"
+
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
-const (
-	SchemaValidationRuleName = "schema-validation"
-
-	crdsDirName = "crds"
-)
+const SchemaValidationRuleName = "schema-validation"
 
 func NewSchemaValidationRule(excludeRules []pkg.KindRuleExclude, m pkg.Module, errorList *errors.LintRuleErrorsList) *SchemaValidationRule {
 	return &SchemaValidationRule{
@@ -45,10 +41,15 @@ func NewSchemaValidationRule(excludeRules []pkg.KindRuleExclude, m pkg.Module, e
 	}
 }
 
-// SchemaValidationRule validates every rendered manifest against its schema.
-// Schemas come from the module's own CRDs (crds/), the bundled third-party CRD
-// catalog and the bundled built-in Kubernetes schemas. Resources whose kind has
-// no known schema are silently skipped.
+// SchemaValidationRule decodes every rendered manifest into the Go type that
+// serves it, strictly: a field of the wrong type and a field the API does not
+// declare are both errors. The types come from the k8s.io/api version dmt is
+// built against, so what the rule checks against is whatever Kubernetes release
+// that is — there is no schema snapshot to keep in sync.
+//
+// Only standard Kubernetes resources are checked. A custom resource has no Go
+// type registered and is skipped, as is any other unregistered kind: the rule
+// reports violations, never the absence of a type.
 type SchemaValidationRule struct {
 	pkg.RuleMeta
 	pkg.KindRule
@@ -60,72 +61,51 @@ type SchemaValidationRule struct {
 var _ pkg.Rule = (*SchemaValidationRule)(nil)
 
 func (r *SchemaValidationRule) Check(_ context.Context) {
-	m, errorList := r.module, r.errorList
-
-	storeObjects := m.GetStorage()
-	if len(storeObjects) == 0 {
-		return
-	}
-
-	store := schemas.New()
-
-	// The deckhouse repository is the source of truth for CRD versions: a kind
-	// defined anywhere in the repo (e.g. cert-manager's Certificate under
-	// 101-cert-manager) validates against that definition instead of the lagging
-	// bundled catalog. Loaded once per repo root and shared across modules.
-	if root := schemas.DeckhouseRoot(m.GetPath()); root != "" {
-		store.UseRepoCRDs(schemas.LoadRepoCRDs(root))
-	}
-
-	// A module's own CRDs are authoritative for the resources it defines.
-	crdsDir := filepath.Join(m.GetPath(), crdsDirName)
-	if err := store.LoadModuleCRDs(crdsDir); err != nil {
-		errorList.WithFilePath(crdsDir).
-			Warnf("failed to load module CRDs for schema validation: %s", err)
-	}
-
-	// Surface CRDs that ship null-valued keywords (e.g. an empty `maxLength:`).
-	// dmt tolerates them — Kubernetes treats such optional keywords as unset — but
-	// they are worth cleaning up. Reported as warnings so validation still runs.
-	for _, note := range store.ModuleCRDNotes() {
-		errorList.WithFilePath(crdsDir).
-			Warnf("CRD %s %s/%s has a null keyword at %q — set a value or remove the key",
-				note.Kind, note.Group, note.Version, note.Path)
-	}
-
-	// Collect object bodies once so the embedded catalog is streamed a single
-	// time for exactly the kinds this module renders.
-	bodies := make([]map[string]any, 0, len(storeObjects))
-	for _, object := range storeObjects {
-		bodies = append(bodies, object.Unstructured.UnstructuredContent())
-	}
-
-	if err := store.Prepare(bodies); err != nil {
-		errorList.Warnf("failed to load bundled schemas for validation: %s", err)
-		return
-	}
-
-	for _, object := range storeObjects {
+	for _, object := range r.module.GetStorage() {
 		kind := object.Unstructured.GetKind()
-		name := object.Unstructured.GetName()
 
-		if !r.Enabled(kind, name) {
+		if !r.Enabled(kind, object.Unstructured.GetName()) {
 			continue
 		}
 
-		result := store.Validate(object.Unstructured.UnstructuredContent())
-		if !result.Found || result.Valid() {
+		// New reports an error for a kind the scheme does not know, which is how a
+		// custom resource — anything served by a CRD rather than by the API server
+		// itself — is left alone.
+		typed, err := scheme.Scheme.New(object.Unstructured.GroupVersionKind())
+		if err != nil {
 			continue
 		}
 
-		// Deterministic order keeps output stable across runs.
-		violations := result.Errors
-		sort.Strings(violations)
+		err = runtime.DefaultUnstructuredConverter.FromUnstructuredWithValidation(
+			object.Unstructured.UnstructuredContent(), typed, true)
+		if err == nil {
+			continue
+		}
 
-		for _, violation := range violations {
-			errorList.WithObjectID(object.Identity()).
+		for _, violation := range violations(err) {
+			r.errorList.WithObjectID(object.Identity()).
 				WithFilePath(object.GetPath()).
-				Errorf("resource does not match its %s schema: %s", result.SchemaSource, violation)
+				Errorf("resource does not match the %s API: %s", kind, violation)
 		}
 	}
+}
+
+// violations flattens a decode failure into one message per problem. Unknown
+// fields arrive as a strict-decoding error carrying one entry per field, already
+// ordered; anything else is a type mismatch, which aborts the decode and so is
+// always a single message.
+func violations(err error) []string {
+	strict, ok := runtime.AsStrictDecodingError(err)
+	if !ok {
+		return []string{err.Error()}
+	}
+
+	unknown := strict.Errors()
+	out := make([]string, 0, len(unknown))
+
+	for _, e := range unknown {
+		out = append(out, e.Error())
+	}
+
+	return out
 }

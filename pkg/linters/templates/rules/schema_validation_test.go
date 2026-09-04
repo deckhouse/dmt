@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/gojuno/minimock/v3"
@@ -54,7 +55,6 @@ func runSchemaRule(t *testing.T, exclude []pkg.KindRuleExclude, objects ...map[s
 
 	mod := mocks.NewModuleMock(mc)
 	mod.GetStorageMock.Return(schemaStorage(objects...))
-	mod.GetPathMock.Return(t.TempDir()) // no crds/ dir -> only bundled schemas used
 
 	errorList := errors.NewLintRuleErrorsList()
 	NewSchemaValidationRule(exclude, mod, errorList).Check(t.Context())
@@ -75,6 +75,33 @@ func TestSchemaValidationRule_ValidService(t *testing.T) {
 	assert.False(t, errorList.ContainsErrors(), "valid Service should not produce errors")
 }
 
+// TestSchemaValidationRule_UnknownFields covers the strict half of the decode:
+// fields the API does not declare. Two of them in one object must come back as two
+// findings, not one lump, so each names the field a reader has to go fix.
+func TestSchemaValidationRule_UnknownFields(t *testing.T) {
+	errorList := runSchemaRule(t, nil, map[string]any{
+		"apiVersion": "v1",
+		"kind":       "Service",
+		"metadata":   map[string]any{"name": "svc"},
+		"spec": map[string]any{
+			"ports":        []any{map[string]any{"port": int64(80)}},
+			"bogusField":   true,
+			"anotherBogus": "x",
+		},
+	})
+
+	errs := errorList.GetErrors()
+	assert.Len(t, errs, 2, "each undeclared field must be reported on its own")
+
+	texts := make([]string, 0, len(errs))
+	for _, e := range errs {
+		texts = append(texts, e.Text)
+	}
+
+	assert.Contains(t, strings.Join(texts, "\n"), `unknown field "spec.bogusField"`)
+	assert.Contains(t, strings.Join(texts, "\n"), `unknown field "spec.anotherBogus"`)
+}
+
 func TestSchemaValidationRule_InvalidService(t *testing.T) {
 	errorList := runSchemaRule(t, nil, map[string]any{
 		"apiVersion": "v1",
@@ -88,15 +115,23 @@ func TestSchemaValidationRule_InvalidService(t *testing.T) {
 	assert.True(t, errorList.ContainsErrors(), "Service with string port should produce errors")
 }
 
-func TestSchemaValidationRule_UnknownKindSkipped(t *testing.T) {
+// TestSchemaValidationRule_CustomResourceSkipped covers the rule's boundary: only
+// standard Kubernetes resources are validated, so a custom resource passes through
+// untouched however malformed it is.
+func TestSchemaValidationRule_CustomResourceSkipped(t *testing.T) {
 	errorList := runSchemaRule(t, nil, map[string]any{
+		"apiVersion": "cert-manager.io/v1",
+		"kind":       "Certificate",
+		"metadata":   map[string]any{"name": "c"},
+		"spec":       map[string]any{"secretName": "s", "dnsNames": int64(12345)},
+	}, map[string]any{
 		"apiVersion": "totally.unknown.io/v1",
 		"kind":       "Nonexistent",
 		"metadata":   map[string]any{"name": "x"},
 		"spec":       map[string]any{"whatever": true},
 	})
 
-	assert.False(t, errorList.ContainsErrors(), "resources without a schema must be skipped")
+	assert.False(t, errorList.ContainsErrors(), "resources without a bundled schema must be skipped")
 }
 
 func TestSchemaValidationRule_Excluded(t *testing.T) {
