@@ -90,6 +90,7 @@ type DocumentationLinterRules struct {
 	MarkdownlintRule      RuleConfig
 	SizeRule              RuleConfig
 	FrontMatterRule       RuleConfig
+	ChangelogRule         RuleConfig
 }
 
 type NoCyrillicLinterConfig struct {
@@ -247,6 +248,8 @@ type ModuleLinterRules struct {
 	ModulePackageConsistencyRule RuleConfig
 	LegacyReleaseFileRule        RuleConfig
 	EnabledScriptRule            RuleConfig
+	ReleaseLayoutRule            RuleConfig
+	BundleLayoutRule             RuleConfig
 }
 type OSSRuleSettings struct {
 	Disable bool

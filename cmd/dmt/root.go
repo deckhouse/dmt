@@ -36,6 +36,8 @@ import (
 	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/rendercmd"
+	"github.com/deckhouse/dmt/internal/sources/remote"
+	"github.com/deckhouse/dmt/internal/sources/static"
 	"github.com/deckhouse/dmt/internal/test"
 	"github.com/deckhouse/dmt/internal/version"
 	"github.com/deckhouse/dmt/pkg/config"
@@ -148,7 +150,40 @@ func execute() {
 		},
 	}
 
-	lintCmd.Flags().AddFlagSet(flags.InitLintFlagSet())
+	remoteCmd := &cobra.Command{
+		Use:   "remote <repo>:<tag>",
+		Short: "lint the published images instead of a directory",
+		Long: `Lints a module as it was published: pulls the bundle image at <repo>:<tag> and
+the release image at <repo>/release:<tag>, and runs the scopes that belong to
+them. Severities come from the 'remote.bundle' and 'remote.release' sections of
+the config next to the caller.`,
+		Example:      "  dmt lint remote registry.example.com/my-module:v0.0.1",
+		Args:         cobra.ExactArgs(1),
+		SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// --fix comes down from `lint`, but there is nothing here to fix: the tree
+			// is an extracted image that is thrown away at the end of the run, and
+			// applying a fix would drop the finding from the report for nothing.
+			if flags.Fix {
+				return errors.New("--fix is not supported for remote lint")
+			}
+
+			src, err := remote.NewSource(args[0], &remote.Options{
+				Login:    flags.RemoteLogin,
+				Password: flags.RemotePassword,
+			})
+			if err != nil {
+				return err
+			}
+
+			return runLint(cmd.Context(), src)
+		},
+	}
+	remoteCmd.Flags().AddFlagSet(flags.InitRemoteFlagSet())
+
+	// Persistent, so 'lint remote' inherits --log-level and friends.
+	lintCmd.PersistentFlags().AddFlagSet(flags.InitLintFlagSet())
+	lintCmd.AddCommand(remoteCmd)
 	bootstrapCmd.Flags().AddFlagSet(flags.InitBootstrapFlagSet())
 
 	testCmd := &cobra.Command{
@@ -296,7 +331,7 @@ func runLintMultiple(ctx context.Context, dirs []string) error {
 		log.Info("Processing directory", slog.String("directory", expandedDir))
 
 		// Run lint for this directory as a separate execution
-		if err := runLint(ctx, expandedDir); err != nil {
+		if err := runLint(ctx, static.NewSource(expandedDir)); err != nil {
 			log.Error("Error processing directory", slog.String("directory", expandedDir), log.Err(err))
 
 			hasErrors = true

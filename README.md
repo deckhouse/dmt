@@ -263,6 +263,37 @@ linters-settings:
         - /var/lib/kubelet
 ```
 
+#### Per-scope settings
+
+`linters-settings` configures the source tree. The two images a published module
+consists of are configured separately, under `remote`: they carry different files
+and are linted by different rules, so each gets its own section.
+
+```yaml
+linters-settings:      # dmt lint <dir>
+  openapi:
+    impact: error
+
+remote:
+  bundle:              # dmt lint remote <repo>:<tag>
+    documentation:
+      rules:
+        changelog:
+          impact: warn
+  release:             # ... the same command, <repo>/release:<tag>
+    module:
+      rules:
+        release-layout:
+          impact: error
+```
+
+A `remote` section has the same shape as `global.linters-settings` — a linter
+`impact` and per-rule impacts. `exclude-rules` are not read there.
+
+The sections are independent: nothing from `linters-settings` or `global` reaches
+a remote scope, and a section left out means the built-in severities rather than
+the ones the source tree happens to be tuned to.
+
 ### Rule: mount-points
 
 The `mount-points` rule validates that volume mounts in pod controllers match the declarations in `mount-points.yaml` files (and vice versa). It runs in two directions:
@@ -321,6 +352,40 @@ dmt lint ./my-module --values-file custom-values.yaml
 
 # Debug mode
 dmt lint ./my-module --log-level debug
+```
+
+#### Lint Remote Command
+
+```bash
+dmt lint remote <repo>:<tag> [flags]
+```
+
+Lints the published images instead of a directory: the bundle at `<repo>:<tag>`
+and the release at `<repo>/release:<tag>`.
+
+**Flags:**
+- `--login` / `--password`: Registry credentials
+
+Credentials are resolved in this order: the flags, then the `DMT_REGISTRY_LOGIN` /
+`DMT_REGISTRY_PASSWORD` environment variables, then the Docker config
+(`~/.docker/config.json`), then anonymous access. Each field falls back on its own, so
+the login can come from a flag and the password from a secret. In CI prefer the
+environment variables — a password passed as a flag shows up in the process list and
+in the job log.
+
+The `lint` flags are inherited, so `--linter`, `--hide-warnings`, `--show-ignored` and
+`--log-level` apply here too.
+
+**Example:**
+```bash
+dmt lint remote registry.example.com/my-module:v0.0.1
+
+# Lint only the module linter in both published images
+dmt lint remote registry.example.com/my-module:v0.0.1 --linter module
+
+# CI: credentials from the environment
+DMT_REGISTRY_LOGIN=license-token DMT_REGISTRY_PASSWORD="$REGISTRY_TOKEN" \
+  dmt lint remote registry.example.com/my-module:v0.0.1
 ```
 
 #### Bootstrap Command

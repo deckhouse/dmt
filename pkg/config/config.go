@@ -24,6 +24,17 @@ import (
 // RootConfig encapsulates the config data specified in the YAML config file.
 type RootConfig struct {
 	GlobalSettings *global.Global `mapstructure:"global"`
+	Remote         RemoteSettings `mapstructure:"remote"`
+}
+
+// RemoteSettings holds the linter settings of the scopes that lint a published
+// module. The two images carry different files and are linted by different rules,
+// so each gets its own section — and neither inherits from `linters-settings`,
+// which configures the source tree only. A section left out means built-in
+// defaults, not the severities the source tree is linted with.
+type RemoteSettings struct {
+	Bundle  global.Linters `mapstructure:"bundle"`
+	Release global.Linters `mapstructure:"release"`
 }
 
 type ModuleConfig struct {

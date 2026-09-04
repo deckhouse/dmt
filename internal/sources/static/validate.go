@@ -1,4 +1,20 @@
-package manager
+/*
+Copyright 2025 Flant JSC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package static
 
 import (
 	"errors"
@@ -8,12 +24,17 @@ import (
 	"strings"
 
 	"github.com/deckhouse/dmt/internal/modules"
+	dmtErrors "github.com/deckhouse/dmt/pkg/errors"
 )
 
-func (m *Manager) validateModule(path string) error {
+// validateModule is the source tree's pre-flight check. It reports through the
+// `module`/`definition-file` rule rather than under its own name, because what it
+// checks is what that rule checks — the remote scopes reach the same ground through
+// the bundle-layout and release-layout rules instead.
+func validateModule(path string, errorList *dmtErrors.LintRuleErrorsList) error {
 	var errs error
 
-	errorList := m.errors.WithLinterID("module").WithRule("definition-file").WithFilePath(path)
+	errorList = errorList.WithLinterID("module").WithRule("definition-file").WithFilePath(path)
 	// validate module.yaml and Chart.yaml
 	chartYamlFile, err := modules.ParseChartFile(path)
 	if err != nil {

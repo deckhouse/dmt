@@ -33,6 +33,11 @@ var (
 )
 
 var (
+	RemoteLogin    string
+	RemotePassword string
+)
+
+var (
 	PrintVersion      bool
 	Version           string
 	ValuesFile        string
@@ -104,6 +109,15 @@ func InitLintFlagSet() *pflag.FlagSet {
 	}
 
 	return lint
+}
+
+func InitRemoteFlagSet() *pflag.FlagSet {
+	remote := pflag.NewFlagSet("remote", pflag.ContinueOnError)
+
+	remote.StringVar(&RemoteLogin, "login", "", "registry login (defaults to $DMT_REGISTRY_LOGIN, then the Docker config)")
+	remote.StringVar(&RemotePassword, "password", "", "registry password (defaults to $DMT_REGISTRY_PASSWORD, then the Docker config)")
+
+	return remote
 }
 
 func InitBootstrapFlagSet() *pflag.FlagSet {

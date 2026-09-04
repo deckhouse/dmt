@@ -1,4 +1,4 @@
-package manager
+package static
 
 import (
 	"os"
@@ -21,12 +21,7 @@ func TestValidateModule(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(tempDir, "openapi", "values.yaml"), []byte(""), 0600)
 	_ = os.WriteFile(filepath.Join(tempDir, "openapi", "config-values.yaml"), []byte(""), 0600)
 
-	m := &Manager{
-		errors: &errors.LintRuleErrorsList{},
-	}
-
-	err := m.validateModule(tempDir)
-	require.NoError(t, err)
+	require.NoError(t, validateModule(tempDir, errors.NewLintRuleErrorsList()))
 }
 
 func TestGetNamespace(t *testing.T) {
