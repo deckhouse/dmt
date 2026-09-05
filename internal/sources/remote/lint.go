@@ -23,12 +23,14 @@ import (
 	"context"
 	stderrors "errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path"
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/name"
 
+	"github.com/deckhouse/deckhouse/pkg/log"
 	"github.com/deckhouse/deckhouse/pkg/registry"
 
 	"github.com/deckhouse/dmt/internal/manager"
@@ -103,19 +105,25 @@ func (s *Source) Targets(
 	ctx context.Context,
 	cfg *config.RootConfig,
 	_ *errors.LintRuleErrorsList,
-) ([]manager.Target, error) {
+	yield func(manager.Target) bool,
+) error {
 	bundle, bundleErr := s.target(ctx, s.client, scopes.Bundle, cfg)
 	release, releaseErr := s.target(ctx, s.client.WithSegment(releaseSegment), scopes.Release, cfg)
 
-	targets := make([]manager.Target, 0, 2)
+	// One module read twice, so the count the summary reports is one.
+	log.Info("Found modules", slog.Int("count", 1))
 
 	for _, t := range []*manager.Target{bundle, release} {
-		if t != nil {
-			targets = append(targets, *t)
+		if t == nil {
+			continue
+		}
+
+		if !yield(*t) {
+			break
 		}
 	}
 
-	return targets, stderrors.Join(bundleErr, releaseErr)
+	return stderrors.Join(bundleErr, releaseErr)
 }
 
 // target pulls one image and unpacks it into a module. Which linters the scope runs

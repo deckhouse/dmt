@@ -120,7 +120,14 @@ func synthesizeProperty(key string, prop *spec.Schema, result map[string]any) er
 
 func synthesizeString(key, pattern string, result map[string]any) error {
 	if pattern == "" {
-		pattern = `^[a-zA-Z0-9]{8}$`
+		// No pattern in the module's own values schema, so we invent a placeholder.
+		// Generate a lowercase kebab-case string (e.g. "abcd-efgh") rather than an
+		// arbitrary mixed-case one: such values routinely flow into resource name /
+		// namespace / label fields, which downstream CRD schemas constrain to the
+		// DNS-1123 label pattern `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`. A mixed-case
+		// placeholder fails that pattern and produces spurious schema-validation
+		// findings; a lowercase kebab value satisfies it.
+		pattern = `^[a-z]{4}-[a-z]{4}$`
 	}
 
 	const limit = 8
@@ -290,13 +297,29 @@ func synthesizeComposite(key string, prop *spec.Schema, branches []spec.Schema, 
 	downwardSchema := deepcopy.Copy(prop).(*spec.Schema)
 	mergedSchema := mergeSchemas(downwardSchema, branches...)
 
-	t, err := synthesizeProperties(mergedSchema)
-	if err != nil {
-		return err
+	if len(mergedSchema.Properties) > 0 {
+		t, err := synthesizeProperties(mergedSchema)
+		if err != nil {
+			return err
+		}
+
+		if t != nil {
+			result[key] = t
+		}
+
+		return nil
 	}
 
-	if t != nil {
-		result[key] = t
+	// No object shape to build: pick the first branch with a concrete scalar
+	// type (or enum) and generate that, so int-or-string style unions yield a
+	// valid scalar rather than an empty object.
+	for i := range branches {
+		branch := branches[i]
+		if len(branch.Enum) > 0 || branch.Type.Contains("string") ||
+			branch.Type.Contains("integer") || branch.Type.Contains("number") ||
+			branch.Type.Contains("boolean") {
+			return synthesizeProperty(key, &branch, result)
+		}
 	}
 
 	return nil

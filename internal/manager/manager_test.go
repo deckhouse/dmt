@@ -18,6 +18,7 @@ package manager
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -45,8 +46,19 @@ func (s *fakeSource) ConfigDir() string      { return "." }
 func (s *fakeSource) Scopes() []scopes.Scope { return s.scopes }
 func (s *fakeSource) Close()                 { s.closed = true }
 
-func (s *fakeSource) Targets(_ context.Context, _ *config.RootConfig, _ *errors.LintRuleErrorsList) ([]Target, error) {
-	return s.targets, s.err
+func (s *fakeSource) Targets(
+	_ context.Context,
+	_ *config.RootConfig,
+	_ *errors.LintRuleErrorsList,
+	yield func(Target) bool,
+) error {
+	for _, t := range s.targets {
+		if !yield(t) {
+			break
+		}
+	}
+
+	return s.err
 }
 
 // TestModuleCountCountsModulesNotTargets pins the number the summary reports. A
@@ -181,4 +193,102 @@ func TestLintModuleHonoursTheLinterFilter(t *testing.T) {
 	t.Run("filtered", func(t *testing.T) {
 		assert.Equal(t, []string{"module"}, lint(t, "module"))
 	})
+}
+
+// variantSource pushes variant targets and records, for each one, how many findings
+// the run had collected by the time yield handed control back.
+type variantSource struct {
+	targets []Target
+	// atReturn[i] is the finding count observed right after yield returned for
+	// target i.
+	atReturn []int
+}
+
+func (s *variantSource) ConfigDir() string      { return "." }
+func (s *variantSource) Scopes() []scopes.Scope { return []scopes.Scope{scopes.Bundle} }
+func (s *variantSource) Close()                 {}
+
+func (s *variantSource) Targets(
+	_ context.Context,
+	_ *config.RootConfig,
+	errorList *errors.LintRuleErrorsList,
+	yield func(Target) bool,
+) error {
+	for _, t := range s.targets {
+		if !yield(t) {
+			break
+		}
+
+		s.atReturn = append(s.atReturn, len(errorList.GetErrors()))
+	}
+
+	return nil
+}
+
+// TestVariantTargetsAreLintedBeforeTheSourceContinues pins the invariant a --matrix
+// run depends on: every render of a module writes a helper template into that
+// module's templates/ and removes it again, so the source must never render the next
+// variant while a linter is still walking the directory. The manager enforces it by
+// linting a variant target to completion before returning from yield — without which
+// a matrix run crashes outright on a path that vanishes mid-walk.
+//
+// The finding count is the observation: the bundle scope reports on every one of
+// these modules, so a target that has been linted has necessarily added findings by
+// the time the source is let go.
+func TestVariantTargetsAreLintedBeforeTheSourceContinues(t *testing.T) {
+	cfg, err := config.NewDefaultRootConfig(t.TempDir())
+	require.NoError(t, err)
+
+	targets := make([]Target, 0, 3)
+	for i := range 3 {
+		targets = append(targets, Target{
+			Module:   modules.NewRemoteModule(t.TempDir(), "mod", scopes.Bundle.Settings(cfg)),
+			Scope:    scopes.Bundle,
+			ModuleID: "mod",
+			ObjectID: fmt.Sprintf("variant-%d", i),
+			Variant:  true,
+		})
+	}
+
+	src := &variantSource{targets: targets}
+
+	m := New(cfg, src)
+	require.NoError(t, m.Run(t.Context()))
+
+	require.Len(t, src.atReturn, len(targets))
+
+	for i, count := range src.atReturn {
+		assert.Positive(t, count,
+			"variant %d was still being linted when the source was let go to render the next one", i)
+
+		if i > 0 {
+			assert.Greater(t, count, src.atReturn[i-1],
+				"variant %d added no findings before the source continued", i)
+		}
+	}
+}
+
+// TestPlainTargetsDoNotBlockTheSource is the other half: a run that renders each
+// module once has no directory to protect, so its targets must keep linting in the
+// background instead of paying the variant barrier's serialization.
+func TestPlainTargetsDoNotBlockTheSource(t *testing.T) {
+	cfg, err := config.NewDefaultRootConfig(t.TempDir())
+	require.NoError(t, err)
+
+	// One slot only, so a target that is linted synchronously would be finished by
+	// the time yield returns, exactly as the variant case asserts above.
+	flags.LintersLimit = 1
+
+	t.Cleanup(func() { flags.LintersLimit = 0 })
+
+	src := &variantSource{targets: []Target{{
+		Module:   modules.NewRemoteModule(t.TempDir(), "mod", scopes.Bundle.Settings(cfg)),
+		Scope:    scopes.Bundle,
+		ModuleID: "mod",
+	}}}
+
+	m := New(cfg, src)
+	require.NoError(t, m.Run(t.Context()))
+
+	assert.NotEmpty(t, m.GetErrors(), "the target still has to be linted by the time Run returns")
 }

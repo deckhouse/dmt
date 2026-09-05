@@ -187,14 +187,16 @@ func GetModuleValuesForValuesFile(modulePath, valuesFile string) (*spec.Schema, 
 	return schemas[ValuesSchema], nil
 }
 
+// OverrideValues deep-merges vals into the module's generated .Values tree, with
+// vals winning on conflicts. values is the flat .Values tree fed straight to the
+// renderer (see render.Options.Values), so vals must be merged at that same level
+// — e.g. a --values-file or a matrix variant's overrides carry `{<module>: {...},
+// global: {...}}` and set `.Values.<module>....`. Wrapping vals under a "Values"
+// key here would misplace it at `.Values.Values....`, where no template reads it.
 func OverrideValues(values, vals *chartutil.Values) error {
 	if vals == nil {
 		return nil
 	}
 
-	v := &chartutil.Values{
-		"Values": *vals,
-	}
-
-	return mergo.Merge(values, v, mergo.WithOverride)
+	return mergo.Merge(values, vals, mergo.WithOverride)
 }
