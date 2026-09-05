@@ -19,6 +19,7 @@ package fsutils
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -82,5 +83,49 @@ func assertEqualFiles(t *testing.T, actual, expected []string) {
 
 	if len(actual) != len(expected) {
 		t.Errorf("expected %d files, but got %d", len(expected), len(actual))
+	}
+}
+
+// TestGetFilesSurvivesUnstatablePath is the regression guard for a crash that took
+// down whole lint runs: filepath.Walk hands the callback a nil FileInfo for a path
+// it could not stat, and the callback used to dereference it. dmt itself creates
+// such paths — a render injects a helper template into the module's templates/ and
+// removes it again — so a linter walking that directory could hit an entry that had
+// just vanished and panic the process.
+//
+// A directory that is readable but not traversable reproduces it deterministically:
+// its children are listed, and the lstat of each one then fails.
+func TestGetFilesSurvivesUnstatablePath(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores the permission bits this test relies on")
+	}
+
+	root := t.TempDir()
+
+	readable := filepath.Join(root, "readable.yaml")
+	if err := os.WriteFile(readable, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	blocked := filepath.Join(root, "blocked")
+	if err := os.Mkdir(blocked, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(filepath.Join(blocked, "hidden.yaml"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Readable (r) but not traversable (no x): the entry is listed, its lstat fails.
+	if err := os.Chmod(blocked, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Cleanup(func() { _ = os.Chmod(blocked, 0o755) })
+
+	files := GetFiles(root, false)
+
+	if !slices.Contains(files, readable) {
+		t.Errorf("GetFiles dropped the readable file: %v", files)
 	}
 }

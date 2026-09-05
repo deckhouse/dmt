@@ -47,6 +47,11 @@ import (
 
 const (
 	baseRepoURL = "https://github.com/deckhouse/dmt/tree/main"
+
+	// logProgressEvery throttles the per-target "Run linters" line when a source
+	// pushes many renders of one module, as --matrix does: the first render and
+	// every Nth one afterwards are logged.
+	logProgressEvery = 50
 )
 
 func generateDocumentationURL(linterID, ruleID string) string {
@@ -71,6 +76,11 @@ type Target struct {
 	// ObjectID tags this target's findings. The remote source sets the scope name so
 	// bundle and release findings stay apart in the output; empty means no tag.
 	ObjectID string
+	// Variant marks this target as one of several renders of the same module, which
+	// is what a --matrix run produces. It turns on deduplication for the whole run:
+	// a finding that does not depend on the value combination being rendered is
+	// produced once per combination, and only one of those is worth printing.
+	Variant bool
 }
 
 // Source supplies the modules a run lints. It is the only thing that differs between
@@ -86,11 +96,23 @@ type Source interface {
 	// anything, so a run that finds no modules still reports the sections it would
 	// have linted with.
 	Scopes() []scopes.Scope
-	// Targets loads the modules to lint. Findings made while loading go into
-	// errorList; a returned error is one the run could not fold into a finding, e.g.
-	// a registry failure, and is reported after the findings are printed rather than
-	// instead of them.
-	Targets(ctx context.Context, cfg *config.RootConfig, errorList *errors.LintRuleErrorsList) ([]Target, error)
+	// Targets loads the modules to lint, handing each to yield as soon as it is
+	// built. Targets are pushed rather than returned as a slice because a --matrix
+	// run expands one module into many renders: yield blocks while the worker pool
+	// is full, so the source builds the next render only once an earlier one has
+	// been linted and freed, and a module that expands to thousands of renders never
+	// has more than the worker count of them resident. A false from yield means the
+	// run is over and the source must stop.
+	//
+	// Findings made while loading go into errorList; a returned error is one the run
+	// could not fold into a finding, e.g. a registry failure, and is reported after
+	// the findings are printed rather than instead of them.
+	Targets(
+		ctx context.Context,
+		cfg *config.RootConfig,
+		errorList *errors.LintRuleErrorsList,
+		yield func(Target) bool,
+	) error
 	// Close releases what the source allocated, e.g. image extraction directories.
 	// It runs after the findings are printed, so a finding must never name a path
 	// that only exists until Close.
@@ -98,10 +120,16 @@ type Source interface {
 }
 
 type Manager struct {
-	cfg     *config.RootConfig
-	source  Source
-	targets []Target
-	errors  *errors.LintRuleErrorsList
+	cfg    *config.RootConfig
+	source Source
+	errors *errors.LintRuleErrorsList
+	// moduleIDs holds the ModuleID of every target the source pushed. Targets are
+	// streamed and not kept — a --matrix run pushes far more of them than a summary
+	// would want to hold — so the module count is accumulated as they arrive.
+	moduleIDs set.Set
+	// dedupe is set by the first variant target, and collapses findings that repeat
+	// across the renders of one module. See Target.Variant.
+	dedupe bool
 	// startedAt marks the beginning of the run; PrintStatistics reports the
 	// wall-clock time elapsed since it, matching the mirror summary's Elapsed line.
 	// It is taken before the source loads anything, so for a remote run the pulls
@@ -116,48 +144,135 @@ func New(cfg *config.RootConfig, src Source) *Manager {
 		cfg:       cfg,
 		source:    src,
 		errors:    errors.NewLintRuleErrorsList().WithMaxLevel(&managerLevel),
+		moduleIDs: set.New(),
 		startedAt: time.Now(),
 	}
 }
 
-// Run loads the source's targets and lints them. The returned error is the source's:
-// the findings collected before it are still on the Manager, so the caller prints
-// them first and reports the error afterwards.
+// Run lints the targets the source pushes. The returned error is the source's: the
+// findings collected before it are still on the Manager, so the caller prints them
+// first and reports the error afterwards.
 func (m *Manager) Run(ctx context.Context) error {
-	targets, sourceErr := m.source.Targets(ctx, m.cfg, m.errors.WithLinterID("manager"))
-	m.targets = targets
-
-	log.Info("Found modules", slog.Int("count", m.moduleCount()))
-
 	wg := new(sync.WaitGroup)
 	// The send below happens before the goroutine that drains it, so an unbuffered
 	// channel deadlocks. --parallel is a user-supplied number and every caller is not
 	// a cobra command, so the floor lives here rather than at each entry point.
+	//
+	// The channel doubles as the bound on how many rendered modules are alive at
+	// once: a slot is taken before the source is let go to build the next target and
+	// released only once this one has been linted and freed. That is what keeps a
+	// --matrix run, which renders a module under thousands of value combinations,
+	// from holding more than the worker count of them.
 	processingCh := make(chan struct{}, max(flags.LintersLimit, 1))
 
-	for _, target := range targets {
+	var prog progress
+
+	lint := func(target Target) {
+		defer func() {
+			// Hand the rendered objects back to the pool as soon as this target is
+			// linted, then free the slot: the source is waiting on it to render the
+			// next one.
+			target.Module.Release()
+			<-processingCh
+			wg.Done()
+		}()
+
+		lintModule(ctx, target.Scope, target.Module, m.errorsFor(target))
+	}
+
+	sourceErr := m.source.Targets(ctx, m.cfg, m.errors.WithLinterID("manager"), func(target Target) bool {
 		processingCh <- struct{}{}
+
+		m.moduleIDs.Add(target.ModuleID)
+		m.dedupe = m.dedupe || target.Variant
+
+		prog.start(target)
 
 		wg.Add(1)
 
-		go func() {
-			defer func() {
-				<-processingCh
-				wg.Done()
-			}()
+		// A variant target shares a directory with the renders still to come, and
+		// rendering writes into it: a helper template is placed in the module's
+		// templates/ for the duration of each render and taken out again. A linter
+		// walking that directory while the next variant renders would see a file
+		// appear and vanish under it — findings against a path that no longer
+		// exists, or a walk that fails outright. So a variant is linted to
+		// completion before the source is let go to render another one.
+		//
+		// Only --matrix produces variant targets. An ordinary run renders each
+		// module once and never waits here, so its linters stay fully parallel.
+		if target.Variant {
+			lint(target)
 
-			log.Info("Run linters for module",
-				slog.String("module", target.Module.GetName()),
-				slog.String("scope", string(target.Scope)),
-			)
+			return true
+		}
 
-			lintModule(ctx, target.Scope, target.Module, m.errorsFor(target))
-		}()
-	}
+		go lint(target)
+
+		return true
+	})
+
+	prog.done()
 
 	wg.Wait()
 
 	return sourceErr
+}
+
+// progress throttles the per-target "Run linters" line. A --matrix run renders one
+// module under many value combinations, each of which would otherwise log the same
+// line; the renders of a module arrive consecutively, so counting the current run of
+// them is enough to log the first, every logProgressEvery-th, and the last. Only the
+// goroutine the source pushes targets from touches it, so it needs no locking.
+type progress struct {
+	target Target
+	count  int
+	// logged is the count the last line reported, so done can tell whether the final
+	// render of a module has already been announced.
+	logged int
+}
+
+// start announces that target is about to be linted, unless the throttle swallows
+// the line.
+func (p *progress) start(t Target) {
+	// A module linted in two scopes — the two images of a remote run — is two
+	// streams, not a repeated render, and each is announced.
+	if t.ModuleID != p.target.ModuleID || t.Scope != p.target.Scope {
+		p.done()
+
+		p.count, p.logged = 0, 0
+	}
+
+	p.target = t
+	p.count++
+
+	if p.count == 1 || p.count%logProgressEvery == 0 {
+		p.log()
+	}
+}
+
+// done reports where the stream the throttle was counting finished, unless its last
+// render was already logged. Call it once the source has pushed everything.
+func (p *progress) done() {
+	if p.count > 1 && p.logged != p.count {
+		p.log()
+	}
+}
+
+func (p *progress) log() {
+	p.logged = p.count
+
+	attrs := []any{
+		slog.String("module", p.target.Module.GetName()),
+		slog.String("scope", string(p.target.Scope)),
+	}
+
+	// Only a stream of several renders needs a counter; a plain run has one per
+	// module and the field would be noise.
+	if p.count > 1 {
+		attrs = append(attrs, slog.Int("render", p.count))
+	}
+
+	log.Info("Run linters for module", attrs...)
 }
 
 // Close releases the source's resources. It must be called after the findings are
@@ -176,14 +291,10 @@ func (m *Manager) errorsFor(t Target) *errors.LintRuleErrorsList {
 }
 
 // moduleCount counts modules, not targets: a remote run reads one module from two
-// images, and the summary must call that one module.
+// images and a --matrix run renders one module many times, and the summary must call
+// either of those one module.
 func (m *Manager) moduleCount() int {
-	ids := set.New()
-	for _, t := range m.targets {
-		ids.Add(t.ModuleID)
-	}
-
-	return ids.Size()
+	return m.moduleIDs.Size()
 }
 
 // MetricsSections returns the config sections this run linted with, in the form
@@ -218,13 +329,11 @@ func lintModule(ctx context.Context, sc scopes.Scope, m *modules.Module, errorLi
 }
 
 func (m *Manager) PrintResult() {
-	printResult(m.errors)
+	printResult(m.GetErrors())
 }
 
-// printResult renders a finished error list.
-func printResult(errorList *errors.LintRuleErrorsList) {
-	errs := errorList.GetErrors()
-
+// printResult renders a finished set of findings.
+func printResult(errs []pkg.LinterError) {
 	if len(errs) == 0 {
 		return
 	}
@@ -345,7 +454,40 @@ func (m *Manager) ApplyFixes() {
 // It is primarily intended for tests (e.g. the e2e framework) that need to
 // assert on the structured findings produced by the linters.
 func (m *Manager) GetErrors() []pkg.LinterError {
-	return m.errors.GetErrors()
+	errs := m.errors.GetErrors()
+
+	if m.dedupe {
+		return dedupeErrors(errs)
+	}
+
+	return errs
+}
+
+// dedupeErrors removes findings that are identical in every user-visible field. It
+// runs only for a run that rendered some module more than once (see Target.Variant):
+// the same resource is linted under many value combinations, so a finding that is
+// not specific to one of them would otherwise be reported once per combination.
+func dedupeErrors(errs []pkg.LinterError) []pkg.LinterError {
+	seen := make(map[string]struct{}, len(errs))
+	out := make([]pkg.LinterError, 0, len(errs))
+
+	for i := range errs {
+		e := errs[i]
+		key := strings.Join([]string{
+			e.LinterID, e.RuleID, e.ModuleID, e.ObjectID,
+			e.Level.String(), e.FilePath, e.Text,
+		}, "\x00")
+
+		if _, dup := seen[key]; dup {
+			continue
+		}
+
+		seen[key] = struct{}{}
+
+		out = append(out, e)
+	}
+
+	return out
 }
 
 // prepareString handle ussual string and prepare it for tablewriter

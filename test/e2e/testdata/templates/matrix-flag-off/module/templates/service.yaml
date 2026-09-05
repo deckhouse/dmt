@@ -1,0 +1,17 @@
+{{- if .Values.matrixFlag.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: matrix-flag-svc
+  namespace: matrix-flag
+spec:
+  selector:
+    app: matrix-flag
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+  # Invalid: `bogusField` is not part of the Service schema. Only reachable
+  # when enabled=true, i.e. only under --matrix.
+  bogusField: true
+{{- end }}

@@ -110,6 +110,7 @@ func (l *Templates) rules() []pkg.Rule {
 		rules.NewMountPointsRule(cfg.ExcludeRules.MountPoints.Get(), m, level(cfg.Rules.MountPointsRule)),
 		rules.NewHelmRenderRule(m, level(cfg.Rules.HelmRenderRule)),
 		rules.NewOpenAPIValuesQuoteRule(cfg.ExcludeRules.OpenAPIValuesQuote.Get(), m, level(cfg.Rules.OpenAPIValuesQuoteRule)),
+		rules.NewSchemaValidationRule(cfg.ExcludeRules.SchemaValidation.Get(), m, level(cfg.Rules.SchemaValidationRule)),
 	)
 }
 

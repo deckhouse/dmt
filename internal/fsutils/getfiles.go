@@ -30,7 +30,15 @@ func GetFiles(rootPath string, skipSymlink bool, filters ...filterFn) []string {
 		return result
 	}
 
-	_ = filepath.Walk(rootPath, func(path string, info os.FileInfo, _ error) error {
+	_ = filepath.Walk(rootPath, func(path string, info os.FileInfo, err error) error {
+		// Walk reports a path it could not stat with a nil info: a file removed
+		// between the directory listing and the stat, a directory it may not read.
+		// Every branch below dereferences info, so the entry has to be skipped here
+		// rather than crash the whole run over one unreadable path.
+		if err != nil || info == nil {
+			return nil
+		}
+
 		if skipSymlink && info.Mode()&os.ModeSymlink != 0 {
 			// Correct symlink handling: skip symlink directory, just skip symlink file
 			if info.IsDir() {

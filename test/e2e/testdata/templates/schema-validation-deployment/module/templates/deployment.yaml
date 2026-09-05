@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: e2e-deploy
+  namespace: e2e-schema-deployment
+spec:
+  # replicas must be an integer; a string value is a schema violation that the
+  # built-in Kubernetes Deployment schema catches.
+  replicas: "three"
+  selector:
+    matchLabels:
+      app: e2e-app
+  template:
+    metadata:
+      labels:
+        app: e2e-app
+    spec:
+      containers:
+        - name: main
+          image: e2e-app:latest

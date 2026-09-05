@@ -26,6 +26,7 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [webhook-configuration-annotations](#webhook-configuration-annotations) | Checks webhook configurations have werf.io/weight or deploy-dependency annotations | ✅ | enabled |
 | [mount-points](#mount-points) | Validates that mount-points.yaml directories are used as volumeMounts in pod controllers | ✅ | enabled |
 | [openapi-values-quote](#openapi-values-quote) | Requires templates to quote OpenAPI string values that have no `pattern`/`enum`/`format` | ✅ | enabled |
+| [schema-validation](#schema-validation) | Strictly decodes every rendered standard Kubernetes resource against its API type | ✅ | enabled |
 
 "Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
@@ -2863,3 +2864,75 @@ The linter now includes comprehensive validation for Grafana dashboards based on
 
 - **Required variable**: Ensures dashboards contain the required `ds_prometheus` variable of type `datasource`
 - **Query variables**: Validates that query variables use recommended datasource UIDs
+
+### schema-validation
+
+**Purpose:** Checks every rendered **standard Kubernetes** resource against the
+API it targets, catching fields of the wrong type and fields the API does not
+declare at lint time — before the resource is ever applied to a cluster.
+
+**Description:**
+
+After the module's templates are rendered, each resulting object is decoded into
+the Go type that serves its `apiVersion`/`kind` (e.g. `Deployment`, `Service`),
+strictly. Two things are reported:
+
+- **a field of the wrong type** — `replicas: "3"` where an integer is expected;
+- **a field the API does not declare** — a typo, a renamed key, or a value put at
+  the wrong level, such as `resources.memory` instead of
+  `resources.limits.memory`. This is the same error server-side apply reports as
+  "field not declared in schema", and each offending field is reported separately,
+  by its full path.
+
+The types come from the `k8s.io/api` version dmt is built against, so the check
+follows whatever Kubernetes release that is. Nothing is downloaded and no schema
+snapshot is embedded, so there is no catalog to regenerate and no way for the
+check to drift from the API types the rest of dmt already uses.
+
+**Custom resources are not checked.** Anything served by a
+CustomResourceDefinition — the module's own CRDs included — has no registered Go
+type and is skipped, as is any other unregistered kind. The rule reports
+violations, never the absence of a type, so a skipped resource is simply silent.
+
+**What it does not catch:** constraints that live in the OpenAPI schema rather
+than in the Go type — a missing required field, a value outside an enum, a
+`minimum`/`maxLength` bound. Those still surface at apply time.
+
+Nor is the **content** of a binary field judged (`Secret.data`, `ConfigMap.binaryData`,
+a webhook's `caBundle`). Such a field travels as base64, and dmt renders with values
+generated from the module's openapi schema rather than the ones a cluster supplies:
+a chart that passes a value straight through — expecting it to arrive already
+encoded — would otherwise be reported for a payload dmt itself invented. The shape
+around it is still checked, so a `data` that is not a map of strings still fails.
+
+**Why it matters:**
+
+Rendered templates frequently drift from the API they target: a value of the
+wrong type, a renamed field, a key indented one level off. Such issues otherwise
+surface only at `helm install` / apply time. Decoding against the real API types
+during lint moves that feedback left.
+
+Custom resources stay out of scope on purpose: the definition a cluster actually
+serves is not knowable from a source tree, so the only available answers would
+come from a third-party catalog that lags upstream or from a CRD that may not be
+the one installed. A false finding against a stale schema costs more than the
+check is worth.
+
+**Configuration:**
+
+```yaml
+linters-settings:
+  templates:
+    rules:
+      schema-validation:
+        impact: error   # or warn / ignore
+    exclude-rules:
+      schema-validation:
+        - kind: MyResource
+          name: my-resource
+```
+
+**Which Kubernetes version is checked against:**
+
+Whichever `k8s.io/api` is in `go.mod`. Bumping that dependency is the whole of
+updating this rule — there is nothing else to regenerate.
