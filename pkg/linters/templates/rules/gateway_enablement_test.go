@@ -32,6 +32,7 @@ metadata:
   name: dashboard
   namespace: d8-my-module
 `
+
 	const ungatedListenerSet = `apiVersion: gateway.networking.k8s.io/v1
 kind: ListenerSet
 metadata:
