@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2e-no-ingress-gateway-objects
+  namespace: e2e-no-ingress-gateway-objects
+data:
+  # This string would trip the deprecated-annotations rule if it ran, but the
+  # module has no Ingress/HTTPRoute/ListenerSet at all, so the rule must not run.
+  note: "alb.network.deckhouse.io/response-headers-to-add"

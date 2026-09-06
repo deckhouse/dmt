@@ -1,0 +1,11 @@
+description: >
+  A template that still sets the deprecated
+  `alb.network.deckhouse.io/response-headers-to-add` annotation must be flagged
+  by the deprecated-annotations rule instead of the native Gateway API
+  ResponseHeaderModifier filter.
+module: module
+expect:
+  - linter: templates
+    rule: deprecated-annotations
+    level: error
+    textContains: "alb.network.deckhouse.io/response-headers-to-add"

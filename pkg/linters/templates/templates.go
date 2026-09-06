@@ -111,6 +111,18 @@ func (l *Templates) rules() []pkg.Rule {
 		rules.NewHelmRenderRule(m, level(cfg.Rules.HelmRenderRule)),
 		rules.NewOpenAPIValuesQuoteRule(cfg.ExcludeRules.OpenAPIValuesQuote.Get(), m, level(cfg.Rules.OpenAPIValuesQuoteRule)),
 		rules.NewSchemaValidationRule(cfg.ExcludeRules.SchemaValidation.Get(), m, level(cfg.Rules.SchemaValidationRule)),
+		rules.NewDeprecatedAnnotationsRule(
+			cfg.ExcludeRules.DeprecatedAnnotations.Files.Get(),
+			cfg.ExcludeRules.DeprecatedAnnotations.Directories.Get(),
+			m, level(cfg.Rules.DeprecatedAnnotationsRule)),
+		rules.NewIngressEnablementRule(
+			cfg.ExcludeRules.IngressEnablement.Files.Get(),
+			cfg.ExcludeRules.IngressEnablement.Directories.Get(),
+			m, level(cfg.Rules.IngressEnablementRule)),
+		rules.NewGatewayEnablementRule(
+			cfg.ExcludeRules.GatewayEnablement.Files.Get(),
+			cfg.ExcludeRules.GatewayEnablement.Directories.Get(),
+			m, level(cfg.Rules.GatewayEnablementRule)),
 	)
 }
 

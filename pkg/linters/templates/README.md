@@ -27,6 +27,9 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [mount-points](#mount-points) | Validates that mount-points.yaml directories are used as volumeMounts in pod controllers | ✅ | enabled |
 | [openapi-values-quote](#openapi-values-quote) | Requires templates to quote OpenAPI string values that have no `pattern`/`enum`/`format` | ✅ | enabled |
 | [schema-validation](#schema-validation) | Strictly decodes every rendered standard Kubernetes resource against its API type | ✅ | enabled |
+| [deprecated-annotations](#deprecated-annotations) | Flags deprecated annotation keys (e.g. `alb.network.deckhouse.io/response-headers-to-add`) | ✅ | enabled |
+| [ingress-enablement](#ingress-enablement) | Requires Ingress creation to be gated by `helm_lib_module_ingress_enabled` | ✅ | enabled |
+| [gateway-enablement](#gateway-enablement) | Requires HTTPRoute/ListenerSet creation to be gated by `helm_lib_module_gateway_enabled` | ✅ | enabled |
 
 "Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
@@ -2936,3 +2939,308 @@ linters-settings:
 
 Whichever `k8s.io/api` is in `go.mod`. Bumping that dependency is the whole of
 updating this rule — there is nothing else to regenerate.
+
+---
+
+### deprecated-annotations
+
+**Purpose:** Flags module-specific annotation keys that have been superseded by
+a native Kubernetes/Gateway API mechanism, so authors migrate off them instead
+of copying the pattern into new templates.
+
+**Description:**
+
+Scans all template files (`.yaml`, `.yml`, `.tpl`) for a small built-in list of
+banned annotation keys and reports every occurrence, together with a concrete
+workaround snippet for the replacement. Today the list has one entry:
+`alb.network.deckhouse.io/response-headers-to-add`, deprecated in favor of the
+native Gateway API `ResponseHeaderModifier` HTTPRoute filter.
+
+**What it checks:**
+
+1. Only runs when the module actually renders an `Ingress`, `HTTPRoute`, or
+   `ListenerSet` — every banned annotation is specific to those resources, so a
+   module with none of them is skipped entirely
+2. All files in the `templates/` directory
+3. Presence of a banned annotation key, as plain text — it does not matter
+   whether the key appears as a YAML annotation or inside a Helm expression
+
+**Why it matters:**
+
+`alb.network.deckhouse.io/response-headers-to-add` predates Gateway API's own
+`ResponseHeaderModifier` filter and applies to every rule of the HTTPRoute
+object uniformly (there is no way to target one rule). The native filter is
+per-rule, standards-based, and portable to any Gateway API implementation —
+the annotation is a legacy-only escape hatch.
+
+**Examples:**
+
+❌ **Incorrect** - Setting the deprecated annotation:
+
+```yaml
+# templates/httproute.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: dashboard
+  annotations:
+    alb.network.deckhouse.io/response-headers-to-add: '{"Strict-Transport-Security":"max-age=31536000; includeSubDomains"}'
+spec:
+  rules:
+    - backendRefs:
+        - name: dashboard
+          port: 443
+```
+
+**Error:**
+```
+Error: Annotation "alb.network.deckhouse.io/response-headers-to-add" must not be used: deprecated in favor of the native Gateway API HTTPRoute ResponseHeaderModifier filter. Add this filter to the relevant HTTPRoute rule instead:
+  rules:
+  - backendRefs: [...]
+    matches: [...]
+    filters:
+    - type: ResponseHeaderModifier
+      responseHeaderModifier:
+        add:
+        - name: Strict-Transport-Security
+          value: max-age=31536000; includeSubDomains
+```
+
+✅ **Correct** - Using the native HTTPRoute filter:
+
+```yaml
+# templates/httproute.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: dashboard
+spec:
+  rules:
+    - backendRefs:
+        - name: dashboard
+          port: 443
+      filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            add:
+              - name: Strict-Transport-Security
+                value: max-age=31536000; includeSubDomains
+```
+
+**Configuration:**
+
+The rule supports excluding specific files and directories (paths are relative
+to the module root):
+
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  templates:
+    exclude-rules:
+      deprecated-annotations:
+        files:
+          - templates/legacy-ingress.yaml
+        directories:
+          - templates/vendor/
+```
+
+---
+
+### ingress-enablement
+
+**Purpose:** Ensures an Ingress's creation can be turned off the same way every
+other module's can: via `global.modules.ingress.enabled` or the module's own
+`<module>.ingress.enabled` override.
+
+**Description:**
+
+Scans every template file that emits a `kind: Ingress` manifest and reports the
+ones that never reference `helm_lib_module_ingress_enabled` — the shared
+`helm_lib` helper that checks the module override first, then the global
+setting, defaulting to enabled when neither is set — anywhere in the same
+file.
+
+**What it checks:**
+
+1. Only runs when the module actually renders an `Ingress`: a module with none
+   has nothing for this check to say
+2. Every file in `templates/` whose rendered output would contain
+   `kind: Ingress`
+3. That the same file also references `helm_lib_module_ingress_enabled`
+
+**This is a same-file, textual heuristic, not a template-scope analysis.** It
+does not verify that the helper actually gates the specific manifest it
+found — only that both the `kind: Ingress` line and the helper name appear
+somewhere in the same file. In every module observed so far the guard and the
+manifest it protects live in the same file (`{{- if eq (include
+"helm_lib_module_ingress_enabled" .) "true" }}` wrapping the whole
+document), so this catches the case that actually matters — an Ingress with no
+enablement check at all — without needing a real Helm control-flow parser.
+
+**Why it matters:**
+
+An Ingress that never checks the shared helper renders unconditionally: it
+cannot be disabled by an operator who sets `ingress.enabled: false` at either
+the global or the module level, and every module is expected to honor that
+knob the same way.
+
+**Examples:**
+
+❌ **Incorrect** - Ingress with no enablement check:
+
+```yaml
+# templates/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dashboard
+  namespace: d8-my-module
+spec:
+  rules:
+    - host: dashboard.example.com
+```
+
+**Error:**
+```
+Error: File creates a Ingress object but never checks "helm_lib_module_ingress_enabled", so its creation cannot be controlled via global.modules.ingress.enabled or myModule.ingress.enabled. Guard the manifest with {{- if eq (include "helm_lib_module_ingress_enabled" .) "true" }} ... {{- end }} so it can be disabled the same way every other module's Ingress does.
+```
+
+The exact `.Values` path named in the finding is computed from the module's own
+name (`myModule` above is `my-module` converted to camelCase), so it always
+matches what that module's own values.yaml actually calls it.
+
+✅ **Correct** - Guarded by the shared helper:
+
+```yaml
+# templates/ingress.yaml
+{{- if eq (include "helm_lib_module_ingress_enabled" .) "true" }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dashboard
+  namespace: d8-my-module
+spec:
+  rules:
+    - host: dashboard.example.com
+{{- end }}
+```
+
+**Configuration:**
+
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  templates:
+    exclude-rules:
+      ingress-enablement:
+        files:
+          - templates/ingress.yaml   # module has a documented reason to skip the helper
+        directories:
+          - templates/vendor/
+```
+
+---
+
+### gateway-enablement
+
+**Purpose:** The Gateway API counterpart of [ingress-enablement](#ingress-enablement):
+ensures HTTPRoute and ListenerSet creation can be turned off via
+`global.modules.gatewayAPI.enabled` or the module's own
+`<module>.gatewayAPI.enabled` override.
+
+**Description:**
+
+Scans every template file that emits a `kind: HTTPRoute` or `kind:
+ListenerSet` manifest and reports the ones that never reference
+`helm_lib_module_gateway_enabled` — the shared helper that requires both an
+enabled flag and a resolvable Gateway (module, then global, then
+`global.discovery.gatewayAPIDefaultGateway`) — anywhere in the same file.
+
+**What it checks:**
+
+1. Only runs when the module actually renders an `HTTPRoute` or `ListenerSet`:
+   a module with neither has nothing for this check to say
+2. Every file in `templates/` whose rendered output would contain
+   `kind: HTTPRoute` or `kind: ListenerSet`
+3. That the same file also references `helm_lib_module_gateway_enabled`
+
+Same same-file heuristic and trade-off as `ingress-enablement` — see that
+rule's description for the reasoning.
+
+**Why it matters:**
+
+Unlike Ingress, Gateway API has no safe default: a module cannot assume a
+Gateway exists the way it can assume an `nginx` IngressClass exists. A
+HTTPRoute/ListenerSet pair that skips `helm_lib_module_gateway_enabled` will
+either render with no usable parent Gateway, or fail to respect an operator's
+explicit `gatewayAPI.enabled: false`.
+
+**Examples:**
+
+❌ **Incorrect** - HTTPRoute with no enablement check:
+
+```yaml
+# templates/httproute.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: dashboard
+  namespace: d8-my-module
+spec:
+  hostnames:
+    - dashboard.example.com
+```
+
+**Error:**
+```
+Error: File creates a Gateway API (HTTPRoute/ListenerSet) object but never checks "helm_lib_module_gateway_enabled", so its creation cannot be controlled via global.modules.gatewayAPI.enabled or myModule.gatewayAPI.enabled, with a Gateway resolvable via global.discovery.gatewayAPIDefaultGateway, global.modules.gatewayAPI.gateway, or myModule.gatewayAPI.gateway. Guard the manifest with {{- if eq (include "helm_lib_module_gateway_enabled" .) "true" }} ... {{- end }} so it can be disabled the same way every other module's Gateway API (HTTPRoute/ListenerSet) does.
+```
+
+As with `ingress-enablement`, the `.Values` paths named in the finding are
+computed from the module's own name.
+
+✅ **Correct** - Guarded by the shared helper:
+
+```yaml
+# templates/httproute.yaml
+{{- $moduleGateway := dict }}
+{{- include "helm_lib_module_gateway" (list . $moduleGateway) }}
+{{- if and (eq (include "helm_lib_module_gateway_enabled" .) "true") .Values.global.modules.publicDomainTemplate }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: ListenerSet
+metadata:
+  name: dashboard
+  namespace: d8-my-module
+spec:
+  parentRef:
+    name: {{ $moduleGateway.name }}
+    namespace: {{ $moduleGateway.namespace }}
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: dashboard
+  namespace: d8-my-module
+spec:
+  hostnames:
+    - dashboard.example.com
+{{- end }}
+```
+
+**Configuration:**
+
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  templates:
+    exclude-rules:
+      gateway-enablement:
+        files:
+          - templates/multicluster/api-proxy/httproute.yaml
+        directories:
+          - templates/vendor/
+```

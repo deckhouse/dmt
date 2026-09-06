@@ -130,10 +130,13 @@ var staticRules = map[string]set.Set{
 	templates.ID: set.New(
 		templatesrules.CRDEnabledModulesRuleName,
 		templatesrules.ClusterDomainRuleName,
+		templatesrules.DeprecatedAnnotationsRuleName,
 		templatesrules.EnabledModulesRuleName,
+		templatesrules.GatewayEnablementRuleName,
 		templatesrules.GrafanaRuleName,
 		templatesrules.HTTPRouteRuleName,
 		templatesrules.HelmRenderRuleName,
+		templatesrules.IngressEnablementRuleName,
 		templatesrules.IngressRuleName,
 		templatesrules.KubeRbacProxyRuleName,
 		templatesrules.MountPointsRuleName,
