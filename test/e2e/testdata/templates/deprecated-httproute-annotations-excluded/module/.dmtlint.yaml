@@ -1,6 +1,6 @@
 linters-settings:
   templates:
     exclude-rules:
-      deprecated-annotations:
+      deprecated-httproute-annotations:
         files:
           - templates/httproute.yaml

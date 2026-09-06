@@ -1,13 +1,13 @@
 description: >
   A module that ships no Ingress, HTTPRoute, or ListenerSet at all must not
-  trigger deprecated-annotations, ingress-enablement, or gateway-enablement —
+  trigger deprecated-httproute-annotations, ingress-enablement, or gateway-enablement —
   even though the module's ConfigMap contains the literal banned annotation
-  string, which would otherwise trip deprecated-annotations. All three rules
+  string, which would otherwise trip deprecated-httproute-annotations. All three rules
   gate on the module actually rendering one of those kinds.
 module: module
 expectAbsent:
   - linter: templates
-    rule: deprecated-annotations
+    rule: deprecated-httproute-annotations
   - linter: templates
     rule: ingress-enablement
   - linter: templates

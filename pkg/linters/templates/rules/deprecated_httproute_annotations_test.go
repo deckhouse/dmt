@@ -85,7 +85,7 @@ func templatesMockModule(t *testing.T, modulePath string, storageKinds ...string
 	return m
 }
 
-func TestDeprecatedAnnotationsRule_Check(t *testing.T) {
+func TestDeprecatedHTTPRouteAnnotationsRule_Check(t *testing.T) {
 	const httprouteWithAnnotation = `apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -171,7 +171,7 @@ metadata:
 			modulePath := writeTemplatesModule(t, tt.templateFiles)
 
 			errorList := errors.NewLintRuleErrorsList()
-			NewDeprecatedAnnotationsRule(tt.exclude, nil, templatesMockModule(t, modulePath, tt.storageKinds...), errorList).Check(t.Context())
+			NewDeprecatedHTTPRouteAnnotationsRule(tt.exclude, nil, templatesMockModule(t, modulePath, tt.storageKinds...), errorList).Check(t.Context())
 
 			errs := errorList.GetErrors()
 			require.Len(t, errs, tt.wantCount)
@@ -198,7 +198,7 @@ metadata:
 	}
 }
 
-func TestDeprecatedAnnotationsRule_DirectoryExclusion(t *testing.T) {
+func TestDeprecatedHTTPRouteAnnotationsRule_DirectoryExclusion(t *testing.T) {
 	modulePath := writeTemplatesModule(t, map[string]string{
 		"templates/vendor/httproute.yaml": `metadata:
   annotations:
@@ -207,7 +207,7 @@ func TestDeprecatedAnnotationsRule_DirectoryExclusion(t *testing.T) {
 	})
 
 	errorList := errors.NewLintRuleErrorsList()
-	NewDeprecatedAnnotationsRule(
+	NewDeprecatedHTTPRouteAnnotationsRule(
 		nil,
 		[]pkg.DirectoryRuleExclude{"templates/vendor/"},
 		templatesMockModule(t, modulePath, "HTTPRoute"),

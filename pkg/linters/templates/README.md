@@ -27,7 +27,7 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [mount-points](#mount-points) | Validates that mount-points.yaml directories are used as volumeMounts in pod controllers | ✅ | enabled |
 | [openapi-values-quote](#openapi-values-quote) | Requires templates to quote OpenAPI string values that have no `pattern`/`enum`/`format` | ✅ | enabled |
 | [schema-validation](#schema-validation) | Strictly decodes every rendered standard Kubernetes resource against its API type | ✅ | enabled |
-| [deprecated-annotations](#deprecated-annotations) | Flags deprecated annotation keys (e.g. `alb.network.deckhouse.io/response-headers-to-add`) | ✅ | enabled |
+| [deprecated-httproute-annotations](#deprecated-httproute-annotations) | Flags deprecated annotation keys (e.g. `alb.network.deckhouse.io/response-headers-to-add`) | ✅ | enabled |
 | [ingress-enablement](#ingress-enablement) | Requires Ingress creation to be gated by `helm_lib_module_ingress_enabled` | ✅ | enabled |
 | [gateway-enablement](#gateway-enablement) | Requires HTTPRoute/ListenerSet creation to be gated by `helm_lib_module_gateway_enabled` | ✅ | enabled |
 
@@ -2942,11 +2942,13 @@ updating this rule — there is nothing else to regenerate.
 
 ---
 
-### deprecated-annotations
+### deprecated-httproute-annotations
 
-**Purpose:** Flags module-specific annotation keys that have been superseded by
-a native Kubernetes/Gateway API mechanism, so authors migrate off them instead
-of copying the pattern into new templates.
+**Purpose:** Flags annotation keys used to work around a missing native
+HTTPRoute setting — an ALB-specific annotation standing in for a field
+Gateway API's HTTPRoute now exposes directly — so authors migrate to the
+native field instead of copying the annotation-based workaround into new
+templates.
 
 **Description:**
 
@@ -3037,7 +3039,7 @@ to the module root):
 linters-settings:
   templates:
     exclude-rules:
-      deprecated-annotations:
+      deprecated-httproute-annotations:
         files:
           - templates/legacy-ingress.yaml
         directories:

@@ -234,43 +234,43 @@ type TemplatesSettings struct {
 }
 
 type TemplatesLinterRules struct {
-	VPARule                   RuleConfig `mapstructure:"vpa"`
-	PDBRule                   RuleConfig `mapstructure:"pdb"`
-	IngressRule               RuleConfig `mapstructure:"ingress"`
-	HTTPRouteRule             RuleConfig `mapstructure:"httproute"`
-	PrometheusRule            RuleConfig `mapstructure:"prometheus-rules"`
-	GrafanaRule               RuleConfig `mapstructure:"grafana-dashboards"`
-	KubeRBACProxyRule         RuleConfig `mapstructure:"kube-rbac-proxy"`
-	ServicePortRule           RuleConfig `mapstructure:"service-port"`
-	ClusterDomainRule         RuleConfig `mapstructure:"cluster-domain"`
-	RegistryRule              RuleConfig `mapstructure:"registry"`
-	EnabledModulesRule        RuleConfig `mapstructure:"enabled-modules"`
-	CRDEnabledModulesRule     RuleConfig `mapstructure:"crd-enabled-modules"`
-	WebhookConfigurationRule  RuleConfig `mapstructure:"webhook-configuration-annotations"`
-	MountPointsRule           RuleConfig `mapstructure:"mount-points"`
-	HelmRenderRule            RuleConfig `mapstructure:"helm-render"`
-	OpenAPIValuesQuoteRule    RuleConfig `mapstructure:"openapi-values-quote"`
-	SchemaValidationRule      RuleConfig `mapstructure:"schema-validation"`
-	DeprecatedAnnotationsRule RuleConfig `mapstructure:"deprecated-annotations"`
-	IngressEnablementRule     RuleConfig `mapstructure:"ingress-enablement"`
-	GatewayEnablementRule     RuleConfig `mapstructure:"gateway-enablement"`
+	VPARule                            RuleConfig `mapstructure:"vpa"`
+	PDBRule                            RuleConfig `mapstructure:"pdb"`
+	IngressRule                        RuleConfig `mapstructure:"ingress"`
+	HTTPRouteRule                      RuleConfig `mapstructure:"httproute"`
+	PrometheusRule                     RuleConfig `mapstructure:"prometheus-rules"`
+	GrafanaRule                        RuleConfig `mapstructure:"grafana-dashboards"`
+	KubeRBACProxyRule                  RuleConfig `mapstructure:"kube-rbac-proxy"`
+	ServicePortRule                    RuleConfig `mapstructure:"service-port"`
+	ClusterDomainRule                  RuleConfig `mapstructure:"cluster-domain"`
+	RegistryRule                       RuleConfig `mapstructure:"registry"`
+	EnabledModulesRule                 RuleConfig `mapstructure:"enabled-modules"`
+	CRDEnabledModulesRule              RuleConfig `mapstructure:"crd-enabled-modules"`
+	WebhookConfigurationRule           RuleConfig `mapstructure:"webhook-configuration-annotations"`
+	MountPointsRule                    RuleConfig `mapstructure:"mount-points"`
+	HelmRenderRule                     RuleConfig `mapstructure:"helm-render"`
+	OpenAPIValuesQuoteRule             RuleConfig `mapstructure:"openapi-values-quote"`
+	SchemaValidationRule               RuleConfig `mapstructure:"schema-validation"`
+	DeprecatedHTTPRouteAnnotationsRule RuleConfig `mapstructure:"deprecated-httproute-annotations"`
+	IngressEnablementRule              RuleConfig `mapstructure:"ingress-enablement"`
+	GatewayEnablementRule              RuleConfig `mapstructure:"gateway-enablement"`
 }
 
 type TemplatesExcludeRules struct {
-	VPAAbsent             KindRuleExcludeList       `mapstructure:"vpa"`
-	PDBAbsent             KindRuleExcludeList       `mapstructure:"pdb"`
-	ServicePort           ServicePortExcludeList    `mapstructure:"service-port"`
-	KubeRBACProxy         StringRuleExcludeList     `mapstructure:"kube-rbac-proxy"`
-	Ingress               KindRuleExcludeList       `mapstructure:"ingress"`
-	HTTPRoute             KindRuleExcludeList       `mapstructure:"httproute"`
-	EnabledModules        EnabledModulesExcludeRule `mapstructure:"enabled-modules"`
-	WebhookConfiguration  KindRuleExcludeList       `mapstructure:"webhook-configuration-annotations"`
-	MountPoints           StringRuleExcludeList     `mapstructure:"mount-points"`
-	OpenAPIValuesQuote    StringRuleExcludeList     `mapstructure:"openapi-values-quote"`
-	SchemaValidation      KindRuleExcludeList       `mapstructure:"schema-validation"`
-	DeprecatedAnnotations PathRuleExclude           `mapstructure:"deprecated-annotations"`
-	IngressEnablement     PathRuleExclude           `mapstructure:"ingress-enablement"`
-	GatewayEnablement     PathRuleExclude           `mapstructure:"gateway-enablement"`
+	VPAAbsent                      KindRuleExcludeList       `mapstructure:"vpa"`
+	PDBAbsent                      KindRuleExcludeList       `mapstructure:"pdb"`
+	ServicePort                    ServicePortExcludeList    `mapstructure:"service-port"`
+	KubeRBACProxy                  StringRuleExcludeList     `mapstructure:"kube-rbac-proxy"`
+	Ingress                        KindRuleExcludeList       `mapstructure:"ingress"`
+	HTTPRoute                      KindRuleExcludeList       `mapstructure:"httproute"`
+	EnabledModules                 EnabledModulesExcludeRule `mapstructure:"enabled-modules"`
+	WebhookConfiguration           KindRuleExcludeList       `mapstructure:"webhook-configuration-annotations"`
+	MountPoints                    StringRuleExcludeList     `mapstructure:"mount-points"`
+	OpenAPIValuesQuote             StringRuleExcludeList     `mapstructure:"openapi-values-quote"`
+	SchemaValidation               KindRuleExcludeList       `mapstructure:"schema-validation"`
+	DeprecatedHTTPRouteAnnotations PathRuleExclude           `mapstructure:"deprecated-httproute-annotations"`
+	IngressEnablement              PathRuleExclude           `mapstructure:"ingress-enablement"`
+	GatewayEnablement              PathRuleExclude           `mapstructure:"gateway-enablement"`
 }
 
 type EnabledModulesExcludeRule struct {

@@ -1,6 +1,6 @@
 description: >
   A module whose .dmtlint.yaml excludes templates/httproute.yaml from the
-  deprecated-annotations rule via exclude-rules.deprecated-annotations.files
+  deprecated-httproute-annotations rule via exclude-rules.deprecated-httproute-annotations.files
   must not be flagged for that file, even though it still sets the deprecated
   alb.network.deckhouse.io/response-headers-to-add annotation. This proves the
   exclude-rules configuration is actually wired from .dmtlint.yaml through to
@@ -8,4 +8,4 @@ description: >
 module: module
 expectAbsent:
   - linter: templates
-    rule: deprecated-annotations
+    rule: deprecated-httproute-annotations

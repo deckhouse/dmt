@@ -140,26 +140,26 @@ type TemplatesLinterConfig struct {
 }
 
 type TemplatesLinterRules struct {
-	VPARule                   RuleConfig `mapstructure:"vpa"`
-	PDBRule                   RuleConfig `mapstructure:"pdb"`
-	IngressRule               RuleConfig `mapstructure:"ingress"`
-	HTTPRouteRule             RuleConfig `mapstructure:"httproute"`
-	PrometheusRule            RuleConfig `mapstructure:"prometheus-rules"`
-	GrafanaRule               RuleConfig `mapstructure:"grafana-dashboards"`
-	KubeRBACProxyRule         RuleConfig `mapstructure:"kube-rbac-proxy"`
-	ServicePortRule           RuleConfig `mapstructure:"service-port"`
-	ClusterDomainRule         RuleConfig `mapstructure:"cluster-domain"`
-	RegistryRule              RuleConfig `mapstructure:"registry"`
-	EnabledModulesRule        RuleConfig `mapstructure:"enabled-modules"`
-	CRDEnabledModulesRule     RuleConfig `mapstructure:"crd-enabled-modules"`
-	WebhookConfigurationRule  RuleConfig `mapstructure:"webhook-configuration-annotations"`
-	MountPointsRule           RuleConfig `mapstructure:"mount-points"`
-	HelmRenderRule            RuleConfig `mapstructure:"helm-render"`
-	OpenAPIValuesQuoteRule    RuleConfig `mapstructure:"openapi-values-quote"`
-	SchemaValidationRule      RuleConfig `mapstructure:"schema-validation"`
-	DeprecatedAnnotationsRule RuleConfig `mapstructure:"deprecated-annotations"`
-	IngressEnablementRule     RuleConfig `mapstructure:"ingress-enablement"`
-	GatewayEnablementRule     RuleConfig `mapstructure:"gateway-enablement"`
+	VPARule                            RuleConfig `mapstructure:"vpa"`
+	PDBRule                            RuleConfig `mapstructure:"pdb"`
+	IngressRule                        RuleConfig `mapstructure:"ingress"`
+	HTTPRouteRule                      RuleConfig `mapstructure:"httproute"`
+	PrometheusRule                     RuleConfig `mapstructure:"prometheus-rules"`
+	GrafanaRule                        RuleConfig `mapstructure:"grafana-dashboards"`
+	KubeRBACProxyRule                  RuleConfig `mapstructure:"kube-rbac-proxy"`
+	ServicePortRule                    RuleConfig `mapstructure:"service-port"`
+	ClusterDomainRule                  RuleConfig `mapstructure:"cluster-domain"`
+	RegistryRule                       RuleConfig `mapstructure:"registry"`
+	EnabledModulesRule                 RuleConfig `mapstructure:"enabled-modules"`
+	CRDEnabledModulesRule              RuleConfig `mapstructure:"crd-enabled-modules"`
+	WebhookConfigurationRule           RuleConfig `mapstructure:"webhook-configuration-annotations"`
+	MountPointsRule                    RuleConfig `mapstructure:"mount-points"`
+	HelmRenderRule                     RuleConfig `mapstructure:"helm-render"`
+	OpenAPIValuesQuoteRule             RuleConfig `mapstructure:"openapi-values-quote"`
+	SchemaValidationRule               RuleConfig `mapstructure:"schema-validation"`
+	DeprecatedHTTPRouteAnnotationsRule RuleConfig `mapstructure:"deprecated-httproute-annotations"`
+	IngressEnablementRule              RuleConfig `mapstructure:"ingress-enablement"`
+	GatewayEnablementRule              RuleConfig `mapstructure:"gateway-enablement"`
 }
 
 func (c LinterConfig) IsWarn() bool {

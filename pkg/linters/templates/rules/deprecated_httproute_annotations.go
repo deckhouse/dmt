@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	DeprecatedAnnotationsRuleName = "deprecated-annotations"
+	DeprecatedHTTPRouteAnnotationsRuleName = "deprecated-httproute-annotations"
 )
 
 // deprecatedAnnotation is one annotation key that must no longer appear in
@@ -59,7 +59,7 @@ var deprecatedAnnotations = []deprecatedAnnotation{
 	},
 }
 
-type DeprecatedAnnotationsRule struct {
+type DeprecatedHTTPRouteAnnotationsRule struct {
 	pkg.RuleMeta
 	pkg.PathRule
 
@@ -67,23 +67,23 @@ type DeprecatedAnnotationsRule struct {
 	errorList *errors.LintRuleErrorsList
 }
 
-func NewDeprecatedAnnotationsRule(excludeFileRules []pkg.StringRuleExclude,
+func NewDeprecatedHTTPRouteAnnotationsRule(excludeFileRules []pkg.StringRuleExclude,
 	excludeDirectoryRules []pkg.DirectoryRuleExclude,
-	m pkg.Module, errorList *errors.LintRuleErrorsList) *DeprecatedAnnotationsRule {
-	return &DeprecatedAnnotationsRule{
+	m pkg.Module, errorList *errors.LintRuleErrorsList) *DeprecatedHTTPRouteAnnotationsRule {
+	return &DeprecatedHTTPRouteAnnotationsRule{
 		RuleMeta: pkg.RuleMeta{
-			Name: DeprecatedAnnotationsRuleName,
+			Name: DeprecatedHTTPRouteAnnotationsRuleName,
 		},
 		PathRule: pkg.PathRule{
 			ExcludeStringRules:    excludeFileRules,
 			ExcludeDirectoryRules: excludeDirectoryRules,
 		},
 		module:    m,
-		errorList: errorList.WithRule(DeprecatedAnnotationsRuleName),
+		errorList: errorList.WithRule(DeprecatedHTTPRouteAnnotationsRuleName),
 	}
 }
 
-var _ pkg.Rule = (*DeprecatedAnnotationsRule)(nil)
+var _ pkg.Rule = (*DeprecatedHTTPRouteAnnotationsRule)(nil)
 
 // Check scans every template file for the annotation keys in deprecatedAnnotations
 // and reports each occurrence, regardless of whether the key appears as a plain
@@ -93,7 +93,7 @@ var _ pkg.Rule = (*DeprecatedAnnotationsRule)(nil)
 // The rule only runs when the module actually renders an Ingress, HTTPRoute, or
 // ListenerSet: every entry in deprecatedAnnotations is specific to those
 // resources, so a module with none of them has nothing for this check to say.
-func (r *DeprecatedAnnotationsRule) Check(_ context.Context) {
+func (r *DeprecatedHTTPRouteAnnotationsRule) Check(_ context.Context) {
 	m := r.module
 
 	if !storageHasKind(m, "Ingress", "HTTPRoute", "ListenerSet") {
@@ -124,7 +124,7 @@ func (r *DeprecatedAnnotationsRule) Check(_ context.Context) {
 	}
 }
 
-func (r *DeprecatedAnnotationsRule) checkContent(relPath string, content []byte) {
+func (r *DeprecatedHTTPRouteAnnotationsRule) checkContent(relPath string, content []byte) {
 	for _, annotation := range deprecatedAnnotations {
 		re := regexp.MustCompile(regexp.QuoteMeta(annotation.Key))
 
