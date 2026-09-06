@@ -418,6 +418,9 @@ func mapTemplatesRules(linterSettings *pkg.LintersSettings, configSettings *conf
 	rules.HelmRenderRule.SetLevel(globalRules.HelmRenderRule.Impact, fallbackImpact)
 	rules.OpenAPIValuesQuoteRule.SetLevel(globalRules.OpenAPIValuesQuoteRule.Impact, fallbackImpact)
 	rules.SchemaValidationRule.SetLevel(globalRules.SchemaValidationRule.Impact, fallbackImpact)
+	rules.DeprecatedAnnotationsRule.SetLevel(globalRules.DeprecatedAnnotationsRule.Impact, fallbackImpact)
+	rules.IngressEnablementRule.SetLevel(globalRules.IngressEnablementRule.Impact, fallbackImpact)
+	rules.GatewayEnablementRule.SetLevel(globalRules.GatewayEnablementRule.Impact, fallbackImpact)
 }
 
 // mapOpenAPIRules configures OpenAPI linter rules
@@ -552,6 +555,12 @@ func mapTemplatesExclusionsAndSettings(linterSettings *pkg.LintersSettings, conf
 	excludes.MountPoints = pkg.StringRuleExcludeList(configExcludes.MountPoints)
 	excludes.OpenAPIValuesQuote = pkg.StringRuleExcludeList(configExcludes.OpenAPIValuesQuote)
 	excludes.SchemaValidation = configExcludes.SchemaValidation.Get()
+	excludes.DeprecatedAnnotations.Files = pkg.StringRuleExcludeList(configExcludes.DeprecatedAnnotations.Files)
+	excludes.DeprecatedAnnotations.Directories = pkg.DirectoryRuleExcludeList(configExcludes.DeprecatedAnnotations.Directories)
+	excludes.IngressEnablement.Files = pkg.StringRuleExcludeList(configExcludes.IngressEnablement.Files)
+	excludes.IngressEnablement.Directories = pkg.DirectoryRuleExcludeList(configExcludes.IngressEnablement.Directories)
+	excludes.GatewayEnablement.Files = pkg.StringRuleExcludeList(configExcludes.GatewayEnablement.Files)
+	excludes.GatewayEnablement.Directories = pkg.DirectoryRuleExcludeList(configExcludes.GatewayEnablement.Directories)
 
 	// Additional settings
 	linterSettings.Templates.PrometheusRuleSettings.Disable = configSettings.Templates.PrometheusRules.Disable
