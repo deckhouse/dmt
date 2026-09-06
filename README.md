@@ -45,7 +45,7 @@ DMT includes **9 specialized linters** to validate different aspects of your Dec
 | [**NoCyrillic**](pkg/linters/no-cyrillic/README.md) | Character encoding | Cyrillic characters in code/config files |
 | [**OpenAPI**](pkg/linters/openapi/README.md) | OpenAPI schemas | Schema validation, CRD definitions, naming conventions |
 | [**RBAC**](pkg/linters/rbac/README.md) | Security policies | Role bindings, service accounts, wildcards |
-| [**Templates**](pkg/linters/templates/README.md) | Kubernetes templates | VPA/PDB settings, Prometheus rules, Grafana dashboards, service ports, mount-points |
+| [**Templates**](pkg/linters/templates/README.md) | Kubernetes templates | VPA/PDB settings, Prometheus rules, Grafana dashboards, service ports, mount-points, Ingress/Gateway API enablement, deprecated annotations |
 
 ### 🚀 Module Bootstrapping
 

@@ -203,6 +203,45 @@ func (e *KindRuleExclude) Enabled(kind, name string) bool {
 	return true
 }
 
+// ListenerSetRedirectExclude excludes one ListenerSet HTTPS listener section from
+// the listenerset-redirect rule (a host that is intentionally not exposed over
+// plain HTTP). It is keyed by the listener's section name rather than its
+// hostname, because hostnames are rendered from publicDomainTemplate and are not
+// known in advance, while section names are stable literals in the template. An
+// empty ListenerSet or Section is a wildcard, so {Section: "istio-metadata"}
+// excludes that section in any ListenerSet, and {ListenerSet: "istio", Section:
+// "istio-metadata"} scopes it to one.
+type ListenerSetRedirectExclude struct {
+	ListenerSet string
+	Section     string
+}
+
+func (e *ListenerSetRedirectExclude) Enabled(listenerSet, section string) bool {
+	if (e.ListenerSet == "" || e.ListenerSet == listenerSet) &&
+		(e.Section == "" || e.Section == section) {
+		return false
+	}
+
+	return true
+}
+
+// HTTPRouteRedirectExclude excludes one ListenerSet redirect section from the
+// httproute-redirect rule (a port 80 section intentionally left without a
+// redirecting HTTPRoute). An empty ListenerSet or Section is a wildcard.
+type HTTPRouteRedirectExclude struct {
+	ListenerSet string
+	Section     string
+}
+
+func (e *HTTPRouteRedirectExclude) Enabled(listenerSet, section string) bool {
+	if (e.ListenerSet == "" || e.ListenerSet == listenerSet) &&
+		(e.Section == "" || e.Section == section) {
+		return false
+	}
+
+	return true
+}
+
 type ContainerRuleExclude struct {
 	Kind      string
 	Name      string
