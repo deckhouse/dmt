@@ -16,7 +16,7 @@ The Module linter includes the following validation rules:
 | [**oss**](#oss) | Validates open-source software attribution in `oss.yaml` | ✅ Yes |
 | [**conversions**](#conversions) | Validates OpenAPI conversion files and documentation | ✅ Yes |
 | [**helmignore**](#helmignore) | Validates `.helmignore` file presence and content | ✅ Yes |
-| [**helmignore-leftovers**](#helmignore-leftovers) | Reports files a bundle image ships despite its `.helmignore` | ✅ Yes |
+| [**helmignore-coverage**](#helmignore-coverage) | Reports bundle-image files no `.helmignore` pattern excludes | ✅ Yes |
 | [**license**](#license) | Validates license headers in source files | ✅ Yes |
 | [**requirements**](#requirements) | Validates version requirements for features | ❌ No |
 | [**package-yaml**](#package-yaml) | Validates `package.yaml` metadata and new requirements schema | ✅ Yes |
@@ -299,22 +299,22 @@ openapi/
 # Chart.yaml
 ```
 
-**Scope:** `static` only. Whether the patterns actually took effect is checked by
-[helmignore-leftovers](#helmignore-leftovers) against the built image.
+**Scope:** `static` only. Whether the patterns cover what the module actually ships is
+checked by [helmignore-coverage](#helmignore-coverage) against the built image.
 
 ---
 
-### Helmignore-leftovers
+### Helmignore-coverage
 
-Reports entries in the bundle image root that its own `.helmignore` excludes.
+Reports entries in the bundle image root that no `.helmignore` pattern excludes — files Helm would therefore pull into the chart.
 
-**Purpose:** `.helmignore` takes effect when the chart is packed, so the source tree cannot show whether it worked. This rule reads the packed result and reports what survived a pattern that was supposed to strip it — build junk, a stray `.git`, an `images/` directory that leaked into the published module.
+**Purpose:** an uncovered non-chart file bloats every chart Helm packs from the module. This is the same check the `helmignore` rule used to run over the source tree, moved to the image: CI writes scratch files into a checkout, and each one read as an uncovered entry. The image holds only what werf's `includePaths` let through, so what it carries is what the module actually ships.
 
 **Checks:**
-- ✅ No package-root entry matches a `.helmignore` pattern while still being present
-- ✅ Entries the bundle carries on purpose are exempt — `module.yaml`, `docs/`, `openapi/`, `crds/`, `hooks/` and the rest of the metadata Deckhouse reads off the filesystem rather than through Helm
+- ✅ Every package-root entry is matched by a `.helmignore` pattern
+- ✅ Chart material needs no pattern and is exempt — `templates/`, `charts/`, `monitoring/`, `Chart.yaml`, `values.yaml`, plus the build-generated `images_digests.json`, which exists in no source tree
 
-Only the package root is walked, and only patterns the module wrote itself apply: junk no `.helmignore` mentions is not reported.
+Findings are reported at `warn`. Only the package root is walked, and only patterns the module wrote itself apply.
 
 **Scope:** `bundle` only. It needs a packed tree; running it over a source tree would report the scratch files CI writes and the build never ships.
 

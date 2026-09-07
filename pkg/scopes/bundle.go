@@ -40,7 +40,7 @@ import (
 var bundleRules = map[string]set.Set{
 	moduleLinter.ID: set.New(
 		modulerules.BundleLayoutRuleName,
-		modulerules.HelmignoreLeftoversRuleName,
+		modulerules.HelmignoreCoverageRuleName,
 	),
 	docs.ID: set.New(
 		docsrules.ReadmeRuleName,
