@@ -48,10 +48,13 @@ import (
 	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/manager"
 	"github.com/deckhouse/dmt/internal/metrics"
+	"github.com/deckhouse/dmt/internal/modules"
 	"github.com/deckhouse/dmt/internal/sources/static"
 	"github.com/deckhouse/dmt/internal/test"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/config"
+	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/scopes"
 )
 
 // Case kinds. A case either lints a module (KindLint, the default) or runs the
@@ -60,6 +63,7 @@ const (
 	KindLint        = "lint"
 	KindConversions = "conversions"
 	KindFix         = "fix"
+	KindBundle      = "bundle"
 )
 
 // Finding declares one expected lint finding for a case.
@@ -101,7 +105,9 @@ type CaseSpec struct {
 	// Skip, when true, causes the test case to be skipped (t.Skip).
 	Skip bool `yaml:"skip"`
 	// Kind selects what to run against the module: "lint" (default) runs the
-	// full lint pipeline, "conversions" runs the `dmt test conversions` testers.
+	// full lint pipeline, "bundle" runs the bundle scope over the module
+	// directory as if it were an unpacked bundle image, "conversions" runs the
+	// `dmt test conversions` testers.
 	// For conversions cases, findings are exposed with linter ID "conversions"
 	// and ObjectID set to the test name, so the same expectations apply.
 	Kind string `yaml:"kind"`
@@ -158,6 +164,8 @@ func Run(kind, moduleDir string, matrix bool) ([]pkg.LinterError, error) {
 		return RunConversions(moduleDir)
 	case KindFix:
 		return RunFix(moduleDir)
+	case KindBundle:
+		return LintBundle(moduleDir)
 	case KindLint, "":
 		return Lint(moduleDir, matrix)
 	default:
@@ -208,6 +216,78 @@ func Lint(moduleDir string, matrix bool) ([]pkg.LinterError, error) {
 	_ = mng.Run(context.Background())
 
 	return mng.GetErrors(), nil
+}
+
+// LintBundle runs the bundle scope over a module directory, treating it as an image
+// that has already been pulled and unpacked, and returns all findings.
+//
+// The registry path is deliberately not re-tested here: pulling and extracting have
+// their own tests in internal/sources/remote, and a fake registry would only put a
+// layer between the fixture and the rule under test. What this covers is the half a
+// unit test cannot — that the bundle scope's rule table, its `remote.bundle` config
+// section and its linters actually produce the finding.
+func LintBundle(moduleDir string) ([]pkg.LinterError, error) {
+	tmpRoot, err := os.MkdirTemp("", "dmt-e2e-*")
+	if err != nil {
+		return nil, fmt.Errorf("create temp dir: %w", err)
+	}
+	defer os.RemoveAll(tmpRoot)
+
+	target := filepath.Join(tmpRoot, filepath.Base(moduleDir))
+	if err := copyDir(moduleDir, target); err != nil {
+		return nil, fmt.Errorf("copy module: %w", err)
+	}
+
+	initLintFlagsOnce()
+
+	cfg, err := config.NewDefaultRootConfig(target)
+	if err != nil {
+		return nil, fmt.Errorf("load config: %w", err)
+	}
+
+	metrics.GetClient(target)
+
+	mng := manager.New(cfg, bundleSource{dir: target})
+	defer mng.Close()
+
+	_ = mng.Run(context.Background())
+
+	return mng.GetErrors(), nil
+}
+
+// bundleSource yields one bundle-scope target over a directory on disk. It stands in
+// for internal/sources/remote, which reaches the same modules.NewRemoteModule through
+// a registry pull.
+type bundleSource struct {
+	dir string
+}
+
+var _ manager.Source = bundleSource{}
+
+func (s bundleSource) ConfigDir() string { return s.dir }
+
+func (s bundleSource) Scopes() []scopes.Scope { return []scopes.Scope{scopes.Bundle} }
+
+func (s bundleSource) Close() {}
+
+func (s bundleSource) Targets(
+	_ context.Context,
+	cfg *config.RootConfig,
+	_ *errors.LintRuleErrorsList,
+	yield func(manager.Target) bool,
+) error {
+	// The name comes from the image reference in a real remote run, so the directory
+	// name is the closest a fixture has.
+	name := filepath.Base(s.dir)
+
+	yield(manager.Target{
+		Module:   modules.NewRemoteModule(s.dir, name, scopes.Bundle.Settings(cfg)),
+		Scope:    scopes.Bundle,
+		ModuleID: name,
+		ObjectID: string(scopes.Bundle),
+	})
+
+	return nil
 }
 
 // RunFix runs the lint pipeline with --fix: the run collects findings with

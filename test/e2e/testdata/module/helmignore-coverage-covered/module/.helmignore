@@ -1,0 +1,5 @@
+hooks/
+openapi/
+docs/
+module.yaml
+oss.yaml
