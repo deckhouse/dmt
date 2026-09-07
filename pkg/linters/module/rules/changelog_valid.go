@@ -32,14 +32,7 @@ const (
 	ChangelogFilename      = "changelog.yaml"
 )
 
-// ChangelogValidRule reports a changelog.yaml the release image ships that cannot be
-// parsed. Deckhouse reads this file to render the release notes for a version, so a
-// broken one is not a cosmetic problem: the release lands with no notes at all.
-//
-// Presence is not this rule's business — release-layout is what makes a missing
-// changelog.yaml a finding, and this rule stays quiet when the file is absent. That is
-// the same split definition-file and package-yaml follow, and it is what lets the rule
-// be asked for by a scope whose image legitimately carries no changelog.
+// ChangelogValidRule reports a changelog.yaml the release image ships that cannot be parsed.
 type ChangelogValidRule struct {
 	pkg.RuleMeta
 
@@ -76,11 +69,6 @@ func (r *ChangelogValidRule) Check(_ context.Context) {
 		return
 	}
 
-	// Syntax only, on purpose: the shape of a changelog entry is the changelog
-	// builder's business and grows without warning, so asserting one here would turn
-	// the next format addition into a finding against a release that is perfectly
-	// fine. An empty file parses to nil and is therefore not a finding either — the
-	// changelog rule is what reports an empty changelog, in the source tree.
 	var value any
 	if err := yaml.Unmarshal(raw, &value); err != nil {
 		errorList.Errorf("invalid YAML in %s:\n%s", ChangelogFilename, err)
