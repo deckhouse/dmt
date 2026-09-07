@@ -1,5 +1,5 @@
 /*
-Copyright 2025 Flant JSC
+Copyright 2026 Flant JSC
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -32,15 +32,6 @@ const HelmignoreLeftoversRuleName = "helmignore-leftovers"
 
 // LeftoversRule reports package-root entries the bundle image carries even though its
 // own .helmignore excludes them.
-//
-// It is the bundle-scope half of what HelmignoreRule used to do in one pass, and the
-// split is what the scopes are for. .helmignore takes effect when the chart is packed,
-// so a source tree cannot say whether it did; a source tree under CI also holds scratch
-// files the build never ships, and every one of those read as a finding. The image is
-// what reaches a cluster, so it is the only tree where a leftover is a fact.
-//
-// Helm's own defaults are added to the parsed rules, so junk no .helmignore ever
-// mentions — a .git directory shipped by accident — is reported too.
 type LeftoversRule struct {
 	pkg.RuleMeta
 
@@ -86,8 +77,6 @@ func (r *LeftoversRule) Check(_ context.Context) {
 		return
 	}
 
-	rules.AddDefaults()
-
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		r.errorList.WithFilePath(helmignoreFile).
@@ -105,8 +94,8 @@ func (r *LeftoversRule) Check(_ context.Context) {
 func (r *LeftoversRule) checkEntry(rules *ignore.Rules, entry os.DirEntry) {
 	name := entry.Name()
 
-	// .helmignore excludes itself by default, and the bundle ships it on purpose —
-	// bundle-layout requires it to be there.
+	// bundle-layout requires .helmignore in the package root, so a pattern broad enough
+	// to match it — `.*`, say — must not turn the file into a finding against itself.
 	if name == helmignoreFile {
 		return
 	}
@@ -137,12 +126,28 @@ func (r *LeftoversRule) checkEntry(rules *ignore.Rules, entry os.DirEntry) {
 		Errorf("%s '%s' is excluded by .helmignore but is present in the bundle image", kind, name)
 }
 
+// bundleShipped is the set of package-root entries a bundle image carries on purpose
+// even though .helmignore excludes them.
+var bundleShipped = map[string]bool{
+	"Chart.yaml":          true,
+	"images_digests.json": true,
+	"module.yaml":         true,
+	"charts":              true,
+	"docs":                true,
+	"openapi":             true,
+	"templates":           true,
+
+	"crds":       true,
+	"hooks":      true,
+	"monitoring": true,
+
+	"changelog.yaml": true,
+	"oss.yaml":       true,
+	"package.yaml":   true,
+}
+
 // shippedInBundle reports whether a package-root entry that .helmignore excludes is
-// nevertheless expected in the bundle image, and so is not a leftover.
-//
-// name is the bare entry name — no trailing slash on directories.
-//
-// TODO(human)
+// nevertheless expected in the bundle image, and so is not a leftover.ё
 func shippedInBundle(name string) bool {
-	return false
+	return bundleShipped[name]
 }

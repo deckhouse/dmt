@@ -312,7 +312,9 @@ Reports entries in the bundle image root that its own `.helmignore` excludes.
 
 **Checks:**
 - ✅ No package-root entry matches a `.helmignore` pattern while still being present
-- ✅ Helm's built-in default ignores count too, so junk no `.helmignore` mentions is caught
+- ✅ Entries the bundle carries on purpose are exempt — `module.yaml`, `docs/`, `openapi/`, `crds/`, `hooks/` and the rest of the metadata Deckhouse reads off the filesystem rather than through Helm
+
+Only the package root is walked, and only patterns the module wrote itself apply: junk no `.helmignore` mentions is not reported.
 
 **Scope:** `bundle` only. It needs a packed tree; running it over a source tree would report the scratch files CI writes and the build never ships.
 
