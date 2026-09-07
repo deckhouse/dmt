@@ -118,8 +118,8 @@ func checkKindGatedByHelper(
 			Errorf(
 				"File creates a %s object but never checks %q, so its creation cannot be "+
 					"controlled via %s. Guard the manifest with "+
-					"{{- if eq (include %q .) \"true\" }} ... {{- end }} so it can be disabled the "+
-					"same way every other module's %s does.",
+					"{{- if eq (include %q .) \"true\" }} ... {{- end }} (requires lib_helm "+
+					"v1.72.21+) so it can be disabled the same way every other module's %s does.",
 				kindLabel, helperName, valuesHint, helperName, kindLabel,
 			)
 	}

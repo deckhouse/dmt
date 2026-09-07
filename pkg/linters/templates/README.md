@@ -3104,7 +3104,7 @@ spec:
 
 **Error:**
 ```
-Error: File creates a Ingress object but never checks "helm_lib_module_ingress_enabled", so its creation cannot be controlled via global.modules.ingress.enabled or myModule.ingress.enabled. Guard the manifest with {{- if eq (include "helm_lib_module_ingress_enabled" .) "true" }} ... {{- end }} so it can be disabled the same way every other module's Ingress does.
+Error: File creates a Ingress object but never checks "helm_lib_module_ingress_enabled", so its creation cannot be controlled via global.modules.ingress.enabled or myModule.ingress.enabled. Guard the manifest with {{- if eq (include "helm_lib_module_ingress_enabled" .) "true" }} ... {{- end }} (requires lib_helm v1.72.21+) so it can be disabled the same way every other module's Ingress does.
 ```
 
 The exact `.Values` path named in the finding is computed from the module's own
@@ -3195,7 +3195,7 @@ spec:
 
 **Error:**
 ```
-Error: File creates a Gateway API (HTTPRoute/ListenerSet) object but never checks "helm_lib_module_gateway_enabled", so its creation cannot be controlled via global.modules.gatewayAPI.enabled or myModule.gatewayAPI.enabled, with a Gateway resolvable via global.discovery.gatewayAPIDefaultGateway, global.modules.gatewayAPI.gateway, or myModule.gatewayAPI.gateway. Guard the manifest with {{- if eq (include "helm_lib_module_gateway_enabled" .) "true" }} ... {{- end }} so it can be disabled the same way every other module's Gateway API (HTTPRoute/ListenerSet) does.
+Error: File creates a Gateway API (HTTPRoute/ListenerSet) object but never checks "helm_lib_module_gateway_enabled", so its creation cannot be controlled via global.modules.gatewayAPI.enabled or myModule.gatewayAPI.enabled, with a Gateway resolvable via global.discovery.gatewayAPIDefaultGateway, global.modules.gatewayAPI.gateway, or myModule.gatewayAPI.gateway. Guard the manifest with {{- if eq (include "helm_lib_module_gateway_enabled" .) "true" }} ... {{- end }} (requires lib_helm v1.72.21+) so it can be disabled the same way every other module's Gateway API (HTTPRoute/ListenerSet) does.
 ```
 
 As with `ingress-enablement`, the `.Values` paths named in the finding are
