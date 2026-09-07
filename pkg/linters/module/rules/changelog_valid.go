@@ -71,6 +71,6 @@ func (r *ChangelogValidRule) Check(_ context.Context) {
 
 	var value any
 	if err := yaml.Unmarshal(raw, &value); err != nil {
-		errorList.Errorf("invalid YAML in %s:\n%s", ChangelogFilename, err)
+		errorList.Warnf("invalid YAML in %s:\n%s", ChangelogFilename, err)
 	}
 }
