@@ -8,7 +8,7 @@ The Module linter performs automated checks on Deckhouse modules to validate con
 
 ## Rules
 
-The Module linter includes **9 validation rules**:
+The Module linter includes the following validation rules:
 
 | Rule | Description | Configurable |
 |------|-------------|--------------|
@@ -16,6 +16,7 @@ The Module linter includes **9 validation rules**:
 | [**oss**](#oss) | Validates open-source software attribution in `oss.yaml` | ✅ Yes |
 | [**conversions**](#conversions) | Validates OpenAPI conversion files and documentation | ✅ Yes |
 | [**helmignore**](#helmignore) | Validates `.helmignore` file presence and content | ✅ Yes |
+| [**helmignore-leftovers**](#helmignore-leftovers) | Reports files a bundle image ships despite its `.helmignore` | ✅ Yes |
 | [**license**](#license) | Validates license headers in source files | ✅ Yes |
 | [**requirements**](#requirements) | Validates version requirements for features | ❌ No |
 | [**package-yaml**](#package-yaml) | Validates `package.yaml` metadata and new requirements schema | ✅ Yes |
@@ -297,6 +298,23 @@ openapi/
 # templates/
 # Chart.yaml
 ```
+
+**Scope:** `static` only. Whether the patterns actually took effect is checked by
+[helmignore-leftovers](#helmignore-leftovers) against the built image.
+
+---
+
+### Helmignore-leftovers
+
+Reports entries in the bundle image root that its own `.helmignore` excludes.
+
+**Purpose:** `.helmignore` takes effect when the chart is packed, so the source tree cannot show whether it worked. This rule reads the packed result and reports what survived a pattern that was supposed to strip it — build junk, a stray `.git`, an `images/` directory that leaked into the published module.
+
+**Checks:**
+- ✅ No package-root entry matches a `.helmignore` pattern while still being present
+- ✅ Helm's built-in default ignores count too, so junk no `.helmignore` mentions is caught
+
+**Scope:** `bundle` only. It needs a packed tree; running it over a source tree would report the scratch files CI writes and the build never ships.
 
 ---
 

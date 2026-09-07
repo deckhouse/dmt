@@ -387,6 +387,7 @@ func mapModuleRules(linterSettings *pkg.LintersSettings, configSettings *config.
 	rules.EnabledScriptRule.SetLevel(globalRules.EnabledScriptRule.Impact, fallbackImpact)
 	rules.ReleaseLayoutRule.SetLevel(globalRules.ReleaseLayoutRule.Impact, fallbackImpact)
 	rules.BundleLayoutRule.SetLevel(globalRules.BundleLayoutRule.Impact, fallbackImpact)
+	rules.HelmignoreLeftoversRule.SetLevel(globalRules.HelmignoreLeftoversRule.Impact, fallbackImpact)
 }
 
 // mapTemplatesRules configures Templates linter rules

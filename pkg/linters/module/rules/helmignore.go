@@ -24,7 +24,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"helm.sh/helm/v3/pkg/ignore"
 	"k8s.io/utils/ptr"
 
 	"github.com/deckhouse/dmt/pkg"
@@ -41,19 +40,8 @@ const (
 	helmChartYaml = "Chart.yaml"
 )
 
-// moduleTemplateExclude is the set of files and directories that belong to
-// the Deckhouse module and therefore should NOT be listed in .helmignore.
-// These are either required by Helm for rendering or read by Deckhouse
-// directly from the module filesystem.
-var moduleTemplateExclude = map[string]bool{
-	// Required by Helm for chart rendering
-	"templates":   true,
-	"charts":      true,
-	"monitoring":  true,
-	"Chart.yaml":  true,
-	"values.yaml": true,
-}
-
+// HelmignoreRule validates the .helmignore file itself: that it exists, says
+// something, and that its patterns are well formed.
 func NewHelmignoreRule(disable bool,
 	m pkg.Module, errorList *errors.LintRuleErrorsList) *HelmignoreRule {
 	return &HelmignoreRule{
@@ -134,75 +122,6 @@ func (r *HelmignoreRule) Check(_ context.Context) {
 
 	// Validate patterns
 	validatePatterns(lines, errorList)
-
-	// Validate that all module root files/dirs (except module-template entries)
-	// are covered by .helmignore patterns.
-	r.checkModuleRootCoverage(modulePath, raw, errorList)
-}
-
-// checkModuleRootCoverage scans the module root for all files and directories
-// and verifies that everything except the standard module-template entries
-// (templates/, charts/, Chart.yaml, values.yaml) is covered by a pattern in
-// .helmignore. Helm's own ignore.Rules are used for proper pattern matching
-// (wildcards, negation, directory-only rules, etc.).
-func (r *HelmignoreRule) checkModuleRootCoverage(modulePath string, raw []byte, errorList *errors.LintRuleErrorsList) {
-	entries, err := os.ReadDir(modulePath)
-	if err != nil {
-		errorList.WithFilePath(helmignoreFile).
-			Errorf("Cannot read module directory: %s", err)
-
-		return
-	}
-
-	// Parse .helmignore using Helm's own rules engine.
-	rules, err := ignore.Parse(bytes.NewReader(raw))
-	if err != nil {
-		errorList.WithFilePath(helmignoreFile).
-			Errorf("Cannot parse .helmignore: %s", err)
-
-		return
-	}
-
-	rules.AddDefaults()
-
-	for _, entry := range entries {
-		name := entry.Name()
-
-		// Skip .helmignore itself.
-		if name == helmignoreFile {
-			continue
-		}
-
-		// Skip entries that are part of the standard module template and
-		// should NOT be ignored by Helm.
-		if moduleTemplateExclude[name] {
-			continue
-		}
-
-		info, err := entry.Info()
-		if err != nil {
-			errorList.WithFilePath(helmignoreFile).
-				Errorf("Cannot stat '%s': %s", name, err)
-
-			continue
-		}
-
-		// Use Helm's ignore rules: if the entry is NOT ignored, it would be
-		// included in the Helm chart — which we don't want for non-template
-		// files/dirs.
-		if rules.Ignore(name, info) {
-			continue
-		}
-
-		entryType := "File"
-		if entry.IsDir() {
-			entryType = "Directory"
-			name += "/"
-		}
-
-		errorList.WithFilePath(helmignoreFile).
-			Warnf("%s '%s' is not listed in .helmignore", entryType, name)
-	}
 }
 
 func validatePatterns(patterns []string, errorList *errors.LintRuleErrorsList) {
