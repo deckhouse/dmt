@@ -13,30 +13,33 @@ import (
 )
 
 const (
-	ChangelogRuleName = "changelog"
+	HasChangelogRuleName = "has-changelog"
 )
 
-func NewChangelogRule(m pkg.Module, errorList *errors.LintRuleErrorsList) *ChangelogRule {
-	return &ChangelogRule{
+func NewHasChangelogRule(m pkg.Module, errorList *errors.LintRuleErrorsList) *HasChangelogRule {
+	return &HasChangelogRule{
 		RuleMeta: pkg.RuleMeta{
-			Name: ChangelogRuleName,
+			Name: HasChangelogRuleName,
 		},
 		module:    m,
-		errorList: errorList.WithRule(ChangelogRuleName),
+		errorList: errorList.WithRule(HasChangelogRuleName),
 	}
 }
 
-type ChangelogRule struct {
+// HasChangelogRule reports a module source tree that carries no changelog, or carries an
+// empty one. Whether what it carries parses is changelog-valid's business, against the
+// release image the file actually ships in.
+type HasChangelogRule struct {
 	pkg.RuleMeta
 
 	module    pkg.Module
 	errorList *errors.LintRuleErrorsList
 }
 
-var _ pkg.Rule = (*ChangelogRule)(nil)
+var _ pkg.Rule = (*HasChangelogRule)(nil)
 
-func (r *ChangelogRule) Check(_ context.Context) {
-	path := filepath.Join(r.module.GetPath(), "changelog.yaml")
+func (r *HasChangelogRule) Check(_ context.Context) {
+	path := filepath.Join(r.module.GetPath(), ChangelogFilename)
 	errorList := r.errorList.WithFilePath(path)
 
 	info, err := os.Stat(path)

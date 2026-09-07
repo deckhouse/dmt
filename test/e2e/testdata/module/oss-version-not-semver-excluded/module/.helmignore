@@ -6,3 +6,4 @@ openapi/
 module.yaml
 oss.yaml
 .dmtlint.yaml
+changelog.yaml

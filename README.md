@@ -278,12 +278,14 @@ remote:
   bundle:              # dmt lint remote <repo>:<tag>
     documentation:
       rules:
-        changelog:
+        readme:
           impact: warn
   release:             # ... the same command, <repo>/release:<tag>
     module:
       rules:
         release-layout:
+          impact: error
+        changelog-valid:
           impact: error
 ```
 

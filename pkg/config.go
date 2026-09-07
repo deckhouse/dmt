@@ -90,7 +90,6 @@ type DocumentationLinterRules struct {
 	MarkdownlintRule      RuleConfig
 	SizeRule              RuleConfig
 	FrontMatterRule       RuleConfig
-	ChangelogRule         RuleConfig
 }
 
 type NoCyrillicLinterConfig struct {
@@ -252,7 +251,12 @@ type ModuleLinterRules struct {
 	EnabledScriptRule            RuleConfig
 	ReleaseLayoutRule            RuleConfig
 	BundleLayoutRule             RuleConfig
+<<<<<<< HEAD
 	HelmignoreCoverageRule       RuleConfig
+=======
+	HasChangelogRule             RuleConfig
+	ChangelogValidRule           RuleConfig
+>>>>>>> 7b91838 (feat: validate module changelog files)
 }
 type OSSRuleSettings struct {
 	Disable bool

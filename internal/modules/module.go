@@ -367,7 +367,6 @@ func mapDocumentationRules(linterSettings *pkg.LintersSettings, configSettings *
 	// render), so it defaults to error via fallbackImpact — unlike the style/soft
 	// markdownlint and size rules above. A per-rule impact in config still overrides.
 	rules.FrontMatterRule.SetLevel(globalRules.FrontMatterRule.Impact, fallbackImpact)
-	rules.ChangelogRule.SetLevel(globalRules.ChangelogRule.Impact, fallbackImpact)
 }
 
 func mapModuleRules(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings, globalConfig *global.Linters) {
@@ -387,7 +386,12 @@ func mapModuleRules(linterSettings *pkg.LintersSettings, configSettings *config.
 	rules.EnabledScriptRule.SetLevel(globalRules.EnabledScriptRule.Impact, fallbackImpact)
 	rules.ReleaseLayoutRule.SetLevel(globalRules.ReleaseLayoutRule.Impact, fallbackImpact)
 	rules.BundleLayoutRule.SetLevel(globalRules.BundleLayoutRule.Impact, fallbackImpact)
+<<<<<<< HEAD
 	rules.HelmignoreCoverageRule.SetLevel(globalRules.HelmignoreCoverageRule.Impact, fallbackImpact)
+=======
+	rules.HasChangelogRule.SetLevel(globalRules.HasChangelogRule.Impact, fallbackImpact)
+	rules.ChangelogValidRule.SetLevel(globalRules.ChangelogValidRule.Impact, fallbackImpact)
+>>>>>>> 7b91838 (feat: validate module changelog files)
 }
 
 // mapTemplatesRules configures Templates linter rules

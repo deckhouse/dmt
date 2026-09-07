@@ -1,0 +1,4 @@
+test-module:
+  fixes:
+    - summary: a fix
+      pull_request: https://example.invalid/1

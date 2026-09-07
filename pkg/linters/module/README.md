@@ -12,6 +12,8 @@ The Module linter includes the following validation rules:
 
 | Rule | Description | Configurable |
 |------|-------------|--------------|
+| [**has-changelog**](#has-changelog) | Validates that the module source tree carries a non-empty `changelog.yaml` | ✅ Yes |
+| [**changelog-valid**](#changelog-valid) | Validates that `changelog.yaml` in the release image parses | ✅ Yes |
 | [**definition-file**](#definition-file) | Validates `module.yaml` structure, accessibility, and update sections | ✅ Yes |
 | [**oss**](#oss) | Validates open-source software attribution in `oss.yaml` | ✅ Yes |
 | [**conversions**](#conversions) | Validates OpenAPI conversion files and documentation | ✅ Yes |
@@ -28,6 +30,33 @@ The Module linter includes the following validation rules:
 ---
 
 ## Rule Details
+
+### Has-changelog
+
+Validates that the module carries a `changelog.yaml` and that it is not empty.
+
+**Purpose:** the changelog is what a release is described by. A module that never writes one publishes releases with nothing to show for them, and the gap is invisible until someone reads the release page.
+
+**Checks:**
+
+- ✅ `changelog.yaml` exists in the module root
+- ✅ It is not zero bytes
+
+**Scope:** `static` only. Whether the file parses is checked by [changelog-valid](#changelog-valid) against the release image it ships in.
+
+---
+
+### Changelog-valid
+
+Validates the `changelog.yaml` a release image ships.
+
+**Purpose:** Deckhouse reads this file to render the release notes for a version. A file it cannot parse means the release lands with no notes at all, and nothing upstream of the registry catches it.
+
+**Scope:** `release` only. It needs the release image (`<repo>/release:<tag>`), which is where `changelog.yaml` ships — the bundle image does not carry one.
+
+A missing `changelog.yaml` is not this rule's finding: [release-layout](#release-layout) owns presence, and this rule stays quiet when the file is absent — the same split [definition-file](#definition-file) and [package-yaml](#package-yaml) follow.
+
+---
 
 ### Definition file
 
