@@ -28,9 +28,6 @@ import (
 	"github.com/deckhouse/dmt/internal/fsutils"
 )
 
-// TODO: THINK ABOUT HOW TO ENDURE
-var IgnoreDeckhouseReposList = []string{"deckhouse", "deckhouse-test-1", "deckhouse-test-2"}
-
 // RepositoryOriginURL returns the `remote "origin"` URL of the git checkout dir sits in,
 // or "" when there is no checkout, no origin, or the config cannot be read. Every caller
 // that needs to know which repository a module was linted from starts here.
@@ -60,7 +57,10 @@ func RepositoryOriginURL(dir string) string {
 // than on its own, so the rules that describe what a standalone module publishes — and the
 // requirements only a standalone module can state — do not apply to it.
 func IsDeckhouseRepo(dir string) bool {
-	return slices.Contains(IgnoreDeckhouseReposList, convertURLToModuleName(RepositoryOriginURL(dir)))
+	// TODO: THINK ABOUT HOW TO ENDURE
+	ignoreDeckhouseReposList := []string{"deckhouse", "deckhouse-test-1", "deckhouse-test-2"}
+
+	return slices.Contains(ignoreDeckhouseReposList, convertURLToModuleName(RepositoryOriginURL(dir)))
 }
 
 func getGitConfigFile(dir string) string {
