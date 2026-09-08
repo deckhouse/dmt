@@ -1,8 +1,5 @@
 package pkg
 
-// TODO: THINK ABOUT HOW TO ENDURE
-var IgnoreDeckhouseReposList = []string{"deckhouse", "deckhouse-test-1", "deckhouse-test-2"}
-
 type LinterConfig struct {
 	Impact *Level
 }
@@ -251,12 +248,9 @@ type ModuleLinterRules struct {
 	EnabledScriptRule            RuleConfig
 	ReleaseLayoutRule            RuleConfig
 	BundleLayoutRule             RuleConfig
-<<<<<<< HEAD
 	HelmignoreCoverageRule       RuleConfig
-=======
 	HasChangelogRule             RuleConfig
 	ChangelogValidRule           RuleConfig
->>>>>>> 7b91838 (feat: validate module changelog files)
 }
 type OSSRuleSettings struct {
 	Disable bool

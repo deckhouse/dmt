@@ -131,12 +131,9 @@ type ModuleLinterRules struct {
 	EnabledScriptRule            RuleConfig `mapstructure:"enabled-script"`
 	ReleaseLayoutRule            RuleConfig `mapstructure:"release-layout"`
 	BundleLayoutRule             RuleConfig `mapstructure:"bundle-layout"`
-<<<<<<< HEAD
 	HelmignoreCoverageRule       RuleConfig `mapstructure:"helmignore-coverage"`
-=======
 	HasChangelogRule             RuleConfig `mapstructure:"has-changelog"`
 	ChangelogValidRule           RuleConfig `mapstructure:"changelog-valid"`
->>>>>>> 7b91838 (feat: validate module changelog files)
 }
 
 type TemplatesLinterConfig struct {

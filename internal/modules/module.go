@@ -386,12 +386,9 @@ func mapModuleRules(linterSettings *pkg.LintersSettings, configSettings *config.
 	rules.EnabledScriptRule.SetLevel(globalRules.EnabledScriptRule.Impact, fallbackImpact)
 	rules.ReleaseLayoutRule.SetLevel(globalRules.ReleaseLayoutRule.Impact, fallbackImpact)
 	rules.BundleLayoutRule.SetLevel(globalRules.BundleLayoutRule.Impact, fallbackImpact)
-<<<<<<< HEAD
 	rules.HelmignoreCoverageRule.SetLevel(globalRules.HelmignoreCoverageRule.Impact, fallbackImpact)
-=======
 	rules.HasChangelogRule.SetLevel(globalRules.HasChangelogRule.Impact, fallbackImpact)
 	rules.ChangelogValidRule.SetLevel(globalRules.ChangelogValidRule.Impact, fallbackImpact)
->>>>>>> 7b91838 (feat: validate module changelog files)
 }
 
 // mapTemplatesRules configures Templates linter rules

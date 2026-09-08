@@ -39,6 +39,10 @@ type HasChangelogRule struct {
 var _ pkg.Rule = (*HasChangelogRule)(nil)
 
 func (r *HasChangelogRule) Check(_ context.Context) {
+	if pkg.IsDeckhouseRepo(r.module.GetPath()) {
+		return
+	}
+
 	path := filepath.Join(r.module.GetPath(), ChangelogFilename)
 	errorList := r.errorList.WithFilePath(path)
 

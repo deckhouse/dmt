@@ -44,6 +44,8 @@ Validates that the module carries a `changelog.yaml` and that it is not empty.
 
 **Scope:** `static` only. Whether the file parses is checked by [changelog-valid](#changelog-valid) against the release image it ships in.
 
+**Does not apply to** a module built into the Deckhouse monorepo. Such a module publishes no release image of its own — it rides the platform release, and its changes are described by the repo-level `CHANGELOG/`, so it carries no `changelog.yaml` and is not expected to. The module is recognized by the repository it sits in (`pkg.IgnoreDeckhouseReposList`), the same way [definition-file](#definition-file) and [requirements](#requirements) recognize it.
+
 ---
 
 ### Changelog-valid
