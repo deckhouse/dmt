@@ -37,7 +37,7 @@ func TestCoverageRule(t *testing.T) {
 		wantFilePaths []string
 	}{
 		{
-			name:       "no .helmignore is bundle-layout's finding, not ours",
+			name:       "a missing .helmignore is not this rule's finding",
 			helmignore: "",
 			dirs:       []string{"images"},
 		},
@@ -138,7 +138,7 @@ func TestCoverageRuleReportsAtWarn(t *testing.T) {
 }
 
 // TestCoverageRuleSkipsHelmignoreItself pins the entry a broad pattern would otherwise
-// leave uncovered against itself: bundle-layout requires .helmignore in the package root,
+// leave uncovered against itself: a bundle carries .helmignore in the package root,
 // and no .helmignore lists itself.
 func TestCoverageRuleSkipsHelmignoreItself(t *testing.T) {
 	root := t.TempDir()

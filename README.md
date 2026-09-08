@@ -283,8 +283,6 @@ remote:
   release:             # ... the same command, <repo>/release:<tag>
     module:
       rules:
-        release-layout:
-          impact: error
         changelog-valid:
           impact: error
 ```

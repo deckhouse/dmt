@@ -157,7 +157,7 @@ func TestRunReportsTheSourceError(t *testing.T) {
 // Both paths go through this function now, so one test covers both.
 //
 // The bundle scope over an empty directory is the fixture: none of the files that scope
-// looks for are there, so both of its linters report — module via bundle-layout,
+// looks for are there, so both of its linters report — module via has-changelog,
 // documentation via readme. The unfiltered case is what makes the filtered one mean
 // something; without it the filter would look correct even if nothing reported at all.
 func TestLintModuleHonoursTheLinterFilter(t *testing.T) {

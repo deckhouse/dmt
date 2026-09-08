@@ -79,8 +79,6 @@ func (l *Module) rules() []pkg.Rule {
 		rules.NewModulePackageConsistencyRule(m, level(cfg.Rules.ModulePackageConsistencyRule)),
 		rules.NewLegacyReleaseFileRule(m, level(cfg.Rules.LegacyReleaseFileRule)),
 		rules.NewEnabledScriptRule(m, level(cfg.Rules.EnabledScriptRule)),
-		rules.NewReleaseLayoutRule(m, level(cfg.Rules.ReleaseLayoutRule)),
-		rules.NewBundleLayoutRule(m, level(cfg.Rules.BundleLayoutRule)),
 		rules.NewHelmignoreCoverageRule(m, level(cfg.Rules.HelmignoreCoverageRule)),
 		rules.NewHasChangelogRule(m, level(cfg.Rules.HasChangelogRule)),
 		rules.NewChangelogValidRule(m, level(cfg.Rules.ChangelogValidRule)),

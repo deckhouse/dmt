@@ -246,8 +246,6 @@ type ModuleLinterRules struct {
 	ModulePackageConsistencyRule RuleConfig
 	LegacyReleaseFileRule        RuleConfig
 	EnabledScriptRule            RuleConfig
-	ReleaseLayoutRule            RuleConfig
-	BundleLayoutRule             RuleConfig
 	HelmignoreCoverageRule       RuleConfig
 	HasChangelogRule             RuleConfig
 	ChangelogValidRule           RuleConfig

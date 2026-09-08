@@ -31,14 +31,13 @@ import (
 // and for nothing that needs a chart or a rendered object — the module behind this
 // scope is built by modules.NewRemoteModule and has neither.
 //
-// release-layout is what makes a missing file a finding. definition-file,
-// package-yaml and changelog-valid validate the contents of module.yaml, package.yaml
-// and changelog.yaml and stay quiet when the file is absent, which is why the presence
-// check is a rule of its own. package.yaml is not in the layout list on purpose: it is
-// validated when the image ships one, and its absence is not an error.
+// No rule here turns a missing file into an error. definition-file, package-yaml and
+// changelog-valid validate the contents of module.yaml, package.yaml and changelog.yaml
+// and stay quiet when the file is absent; has-changelog is the only one that reports an
+// absence at all, and it warns. So this scope checks what the image ships, not what it
+// forgot to ship — an empty release image comes back with a single changelog warning.
 var releaseRules = map[string]set.Set{
 	moduleLinter.ID: set.New(
-		modulerules.ReleaseLayoutRuleName,
 		modulerules.DefinitionFileRuleName,
 		modulerules.PackageYAMLRuleName,
 		modulerules.HasChangelogRuleName,

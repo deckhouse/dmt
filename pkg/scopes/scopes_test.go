@@ -86,14 +86,20 @@ func TestRemoteScopesRunOverAnUnpackedImage(t *testing.T) {
 		wantErr bool
 	}{
 		{scope: Release, files: []string{"module.yaml", "version.json", "changelog.yaml"}},
-		{scope: Release, wantErr: true},
+		// An empty release image is not an error: every rule of that scope validates the
+		// contents of a file it finds and stays quiet when the file is absent. The case is
+		// still here for the panic it would catch, not for the findings it does not make.
+		{scope: Release},
 		{
 			scope: Bundle,
-			// The root of a real published bundle — see layout_test.go for where it
-			// comes from. Deriving it from bundleRules would test nothing.
+			// The root of a real published bundle: the intersection of eight published CE
+			// bundles, which is not what a source tree holds — version.json ships in the
+			// sibling release image, and the ignore file a package carries is .helmignore.
+			// Deriving this from bundleRules would test nothing.
 			files: []string{".helmignore", "Chart.yaml", "changelog.yaml", "images_digests.json", "module.yaml"},
 			dirs:  []string{"charts", "docs", "openapi", "templates"},
 		},
+		// The bundle scope still errors on an empty root, through the readme rule.
 		{scope: Bundle, wantErr: true},
 	} {
 		name := string(tc.scope) + " complete"
@@ -111,9 +117,8 @@ func TestRemoteScopesRunOverAnUnpackedImage(t *testing.T) {
 				require.NoError(t, os.Mkdir(filepath.Join(root, d), 0o755))
 			}
 
-			// The layout rules only want the paths to exist, but definition-file parses
-			// module.yaml and the readme rule reads docs/README.md, so the complete
-			// cases need real content in both.
+			// definition-file parses module.yaml and the readme rule reads docs/README.md,
+			// so the complete cases need real content in both.
 			if len(tc.files) > 0 {
 				require.NoError(t, os.WriteFile(filepath.Join(root, "module.yaml"),
 					[]byte("name: test-module\nstage: General Availability\ndescriptions:\n  en: a module\n"), 0o600))

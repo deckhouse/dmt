@@ -5,8 +5,8 @@ description: >
   Chart material (templates/, charts/, Chart.yaml) and the build-generated
   images_digests.json need no pattern and must stay unreported, as must hooks/,
   openapi/, docs/ and module.yaml, which the patterns do cover. docs/ is the
-  interesting one: bundle-layout requires it in the root, it is not chart
-  material, so it needs a pattern like any other shipped non-chart entry.
+  interesting one: every bundle ships it in the root, it is not chart material,
+  so it needs a pattern like any other shipped non-chart entry.
 kind: bundle
 module: module
 expect:
