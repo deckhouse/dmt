@@ -26,9 +26,7 @@ func NewHasChangelogRule(m pkg.Module, errorList *errors.LintRuleErrorsList) *Ha
 	}
 }
 
-// HasChangelogRule reports a module source tree that carries no changelog, or carries an
-// empty one. Whether what it carries parses is changelog-valid's business, against the
-// release image the file actually ships in.
+// HasChangelogRule reports a module source tree that carries no changelog, or carries an empty one.
 type HasChangelogRule struct {
 	pkg.RuleMeta
 
