@@ -41,6 +41,7 @@ var releaseRules = map[string]set.Set{
 		modulerules.ReleaseLayoutRuleName,
 		modulerules.DefinitionFileRuleName,
 		modulerules.PackageYAMLRuleName,
+		modulerules.HasChangelogRuleName,
 		modulerules.ChangelogValidRuleName,
 	),
 }

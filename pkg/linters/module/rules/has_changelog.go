@@ -26,7 +26,7 @@ func NewHasChangelogRule(m pkg.Module, errorList *errors.LintRuleErrorsList) *Ha
 	}
 }
 
-// HasChangelogRule reports a module source tree that carries no changelog, or carries an empty one.
+// HasChangelogRule reports a published image that carries no changelog, or carries an empty one.
 type HasChangelogRule struct {
 	pkg.RuleMeta
 
@@ -37,21 +37,16 @@ type HasChangelogRule struct {
 var _ pkg.Rule = (*HasChangelogRule)(nil)
 
 func (r *HasChangelogRule) Check(_ context.Context) {
-	if pkg.IsDeckhouseRepo(r.module.GetPath()) {
-		return
-	}
+	errorList := r.errorList.WithFilePath(ChangelogFilename)
 
-	path := filepath.Join(r.module.GetPath(), ChangelogFilename)
-	errorList := r.errorList.WithFilePath(path)
-
-	info, err := os.Stat(path)
+	info, err := os.Stat(filepath.Join(r.module.GetPath(), ChangelogFilename))
 
 	switch {
 	case os.IsNotExist(err):
-		errorList.Error("changelog.yaml file is missing")
+		errorList.Warn("changelog.yaml file is missing")
 	case err != nil:
-		errorList.WithValue(err.Error()).Error("failed to check changelog.yaml file")
+		errorList.WithValue(err.Error()).Warn("failed to check changelog.yaml file")
 	case info.Size() == 0:
-		errorList.Error("changelog.yaml file is empty")
+		errorList.Warn("changelog.yaml file is empty")
 	}
 }

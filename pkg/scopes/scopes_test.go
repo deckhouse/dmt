@@ -91,7 +91,7 @@ func TestRemoteScopesRunOverAnUnpackedImage(t *testing.T) {
 			scope: Bundle,
 			// The root of a real published bundle — see layout_test.go for where it
 			// comes from. Deriving it from bundleRules would test nothing.
-			files: []string{".helmignore", "Chart.yaml", "images_digests.json", "module.yaml"},
+			files: []string{".helmignore", "Chart.yaml", "changelog.yaml", "images_digests.json", "module.yaml"},
 			dirs:  []string{"charts", "docs", "openapi", "templates"},
 		},
 		{scope: Bundle, wantErr: true},

@@ -98,7 +98,6 @@ var staticRules = map[string]set.Set{
 		imagesrules.WerfRuleName,
 	),
 	moduleLinter.ID: set.New(
-		modulerules.HasChangelogRuleName,
 		modulerules.ConversionsRuleName,
 		modulerules.DefinitionFileRuleName,
 		modulerules.EnabledScriptRuleName,
