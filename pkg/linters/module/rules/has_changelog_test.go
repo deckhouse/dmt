@@ -69,6 +69,7 @@ func TestHasChangelogRule(t *testing.T) {
 				require.NoError(t, os.WriteFile(
 					filepath.Join(root, ChangelogFilename), []byte(tc.content), DefaultFilePerm))
 			}
+
 			if tc.origin != "" {
 				writeGitOrigin(t, root, tc.origin)
 			}
