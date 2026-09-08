@@ -157,6 +157,7 @@ type TemplatesLinterRules struct {
 	DeprecatedHTTPRouteAnnotationsRule RuleConfig
 	IngressEnablementRule              RuleConfig
 	GatewayEnablementRule              RuleConfig
+	HTTPSCertificateReuseRule          RuleConfig
 }
 
 type PrometheusRuleSettings struct {
@@ -181,6 +182,7 @@ type TemplatesExcludeRules struct {
 	DeprecatedHTTPRouteAnnotations PathRuleExclude
 	IngressEnablement              PathRuleExclude
 	GatewayEnablement              PathRuleExclude
+	HTTPSCertificateReuse          PathRuleExclude
 }
 
 // PathRuleExclude excludes specific files and whole directories (both relative

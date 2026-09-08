@@ -254,6 +254,7 @@ type TemplatesLinterRules struct {
 	DeprecatedHTTPRouteAnnotationsRule RuleConfig `mapstructure:"deprecated-httproute-annotations"`
 	IngressEnablementRule              RuleConfig `mapstructure:"ingress-enablement"`
 	GatewayEnablementRule              RuleConfig `mapstructure:"gateway-enablement"`
+	HTTPSCertificateReuseRule          RuleConfig `mapstructure:"https-certificate-reuse"`
 }
 
 type TemplatesExcludeRules struct {
@@ -271,6 +272,7 @@ type TemplatesExcludeRules struct {
 	DeprecatedHTTPRouteAnnotations PathRuleExclude           `mapstructure:"deprecated-httproute-annotations"`
 	IngressEnablement              PathRuleExclude           `mapstructure:"ingress-enablement"`
 	GatewayEnablement              PathRuleExclude           `mapstructure:"gateway-enablement"`
+	HTTPSCertificateReuse          PathRuleExclude           `mapstructure:"https-certificate-reuse"`
 }
 
 type EnabledModulesExcludeRule struct {

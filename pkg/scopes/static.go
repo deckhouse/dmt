@@ -135,6 +135,7 @@ var staticRules = map[string]set.Set{
 		templatesrules.GatewayEnablementRuleName,
 		templatesrules.GrafanaRuleName,
 		templatesrules.HTTPRouteRuleName,
+		templatesrules.HTTPSCertificateReuseRuleName,
 		templatesrules.HelmRenderRuleName,
 		templatesrules.IngressEnablementRuleName,
 		templatesrules.IngressRuleName,

@@ -160,6 +160,7 @@ type TemplatesLinterRules struct {
 	DeprecatedHTTPRouteAnnotationsRule RuleConfig `mapstructure:"deprecated-httproute-annotations"`
 	IngressEnablementRule              RuleConfig `mapstructure:"ingress-enablement"`
 	GatewayEnablementRule              RuleConfig `mapstructure:"gateway-enablement"`
+	HTTPSCertificateReuseRule          RuleConfig `mapstructure:"https-certificate-reuse"`
 }
 
 func (c LinterConfig) IsWarn() bool {

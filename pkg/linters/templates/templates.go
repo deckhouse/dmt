@@ -123,6 +123,10 @@ func (l *Templates) rules() []pkg.Rule {
 			cfg.ExcludeRules.GatewayEnablement.Files.Get(),
 			cfg.ExcludeRules.GatewayEnablement.Directories.Get(),
 			m, level(cfg.Rules.GatewayEnablementRule)),
+		rules.NewHTTPSCertificateReuseRule(
+			cfg.ExcludeRules.HTTPSCertificateReuse.Files.Get(),
+			cfg.ExcludeRules.HTTPSCertificateReuse.Directories.Get(),
+			m, level(cfg.Rules.HTTPSCertificateReuseRule)),
 	)
 }
 
