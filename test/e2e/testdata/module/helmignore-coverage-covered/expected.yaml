@@ -1,0 +1,10 @@
+description: >
+  The same bundle image root with a .helmignore that names every non-chart entry
+  it carries. helmignore-coverage must report nothing. The sibling
+  helmignore-coverage-uncovered case proves the rule does fire when a pattern is
+  missing, so this expectPass is a live guard rather than a vacuous one.
+kind: bundle
+module: module
+expectPass:
+  - linter: module
+    rule: helmignore-coverage

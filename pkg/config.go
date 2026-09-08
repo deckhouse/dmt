@@ -252,6 +252,7 @@ type ModuleLinterRules struct {
 	EnabledScriptRule            RuleConfig
 	ReleaseLayoutRule            RuleConfig
 	BundleLayoutRule             RuleConfig
+	HelmignoreCoverageRule       RuleConfig
 }
 type OSSRuleSettings struct {
 	Disable bool

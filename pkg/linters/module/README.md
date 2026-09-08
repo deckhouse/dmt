@@ -8,7 +8,7 @@ The Module linter performs automated checks on Deckhouse modules to validate con
 
 ## Rules
 
-The Module linter includes **9 validation rules**:
+The Module linter includes the following validation rules:
 
 | Rule | Description | Configurable |
 |------|-------------|--------------|
@@ -16,6 +16,7 @@ The Module linter includes **9 validation rules**:
 | [**oss**](#oss) | Validates open-source software attribution in `oss.yaml` | ✅ Yes |
 | [**conversions**](#conversions) | Validates OpenAPI conversion files and documentation | ✅ Yes |
 | [**helmignore**](#helmignore) | Validates `.helmignore` file presence and content | ✅ Yes |
+| [**helmignore-coverage**](#helmignore-coverage) | Reports bundle-image files no `.helmignore` pattern excludes | ✅ Yes |
 | [**license**](#license) | Validates license headers in source files | ✅ Yes |
 | [**requirements**](#requirements) | Validates version requirements for features | ❌ No |
 | [**package-yaml**](#package-yaml) | Validates `package.yaml` metadata and new requirements schema | ✅ Yes |
@@ -297,6 +298,25 @@ openapi/
 # templates/
 # Chart.yaml
 ```
+
+**Scope:** `static` only. Whether the patterns cover what the module actually ships is
+checked by [helmignore-coverage](#helmignore-coverage) against the built image.
+
+---
+
+### Helmignore-coverage
+
+Reports entries in the bundle image root that no `.helmignore` pattern excludes — files Helm would therefore pull into the chart.
+
+**Purpose:** an uncovered non-chart file bloats every chart Helm packs from the module. This is the same check the `helmignore` rule used to run over the source tree, moved to the image: CI writes scratch files into a checkout, and each one read as an uncovered entry. The image holds only what werf's `includePaths` let through, so what it carries is what the module actually ships.
+
+**Checks:**
+- ✅ Every package-root entry is matched by a `.helmignore` pattern
+- ✅ Chart material needs no pattern and is exempt — `templates/`, `charts/`, `monitoring/`, `Chart.yaml`, `values.yaml`, plus the build-generated `images_digests.json`, which exists in no source tree
+
+Findings are reported at `warn`. Only the package root is walked, and only patterns the module wrote itself apply.
+
+**Scope:** `bundle` only. It needs a packed tree; running it over a source tree would report the scratch files CI writes and the build never ships.
 
 ---
 

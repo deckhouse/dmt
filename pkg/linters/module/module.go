@@ -81,6 +81,7 @@ func (l *Module) rules() []pkg.Rule {
 		rules.NewEnabledScriptRule(m, level(cfg.Rules.EnabledScriptRule)),
 		rules.NewReleaseLayoutRule(m, level(cfg.Rules.ReleaseLayoutRule)),
 		rules.NewBundleLayoutRule(m, level(cfg.Rules.BundleLayoutRule)),
+		rules.NewHelmignoreCoverageRule(m, level(cfg.Rules.HelmignoreCoverageRule)),
 	}
 }
 

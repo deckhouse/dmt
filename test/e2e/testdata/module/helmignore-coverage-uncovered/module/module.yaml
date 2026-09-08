@@ -1,0 +1,5 @@
+name: e2e-bundle
+stage: General Availability
+descriptions:
+  en: e2e bundle fixture
+  ru: e2e bundle fixture

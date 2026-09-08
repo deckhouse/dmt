@@ -1,0 +1,38 @@
+description: >
+  The bundle image root carries oss.yaml and leftover.yaml, and its .helmignore
+  names neither, so Helm would pull both into every chart packed from the module.
+  The bundle scope's helmignore-coverage rule must report each of them at warn.
+  Chart material (templates/, charts/, Chart.yaml) and the build-generated
+  images_digests.json need no pattern and must stay unreported, as must hooks/,
+  openapi/, docs/ and module.yaml, which the patterns do cover. docs/ is the
+  interesting one: bundle-layout requires it in the root, it is not chart
+  material, so it needs a pattern like any other shipped non-chart entry.
+kind: bundle
+module: module
+expect:
+  - linter: module
+    rule: helmignore-coverage
+    level: warn
+    textContains: "File 'oss.yaml' is present in the bundle image and is not listed in .helmignore"
+    count: 1
+  - linter: module
+    rule: helmignore-coverage
+    level: warn
+    textContains: "File 'leftover.yaml' is present in the bundle image and is not listed in .helmignore"
+    count: 1
+expectAbsent:
+  - linter: module
+    rule: helmignore-coverage
+    textContains: "images_digests.json"
+  - linter: module
+    rule: helmignore-coverage
+    textContains: "Chart.yaml"
+  - linter: module
+    rule: helmignore-coverage
+    textContains: "'templates/'"
+  - linter: module
+    rule: helmignore-coverage
+    textContains: "'hooks/'"
+  - linter: module
+    rule: helmignore-coverage
+    textContains: "module.yaml"

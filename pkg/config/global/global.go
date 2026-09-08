@@ -132,6 +132,7 @@ type ModuleLinterRules struct {
 	EnabledScriptRule            RuleConfig `mapstructure:"enabled-script"`
 	ReleaseLayoutRule            RuleConfig `mapstructure:"release-layout"`
 	BundleLayoutRule             RuleConfig `mapstructure:"bundle-layout"`
+	HelmignoreCoverageRule       RuleConfig `mapstructure:"helmignore-coverage"`
 }
 
 type TemplatesLinterConfig struct {
