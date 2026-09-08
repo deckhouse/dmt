@@ -12,6 +12,8 @@ The Module linter includes the following validation rules:
 
 | Rule | Description | Configurable |
 |------|-------------|--------------|
+| [**has-changelog**](#has-changelog) | Validates that a non-empty `changelog.yaml` is carried | ✅ Yes |
+| [**changelog-valid**](#changelog-valid) | Validates that `changelog.yaml` parses | ✅ Yes |
 | [**definition-file**](#definition-file) | Validates `module.yaml` structure, accessibility, and update sections | ✅ Yes |
 | [**oss**](#oss) | Validates open-source software attribution in `oss.yaml` | ✅ Yes |
 | [**conversions**](#conversions) | Validates OpenAPI conversion files and documentation | ✅ Yes |
@@ -28,6 +30,37 @@ The Module linter includes the following validation rules:
 ---
 
 ## Rule Details
+
+### Has-changelog
+
+Validates that a published image carries a `changelog.yaml` and that it is not empty.
+
+**Purpose:** the changelog is what a release is described by. An image that ships without one publishes a release with nothing to show for it, and the gap is invisible until someone reads the release page.
+
+**Checks:**
+
+- ✅ `changelog.yaml` exists in the package root
+- ✅ It is not zero bytes
+
+**Scope:** `release` and `bundle` — the published images are where a changelog has to be, and the source tree is not checked for one. Whether it parses is checked by [changelog-valid](#changelog-valid), which runs in the same two scopes.
+
+The layout rules already report the file missing in both scopes, so this rule's own contribution is the empty-file case.
+
+A module built into the Deckhouse monorepo needs no exemption here: it publishes no images of its own — it rides the platform release, and its changes are described by the repo-level `CHANGELOG/` — so neither scope ever runs over it.
+
+---
+
+### Changelog-valid
+
+Validates the `changelog.yaml` a published image ships.
+
+**Purpose:** Deckhouse reads this file to render the release notes for a version. A file it cannot parse means the release lands with no notes at all, and nothing upstream of the registry catches it.
+
+**Scope:** `release` and `bundle` — both published images carry `changelog.yaml`.
+
+A missing `changelog.yaml` is not this rule's finding: the layout rules own presence and [has-changelog](#has-changelog) owns emptiness, and this rule stays quiet when the file is absent — the same split [definition-file](#definition-file) and [package-yaml](#package-yaml) follow.
+
+---
 
 ### Definition file
 

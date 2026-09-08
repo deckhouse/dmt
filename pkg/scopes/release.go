@@ -31,16 +31,18 @@ import (
 // and for nothing that needs a chart or a rendered object — the module behind this
 // scope is built by modules.NewRemoteModule and has neither.
 //
-// release-layout is what makes a missing file a finding. definition-file and
-// package-yaml validate the contents of module.yaml and package.yaml and stay quiet
-// when the file is absent, which is why the presence check is a rule of its own.
-// package.yaml is not in the layout list on purpose: it is validated when the image
-// ships one, and its absence is not an error.
+// release-layout is what makes a missing file a finding. definition-file,
+// package-yaml and changelog-valid validate the contents of module.yaml, package.yaml
+// and changelog.yaml and stay quiet when the file is absent, which is why the presence
+// check is a rule of its own. package.yaml is not in the layout list on purpose: it is
+// validated when the image ships one, and its absence is not an error.
 var releaseRules = map[string]set.Set{
 	moduleLinter.ID: set.New(
 		modulerules.ReleaseLayoutRuleName,
 		modulerules.DefinitionFileRuleName,
 		modulerules.PackageYAMLRuleName,
+		modulerules.HasChangelogRuleName,
+		modulerules.ChangelogValidRuleName,
 	),
 }
 

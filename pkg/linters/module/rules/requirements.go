@@ -279,11 +279,8 @@ func (*RequirementsRegistry) validateComponentRequirement(checkName string, req 
 	switch req.ComponentType {
 	case ComponentDeckhouse:
 		// Skip deckhouse version check for repositories in the ignore list
-		moduleNameFromRepo := getModuleNameFromRepository(modulePath)
-		for _, repo := range pkg.IgnoreDeckhouseReposList {
-			if moduleNameFromRepo == repo {
-				return
-			}
+		if pkg.IsDeckhouseRepo(modulePath) {
+			return
 		}
 
 		if module.Requirements == nil || module.Requirements.Deckhouse == "" {

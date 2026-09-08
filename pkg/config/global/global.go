@@ -100,7 +100,6 @@ type DocumentationRules struct {
 	MarkdownlintRule       RuleConfig `mapstructure:"markdownlint"`
 	SizeRule               RuleConfig `mapstructure:"size"`
 	FrontMatterRule        RuleConfig `mapstructure:"front-matter"`
-	ChangelogRule          RuleConfig `mapstructure:"changelog"`
 }
 
 type OpenAPILinterConfig struct {
@@ -133,6 +132,8 @@ type ModuleLinterRules struct {
 	ReleaseLayoutRule            RuleConfig `mapstructure:"release-layout"`
 	BundleLayoutRule             RuleConfig `mapstructure:"bundle-layout"`
 	HelmignoreCoverageRule       RuleConfig `mapstructure:"helmignore-coverage"`
+	HasChangelogRule             RuleConfig `mapstructure:"has-changelog"`
+	ChangelogValidRule           RuleConfig `mapstructure:"changelog-valid"`
 }
 
 type TemplatesLinterConfig struct {

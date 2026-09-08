@@ -1,5 +1,5 @@
-hooks/
-openapi/
-docs/
+hooks
+openapi
+docs
 module.yaml
 changelog.yaml

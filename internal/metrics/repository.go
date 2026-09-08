@@ -17,55 +17,13 @@ limitations under the License.
 package metrics
 
 import (
-	"path/filepath"
 	"strings"
 
-	"gopkg.in/ini.v1"
-
-	"github.com/deckhouse/deckhouse/pkg/log"
-
-	"github.com/deckhouse/dmt/internal/fsutils"
+	"github.com/deckhouse/dmt/pkg"
 )
 
 func getRepositoryAddress(dir string) string {
-	configFile := getGitConfigFile(dir)
-	if configFile == "" {
-		return ""
-	}
-
-	cfg, err := ini.Load(configFile)
-	if err != nil {
-		log.Error("Failed to load config file", log.Err(err))
-		return ""
-	}
-
-	sec, err := cfg.GetSection("remote \"origin\"")
-	if err != nil {
-		log.Error("Failed to get remote origin", log.Err(err))
-		return ""
-	}
-
-	repositoryULR := sec.Key("url").String()
-
-	return convertToHTTPS(repositoryULR)
-}
-
-func getGitConfigFile(dir string) string {
-	for {
-		if fsutils.IsDir(filepath.Join(dir, ".git")) &&
-			fsutils.IsFile(filepath.Join(dir, ".git", "config")) {
-			return filepath.Join(dir, ".git", "config")
-		}
-
-		parent := filepath.Dir(dir)
-		if dir == parent || parent == "" {
-			break
-		}
-
-		dir = parent
-	}
-
-	return ""
+	return convertToHTTPS(pkg.RepositoryOriginURL(dir))
 }
 
 func convertToHTTPS(repoURL string) string {

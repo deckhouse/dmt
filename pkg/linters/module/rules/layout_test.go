@@ -37,7 +37,7 @@ func TestLayoutRules(t *testing.T) {
 	// sds-replicated-volume, csi-nfs, console, commander-agent, observability,
 	// secrets-store-integration) all carry these, and differ only in the optional
 	// crds/, hooks/, monitoring/ and .werf/.
-	bundleFiles := []string{".helmignore", "Chart.yaml", "images_digests.json", "module.yaml"}
+	bundleFiles := []string{".helmignore", "Chart.yaml", "changelog.yaml", "images_digests.json", "module.yaml"}
 	bundleDirs := []string{"charts", "docs", "openapi", "templates"}
 
 	t.Run("release layout is complete", func(t *testing.T) {
