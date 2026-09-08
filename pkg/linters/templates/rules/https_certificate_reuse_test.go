@@ -34,11 +34,13 @@ spec:
   tls:
     - secretName: {{ include "helm_lib_module_https_secret_name" (list . "my-module-ingress-tls") }}
 `
+
 	const ingressNoSecretRef = `apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: dashboard
 `
+
 	const httprouteLinkedToSharedSecret = `apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -50,8 +52,10 @@ spec:
     secretRef:
       name: {{ include "helm_lib_module_https_secret_name" (list . "my-module-ingress-tls" "my-module-httproute-tls") }}
 `
+
 	const copyShared = `{{- include "helm_lib_module_https_copy_custom_certificate" (list . "d8-my-module" "my-module-ingress-tls") }}
 `
+
 	const copyOverride = `{{- include "helm_lib_module_https_copy_custom_certificate" (list . "d8-my-module" "my-module-httproute-tls") }}
 `
 

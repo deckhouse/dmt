@@ -70,11 +70,12 @@ var certFlowSuffixes = map[string]string{
 // service stem and flow (ingress or httproute), if it follows that naming
 // convention. "istio-httproute-tls" -> ("istio", "httproute", true);
 // "httproute-tls" -> ("", "httproute", true); "service-a-tls" -> ("", "", false).
-func certFlowStem(prefix string) (stem, flow string, ok bool) {
+func certFlowStem(prefix string) (string, string, bool) {
 	for suffix, f := range certFlowSuffixes {
 		if prefix == suffix {
 			return "", f, true
 		}
+
 		if trimmed, found := strings.CutSuffix(prefix, "-"+suffix); found {
 			return trimmed, f, true
 		}
@@ -219,7 +220,9 @@ func (r *HTTPSCertificateReuseRule) Check(_ context.Context) {
 	certificateKindRe := kindLineRe("Certificate")
 
 	var copies []httpsCertCopy
+
 	var ingressRefs []httpsSecretRef
+
 	var gatewayRefs []httpsSecretRef
 
 	for _, filePath := range files {
@@ -288,6 +291,7 @@ func (r *HTTPSCertificateReuseRule) Check(_ context.Context) {
 	}
 
 	copiedAt := make(map[string][]httpsCertCopy, len(copies))
+
 	for _, c := range copies {
 		copiedAt[c.prefix] = append(copiedAt[c.prefix], c)
 	}
@@ -298,6 +302,7 @@ func (r *HTTPSCertificateReuseRule) Check(_ context.Context) {
 		if reported[key] {
 			return
 		}
+
 		reported[key] = true
 
 		r.errorList.WithFilePath(relPath).
@@ -379,6 +384,7 @@ func (r *HTTPSCertificateReuseRule) Check(_ context.Context) {
 	//    but hasn't wired up (or has wired up incorrectly) either flow's
 	//    reference yet, which the reference-based checks above cannot see.
 	ingressCopyByStem := make(map[string]httpsCertCopy)
+
 	for _, c := range copies {
 		if stem, flow, ok := certFlowStem(c.prefix); ok && flow == "ingress" {
 			if _, seen := ingressCopyByStem[stem]; !seen {
@@ -386,6 +392,7 @@ func (r *HTTPSCertificateReuseRule) Check(_ context.Context) {
 			}
 		}
 	}
+
 	for _, c := range copies {
 		stem, flow, ok := certFlowStem(c.prefix)
 		if !ok || flow != "httproute" {
