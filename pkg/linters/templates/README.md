@@ -27,6 +27,10 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [mount-points](#mount-points) | Validates that mount-points.yaml directories are used as volumeMounts in pod controllers | ✅ | enabled |
 | [openapi-values-quote](#openapi-values-quote) | Requires templates to quote OpenAPI string values that have no `pattern`/`enum`/`format` | ✅ | enabled |
 | [schema-validation](#schema-validation) | Strictly decodes every rendered standard Kubernetes resource against its API type | ✅ | enabled |
+| [deprecated-httproute-annotations](#deprecated-httproute-annotations) | Flags deprecated annotation keys (e.g. `alb.network.deckhouse.io/response-headers-to-add`) | ✅ | enabled |
+| [ingress-enablement](#ingress-enablement) | Requires Ingress creation to be gated by `helm_lib_module_ingress_enabled` | ✅ | enabled |
+| [gateway-enablement](#gateway-enablement) | Requires HTTPRoute/ListenerSet creation to be gated by `helm_lib_module_gateway_enabled` | ✅ | enabled |
+| [https-certificate-reuse](#https-certificate-reuse) | Requires a custom certificate to be copied once and reused by Ingress and Gateway API via `helm_lib_module_https_secret_name`'s plain and two-prefix forms | ✅ | enabled |
 
 "Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
@@ -2936,3 +2940,501 @@ linters-settings:
 
 Whichever `k8s.io/api` is in `go.mod`. Bumping that dependency is the whole of
 updating this rule — there is nothing else to regenerate.
+
+---
+
+### deprecated-httproute-annotations
+
+**Purpose:** Flags annotation keys used to work around a missing native
+HTTPRoute setting — an ALB-specific annotation standing in for a field
+Gateway API's HTTPRoute now exposes directly — so authors migrate to the
+native field instead of copying the annotation-based workaround into new
+templates.
+
+**Description:**
+
+Scans all template files (`.yaml`, `.yml`, `.tpl`) for a small built-in list of
+banned annotation keys and reports every occurrence, together with a concrete
+workaround snippet for the replacement. Today the list has one entry:
+`alb.network.deckhouse.io/response-headers-to-add`, deprecated in favor of the
+native Gateway API `ResponseHeaderModifier` HTTPRoute filter.
+
+**What it checks:**
+
+1. Only runs when the module actually renders an `Ingress`, `HTTPRoute`, or
+   `ListenerSet` — every banned annotation is specific to those resources, so a
+   module with none of them is skipped entirely
+2. All files in the `templates/` directory
+3. Presence of a banned annotation key, as plain text — it does not matter
+   whether the key appears as a YAML annotation or inside a Helm expression
+
+**Why it matters:**
+
+`alb.network.deckhouse.io/response-headers-to-add` predates Gateway API's own
+`ResponseHeaderModifier` filter and applies to every rule of the HTTPRoute
+object uniformly (there is no way to target one rule). The native filter is
+per-rule, standards-based, and portable to any Gateway API implementation —
+the annotation is a legacy-only escape hatch.
+
+**Examples:**
+
+❌ **Incorrect** - Setting the deprecated annotation:
+
+```yaml
+# templates/httproute.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: dashboard
+  annotations:
+    alb.network.deckhouse.io/response-headers-to-add: '{"Strict-Transport-Security":"max-age=31536000; includeSubDomains"}'
+spec:
+  rules:
+    - backendRefs:
+        - name: dashboard
+          port: 443
+```
+
+**Error:**
+```
+Error: Annotation "alb.network.deckhouse.io/response-headers-to-add" must not be used: deprecated in favor of the native Gateway API HTTPRoute ResponseHeaderModifier filter. Add this filter to the relevant HTTPRoute rule instead:
+  rules:
+  - backendRefs: [...]
+    matches: [...]
+    filters:
+    - type: ResponseHeaderModifier
+      responseHeaderModifier:
+        add:
+        - name: Strict-Transport-Security
+          value: max-age=31536000; includeSubDomains
+```
+
+✅ **Correct** - Using the native HTTPRoute filter:
+
+```yaml
+# templates/httproute.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: dashboard
+spec:
+  rules:
+    - backendRefs:
+        - name: dashboard
+          port: 443
+      filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            add:
+              - name: Strict-Transport-Security
+                value: max-age=31536000; includeSubDomains
+```
+
+**Configuration:**
+
+The rule supports excluding specific files and directories (paths are relative
+to the module root):
+
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  templates:
+    exclude-rules:
+      deprecated-httproute-annotations:
+        files:
+          - templates/legacy-ingress.yaml
+        directories:
+          - templates/vendor/
+```
+
+---
+
+### ingress-enablement
+
+**Purpose:** Ensures an Ingress's creation can be turned off the same way every
+other module's can: via `global.modules.ingress.enabled` or the module's own
+`<module>.ingress.enabled` override.
+
+**Description:**
+
+Scans every template file that emits a `kind: Ingress` manifest and reports the
+ones that never reference `helm_lib_module_ingress_enabled` — the shared
+`helm_lib` helper that checks the module override first, then the global
+setting, defaulting to enabled when neither is set — anywhere in the same
+file.
+
+**What it checks:**
+
+1. Only runs when the module actually renders an `Ingress`: a module with none
+   has nothing for this check to say
+2. Every file in `templates/` whose rendered output would contain
+   `kind: Ingress`
+3. That the same file also references `helm_lib_module_ingress_enabled`
+
+**This is a same-file, textual heuristic, not a template-scope analysis.** It
+does not verify that the helper actually gates the specific manifest it
+found — only that both the `kind: Ingress` line and the helper name appear
+somewhere in the same file. In every module observed so far the guard and the
+manifest it protects live in the same file (`{{- if eq (include
+"helm_lib_module_ingress_enabled" .) "true" }}` wrapping the whole
+document), so this catches the case that actually matters — an Ingress with no
+enablement check at all — without needing a real Helm control-flow parser.
+
+**Why it matters:**
+
+An Ingress that never checks the shared helper renders unconditionally: it
+cannot be disabled by an operator who sets `ingress.enabled: false` at either
+the global or the module level, and every module is expected to honor that
+knob the same way.
+
+**Examples:**
+
+❌ **Incorrect** - Ingress with no enablement check:
+
+```yaml
+# templates/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dashboard
+  namespace: d8-my-module
+spec:
+  rules:
+    - host: dashboard.example.com
+```
+
+**Error:**
+```
+Error: File creates a Ingress object but never checks "helm_lib_module_ingress_enabled", so its creation cannot be controlled via global.modules.ingress.enabled or myModule.ingress.enabled. Guard the manifest with {{- if eq (include "helm_lib_module_ingress_enabled" .) "true" }} ... {{- end }} (requires lib_helm v1.72.21+) so it can be disabled the same way every other module's Ingress does.
+```
+
+The exact `.Values` path named in the finding is computed from the module's own
+name (`myModule` above is `my-module` converted to camelCase), so it always
+matches what that module's own values.yaml actually calls it.
+
+✅ **Correct** - Guarded by the shared helper:
+
+```yaml
+# templates/ingress.yaml
+{{- if eq (include "helm_lib_module_ingress_enabled" .) "true" }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dashboard
+  namespace: d8-my-module
+spec:
+  rules:
+    - host: dashboard.example.com
+{{- end }}
+```
+
+**Configuration:**
+
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  templates:
+    exclude-rules:
+      ingress-enablement:
+        files:
+          - templates/ingress.yaml   # module has a documented reason to skip the helper
+        directories:
+          - templates/vendor/
+```
+
+---
+
+### gateway-enablement
+
+**Purpose:** The Gateway API counterpart of [ingress-enablement](#ingress-enablement):
+ensures HTTPRoute and ListenerSet creation can be turned off via
+`global.modules.gatewayAPI.enabled` or the module's own
+`<module>.gatewayAPI.enabled` override.
+
+**Description:**
+
+Scans every template file that emits a `kind: HTTPRoute` or `kind:
+ListenerSet` manifest and reports the ones that never reference
+`helm_lib_module_gateway_enabled` — the shared helper that requires both an
+enabled flag and a resolvable Gateway (module, then global, then
+`global.discovery.gatewayAPIDefaultGateway`) — anywhere in the same file.
+
+**What it checks:**
+
+1. Only runs when the module actually renders an `HTTPRoute` or `ListenerSet`:
+   a module with neither has nothing for this check to say
+2. Every file in `templates/` whose rendered output would contain
+   `kind: HTTPRoute` or `kind: ListenerSet`
+3. That the same file also references `helm_lib_module_gateway_enabled`
+
+Same same-file heuristic and trade-off as `ingress-enablement` — see that
+rule's description for the reasoning.
+
+**Why it matters:**
+
+Unlike Ingress, Gateway API has no safe default: a module cannot assume a
+Gateway exists the way it can assume an `nginx` IngressClass exists. A
+HTTPRoute/ListenerSet pair that skips `helm_lib_module_gateway_enabled` will
+either render with no usable parent Gateway, or fail to respect an operator's
+explicit `gatewayAPI.enabled: false`.
+
+**Examples:**
+
+❌ **Incorrect** - HTTPRoute with no enablement check:
+
+```yaml
+# templates/httproute.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: dashboard
+  namespace: d8-my-module
+spec:
+  hostnames:
+    - dashboard.example.com
+```
+
+**Error:**
+```
+Error: File creates a Gateway API (HTTPRoute/ListenerSet) object but never checks "helm_lib_module_gateway_enabled", so its creation cannot be controlled via global.modules.gatewayAPI.enabled or myModule.gatewayAPI.enabled, with a Gateway resolvable via global.discovery.gatewayAPIDefaultGateway, global.modules.gatewayAPI.gateway, or myModule.gatewayAPI.gateway. Guard the manifest with {{- if eq (include "helm_lib_module_gateway_enabled" .) "true" }} ... {{- end }} (requires lib_helm v1.72.21+) so it can be disabled the same way every other module's Gateway API (HTTPRoute/ListenerSet) does.
+```
+
+As with `ingress-enablement`, the `.Values` paths named in the finding are
+computed from the module's own name.
+
+✅ **Correct** - Guarded by the shared helper:
+
+```yaml
+# templates/httproute.yaml
+{{- $moduleGateway := dict }}
+{{- include "helm_lib_module_gateway" (list . $moduleGateway) }}
+{{- if and (eq (include "helm_lib_module_gateway_enabled" .) "true") .Values.global.modules.publicDomainTemplate }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: ListenerSet
+metadata:
+  name: dashboard
+  namespace: d8-my-module
+spec:
+  parentRef:
+    name: {{ $moduleGateway.name }}
+    namespace: {{ $moduleGateway.namespace }}
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: dashboard
+  namespace: d8-my-module
+spec:
+  hostnames:
+    - dashboard.example.com
+{{- end }}
+```
+
+**Configuration:**
+
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  templates:
+    exclude-rules:
+      gateway-enablement:
+        files:
+          - templates/multicluster/api-proxy/httproute.yaml
+        directories:
+          - templates/vendor/
+```
+
+---
+
+### https-certificate-reuse
+
+> **Warning:** Requires modules to vendor `lib_helm` (`deckhouse_lib_helm`)
+> **v1.72.21 or newer** — the two-prefix form of `helm_lib_module_https_secret_name`
+> was only added in that release.
+
+**Purpose:** Ensures a module that serves the same certificate over both
+Ingress and Gateway API copies its `CustomCertificate`-mode certificate
+exactly once, and that both flows reuse that one copy via
+`helm_lib_module_https_secret_name` — Ingress with the plain, one-prefix
+form, HTTPRoute/ListenerSet with the two-prefix form, linking back to the
+exact same base prefix.
+
+**Description:**
+
+`helm_lib_module_https_secret_name` has an optional third argument:
+`{{ include "helm_lib_module_https_secret_name" (list . "base-prefix" "gateway-prefix") }}`.
+In `CertManager` mode it resolves to `gateway-prefix`'s own secret — Gateway
+API needs its own `cert-manager` `Certificate`, validated through a separate
+`ClusterIssuer`. In `CustomCertificate` mode it ignores the override and
+resolves to `base-prefix`'s secret instead, since custom certificate data is
+the same regardless of which resource consumes it. That is the entire point
+of the two-prefix form: a module using it never needs a second
+`CustomCertificate` copy for its Gateway API flow.
+
+This rule scans every template file for `helm_lib_module_https_copy_custom_certificate`
+calls (which actually create a `CustomCertificate`-mode `Secret`) and for
+`helm_lib_module_https_secret_name` calls, classifying each
+`helm_lib_module_https_secret_name` call by the kind(s) declared in its own
+YAML document — a file is split on `---` separators first, since one file
+commonly bundles a `HTTPRoute`/`ListenerSet` alongside the cert-manager
+`Certificate` that feeds it. A call inside a `kind: Certificate` document is
+excluded entirely: a `Certificate`'s own `secretName` always uses the plain
+form to declare a new target secret for cert-manager to populate, which
+isn't a manifest "reusing" a shared secret. Otherwise a call counts as an
+`Ingress` or Gateway API reference if its own document declares `kind:
+Ingress` or `kind: HTTPRoute`/`kind: ListenerSet` respectively. It reports,
+deduplicated by location:
+
+1. A secret prefix copied by more than one
+   `helm_lib_module_https_copy_custom_certificate` call
+2. An `Ingress`-file reference using the two-prefix form — Ingress never
+   needs a Gateway-API-specific override
+3. A `HTTPRoute`/`ListenerSet`-file reference using the plain one-prefix
+   form — without the override argument, that manifest names its own,
+   independent secret instead of reusing the Ingress flow's
+4. A two-prefix form's override prefix that is *also* independently copied
+5. Two copied prefixes follow the `<stem>-ingress-tls` / `<stem>-httproute-tls`
+   naming convention for the same stem (e.g. `istio-ingress-tls` and
+   `istio-httproute-tls`) — unlike checks 1-4, this one fires purely from the
+   `helm_lib_module_https_copy_custom_certificate` calls themselves, so it
+   also catches a module that copies both variants but hasn't wired up (or
+   has wired up incorrectly) either flow's reference to
+   `helm_lib_module_https_secret_name` at all. It runs last and only adds a
+   finding at a location none of checks 1-4 already reported.
+
+**What it checks:**
+
+1. Only runs when the module renders both an `Ingress` and a
+   `HTTPRoute`/`ListenerSet`: reuse across flows is only possible when both
+   exist
+2. Every file in `templates/` for calls to
+   `helm_lib_module_https_copy_custom_certificate` and
+   `helm_lib_module_https_secret_name`
+3. Whether the five conditions above hold, as described
+
+**This is a textual, whole-module heuristic**, not a value-flow analysis: it
+only recognizes prefixes passed as string literals, and classifies a
+`helm_lib_module_https_secret_name` call by the resource kind(s) declared in
+its own `---`-delimited document (not by full YAML parsing, so a document
+with more than one `kind:` line, however unusual, is classified by whichever
+kinds match). A module that legitimately copies more than one certificate for
+unrelated services — each with its own prefix, referenced consistently by
+that service's own Ingress and Gateway API manifests — is not flagged by
+checks 1-4, since those are scoped to whether a given prefix's *own*
+consumers use it correctly, not to how many distinct prefixes exist in the
+module. The rule deliberately does not check that a `HTTPRoute`/`ListenerSet`
+link's base prefix is also referenced by some `Ingress` file in the module:
+that produced false positives when a module's Ingress and Gateway API
+manifests for the same certificate live in separate directories the rule
+doesn't otherwise correlate. Check 5 is a narrower exception: it relies on
+the `<stem>-ingress-tls` / `<stem>-httproute-tls` naming convention rather
+than any reference, so a module that names two genuinely unrelated
+certificates with that same convention (e.g. `auth-ingress-tls` and
+`auth-httproute-tls` for two unrelated purposes) would be a false positive in
+principle — in practice this convention is used consistently for the paired
+case throughout the module ecosystem.
+
+**Why it matters:**
+
+A module that copies the same custom certificate data under two prefixes
+ships an extra `Secret` that serves no purpose: the Gateway API flow already
+gets the base prefix's certificate in `CustomCertificate` mode through the
+two-prefix form, and the override prefix only matters in `CertManager` mode,
+where it names a `cert-manager` `Certificate`'s target secret — not a
+`CustomCertificate` copy. A Gateway API manifest that uses the plain form
+instead of linking back to the Ingress flow's secret gets its own
+independent secret in every mode, including `CustomCertificate`, which is
+either a second wasteful copy or — if no matching copy exists at all under
+that name — a broken reference.
+
+**Examples:**
+
+❌ **Incorrect** - copying the certificate once per flow, and referencing
+the Gateway-API-only copy with the plain form instead of linking back to the
+Ingress flow's secret:
+
+```yaml
+# templates/custom-certificate.yaml
+{{- include "helm_lib_module_https_copy_custom_certificate" (list . "d8-my-module" "my-module-ingress-tls") }}
+{{- include "helm_lib_module_https_copy_custom_certificate" (list . "d8-my-module" "my-module-httproute-tls") }}
+```
+
+```yaml
+# templates/httproute.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: dashboard
+spec:
+  tls:
+    secretRef:
+      name: {{ include "helm_lib_module_https_secret_name" (list . "my-module-httproute-tls") }}
+```
+
+**Error:**
+```
+Error: HTTPRoute/ListenerSet references its TLS secret with the plain form of helm_lib_module_https_secret_name (list . "my-module-httproute-tls"). It is recommended to use the extended form instead (list . "<ingress-secret-prefix>" "my-module-httproute-tls"), which allows reusing the custom certificate secret in case CustomCertificate mode is enabled.
+```
+
+Copying the override prefix as well (rather than fixing the reference) is
+flagged too, once the reference is corrected to link back to it:
+
+```
+Error: File copies a custom certificate under secret prefix "my-module-httproute-tls", but "my-module-httproute-tls" is only meant to be the Gateway-API-specific override in the two-prefix form of helm_lib_module_https_secret_name (list . "my-module-ingress-tls" "my-module-httproute-tls"), found in templates/httproute.yaml:8. Under CustomCertificate mode both the Ingress and Gateway API flows already resolve to "my-module-ingress-tls"'s copy, so copying one under "my-module-httproute-tls" too is a duplicate — remove this helm_lib_module_https_copy_custom_certificate call and let the two-prefix form share "my-module-ingress-tls"'s certificate.
+```
+
+❌ **Incorrect** (check 5) - both copies exist, but neither flow's manifest
+references `helm_lib_module_https_secret_name` at all yet (or does so
+incorrectly elsewhere) — this is caught from the copy calls alone:
+
+```yaml
+# templates/custom-certificate.yaml
+{{ include "helm_lib_module_https_copy_custom_certificate" (list . "d8-istio" "istio-ingress-tls") }}
+{{ $moduleGateway := dict }}
+{{ include "helm_lib_module_gateway" (list . $moduleGateway) }}
+{{ if $moduleGateway }}
+{{ include "helm_lib_module_https_copy_custom_certificate" (list . "d8-istio" "istio-httproute-tls") }}
+{{ end }}
+```
+
+**Error:**
+```
+Error: File copies a custom certificate under secret prefix "istio-httproute-tls", which by naming convention is the Gateway API/HTTPRoute variant of "istio-ingress-tls" — also copied via helm_lib_module_https_copy_custom_certificate, in templates/custom-certificate.yaml:1. Copy the certificate once, under "istio-ingress-tls", and reference it from the Gateway API flow with the two-prefix form of helm_lib_module_https_secret_name (list . "istio-ingress-tls" "istio-httproute-tls") instead of copying it separately.
+```
+
+✅ **Correct** - copying the certificate once and sharing it:
+
+```yaml
+# templates/custom-certificate.yaml
+{{- include "helm_lib_module_https_copy_custom_certificate" (list . "d8-my-module" "my-module-ingress-tls") }}
+```
+
+```yaml
+# templates/httproute.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: dashboard
+spec:
+  tls:
+    secretRef:
+      name: {{ include "helm_lib_module_https_secret_name" (list . "my-module-ingress-tls" "my-module-httproute-tls") }}
+```
+
+**Configuration:**
+
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  templates:
+    exclude-rules:
+      https-certificate-reuse:
+        files:
+          - templates/legacy-certificate.yaml
+        directories:
+          - templates/vendor/
+```

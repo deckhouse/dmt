@@ -1,0 +1,10 @@
+description: >
+  A module that creates an Ingress without ever checking
+  helm_lib_module_ingress_enabled cannot have that Ingress disabled via global
+  or module configuration, and must be flagged by the ingress-enablement rule.
+module: module
+expect:
+  - linter: templates
+    rule: ingress-enablement
+    level: error
+    textContains: "helm_lib_module_ingress_enabled"

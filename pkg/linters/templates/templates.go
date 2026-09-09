@@ -111,6 +111,22 @@ func (l *Templates) rules() []pkg.Rule {
 		rules.NewHelmRenderRule(m, level(cfg.Rules.HelmRenderRule)),
 		rules.NewOpenAPIValuesQuoteRule(cfg.ExcludeRules.OpenAPIValuesQuote.Get(), m, level(cfg.Rules.OpenAPIValuesQuoteRule)),
 		rules.NewSchemaValidationRule(cfg.ExcludeRules.SchemaValidation.Get(), m, level(cfg.Rules.SchemaValidationRule)),
+		rules.NewDeprecatedHTTPRouteAnnotationsRule(
+			cfg.ExcludeRules.DeprecatedHTTPRouteAnnotations.Files.Get(),
+			cfg.ExcludeRules.DeprecatedHTTPRouteAnnotations.Directories.Get(),
+			m, level(cfg.Rules.DeprecatedHTTPRouteAnnotationsRule)),
+		rules.NewIngressEnablementRule(
+			cfg.ExcludeRules.IngressEnablement.Files.Get(),
+			cfg.ExcludeRules.IngressEnablement.Directories.Get(),
+			m, level(cfg.Rules.IngressEnablementRule)),
+		rules.NewGatewayEnablementRule(
+			cfg.ExcludeRules.GatewayEnablement.Files.Get(),
+			cfg.ExcludeRules.GatewayEnablement.Directories.Get(),
+			m, level(cfg.Rules.GatewayEnablementRule)),
+		rules.NewHTTPSCertificateReuseRule(
+			cfg.ExcludeRules.HTTPSCertificateReuse.Files.Get(),
+			cfg.ExcludeRules.HTTPSCertificateReuse.Directories.Get(),
+			m, level(cfg.Rules.HTTPSCertificateReuseRule)),
 	)
 }
 

@@ -133,23 +133,27 @@ type TemplatesLinterConfig struct {
 	GrafanaDashboardsSettings GrafanaDashboardsSettings
 }
 type TemplatesLinterRules struct {
-	VPARule                  RuleConfig
-	PDBRule                  RuleConfig
-	IngressRule              RuleConfig
-	PrometheusRule           RuleConfig
-	GrafanaRule              RuleConfig
-	KubeRBACProxyRule        RuleConfig
-	ServicePortRule          RuleConfig
-	ClusterDomainRule        RuleConfig
-	RegistryRule             RuleConfig
-	HTTPRouteRule            RuleConfig
-	EnabledModulesRule       RuleConfig
-	CRDEnabledModulesRule    RuleConfig
-	WebhookConfigurationRule RuleConfig
-	MountPointsRule          RuleConfig
-	HelmRenderRule           RuleConfig
-	OpenAPIValuesQuoteRule   RuleConfig
-	SchemaValidationRule     RuleConfig
+	VPARule                            RuleConfig
+	PDBRule                            RuleConfig
+	IngressRule                        RuleConfig
+	PrometheusRule                     RuleConfig
+	GrafanaRule                        RuleConfig
+	KubeRBACProxyRule                  RuleConfig
+	ServicePortRule                    RuleConfig
+	ClusterDomainRule                  RuleConfig
+	RegistryRule                       RuleConfig
+	HTTPRouteRule                      RuleConfig
+	EnabledModulesRule                 RuleConfig
+	CRDEnabledModulesRule              RuleConfig
+	WebhookConfigurationRule           RuleConfig
+	MountPointsRule                    RuleConfig
+	HelmRenderRule                     RuleConfig
+	OpenAPIValuesQuoteRule             RuleConfig
+	SchemaValidationRule               RuleConfig
+	DeprecatedHTTPRouteAnnotationsRule RuleConfig
+	IngressEnablementRule              RuleConfig
+	GatewayEnablementRule              RuleConfig
+	HTTPSCertificateReuseRule          RuleConfig
 }
 
 type PrometheusRuleSettings struct {
@@ -160,17 +164,28 @@ type GrafanaDashboardsSettings struct {
 	Disable bool
 }
 type TemplatesExcludeRules struct {
-	VPAAbsent            KindRuleExcludeList
-	PDBAbsent            KindRuleExcludeList
-	ServicePort          ServicePortExcludeList
-	KubeRBACProxy        StringRuleExcludeList
-	Ingress              KindRuleExcludeList
-	HTTPRoute            KindRuleExcludeList
-	EnabledModules       EnabledModulesExcludeRule
-	WebhookConfiguration KindRuleExcludeList
-	MountPoints          StringRuleExcludeList
-	OpenAPIValuesQuote   StringRuleExcludeList
-	SchemaValidation     KindRuleExcludeList
+	VPAAbsent                      KindRuleExcludeList
+	PDBAbsent                      KindRuleExcludeList
+	ServicePort                    ServicePortExcludeList
+	KubeRBACProxy                  StringRuleExcludeList
+	Ingress                        KindRuleExcludeList
+	HTTPRoute                      KindRuleExcludeList
+	EnabledModules                 EnabledModulesExcludeRule
+	WebhookConfiguration           KindRuleExcludeList
+	MountPoints                    StringRuleExcludeList
+	OpenAPIValuesQuote             StringRuleExcludeList
+	SchemaValidation               KindRuleExcludeList
+	DeprecatedHTTPRouteAnnotations PathRuleExclude
+	IngressEnablement              PathRuleExclude
+	GatewayEnablement              PathRuleExclude
+	HTTPSCertificateReuse          PathRuleExclude
+}
+
+// PathRuleExclude excludes specific files and whole directories (both relative
+// to the module root) from a rule that scans template source files.
+type PathRuleExclude struct {
+	Files       StringRuleExcludeList
+	Directories DirectoryRuleExcludeList
 }
 
 type EnabledModulesExcludeRule struct {
