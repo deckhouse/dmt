@@ -129,8 +129,6 @@ type ModuleLinterRules struct {
 	ModulePackageConsistencyRule RuleConfig `mapstructure:"module-package-consistency"`
 	LegacyReleaseFileRule        RuleConfig `mapstructure:"legacy-release-file"`
 	EnabledScriptRule            RuleConfig `mapstructure:"enabled-script"`
-	ReleaseLayoutRule            RuleConfig `mapstructure:"release-layout"`
-	BundleLayoutRule             RuleConfig `mapstructure:"bundle-layout"`
 	HelmignoreCoverageRule       RuleConfig `mapstructure:"helmignore-coverage"`
 	HasChangelogRule             RuleConfig `mapstructure:"has-changelog"`
 	ChangelogValidRule           RuleConfig `mapstructure:"changelog-valid"`

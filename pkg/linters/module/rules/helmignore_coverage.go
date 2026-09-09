@@ -70,8 +70,9 @@ func (r *CoverageRule) Check(_ context.Context) {
 
 	raw, err := os.ReadFile(filepath.Join(root, helmignoreFile))
 	if err != nil {
-		// A missing .helmignore leaves nothing to compare the tree against. Its absence
-		// is bundle-layout's finding to report, not a second copy of it here.
+		// A missing .helmignore leaves nothing to compare the tree against, and reporting
+		// the absence is not this rule's job — the helmignore rule owns it over the source
+		// tree, and the bundle scope does not ask for that check at all.
 		if os.IsNotExist(err) {
 			return
 		}

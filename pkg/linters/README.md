@@ -101,8 +101,8 @@ list** — deliberately.
 
 The tempting check is "a scope must ask every linter for all of its rules". It
 held while `static` was alone and stopped holding the moment `release` and
-`bundle` landed: `release-layout` belongs to a built image and never runs over a
-source tree, `markdownlint` is the other way round. A check like that would push
+`bundle` landed: `helmignore-coverage` belongs to a built image and never runs over
+a source tree, `markdownlint` is the other way round. A check like that would push
 back against the very thing scopes exist to express, so the tables are written
 out by hand and trusted.
 

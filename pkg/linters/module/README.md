@@ -44,7 +44,7 @@ Validates that a published image carries a `changelog.yaml` and that it is not e
 
 **Scope:** `release` and `bundle` — the published images are where a changelog has to be, and the source tree is not checked for one. Whether it parses is checked by [changelog-valid](#changelog-valid), which runs in the same two scopes.
 
-The layout rules already report the file missing in both scopes, so this rule's own contribution is the empty-file case.
+This is the only rule in either scope that reports a missing file at all, which is why it covers both the absent and the empty case.
 
 A module built into the Deckhouse monorepo needs no exemption here: it publishes no images of its own — it rides the platform release, and its changes are described by the repo-level `CHANGELOG/` — so neither scope ever runs over it.
 
@@ -58,7 +58,7 @@ Validates the `changelog.yaml` a published image ships.
 
 **Scope:** `release` and `bundle` — both published images carry `changelog.yaml`.
 
-A missing `changelog.yaml` is not this rule's finding: the layout rules own presence and [has-changelog](#has-changelog) owns emptiness, and this rule stays quiet when the file is absent — the same split [definition-file](#definition-file) and [package-yaml](#package-yaml) follow.
+A missing `changelog.yaml` is not this rule's finding: [has-changelog](#has-changelog) owns both presence and emptiness, and this rule stays quiet when the file is absent — the same split [definition-file](#definition-file) and [package-yaml](#package-yaml) follow.
 
 ---
 

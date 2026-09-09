@@ -384,8 +384,6 @@ func mapModuleRules(linterSettings *pkg.LintersSettings, configSettings *config.
 	rules.ModulePackageConsistencyRule.SetLevel(globalRules.ModulePackageConsistencyRule.Impact, fallbackImpact)
 	rules.LegacyReleaseFileRule.SetLevel(globalRules.LegacyReleaseFileRule.Impact, fallbackImpact)
 	rules.EnabledScriptRule.SetLevel(globalRules.EnabledScriptRule.Impact, fallbackImpact)
-	rules.ReleaseLayoutRule.SetLevel(globalRules.ReleaseLayoutRule.Impact, fallbackImpact)
-	rules.BundleLayoutRule.SetLevel(globalRules.BundleLayoutRule.Impact, fallbackImpact)
 	rules.HelmignoreCoverageRule.SetLevel(globalRules.HelmignoreCoverageRule.Impact, fallbackImpact)
 	rules.HasChangelogRule.SetLevel(globalRules.HasChangelogRule.Impact, fallbackImpact)
 	rules.ChangelogValidRule.SetLevel(globalRules.ChangelogValidRule.Impact, fallbackImpact)
@@ -651,8 +649,8 @@ func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, r
 //
 // The invariant that buys is one those scope tables have to keep — a rule reaching
 // for GetChart, GetObjectStore or GetValues here finds nil. name comes from the
-// image reference rather than module.yaml, because a module.yaml missing from the
-// image is one of the things the layout rules are there to report.
+// image reference rather than module.yaml, because the image may ship no module.yaml
+// at all and the module still has to be named in the findings.
 func NewRemoteModule(path, name string, linters *global.Linters) *Module {
 	// The image ships no .dmtlint.yaml of its own, and a remote scope is configured
 	// independently of the source tree: severities come from its own `remote.<scope>`

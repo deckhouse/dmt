@@ -35,7 +35,6 @@ import (
 // would work off a chart that was never loaded.
 var bundleRules = map[string]set.Set{
 	moduleLinter.ID: set.New(
-		modulerules.BundleLayoutRuleName,
 		modulerules.HelmignoreCoverageRuleName,
 		modulerules.HasChangelogRuleName,
 		modulerules.ChangelogValidRuleName,

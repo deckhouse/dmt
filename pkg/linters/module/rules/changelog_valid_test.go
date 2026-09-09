@@ -53,7 +53,7 @@ func TestChangelogYAMLRule(t *testing.T) {
 			content: "",
 		},
 		{
-			// release-layout owns presence; this rule must stay quiet, which is what
+			// has-changelog owns presence; this rule must stay quiet, which is what
 			// lets a scope whose image carries no changelog ask for it.
 			name:  "no changelog at all",
 			write: false,

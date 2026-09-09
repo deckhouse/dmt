@@ -30,7 +30,7 @@ import (
 // validateModule is the source tree's pre-flight check. It reports through the
 // `module`/`definition-file` rule rather than under its own name, because what it
 // checks is what that rule checks — the remote scopes reach the same ground through
-// the bundle-layout and release-layout rules instead.
+// the definition-file rule itself, which runs over the unpacked image.
 func validateModule(path string, errorList *dmtErrors.LintRuleErrorsList) error {
 	var errs error
 
