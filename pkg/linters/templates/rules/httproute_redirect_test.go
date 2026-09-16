@@ -182,3 +182,81 @@ func TestHTTPRouteRedirectRule_ExcludedSectionKeepsOthersChecked(t *testing.T) {
 	assert.Len(t, found, 1)
 	assert.Contains(t, found[0].Text, "api-proxy-redirect")
 }
+
+// httpRouteObjectNS is httpRouteObject with an explicit namespace override, for
+// exercising cross-namespace parentRef resolution.
+func httpRouteObjectNS(name, namespace string, parentRefs, rules []map[string]any) storage.StoreObject {
+	obj := httpRouteObject(name, parentRefs, rules)
+	obj.Unstructured.SetNamespace(namespace)
+
+	return obj
+}
+
+func TestHTTPRouteRedirectRule_RouteInDifferentNamespaceDoesNotCount(t *testing.T) {
+	// The redirect HTTPRoute lives in another namespace and its parentRef omits the
+	// namespace, so the reference defaults to the route's own namespace, which is not
+	// the ListenerSet's. It cannot target this ListenerSet, so the section is still
+	// unredirected and the finding fires.
+	parentRef := map[string]any{
+		"kind":        ListenerSetKind,
+		"name":        testLSName,
+		"sectionName": "istio-redirect",
+		// namespace omitted -> defaults to the route's own namespace
+	}
+	route := httpRouteObjectNS("kiali-redirect", "other-namespace",
+		[]map[string]any{parentRef},
+		[]map[string]any{redirectRule(httpsScheme, 0)},
+	)
+
+	assert.True(t, runHTTPRouteRedirectRule(t, nil, redirectListenerSet(), route).ContainsErrors())
+}
+
+func TestHTTPRouteRedirectRule_RouteInDifferentNamespaceWithExplicitNamespaceCounts(t *testing.T) {
+	// A redirect HTTPRoute in another namespace still counts when its parentRef
+	// explicitly targets the ListenerSet's namespace (listenerSetParentRef sets
+	// namespace: testLSNamespace).
+	route := httpRouteObjectNS("kiali-redirect", "other-namespace",
+		[]map[string]any{listenerSetParentRef("istio-redirect")},
+		[]map[string]any{redirectRule(httpsScheme, 0)},
+	)
+
+	assert.False(t, runHTTPRouteRedirectRule(t, nil, redirectListenerSet(), route).ContainsErrors())
+}
+
+func TestHTTPRouteRedirectRule_ParentRefEmptyKindTreatedAsListenerSet(t *testing.T) {
+	// Deckhouse HTTPRoutes reference a ListenerSet by name with the kind omitted (see the
+	// httproute-valid e2e fixture and validateHTTPRouteParentRefs, which matches on name
+	// only), so a parentRef with no kind is intentionally treated as a ListenerSet
+	// reference here. (Per Gateway API, an omitted parentRef.kind would default to
+	// Gateway, but the module convention is name-based.) A matching name/section/namespace
+	// therefore counts as redirecting the section.
+	parentRef := map[string]any{
+		"name":        testLSName,
+		"namespace":   testLSNamespace,
+		"sectionName": "istio-redirect",
+		// kind omitted
+	}
+	route := httpRouteObject("kiali-redirect",
+		[]map[string]any{parentRef},
+		[]map[string]any{redirectRule(httpsScheme, 0)},
+	)
+
+	assert.False(t, runHTTPRouteRedirectRule(t, nil, redirectListenerSet(), route).ContainsErrors())
+}
+
+func TestHTTPRouteRedirectRule_ParentRefNonListenerSetKindIgnored(t *testing.T) {
+	// A parentRef pointing at a Gateway (not a ListenerSet) does not redirect the
+	// ListenerSet section, even with a matching name/section, so the finding fires.
+	parentRef := map[string]any{
+		"kind":        "Gateway",
+		"name":        testLSName,
+		"namespace":   testLSNamespace,
+		"sectionName": "istio-redirect",
+	}
+	route := httpRouteObject("kiali-redirect",
+		[]map[string]any{parentRef},
+		[]map[string]any{redirectRule(httpsScheme, 0)},
+	)
+
+	assert.True(t, runHTTPRouteRedirectRule(t, nil, redirectListenerSet(), route).ContainsErrors())
+}

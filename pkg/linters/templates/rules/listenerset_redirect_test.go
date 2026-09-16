@@ -65,8 +65,12 @@ func storeFrom(objects ...storage.StoreObject) map[storage.ResourceIndex]storage
 	return store
 }
 
+func httpsListenerPort(name, hostname string, port int64) map[string]any {
+	return map[string]any{"name": name, "hostname": hostname, "port": port, "protocol": httpsProtocol}
+}
+
 func httpsListener(name, hostname string) map[string]any {
-	return map[string]any{"name": name, "hostname": hostname, "port": int64(443), "protocol": httpsProtocol}
+	return httpsListenerPort(name, hostname, httpsPort)
 }
 
 func httpRedirectListener(name, hostname string) map[string]any {
@@ -112,10 +116,13 @@ func TestListenerSetRedirectRule_HTTPOnlyHostNeedsNoRedirect(t *testing.T) {
 }
 
 func TestListenerSetRedirectRule_ReportsEachHostOnce(t *testing.T) {
-	// Two HTTPS listeners for the same host with no HTTP counterpart -> a single finding.
+	// Gateway API requires HTTPS listeners to be distinct by (protocol, port, hostname),
+	// so a single host can only be served by more than one HTTPS listener on DISTINCT
+	// ports. Two such HTTPS listeners for one host with no port-80 HTTP counterpart still
+	// yield a single finding (deduped by hostname).
 	ls := listenerSetObject([]map[string]any{
-		httpsListener("a", "same.example.com"),
-		httpsListener("b", "same.example.com"),
+		httpsListenerPort("secure", "same.example.com", httpsPort),
+		httpsListenerPort("secure-alt", "same.example.com", int64(8443)),
 	})
 
 	errorList := runListenerSetRedirectRule(t, nil, ls)
