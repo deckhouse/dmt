@@ -1,0 +1,2 @@
+name: e2e-no-ingress-gateway-objects
+namespace: e2e-no-ingress-gateway-objects

@@ -418,6 +418,12 @@ func mapTemplatesRules(linterSettings *pkg.LintersSettings, configSettings *conf
 	rules.HelmRenderRule.SetLevel(globalRules.HelmRenderRule.Impact, fallbackImpact)
 	rules.OpenAPIValuesQuoteRule.SetLevel(globalRules.OpenAPIValuesQuoteRule.Impact, fallbackImpact)
 	rules.SchemaValidationRule.SetLevel(globalRules.SchemaValidationRule.Impact, fallbackImpact)
+	rules.DeprecatedHTTPRouteAnnotationsRule.SetLevel(globalRules.DeprecatedHTTPRouteAnnotationsRule.Impact, fallbackImpact)
+	rules.IngressEnablementRule.SetLevel(globalRules.IngressEnablementRule.Impact, fallbackImpact)
+	rules.GatewayEnablementRule.SetLevel(globalRules.GatewayEnablementRule.Impact, fallbackImpact)
+	rules.HTTPSCertificateReuseRule.SetLevel(globalRules.HTTPSCertificateReuseRule.Impact, fallbackImpact)
+	rules.ListenerSetRedirectRule.SetLevel(globalRules.ListenerSetRedirectRule.Impact, fallbackImpact)
+	rules.HTTPRouteRedirectRule.SetLevel(globalRules.HTTPRouteRedirectRule.Impact, fallbackImpact)
 }
 
 // mapOpenAPIRules configures OpenAPI linter rules
@@ -552,6 +558,16 @@ func mapTemplatesExclusionsAndSettings(linterSettings *pkg.LintersSettings, conf
 	excludes.MountPoints = pkg.StringRuleExcludeList(configExcludes.MountPoints)
 	excludes.OpenAPIValuesQuote = pkg.StringRuleExcludeList(configExcludes.OpenAPIValuesQuote)
 	excludes.SchemaValidation = configExcludes.SchemaValidation.Get()
+	excludes.DeprecatedHTTPRouteAnnotations.Files = pkg.StringRuleExcludeList(configExcludes.DeprecatedHTTPRouteAnnotations.Files)
+	excludes.DeprecatedHTTPRouteAnnotations.Directories = pkg.DirectoryRuleExcludeList(configExcludes.DeprecatedHTTPRouteAnnotations.Directories)
+	excludes.IngressEnablement.Files = pkg.StringRuleExcludeList(configExcludes.IngressEnablement.Files)
+	excludes.IngressEnablement.Directories = pkg.DirectoryRuleExcludeList(configExcludes.IngressEnablement.Directories)
+	excludes.GatewayEnablement.Files = pkg.StringRuleExcludeList(configExcludes.GatewayEnablement.Files)
+	excludes.GatewayEnablement.Directories = pkg.DirectoryRuleExcludeList(configExcludes.GatewayEnablement.Directories)
+	excludes.HTTPSCertificateReuse.Files = pkg.StringRuleExcludeList(configExcludes.HTTPSCertificateReuse.Files)
+	excludes.HTTPSCertificateReuse.Directories = pkg.DirectoryRuleExcludeList(configExcludes.HTTPSCertificateReuse.Directories)
+	excludes.ListenerSetRedirect = configExcludes.ListenerSetRedirect.Get()
+	excludes.HTTPRouteRedirect = configExcludes.HTTPRouteRedirect.Get()
 
 	// Additional settings
 	linterSettings.Templates.PrometheusRuleSettings.Disable = configSettings.Templates.PrometheusRules.Disable

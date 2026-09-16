@@ -1,0 +1,11 @@
+description: >
+  A module that creates an HTTPRoute without ever checking
+  helm_lib_module_gateway_enabled cannot have that HTTPRoute disabled via
+  global or module configuration, and must be flagged by the
+  gateway-enablement rule.
+module: module
+expect:
+  - linter: templates
+    rule: gateway-enablement
+    level: error
+    textContains: "helm_lib_module_gateway_enabled"
