@@ -129,6 +129,7 @@ var staticRules = map[string]set.Set{
 	),
 	templates.ID: set.New(
 		templatesrules.CRDEnabledModulesRuleName,
+		templatesrules.CertificateGatewayIssuerRuleName,
 		templatesrules.ClusterDomainRuleName,
 		templatesrules.DeprecatedHTTPRouteAnnotationsRuleName,
 		templatesrules.EnabledModulesRuleName,

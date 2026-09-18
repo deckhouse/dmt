@@ -156,6 +156,7 @@ type TemplatesLinterRules struct {
 	HTTPSCertificateReuseRule          RuleConfig
 	ListenerSetRedirectRule            RuleConfig
 	HTTPRouteRedirectRule              RuleConfig
+	CertificateGatewayIssuerRule       RuleConfig
 }
 
 type PrometheusRuleSettings struct {
@@ -172,6 +173,7 @@ type TemplatesExcludeRules struct {
 	KubeRBACProxy                  StringRuleExcludeList
 	Ingress                        KindRuleExcludeList
 	HTTPRoute                      KindRuleExcludeList
+	CertificateGatewayIssuer       KindRuleExcludeList
 	EnabledModules                 EnabledModulesExcludeRule
 	WebhookConfiguration           KindRuleExcludeList
 	MountPoints                    StringRuleExcludeList

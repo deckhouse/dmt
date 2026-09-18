@@ -33,6 +33,7 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [https-certificate-reuse](#https-certificate-reuse) | Requires a custom certificate to be copied once and reused by Ingress and Gateway API via `helm_lib_module_https_secret_name`'s plain and two-prefix forms | ✅ | enabled |
 | [listenerset-redirect](#listenerset-redirect) | Requires every ListenerSet host served over HTTPS to also have an HTTP (port 80) listener for the HTTP→HTTPS redirect | ✅ | enabled |
 | [httproute-redirect](#httproute-redirect) | Requires every ListenerSet HTTP (port 80) redirect section to be backed by an HTTPRoute that redirects it to HTTPS | ✅ | enabled |
+| [certificate-gateway-issuer](#certificate-gateway-issuer) | Validates Gateway API Certificates use the helm_lib ClusterIssuer helper | ✅ | enabled |
 
 "Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
@@ -2108,8 +2109,77 @@ linters-settings:
 **When to exclude:** Pods managed outside Helm (operators, mutating webhooks, static pods, bashible) have `volumeMounts` that are not present in Helm templates. Directories from `mount-points.yaml` for these containers will produce false positives — exclude them with the corresponding paths.
 ```
 
+---
+
+### certificate-gateway-issuer
+
+**Purpose:** Ensures Certificate objects used with Gateway API reference the ClusterIssuer through the shared helm_lib helper instead of hardcoding `printf "letsencrypt-gateway-%s"`.
+
+**Description:**
+
+Scans Helm template files for `kind: Certificate` resources whose `spec.issuerRef.name` is set with `{{ printf "letsencrypt-gateway-%s" ... }}` and requires the recommended include helper instead.
+
+**What it checks:**
+
+1. Template files under `templates/` (`.yaml`, `.yml`, `.tpl`, `.tpl.yaml`, `.tpl.yml`)
+2. Presence of `kind: Certificate`
+3. `issuerRef.name` using `printf "letsencrypt-gateway-%s"` (or single-quoted equivalent)
+
+**Why it matters:**
+
+Hardcoded Gateway issuer names:
+- Bypass the shared helm_lib naming convention for Gateway API ClusterIssuers
+- Drift when issuer naming changes across Deckhouse releases
+- Make Certificate templates harder to review and maintain
+
+**Examples:**
+
+❌ **Incorrect** - Hardcoded printf issuer name:
+
+```yaml
+# templates/certificate.yaml
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gateway-cert
+spec:
+  issuerRef:
+    name: {{ printf "letsencrypt-gateway-%s" $moduleGateway.name }}
+    kind: ClusterIssuer
+```
+
+**Error:**
+```
+Certificates related to Gateway API must refer to issuer using {{ include "helm_lib_module_https_cert_manager_cluster_issuer_name_for_gateway_api" . }}
+```
+
+✅ **Correct** - Use the helm_lib helper:
+
+```yaml
+# templates/certificate.yaml
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gateway-cert
+spec:
+  issuerRef:
+    name: {{ include "helm_lib_module_https_cert_manager_cluster_issuer_name_for_gateway_api" . }}
+    kind: ClusterIssuer
+```
+
 **Configuration:**
 
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  templates:
+    exclude-rules:
+      certificate-gateway-issuer:
+        - kind: Certificate
+          name: gateway-cert
+```
+
+---
 
 ### openapi-values-quote
 
@@ -2252,6 +2322,11 @@ linters-settings:
     
     prometheus-rules:
       disable: true
+
+    exclude-rules:
+      certificate-gateway-issuer:
+        - kind: Certificate
+          name: gateway-cert
 ```
 
 ### Per-Rule Impact Levels
@@ -2289,6 +2364,8 @@ linters-settings:
         impact: error
       openapi-values-quote:
         impact: error
+      certificate-gateway-issuer:
+        impact: warning
 ```
 
 ### Rule-Level Exclusions
@@ -2327,6 +2404,11 @@ linters-settings:
           name: legacy-webhook
         - kind: Ingress
           name: internal-only
+
+      # Certificate Gateway issuer exclusions (by kind and name)
+      certificate-gateway-issuer:
+        - kind: Certificate
+          name: legacy-gateway-cert
 
       # Service port exclusions (by service name and port name)
       service-port:
@@ -2396,6 +2478,10 @@ linters-settings:
       ingress:
         - kind: Ingress
           name: internal-dashboard
+
+      certificate-gateway-issuer:
+        - kind: Certificate
+          name: internal-dashboard-cert
       
       service-port:
         - name: apiserver
