@@ -261,3 +261,28 @@ func TestCoverage_StubFixOncePerRun(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, strings.Count(string(after), "resource: alphas"), "one stub, not one per variant")
 }
+
+// A noAccess entry whose group has no CRD in the module and no scope: a removed CRD is
+// indistinguishable from an external resource, so the entry is asked to say which.
+func TestCoverage_DeniedEntryWithoutCRDNeedsScope(t *testing.T) {
+	modulePath := writeModule(t, map[string]string{
+		"crds/a.yaml": crdYAML("a.io", "alphas", "Namespaced"),
+		rbacyaml.Filename: `apiVersion: rbac.deckhouse.io/v1alpha1
+resources:
+  - group: a.io
+    resource: alphas
+    noAccess: "internal"
+  - group: gone.io
+    resource: relics
+    noAccess: "the CRD left with the old controller"
+  - group: external.io
+    resource: things
+    scope: Cluster
+    noAccess: "documented denial of an external resource"
+`,
+	})
+
+	got := texts(runCoverage(t, modulePath))
+	require.Len(t, got, 1, "got: %v", got)
+	assert.Contains(t, got[0], "warn: gone.io/relics is denied access but the module ships no CRD for it and the entry names no scope")
+}

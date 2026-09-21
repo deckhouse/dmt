@@ -1552,6 +1552,7 @@ Runs only when the module has an `rbac.yaml`. Reads the CRDs under `crds/` at an
 1. Every CRD (`spec.group` / `spec.names.plural`) has an entry in `resources` that grants levels or denies access with a reason -- **error**, with an autofix.
 2. An entry left as `noAccess: "TODO"` -- **error**, no autofix: only a person can decide.
 3. An entry naming a group the module ships CRDs for, but a resource none of them spells -- **warning** (a likely misspelling). Whole-group (`"*"`) and subresource (`/`) entries are exempt.
+4. A `noAccess` entry of a group the module ships no CRD for, without a `scope` -- **warning**: a removed CRD is indistinguishable from an external resource nobody grants. Add `scope` to say the resource is external, or drop the entry if its CRD is gone.
 
 **Autofix:** appends an undecided stub for each CRD without an entry --
 
@@ -1618,13 +1619,13 @@ controller ClusterRoles with arbitrary names, objects with Helm-computed names).
 2. A capability's aggregation edges (`aggregate-to-<lineage>-as`) match in both directions: rules may agree while a lineage is lost. Its `rbac.deckhouse.io/capability` marker, `module` and `rbac.deckhouse.io/namespace` labels are what the generator writes.
 3. A binding's `roleRef` and subjects match.
 4. Every rendered legacy role and module capability is produced by the declaration.
-5. A generated file names the contract version it was generated under in its header; a file of another version is a divergence and is regenerated.
+5. A file that carries the generator header is the generator's, and its text must be what the declaration renders now: a rule under `when` whose condition is false today is absent from the render without being a divergence, yet it still has to reach the template, so for generator-owned files the text is compared too. A file of another contract version is the same case. Remove the header to maintain a file by hand; then only its render is judged.
 
 Findings are one per template file and carry the fix command; the text does not depend on the render variant.
 
 **Autofix:** regenerates the file from `rbac.yaml`, with two safeguards --
 
-- a file without the generator header is maintained by hand: the generated text is written beside it as `<file>.generated` and the finding stays (delete the file and run `--fix` again to hand it back to the generator);
+- a file without the generator header is maintained by hand: the generated text is written beside it as `_<file>.generated` (the underscore keeps Helm from rendering the copy) and the finding stays (delete the file and run `--fix` again to hand it back to the generator);
 - the regenerated file must grant everything the render of that file grants today, rules and aggregation edges alike; otherwise the file is left alone and the finding names what would be lost. Removing a right is always a person's decision: declare it in `rbac.yaml` or remove it from the template by hand.
 
 A missing file is created. A second `--fix` without changes to `rbac.yaml` changes nothing. Under

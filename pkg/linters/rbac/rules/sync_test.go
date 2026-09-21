@@ -406,7 +406,7 @@ func TestSync_Autofix(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "# hand-made\napiVersion: v1\n", string(unchanged))
 
-		aside, err := os.ReadFile(path + ".generated")
+		aside, err := os.ReadFile(asidePath(path))
 		require.NoError(t, err)
 		assert.True(t, strings.HasPrefix(string(aside), generate.Header()))
 	})
@@ -590,6 +590,75 @@ func TestSync_GatedTemplateIsNotRegenerated(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, gated, string(unchanged))
 
-	_, err = os.Stat(path + ".generated")
+	_, err = os.Stat(asidePath(path))
 	assert.True(t, os.IsNotExist(err), "no .generated copy for a gated file")
+}
+
+// A gated template whose legacy branch rendered (values below 1.78) is not a divergence: the 1.78
+// objects it declares are compared in the run where the gate answers "new".
+func TestSync_GatedTemplateRenderingLegacyBranchIsSilent(t *testing.T) {
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	store := renderedFrom(t, model, func(o *generate.Object) bool { return o.Name != "d8:namespace-capability:cert-manager:view" })
+
+	putObject(t, store, "templates/rbacv2/use/view.yaml", generate.Object{
+		Kind: "ClusterRole", Name: "d8:use:capability:module:cert-manager:view", Class: generate.ClassCapability,
+		Labels: map[string]string{"rbac.deckhouse.io/kind": "use", "rbac.deckhouse.io/aggregate-to-kubernetes-as": "viewer"},
+		Rules:  []generate.Rule{{PolicyRule: rbacyaml.PolicyRule{APIGroups: []string{"cert-manager.io"}, Resources: []string{"certificates"}, Verbs: []string{"get"}}}},
+	})
+
+	path := filepath.Join(modulePath, "templates/rbacv2/use/view.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte("{{- if eq (include \"cert-manager.rbacv2_new_scheme\" .) \"true\" }}\n# new\n{{- else }}\n# legacy\n{{- end }}\n"), 0o600))
+
+	assert.Empty(t, texts(runSync(t, modulePath, store)))
+}
+
+// A generator-owned file must be the text the declaration renders now: a rule under `when` that is
+// false today is invisible to the render, so only the text says whether it reached the template.
+func TestSync_GeneratedFileTextIsCompared(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	store := renderedFrom(t, model, nil)
+
+	const rel = "templates/rbacv2/use/view.yaml"
+
+	want := generate.RenderFile(*model.File(rel))
+	path := filepath.Join(modulePath, rel)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+
+	t.Run("the exact text is not a divergence", func(t *testing.T) {
+		require.NoError(t, os.WriteFile(path, []byte(want), 0o600))
+		assert.Empty(t, texts(runSync(t, modulePath, store)))
+	})
+
+	t.Run("a stale generated file is regenerated", func(t *testing.T) {
+		stale := strings.Replace(want, "\n{{- if .Values.certManager.internal.acmeEnabled }}", "\n# a conditional rule was declared after this file was generated\n{{- if .Values.certManager.internal.acmeEnabled }}", 1)
+		require.NotEqual(t, want, stale, "the fixture must carry a conditional rule")
+		require.NoError(t, os.WriteFile(path, []byte(stale), 0o600))
+
+		errorList := runSync(t, modulePath, store)
+		got := texts(errorList)
+		require.Len(t, got, 1, "got: %v", got)
+		assert.Contains(t, got[0], "the file carries the generator header but is not what the declaration renders now")
+
+		for _, fix := range errorList.GetFixes() {
+			fix()
+		}
+
+		assert.Empty(t, errorList.GetErrors())
+
+		written, err := os.ReadFile(path)
+		require.NoError(t, err)
+		assert.Equal(t, want, string(written))
+	})
+
+	t.Run("a hand-maintained file is judged by its render only", func(t *testing.T) {
+		_, body, _ := strings.Cut(want, "\n")
+		require.NoError(t, os.WriteFile(path, []byte("# hand-maintained\n"+body), 0o600))
+		assert.Empty(t, texts(runSync(t, modulePath, store)))
+	})
 }
