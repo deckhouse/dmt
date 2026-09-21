@@ -14,6 +14,9 @@ Proper RBAC configuration is critical for Kubernetes security, ensuring least-pr
 | [binding-subject](#binding-subject) | Validates RoleBinding/ClusterRoleBinding subjects reference existing ServiceAccounts | ✅ | enabled |
 | [placement](#placement) | Validates RBAC resource placement and naming conventions | ✅ | enabled |
 | [wildcards](#wildcards) | Validates Roles/ClusterRoles don't use wildcard permissions | ✅ | enabled |
+| [contract](#contract) | Holds the module's RBACv2 roles and capabilities to the platform's label and naming contract | ✅ | enabled |
+| [coverage](#coverage) | Requires a decision in `rbac.yaml` on the user access to every CRD the module ships | ✅ | enabled when `rbac.yaml` exists |
+| [sync](#sync) | Compares the rendered RBAC objects with `rbac.yaml` in both directions; `--fix` regenerates the templates | ✅ | enabled when `rbac.yaml` exists |
 
 "Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
@@ -1340,3 +1343,318 @@ Error: User-authz access ClusterRoles should have annotation "user-authz.deckhou
      annotations:
        user-authz.deckhouse.io/access-level: Editor
    ```
+
+---
+
+## The module RBAC declaration: `rbac.yaml`
+
+The three rules below work with one file, `modules/<module>/rbac.yaml`: the single machine-readable
+source of the RBAC a module ships. It describes, per resource, the access every role model grants
+(the RBACv2 namespace and system lineages, and the legacy user-authz access levels), the rights of the
+module's ServiceAccounts, and the access other components get to the module. The templates under
+`templates/rbacv2/`, `templates/user-authz-cluster-roles.yaml`, `templates/**/rbac-for-us.yaml` and
+`templates/rbac-to-us.yaml` are **generated** from it by `dmt lint --linter rbac --fix`.
+
+```yaml
+# modules/<module>/rbac.yaml
+apiVersion: rbac.deckhouse.io/v1alpha1
+
+# Lineages the system capabilities aggregate into. Defaults to `subsystems` of module.yaml; required
+# when the module aggregates into more subsystems than module.yaml declares.
+subsystems: [networking, kubernetes]
+
+resources:
+  # A resource the module ships a CRD for: group and resource are enough, the scope comes from the CRD.
+  - group: cert-manager.io
+    resource: certificates
+    namespace:                      # RBACv2 namespace lineage; only for Namespaced resources
+      viewer: [get, list, watch]
+      manager: [create, update, patch, delete, deletecollection]
+    legacy:                         # user-authz v1; never derived from the RBACv2 levels
+      User: [get, list, watch]
+      Editor: [create, update, patch, delete, deletecollection]
+
+  # A cluster-scoped resource goes to the system lineage; a Namespaced one may too, with a reason.
+  - group: cert-manager.io
+    resource: clusterissuers
+    system:
+      viewer: [get, list, watch]
+      manager: [create, update, patch, delete, deletecollection]
+    legacy:
+      ClusterEditor: [create, update, patch, delete, deletecollection]
+
+  # A resource the module ships no CRD for: declare the scope; its existence is not checked.
+  - group: trivy.deckhouse.io
+    resource: vulnerabilityreports
+    scope: Namespaced
+    namespace:
+      viewer: [get, list, watch]
+
+  # A whole group whose resources are created at runtime: "*" with a reason.
+  - group: constraints.gatekeeper.sh
+    resource: "*"
+    scope: Cluster
+    reason: one CRD per ConstraintTemplate is created at runtime; the names are not known statically
+    system:
+      viewer: [get, list, watch]
+
+  # A deliberate denial: the reason is for the reader. It excludes namespace, system and legacy.
+  - group: deckhouse.io
+    resource: registryscantargets
+    noAccess: internal resource, managed by the controller
+
+  # A conditional grant: `when` is a Helm expression, rendered as {{- if <when> }} around the rule.
+  - group: deckhouse.io
+    resource: bars
+    when: .Values.foo.barEnabled
+    namespace:
+      viewer: [get, list, watch]
+
+# Localized texts of capabilities outside the view/edit convention (their texts come from the platform).
+capabilities:
+  namespace.admin:
+    title: {en: "Module cert-manager: admin", ru: "Модуль cert-manager: администрирование"}
+    description: {en: "Manage cert-manager Issuers in a namespace.", ru: "Управление Issuer модуля cert-manager в пространстве имён."}
+
+# ServiceAccount rights -> templates/[<path>/]rbac-for-us.yaml. Only declared accounts are managed.
+serviceAccounts:
+  - name: cainjector
+    path: cainjector                # templates/cainjector/rbac-for-us.yaml; omitted -> templates/rbac-for-us.yaml
+    when: .Values.certManager.internal.enableCAInjector
+    labels: {app: cainjector}
+    clusterRules:                   # ClusterRole d8:<module>:<name> + ClusterRoleBinding
+      - apiGroups: [cert-manager.io]
+        resources: [certificates]
+        verbs: [get, list, watch]
+      - nonResourceURLs: [/metrics]
+        verbs: [get]
+    namespaceRules:                 # Role <name> in the module namespace + RoleBinding
+      - apiGroups: [coordination.k8s.io]
+        resources: [leases]
+        verbs: [get, list, watch, create, update, patch]
+    bindClusterRoles: [d8:rbac-proxy]         # ClusterRoleBinding d8:<module>:<name>:rbac-proxy
+    bindRoles:                                # RoleBinding to an existing Role in a foreign namespace
+      - namespace: kube-system
+        name: extension-apiserver-authentication-reader
+
+# Metrics access -> templates/rbac-to-us.yaml (Role/RoleBinding access-to-<module>)
+prometheusAccess:
+  deployments: [cert-manager]
+
+# Arbitrary subjects: clusterRules -> templates/rbac-for-us.yaml, namespaceRules -> templates/rbac-to-us.yaml
+access:
+  - name: admin-kubeconfig
+    subjects:
+      - kind: Group
+        name: kubeadm:cluster-admins
+    clusterRules:
+      - apiGroups: [cert-manager.io]
+        resources: [clusterissuers]
+        verbs: [get, list, watch, create, update, patch, delete]
+```
+
+Format rules the loader enforces:
+
+- `apiVersion` is required and must be `rbac.deckhouse.io/v1alpha1`; unknown keys anywhere are an error.
+- Verbs are listed explicitly (`get`, `list`, `watch`, `create`, `update`, `patch`, `delete`, `deletecollection`); there are no aliases.
+- Levels: `namespace` -- `viewer`, `user`, `manager`, `admin`, `superadmin`; `system` -- `viewer`, `manager`, `superadmin`; `legacy` -- `User`, `PrivilegedUser`, `Editor`, `Admin`, `ClusterEditor`, `ClusterAdmin`, `SuperAdmin`.
+- `namespace` levels are allowed only for `Namespaced` resources; a `Namespaced` resource at a `system` level needs a `reason`.
+- `scope` is required for a resource the module ships no CRD for, and must agree with the CRD when the module ships one. `resource: "*"` is allowed only for a group without CRDs in the module and needs a `reason`.
+- `noAccess` is a non-empty reason and excludes the levels. `noAccess: "TODO"` is the stub the coverage autofix writes; it is not a decision.
+- A capability outside the view/edit convention (`admin`, `user`, `superadmin`) needs `capabilities.<lineage>.<level>` texts in both languages.
+
+What the generator produces from it (level `viewer` -> capability `view`, `manager` -> `edit`, the rest as they are):
+
+| Section | File | Objects |
+|---|---|---|
+| `resources[].namespace.<level>` | `templates/rbacv2/use/<action>.yaml` | ClusterRole `d8:namespace-capability:<module>:<action>` |
+| `resources[].system.<level>` | `templates/rbacv2/manage/<action>.yaml` | ClusterRole `d8:system-capability:<module>:<action>`; `view` and `edit` are always produced, with the rule on the module's own ModuleConfig |
+| `resources[].legacy.<Level>` | `templates/user-authz-cluster-roles.yaml` | ClusterRole `d8:user-authz:<module>:<kebab-level>` with the `user-authz.deckhouse.io/access-level` annotation |
+| `serviceAccounts[]` | `templates/[<path>/]rbac-for-us.yaml` | ServiceAccount, ClusterRole/ClusterRoleBinding `d8:<module>:<name>`, Role/RoleBinding `<name>`, the extra bindings |
+| `access[]` with `clusterRules` | `templates/rbac-for-us.yaml` | ClusterRole/ClusterRoleBinding `d8:<module>:<name>` |
+| `prometheusAccess`, `access[]` with `namespaceRules` | `templates/rbac-to-us.yaml` | Role/RoleBinding `access-to-<module>[-<name>]` |
+
+Every generated file starts with a header line naming the generator and the contract version. A file
+without that header is maintained by hand and is never overwritten.
+
+The developer's loop is: edit `rbac.yaml` -> `dmt lint --linter rbac --fix` -> `dmt lint`. `--fix` does not
+re-lint: the second `dmt lint` shows the state after the fixes.
+
+---
+
+### contract
+
+**Purpose:** Holds the RBACv2 roles and capabilities a module renders under `templates/rbacv2/` to the
+platform's label and naming contract, so that a module outside the platform repository is checked
+the same way the platform's own test (`testing/rbacv2`) checks in-tree modules. Role aggregation
+relies on labels the API server cannot validate; a divergent module silently breaks it.
+
+**Description:**
+
+Works on the rendered ClusterRoles from `templates/rbacv2/` (the compatibility aliases under
+`templates/rbacv2-compat/` are outside the contract by design). Needs no `rbac.yaml`.
+
+**What it checks:**
+
+1. The name starts with `d8:`; the four `en|ru.meta.deckhouse.io/title|description` annotations are present.
+2. `rbac.deckhouse.io/kind` is `role` or `capability`; `rbac.deckhouse.io/scope` is `system`, `subsystem`, `namespace` or `project`.
+3. A role: its name matches the pattern of its scope, it defines no `rules`, its `aggregationRule` selects only by `aggregate-to-<lineage>-as` labels with a known lineage and a level of that lineage; system/subsystem roles carry `rbac.deckhouse.io/use-role` with a valid level.
+4. A capability: its name starts with the prefix of its scope, it defines `rules` and no `aggregationRule`, carries at least one `aggregate-to-<lineage>-as` label and a valid `rbac.deckhouse.io/capability` marker (a label value, at most 63 characters).
+5. Aggregation labels target a known lineage (`system`, `namespace`, `project` or one of the seven subsystems) with a level that lineage has.
+6. `rbac.deckhouse.io/delegatable` appears only on namespace/project roles.
+7. **Warning:** a cluster-scoped resource inside a namespace capability. Such a capability is bound through a RoleBinding, where the rule grants nothing. The scope comes from the module's CRDs or from its `rbac.yaml`; a resource the run knows nothing about is not judged.
+
+What deliberately stays in the platform test: the levels of sensitive capabilities and the closure of
+aggregation across two modules, and the global uniqueness of the capability marker -- a rule sees one module.
+
+**Example finding:**
+
+```
+Error: capability "d8:namespace-capability:my-module:view" must carry the rbac.deckhouse.io/capability label
+Warning: capability "d8:namespace-capability:my-module:view" grants my.io/globals, a cluster-scoped resource, in a namespace capability: bound through a RoleBinding the rule grants nothing; move it to a system capability
+```
+
+**Configuration:**
+```yaml
+# root .dmtlint.yaml
+global:
+  linters-settings:
+    rbac:
+      rules:
+        contract: {impact: warn}   # the level of this rule alone; the four original rules keep the linter level
+
+# module .dmtlint.yaml
+linters-settings:
+  rbac:
+    exclude-rules:
+      contract:
+        - kind: ClusterRole
+          name: d8:namespace-capability:my-module:legacy
+```
+
+---
+
+### coverage
+
+**Purpose:** Every CRD a module ships gets a decision on the user access to it, written down in
+`rbac.yaml`: the levels of either role model, or `noAccess` with the reason. Today 66 of 181 CRDs in
+the platform are named in no user rule of their module, and nowhere is it recorded whether that is
+deliberate.
+
+**Description:**
+
+Runs only when the module has an `rbac.yaml`. Reads the CRDs under `crds/` at any depth (selected by
+`kind: CustomResourceDefinition`, so `crds/vendor/` counts and `images/**/testdata/crds/` does not).
+
+**What it checks:**
+
+1. Every CRD (`spec.group` / `spec.names.plural`) has an entry in `resources` that grants levels or denies access with a reason -- **error**, with an autofix.
+2. An entry left as `noAccess: "TODO"` -- **error**, no autofix: only a person can decide.
+3. An entry naming a group the module ships CRDs for, but a resource none of them spells -- **warning** (a likely misspelling). Whole-group (`"*"`) and subresource (`/`) entries are exempt.
+
+**Autofix:** appends an undecided stub for each CRD without an entry --
+
+```yaml
+  - group: deckhouse.io
+    resource: foopolicies
+    noAccess: "TODO"
+```
+
+-- and then still reports the finding: the stub is not a decision, and a `--fix` run that wrote stubs
+does not end green. Existing entries and comments are left as they are; a second `--fix` changes nothing.
+The rule does not create `rbac.yaml`: a module adopts the declaration by creating the file with the
+`apiVersion` line and running `--fix`.
+
+**Example finding:**
+
+```
+Error: CRD deckhouse.io/foopolicies (crds/foopolicies.yaml) has no entry in rbac.yaml: decide the user access to it -- namespace, system or legacy levels, or noAccess with the reason; `dmt lint --linter rbac --fix` adds an undecided stub
+```
+
+**Configuration:**
+```yaml
+# root .dmtlint.yaml
+global:
+  linters-settings:
+    rbac:
+      rules:
+        coverage: {impact: warn}
+
+# module .dmtlint.yaml
+linters-settings:
+  rbac:
+    exclude-rules:
+      coverage:
+        - deckhouse.io/internalthings   # "group/resource" of a CRD the declaration deliberately leaves out
+```
+
+---
+
+### sync
+
+**Purpose:** The rendered RBAC objects and `rbac.yaml` say the same thing, in both directions, so that
+a reviewer reads one file to know what the module grants, and a change to the platform's contract is
+a regeneration rather than a hand edit of every template.
+
+**Description:**
+
+Runs only when the module has an `rbac.yaml`. First validates the declaration; a declaration with
+errors is reported and nothing else is compared or generated. Then builds the objects the
+declaration produces and compares them with the render.
+
+`sync` owns exactly three classes of rendered objects:
+
+1. legacy roles -- ClusterRoles with the `user-authz.deckhouse.io/access-level` annotation;
+2. the module's RBACv2 capabilities -- ClusterRoles with `rbac.deckhouse.io/kind: capability` and `module: <module>`;
+3. declared objects -- those whose names the generator builds from `serviceAccounts`, `access` and `prometheusAccess`.
+
+Everything else in the render is unmanaged: not generated, not reported (`include "helm_lib_csi_controller_rbac"`,
+controller ClusterRoles with arbitrary names, objects with Helm-computed names).
+
+**What it checks:**
+
+1. Every declared object is in the render (unless it is under `when`), and every rule of it: rules are compared as `(apiGroup, resource, resourceName, verb)` tuples, in both directions. A rule under `when` that did not render is not a divergence; a rule without `when` hidden behind a hand-written `{{ if }}` is.
+2. A capability's aggregation edges (`aggregate-to-<lineage>-as`) match in both directions: rules may agree while a lineage is lost. Its `rbac.deckhouse.io/capability` marker, `module` and `rbac.deckhouse.io/namespace` labels are what the generator writes.
+3. A binding's `roleRef` and subjects match.
+4. Every rendered legacy role and module capability is produced by the declaration.
+
+Findings are one per template file and carry the fix command; the text does not depend on the render variant.
+
+**Autofix:** regenerates the file from `rbac.yaml`, with two safeguards --
+
+- a file without the generator header is maintained by hand: the generated text is written beside it as `<file>.generated` and the finding stays (delete the file and run `--fix` again to hand it back to the generator);
+- the regenerated file must grant everything the render of that file grants today, rules and aggregation edges alike; otherwise the file is left alone and the finding names what would be lost. Removing a right is always a person's decision: declare it in `rbac.yaml` or remove it from the template by hand.
+
+A missing file is created. A second `--fix` without changes to `rbac.yaml` changes nothing.
+
+**Example finding:**
+
+```
+Error: templates/rbacv2/use/edit.yaml does not match rbac.yaml: ClusterRole/d8:namespace-capability:my-module:edit: get ""/secrets is in the render but not declared. Run `dmt lint --linter rbac --fix` to regenerate the file from the declaration
+```
+
+**Configuration:**
+```yaml
+# root .dmtlint.yaml
+global:
+  linters-settings:
+    rbac:
+      rules:
+        sync: {impact: warn}
+
+# module .dmtlint.yaml
+linters-settings:
+  rbac:
+    exclude-rules:
+      sync:
+        - kind: ClusterRole
+          name: d8:user-authz:my-module:super-admin
+```
+
+**Limits worth knowing:**
+
+- A conditional rule is checked only where it renders: with the default values, `dmt lint --values-file` or `dmt lint --matrix`.
+- The declaration is one per module and describes the union of editions. Linting a single edition directory shows the edition-only objects as absent; lint the merged tree as CI does.
+- `dmt lint remote` does not run these rules: a published image carries no chart to render.
+- The keys of the `rbac` configuration blocks are checked: an unknown key is an error, not a silent no-op.
+
