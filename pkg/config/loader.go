@@ -23,6 +23,8 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sort"
+	"strings"
 
 	"github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/mapstructure"
@@ -150,7 +152,63 @@ func (l *Loader) parseConfig() error {
 		return fmt.Errorf("can't unmarshal config by viper (flags, file): %w", err)
 	}
 
+	return validateRbacKeys(l.viper)
+}
+
+// rbacKnownKeys lists the keys the rbac blocks accept. viper drops an unknown key without a word,
+// and for these blocks silence is expensive: a misspelled per-rule level or exclusion would leave
+// a rule at full strength -- or off -- with nobody noticing. Only the rbac blocks are held to
+// this; the other linters keep viper's lenient behaviour.
+var rbacKnownKeys = map[string]map[string]struct{}{
+	"global.linters-settings.rbac":       {"impact": {}, "rules": {}},
+	"global.linters-settings.rbac.rules": {"coverage": {}, "sync": {}, "contract": {}},
+	"linters-settings.rbac":              {"impact": {}, "exclude-rules": {}},
+	"linters-settings.rbac.exclude-rules": {
+		"binding-subject": {}, "placement": {}, "wildcards": {}, "coverage": {}, "contract": {}, "sync": {},
+	},
+}
+
+func validateRbacKeys(v *viper.Viper) error {
+	paths := make([]string, 0, len(rbacKnownKeys))
+	for path := range rbacKnownKeys {
+		paths = append(paths, path)
+	}
+
+	sort.Strings(paths)
+
+	for _, path := range paths {
+		block, ok := v.Get(path).(map[string]any)
+		if !ok {
+			continue
+		}
+
+		keys := make([]string, 0, len(block))
+		for key := range block {
+			if _, known := rbacKnownKeys[path][key]; !known {
+				keys = append(keys, key)
+			}
+		}
+
+		if len(keys) > 0 {
+			sort.Strings(keys)
+
+			return fmt.Errorf("unknown key(s) %s under %q in %s: the accepted keys are %s",
+				strings.Join(keys, ", "), path, v.ConfigFileUsed(), strings.Join(sortedKeysOf(rbacKnownKeys[path]), ", "))
+		}
+	}
+
 	return nil
+}
+
+func sortedKeysOf(m map[string]struct{}) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+
+	sort.Strings(out)
+
+	return out
 }
 
 func (l *Loader) setConfigDir() error {
