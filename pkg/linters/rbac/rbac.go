@@ -60,15 +60,23 @@ func (l *Rbac) rules() []pkg.Rule {
 	m := l.module
 	errorList := l.ErrorList.WithModule(m.GetName())
 
-	// rbac has never applied its per-rule impact levels (pkg.RBACLinterConfig.Rules
-	// is populated from config but was not consulted here), so every rule gets the
-	// linter-level error list unchanged. Wiring those levels up is a separate change:
-	// it would alter the severity of existing findings.
+	// The four original rules have never applied per-rule impact levels
+	// (pkg.RBACLinterConfig.Rules was populated from config but not consulted here), so
+	// they keep the linter-level error list unchanged: wiring their levels up would alter
+	// the severity of existing findings. The rules added for the module RBAC declaration
+	// (coverage, contract, sync) do read their own level, so that they can start as
+	// warnings in a tree that has not adopted the declaration yet.
+	level := func(rule pkg.RuleConfig) *errors.LintRuleErrorsList {
+		return errorList.WithMaxLevel(rule.GetLevel())
+	}
+
 	return []pkg.Rule{
 		rules.NewUserAuthZRule(m, errorList),
 		rules.NewBindingSubjectRule(l.cfg.ExcludeRules.BindingSubject.Get(), m, errorList),
 		rules.NewPlacementRule(l.cfg.ExcludeRules.Placement.Get(), m, errorList),
 		rules.NewWildcardsRule(l.cfg.ExcludeRules.Wildcards.Get(), m, errorList),
+		rules.NewContractRule(l.cfg.ExcludeRules.Contract.Get(), m, level(l.cfg.Rules.ContractRule)),
+		rules.NewCoverageRule(l.cfg.ExcludeRules.Coverage.Get(), m, level(l.cfg.Rules.CoverageRule)),
 	}
 }
 
