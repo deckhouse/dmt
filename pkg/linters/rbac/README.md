@@ -1521,7 +1521,7 @@ global:
   linters-settings:
     rbac:
       rules:
-        contract: {impact: warn}   # the level of this rule alone; the four original rules keep the linter level
+        contract: {impact: error}  # the level of this rule alone; unset it starts at warn, and the four original rules keep the linter level
 
 # module .dmtlint.yaml
 linters-settings:
@@ -1654,6 +1654,10 @@ linters-settings:
         - kind: ClusterRole
           name: d8:user-authz:my-module:super-admin
 ```
+
+**Levels:** `contract`, `coverage` and `sync` start at `warn` wherever nothing sets them, whatever
+`impact` the `rbac` linter has: they are new to every tree. A tree raises them to `error` in its root
+`.dmtlint.yaml` (`global.linters-settings.rbac.rules.<rule>.impact`) once its modules are clean.
 
 **Limits worth knowing:**
 

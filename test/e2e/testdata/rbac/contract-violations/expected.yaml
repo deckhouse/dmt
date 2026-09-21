@@ -5,21 +5,21 @@ module: module
 expect:
   - linter: rbac
     rule: contract
-    level: error
+    level: warn
     textContains: "missing the ru.meta.deckhouse.io/title annotation"
     count: 1
   - linter: rbac
     rule: contract
-    level: error
+    level: warn
     textContains: "missing the ru.meta.deckhouse.io/description annotation"
     count: 1
   - linter: rbac
     rule: contract
-    level: error
+    level: warn
     textContains: 'capability "d8:namespace-capability:e2e-rbac:view" must carry the rbac.deckhouse.io/capability label'
     count: 1
   - linter: rbac
     rule: contract
-    level: error
+    level: warn
     textContains: 'role "d8:namespace:viewer" must not define its own rules; move them into a capability'
     count: 1
