@@ -36,7 +36,19 @@ const (
 	LabelDelegatable = "rbac.deckhouse.io/delegatable"
 	LabelNamespace   = "rbac.deckhouse.io/namespace"
 	LabelModule      = "module"
-	LabelHeritage    = "heritage"
+
+	// KindLegacyUse and KindLegacyManage are the kinds of the RBACv2 scheme before the DKP 1.78 role
+	// model: d8:use:capability:module:<m>:<action> aggregated into aggregate-to-kubernetes-as, and
+	// d8:manage:permission:module:<m>:<action> aggregated into a subsystem. An external module may
+	// still ship them, alone or beside the new objects behind the version gate.
+	KindLegacyUse    = "use"
+	KindLegacyManage = "manage"
+
+	// GateMarker is the helper rbacv2-migrate-module.sh defines when it keeps both schemes in one
+	// template: `include "<module>.rbacv2_new_scheme"` answers which one the render is for from
+	// global.deckhouseVersion. A template that carries it renders exactly one of the two.
+	GateMarker    = "rbacv2_new_scheme"
+	LabelHeritage = "heritage"
 
 	// AggregationLabelPrefix and AggregationLabelSuffix frame the lineage in
 	// rbac.deckhouse.io/aggregate-to-<lineage>-as.
@@ -220,3 +232,9 @@ const (
 
 // I18nAnnotations lists the four annotations every RBACv2 role and capability must carry.
 var I18nAnnotations = []string{AnnotationTitleEN, AnnotationTitleRU, AnnotationDescriptionEN, AnnotationDescriptionRU}
+
+// IsLegacyKind reports whether the kind label names the manage/use scheme that preceded the 1.78
+// role model.
+func IsLegacyKind(kind string) bool {
+	return kind == KindLegacyUse || kind == KindLegacyManage
+}

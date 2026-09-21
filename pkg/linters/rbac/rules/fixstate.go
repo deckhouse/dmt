@@ -17,9 +17,12 @@ limitations under the License.
 package rules
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbaccontract"
 )
 
 // fixState is what the autofixes of the coverage and sync rules share across render variants of
@@ -122,4 +125,16 @@ func editionOverlay(modulePath string) string {
 	default:
 		return ""
 	}
+}
+
+// templateHasGate reports whether the template a rendered object came from carries the version
+// gate of rbacv2-migrate-module.sh, i.e. renders one of two role models depending on
+// global.deckhouseVersion. An unreadable template counts as ungated.
+func templateHasGate(modulePath, shortPath string) bool {
+	content, err := os.ReadFile(filepath.Join(modulePath, shortPath))
+	if err != nil {
+		return false
+	}
+
+	return strings.Contains(string(content), rbaccontract.GateMarker)
 }
