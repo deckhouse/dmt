@@ -1,0 +1,15 @@
+description: >
+  A cluster-scoped resource (scope read from the module's CRDs under a nested crds/ directory)
+  inside a namespace capability grants nothing through a RoleBinding; the contract rule reports it
+  as a warning during the transition.
+module: module
+expect:
+  - linter: rbac
+    rule: contract
+    level: warn
+    textContains: "grants e2e.deckhouse.io/globals, a cluster-scoped resource, in a namespace capability"
+    count: 1
+expectPass:
+  - linter: rbac
+    rule: contract
+    level: error
