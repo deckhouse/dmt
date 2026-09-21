@@ -95,6 +95,13 @@ func (r *SyncRule) Check(_ context.Context) {
 		return
 	}
 
+	if overlay := editionOverlay(modulePath); overlay != "" {
+		declList.Errorf("%s lies in the edition overlay %s; the declaration describes the union of editions and belongs to modules/<module>/ only -- CI merges the overlays over modules/ before linting, so a copy here would shadow it or go unseen. Only a person can close this: move the file",
+			rbacyaml.Filename, overlay)
+
+		return
+	}
+
 	if err != nil {
 		declList.Errorf("%v; nothing is compared or generated until the declaration parses", err)
 		return
@@ -149,6 +156,20 @@ func (r *SyncRule) Check(_ context.Context) {
 
 		divergences[obj.object.ShortPath()] = append(divergences[obj.object.ShortPath()],
 			fmt.Sprintf("%s is in the render but rbac.yaml does not produce it: declare its rights in rbac.yaml or remove it from the template", identity))
+	}
+
+	// A generated file that names another contract version was written by a dmt of another
+	// contract; the objects may be labelled or named differently now, so it is regenerated (R40).
+	for _, file := range model.Files {
+		content, err := os.ReadFile(filepath.Join(modulePath, file.Path))
+		if err != nil {
+			continue
+		}
+
+		if generated, version := generate.ParseHeader(string(content)); generated && version != rbaccontract.ContractVersion {
+			divergences[file.Path] = append(divergences[file.Path],
+				fmt.Sprintf("the file was generated under contract version %q; the current contract is %q", version, rbaccontract.ContractVersion))
+		}
 	}
 
 	paths := make([]string, 0, len(divergences))
@@ -406,54 +427,60 @@ func crdScopes(crds []crdInfo) rbacyaml.CRDScopes {
 //     what would be lost (R25, D3). Removing a right is always a person's decision.
 func regenerateFix(modulePath string, file generate.File, actual map[string]managedObject) errors.AutofixFunc {
 	content := generate.RenderFile(file)
-	current := currentRights(file.Path, actual)
 	expected := expectedRights(file)
+	fullPath := filepath.Join(modulePath, file.Path)
+
+	// Under --matrix the module is linted once per render variant and every variant collects its
+	// own finding with its own closure. Each records what its render grants now, while the store
+	// exists; the closure that runs first checks the union of them and writes, the others report
+	// its outcome (R36). A right rendered only under some values is therefore not lost (D3).
+	recordRenderedRights(fullPath, currentRights(file.Path, actual))
 
 	return func() error {
-		fullPath := filepath.Join(modulePath, file.Path)
+		return fixOnce(fullPath, func() error {
+			existing, err := os.ReadFile(fullPath)
+			exists := err == nil
 
-		existing, err := os.ReadFile(fullPath)
-		exists := err == nil
+			if err != nil && !stderrors.Is(err, os.ErrNotExist) {
+				return fmt.Errorf("read %s: %w", file.Path, err)
+			}
 
-		if err != nil && !stderrors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("read %s: %w", file.Path, err)
-		}
+			if exists {
+				if generated, _ := generate.ParseHeader(string(existing)); !generated {
+					aside := fullPath + ".generated"
+					if err := os.WriteFile(aside, []byte(content), 0o600); err != nil {
+						return fmt.Errorf("write %s: %w", file.Path+".generated", err)
+					}
 
-		if exists {
-			if generated, _ := generate.ParseHeader(string(existing)); !generated {
-				aside := fullPath + ".generated"
-				if err := os.WriteFile(aside, []byte(content), 0o600); err != nil {
-					return fmt.Errorf("write %s: %w", file.Path+".generated", err)
+					return fmt.Errorf("%s is maintained by hand (no generator header); the generated version is beside it as %s.generated -- compare, then either delete the file and run `%s` again, or keep maintaining it by hand",
+						file.Path, file.Path, FixCommand)
 				}
 
-				return fmt.Errorf("%s is maintained by hand (no generator header); the generated version is beside it as %s.generated -- compare, then either delete the file and run `%s` again, or keep maintaining it by hand",
-					file.Path, file.Path, FixCommand)
+				if strings.Contains(string(existing), "deckhouseVersion") {
+					return fmt.Errorf("%s renders different objects depending on the platform version; regenerating it would drop one of the two schemes -- resolve the version condition by hand first", file.Path)
+				}
 			}
 
-			if strings.Contains(string(existing), "deckhouseVersion") {
-				return fmt.Errorf("%s renders different objects depending on the platform version; regenerating it would drop one of the two schemes -- resolve the version condition by hand first", file.Path)
+			if dropped := sortedSetDiff(renderedRights(fullPath), expected); len(dropped) > 0 {
+				return fmt.Errorf("regenerating %s would drop rights the render grants today: %s; declare them in %s or remove them from the template by hand",
+					file.Path, strings.Join(dropped, ", "), rbacyaml.Filename)
 			}
-		}
 
-		if dropped := sortedSetDiff(current, expected); len(dropped) > 0 {
-			return fmt.Errorf("regenerating %s would drop rights the render grants today: %s; declare them in %s or remove them from the template by hand",
-				file.Path, strings.Join(dropped, ", "), rbacyaml.Filename)
-		}
+			if exists && string(existing) == content {
+				return nil
+			}
 
-		if exists && string(existing) == content {
-			return nil
-		}
+			if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
+				return fmt.Errorf("create %s: %w", filepath.Dir(file.Path), err)
+			}
 
-		if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
-			return fmt.Errorf("create %s: %w", filepath.Dir(file.Path), err)
-		}
+			perm := os.FileMode(0o644)
+			if info, err := os.Stat(fullPath); err == nil {
+				perm = info.Mode().Perm()
+			}
 
-		perm := os.FileMode(0o644)
-		if info, err := os.Stat(fullPath); err == nil {
-			perm = info.Mode().Perm()
-		}
-
-		return os.WriteFile(fullPath, []byte(content), perm)
+			return os.WriteFile(fullPath, []byte(content), perm)
+		})
 	}
 }
 

@@ -3,6 +3,7 @@ kind: ClusterRole
 metadata:
   name: d8:namespace:viewer
   labels:
+    module: e2e-rbac
     rbac.deckhouse.io/kind: role
     rbac.deckhouse.io/scope: namespace
     rbac.deckhouse.io/delegatable: "true"
