@@ -57,6 +57,7 @@ func runContract(t *testing.T, modulePath string, objects ...rendered) []string 
 
 	m := mocks.NewModuleMock(minimock.NewController(t))
 	m.GetPathMock.Return(modulePath)
+	m.GetNameMock.Return("cert-manager")
 	m.GetStorageMock.Return(storeOf(t, objects...))
 
 	errorList := errors.NewLintRuleErrorsList()
@@ -90,15 +91,14 @@ func clusterRole(name string, labels map[string]string, annotations, body string
 }
 
 var (
-	validCapability = clusterRole("d8:namespace-capability:cert-manager:view", map[string]string{
+	validCapability = clusterRole("d8:namespace-capability:cert-manager:view", map[string]string{"module": "cert-manager",
 		"rbac.deckhouse.io/kind":                      "capability",
 		"rbac.deckhouse.io/scope":                     "namespace",
 		"rbac.deckhouse.io/capability":                "namespace-capability.cert-manager.view",
 		"rbac.deckhouse.io/aggregate-to-namespace-as": "viewer",
-		"module": "cert-manager",
 	}, i18n, "rules:\n- apiGroups: [cert-manager.io]\n  resources: [certificates]\n  verbs: [get, list, watch]\n")
 
-	validRole = clusterRole("d8:subsystem:networking:viewer", map[string]string{
+	validRole = clusterRole("d8:subsystem:networking:viewer", map[string]string{"module": "cert-manager",
 		"rbac.deckhouse.io/kind":      "role",
 		"rbac.deckhouse.io/scope":     "subsystem",
 		"rbac.deckhouse.io/subsystem": "networking",
@@ -111,7 +111,7 @@ func TestContract_CleanObjectsAndOutOfScopeFiles(t *testing.T) {
 		rendered{"templates/rbacv2/use/view.yaml", validCapability},
 		rendered{"templates/rbacv2/global/subsystem/roles/networking/viewer.yaml", validRole},
 		// the compatibility aliases keep the old names on purpose and are outside the contract
-		rendered{"templates/rbacv2-compat/aliases.yaml", clusterRole("d8:manage:networking:viewer", map[string]string{"rbac.deckhouse.io/kind": "role"}, "", "")},
+		rendered{"templates/rbacv2-compat/aliases.yaml", clusterRole("d8:manage:networking:viewer", map[string]string{"module": "cert-manager", "rbac.deckhouse.io/kind": "role"}, "", "")},
 		// a controller ClusterRole elsewhere is none of the contract's business
 		rendered{"templates/rbac-for-us.yaml", clusterRole("d8:cert-manager:controller", nil, "", "rules: []\n")},
 		// d8:dict is a helper outside the framework: only the prefix and the texts are required
@@ -126,7 +126,7 @@ func TestContract_Findings(t *testing.T) {
 		wantErrs []string
 	}{
 		"name prefix": {
-			object: clusterRole("namespace-capability:x:view", map[string]string{
+			object: clusterRole("namespace-capability:x:view", map[string]string{"module": "cert-manager",
 				"rbac.deckhouse.io/kind": "capability", "rbac.deckhouse.io/scope": "namespace",
 				"rbac.deckhouse.io/capability": "namespace-capability.x.view", "rbac.deckhouse.io/aggregate-to-namespace-as": "viewer",
 			}, i18n, "rules:\n- apiGroups: [x.io]\n  resources: [ys]\n  verbs: [get]\n"),
@@ -136,7 +136,7 @@ func TestContract_Findings(t *testing.T) {
 			},
 		},
 		"missing i18n": {
-			object: clusterRole("d8:namespace-capability:x:view", map[string]string{
+			object: clusterRole("d8:namespace-capability:x:view", map[string]string{"module": "cert-manager",
 				"rbac.deckhouse.io/kind": "capability", "rbac.deckhouse.io/scope": "namespace",
 				"rbac.deckhouse.io/capability": "namespace-capability.x.view", "rbac.deckhouse.io/aggregate-to-namespace-as": "viewer",
 			}, "\n    en.meta.deckhouse.io/title: \"t\"\n    en.meta.deckhouse.io/description: \"d\"", "rules:\n- apiGroups: [x.io]\n  resources: [ys]\n  verbs: [get]\n"),
@@ -146,7 +146,7 @@ func TestContract_Findings(t *testing.T) {
 			},
 		},
 		"capability with aggregationRule and no marker": {
-			object: clusterRole("d8:namespace-capability:x:view", map[string]string{
+			object: clusterRole("d8:namespace-capability:x:view", map[string]string{"module": "cert-manager",
 				"rbac.deckhouse.io/kind": "capability", "rbac.deckhouse.io/scope": "namespace",
 				"rbac.deckhouse.io/aggregate-to-namespace-as": "viewer",
 			}, i18n, "rules:\n- apiGroups: [x.io]\n  resources: [ys]\n  verbs: [get]\naggregationRule:\n  clusterRoleSelectors:\n  - matchLabels: {a: b}\n"),
@@ -156,7 +156,7 @@ func TestContract_Findings(t *testing.T) {
 			},
 		},
 		"role with rules and a wrong selector": {
-			object: clusterRole("d8:namespace:viewer", map[string]string{
+			object: clusterRole("d8:namespace:viewer", map[string]string{"module": "cert-manager",
 				"rbac.deckhouse.io/kind": "role", "rbac.deckhouse.io/scope": "namespace",
 			}, i18n, "rules:\n- apiGroups: [x.io]\n  resources: [ys]\n  verbs: [get]\naggregationRule:\n  clusterRoleSelectors:\n  - matchLabels:\n      rbac.deckhouse.io/kind: capability\n"),
 			wantErrs: []string{
@@ -165,7 +165,7 @@ func TestContract_Findings(t *testing.T) {
 			},
 		},
 		"delegatable on a system role, use-role missing": {
-			object: clusterRole("d8:system:viewer", map[string]string{
+			object: clusterRole("d8:system:viewer", map[string]string{"module": "cert-manager",
 				"rbac.deckhouse.io/kind": "role", "rbac.deckhouse.io/scope": "system", "rbac.deckhouse.io/delegatable": "true",
 			}, i18n, "aggregationRule:\n  clusterRoleSelectors:\n  - matchLabels:\n      rbac.deckhouse.io/aggregate-to-system-as: viewer\n"),
 			wantErrs: []string{
@@ -174,7 +174,7 @@ func TestContract_Findings(t *testing.T) {
 			},
 		},
 		"R29: level not of the lineage": {
-			object: clusterRole("d8:system-capability:x:edit", map[string]string{
+			object: clusterRole("d8:system-capability:x:edit", map[string]string{"module": "cert-manager",
 				"rbac.deckhouse.io/kind": "capability", "rbac.deckhouse.io/scope": "system",
 				"rbac.deckhouse.io/capability": "system-capability.x.edit", "rbac.deckhouse.io/aggregate-to-system-as": "admin",
 			}, i18n, "rules:\n- apiGroups: [x.io]\n  resources: [ys]\n  verbs: [get]\n"),
@@ -182,8 +182,17 @@ func TestContract_Findings(t *testing.T) {
 				`error: aggregation label "rbac.deckhouse.io/aggregate-to-system-as" has invalid level "admin"; the system lineage has viewer, manager, superadmin`,
 			},
 		},
+		"R21: the module label names another module": {
+			object: clusterRole("d8:namespace-capability:x:view", map[string]string{"module": "other",
+				"rbac.deckhouse.io/kind": "capability", "rbac.deckhouse.io/scope": "namespace",
+				"rbac.deckhouse.io/capability": "namespace-capability.x.view", "rbac.deckhouse.io/aggregate-to-namespace-as": "viewer",
+			}, i18n, "rules:\n- apiGroups: [x.io]\n  resources: [ys]\n  verbs: [get]\n"),
+			wantErrs: []string{
+				`error: label module must be the module name "cert-manager", got "other"`,
+			},
+		},
 		"unknown lineage and bad scope label": {
-			object: clusterRole("d8:namespace-capability:x:view", map[string]string{
+			object: clusterRole("d8:namespace-capability:x:view", map[string]string{"module": "cert-manager",
 				"rbac.deckhouse.io/kind": "capability", "rbac.deckhouse.io/scope": "tenant",
 			}, i18n, "rules:\n- apiGroups: [x.io]\n  resources: [ys]\n  verbs: [get]\n"),
 			wantErrs: []string{
@@ -199,7 +208,7 @@ func TestContract_Findings(t *testing.T) {
 }
 
 func TestContract_ClusterScopedResourceInNamespaceCapabilityIsAWarning(t *testing.T) {
-	capability := clusterRole("d8:namespace-capability:cert-manager:view", map[string]string{
+	capability := clusterRole("d8:namespace-capability:cert-manager:view", map[string]string{"module": "cert-manager",
 		"rbac.deckhouse.io/kind":                      "capability",
 		"rbac.deckhouse.io/scope":                     "namespace",
 		"rbac.deckhouse.io/capability":                "namespace-capability.cert-manager.view",

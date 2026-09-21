@@ -70,9 +70,10 @@ func (r *CoverageRule) Check(_ context.Context) {
 	errorList := r.errorList.WithFilePath(rbacyaml.Filename)
 
 	decl, err := rbacyaml.Load(modulePath)
-	if err != nil {
-		// No declaration: nothing to cover (R22). A declaration that does not parse is the sync
-		// rule's finding; reporting it twice would only double the noise.
+	if err != nil || editionOverlay(modulePath) != "" {
+		// No declaration: nothing to cover (R22). A declaration that does not parse, or that lies
+		// in an edition overlay (D7), is the sync rule's finding; reporting it twice would only
+		// double the noise.
 		return
 	}
 
@@ -143,18 +144,23 @@ func (r *CoverageRule) Check(_ context.Context) {
 // returns an error on purpose after a successful write: the stub is not a decision, and the
 // finding must stay in the output and in the exit code of the run that wrote it (R33).
 func appendStubFix(modulePath string, crd crdInfo) errors.AutofixFunc {
+	path := rbacyaml.Path(modulePath)
+
 	return func() error {
-		added, err := appendStub(rbacyaml.Path(modulePath), crd.Group, crd.Plural)
-		if err != nil {
-			return fmt.Errorf("add a stub for %s to %s: %w", crd.Key(), rbacyaml.Filename, err)
-		}
+		// One stub per CRD per run, however many render variants reported it (R36).
+		return fixOnce(path+"#"+crd.Key(), func() error {
+			added, err := appendStub(path, crd.Group, crd.Plural)
+			if err != nil {
+				return fmt.Errorf("add a stub for %s to %s: %w", crd.Key(), rbacyaml.Filename, err)
+			}
 
-		if !added {
-			return nil
-		}
+			if !added {
+				return nil
+			}
 
-		return fmt.Errorf("a stub for %s was added to %s; decide its access (noAccess: %q is not a decision)",
-			crd.Key(), rbacyaml.Filename, rbacyaml.NoAccessTODO)
+			return fmt.Errorf("a stub for %s was added to %s; decide its access (noAccess: %q is not a decision)",
+				crd.Key(), rbacyaml.Filename, rbacyaml.NoAccessTODO)
+		})
 	}
 }
 
