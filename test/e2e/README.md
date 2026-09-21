@@ -114,6 +114,9 @@ go test ./test/e2e/ -run 'TestE2E/<linter>/<your-case>' -v
 | `rbac/coverage-fix-keeps-finding` | rbac linter `coverage` with `--fix` (a stub is written and the finding stays -- a stub is not a decision) |
 | `rbac/coverage-todo` | rbac linter `coverage` (undecided `noAccess: "TODO"` stub; misspelled resource of a known group is a warning) |
 | `rbac/coverage-without-rbac-yaml` | rbac linter `coverage` stays silent on a module without rbac.yaml |
+| `rbac/sync-clean` | rbac linter `sync` (templates generated from rbac.yaml render exactly the declaration; the generated files also pass placement, contract and coverage; renders `helm_lib_module_labels` from the vendored `deckhouse_lib_helm` chart) |
+| `rbac/sync-hand-edited` | rbac linter `sync` (a rule added by hand to a generated capability, and a legacy role the declaration does not produce -- one finding per template) |
+| `rbac/sync-fix-regenerates` | rbac linter `sync` with `--fix` (a missing generated capability file is written from rbac.yaml and the finding is resolved) |
 | `hooks/ingress` | hooks linter (Ingress without copy_custom_certificate hook) |
 | `openapi/bilingual` | openapi linter (missing doc-ru- translation, missing CRD module label) |
 | `images/werf` | images linter (werf fromImage not under base/) |
