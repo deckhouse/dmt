@@ -1,0 +1,196 @@
+/*
+Copyright 2026 Flant JSC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package rbaccontract holds the constants of the Deckhouse RBACv2 role model that the rbac
+// linter rules and the rbac.yaml generator share: lineages, the levels each lineage accepts,
+// the legacy access levels of user-authz v1, the label and annotation keys, and the
+// conventional localized texts of view/edit capabilities.
+//
+// Every constant names its source in the deckhouse repository. The contract is described for
+// humans in modules/140-user-authz/docs/internal/RBACV2_MODULE_MIGRATION.md and enforced
+// in-tree by testing/rbacv2/rbacv2_templates_validation_test.go.
+package rbaccontract
+
+import "slices"
+
+// Label and annotation keys of the role model
+// (modules/140-user-authz/docs/internal/RBACV2_MODULE_MIGRATION.md, "Reference of role labels and annotations").
+const (
+	LabelKind        = "rbac.deckhouse.io/kind"
+	LabelScope       = "rbac.deckhouse.io/scope"
+	LabelCapability  = "rbac.deckhouse.io/capability"
+	LabelUseRole     = "rbac.deckhouse.io/use-role"
+	LabelDelegatable = "rbac.deckhouse.io/delegatable"
+	LabelNamespace   = "rbac.deckhouse.io/namespace"
+	LabelModule      = "module"
+	LabelHeritage    = "heritage"
+
+	// AggregationLabelPrefix and AggregationLabelSuffix frame the lineage in
+	// rbac.deckhouse.io/aggregate-to-<lineage>-as.
+	AggregationLabelPrefix = "rbac.deckhouse.io/aggregate-to-"
+	AggregationLabelSuffix = "-as"
+
+	// AccessLevelAnnotation marks a legacy (user-authz v1) ClusterRole with its access level
+	// (modules/140-user-authz/hooks/... and templates/user-authz-cluster-roles.yaml of every module).
+	AccessLevelAnnotation = "user-authz.deckhouse.io/access-level"
+
+	KindRole       = "role"
+	KindCapability = "capability"
+
+	// Capability name prefixes per scope (RBACV2_MODULE_MIGRATION.md, "Naming").
+	NamespaceCapabilityPrefix = "d8:namespace-capability:"
+	SystemCapabilityPrefix    = "d8:system-capability:"
+	LegacyRolePrefix          = "d8:user-authz:"
+)
+
+// Lineages of the role model. A capability aggregates into the roles of one or more lineages
+// through the aggregate-to-<lineage>-as label.
+const (
+	LineageNamespace = "namespace"
+	LineageProject   = "project"
+	LineageSystem    = "system"
+)
+
+// Subsystems are the lineages of the subsystem roles d8:subsystem:<name>:<level>
+// (modules/140-user-authz/templates/rbacv2/global/subsystem/roles/<name>/).
+var Subsystems = []string{
+	"deckhouse",
+	"infrastructure",
+	"kubernetes",
+	"networking",
+	"observability",
+	"security",
+	"storage",
+}
+
+// Levels a capability may aggregate to, per lineage. The namespace lineage carries the full
+// ladder; the system and subsystem lineages have no user and admin rungs
+// (RBACV2_MODULE_MIGRATION.md, "Access levels"; spec 005 R29).
+var (
+	NamespaceLevels = []string{"viewer", "user", "manager", "admin", "superadmin"}
+	SystemLevels    = []string{"viewer", "manager", "superadmin"}
+	// ProjectLevels are the levels of the project lineage; a module capability never aggregates
+	// there directly (project roles aggregate namespace roles), but the contract check on
+	// platform roles needs the set.
+	ProjectLevels = NamespaceLevels
+)
+
+// LegacyLevels is the access-level enum of ClusterAuthorizationRule
+// (modules/140-user-authz/crds/clusterauthorizationrule.yaml); AuthorizationRule serves only the
+// first four.
+var LegacyLevels = []string{"User", "PrivilegedUser", "Editor", "Admin", "ClusterEditor", "ClusterAdmin", "SuperAdmin"}
+
+// Verbs are the resource verbs Kubernetes RBAC knows. rbac.yaml lists verbs explicitly; there
+// are no aliases (spec 005 R2). "*" is accepted here and judged by the wildcards rule.
+var Verbs = []string{"get", "list", "watch", "create", "update", "patch", "delete", "deletecollection", "*"}
+
+// AllLineages returns every lineage a capability label may name: the three base lineages and
+// the seven subsystems.
+func AllLineages() []string {
+	out := make([]string, 0, 3+len(Subsystems))
+	out = append(out, LineageNamespace, LineageProject, LineageSystem)
+	out = append(out, Subsystems...)
+
+	return out
+}
+
+// LevelsOf returns the levels the given lineage accepts, or nil for an unknown lineage.
+func LevelsOf(lineage string) []string {
+	switch lineage {
+	case LineageNamespace:
+		return NamespaceLevels
+	case LineageProject:
+		return ProjectLevels
+	case LineageSystem:
+		return SystemLevels
+	}
+
+	for _, s := range Subsystems {
+		if s == lineage {
+			return SystemLevels
+		}
+	}
+
+	return nil
+}
+
+// IsSubsystem reports whether the name is one of the seven subsystems.
+func IsSubsystem(name string) bool {
+	return slices.Contains(Subsystems, name)
+}
+
+// CapabilityAction maps a level to the action suffix of the capability it produces:
+// viewer -> view, manager -> edit, the rest as they are (ADR "Что генерируется"; the live
+// convention is use/admin.yaml with marker namespace-capability.cert-manager.admin).
+func CapabilityAction(level string) string {
+	switch level {
+	case "viewer":
+		return "view"
+	case "manager":
+		return "edit"
+	}
+
+	return level
+}
+
+// ConventionalActions are the capability actions whose localized texts come from the platform
+// convention and need no capabilities entry in rbac.yaml.
+var ConventionalActions = []string{"view", "edit"}
+
+// IsConventionalAction reports whether the texts of a capability with this action are supplied
+// by the platform (view/edit) rather than by the declaration.
+func IsConventionalAction(action string) bool {
+	return action == "view" || action == "edit"
+}
+
+// Text is a localized title/description pair.
+type Text struct {
+	EN string
+	RU string
+}
+
+// ConventionalTexts are the titles and descriptions of view/edit capabilities of both lineages,
+// with %s standing for the module name. Source: the TEXTS table of
+// modules/140-user-authz/docs/internal/rbacv2-migrate-module.sh, reproduced in the ADR.
+var ConventionalTexts = map[string]struct{ Title, Description Text }{
+	LineageNamespace + ".view": {
+		Title:       Text{EN: "Module %s: view", RU: "Модуль %s: просмотр"},
+		Description: Text{EN: "Read-only access to %s resources in a namespace.", RU: "Доступ только на чтение к ресурсам модуля %s в пространстве имён."},
+	},
+	LineageNamespace + ".edit": {
+		Title:       Text{EN: "Module %s: edit", RU: "Модуль %s: редактирование"},
+		Description: Text{EN: "Manage %s resources in a namespace.", RU: "Управление ресурсами модуля %s в пространстве имён."},
+	},
+	LineageSystem + ".view": {
+		Title:       Text{EN: "Module %s: view configuration", RU: "Модуль %s: просмотр конфигурации"},
+		Description: Text{EN: "Read-only access to the %s module configuration.", RU: "Доступ только на чтение к конфигурации модуля %s."},
+	},
+	LineageSystem + ".edit": {
+		Title:       Text{EN: "Module %s: edit configuration", RU: "Модуль %s: управление конфигурацией"},
+		Description: Text{EN: "Manage the %s module configuration.", RU: "Управление конфигурацией модуля %s."},
+	},
+}
+
+// Annotation keys of the localized texts.
+const (
+	AnnotationTitleEN       = "en.meta.deckhouse.io/title"
+	AnnotationTitleRU       = "ru.meta.deckhouse.io/title"
+	AnnotationDescriptionEN = "en.meta.deckhouse.io/description"
+	AnnotationDescriptionRU = "ru.meta.deckhouse.io/description"
+)
+
+// I18nAnnotations lists the four annotations every RBACv2 role and capability must carry.
+var I18nAnnotations = []string{AnnotationTitleEN, AnnotationTitleRU, AnnotationDescriptionEN, AnnotationDescriptionRU}
