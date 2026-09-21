@@ -123,6 +123,8 @@ var staticRules = map[string]set.Set{
 	),
 	rbac.ID: set.New(
 		rbacrules.BindingSubjectRuleName,
+		rbacrules.ContractRuleName,
+		rbacrules.CoverageRuleName,
 		rbacrules.PlacementRuleName,
 		rbacrules.UserAuthZRuleName,
 		rbacrules.WildcardsRuleName,

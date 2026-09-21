@@ -229,8 +229,21 @@ func mapRuleSettings(linterSettings *pkg.LintersSettings, configSettings *config
 	// OpenAPI rules (uses global rule config + local fallback)
 	mapOpenAPIRules(linterSettings, configSettings, globalConfig)
 
+	// RBAC declaration rules (uses global rule config + local fallback); the four original rbac
+	// rules keep the linter level (see mapSimpleLinterRules)
+	mapRBACRules(linterSettings, configSettings, globalConfig)
+
 	// Other linter rules (use local linter-level impact)
 	mapSimpleLinterRules(linterSettings, configSettings)
+}
+
+// mapRBACRules configures the per-rule levels of the rbac rules added for the module RBAC
+// declaration: coverage, sync and contract read their impact from the root configuration and
+// fall back to the linter's.
+func mapRBACRules(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings, globalConfig *global.Linters) {
+	linterSettings.RBAC.Rules.CoverageRule.SetLevel(globalConfig.Rbac.Rules.CoverageRule.Impact, configSettings.Rbac.Impact)
+	linterSettings.RBAC.Rules.SyncRule.SetLevel(globalConfig.Rbac.Rules.SyncRule.Impact, configSettings.Rbac.Impact)
+	linterSettings.RBAC.Rules.ContractRule.SetLevel(globalConfig.Rbac.Rules.ContractRule.Impact, configSettings.Rbac.Impact)
 }
 
 // mapContainerRules configures Container linter rules
@@ -582,6 +595,9 @@ func mapRBACExclusions(linterSettings *pkg.LintersSettings, configSettings *conf
 	excludes.BindingSubject = pkg.StringRuleExcludeList(configExcludes.BindingSubject)
 	excludes.Placement = configExcludes.Placement.Get()
 	excludes.Wildcards = configExcludes.Wildcards.Get()
+	excludes.Coverage = pkg.StringRuleExcludeList(configExcludes.Coverage)
+	excludes.Contract = configExcludes.Contract.Get()
+	excludes.Sync = configExcludes.Sync.Get()
 }
 
 // mapHooksSettings maps Hooks linter settings
