@@ -126,6 +126,7 @@ var staticRules = map[string]set.Set{
 		rbacrules.ContractRuleName,
 		rbacrules.CoverageRuleName,
 		rbacrules.PlacementRuleName,
+		rbacrules.SyncRuleName,
 		rbacrules.UserAuthZRuleName,
 		rbacrules.WildcardsRuleName,
 	),

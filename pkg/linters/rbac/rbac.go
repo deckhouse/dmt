@@ -77,6 +77,7 @@ func (l *Rbac) rules() []pkg.Rule {
 		rules.NewWildcardsRule(l.cfg.ExcludeRules.Wildcards.Get(), m, errorList),
 		rules.NewContractRule(l.cfg.ExcludeRules.Contract.Get(), m, level(l.cfg.Rules.ContractRule)),
 		rules.NewCoverageRule(l.cfg.ExcludeRules.Coverage.Get(), m, level(l.cfg.Rules.CoverageRule)),
+		rules.NewSyncRule(l.cfg.ExcludeRules.Sync.Get(), m, level(l.cfg.Rules.SyncRule)),
 	}
 }
 
