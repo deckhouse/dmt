@@ -1,0 +1,25 @@
+description: >
+  A capability without the ru texts and the capability marker, and a role that carries its own
+  rules, are reported by the rbac contract rule with the platform test's wording.
+module: module
+expect:
+  - linter: rbac
+    rule: contract
+    level: error
+    textContains: "missing the ru.meta.deckhouse.io/title annotation"
+    count: 1
+  - linter: rbac
+    rule: contract
+    level: error
+    textContains: "missing the ru.meta.deckhouse.io/description annotation"
+    count: 1
+  - linter: rbac
+    rule: contract
+    level: error
+    textContains: 'capability "d8:namespace-capability:e2e-rbac:view" must carry the rbac.deckhouse.io/capability label'
+    count: 1
+  - linter: rbac
+    rule: contract
+    level: error
+    textContains: 'role "d8:namespace:viewer" must not define its own rules; move them into a capability'
+    count: 1
