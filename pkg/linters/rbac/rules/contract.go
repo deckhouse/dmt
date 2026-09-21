@@ -130,6 +130,19 @@ func (r *ContractRule) Check(_ context.Context) {
 			continue
 		}
 
+		// An object of the scheme before 1.78 is not held to the contract check by check -- every
+		// one of them would fail, and the finding that matters is "migrate". A module that serves
+		// both models renders the legacy object only when the values say the cluster is below 1.78
+		// (rbacv2-migrate-module.sh gates the template), and that is not a finding at all.
+		if kind := role.Labels[rbaccontract.LabelKind]; rbaccontract.IsLegacyKind(kind) {
+			if !templateHasGate(r.module.GetPath(), object.ShortPath()) {
+				errorList.Errorf("ClusterRole %q is of the legacy RBACv2 scheme (%s: %s, the manage/use model before DKP 1.78); migrate the module with rbacv2-migrate-module.sh from modules/140-user-authz/docs/internal/ of the deckhouse repository, or describe it in %s and run `%s`",
+					role.Name, rbaccontract.LabelKind, kind, rbacyaml.Filename, FixCommand)
+			}
+
+			continue
+		}
+
 		checkContract(role, r.module.GetName(), scopes, errorList)
 	}
 }

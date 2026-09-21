@@ -1,0 +1,12 @@
+apiVersion: rbac.deckhouse.io/v1alpha1
+resources:
+  - group: e2e.deckhouse.io
+    resource: widgets
+    namespace:
+      viewer: [get, list, watch]
+      manager: [create, update, patch, delete, deletecollection]
+  - group: e2e.deckhouse.io
+    resource: daemons
+    system:
+      viewer: [get, list, watch]
+      manager: [create, update, patch, delete, deletecollection]

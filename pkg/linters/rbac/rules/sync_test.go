@@ -534,3 +534,62 @@ func TestEditionOverlay(t *testing.T) {
 		assert.Equal(t, want, editionOverlay(path), path)
 	}
 }
+
+// A template that still renders the manage/use scheme where the declaration produces the 1.78
+// model: the declared objects are absent, and the finding says why.
+func TestSync_LegacyTemplateIsNamed(t *testing.T) {
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	store := renderedFrom(t, model, func(o *generate.Object) bool { return o.Name != "d8:namespace-capability:cert-manager:view" })
+
+	putObject(t, store, "templates/rbacv2/use/view.yaml", generate.Object{
+		Kind: "ClusterRole", Name: "d8:use:capability:module:cert-manager:view", Class: generate.ClassCapability,
+		Labels: map[string]string{"rbac.deckhouse.io/kind": "use", "rbac.deckhouse.io/aggregate-to-kubernetes-as": "viewer"},
+		Rules:  []generate.Rule{{PolicyRule: rbacyaml.PolicyRule{APIGroups: []string{"cert-manager.io"}, Resources: []string{"certificates"}, Verbs: []string{"get"}}}},
+	})
+
+	got := texts(runSync(t, modulePath, store))
+	require.Len(t, got, 1, "got: %v", got)
+	assert.Contains(t, got[0], "ClusterRole/d8:namespace-capability:cert-manager:view is declared but absent from the render")
+	assert.Contains(t, got[0], "the template renders the legacy RBACv2 scheme (rbac.deckhouse.io/kind: use, the manage/use model before DKP 1.78) where the declaration produces the 1.78 model; migrate the module with rbacv2-migrate-module.sh")
+	assert.NotContains(t, got[0], "d8:use:capability", "the legacy object itself is not reported as extra")
+}
+
+// R30: a template that serves both schemes behind the version gate is never regenerated, header or not.
+func TestSync_GatedTemplateIsNotRegenerated(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	store := renderedFrom(t, model, func(o *generate.Object) bool {
+		if o.Name == "d8:namespace-capability:cert-manager:view" {
+			o.Rules = o.Rules[:len(o.Rules)-1]
+		}
+
+		return true
+	})
+
+	const gated = "{{- if eq (include \"cert-manager.rbacv2_new_scheme\" .) \"true\" }}\n# new\n{{- else }}\n# legacy\n{{- end }}\n"
+
+	path := filepath.Join(modulePath, "templates/rbacv2/use/view.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte(gated), 0o600))
+
+	errorList := runSync(t, modulePath, store)
+	for _, fix := range errorList.GetFixes() {
+		fix()
+	}
+
+	remaining := errorList.GetErrors()
+	require.Len(t, remaining, 1)
+	require.Error(t, remaining[0].FixError)
+	assert.Contains(t, remaining[0].FixError.Error(), "renders one of two role models depending on the platform version (the rbacv2_new_scheme gate of rbacv2-migrate-module.sh); regenerating it would drop the legacy branch")
+
+	unchanged, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, gated, string(unchanged))
+
+	_, err = os.Stat(path + ".generated")
+	assert.True(t, os.IsNotExist(err), "no .generated copy for a gated file")
+}

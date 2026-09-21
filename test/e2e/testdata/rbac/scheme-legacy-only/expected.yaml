@@ -1,0 +1,25 @@
+description: >
+  A module still on the RBACv2 scheme before DKP 1.78 (kind: use / kind: manage, no rbac.yaml): the
+  contract rule reports one finding per object -- "migrate" -- instead of failing every check of the
+  contract on it; coverage and sync stay silent without a declaration.
+module: module
+expect:
+  - linter: rbac
+    rule: contract
+    level: warn
+    textContains: "is of the legacy RBACv2 scheme (rbac.deckhouse.io/kind: use, the manage/use model before DKP 1.78); migrate the module with rbacv2-migrate-module.sh"
+    count: 2
+  - linter: rbac
+    rule: contract
+    level: warn
+    textContains: "is of the legacy RBACv2 scheme (rbac.deckhouse.io/kind: manage, the manage/use model before DKP 1.78); migrate the module with rbacv2-migrate-module.sh"
+    count: 2
+expectPass:
+  - linter: manager
+  - linter: rbac
+    rule: contract
+    textContains: "must"
+  - linter: rbac
+    rule: coverage
+  - linter: rbac
+    rule: sync

@@ -57,7 +57,8 @@ func runContract(t *testing.T, modulePath string, objects ...rendered) []string 
 
 	m := mocks.NewModuleMock(minimock.NewController(t))
 	m.GetPathMock.Return(modulePath)
-	m.GetNameMock.Return("cert-manager")
+	// A legacy object from a gated template stops before the module name is needed.
+	m.GetNameMock.Optional().Return("cert-manager")
 	m.GetStorageMock.Return(storeOf(t, objects...))
 
 	errorList := errors.NewLintRuleErrorsList()
@@ -227,4 +228,25 @@ func TestContract_ClusterScopedResourceInNamespaceCapabilityIsAWarning(t *testin
 		`warn: capability "d8:namespace-capability:cert-manager:view" grants cert-manager.io/clusterissuers, a cluster-scoped resource, in a namespace capability: bound through a RoleBinding the rule grants nothing; move it to a system capability`,
 		`warn: capability "d8:namespace-capability:cert-manager:view" grants external.io/globals, a cluster-scoped resource, in a namespace capability: bound through a RoleBinding the rule grants nothing; move it to a system capability`,
 	}, got)
+}
+
+// A module still on the manage/use scheme gets one finding per object, not the whole contract; a
+// module that serves both schemes behind the version gate gets none for the legacy branch.
+func TestContract_LegacyScheme(t *testing.T) {
+	legacy := clusterRole("d8:use:capability:module:cert-manager:view", map[string]string{
+		"module": "cert-manager", "rbac.deckhouse.io/kind": "use", "rbac.deckhouse.io/aggregate-to-kubernetes-as": "viewer",
+	}, "", "rules:\n- apiGroups: [cert-manager.io]\n  resources: [certificates]\n  verbs: [get]\n")
+
+	t.Run("legacy object alone", func(t *testing.T) {
+		got := runContract(t, t.TempDir(), rendered{"templates/rbacv2/use/view.yaml", legacy})
+		require.Len(t, got, 1, "got: %v", got)
+		assert.Contains(t, got[0], `error: ClusterRole "d8:use:capability:module:cert-manager:view" is of the legacy RBACv2 scheme (rbac.deckhouse.io/kind: use, the manage/use model before DKP 1.78); migrate the module with rbacv2-migrate-module.sh`)
+	})
+
+	t.Run("legacy object rendered from a gated template", func(t *testing.T) {
+		modulePath := writeModule(t, map[string]string{
+			"templates/rbacv2/use/view.yaml": "{{- if eq (include \"cert-manager.rbacv2_new_scheme\" .) \"true\" }}\n# new\n{{- else }}\n# legacy\n{{- end }}\n",
+		})
+		assert.Empty(t, runContract(t, modulePath, rendered{"templates/rbacv2/use/view.yaml", legacy}))
+	})
 }
