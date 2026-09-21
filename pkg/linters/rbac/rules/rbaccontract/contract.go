@@ -88,6 +88,32 @@ var (
 	ProjectLevels = NamespaceLevels
 )
 
+// ContractVersion is the version of the platform contract the generator writes templates for. It is
+// recorded in the header of every generated file, so that a file produced under an older contract
+// is recognizable after the contract changes. Bump it when the generated shape changes.
+const ContractVersion = "1"
+
+// LegacyKebab returns the name suffix of the legacy ClusterRole for an access level, as the
+// modules spell it today (d8:user-authz:<module>:cluster-editor for ClusterEditor).
+func LegacyKebab(level string) string {
+	var b []byte
+
+	for i := 0; i < len(level); i++ {
+		c := level[i]
+		if c >= 'A' && c <= 'Z' {
+			if i > 0 {
+				b = append(b, '-')
+			}
+
+			c += 'a' - 'A'
+		}
+
+		b = append(b, c)
+	}
+
+	return string(b)
+}
+
 // LegacyLevels is the access-level enum of ClusterAuthorizationRule
 // (modules/140-user-authz/crds/clusterauthorizationrule.yaml); AuthorizationRule serves only the
 // first four.
