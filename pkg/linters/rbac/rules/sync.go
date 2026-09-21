@@ -137,11 +137,21 @@ func (r *SyncRule) Check(_ context.Context) {
 	divergences := map[string][]string{}
 
 	for _, file := range model.Files {
+		kind, isLegacy := legacy[file.Path]
+
+		// A template that serves both models behind the version gate rendered its legacy branch:
+		// the values of this run say the cluster is below 1.78. The 1.78 objects it declares are
+		// conditional on the gate and are compared in the run where the gate answers "new" -- the
+		// default one -- so this is not a divergence (the same reading as a rule under when, D4).
+		if isLegacy && templateHasGate(modulePath, file.Path) {
+			continue
+		}
+
 		found := compareFile(file, actual, r.module.GetName())
 
 		// The template renders the scheme before 1.78 where the declaration produces the new one:
 		// the objects the declaration names cannot be there. Say so once instead of listing them.
-		if kind, isLegacy := legacy[file.Path]; isLegacy && len(found) > 0 {
+		if isLegacy && len(found) > 0 {
 			found = append(found, fmt.Sprintf("the template renders the legacy RBACv2 scheme (%s: %s, the manage/use model before DKP 1.78) where the declaration produces the 1.78 model; migrate the module with rbacv2-migrate-module.sh to serve both, or delete the file and run `%s` to serve the new one only",
 				rbaccontract.LabelKind, kind, FixCommand))
 		}
@@ -168,17 +178,28 @@ func (r *SyncRule) Check(_ context.Context) {
 			fmt.Sprintf("%s is in the render but rbac.yaml does not produce it: declare its rights in rbac.yaml or remove it from the template", identity))
 	}
 
-	// A generated file that names another contract version was written by a dmt of another
-	// contract; the objects may be labelled or named differently now, so it is regenerated (R40).
+	// A file that carries the generator header is the generator's: its text must be what the
+	// declaration renders now. The render alone cannot tell -- a rule under `when` whose condition
+	// is false today is absent from the render without being a divergence (D4), yet it still has
+	// to reach the template -- so for these files the text is compared too. A file of another
+	// contract version is the same case (R40). A file without the header is maintained by hand and
+	// is judged by its render only.
 	for _, file := range model.Files {
 		content, err := os.ReadFile(filepath.Join(modulePath, file.Path))
 		if err != nil {
 			continue
 		}
 
-		if generated, version := generate.ParseHeader(string(content)); generated && version != rbaccontract.ContractVersion {
+		generated, version := generate.ParseHeader(string(content))
+
+		switch {
+		case !generated:
+		case version != rbaccontract.ContractVersion:
 			divergences[file.Path] = append(divergences[file.Path],
 				fmt.Sprintf("the file was generated under contract version %q; the current contract is %q", version, rbaccontract.ContractVersion))
+		case string(content) != generate.RenderFile(file):
+			divergences[file.Path] = append(divergences[file.Path],
+				"the file carries the generator header but is not what the declaration renders now (a rule under `when`, a text edit or an older generator); remove the header to maintain it by hand")
 		}
 	}
 
@@ -445,7 +466,8 @@ func crdScopes(crds []crdInfo) rbacyaml.CRDScopes {
 // --fix runs (R32). Two safeguards decide whether the file is written at all:
 //
 //   - a file without the generator header is maintained by hand: the generated text is written
-//     beside it as <file>.generated and the finding stays (R16, US-F2);
+//     beside it as _<file>.generated -- the underscore keeps Helm from rendering the copy as a
+//     second set of objects -- and the finding stays (R16, US-F2);
 //   - the regenerated file must grant everything the current render of that file grants (rules and
 //     aggregation edges); if anything would disappear the file is left alone and the finding names
 //     what would be lost (R25, D3). Removing a right is always a person's decision.
@@ -476,19 +498,19 @@ func regenerateFix(modulePath string, file generate.File, actual map[string]mana
 				}
 
 				if generated, _ := generate.ParseHeader(string(existing)); !generated {
-					aside := fullPath + ".generated"
+					aside := asidePath(fullPath)
 					if err := os.WriteFile(aside, []byte(content), 0o600); err != nil {
-						return fmt.Errorf("write %s: %w", file.Path+".generated", err)
+						return fmt.Errorf("write %s: %w", asidePath(file.Path), err)
 					}
 
-					return fmt.Errorf("%s is maintained by hand (no generator header); the generated version is beside it as %s.generated -- compare, then either delete the file and run `%s` again, or keep maintaining it by hand",
-						file.Path, file.Path, FixCommand)
+					return fmt.Errorf("%s is maintained by hand (no generator header); the generated version is beside it as %s -- compare, then either delete the file and run `%s` again, or keep maintaining it by hand",
+						file.Path, asidePath(file.Path), FixCommand)
 				}
 			}
 
 			if dropped := sortedSetDiff(renderedRights(fullPath), expected); len(dropped) > 0 {
-				return fmt.Errorf("regenerating %s would drop rights the render grants today: %s; declare them in %s or remove them from the template by hand",
-					file.Path, strings.Join(dropped, ", "), rbacyaml.Filename)
+				return fmt.Errorf("regenerating %s would drop rights the render grants today: %s; declare them in %s, or delete the file and run `%s` again to regenerate it without them",
+					file.Path, strings.Join(dropped, ", "), rbacyaml.Filename, FixCommand)
 			}
 
 			if exists && string(existing) == content {
@@ -569,4 +591,12 @@ func expectedRights(file generate.File) map[string]struct{} {
 	}
 
 	return out
+}
+
+// asidePath is where the generated text of a hand-maintained file is written for comparison:
+// _<name>.generated in the same directory. Helm renders every file under templates/ whatever its
+// extension, so a plain copy would render a second set of objects; a name starting with an
+// underscore is a partial to Helm and produces no objects.
+func asidePath(path string) string {
+	return filepath.Join(filepath.Dir(path), "_"+filepath.Base(path)+".generated")
 }

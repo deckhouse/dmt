@@ -126,6 +126,16 @@ func (r *CoverageRule) Check(_ context.Context) {
 		}
 
 		if _, groupKnown := groups[res.Group]; !groupKnown {
+			// A denied resource of a group the module ships no CRD for: either an external resource
+			// nobody grants, or a CRD that was removed while its entry stayed. Only a scope tells
+			// the two apart (an external resource is declared with one), so ask for it.
+			if res.NoAccess != "" && res.Scope == "" {
+				errorList.
+					WithObjectID("rbac.yaml/"+res.Key()).
+					Warnf("%s is denied access but the module ships no CRD for it and the entry names no scope; if the resource is external, add scope: Namespaced|Cluster to say so, if its CRD was removed, drop the entry",
+						res.Key())
+			}
+
 			continue
 		}
 
