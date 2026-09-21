@@ -240,10 +240,16 @@ func mapRuleSettings(linterSettings *pkg.LintersSettings, configSettings *config
 // mapRBACRules configures the per-rule levels of the rbac rules added for the module RBAC
 // declaration: coverage, sync and contract read their impact from the root configuration and
 // fall back to the linter's.
-func mapRBACRules(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings, globalConfig *global.Linters) {
-	linterSettings.RBAC.Rules.CoverageRule.SetLevel(globalConfig.Rbac.Rules.CoverageRule.Impact, configSettings.Rbac.Impact)
-	linterSettings.RBAC.Rules.SyncRule.SetLevel(globalConfig.Rbac.Rules.SyncRule.Impact, configSettings.Rbac.Impact)
-	linterSettings.RBAC.Rules.ContractRule.SetLevel(globalConfig.Rbac.Rules.ContractRule.Impact, configSettings.Rbac.Impact)
+func mapRBACRules(linterSettings *pkg.LintersSettings, _ *config.LintersSettings, globalConfig *global.Linters) {
+	// The declaration rules are new to every tree: a module without rbac.yaml sees only contract,
+	// and the platform tree still carries six dead rbac.yaml files of an older shape and rules the
+	// contract flags. They therefore start at warn wherever nothing sets them -- like the style
+	// rules of the documentation linter -- and are raised to error per tree in its root
+	// .dmtlint.yaml once its modules are clean. The linter-level impact is intentionally not the
+	// fallback: impact: error on rbac means the four original rules, as it always did.
+	linterSettings.RBAC.Rules.CoverageRule.SetLevel(globalConfig.Rbac.Rules.CoverageRule.Impact, pkg.Warn.String())
+	linterSettings.RBAC.Rules.SyncRule.SetLevel(globalConfig.Rbac.Rules.SyncRule.Impact, pkg.Warn.String())
+	linterSettings.RBAC.Rules.ContractRule.SetLevel(globalConfig.Rbac.Rules.ContractRule.Impact, pkg.Warn.String())
 }
 
 // mapContainerRules configures Container linter rules

@@ -29,7 +29,7 @@ import (
 // The rules added for the module RBAC declaration read their own impact from the root
 // configuration; the four original rbac rules keep the linter level whatever the root says.
 func TestRemapLinterSettings_RBACDeclarationRules(t *testing.T) {
-	t.Run("per-rule levels from the root configuration, linter level as fallback", func(t *testing.T) {
+	t.Run("per-rule levels from the root configuration, warn as the fallback", func(t *testing.T) {
 		settings := remapLinterSettings(
 			&config.LintersSettings{Rbac: config.RbacSettings{Impact: pkg.Error.String()}},
 			&global.Linters{Rbac: global.RbacLinterConfig{
@@ -43,7 +43,7 @@ func TestRemapLinterSettings_RBACDeclarationRules(t *testing.T) {
 
 		require.Equal(t, pkg.Warn, *settings.RBAC.Rules.CoverageRule.GetLevel())
 		require.Equal(t, pkg.Ignored, *settings.RBAC.Rules.SyncRule.GetLevel())
-		require.Equal(t, pkg.Error, *settings.RBAC.Rules.ContractRule.GetLevel(), "unset falls back to the linter level")
+		require.Equal(t, pkg.Warn, *settings.RBAC.Rules.ContractRule.GetLevel(), "unset starts at warn, whatever the linter level says")
 
 		// SC5: the original rules are untouched by the per-rule block.
 		for _, rule := range []*pkg.RuleConfig{

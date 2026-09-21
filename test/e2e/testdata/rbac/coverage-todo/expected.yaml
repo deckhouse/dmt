@@ -5,7 +5,7 @@ module: module
 expect:
   - linter: rbac
     rule: coverage
-    level: error
+    level: warn
     textContains: 'e2e.deckhouse.io/widgets is still noAccess: "TODO" in rbac.yaml'
     count: 1
   - linter: rbac
