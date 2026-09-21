@@ -6,6 +6,6 @@ module: module
 expect:
   - linter: rbac
     rule: coverage
-    level: error
+    level: warn
     textContains: "CRD e2e.deckhouse.io/globals (crds/vendor/globals.yaml) has no entry in rbac.yaml"
     count: 1
