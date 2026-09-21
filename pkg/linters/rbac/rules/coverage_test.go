@@ -116,6 +116,9 @@ func TestCoverage_WithoutDeclarationIsSilent(t *testing.T) {
 }
 
 func TestCoverage_FindingsAndStubFix(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
 	const declaration = `apiVersion: rbac.deckhouse.io/v1alpha1
 # keep me: comments survive the autofix
 resources:
@@ -225,4 +228,36 @@ func TestCoverage_ExcludedCRDAndDeclarationWithoutResources(t *testing.T) {
 	require.Len(t, decl.Resources, 1)
 	assert.Equal(t, "a.io/alphas", decl.Resources[0].Key())
 	assert.Equal(t, rbacyaml.NoAccessTODO, decl.Resources[0].NoAccess)
+}
+
+// R36: two render variants report the same missing entry; the stub is written once and both
+// findings end the run with the same outcome.
+func TestCoverage_StubFixOncePerRun(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := writeModule(t, map[string]string{
+		"crds/a.yaml":     crdYAML("a.io", "alphas", "Namespaced"),
+		rbacyaml.Filename: "apiVersion: rbac.deckhouse.io/v1alpha1\nresources: []\n",
+	})
+
+	variantA := runCoverage(t, modulePath)
+	variantB := runCoverage(t, modulePath)
+
+	for _, list := range []*errors.LintRuleErrorsList{variantA, variantB} {
+		for _, fix := range list.GetFixes() {
+			fix()
+		}
+	}
+
+	for _, list := range []*errors.LintRuleErrorsList{variantA, variantB} {
+		remaining := list.GetErrors()
+		require.Len(t, remaining, 1)
+		require.Error(t, remaining[0].FixError)
+		assert.Contains(t, remaining[0].FixError.Error(), "a stub for a.io/alphas was added to rbac.yaml")
+	}
+
+	after, err := os.ReadFile(rbacyaml.Path(modulePath))
+	require.NoError(t, err)
+	assert.Equal(t, 1, strings.Count(string(after), "resource: alphas"), "one stub, not one per variant")
 }

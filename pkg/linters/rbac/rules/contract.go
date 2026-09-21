@@ -130,7 +130,7 @@ func (r *ContractRule) Check(_ context.Context) {
 			continue
 		}
 
-		checkContract(role, scopes, errorList)
+		checkContract(role, r.module.GetName(), scopes, errorList)
 	}
 }
 
@@ -160,13 +160,19 @@ func (r *ContractRule) resourceScopes() rbacyaml.CRDScopes {
 
 // checkContract applies the contract to one rendered ClusterRole. The checks and their messages
 // follow the platform test so that both give the same verdict on a module.
-func checkContract(role *rbacv1.ClusterRole, scopes rbacyaml.CRDScopes, errorList *errors.LintRuleErrorsList) {
+func checkContract(role *rbacv1.ClusterRole, module string, scopes rbacyaml.CRDScopes, errorList *errors.LintRuleErrorsList) {
 	name := role.Name
 	labels := role.Labels
 	annotations := role.Annotations
 
 	if !strings.HasPrefix(name, "d8:") {
 		errorList.Errorf("name %q must start with the d8: prefix", name)
+	}
+
+	// The platform test cannot know which module a role or capability belongs to; dmt does (spec
+	// 005 R21). Helpers outside the framework (no kind label, such as d8:dict) are not judged.
+	if got, framework := labels[rbaccontract.LabelModule], labels[rbaccontract.LabelKind] != ""; framework && got != module {
+		errorList.Errorf("label %s must be the module name %q, got %q", rbaccontract.LabelModule, module, got)
 	}
 
 	for _, key := range rbaccontract.I18nAnnotations {

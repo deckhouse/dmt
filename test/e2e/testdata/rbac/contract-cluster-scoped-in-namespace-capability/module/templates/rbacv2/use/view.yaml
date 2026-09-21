@@ -3,6 +3,7 @@ kind: ClusterRole
 metadata:
   name: d8:namespace-capability:e2e-rbac:view
   labels:
+    module: e2e-rbac
     rbac.deckhouse.io/kind: capability
     rbac.deckhouse.io/scope: namespace
     rbac.deckhouse.io/capability: namespace-capability.e2e-rbac.view

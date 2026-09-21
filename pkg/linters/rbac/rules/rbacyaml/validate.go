@@ -20,9 +20,37 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"text/template"
+
+	"github.com/Masterminds/sprig/v3"
 
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbaccontract"
 )
+
+// helmFuncs is the function set a `when` expression may use: sprig, as Helm ships it, plus the
+// functions Helm's engine adds. Only the names matter here -- the expression is parsed, not
+// evaluated; whether it holds under the linter's value stubs is the render's business.
+var helmFuncs = func() template.FuncMap {
+	funcs := sprig.TxtFuncMap()
+
+	for _, name := range []string{"include", "tpl", "required", "lookup", "toYaml", "fromYaml", "fromYamlArray", "toJson", "fromJson", "fromJsonArray", "toToml"} {
+		funcs[name] = func(...any) any { return nil }
+	}
+
+	return funcs
+}()
+
+// validateWhen rejects a condition that is not a Helm expression: the generator wraps it in
+// {{- if <when> }} verbatim, and a typo there breaks the render of the whole file (R13c).
+func validateWhen(when, where string, report reporter) {
+	if when == "" {
+		return
+	}
+
+	if _, err := template.New("when").Funcs(helmFuncs).Parse("{{ if " + when + " }}{{ end }}"); err != nil {
+		report("%s: when %q is not a Helm expression: %v", where, when, err)
+	}
+}
 
 // Validate checks the declaration against the format rules. crds is what the linted tree says
 // about the module's own resources (the scope of every CRD under crds/); an entry whose
@@ -91,6 +119,8 @@ func validateResource(r *Resource, where string, crds CRDScopes, usedCapabilitie
 	case r.NoAccess == "" && !r.HasLevels():
 		report("%s: an entry must grant at least one level (namespace, system or legacy) or deny access with noAccess: \"<reason>\"", where)
 	}
+
+	validateWhen(r.When, where, report)
 
 	scope, scopeErr := resolveScope(r, crds)
 	if scopeErr != "" {
@@ -237,6 +267,8 @@ func validateServiceAccounts(accounts []ServiceAccount, report reporter) {
 		}
 
 		names[sa.Name] = struct{}{}
+
+		validateWhen(sa.When, where, report)
 
 		if strings.HasPrefix(sa.Path, "/") || strings.HasSuffix(sa.Path, "/") || strings.Contains(sa.Path, "..") {
 			report("%s: path must be a directory under templates/ without leading or trailing slashes, got %q", where, sa.Path)

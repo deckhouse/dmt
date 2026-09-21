@@ -291,6 +291,24 @@ namespace:
 			crds:    certManagerCRDs,
 			wantErr: `"namespace.admin" is used by a resource entry but has no title and description`,
 		},
+		"R13c: when that is not a Helm expression": {
+			yaml: entry(`group: cert-manager.io
+resource: issuers
+when: 'and (.Values.certManager.foo'
+namespace:
+  viewer: [get]`),
+			crds:    certManagerCRDs,
+			wantErr: `when "and (.Values.certManager.foo" is not a Helm expression`,
+		},
+		"R13c: when with Helm and sprig functions parses": {
+			yaml: entry(`group: cert-manager.io
+resource: issuers
+when: 'and .Values.certManager.foo (semverCompare ">= 1.80" .Values.global.deckhouseVersion) (.Capabilities.APIVersions.Has "x/v1")'
+namespace:
+  viewer: [get]`),
+			crds:    certManagerCRDs,
+			wantErr: "",
+		},
 		"R26: namespaced resource at a system level without reason": {
 			yaml: entry(`group: cert-manager.io
 resource: issuers

@@ -302,7 +302,12 @@ func TestSync_WithoutDeclarationIsSilent(t *testing.T) {
 }
 
 func TestSync_Autofix(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
 	t.Run("regenerates a missing file and is idempotent", func(t *testing.T) {
+		resetFixState()
+
 		modulePath := syncModuleDir(t)
 		model := syncModel(t, modulePath)
 
@@ -325,7 +330,9 @@ func TestSync_Autofix(t *testing.T) {
 		assert.True(t, generated)
 		assert.Equal(t, "1", version)
 
-		// Running the same fix again changes nothing.
+		// Running the same fix again, in a new run, changes nothing.
+		resetFixState()
+
 		before, _ := os.Stat(filepath.Join(modulePath, "templates/rbacv2/use/view.yaml"))
 		for _, fix := range runSync(t, modulePath, store).GetFixes() {
 			fix()
@@ -336,6 +343,8 @@ func TestSync_Autofix(t *testing.T) {
 	})
 
 	t.Run("D3: refuses to drop a right the render grants", func(t *testing.T) {
+		resetFixState()
+
 		modulePath := syncModuleDir(t)
 		model := syncModel(t, modulePath)
 		store := renderedFrom(t, model, func(o *generate.Object) bool {
@@ -367,6 +376,8 @@ func TestSync_Autofix(t *testing.T) {
 	})
 
 	t.Run("US-F2: a file without the header is maintained by hand", func(t *testing.T) {
+		resetFixState()
+
 		modulePath := syncModuleDir(t)
 		model := syncModel(t, modulePath)
 		store := renderedFrom(t, model, func(o *generate.Object) bool {
@@ -399,4 +410,127 @@ func TestSync_Autofix(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, strings.HasPrefix(string(aside), generate.Header()))
 	})
+}
+
+// R40: a file whose header names another contract version is a divergence, and the fix rewrites it.
+func TestSync_ForeignContractVersionIsRegenerated(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	store := renderedFrom(t, model, nil)
+
+	const rel = "templates/rbacv2/use/view.yaml"
+
+	want := generate.RenderFile(*model.File(rel))
+	_, body, _ := strings.Cut(want, "\n")
+	stale := strings.Replace(generate.Header(), "contract 1.", "contract 0.", 1) + "\n" + body
+
+	path := filepath.Join(modulePath, rel)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte(stale), 0o600))
+
+	errorList := runSync(t, modulePath, store)
+	got := texts(errorList)
+	require.Len(t, got, 1, "got: %v", got)
+	assert.Contains(t, got[0], `templates/rbacv2/use/view.yaml does not match rbac.yaml: the file was generated under contract version "0"; the current contract is "1". Run `+"`dmt lint --linter rbac --fix`")
+
+	for _, fix := range errorList.GetFixes() {
+		fix()
+	}
+
+	assert.Empty(t, errorList.GetErrors())
+
+	written, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, want, string(written))
+}
+
+// R36/D3: under --matrix every variant records its render at lint time, so the closure that runs
+// first refuses to drop a right only another variant rendered, and the other closures report the
+// same outcome instead of writing.
+func TestSync_FixSeesEveryRenderVariant(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+
+	// Both variants lack a declared rule (the file is stale); variant A also grants a right that is
+	// not declared -- as a template with a hand-written {{ if }} would under some values.
+	stale := func(o *generate.Object) bool {
+		if o.Name == "d8:user-authz:cert-manager:user" {
+			o.Rules = o.Rules[:len(o.Rules)-1]
+		}
+
+		return true
+	}
+	variantB := renderedFrom(t, model, stale)
+	variantA := renderedFrom(t, model, func(o *generate.Object) bool {
+		stale(o)
+
+		if o.Name == "d8:user-authz:cert-manager:user" {
+			o.Rules = append(o.Rules, generate.Rule{PolicyRule: rbacyaml.PolicyRule{APIGroups: []string{""}, Resources: []string{"secrets"}, Verbs: []string{"get"}}})
+		}
+
+		return true
+	})
+
+	path := filepath.Join(modulePath, "templates/user-authz-cluster-roles.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte(generate.Header()+"\n# stale\n"), 0o600))
+
+	// Lint both variants first, as the manager does, then apply the fixes: B's closure runs first.
+	listB := runSync(t, modulePath, variantB)
+	listA := runSync(t, modulePath, variantA)
+	require.Len(t, listB.GetFixes(), 1)
+	require.Len(t, listA.GetFixes(), 1)
+
+	for _, list := range []*errors.LintRuleErrorsList{listB, listA} {
+		for _, fix := range list.GetFixes() {
+			fix()
+		}
+	}
+
+	for name, list := range map[string]*errors.LintRuleErrorsList{"B": listB, "A": listA} {
+		remaining := list.GetErrors()
+		require.Len(t, remaining, 1, "variant %s", name)
+		require.Error(t, remaining[0].FixError, "variant %s", name)
+		assert.Contains(t, remaining[0].FixError.Error(), `would drop rights the render grants today: ClusterRole/d8:user-authz:cert-manager:user: get ""/secrets`, "variant %s", name)
+	}
+
+	unchanged, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, generate.Header()+"\n# stale\n", string(unchanged), "no variant wrote the file")
+}
+
+// R8a/D7: a declaration in an edition overlay is reported by sync and ignored by coverage.
+func TestSync_DeclarationInEditionOverlay(t *testing.T) {
+	src := syncModuleDir(t)
+	modulePath := filepath.Join(t.TempDir(), "ee", "be", "modules", "101-cert-manager")
+	require.NoError(t, os.MkdirAll(filepath.Dir(modulePath), 0o755))
+	require.NoError(t, os.Rename(src, modulePath))
+
+	got := texts(runSync(t, modulePath, storage.NewUnstructuredObjectStore()))
+	require.Len(t, got, 1, "got: %v", got)
+	assert.Contains(t, got[0], "rbac.yaml lies in the edition overlay ee/be/modules; the declaration describes the union of editions and belongs to modules/<module>/ only")
+	assert.Contains(t, got[0], "Only a person can close this")
+
+	assert.Empty(t, texts(runCoverage(t, modulePath)), "coverage leaves the overlay finding to sync")
+}
+
+func TestEditionOverlay(t *testing.T) {
+	for path, want := range map[string]string{
+		"/r/modules/101-cert-manager":  "",
+		"/r/ee/modules/500-x":          "ee/modules",
+		"/r/ee/be/modules/500-x":       "ee/be/modules",
+		"/r/ee/se-plus/modules/500-x/": "ee/se-plus/modules",
+		"/r/ee/fe/x":                   "",
+		"/r/external/x":                "",
+		"/r/ee/x":                      "",
+		"modules/x":                    "",
+	} {
+		assert.Equal(t, want, editionOverlay(path), path)
+	}
 }

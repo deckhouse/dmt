@@ -1496,7 +1496,7 @@ Works on the rendered ClusterRoles from `templates/rbacv2/` (the compatibility a
 
 **What it checks:**
 
-1. The name starts with `d8:`; the four `en|ru.meta.deckhouse.io/title|description` annotations are present.
+1. The name starts with `d8:`; the four `en|ru.meta.deckhouse.io/title|description` annotations are present; the `module` label is the module's name (the platform test cannot know the module; dmt does).
 2. `rbac.deckhouse.io/kind` is `role` or `capability`; `rbac.deckhouse.io/scope` is `system`, `subsystem`, `namespace` or `project`.
 3. A role: its name matches the pattern of its scope, it defines no `rules`, its `aggregationRule` selects only by `aggregate-to-<lineage>-as` labels with a known lineage and a level of that lineage; system/subsystem roles carry `rbac.deckhouse.io/use-role` with a valid level.
 4. A capability: its name starts with the prefix of its scope, it defines `rules` and no `aggregationRule`, carries at least one `aggregate-to-<lineage>-as` label and a valid `rbac.deckhouse.io/capability` marker (a label value, at most 63 characters).
@@ -1617,6 +1617,7 @@ controller ClusterRoles with arbitrary names, objects with Helm-computed names).
 2. A capability's aggregation edges (`aggregate-to-<lineage>-as`) match in both directions: rules may agree while a lineage is lost. Its `rbac.deckhouse.io/capability` marker, `module` and `rbac.deckhouse.io/namespace` labels are what the generator writes.
 3. A binding's `roleRef` and subjects match.
 4. Every rendered legacy role and module capability is produced by the declaration.
+5. A generated file names the contract version it was generated under in its header; a file of another version is a divergence and is regenerated.
 
 Findings are one per template file and carry the fix command; the text does not depend on the render variant.
 
@@ -1625,7 +1626,10 @@ Findings are one per template file and carry the fix command; the text does not 
 - a file without the generator header is maintained by hand: the generated text is written beside it as `<file>.generated` and the finding stays (delete the file and run `--fix` again to hand it back to the generator);
 - the regenerated file must grant everything the render of that file grants today, rules and aggregation edges alike; otherwise the file is left alone and the finding names what would be lost. Removing a right is always a person's decision: declare it in `rbac.yaml` or remove it from the template by hand.
 
-A missing file is created. A second `--fix` without changes to `rbac.yaml` changes nothing.
+A missing file is created. A second `--fix` without changes to `rbac.yaml` changes nothing. Under
+`--matrix` every render variant reports the file, but the fix runs once: the variants record what
+their renders grant while they exist, the first closure checks the union and writes, the others
+report its outcome -- so a right rendered only under some values is never dropped.
 
 **Example finding:**
 
@@ -1654,7 +1658,9 @@ linters-settings:
 **Limits worth knowing:**
 
 - A conditional rule is checked only where it renders: with the default values, `dmt lint --values-file` or `dmt lint --matrix`.
-- The declaration is one per module and describes the union of editions. Linting a single edition directory shows the edition-only objects as absent; lint the merged tree as CI does.
+- The declaration is one per module and describes the union of editions. Linting a single edition directory shows the edition-only objects as absent; lint the merged tree as CI does. An `rbac.yaml` inside an edition overlay (`ee/modules`, `ee/be/modules`, ...) is an error: CI merges the overlays over `modules/` before linting, so a copy there would shadow the base one or go unseen.
+- `impact: ignore` on a rule switches its autofix off with it: `--fix` never rewrites files on behalf of findings nobody sees.
+- A `when` condition must parse as a Helm expression (sprig and Helm functions are known); whether it holds under the linter's value stubs is decided by the render -- a condition that breaks the render is reported by the `helm-render` rule, and the module is not linted further.
 - `dmt lint remote` does not run these rules: a published image carries no chart to render.
 - The keys of the `rbac` configuration blocks are checked: an unknown key is an error, not a silent no-op.
 
