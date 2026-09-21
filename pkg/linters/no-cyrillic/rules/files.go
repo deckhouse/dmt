@@ -39,6 +39,13 @@ var (
 	skipDocRe  = `doc-ru-.+\.y[a]?ml$|\.ru\.y[a]?ml$|\.ru\.json$|\.ru\.md$|\.ru\.html$|_RU\.md$|_ru\.html$|docs/site/_.+|docs/documentation/_.+|tools/spelling/.+|openapi/conversions/.+|module.yaml|ru\..+`
 	skipSelfRe = `no_cyrillic(_test)?.go$`
 	skipI18NRe = `/i18n/`
+
+	// localizedAnnotationRe matches the Russian title and description the RBACv2 role model requires
+	// on every role and capability (ru.meta.deckhouse.io/*, enforced by the rbac contract rule). That
+	// is product text the console shows to whoever grants access, not a source comment, so those
+	// lines are not judged -- otherwise every module would need the same exclusion for
+	// templates/rbacv2 in its own .dmtlint.yaml.
+	localizedAnnotationRe = `ru\.meta\.deckhouse\.io/(title|description)`
 )
 
 func NewFilesRule(excludeFileRules []pkg.StringRuleExclude,
@@ -52,11 +59,12 @@ func NewFilesRule(excludeFileRules []pkg.StringRuleExclude,
 			ExcludeStringRules:    excludeFileRules,
 			ExcludeDirectoryRules: excludeDirectoryRules,
 		},
-		skipDocRe:  regexp.MustCompile(skipDocRe),
-		skipI18NRe: regexp.MustCompile(skipI18NRe),
-		skipSelfRe: regexp.MustCompile(skipSelfRe),
-		module:     m,
-		errorList:  errorList.WithRule(FilesRuleName),
+		skipDocRe:   regexp.MustCompile(skipDocRe),
+		skipI18NRe:  regexp.MustCompile(skipI18NRe),
+		skipSelfRe:  regexp.MustCompile(skipSelfRe),
+		localizedRe: regexp.MustCompile(localizedAnnotationRe),
+		module:      m,
+		errorList:   errorList.WithRule(FilesRuleName),
 	}
 }
 
@@ -64,9 +72,10 @@ type FilesRule struct {
 	pkg.RuleMeta
 	pkg.PathRule
 
-	skipDocRe  *regexp.Regexp
-	skipI18NRe *regexp.Regexp
-	skipSelfRe *regexp.Regexp
+	skipDocRe   *regexp.Regexp
+	skipI18NRe  *regexp.Regexp
+	skipSelfRe  *regexp.Regexp
+	localizedRe *regexp.Regexp
 
 	module    pkg.Module
 	errorList *errors.LintRuleErrorsList
@@ -117,7 +126,7 @@ func (r *FilesRule) checkFile(fileName string) {
 		return
 	}
 
-	cyrMsg, hasCyr := checkCyrillicLettersInArray(lines)
+	cyrMsg, hasCyr := checkCyrillicLettersInArray(r.withoutLocalizedAnnotations(lines))
 	if hasCyr {
 		errorList.WithFilePath(fName).WithValue(cyrMsg).
 			Error("has cyrillic letters")
@@ -133,4 +142,20 @@ func getFileContent(filename string) ([]string, error) {
 	sliceData := strings.Split(string(fileBytes), "\n")
 
 	return sliceData, nil
+}
+
+// withoutLocalizedAnnotations drops the ru.meta.deckhouse.io/title|description lines: Russian there is
+// required by the role model, not a mistake.
+func (r *FilesRule) withoutLocalizedAnnotations(lines []string) []string {
+	out := make([]string, 0, len(lines))
+
+	for _, line := range lines {
+		if r.localizedRe.MatchString(line) {
+			continue
+		}
+
+		out = append(out, line)
+	}
+
+	return out
 }
