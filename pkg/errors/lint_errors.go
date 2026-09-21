@@ -254,7 +254,9 @@ func (l *LintRuleErrorsList) GetFixes() []func() {
 	var fixes []func()
 
 	for idx := range l.storage.errList {
-		if l.storage.errList[idx].fix == nil {
+		// A finding at the ignored level is neither shown nor acted on: a rule switched off with
+		// impact: ignore keeps its autofix off with it.
+		if l.storage.errList[idx].fix == nil || l.storage.errList[idx].Level == pkg.Ignored {
 			continue
 		}
 
