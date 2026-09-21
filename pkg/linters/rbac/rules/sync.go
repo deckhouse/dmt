@@ -133,10 +133,20 @@ func (r *SyncRule) Check(_ context.Context) {
 	}
 
 	actual := r.managedObjects(model)
+	legacy := r.legacyFiles()
 	divergences := map[string][]string{}
 
 	for _, file := range model.Files {
-		divergences[file.Path] = append(divergences[file.Path], compareFile(file, actual, r.module.GetName())...)
+		found := compareFile(file, actual, r.module.GetName())
+
+		// The template renders the scheme before 1.78 where the declaration produces the new one:
+		// the objects the declaration names cannot be there. Say so once instead of listing them.
+		if kind, isLegacy := legacy[file.Path]; isLegacy && len(found) > 0 {
+			found = append(found, fmt.Sprintf("the template renders the legacy RBACv2 scheme (%s: %s, the manage/use model before DKP 1.78) where the declaration produces the 1.78 model; migrate the module with rbacv2-migrate-module.sh to serve both, or delete the file and run `%s` to serve the new one only",
+				rbaccontract.LabelKind, kind, FixCommand))
+		}
+
+		divergences[file.Path] = append(divergences[file.Path], found...)
 	}
 
 	// A legacy role or a module capability the declaration does not produce is an object the
@@ -198,6 +208,20 @@ func (r *SyncRule) Check(_ context.Context) {
 		fileList.Errorf("%s does not match %s: %s. Only a person can close this: the declaration does not produce this file",
 			path, rbacyaml.Filename, strings.Join(list, "; "))
 	}
+}
+
+// legacyFiles maps the templates that rendered an object of the scheme before 1.78 to its kind.
+// Those objects belong to no class the declaration produces; they are the module's old model.
+func (r *SyncRule) legacyFiles() map[string]string {
+	out := map[string]string{}
+
+	for _, object := range r.module.GetStorage() {
+		if kind := object.Unstructured.GetLabels()[rbaccontract.LabelKind]; object.Unstructured.GetKind() == "ClusterRole" && rbaccontract.IsLegacyKind(kind) {
+			out[object.ShortPath()] = kind
+		}
+	}
+
+	return out
 }
 
 // managedObject is a rendered object the sync rule owns, with the class it was recognized by.
@@ -446,6 +470,11 @@ func regenerateFix(modulePath string, file generate.File, actual map[string]mana
 			}
 
 			if exists {
+				if strings.Contains(string(existing), rbaccontract.GateMarker) || strings.Contains(string(existing), "deckhouseVersion") {
+					return fmt.Errorf("%s renders one of two role models depending on the platform version (the %s gate of rbacv2-migrate-module.sh); regenerating it would drop the legacy branch -- edit the new branch by hand, or drop the gate and the legacy object once clusters below DKP 1.78 are no longer served, then run `%s`",
+						file.Path, rbaccontract.GateMarker, FixCommand)
+				}
+
 				if generated, _ := generate.ParseHeader(string(existing)); !generated {
 					aside := fullPath + ".generated"
 					if err := os.WriteFile(aside, []byte(content), 0o600); err != nil {
@@ -454,10 +483,6 @@ func regenerateFix(modulePath string, file generate.File, actual map[string]mana
 
 					return fmt.Errorf("%s is maintained by hand (no generator header); the generated version is beside it as %s.generated -- compare, then either delete the file and run `%s` again, or keep maintaining it by hand",
 						file.Path, file.Path, FixCommand)
-				}
-
-				if strings.Contains(string(existing), "deckhouseVersion") {
-					return fmt.Errorf("%s renders different objects depending on the platform version; regenerating it would drop one of the two schemes -- resolve the version condition by hand first", file.Path)
 				}
 			}
 
