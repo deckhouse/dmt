@@ -146,6 +146,7 @@ type TemplatesLinterRules struct {
 	EnabledModulesRule                 RuleConfig
 	CRDEnabledModulesRule              RuleConfig
 	WebhookConfigurationRule           RuleConfig
+	AlertGroupingAnnotationsRule       RuleConfig
 	MountPointsRule                    RuleConfig
 	HelmRenderRule                     RuleConfig
 	OpenAPIValuesQuoteRule             RuleConfig
@@ -174,6 +175,7 @@ type TemplatesExcludeRules struct {
 	HTTPRoute                      KindRuleExcludeList
 	EnabledModules                 EnabledModulesExcludeRule
 	WebhookConfiguration           KindRuleExcludeList
+	AlertGroupingAnnotations       StringRuleExcludeList
 	MountPoints                    StringRuleExcludeList
 	OpenAPIValuesQuote             StringRuleExcludeList
 	SchemaValidation               KindRuleExcludeList
