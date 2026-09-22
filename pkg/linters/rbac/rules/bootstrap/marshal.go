@@ -29,6 +29,8 @@ func Marshal(r Result) ([]byte, error) {
 
 	head.WriteString("# Written by dmt (rbac/sync --fix) from the RBAC objects the module rendered. Review it, resolve every TODO\n")
 	head.WriteString("# and every note below, then run \"dmt lint --linter rbac --fix\" to regenerate the templates from it.\n")
+	head.WriteString("# Objects rendered only under values other than the defaults are not here: lint with --values-file (or\n")
+	head.WriteString("# --matrix) before the first regeneration if the module has such templates, and declare them with when.\n")
 
 	if len(r.Notes) > 0 {
 		head.WriteString("#\n# Notes:\n")

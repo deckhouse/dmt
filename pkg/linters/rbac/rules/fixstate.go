@@ -23,6 +23,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/bootstrap"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbaccontract"
 )
 
@@ -38,11 +39,13 @@ import (
 //     rather than the render of whichever variant happened to run its closure first.
 var fixState = struct {
 	sync.Mutex
-	outcomes map[string]error
-	foreign  map[string]map[string]struct{}
+	outcomes  map[string]error
+	foreign   map[string]map[string]struct{}
+	bootstrap map[string]map[string]bootstrap.Object
 }{
-	outcomes: map[string]error{},
-	foreign:  map[string]map[string]struct{}{},
+	outcomes:  map[string]error{},
+	foreign:   map[string]map[string]struct{}{},
+	bootstrap: map[string]map[string]bootstrap.Object{},
 }
 
 // fixOnce runs fix for the key the first time it is asked and returns that outcome on every later
@@ -106,6 +109,44 @@ func resetFixState() {
 
 	fixState.outcomes = map[string]error{}
 	fixState.foreign = map[string]map[string]struct{}{}
+	fixState.bootstrap = map[string]map[string]bootstrap.Object{}
+}
+
+// recordBootstrapObjects adds the RBAC objects one render variant produced, for the first
+// declaration to be written from the union of every variant.
+func recordBootstrapObjects(path string, objects []bootstrap.Object) {
+	fixState.Lock()
+	defer fixState.Unlock()
+
+	known := fixState.bootstrap[path]
+	if known == nil {
+		known = map[string]bootstrap.Object{}
+		fixState.bootstrap[path] = known
+	}
+
+	for _, o := range objects {
+		known[o.Kind+"/"+o.Namespace+"/"+o.Name] = o
+	}
+}
+
+// bootstrapObjectsOf returns, sorted by identity, every object any variant rendered.
+func bootstrapObjectsOf(path string) []bootstrap.Object {
+	fixState.Lock()
+	defer fixState.Unlock()
+
+	keys := make([]string, 0, len(fixState.bootstrap[path]))
+	for k := range fixState.bootstrap[path] {
+		keys = append(keys, k)
+	}
+
+	sort.Strings(keys)
+
+	out := make([]bootstrap.Object, 0, len(keys))
+	for _, k := range keys {
+		out = append(out, fixState.bootstrap[path][k])
+	}
+
+	return out
 }
 
 // editionOverlay returns the edition overlay a module directory lies in ("ee/modules",

@@ -40,6 +40,8 @@ func Header() string {
 // newer) contract.
 func ParseHeader(content string) (bool, string) {
 	line, _, _ := strings.Cut(content, "\n")
+	line = strings.TrimSuffix(line, "\r")
+
 	if !strings.HasPrefix(line, headerPrefix) || !strings.HasSuffix(line, headerSuffix) {
 		return false, ""
 	}

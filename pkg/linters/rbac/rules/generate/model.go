@@ -174,6 +174,10 @@ func Build(in Input) (*Model, error) {
 		return nil, fmt.Errorf("the module name is required")
 	}
 
+	if err := checkAgainstModule(in); err != nil {
+		return nil, err
+	}
+
 	b := &builder{in: in, files: map[string]*File{}}
 
 	b.capabilities()
@@ -188,7 +192,46 @@ func Build(in Input) (*Model, error) {
 
 	sort.Slice(model.Files, func(i, j int) bool { return model.Files[i].Path < model.Files[j].Path })
 
+	for _, f := range model.Files {
+		for _, o := range f.Objects {
+			if marker := o.Labels[rbaccontract.LabelCapability]; len(marker) > 63 {
+				return nil, fmt.Errorf("capability marker %q is %d characters, a label value holds 63: the module name and the level name together are too long for %s", marker, len(marker), o.Name)
+			}
+		}
+	}
+
 	return model, nil
+}
+
+// checkAgainstModule refuses what the declaration alone cannot know is wrong: it needs the module's
+// metadata, and the objects it would produce would fail the platform's other rules.
+func checkAgainstModule(in Input) error {
+	systemLevels := false
+	for _, r := range in.Decl.Resources {
+		if len(r.System) > 0 {
+			systemLevels = true
+		}
+	}
+
+	if systemLevels && len(in.Decl.Subsystems) == 0 && len(in.Subsystems) == 0 {
+		return fmt.Errorf("system levels are declared but the module aggregates into no subsystem: module.yaml declares none, so set subsystems in %s", rbacyaml.Filename)
+	}
+
+	for _, sa := range in.Decl.ServiceAccounts {
+		if sa.Path == "" {
+			continue
+		}
+
+		if strings.Contains(sa.Path, "/") {
+			return fmt.Errorf("serviceAccounts[%s].path %q: one directory under templates/ only; the placement rule names the objects of a nested directory in a way the generator cannot follow", sa.Name, sa.Path)
+		}
+
+		if sa.Name != sa.Path && sa.Name != in.Module+"-"+sa.Path {
+			return fmt.Errorf("serviceAccounts[%s].path %q: the placement rule wants the account named %q or %q after its directory; rename the account or move it to the module root", sa.Name, sa.Path, sa.Path, in.Module+"-"+sa.Path)
+		}
+	}
+
+	return nil
 }
 
 type builder struct {
