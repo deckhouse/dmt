@@ -19,6 +19,7 @@ package rules
 import (
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 
@@ -39,9 +40,11 @@ var fixState = struct {
 	sync.Mutex
 	outcomes map[string]error
 	rendered map[string]map[string]struct{}
+	foreign  map[string]map[string]struct{}
 }{
 	outcomes: map[string]error{},
 	rendered: map[string]map[string]struct{}{},
+	foreign:  map[string]map[string]struct{}{},
 }
 
 // fixOnce runs fix for the key the first time it is asked and returns that outcome on every later
@@ -94,6 +97,39 @@ func renderedRights(file string) map[string]struct{} {
 	return out
 }
 
+// recordForeignObjects adds the objects one render variant placed in the file that the declaration
+// does not produce.
+func recordForeignObjects(file string, objects []string) {
+	fixState.Lock()
+	defer fixState.Unlock()
+
+	known := fixState.foreign[file]
+	if known == nil {
+		known = map[string]struct{}{}
+		fixState.foreign[file] = known
+	}
+
+	for _, o := range objects {
+		known[o] = struct{}{}
+	}
+}
+
+// foreignObjectsOf returns, sorted, every object any render variant placed in the file that the
+// declaration does not produce.
+func foreignObjectsOf(file string) []string {
+	fixState.Lock()
+	defer fixState.Unlock()
+
+	out := make([]string, 0, len(fixState.foreign[file]))
+	for o := range fixState.foreign[file] {
+		out = append(out, o)
+	}
+
+	sort.Strings(out)
+
+	return out
+}
+
 // resetFixState forgets everything; tests call it between runs.
 func resetFixState() {
 	fixState.Lock()
@@ -101,6 +137,7 @@ func resetFixState() {
 
 	fixState.outcomes = map[string]error{}
 	fixState.rendered = map[string]map[string]struct{}{}
+	fixState.foreign = map[string]map[string]struct{}{}
 }
 
 // editionOverlay returns the edition overlay a module directory lies in ("ee/modules",

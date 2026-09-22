@@ -482,3 +482,23 @@ metadata:
 		t.Errorf("Cyrillic outside the annotations is still reported, got %v", got)
 	}
 }
+
+// rbac.yaml holds the ru titles and descriptions the rbac declaration requires for capabilities
+// outside the view/edit convention: it is documentation of the module, like module.yaml, not source.
+func TestFilesRule_CheckFile_SkipRBACDeclaration(t *testing.T) {
+	mockModule := mocks.NewModuleMock(minimock.NewController(t))
+	tempDir := t.TempDir()
+	mockModule.GetPathMock.Return(tempDir)
+
+	path := filepath.Join(tempDir, "rbac.yaml")
+	if err := os.WriteFile(path, []byte("capabilities:\n  namespace.admin:\n    title:\n      ru: \"Модуль x: администрирование\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	errorList := errors.NewLintRuleErrorsList()
+	NewFilesRule(nil, nil, mockModule, errorList).checkFile(path)
+
+	if errs := errorList.GetErrors(); len(errs) != 0 {
+		t.Errorf("rbac.yaml must not be judged, got %v", errs)
+	}
+}
