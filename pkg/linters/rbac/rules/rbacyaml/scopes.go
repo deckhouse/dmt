@@ -14,11 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package bootstrap
+package rbacyaml
 
-// wellKnownScopes is the scope of the built-in Kubernetes resources a module's RBAC commonly names,
-// for the first declaration written from the render: the module ships no CRD for them and the
-// linter has no cluster to ask. Anything not here is left without a scope for the author to fill.
+// wellKnownScopes is the scope of the built-in Kubernetes resources a module's RBAC commonly names:
+// the module ships no CRD for them and the linter has no cluster to ask, so an entry for them
+// needs no scope of its own. Anything not here is declared with an explicit scope.
 var wellKnownScopes = map[string]string{
 	// core
 	"/pods": "Namespaced", "/pods/log": "Namespaced", "/pods/exec": "Namespaced", "/pods/portforward": "Namespaced", "/pods/proxy": "Namespaced", "/pods/status": "Namespaced",
@@ -49,4 +49,27 @@ var wellKnownScopes = map[string]string{
 	"authorization.k8s.io/selfsubjectrulesreviews": "Cluster", "authorization.k8s.io/localsubjectaccessreviews": "Namespaced",
 	// metrics
 	"metrics.k8s.io/pods": "Namespaced", "metrics.k8s.io/nodes": "Cluster",
+}
+
+// WellKnownScope returns the scope of a built-in Kubernetes resource, keyed group/resource ("" for
+// the core group); a subresource inherits its base resource's.
+func WellKnownScope(group, resource string) (string, bool) {
+	base := resource
+	if i := indexByte(base, '/'); i >= 0 {
+		base = base[:i]
+	}
+
+	scope, ok := wellKnownScopes[group+"/"+base]
+
+	return scope, ok
+}
+
+func indexByte(s string, c byte) int {
+	for i := 0; i < len(s); i++ {
+		if s[i] == c {
+			return i
+		}
+	}
+
+	return -1
 }
