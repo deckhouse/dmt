@@ -18,6 +18,7 @@ package rules
 
 import (
 	"context"
+	"maps"
 	"regexp"
 	"slices"
 	"sort"
@@ -65,7 +66,8 @@ var (
 		"project":   "d8:project-capability:",
 	}
 
-	validScopes = []string{"system", "subsystem", "namespace", "project"}
+	// validScopes follows roleNameRe: one table decides which scopes exist.
+	validScopes = []string{"namespace", "project", "subsystem", "system"}
 )
 
 // ContractRule checks the rendered RBACv2 ClusterRoles of a module against the platform's label
@@ -219,7 +221,7 @@ func checkContract(role *rbacv1.ClusterRole, module string, scopes rbacyaml.CRDS
 	}
 
 	// Aggregation labels: the lineage must exist and the level must be one of that lineage (R29).
-	for _, key := range sortedKeys(labels) {
+	for _, key := range slices.Sorted(maps.Keys(labels)) {
 		m := aggregateLabelRe.FindStringSubmatch(key)
 		if m == nil {
 			continue
@@ -293,7 +295,7 @@ func checkRole(role *rbacv1.ClusterRole, scope string, errorList *errors.LintRul
 	}
 
 	for _, selector := range role.AggregationRule.ClusterRoleSelectors {
-		for _, key := range sortedKeys(selector.MatchLabels) {
+		for _, key := range slices.Sorted(maps.Keys(selector.MatchLabels)) {
 			value := selector.MatchLabels[key]
 
 			m := aggregateLabelRe.FindStringSubmatch(key)
@@ -370,15 +372,4 @@ func checkCapability(role *rbacv1.ClusterRole, scope string, scopes rbacyaml.CRD
 			}
 		}
 	}
-}
-
-func sortedKeys(m map[string]string) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-
-	sort.Strings(keys)
-
-	return keys
 }

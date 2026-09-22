@@ -17,8 +17,9 @@ limitations under the License.
 package generate
 
 import (
+	"maps"
 	"regexp"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -122,7 +123,7 @@ func renderObject(b *strings.Builder, o Object) {
 	if len(o.Annotations) > 0 {
 		b.WriteString("  annotations:\n")
 
-		for _, key := range sortedKeys(o.Annotations) {
+		for _, key := range slices.Sorted(maps.Keys(o.Annotations)) {
 			b.WriteString("    " + key + ": " + strconv.Quote(o.Annotations[key]) + "\n")
 		}
 	}
@@ -157,7 +158,7 @@ func labelsInclude(labels map[string]string) string {
 	}
 
 	pairs := make([]string, 0, len(labels))
-	for _, key := range sortedKeys(labels) {
+	for _, key := range slices.Sorted(maps.Keys(labels)) {
 		pairs = append(pairs, strconv.Quote(key)+" "+strconv.Quote(labels[key]))
 	}
 
@@ -232,15 +233,4 @@ var plainScalarRe = regexp.MustCompile(`^[A-Za-z_/][A-Za-z0-9._/:*-]*[A-Za-z0-9_
 var yaml11Reserved = map[string]bool{
 	"y": true, "yes": true, "n": true, "no": true, "true": true, "false": true,
 	"on": true, "off": true, "null": true, "~": true,
-}
-
-func sortedKeys(m map[string]string) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-
-	sort.Strings(keys)
-
-	return keys
 }

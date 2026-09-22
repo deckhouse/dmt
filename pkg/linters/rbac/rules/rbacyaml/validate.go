@@ -132,7 +132,7 @@ func validateResource(r *Resource, where string, crds CRDScopes, usedCapabilitie
 	}
 
 	if r.IsWildcard() {
-		if _, known := crds.groupKnown(r.Group); known {
+		if crds.groupKnown(r.Group) {
 			report("%s: resource \"*\" is allowed only for a group the module ships no CRD for; list the resources of %q", where, r.Group)
 		}
 
@@ -192,14 +192,14 @@ func resolveScope(r *Resource, crds CRDScopes) (string, string) {
 }
 
 // groupKnown reports whether any CRD of the tree belongs to the group.
-func (c CRDScopes) groupKnown(group string) (string, bool) {
+func (c CRDScopes) groupKnown(group string) bool {
 	for key := range c {
 		if strings.HasPrefix(key, group+"/") {
-			return key, true
+			return true
 		}
 	}
 
-	return "", false
+	return false
 }
 
 func validateLevels(levels map[string][]string, lineage string, allowed []string, where string, usedCapabilities map[string]struct{}, report reporter) {
@@ -215,7 +215,7 @@ func validateLevels(levels map[string][]string, lineage string, allowed []string
 
 		for _, verb := range verbs {
 			if !slices.Contains(rbaccontract.Verbs, verb) {
-				report("%s: %s.%s: %q is not a verb; verbs are listed explicitly (%s), there are no aliases", where, lineage, level, verb, strings.Join(rbaccontract.Verbs[:len(rbaccontract.Verbs)-1], ", "))
+				report("%s: %s.%s: %q is not a verb; verbs are listed explicitly (%s), there are no aliases", where, lineage, level, verb, strings.Join(rbaccontract.ResourceVerbs, ", "))
 			}
 		}
 
@@ -243,9 +243,12 @@ func validateCapabilities(texts map[string]CapabilityText, used map[string]struc
 			report("capabilities: %q needs no texts: view and edit capabilities take the platform's conventional texts", key)
 		}
 
-		for field, value := range map[string]LocalizedText{"title": text.Title, "description": text.Description} {
-			if value.EN == "" || value.RU == "" {
-				report("capabilities: %s.%s requires both en and ru", key, field)
+		for _, field := range []struct {
+			name  string
+			value LocalizedText
+		}{{"title", text.Title}, {"description", text.Description}} {
+			if field.value.EN == "" || field.value.RU == "" {
+				report("capabilities: %s.%s requires both en and ru", key, field.name)
 			}
 		}
 	}

@@ -16,6 +16,8 @@ limitations under the License.
 
 package rbacyaml
 
+import "strings"
+
 // wellKnownScopes is the scope of the built-in Kubernetes resources a module's RBAC commonly names:
 // the module ships no CRD for them and the linter has no cluster to ask, so an entry for them
 // needs no scope of its own. Anything not here is declared with an explicit scope.
@@ -55,21 +57,11 @@ var wellKnownScopes = map[string]string{
 // the core group); a subresource inherits its base resource's.
 func WellKnownScope(group, resource string) (string, bool) {
 	base := resource
-	if i := indexByte(base, '/'); i >= 0 {
+	if i := strings.IndexByte(base, '/'); i >= 0 {
 		base = base[:i]
 	}
 
 	scope, ok := wellKnownScopes[group+"/"+base]
 
 	return scope, ok
-}
-
-func indexByte(s string, c byte) int {
-	for i := 0; i < len(s); i++ {
-		if s[i] == c {
-			return i
-		}
-	}
-
-	return -1
 }

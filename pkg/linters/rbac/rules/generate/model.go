@@ -26,6 +26,7 @@ limitations under the License.
 package generate
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -167,11 +168,11 @@ func (m *Model) Paths() []string {
 // rbacyaml.Validate: Build trusts it.
 func Build(in Input) (*Model, error) {
 	if in.Decl == nil {
-		return nil, fmt.Errorf("no declaration")
+		return nil, errors.New("no declaration")
 	}
 
 	if in.Module == "" {
-		return nil, fmt.Errorf("the module name is required")
+		return nil, errors.New("the module name is required")
 	}
 
 	if err := checkAgainstModule(in); err != nil {
@@ -445,24 +446,18 @@ func (b *builder) serviceAccounts() {
 
 		for _, bound := range sa.BindClusterRoles {
 			b.add(path, Object{
-				Kind: "ClusterRoleBinding", Name: clusterName + ":" + bindingSuffix(bound), Class: ClassDeclared, When: sa.When, Labels: labels,
+				Kind: "ClusterRoleBinding", Name: clusterName + ":" + rbaccontract.BindingSuffix(bound), Class: ClassDeclared, When: sa.When, Labels: labels,
 				RoleRefKind: "ClusterRole", RoleRefName: bound, Subjects: subject,
 			})
 		}
 
 		for _, ref := range sa.BindRoles {
 			b.add(path, Object{
-				Kind: "RoleBinding", Name: clusterName + ":" + bindingSuffix(ref.Name), Namespace: ref.Namespace, Class: ClassDeclared, When: sa.When, Labels: labels,
+				Kind: "RoleBinding", Name: clusterName + ":" + rbaccontract.BindingSuffix(ref.Name), Namespace: ref.Namespace, Class: ClassDeclared, When: sa.When, Labels: labels,
 				RoleRefKind: "Role", RoleRefName: ref.Name, Subjects: subject,
 			})
 		}
 	}
-}
-
-// bindingSuffix names the binding to an existing role after that role: d8:rbac-proxy -> rbac-proxy,
-// extension-apiserver-authentication-reader stays as it is.
-func bindingSuffix(roleName string) string {
-	return strings.ReplaceAll(strings.TrimPrefix(roleName, "d8:"), ":", "-")
 }
 
 // access produces the Prometheus access and the arbitrary-subject grants: cluster rules go to
