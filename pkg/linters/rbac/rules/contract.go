@@ -256,9 +256,15 @@ func checkRole(role *rbacv1.ClusterRole, scope string, errorList *errors.LintRul
 		return
 	}
 
+	// Subsystem roles carry the system lineage's levels; LevelsOf keys subsystems by name.
+	lineage := scope
+	if scope == "subsystem" {
+		lineage = rbaccontract.LineageSystem
+	}
+
 	level := m[len(m)-1]
-	if !slices.Contains(rbaccontract.NamespaceLevels, level) {
-		errorList.Errorf("role name %q has invalid level %q", name, level)
+	if levels := rbaccontract.LevelsOf(lineage); !slices.Contains(levels, level) {
+		errorList.Errorf("role name %q has invalid level %q; the %s lineage has %s", name, level, lineage, strings.Join(levels, ", "))
 	}
 
 	if scope == "subsystem" {
@@ -346,9 +352,17 @@ func checkCapability(role *rbacv1.ClusterRole, scope string, scopes rbacyaml.CRD
 	// A namespace capability is granted through a RoleBinding; a cluster-scoped resource in it
 	// grants nothing. Warn for now (D8): three in-tree modules carry such rules.
 	if scope == "namespace" {
+		warned := map[string]struct{}{}
+
 		for _, rule := range role.Rules {
 			for _, group := range rule.APIGroups {
 				for _, resource := range rule.Resources {
+					if _, done := warned[group+"/"+resource]; done {
+						continue
+					}
+
+					warned[group+"/"+resource] = struct{}{}
+
 					if scopes[group+"/"+resource] == rbacyaml.ScopeCluster {
 						errorList.Warnf("capability %q grants %s/%s, a cluster-scoped resource, in a namespace capability: bound through a RoleBinding the rule grants nothing; move it to a system capability", name, group, resource)
 					}

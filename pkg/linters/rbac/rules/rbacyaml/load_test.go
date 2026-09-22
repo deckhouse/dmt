@@ -441,6 +441,10 @@ func TestValidate_TopLevel(t *testing.T) {
 			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\nserviceAccounts:\n  - name: a\n  - name: a\n",
 			wantErr: "serviceAccounts[1] (a): duplicate name",
 		},
+		"serviceAccounts: resources without apiGroups": {
+			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\nserviceAccounts:\n  - name: a\n    clusterRules: [{resources: [pods], verbs: [get]}]\n",
+			wantErr: `serviceAccounts[0] (a).clusterRules[0]: resources require apiGroups; the core group is ""`,
+		},
 		"serviceAccounts: rule without verbs": {
 			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\nserviceAccounts:\n  - name: a\n    clusterRules: [{apiGroups: [x], resources: [y]}]\n",
 			wantErr: "serviceAccounts[0] (a).clusterRules[0]: verbs is required",

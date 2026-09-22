@@ -159,7 +159,7 @@ func (r *SyncRule) Check(_ context.Context) {
 			continue
 		}
 
-		found := compareFile(file, actual, r.module.GetName())
+		found := compareFile(r.enabledObjects(file), actual, r.module.GetName())
 
 		// The template renders the scheme before 1.78 where the declaration produces the new one:
 		// the objects the declaration names cannot be there. Say so once instead of listing them.
@@ -183,6 +183,12 @@ func (r *SyncRule) Check(_ context.Context) {
 
 	for identity, obj := range actual {
 		if _, produced := modelIdentities[identity]; produced || obj.class == generate.ClassDeclared {
+			continue
+		}
+
+		// exclude-rules.sync silences the finding, not the object: an excluded object is still
+		// known to the rule, so a declared counterpart is not reported as absent either.
+		if !r.Enabled(obj.object.Unstructured.GetKind(), obj.object.Unstructured.GetName()) {
 			continue
 		}
 
@@ -251,6 +257,10 @@ func (r *SyncRule) Check(_ context.Context) {
 		// legacy section dropped, every namespace level gone -- is an orphan: the declaration wins,
 		// and the fix deletes it, as long as it holds nothing but objects of the owned classes.
 		if orphan, reason := r.orphanGeneratedFile(path, model); orphan {
+			// Another render variant may place an object in the file that this one does not see;
+			// the fix judges the union, as the regeneration does.
+			recordForeignObjects(filepath.Join(modulePath, path), nil)
+
 			fileList.WithFix(removeFileFix(modulePath, path, list)).Errorf("%s does not match %s: %s. The file carries the generator header and the declaration produces nothing for it; `%s` deletes it",
 				path, rbacyaml.Filename, strings.Join(list, "; "), FixCommand)
 
@@ -266,13 +276,16 @@ func (r *SyncRule) Check(_ context.Context) {
 
 // orphanGeneratedFile reports whether a template the declaration produces nothing for is the
 // generator's (header present) and holds only objects of the owned classes, so deleting it loses
-// nothing the declaration does not know about. Otherwise it returns why the file stays.
+// nothing the declaration does not know about. Otherwise it returns why the file stays. Objects
+// outside the owned classes are recorded for the fix, which judges the union over render variants.
 func (r *SyncRule) orphanGeneratedFile(path string, model *generate.Model) (bool, string) {
 	if model.File(path) != nil {
 		return false, ""
 	}
 
-	content, err := os.ReadFile(filepath.Join(r.module.GetPath(), path))
+	fullPath := filepath.Join(r.module.GetPath(), path)
+
+	content, err := os.ReadFile(fullPath)
 	if err != nil {
 		return false, ""
 	}
@@ -281,11 +294,13 @@ func (r *SyncRule) orphanGeneratedFile(path string, model *generate.Model) (bool
 		return false, ""
 	}
 
-	if strings.Contains(string(content), rbaccontract.GateMarker) {
+	if templateGated(string(content), "") {
 		return false, "the file serves both role models behind the version gate"
 	}
 
 	managed := r.managedObjects(model)
+
+	var foreign []string
 
 	for index, object := range r.module.GetStorage() {
 		if object.ShortPath() != path {
@@ -299,20 +314,48 @@ func (r *SyncRule) orphanGeneratedFile(path string, model *generate.Model) (bool
 		}
 
 		if _, owned := managed[index.AsString()]; !owned {
-			return false, "the file also holds " + index.AsString() + ", which the declaration does not describe"
+			foreign = append(foreign, index.AsString())
 		}
+	}
+
+	if len(foreign) > 0 {
+		sort.Strings(foreign)
+		recordForeignObjects(fullPath, foreign)
+
+		return false, "the file also holds " + strings.Join(foreign, ", ") + ", which the declaration does not describe"
 	}
 
 	return true, ""
 }
 
-// removeFileFix deletes an orphaned generated file and logs what went with it.
+// removeFileFix deletes an orphaned generated file and logs what went with it. It re-reads the
+// file when it runs and refuses when any render variant placed an object in it that the
+// declaration does not describe, or when the header or the gate say the file is not the
+// generator's to delete.
 func removeFileFix(modulePath, path string, removed []string) errors.AutofixFunc {
 	fullPath := filepath.Join(modulePath, path)
 
 	return func() error {
 		return fixOnce(fullPath, func() error {
-			if err := os.Remove(fullPath); err != nil && !stderrors.Is(err, os.ErrNotExist) {
+			if foreign := foreignObjectsOf(fullPath); len(foreign) > 0 {
+				return fmt.Errorf("%s also holds objects the declaration does not describe (%s), some only under other values; it is not deleted -- declare them in %s or move them to another template",
+					path, strings.Join(foreign, ", "), rbacyaml.Filename)
+			}
+
+			content, err := os.ReadFile(fullPath)
+			if err != nil {
+				if stderrors.Is(err, os.ErrNotExist) {
+					return nil
+				}
+
+				return fmt.Errorf("read %s: %w", path, err)
+			}
+
+			if generated, _ := generate.ParseHeader(string(content)); !generated || templateGated(string(content), "") {
+				return fmt.Errorf("%s is not the generator's to delete any more (no header, or the version gate); remove it by hand if that is the intent", path)
+			}
+
+			if err := os.Remove(fullPath); err != nil {
 				return fmt.Errorf("delete %s: %w", path, err)
 			}
 
@@ -322,6 +365,22 @@ func removeFileFix(modulePath, path string, removed []string) errors.AutofixFunc
 			return nil
 		})
 	}
+}
+
+// enabledObjects returns the file with the objects exclude-rules.sync names left out: they are
+// neither compared nor reported as absent.
+func (r *SyncRule) enabledObjects(file generate.File) generate.File {
+	kept := make([]generate.Object, 0, len(file.Objects))
+
+	for _, o := range file.Objects {
+		if r.Enabled(o.Kind, o.Name) {
+			kept = append(kept, o)
+		}
+	}
+
+	file.Objects = kept
+
+	return file
 }
 
 // legacyFiles maps the templates that rendered an object of the scheme before 1.78 to its kind.
@@ -378,7 +437,7 @@ func (r *SyncRule) foreignObjects(file generate.File, model *generate.Model) []s
 		// An object the generator produces under another name -- a binding with the same roleRef
 		// and subjects, a role with the same rules -- is replaced, not lost; the declaration carries
 		// its rights on. Only what has no counterpart is foreign.
-		if replacedByProduced(object, file.Objects) {
+		if replacedByProduced(object, file.Objects, renderedRolesOf(r.module.GetStorage(), file.Path)) {
 			continue
 		}
 
@@ -397,7 +456,7 @@ func (r *SyncRule) foreignObjects(file generate.File, model *generate.Model) []s
 
 // replacedByProduced reports whether a rendered object has a produced counterpart of the same kind
 // and content under another name.
-func replacedByProduced(object storage.StoreObject, produced []generate.Object) bool {
+func replacedByProduced(object storage.StoreObject, produced []generate.Object, renderedRoles map[string]tupleSet) bool {
 	content := object.Unstructured.UnstructuredContent()
 
 	switch object.Unstructured.GetKind() {
@@ -414,7 +473,7 @@ func replacedByProduced(object storage.StoreObject, produced []generate.Object) 
 				continue
 			}
 
-			if roleRefMatches(o.RoleRefName, binding.RoleRef.Name, produced) && subjectSetOf(o.Subjects) == got {
+			if roleRefMatches(o, binding.RoleRef, produced, renderedRoles) && subjectSetOf(o.Subjects) == got {
 				return true
 			}
 		}
@@ -445,24 +504,55 @@ func replacedByProduced(object storage.StoreObject, produced []generate.Object) 
 	return false
 }
 
-// roleRefMatches accepts the produced roleRef itself or the rendered role it replaces by content.
-func roleRefMatches(producedRef, renderedRef string, produced []generate.Object) bool {
-	if producedRef == renderedRef {
+// renderedRolesOf collects the rules of every role rendered from the file, by kind and name, for
+// the rename check of bindings.
+func renderedRolesOf(objects map[storage.ResourceIndex]storage.StoreObject, path string) map[string]tupleSet {
+	out := map[string]tupleSet{}
+
+	for _, object := range objects {
+		if object.ShortPath() != path {
+			continue
+		}
+
+		kind := object.Unstructured.GetKind()
+		if kind != "ClusterRole" && kind != "Role" {
+			continue
+		}
+
+		role := new(rbacv1.ClusterRole)
+		if runtime.DefaultUnstructuredConverter.FromUnstructured(object.Unstructured.UnstructuredContent(), role) == nil {
+			out[kind+"/"+object.Unstructured.GetName()] = expandRenderedRules(role.Rules)
+		}
+	}
+
+	return out
+}
+
+// roleRefMatches accepts the produced roleRef itself, or the role the rendered binding pointed at
+// when that role is rendered in the same file and the produced role carries exactly its rules: a
+// renamed pair. A binding to anything else -- cluster-admin, a role of another file -- is not a
+// rename, whatever its subjects, and stays a foreign object.
+func roleRefMatches(producedBinding generate.Object, renderedRef rbacv1.RoleRef, produced []generate.Object, renderedRoles map[string]tupleSet) bool {
+	if producedBinding.RoleRefName == renderedRef.Name {
 		return true
 	}
 
-	// The rendered binding pointed at a role the generator now produces under producedRef: accept
-	// when producedRef is a produced role and renderedRef is not.
-	for _, o := range produced {
-		if (o.Kind == "ClusterRole" || o.Kind == "Role") && o.Name == renderedRef {
-			return false
-		}
+	rendered, ok := renderedRoles[renderedRef.Kind+"/"+renderedRef.Name]
+	if !ok {
+		return false
 	}
 
 	for _, o := range produced {
-		if (o.Kind == "ClusterRole" || o.Kind == "Role") && o.Name == producedRef {
-			return true
+		if o.Kind != renderedRef.Kind || o.Name != producedBinding.RoleRefName {
+			continue
 		}
+
+		always, conditional := expandModelRules(o.Rules)
+		for t := range conditional {
+			always.add(t)
+		}
+
+		return len(always.minus(rendered)) == 0 && len(rendered.minus(always)) == 0
 	}
 
 	return false
@@ -509,10 +599,6 @@ func (r *SyncRule) managedObjects(model *generate.Model) map[string]managedObjec
 	out := map[string]managedObject{}
 
 	for index, object := range r.module.GetStorage() {
-		if !r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {
-			continue
-		}
-
 		identity := index.AsString()
 		labels := object.Unstructured.GetLabels()
 		annotations := object.Unstructured.GetAnnotations()
@@ -614,6 +700,20 @@ func compareObject(expected generate.Object, actual storage.StoreObject, module 
 
 		if expected.Class == generate.ClassCapability {
 			out = append(out, compareCapabilityLabels(expected, actual, module, aggregation)...)
+		}
+	case "ServiceAccount":
+		sa := new(corev1.ServiceAccount)
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(content, sa); err != nil {
+			return []string{fmt.Sprintf("%s cannot be read as a ServiceAccount: %v", id, err)}
+		}
+
+		// Kubernetes mounts the token unless told otherwise; the generator writes what the
+		// declaration says, false by default. A regeneration must not take a token away unnoticed.
+		rendered := sa.AutomountServiceAccountToken == nil || *sa.AutomountServiceAccountToken
+		declared := expected.AutomountToken != nil && *expected.AutomountToken
+
+		if rendered != declared {
+			out = append(out, fmt.Sprintf("%s: automountServiceAccountToken is %t in the render, the declaration produces %t", id, rendered, declared))
 		}
 	case "ClusterRoleBinding", "RoleBinding":
 		var roleRef rbacv1.RoleRef
@@ -779,14 +879,14 @@ func regenerateFix(modulePath string, file generate.File, foreign, removals []st
 						file.Path, strings.Join(foreign, ", "), rbacyaml.Filename, FixCommand)
 				}
 
-				if strings.Contains(string(existing), rbaccontract.GateMarker) || strings.Contains(string(existing), "deckhouseVersion") {
-					return fmt.Errorf("%s renders one of two role models depending on the platform version (the %s gate of rbacv2-migrate-module.sh); regenerating it would drop the legacy branch -- edit the new branch by hand, or drop the gate and the legacy object once clusters below DKP 1.78 are no longer served, then run `%s`",
+				if templateGated(string(existing), content) {
+					return fmt.Errorf("%s renders one of two role models depending on the platform version (the %s gate of rbacv2-migrate-module.sh, or a deckhouseVersion test the declaration did not produce); regenerating it would drop the legacy branch -- edit the new branch by hand, or drop the gate and the legacy object once clusters below DKP 1.78 are no longer served, then run `%s`",
 						file.Path, rbaccontract.GateMarker, FixCommand)
 				}
 
 				if generated, _ := generate.ParseHeader(string(existing)); !generated {
 					aside := asidePath(fullPath)
-					if err := os.WriteFile(aside, []byte(content), 0o600); err != nil {
+					if err := writeFileAtomic(aside, []byte(content), 0o644); err != nil { //nolint:gosec // a source file of the module
 						return fmt.Errorf("write %s: %w", asidePath(file.Path), err)
 					}
 
@@ -808,7 +908,7 @@ func regenerateFix(modulePath string, file generate.File, foreign, removals []st
 				perm = info.Mode().Perm()
 			}
 
-			if err := os.WriteFile(fullPath, []byte(content), perm); err != nil {
+			if err := writeFileAtomic(fullPath, []byte(content), perm); err != nil {
 				return err
 			}
 
@@ -893,7 +993,7 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 				return fmt.Errorf("render %s: %w", rbacyaml.Filename, err)
 			}
 
-			return os.WriteFile(path, content, 0o644) //nolint:gosec // a source file of the module
+			return writeFileAtomic(path, content, 0o644) //nolint:gosec // a source file of the module
 		})
 	}).Errorf("%s is missing: `%s` writes it from the RBAC objects the module renders today (%d of %d objects described, the rest listed in the file as hand-written); every TODO and note in it is a decision for a person before the templates are regenerated from it",
 		rbacyaml.Filename, FixCommand, described, len(in.Objects))
