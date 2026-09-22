@@ -228,7 +228,7 @@ func (r *SyncRule) Check(_ context.Context) {
 		fileList := r.errorList.WithFilePath(path).WithObjectID(path)
 
 		if file := model.File(path); file != nil {
-			fileList = fileList.WithFix(regenerateFix(modulePath, *file, actual))
+			fileList = fileList.WithFix(regenerateFix(modulePath, *file, actual, r.foreignObjects(*file)))
 			fileList.Errorf("%s does not match %s: %s. Run `%s` to regenerate the file from the declaration",
 				path, rbacyaml.Filename, strings.Join(list, "; "), FixCommand)
 
@@ -250,6 +250,39 @@ func (r *SyncRule) legacyFiles() map[string]string {
 			out[object.ShortPath()] = kind
 		}
 	}
+
+	return out
+}
+
+// foreignObjects lists the RBAC objects the render placed in the file that the declaration does not
+// produce -- a controller ClusterRole beside a declared ServiceAccount, a hand-written binding. The
+// generator writes the whole file, so regenerating it would drop them; they are the reason a
+// regeneration is refused until they are declared or moved.
+func (r *SyncRule) foreignObjects(file generate.File) []string {
+	produced := map[string]struct{}{}
+	for _, o := range file.Objects {
+		produced[o.Identity()] = struct{}{}
+	}
+
+	var out []string
+
+	for index, object := range r.module.GetStorage() {
+		if object.ShortPath() != file.Path {
+			continue
+		}
+
+		switch object.Unstructured.GetKind() {
+		case "ClusterRole", "Role", "ClusterRoleBinding", "RoleBinding", "ServiceAccount":
+		default:
+			continue
+		}
+
+		if _, ok := produced[index.AsString()]; !ok {
+			out = append(out, index.AsString())
+		}
+	}
+
+	sort.Strings(out)
 
 	return out
 }
@@ -284,7 +317,13 @@ func (r *SyncRule) managedObjects(model *generate.Model) map[string]managedObjec
 		switch {
 		case object.Unstructured.GetKind() == "ClusterRole" && annotations[rbaccontract.AccessLevelAnnotation] != "":
 			out[identity] = managedObject{object, generate.ClassLegacy}
-		case object.Unstructured.GetKind() == "ClusterRole" && labels[rbaccontract.LabelKind] == rbaccontract.KindCapability && labels[rbaccontract.LabelModule] == r.module.GetName():
+		case object.Unstructured.GetKind() == "ClusterRole" && labels[rbaccontract.LabelKind] == rbaccontract.KindCapability && labels[rbaccontract.LabelModule] == r.module.GetName() &&
+			isModuleCapabilityName(object.Unstructured.GetName(), r.module.GetName()):
+			// Only the capabilities the declaration can produce: the module's own, in the namespace
+			// and system lineages. A module may also ship capabilities of the project lineage or
+			// platform-wide ones named after a lineage rather than the module (user-authz,
+			// multitenancy-manager); the format has no place for them, so they stay hand-written
+			// and are neither generated nor "extra" (D2).
 			out[identity] = managedObject{object, generate.ClassCapability}
 		default:
 			if _, ok := declared[identity]; ok {
@@ -491,7 +530,7 @@ func crdScopes(crds []crdInfo) rbacyaml.CRDScopes {
 //   - the regenerated file must grant everything the current render of that file grants (rules and
 //     aggregation edges); if anything would disappear the file is left alone and the finding names
 //     what would be lost (R25, D3). Removing a right is always a person's decision.
-func regenerateFix(modulePath string, file generate.File, actual map[string]managedObject) errors.AutofixFunc {
+func regenerateFix(modulePath string, file generate.File, actual map[string]managedObject, foreign []string) errors.AutofixFunc {
 	content := generate.RenderFile(file)
 	expected := expectedRights(file)
 	fullPath := filepath.Join(modulePath, file.Path)
@@ -501,6 +540,7 @@ func regenerateFix(modulePath string, file generate.File, actual map[string]mana
 	// exists; the closure that runs first checks the union of them and writes, the others report
 	// its outcome (R36). A right rendered only under some values is therefore not lost (D3).
 	recordRenderedRights(fullPath, currentRights(file.Path, actual))
+	recordForeignObjects(fullPath, foreign)
 
 	return func() error {
 		return fixOnce(fullPath, func() error {
@@ -512,6 +552,15 @@ func regenerateFix(modulePath string, file generate.File, actual map[string]mana
 			}
 
 			if exists {
+				// Objects in the file that the declaration does not produce would vanish with the rewrite,
+				// header or not -- and "delete the file and run --fix again" would lose them too, so this
+				// comes before every other answer. (A foreign object under `when` that did not render this
+				// time is caught by the run where it renders; every variant's list is joined.)
+				if foreign := foreignObjectsOf(fullPath); len(foreign) > 0 {
+					return fmt.Errorf("%s also holds objects the declaration does not produce: %s; regenerating the file would drop them, and so would deleting it -- declare them in %s or move them to another template, then run `%s` again",
+						file.Path, strings.Join(foreign, ", "), rbacyaml.Filename, FixCommand)
+				}
+
 				if strings.Contains(string(existing), rbaccontract.GateMarker) || strings.Contains(string(existing), "deckhouseVersion") {
 					return fmt.Errorf("%s renders one of two role models depending on the platform version (the %s gate of rbacv2-migrate-module.sh); regenerating it would drop the legacy branch -- edit the new branch by hand, or drop the gate and the legacy object once clusters below DKP 1.78 are no longer served, then run `%s`",
 						file.Path, rbaccontract.GateMarker, FixCommand)
@@ -619,4 +668,10 @@ func expectedRights(file generate.File) map[string]struct{} {
 // underscore is a partial to Helm and produces no objects.
 func asidePath(path string) string {
 	return filepath.Join(filepath.Dir(path), "_"+filepath.Base(path)+".generated")
+}
+
+// isModuleCapabilityName reports whether the name is one the generator builds for this module:
+// d8:namespace-capability:<module>:<action> or d8:system-capability:<module>:<action>.
+func isModuleCapabilityName(name, module string) bool {
+	return strings.HasPrefix(name, "d8:namespace-capability:"+module+":") || strings.HasPrefix(name, "d8:system-capability:"+module+":")
 }
