@@ -550,8 +550,10 @@ access:
 `))
 	require.NoError(t, err)
 
-	msgs := make([]string, 0)
-	for _, e := range Validate(decl, nil) {
+	errs := Validate(decl, nil)
+
+	msgs := make([]string, 0, len(errs))
+	for _, e := range errs {
 		msgs = append(msgs, e.Error())
 	}
 
