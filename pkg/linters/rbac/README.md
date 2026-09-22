@@ -1607,7 +1607,7 @@ declaration produces and compares them with the render.
 `sync` owns exactly three classes of rendered objects:
 
 1. legacy roles -- ClusterRoles with the `user-authz.deckhouse.io/access-level` annotation;
-2. the module's RBACv2 capabilities -- ClusterRoles with `rbac.deckhouse.io/kind: capability` and `module: <module>`;
+2. the module's own RBACv2 capabilities -- ClusterRoles named `d8:namespace-capability:<module>:<action>` or `d8:system-capability:<module>:<action>` with `rbac.deckhouse.io/kind: capability` and `module: <module>`. Capabilities of the project lineage and platform-wide ones named after a lineage rather than the module (user-authz, multitenancy-manager) are not the declaration's: the format has no place for them, so they stay hand-written;
 3. declared objects -- those whose names the generator builds from `serviceAccounts`, `access` and `prometheusAccess`.
 
 Everything else in the render is unmanaged: not generated, not reported (`include "helm_lib_csi_controller_rbac"`,
@@ -1623,8 +1623,9 @@ controller ClusterRoles with arbitrary names, objects with Helm-computed names).
 
 Findings are one per template file and carry the fix command; the text does not depend on the render variant.
 
-**Autofix:** regenerates the file from `rbac.yaml`, with two safeguards --
+**Autofix:** regenerates the file from `rbac.yaml`, with three safeguards --
 
+- a file that also holds objects the declaration does not produce -- a controller ClusterRole beside a declared ServiceAccount, a hand-written binding -- is never rewritten, because the generator writes the whole file and they would vanish (and so they would if the file were deleted); the refusal names them: declare them or move them to another template first;
 - a file without the generator header is maintained by hand: the generated text is written beside it as `_<file>.generated` (the underscore keeps Helm from rendering the copy) and the finding stays (delete the file and run `--fix` again to hand it back to the generator);
 - the regenerated file must grant everything the render of that file grants today, rules and aggregation edges alike; otherwise the file is left alone and the finding names what would be lost. Removing a right is always a person's decision: declare it in `rbac.yaml` or remove it from the template by hand.
 
