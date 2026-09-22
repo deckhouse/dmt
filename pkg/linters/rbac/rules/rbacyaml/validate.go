@@ -172,6 +172,13 @@ func resolveScope(r *Resource, crds CRDScopes) (string, string) {
 		return fromCRD, ""
 	case r.Scope != "":
 		return r.Scope, ""
+	default:
+		if scope, ok := WellKnownScope(r.Group, r.Resource); ok {
+			return scope, ""
+		}
+	}
+
+	switch {
 	case r.NoAccess != "":
 		// A denied external resource needs no scope: nothing is generated for it.
 		return "", ""
@@ -339,7 +346,16 @@ func validateAccess(access []Access, report reporter) {
 			report("%s: path must be a directory under templates/ without leading or trailing slashes, got %q", where, a.Path)
 		}
 
+		seenSubjects := make(map[string]struct{}, len(a.Subjects))
+
 		for j, s := range a.Subjects {
+			key := s.Kind + "/" + s.Namespace + "/" + s.Name
+			if _, dup := seenSubjects[key]; dup {
+				report("%s.subjects[%d]: duplicate subject %s %s", where, j, s.Kind, s.Name)
+			}
+
+			seenSubjects[key] = struct{}{}
+
 			switch s.Kind {
 			case "User", "Group":
 				if s.Namespace != "" {

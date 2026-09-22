@@ -518,3 +518,44 @@ serviceAccounts:
 	assert.Contains(t, msgs, "serviceAccounts[0] (webhook).extraClusterRoles[3] (d8:other:full-name): rules is required")
 	assert.Len(t, msgs, 3, "got: %v", msgs)
 }
+
+// Built-in Kubernetes resources need no scope of their own; a duplicate subject is an error.
+func TestValidate_WellKnownScopesAndDuplicateSubjects(t *testing.T) {
+	decl, err := Parse([]byte(`apiVersion: rbac.deckhouse.io/v1alpha1
+resources:
+  - group: ""
+    resource: configmaps
+    namespace:
+      viewer: [get]
+  - group: ""
+    resource: namespaces
+    namespace:
+      viewer: [get]
+  - group: apps
+    resource: deployments/scale
+    system:
+      manager: [update]
+    reason: "cluster-wide scaling"
+access:
+  - name: dup
+    subjects:
+      - kind: Group
+        name: g
+      - kind: Group
+        name: g
+    clusterRules:
+      - apiGroups: [""]
+        resources: [pods]
+        verbs: [get]
+`))
+	require.NoError(t, err)
+
+	msgs := make([]string, 0)
+	for _, e := range Validate(decl, nil) {
+		msgs = append(msgs, e.Error())
+	}
+
+	assert.Contains(t, msgs, "resources[1] (/namespaces): namespace levels are not allowed for a cluster-scoped resource: a namespace capability is granted through a RoleBinding, where such a rule grants nothing; use system", "the built-in scope is known and applied")
+	assert.Contains(t, msgs, "access[0] (dup).subjects[1]: duplicate subject Group g")
+	assert.Len(t, msgs, 2, "configmaps and deployments/scale need no scope: %v", msgs)
+}

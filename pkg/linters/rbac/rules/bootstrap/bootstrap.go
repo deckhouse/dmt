@@ -586,7 +586,7 @@ func (b *builder) resources() {
 			e.Scope, scope = rbacyaml.ScopeCluster, rbacyaml.ScopeCluster
 			e.Reason = "TODO: the templates grant the whole group; say why the resource names are not known statically"
 		default:
-			if s, ok := wellKnownScopes[group+"/"+base]; ok {
+			if s, ok := rbacyaml.WellKnownScope(group, base); ok {
 				scope = s
 			} else {
 				b.note("%s/%s: the module ships no CRD and the scope is not known; fill scope: Namespaced|Cluster", group, resource)

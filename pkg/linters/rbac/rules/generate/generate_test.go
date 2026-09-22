@@ -241,3 +241,65 @@ func TestBuild_ExtraClusterRolesAndAutomount(t *testing.T) {
 		}
 	}
 }
+
+// What the declaration alone cannot know is wrong, the generator refuses against the module.
+func TestBuild_RefusesWhatTheModuleCannotCarry(t *testing.T) {
+	base := func() *rbacyaml.Declaration {
+		return &rbacyaml.Declaration{APIVersion: rbacyaml.APIVersionV1Alpha1, Resources: []rbacyaml.Resource{
+			{Group: "x.io", Resource: "things", Scope: "Cluster", System: map[string][]string{"viewer": {"get"}}},
+		}}
+	}
+
+	t.Run("system levels without any subsystem", func(t *testing.T) {
+		_, err := Build(Input{Module: "m", Namespace: "d8-m", Decl: base()})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "system levels are declared but the module aggregates into no subsystem")
+
+		_, err = Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Decl: base()})
+		require.NoError(t, err, "module.yaml subsystems suffice")
+
+		decl := base()
+		decl.Subsystems = []string{"storage"}
+		_, err = Build(Input{Module: "m", Namespace: "d8-m", Decl: decl})
+		require.NoError(t, err, "the declaration's own subsystems suffice")
+	})
+
+	t.Run("an account whose name does not follow its directory", func(t *testing.T) {
+		decl := base()
+		decl.ServiceAccounts = []rbacyaml.ServiceAccount{{Name: "helper", Path: "cainjector"}}
+		_, err := Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Decl: decl})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `the placement rule wants the account named "cainjector" or "m-cainjector"`)
+
+		decl.ServiceAccounts = []rbacyaml.ServiceAccount{{Name: "m-cainjector", Path: "cainjector"}, {Name: "webhook", Path: "webhook"}, {Name: "anything", Path: ""}}
+		_, err = Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Decl: decl})
+		require.NoError(t, err)
+
+		decl.ServiceAccounts = []rbacyaml.ServiceAccount{{Name: "dir", Path: "some/nested/dir"}}
+		_, err = Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Decl: decl})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "one directory under templates/ only")
+	})
+
+	t.Run("a capability marker longer than a label value", func(t *testing.T) {
+		// The levels are a fixed set, so only the module name can push the marker
+		// namespace-capability.<module>.superadmin past 63 characters: at 32 characters it does.
+		decl := &rbacyaml.Declaration{APIVersion: rbacyaml.APIVersionV1Alpha1,
+			Resources:    []rbacyaml.Resource{{Group: "x.io", Resource: "things", Scope: "Namespaced", Namespace: map[string][]string{"superadmin": {"get"}}}},
+			Capabilities: map[string]rbacyaml.CapabilityText{"namespace.superadmin": {Title: rbacyaml.LocalizedText{EN: "t", RU: "т"}, Description: rbacyaml.LocalizedText{EN: "d", RU: "д"}}},
+		}
+		_, err := Build(Input{Module: "a-module-name-of-thirty-two-char", Namespace: "d8-m", Decl: decl})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "a label value holds 63")
+
+		_, err = Build(Input{Module: "a-module-name-of-thirtyone-char", Namespace: "d8-m", Decl: decl})
+		require.NoError(t, err)
+	})
+}
+
+// A generated file that acquired CRLF line endings is still the generator's.
+func TestParseHeader_CRLF(t *testing.T) {
+	generated, version := ParseHeader(Header() + "\r\n---\r\n")
+	assert.True(t, generated)
+	assert.Equal(t, "1", version)
+}

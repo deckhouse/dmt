@@ -838,3 +838,76 @@ func TestSync_RenamedObjectsAreNotForeign(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, generate.RenderFile(*model.File(rel)), string(written))
 }
+
+// An rbac.yaml of the earlier, never consumed shape is named for what it is.
+func TestSync_OldShapeFileIsNamed(t *testing.T) {
+	modulePath := syncModuleDir(t)
+	require.NoError(t, os.WriteFile(rbacyaml.Path(modulePath), []byte("crds:\n  - certificates\n"), 0o600))
+
+	got := texts(runSync(t, modulePath, storage.NewUnstructuredObjectStore()))
+	require.Len(t, got, 1, "got: %v", got)
+	assert.Contains(t, got[0], "rbac.yaml is not a declaration (no apiVersion): an rbac.yaml of an earlier shape that nothing reads; delete it and run `dmt lint --linter rbac --fix`")
+}
+
+// A declared object rendered from another file than the declaration places it is refused with the
+// place it belongs to.
+func TestSync_MisplacedObjectIsNamed(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+
+	// The edit capability renders from view.yaml.
+	store := renderedFrom(t, model, func(o *generate.Object) bool { return o.Name != "d8:namespace-capability:cert-manager:edit" })
+	edit := *model.File("templates/rbacv2/use/edit.yaml")
+	putObject(t, store, "templates/rbacv2/use/view.yaml", edit.Objects[0])
+
+	// Make view.yaml's text stale so its fix is asked for.
+	viewPath := filepath.Join(modulePath, "templates/rbacv2/use/view.yaml")
+	require.NoError(t, os.WriteFile(viewPath, []byte(generate.Header()+"\n# stale\n"), 0o600))
+
+	errorList := runSync(t, modulePath, store)
+	for _, fix := range errorList.GetFixes() {
+		fix()
+	}
+
+	var messages []string
+	for _, e := range errorList.GetErrors() {
+		if e.FixError != nil {
+			messages = append(messages, e.FixError.Error())
+		}
+	}
+
+	require.Len(t, messages, 1, "got: %v", messages)
+	assert.Contains(t, messages[0], "ClusterRole/d8:namespace-capability:cert-manager:edit (the declaration puts it in templates/rbacv2/use/edit.yaml; move it there or delete both files and run the fix)")
+}
+
+// Under --matrix the first declaration is written from the union of every variant's render.
+func TestSync_BootstrapUnitesRenderVariants(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	require.NoError(t, os.Remove(rbacyaml.Path(modulePath)))
+
+	// Variant B rendered with the cainjector disabled, variant A with it enabled; B lints first.
+	variantB := renderedFrom(t, model, func(o *generate.Object) bool { return o.When == "" })
+	variantA := renderedFrom(t, model, nil)
+
+	listB := runSync(t, modulePath, variantB)
+	listA := runSync(t, modulePath, variantA)
+
+	for _, list := range []*errors.LintRuleErrorsList{listB, listA} {
+		for _, fix := range list.GetFixes() {
+			fix()
+		}
+	}
+
+	written, err := rbacyaml.Load(modulePath)
+	require.NoError(t, err)
+	require.Len(t, written.ServiceAccounts, 1, "the cainjector account, seen only by variant A, is in the declaration")
+	assert.Equal(t, "cainjector", written.ServiceAccounts[0].Name)
+}

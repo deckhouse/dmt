@@ -106,7 +106,13 @@ func (r *SyncRule) Check(_ context.Context) {
 	}
 
 	if err != nil {
+		if content, readErr := os.ReadFile(rbacyaml.Path(modulePath)); readErr == nil && !strings.Contains(string(content), "apiVersion:") {
+			declList.Errorf("%s is not a declaration (no apiVersion): an rbac.yaml of an earlier shape that nothing reads; delete it and run `%s` to write the declaration from the render", rbacyaml.Filename, FixCommand)
+			return
+		}
+
 		declList.Errorf("%v; nothing is compared or generated until the declaration parses", err)
+
 		return
 	}
 
@@ -231,7 +237,7 @@ func (r *SyncRule) Check(_ context.Context) {
 		fileList := r.errorList.WithFilePath(path).WithObjectID(path)
 
 		if file := model.File(path); file != nil {
-			fileList = fileList.WithFix(regenerateFix(modulePath, *file, r.foreignObjects(*file)))
+			fileList = fileList.WithFix(regenerateFix(modulePath, *file, r.foreignObjects(*file, model)))
 			fileList.Errorf("%s does not match %s: %s. Run `%s` to regenerate the file from the declaration",
 				path, rbacyaml.Filename, strings.Join(list, "; "), FixCommand)
 
@@ -261,10 +267,19 @@ func (r *SyncRule) legacyFiles() map[string]string {
 // produce -- a controller ClusterRole beside a declared ServiceAccount, a hand-written binding. The
 // generator writes the whole file, so regenerating it would drop them; they are the reason a
 // regeneration is refused until they are declared or moved.
-func (r *SyncRule) foreignObjects(file generate.File) []string {
+func (r *SyncRule) foreignObjects(file generate.File, model *generate.Model) []string {
 	produced := map[string]struct{}{}
 	for _, o := range file.Objects {
 		produced[o.Identity()] = struct{}{}
+	}
+
+	// Where the declaration puts every object it produces: an object rendered from another file
+	// than that is misplaced rather than unknown, and the refusal says so.
+	placed := map[string]string{}
+	for _, f := range model.Files {
+		for _, o := range f.Objects {
+			placed[o.Identity()] = f.Path
+		}
 	}
 
 	var out []string
@@ -288,6 +303,11 @@ func (r *SyncRule) foreignObjects(file generate.File) []string {
 		// and subjects, a role with the same rules -- is replaced, not lost; the declaration carries
 		// its rights on. Only what has no counterpart is foreign.
 		if replacedByProduced(object, file.Objects) {
+			continue
+		}
+
+		if path, declared := placed[index.AsString()]; declared {
+			out = append(out, index.AsString()+" (the declaration puts it in "+path+"; move it there or delete both files and run the fix)")
 			continue
 		}
 
@@ -750,11 +770,18 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 	described := len(in.Objects) - len(result.Unmanaged)
 	path := rbacyaml.Path(modulePath)
 
+	// Under --matrix every variant renders its own set of objects; the fix builds from their union,
+	// so an object rendered only under some values still reaches the first declaration.
+	recordBootstrapObjects(path, in.Objects)
+
 	declList.WithFix(func() error {
 		return fixOnce(path, func() error {
 			if _, err := os.Stat(path); err == nil {
 				return nil
 			}
+
+			in.Objects = bootstrapObjectsOf(path)
+			result := bootstrap.Build(in)
 
 			content, err := bootstrap.Marshal(result)
 			if err != nil {
