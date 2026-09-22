@@ -34,6 +34,7 @@ import (
 
 	"github.com/deckhouse/dmt/internal/mocks"
 	"github.com/deckhouse/dmt/internal/storage"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/generate"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbacyaml"
@@ -151,7 +152,7 @@ func writeGenerated(t *testing.T, modulePath string, model *generate.Model) {
 	}
 }
 
-func runSync(t *testing.T, modulePath string, store *storage.UnstructuredObjectStore) *errors.LintRuleErrorsList {
+func runSync(t *testing.T, modulePath string, store *storage.UnstructuredObjectStore, excludes ...pkg.KindRuleExclude) *errors.LintRuleErrorsList {
 	t.Helper()
 
 	m := mocks.NewModuleMock(minimock.NewController(t))
@@ -162,7 +163,7 @@ func runSync(t *testing.T, modulePath string, store *storage.UnstructuredObjectS
 	m.GetStorageMock.Optional().Return(store.Storage)
 
 	errorList := errors.NewLintRuleErrorsList()
-	NewSyncRule(nil, m, errorList).Check(context.Background())
+	NewSyncRule(excludes, m, errorList).Check(context.Background())
 
 	return errorList
 }
@@ -384,13 +385,15 @@ func TestSync_Autofix(t *testing.T) {
 		// Running the same fix again, in a new run, changes nothing.
 		resetFixState()
 
-		before, _ := os.Stat(filepath.Join(modulePath, "templates/rbacv2/use/view.yaml"))
-		for _, fix := range runSync(t, modulePath, store).GetFixes() {
+		list := runSync(t, modulePath, store)
+		for _, fix := range list.GetFixes() {
 			fix()
 		}
 
-		after, _ := os.Stat(filepath.Join(modulePath, "templates/rbacv2/use/view.yaml"))
-		assert.Equal(t, before.ModTime(), after.ModTime())
+		after, err := os.ReadFile(filepath.Join(modulePath, "templates/rbacv2/use/view.yaml"))
+		require.NoError(t, err)
+		assert.Equal(t, string(written), string(after))
+		assert.Empty(t, list.GetErrors(), "a no-op run reports no fix error")
 	})
 
 	t.Run("the declaration wins: a right it does not name leaves the template", func(t *testing.T) {
@@ -636,7 +639,7 @@ func TestSync_GatedTemplateIsNotRegenerated(t *testing.T) {
 	remaining := errorList.GetErrors()
 	require.Len(t, remaining, 1)
 	require.Error(t, remaining[0].FixError)
-	assert.Contains(t, remaining[0].FixError.Error(), "renders one of two role models depending on the platform version (the rbacv2_new_scheme gate of rbacv2-migrate-module.sh); regenerating it would drop the legacy branch")
+	assert.Contains(t, remaining[0].FixError.Error(), "renders one of two role models depending on the platform version (the rbacv2_new_scheme gate of rbacv2-migrate-module.sh, or a deckhouseVersion test the declaration did not produce); regenerating it would drop the legacy branch")
 
 	unchanged, err := os.ReadFile(path)
 	require.NoError(t, err)
@@ -966,4 +969,227 @@ func TestSync_OrphanGeneratedFileIsDeleted(t *testing.T) {
 	require.Len(t, got, 1, "got: %v", got)
 	assert.Contains(t, got[0], "the file also holds ClusterRole/d8:cert-manager:something-else, which the declaration does not describe. Only a person can close this")
 	assert.Empty(t, errorList.GetFixes())
+}
+
+// exclude-rules.sync silences an object's findings without forgetting the object: a declared
+// object that is excluded is neither compared nor reported as absent.
+func TestSync_ExcludedObjectIsSilentButKnown(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+
+	const capability = "d8:namespace-capability:cert-manager:view"
+
+	exclude := pkg.KindRuleExclude{Kind: "ClusterRole", Name: capability}
+
+	// The capability rendered with a rule the declaration does not name.
+	store := renderedFrom(t, model, func(o *generate.Object) bool {
+		if o.Kind == "ClusterRole" && o.Name == capability {
+			o.Rules = append(o.Rules, generate.Rule{PolicyRule: rbacyaml.PolicyRule{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"get"}}})
+		}
+
+		return true
+	})
+	got := texts(runSync(t, modulePath, store, exclude))
+	assert.Empty(t, got, "got: %v", got)
+
+	// The capability is not rendered at all.
+	store = renderedFrom(t, model, func(o *generate.Object) bool { return o.Name != capability })
+	got = texts(runSync(t, modulePath, store, exclude))
+	assert.Empty(t, got, "got: %v", got)
+
+	// Without the exclusion the same render is a finding.
+	got = texts(runSync(t, modulePath, store))
+	require.Len(t, got, 1, "got: %v", got)
+	assert.Contains(t, got[0], "is declared but absent from the render")
+}
+
+// A ServiceAccount is compared like every other declared object: a token the render mounts but
+// the declaration does not is a divergence, since the regeneration would take it away.
+func TestSync_ServiceAccountAutomountIsCompared(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+
+	yes := true
+	store := renderedFrom(t, model, func(o *generate.Object) bool {
+		if o.Kind == "ServiceAccount" {
+			o.AutomountToken = &yes
+		}
+
+		return true
+	})
+
+	got := texts(runSync(t, modulePath, store))
+	require.Len(t, got, 1, "got: %v", got)
+	assert.Contains(t, got[0], "ServiceAccount/cainjector: automountServiceAccountToken is true in the render, the declaration produces false")
+}
+
+// A rendered binding under another name is a rename only when it points at the role the produced
+// binding replaces. One that binds the same subjects to cluster-admin is a foreign object, and
+// the file it lives in is not regenerated.
+func TestSync_BindingToAnotherRoleIsNotARename(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+
+	const rel = "templates/rbac-to-us.yaml"
+
+	store := renderedFrom(t, model, func(o *generate.Object) bool {
+		if o.Kind == "RoleBinding" && o.Name == "access-to-cert-manager" {
+			o.Name = "access-to-cert-manager-prometheus-metrics"
+			o.RoleRefKind = "ClusterRole"
+			o.RoleRefName = "cluster-admin"
+		}
+
+		return true
+	})
+
+	before, err := os.ReadFile(filepath.Join(modulePath, rel))
+	require.NoError(t, err)
+
+	errorList := runSync(t, modulePath, store)
+	for _, fix := range errorList.GetFixes() {
+		fix()
+	}
+
+	remaining := errorList.GetErrors()
+	require.Len(t, remaining, 1, "got: %v", texts(errorList))
+	require.Error(t, remaining[0].FixError)
+	assert.Contains(t, remaining[0].FixError.Error(), "also holds objects the declaration does not produce: d8-cert-manager/RoleBinding/access-to-cert-manager-prometheus-metrics")
+
+	after, err := os.ReadFile(filepath.Join(modulePath, rel))
+	require.NoError(t, err)
+	assert.Equal(t, string(before), string(after), "the file is left alone")
+}
+
+// The orphan fix judges the union of render variants: an object another variant placed in the
+// file keeps the file, and a header that vanished between lint and fix keeps it too.
+func TestSync_OrphanDeletionRefusedByOtherVariantsAndByHand(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+	store := renderedFrom(t, model, nil)
+
+	decl, err := rbacyaml.Load(modulePath)
+	require.NoError(t, err)
+
+	for i := range decl.Resources {
+		decl.Resources[i].Legacy = nil
+	}
+
+	raw, err := yaml.Marshal(decl)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(rbacyaml.Path(modulePath), raw, 0o600))
+
+	const rel = "templates/user-authz-cluster-roles.yaml"
+
+	fullPath := filepath.Join(modulePath, rel)
+
+	t.Run("another variant holds a foreign object", func(t *testing.T) {
+		errorList := runSync(t, modulePath, store)
+		fixes := errorList.GetFixes()
+		require.Len(t, fixes, 1)
+
+		// What the run under other values found in the same file.
+		recordForeignObjects(fullPath, []string{"ClusterRole/d8:cert-manager:only-under-other-values"})
+
+		fixes[0]()
+
+		remaining := errorList.GetErrors()
+		require.Len(t, remaining, 1)
+		require.Error(t, remaining[0].FixError)
+		assert.Contains(t, remaining[0].FixError.Error(), "also holds objects the declaration does not describe (ClusterRole/d8:cert-manager:only-under-other-values), some only under other values; it is not deleted")
+
+		_, err := os.Stat(fullPath)
+		require.NoError(t, err, "the file stays")
+	})
+
+	t.Run("the header left the file before the fix ran", func(t *testing.T) {
+		resetFixState()
+
+		errorList := runSync(t, modulePath, store)
+		fixes := errorList.GetFixes()
+		require.Len(t, fixes, 1)
+
+		content, err := os.ReadFile(fullPath)
+		require.NoError(t, err)
+
+		_, rest, _ := strings.Cut(string(content), "\n")
+		require.NoError(t, os.WriteFile(fullPath, []byte(rest), 0o600))
+
+		fixes[0]()
+
+		remaining := errorList.GetErrors()
+		require.Len(t, remaining, 1)
+		require.Error(t, remaining[0].FixError)
+		assert.Contains(t, remaining[0].FixError.Error(), "is not the generator's to delete any more")
+
+		_, err = os.Stat(fullPath)
+		require.NoError(t, err, "the file stays")
+	})
+}
+
+// A `when` that tests the platform version is the declaration's own; the produced file carries
+// the same action, so it is not mistaken for the migration gate and is regenerated.
+func TestSync_WhenOnDeckhouseVersionIsNotAGate(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+
+	decl, err := rbacyaml.Load(modulePath)
+	require.NoError(t, err)
+
+	decl.Resources[0].When = `semverCompare ">= 1.80" .Values.global.deckhouseVersion`
+
+	raw, err := yaml.Marshal(decl)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(rbacyaml.Path(modulePath), raw, 0o600))
+
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+
+	var rel string
+
+	for _, f := range model.Files {
+		if strings.Contains(generate.RenderFile(f), "deckhouseVersion") {
+			rel = f.Path
+		}
+	}
+
+	require.NotEmpty(t, rel, "a file renders the version test")
+
+	// The file is stale: a comment was appended by hand.
+	fullPath := filepath.Join(modulePath, rel)
+	content, err := os.ReadFile(fullPath)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(fullPath, append(content, []byte("# a stray edit\n")...), 0o600))
+
+	errorList := runSync(t, modulePath, renderedFrom(t, model, nil))
+	got := texts(errorList)
+	require.Len(t, got, 1, "got: %v", got)
+	assert.Contains(t, got[0], "does not match rbac.yaml")
+
+	for _, fix := range errorList.GetFixes() {
+		fix()
+	}
+
+	assert.Empty(t, errorList.GetErrors(), "the file is regenerated, not mistaken for a gated template")
+
+	after, err := os.ReadFile(fullPath)
+	require.NoError(t, err)
+	assert.Equal(t, generate.RenderFile(*model.File(rel)), string(after))
 }

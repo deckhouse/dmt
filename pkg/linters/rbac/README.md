@@ -16,7 +16,7 @@ Proper RBAC configuration is critical for Kubernetes security, ensuring least-pr
 | [wildcards](#wildcards) | Validates Roles/ClusterRoles don't use wildcard permissions | ✅ | enabled |
 | [contract](#contract) | Holds the module's RBACv2 roles and capabilities to the platform's label and naming contract | ✅ | enabled |
 | [coverage](#coverage) | Requires a decision in `rbac.yaml` on the user access to every CRD the module ships | ✅ | enabled when `rbac.yaml` exists |
-| [sync](#sync) | Compares the rendered RBAC objects with `rbac.yaml` in both directions; `--fix` regenerates the templates | ✅ | enabled when `rbac.yaml` exists |
+| [sync](#sync) | Compares the rendered RBAC objects with `rbac.yaml` in both directions; `--fix` regenerates the templates, and writes the first `rbac.yaml` from the render of a module that has none | ✅ | always on |
 
 "Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
@@ -1492,6 +1492,9 @@ platform's label and naming contract, so that a module outside the platform repo
 the same way the platform's own test (`testing/rbacv2`) checks in-tree modules. Role aggregation
 relies on labels the API server cannot validate; a divergent module silently breaks it.
 
+The standalone helper role `d8:dict`, which the `handle_dict_bindings` hook binds, is not an RBACv2
+role or capability and is exempt from the naming and label checks.
+
 **Description:**
 
 Works on the rendered ClusterRoles from `templates/rbacv2/` (the compatibility aliases under
@@ -1567,8 +1570,8 @@ Runs only when the module has an `rbac.yaml`. Reads the CRDs under `crds/` at an
 
 -- and then still reports the finding: the stub is not a decision, and a `--fix` run that wrote stubs
 does not end green. Existing entries and comments are left as they are; a second `--fix` changes nothing.
-The rule does not create `rbac.yaml`: a module adopts the declaration by creating the file with the
-`apiVersion` line and running `--fix`.
+The rule does not create `rbac.yaml`: a module without the file is a `sync` finding, and `--fix` of
+that rule writes the first declaration from the render (see [sync](#sync)).
 
 **Example finding:**
 
@@ -1689,5 +1692,5 @@ linters-settings:
 - `impact: ignore` on a rule switches its autofix off with it: `--fix` never rewrites files on behalf of findings nobody sees.
 - A `when` condition must parse as a Helm expression (sprig and Helm functions are known); whether it holds under the linter's value stubs is decided by the render -- a condition that breaks the render is reported by the `helm-render` rule, and the module is not linted further.
 - `dmt lint remote` does not run these rules: a published image carries no chart to render.
-- The keys of the `rbac` configuration blocks are checked: an unknown key is an error, not a silent no-op.
+- The keys of the `rbac` configuration blocks (`linters-settings.rbac`, its `exclude-rules`, the global `rbac` settings and its `rules`) are checked: an unknown key at those levels is an error, not a silent no-op. Keys inside a rule's level or an exclusion entry are viper's as before.
 

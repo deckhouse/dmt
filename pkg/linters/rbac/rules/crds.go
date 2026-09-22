@@ -107,12 +107,16 @@ func moduleCRDs(modulePath string) ([]crdInfo, error) {
 		}
 	}
 
-	sort.Slice(out, func(i, j int) bool {
+	sort.SliceStable(out, func(i, j int) bool {
 		if out[i].Group != out[j].Group {
 			return out[i].Group < out[j].Group
 		}
 
-		return out[i].Plural < out[j].Plural
+		if out[i].Plural != out[j].Plural {
+			return out[i].Plural < out[j].Plural
+		}
+
+		return out[i].File < out[j].File
 	})
 
 	return out, nil

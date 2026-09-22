@@ -121,7 +121,7 @@ func (r *CoverageRule) Check(_ context.Context) {
 	// A resource of a group the module ships CRDs for, but not one of them, is most likely a
 	// misspelling (R11). Whole-group and subresource entries are exempt: CRDs describe neither.
 	for _, res := range decl.Resources {
-		if res.IsWildcard() || res.IsSubresource() {
+		if res.IsWildcard() || res.IsSubresource() || !r.Enabled(res.Key()) {
 			continue
 		}
 
@@ -241,7 +241,7 @@ func appendStub(path, group, resource string) (bool, error) {
 		return false, err
 	}
 
-	return true, os.WriteFile(path, buf.Bytes(), info.Mode().Perm())
+	return true, writeFileAtomic(path, buf.Bytes(), info.Mode().Perm())
 }
 
 // mappingValue returns the value node of key in a mapping node, or nil.

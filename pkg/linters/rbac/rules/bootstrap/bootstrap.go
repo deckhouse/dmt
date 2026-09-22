@@ -23,6 +23,7 @@ package bootstrap
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -107,14 +108,18 @@ func sortedLevels(m map[string]map[string]struct{}) map[string][]string {
 }
 
 type builder struct {
-	in        Input
-	res       map[[2]string]*resourceAcc
-	texts     map[string]rbacyaml.CapabilityText
-	lineages  map[string]struct{}
-	used      map[string]struct{}
-	notes     []string
-	unmanaged []string
-	decl      *rbacyaml.Declaration
+	in  Input
+	res map[[2]string]*resourceAcc
+	// restricted marks resources every grant of which carried resourceNames: the format cannot
+	// keep that limit on a capability, and widening a grant is not the importer's call.
+	restricted   map[[2]string]bool
+	unrestricted map[[2]string]bool
+	texts        map[string]rbacyaml.CapabilityText
+	lineages     map[string]struct{}
+	used         map[string]struct{}
+	notes        []string
+	unmanaged    []string
+	decl         *rbacyaml.Declaration
 }
 
 func (b *builder) note(format string, args ...any) {
@@ -148,7 +153,14 @@ func (o Object) identity() string {
 
 // Build derives the declaration.
 func Build(in Input) Result {
-	b := &builder{in: in, res: map[[2]string]*resourceAcc{}, texts: map[string]rbacyaml.CapabilityText{}, lineages: map[string]struct{}{}, used: map[string]struct{}{},
+	// The lint path fills Objects from a map; the notes and the unmanaged list go into the file
+	// header in this order, so it is fixed here rather than at every caller.
+	in.Objects = slices.Clone(in.Objects)
+	sort.SliceStable(in.Objects, func(i, j int) bool {
+		return in.Objects[i].identity() < in.Objects[j].identity()
+	})
+
+	b := &builder{in: in, res: map[[2]string]*resourceAcc{}, restricted: map[[2]string]bool{}, unrestricted: map[[2]string]bool{}, texts: map[string]rbacyaml.CapabilityText{}, lineages: map[string]struct{}{}, used: map[string]struct{}{},
 		decl: &rbacyaml.Declaration{APIVersion: rbacyaml.APIVersionV1Alpha1}}
 
 	b.capabilitiesAndLegacy()
@@ -178,11 +190,14 @@ func (b *builder) addRules(sectionName, level string, rules []rbacv1.PolicyRule,
 					continue // the generator adds it
 				}
 
+				key := [2]string{g, rs}
+
 				if len(r.ResourceNames) > 0 {
-					b.note("%s/%s: %s/%s was limited to resourceNames %v; the format has no resourceNames for capabilities, the grant is now on every object", sectionName, level, g, rs, r.ResourceNames)
+					b.restricted[key] = true
+				} else {
+					b.unrestricted[key] = true
 				}
 
-				key := [2]string{g, rs}
 				if b.res[key] == nil {
 					b.res[key] = newAcc()
 				}
@@ -616,6 +631,15 @@ func (b *builder) resources() {
 		e.Namespace, e.System, e.Legacy = sortedLevels(acc.namespace), sortedLevels(acc.system), sortedLevels(acc.legacy)
 		if !e.HasLevels() {
 			continue
+		}
+
+		// Every grant of this resource named specific objects (resourceNames); a declaration entry
+		// would grant every object. That widening is a person's decision, so the entry is left
+		// undecided and coverage keeps the run red until it is made.
+		if b.restricted[k] && !b.unrestricted[k] {
+			e = rbacyaml.Resource{Group: group, Resource: resource, Scope: e.Scope,
+				NoAccess: "TODO: the templates limited this grant to specific resourceNames, which the format cannot express; grant the levels to every object or keep denying"}
+			b.note("%s/%s: every grant carried resourceNames; left as noAccess TODO instead of widening it to every object", group, resource)
 		}
 
 		b.decl.Resources = append(b.decl.Resources, e)
