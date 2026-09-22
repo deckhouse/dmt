@@ -187,6 +187,15 @@ func (r *SyncRule) Check(_ context.Context) {
 	for _, file := range model.Files {
 		content, err := os.ReadFile(filepath.Join(modulePath, file.Path))
 		if err != nil {
+			// A file that does not exist while an object it holds is absent from the render: the
+			// render cannot tell a conditional object whose condition is false from one whose
+			// template was never written, but the text can -- nothing produces it (D4 covers the
+			// render, not the file).
+			if stderrors.Is(err, os.ErrNotExist) && hasAbsentObject(file, actual) {
+				divergences[file.Path] = append(divergences[file.Path],
+					"the file does not exist, and objects the declaration puts in it are absent from the render (objects under `when` included: no template produces them)")
+			}
+
 			continue
 		}
 
@@ -285,6 +294,17 @@ func (r *SyncRule) managedObjects(model *generate.Model) map[string]managedObjec
 	}
 
 	return out
+}
+
+// hasAbsentObject reports whether any object the file declares is missing from the render.
+func hasAbsentObject(file generate.File, actual map[string]managedObject) bool {
+	for _, o := range file.Objects {
+		if _, ok := actual[o.Identity()]; !ok {
+			return true
+		}
+	}
+
+	return false
 }
 
 // compareFile lists the divergences between the objects a generated file declares and the render.

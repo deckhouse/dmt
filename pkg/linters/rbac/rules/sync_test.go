@@ -138,6 +138,18 @@ func putObject(t *testing.T, store *storage.UnstructuredObjectStore, path string
 	require.NoError(t, store.Put("/module/"+path, path, content, []byte(o.Identity())))
 }
 
+// writeGenerated puts every file of the model on disk as the generator writes it: the render the
+// tests simulate came from somewhere, and a declared file that does not exist is a finding of its own.
+func writeGenerated(t *testing.T, modulePath string, model *generate.Model) {
+	t.Helper()
+
+	for _, r := range generate.Render(model) {
+		full := filepath.Join(modulePath, r.Path)
+		require.NoError(t, os.MkdirAll(filepath.Dir(full), 0o755))
+		require.NoError(t, os.WriteFile(full, []byte(r.Content), 0o600))
+	}
+}
+
 func runSync(t *testing.T, modulePath string, store *storage.UnstructuredObjectStore) *errors.LintRuleErrorsList {
 	t.Helper()
 
@@ -263,6 +275,7 @@ func TestSync_Divergences(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			modulePath := syncModuleDir(t)
 			model := syncModel(t, modulePath)
+			writeGenerated(t, modulePath, model)
 			store := renderedFrom(t, model, tc.tweak)
 
 			if tc.extra != nil {
@@ -661,4 +674,43 @@ func TestSync_GeneratedFileTextIsCompared(t *testing.T) {
 		require.NoError(t, os.WriteFile(path, []byte("# hand-maintained\n"+body), 0o600))
 		assert.Empty(t, texts(runSync(t, modulePath, store)))
 	})
+}
+
+// A file whose objects are all under `when`, deleted: the render cannot miss them (D4), the text can.
+func TestSync_MissingFileWithConditionalObjectsIsReported(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+
+	const rel = "templates/cainjector/rbac-for-us.yaml"
+
+	file := model.File(rel)
+	require.NotNil(t, file)
+
+	for _, o := range file.Objects {
+		require.NotEmpty(t, o.When, "the fixture's cainjector objects are conditional")
+	}
+
+	// Rendered as with the condition false: none of the cainjector objects, no file on disk.
+	store := renderedFrom(t, model, func(o *generate.Object) bool { return o.When == "" })
+
+	errorList := runSync(t, modulePath, store)
+	got := texts(errorList)
+	require.Len(t, got, 1, "got: %v", got)
+	assert.Contains(t, got[0], "templates/cainjector/rbac-for-us.yaml does not match rbac.yaml: the file does not exist, and objects the declaration puts in it are absent from the render (objects under `when` included")
+
+	for _, fix := range errorList.GetFixes() {
+		fix()
+	}
+
+	assert.Empty(t, errorList.GetErrors())
+
+	written, err := os.ReadFile(filepath.Join(modulePath, rel))
+	require.NoError(t, err)
+	assert.Equal(t, generate.RenderFile(*file), string(written))
+
+	// With the file in place and the condition still false, nothing is reported.
+	assert.Empty(t, texts(runSync(t, modulePath, store)))
 }

@@ -1619,7 +1619,7 @@ controller ClusterRoles with arbitrary names, objects with Helm-computed names).
 2. A capability's aggregation edges (`aggregate-to-<lineage>-as`) match in both directions: rules may agree while a lineage is lost. Its `rbac.deckhouse.io/capability` marker, `module` and `rbac.deckhouse.io/namespace` labels are what the generator writes.
 3. A binding's `roleRef` and subjects match.
 4. Every rendered legacy role and module capability is produced by the declaration.
-5. A file that carries the generator header is the generator's, and its text must be what the declaration renders now: a rule under `when` whose condition is false today is absent from the render without being a divergence, yet it still has to reach the template, so for generator-owned files the text is compared too. A file of another contract version is the same case. Remove the header to maintain a file by hand; then only its render is judged.
+5. A file the declaration produces that does not exist while an object it holds is absent from the render is a divergence, whether or not the object is under `when`: the render cannot tell a false condition from a template nobody wrote, the text can. A file that carries the generator header is the generator's, and its text must be what the declaration renders now: a rule under `when` whose condition is false today is absent from the render without being a divergence, yet it still has to reach the template, so for generator-owned files the text is compared too. A file of another contract version is the same case. Remove the header to maintain a file by hand; then only its render is judged.
 
 Findings are one per template file and carry the fix command; the text does not depend on the render variant.
 
