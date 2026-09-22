@@ -30,7 +30,7 @@ type Linters struct {
 	Module        ModuleLinterConfig        `mapstructure:"module"`
 	NoCyrillic    LinterConfig              `mapstructure:"no-cyrillic"`
 	OpenAPI       OpenAPILinterConfig       `mapstructure:"openapi"`
-	Rbac          RbacLinterConfig          `mapstructure:"rbac"`
+	Rbac          RBACLinterConfig          `mapstructure:"rbac"`
 	Templates     TemplatesLinterConfig     `mapstructure:"templates"`
 	Documentation DocumentationLinterConfig `mapstructure:"documentation"`
 }
@@ -71,16 +71,16 @@ type ContainerRules struct {
 	SysCgroupMountRule           RuleConfig `mapstructure:"sys-cgroup-mount"`
 }
 
-// RbacLinterConfig carries the linter-level impact of rbac and the per-rule impacts of the rules
+// RBACLinterConfig carries the linter-level impact of rbac and the per-rule impacts of the rules
 // added for the module RBAC declaration. The four original rules (user-authz, binding-subject,
 // placement, wildcards) have never had per-rule levels and keep the linter's: wiring them up
 // would change the severity of existing findings.
-type RbacLinterConfig struct {
+type RBACLinterConfig struct {
 	LinterConfig `mapstructure:",squash"`
-	Rules        RbacRules `mapstructure:"rules"`
+	Rules        RBACRules `mapstructure:"rules"`
 }
 
-type RbacRules struct {
+type RBACRules struct {
 	CoverageRule RuleConfig `mapstructure:"coverage"`
 	SyncRule     RuleConfig `mapstructure:"sync"`
 	ContractRule RuleConfig `mapstructure:"contract"`

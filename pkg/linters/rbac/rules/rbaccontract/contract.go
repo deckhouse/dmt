@@ -24,7 +24,10 @@ limitations under the License.
 // in-tree by testing/rbacv2/rbacv2_templates_validation_test.go.
 package rbaccontract
 
-import "slices"
+import (
+	"slices"
+	"strings"
+)
 
 // Label and annotation keys of the role model
 // (modules/140-user-authz/docs/internal/RBACV2_MODULE_MIGRATION.md, "Reference of role labels and annotations").
@@ -133,7 +136,10 @@ var LegacyLevels = []string{"User", "PrivilegedUser", "Editor", "Admin", "Cluste
 
 // Verbs are the resource verbs Kubernetes RBAC knows. rbac.yaml lists verbs explicitly; there
 // are no aliases (spec 005 R2). "*" is accepted here and judged by the wildcards rule.
-var Verbs = []string{"get", "list", "watch", "create", "update", "patch", "delete", "deletecollection", "*"}
+var Verbs = append(slices.Clone(ResourceVerbs), "*")
+
+// ResourceVerbs are the verbs a rule may list, without the wildcard.
+var ResourceVerbs = []string{"get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"}
 
 // AllLineages returns every lineage a capability label may name: the three base lineages and
 // the seven subsystems.
@@ -182,6 +188,26 @@ func CapabilityAction(level string) string {
 	}
 
 	return level
+}
+
+// LevelOfAction is the inverse of CapabilityAction: view -> viewer, edit -> manager, the rest as
+// they are.
+func LevelOfAction(action string) string {
+	switch action {
+	case "view":
+		return "viewer"
+	case "edit":
+		return "manager"
+	}
+
+	return action
+}
+
+// BindingSuffix turns a role name into the last segment of the binding the generator names after
+// it: the d8: prefix goes, the colons become dashes (d8:rbac-proxy -> rbac-proxy,
+// system:auth-delegator -> system-auth-delegator).
+func BindingSuffix(roleName string) string {
+	return strings.ReplaceAll(strings.TrimPrefix(roleName, "d8:"), ":", "-")
 }
 
 // ConventionalActions are the capability actions whose localized texts come from the platform

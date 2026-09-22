@@ -21,6 +21,8 @@ limitations under the License.
 // rbac.deckhouse.io/v1alpha1.
 package rbacyaml
 
+import "strings"
+
 // Filename is the declaration's name in the module root.
 const Filename = "rbac.yaml"
 
@@ -102,13 +104,7 @@ func (r Resource) IsWildcard() bool { return r.Resource == "*" }
 
 // IsSubresource reports whether the entry names a subresource (a "/" in the name).
 func (r Resource) IsSubresource() bool {
-	for i := 0; i < len(r.Resource); i++ {
-		if r.Resource[i] == '/' {
-			return true
-		}
-	}
-
-	return false
+	return strings.Contains(r.Resource, "/")
 }
 
 // HasLevels reports whether any role model grants something on the resource.
@@ -182,7 +178,7 @@ func (r ExtraClusterRole) IsBound() bool { return r.Bind == nil || *r.Bind }
 // FullName returns the ClusterRole name: the given one when it already starts with d8:, else
 // d8:<module>:<account>:<name>.
 func (r ExtraClusterRole) FullName(module, account string) string {
-	if len(r.Name) > 3 && r.Name[:3] == "d8:" {
+	if strings.HasPrefix(r.Name, "d8:") {
 		return r.Name
 	}
 

@@ -18,6 +18,8 @@ package rules
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 
@@ -78,7 +80,7 @@ func clusterRole(name string, labels map[string]string, annotations, body string
 
 	b.WriteString("apiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: \"" + name + "\"\n  labels:\n")
 
-	for _, k := range sortedKeys(labels) {
+	for _, k := range slices.Sorted(maps.Keys(labels)) {
 		b.WriteString("    " + k + ": \"" + labels[k] + "\"\n")
 	}
 
@@ -206,7 +208,7 @@ func TestContract_Findings(t *testing.T) {
 				"rbac.deckhouse.io/kind": "capability", "rbac.deckhouse.io/scope": "tenant",
 			}, i18n, "rules:\n- apiGroups: [x.io]\n  resources: [ys]\n  verbs: [get]\n"),
 			wantErrs: []string{
-				`error: label rbac.deckhouse.io/scope must be one of system/subsystem/namespace/project, got "tenant"`,
+				`error: label rbac.deckhouse.io/scope must be one of namespace/project/subsystem/system, got "tenant"`,
 			},
 		},
 	} {

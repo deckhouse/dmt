@@ -125,11 +125,15 @@ type builder struct {
 func (b *builder) note(format string, args ...any) {
 	b.notes = append(b.notes, fmt.Sprintf(format, args...))
 }
+
 func (b *builder) unmanage(o Object, why string) {
 	b.unmanaged = append(b.unmanaged, fmt.Sprintf("%s (%s): %s", o.identity(), o.Path, why))
 }
-func (b *builder) mark(o Object)        { b.used[o.identity()] = struct{}{} }
+
+func (b *builder) mark(o Object) { b.used[o.identity()] = struct{}{} }
+
 func (b *builder) isUsed(o Object) bool { _, ok := b.used[o.identity()]; return ok }
+
 func (b *builder) ns(o Object) string {
 	if o.Namespace == "" {
 		return b.in.Namespace
@@ -137,6 +141,7 @@ func (b *builder) ns(o Object) string {
 
 	return o.Namespace
 }
+
 func (b *builder) rename(kind, from, to string) {
 	if from != to {
 		b.note("%s %s will be named %s by the generator", kind, from, to)
@@ -240,13 +245,7 @@ func (b *builder) capabilitiesAndLegacy() {
 			}
 
 			lineage, action := m[1], m[3]
-			level := action
-
-			for lvl, act := range map[string]string{"viewer": "view", "manager": "edit"} {
-				if act == action {
-					level = lvl
-				}
-			}
+			level := rbaccontract.LevelOfAction(action)
 
 			b.addRules(lineage, level, o.Rules, lineage == rbaccontract.LineageSystem)
 			b.mark(o)
@@ -396,10 +395,10 @@ func (b *builder) serviceAccounts() {
 				b.rename("ClusterRoleBinding", crb.Name, extra.FullName(b.in.Module, sa.Name))
 			default:
 				e.BindClusterRoles = append(e.BindClusterRoles, crb.RoleRef.Name)
-				b.rename("ClusterRoleBinding", crb.Name, clusterName+":"+bindingSuffix(crb.RoleRef.Name))
+				b.rename("ClusterRoleBinding", crb.Name, clusterName+":"+rbaccontract.BindingSuffix(crb.RoleRef.Name))
 			}
 
-			if found && (exclusive) {
+			if exclusive {
 				b.mark(cr)
 			}
 
@@ -418,7 +417,7 @@ func (b *builder) serviceAccounts() {
 				b.mark(role)
 			} else {
 				e.BindRoles = append(e.BindRoles, rbacyaml.RoleRef{Namespace: b.ns(rb), Name: rb.RoleRef.Name})
-				b.rename("RoleBinding", b.ns(rb)+"/"+rb.Name, b.ns(rb)+"/"+clusterName+":"+bindingSuffix(rb.RoleRef.Name))
+				b.rename("RoleBinding", b.ns(rb)+"/"+rb.Name, b.ns(rb)+"/"+clusterName+":"+rbaccontract.BindingSuffix(rb.RoleRef.Name))
 			}
 
 			b.mark(rb)
@@ -720,8 +719,4 @@ func subjects(list []rbacv1.Subject) []rbacyaml.Subject {
 	}
 
 	return out
-}
-
-func bindingSuffix(roleName string) string {
-	return strings.ReplaceAll(strings.TrimPrefix(roleName, "d8:"), ":", "-")
 }

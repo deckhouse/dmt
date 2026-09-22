@@ -32,9 +32,9 @@ func TestRemapLinterSettings_RBACDeclarationRules(t *testing.T) {
 	t.Run("per-rule levels from the root configuration, warn as the fallback", func(t *testing.T) {
 		settings := remapLinterSettings(
 			&config.LintersSettings{Rbac: config.RbacSettings{Impact: pkg.Error.String()}},
-			&global.Linters{Rbac: global.RbacLinterConfig{
+			&global.Linters{Rbac: global.RBACLinterConfig{
 				LinterConfig: global.LinterConfig{Impact: pkg.Error.String()},
-				Rules: global.RbacRules{
+				Rules: global.RBACRules{
 					CoverageRule: global.RuleConfig{Impact: pkg.Warn.String()},
 					SyncRule:     global.RuleConfig{Impact: pkg.Ignored.String()},
 				},

@@ -145,6 +145,16 @@ func (r *SyncRule) Check(_ context.Context) {
 	}
 
 	actual := r.managedObjects(model)
+	divergences := r.compareRender(model, actual)
+	r.compareText(modulePath, model, actual, divergences)
+	r.report(modulePath, model, divergences)
+}
+
+// compareRender judges the declaration against the rendered objects, both ways: every produced
+// object must be rendered as produced, and every legacy role or module capability rendered must be
+// produced. The findings are collected per template.
+func (r *SyncRule) compareRender(model *generate.Model, actual map[string]managedObject) map[string][]string {
+	modulePath := r.module.GetPath()
 	legacy := r.legacyFiles()
 	divergences := map[string][]string{}
 
@@ -196,12 +206,17 @@ func (r *SyncRule) Check(_ context.Context) {
 			fmt.Sprintf("%s is in the render but rbac.yaml does not produce it: declare its rights in rbac.yaml or remove it from the template", identity))
 	}
 
-	// A file that carries the generator header is the generator's: its text must be what the
-	// declaration renders now. The render alone cannot tell -- a rule under `when` whose condition
-	// is false today is absent from the render without being a divergence (D4), yet it still has
-	// to reach the template -- so for these files the text is compared too. A file of another
-	// contract version is the same case (R40). A file without the header is maintained by hand and
-	// is judged by its render only.
+	return divergences
+}
+
+// compareText judges the generated files by their text: a file that carries the generator header
+// must be what the declaration renders now, and a file that does not exist while an object it
+// holds is absent from the render was never written.
+func (r *SyncRule) compareText(modulePath string, model *generate.Model, actual map[string]managedObject, divergences map[string][]string) {
+	// A rule under `when` whose condition is false today is absent from the render without being
+	// a divergence (D4), yet it still has to reach the template -- so for these files the text is
+	// compared too. A file of another contract version is the same case (R40). A file without the
+	// header is maintained by hand and is judged by its render only.
 	for _, file := range model.Files {
 		content, err := os.ReadFile(filepath.Join(modulePath, file.Path))
 		if err != nil {
@@ -229,7 +244,11 @@ func (r *SyncRule) Check(_ context.Context) {
 				"the file carries the generator header but is not what the declaration renders now (a rule under `when`, a text edit or an older generator); remove the header to maintain it by hand")
 		}
 	}
+}
 
+// report emits one finding per template, with the fix that closes it when one exists: the
+// regeneration of a produced file, the deletion of an orphaned generated file, or none.
+func (r *SyncRule) report(modulePath string, model *generate.Model, divergences map[string][]string) {
 	paths := make([]string, 0, len(divergences))
 	for path, list := range divergences {
 		if len(list) > 0 {
@@ -389,7 +408,13 @@ func (r *SyncRule) legacyFiles() map[string]string {
 	out := map[string]string{}
 
 	for _, object := range r.module.GetStorage() {
-		if kind := object.Unstructured.GetLabels()[rbaccontract.LabelKind]; object.Unstructured.GetKind() == "ClusterRole" && rbaccontract.IsLegacyKind(kind) {
+		kind := object.Unstructured.GetLabels()[rbaccontract.LabelKind]
+		if object.Unstructured.GetKind() != "ClusterRole" || !rbaccontract.IsLegacyKind(kind) {
+			continue
+		}
+
+		// A file with both kinds names the smaller one, whatever order the storage yields.
+		if prev, seen := out[object.ShortPath()]; !seen || kind < prev {
 			out[object.ShortPath()] = kind
 		}
 	}
@@ -570,14 +595,12 @@ func subjectSet(list []rbacv1.Subject) string {
 }
 
 func subjectSetOf(list []generate.Subject) string {
-	parts := make([]string, 0, len(list))
+	subjects := make([]rbacv1.Subject, 0, len(list))
 	for _, s := range list {
-		parts = append(parts, s.Kind+"/"+s.Namespace+"/"+s.Name)
+		subjects = append(subjects, rbacv1.Subject{Kind: s.Kind, Namespace: s.Namespace, Name: s.Name})
 	}
 
-	sort.Strings(parts)
-
-	return strings.Join(parts, ",")
+	return subjectSet(subjects)
 }
 
 // managedObject is a rendered object the sync rule owns, with the class it was recognized by.
