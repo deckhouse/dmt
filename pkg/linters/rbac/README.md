@@ -1607,7 +1607,9 @@ Without `rbac.yaml` the rule reports the declaration missing, and `--fix` writes
 objects the module renders today: the declaration a person would have transcribed from the templates,
 with a `TODO` wherever a decision is still theirs (a resource without a CRD whose scope the linter
 cannot know, a CRD nobody grants, a namespaced resource granted cluster-wide) and a note on top for
-every object the generator will name differently or cannot describe. Review it, resolve the TODOs,
+every object the generator will name differently or cannot describe. Every entry gets its `scope`
+written out, CRD or not, so a lint of one edition directory that lacks the other editions' CRDs still
+validates the declaration. Review it, resolve the TODOs,
 then run `--fix` again to regenerate the templates from it. From then on `rbac.yaml` is the source.
 
 With `rbac.yaml` the rule first validates the declaration; a declaration with errors is reported and
@@ -1642,7 +1644,7 @@ written over --
 - a file without the generator header is maintained by hand: the generated text is written beside it as `_<file>.generated` (the underscore keeps Helm from rendering the copy) and the finding stays (delete the file and run `--fix` again to hand it back to the generator);
 - a template that serves both role models behind the version gate (`rbacv2_new_scheme`) is never regenerated: the legacy branch would vanish;
 
-A missing file is created. A second `--fix` without changes to `rbac.yaml` changes nothing. Under
+A missing file is created. A generated file the declaration produces nothing for any more -- every namespace level dropped, the `legacy` section gone -- is deleted, as long as it holds nothing but objects of the owned classes; the deletion is logged. A second `--fix` without changes to `rbac.yaml` changes nothing. Under
 `--matrix` every render variant reports the file, but the fix runs once: the variants record what
 their renders grant while they exist, the first closure checks the union and writes, the others
 report its outcome -- so a right rendered only under some values is never dropped.

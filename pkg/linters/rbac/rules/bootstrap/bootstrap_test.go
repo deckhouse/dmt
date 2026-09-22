@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -105,6 +106,11 @@ func TestBuild_RoundTripOnTheCertManagerFixture(t *testing.T) {
 		g, ok := gotRes[k]
 		require.True(t, ok, "resource %s missing", k)
 		assert.Equal(t, w.NoAccess != "", g.NoAccess != "", "%s: denied", k)
+
+		if g.NoAccess == "" && !strings.Contains(g.Resource, "/") {
+			assert.Equal(t, certManagerCRDs[k], g.Scope, "%s: the scope is written out even when the CRD says it", k)
+		}
+
 		assert.Equal(t, w.Namespace, g.Namespace, "%s: namespace levels", k)
 		assert.Equal(t, w.System, g.System, "%s: system levels", k)
 		assert.Equal(t, w.Legacy, g.Legacy, "%s: legacy levels", k)
