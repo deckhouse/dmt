@@ -247,8 +247,80 @@ func (r *SyncRule) Check(_ context.Context) {
 			continue
 		}
 
+		// A file the generator wrote earlier that the declaration produces nothing for any more -- a
+		// legacy section dropped, every namespace level gone -- is an orphan: the declaration wins,
+		// and the fix deletes it, as long as it holds nothing but objects of the owned classes.
+		if orphan, reason := r.orphanGeneratedFile(path, model); orphan {
+			fileList.WithFix(removeFileFix(modulePath, path, list)).Errorf("%s does not match %s: %s. The file carries the generator header and the declaration produces nothing for it; `%s` deletes it",
+				path, rbacyaml.Filename, strings.Join(list, "; "), FixCommand)
+
+			continue
+		} else if reason != "" {
+			list = append(list, reason)
+		}
+
 		fileList.Errorf("%s does not match %s: %s. Only a person can close this: the declaration does not produce this file",
 			path, rbacyaml.Filename, strings.Join(list, "; "))
+	}
+}
+
+// orphanGeneratedFile reports whether a template the declaration produces nothing for is the
+// generator's (header present) and holds only objects of the owned classes, so deleting it loses
+// nothing the declaration does not know about. Otherwise it returns why the file stays.
+func (r *SyncRule) orphanGeneratedFile(path string, model *generate.Model) (bool, string) {
+	if model.File(path) != nil {
+		return false, ""
+	}
+
+	content, err := os.ReadFile(filepath.Join(r.module.GetPath(), path))
+	if err != nil {
+		return false, ""
+	}
+
+	if generated, _ := generate.ParseHeader(string(content)); !generated {
+		return false, ""
+	}
+
+	if strings.Contains(string(content), rbaccontract.GateMarker) {
+		return false, "the file serves both role models behind the version gate"
+	}
+
+	managed := r.managedObjects(model)
+
+	for index, object := range r.module.GetStorage() {
+		if object.ShortPath() != path {
+			continue
+		}
+
+		switch object.Unstructured.GetKind() {
+		case "ClusterRole", "Role", "ClusterRoleBinding", "RoleBinding", "ServiceAccount":
+		default:
+			continue
+		}
+
+		if _, owned := managed[index.AsString()]; !owned {
+			return false, "the file also holds " + index.AsString() + ", which the declaration does not describe"
+		}
+	}
+
+	return true, ""
+}
+
+// removeFileFix deletes an orphaned generated file and logs what went with it.
+func removeFileFix(modulePath, path string, removed []string) errors.AutofixFunc {
+	fullPath := filepath.Join(modulePath, path)
+
+	return func() error {
+		return fixOnce(fullPath, func() error {
+			if err := os.Remove(fullPath); err != nil && !stderrors.Is(err, os.ErrNotExist) {
+				return fmt.Errorf("delete %s: %w", path, err)
+			}
+
+			log.Warn("rbac autofix deleted a generated template the declaration produces nothing for",
+				slog.String("file", path), slog.Any("removed", removed))
+
+			return nil
+		})
 	}
 }
 

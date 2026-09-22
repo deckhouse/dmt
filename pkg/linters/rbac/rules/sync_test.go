@@ -26,6 +26,7 @@ import (
 	"github.com/gojuno/minimock/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -911,4 +912,58 @@ func TestSync_BootstrapUnitesRenderVariants(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, written.ServiceAccounts, 1, "the cainjector account, seen only by variant A, is in the declaration")
 	assert.Equal(t, "cainjector", written.ServiceAccounts[0].Name)
+}
+
+// A generated file the declaration produces nothing for any more is an orphan: --fix deletes it.
+// One that also holds an object outside the owned classes, or serves both models, stays.
+func TestSync_OrphanGeneratedFileIsDeleted(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+	store := renderedFrom(t, model, nil)
+
+	// The legacy section leaves the declaration; the render still has the roles from the file.
+	decl, err := rbacyaml.Load(modulePath)
+	require.NoError(t, err)
+
+	for i := range decl.Resources {
+		decl.Resources[i].Legacy = nil
+	}
+
+	raw, err := yaml.Marshal(decl)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(rbacyaml.Path(modulePath), raw, 0o600))
+
+	const rel = "templates/user-authz-cluster-roles.yaml"
+
+	errorList := runSync(t, modulePath, store)
+	got := texts(errorList)
+	require.Len(t, got, 1, "got: %v", got)
+	assert.Contains(t, got[0], "The file carries the generator header and the declaration produces nothing for it; `dmt lint --linter rbac --fix` deletes it")
+
+	for _, fix := range errorList.GetFixes() {
+		fix()
+	}
+
+	assert.Empty(t, errorList.GetErrors())
+
+	_, err = os.Stat(filepath.Join(modulePath, rel))
+	assert.True(t, os.IsNotExist(err), "the orphan is gone")
+
+	// The same file with a foreign object beside the legacy roles is not deleted.
+	resetFixState()
+	writeGenerated(t, modulePath, model)
+	putObject(t, store, rel, generate.Object{
+		Kind: "ClusterRole", Name: "d8:cert-manager:something-else", Class: generate.ClassDeclared,
+		Rules: []generate.Rule{{PolicyRule: rbacyaml.PolicyRule{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"get"}}}},
+	})
+
+	errorList = runSync(t, modulePath, store)
+	got = texts(errorList)
+	require.Len(t, got, 1, "got: %v", got)
+	assert.Contains(t, got[0], "the file also holds ClusterRole/d8:cert-manager:something-else, which the declaration does not describe. Only a person can close this")
+	assert.Empty(t, errorList.GetFixes())
 }

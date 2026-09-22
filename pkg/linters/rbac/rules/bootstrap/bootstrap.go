@@ -582,6 +582,12 @@ func (b *builder) resources() {
 
 		switch {
 		case fromCRD:
+			// Written out even though the CRD says it: a lint of one edition directory does not see
+			// the CRDs of the other editions, and an entry without a scope would then stop the
+			// whole validation instead of raising one coverage warning.
+			if !strings.Contains(resource, "/") {
+				e.Scope = scope
+			}
 		case resource == "*":
 			e.Scope, scope = rbacyaml.ScopeCluster, rbacyaml.ScopeCluster
 			e.Reason = "TODO: the templates grant the whole group; say why the resource names are not known statically"
@@ -633,7 +639,11 @@ func (b *builder) resources() {
 		}
 
 		if !declared {
-			b.decl.Resources = append(b.decl.Resources, rbacyaml.Resource{Group: group, Resource: plural, NoAccess: "TODO: no user-facing access in the templates today; grant levels or say why users get none"})
+			// The scope is written out for the same reason as above: a lint of one edition directory
+			// that lacks this CRD must read the entry as a documented external resource, not as a
+			// stale one.
+			b.decl.Resources = append(b.decl.Resources, rbacyaml.Resource{Group: group, Resource: plural, Scope: b.in.CRDs[k],
+				NoAccess: "TODO: no user-facing access in the templates today; grant levels or say why users get none"})
 		}
 	}
 
