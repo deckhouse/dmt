@@ -474,3 +474,47 @@ func TestLoad(t *testing.T) {
 	assert.Equal(t, APIVersionV1Alpha1, decl.APIVersion)
 	assert.Len(t, decl.Resources, 7)
 }
+
+// extraClusterRoles: named, unique, with rules; automountServiceAccountToken parses.
+func TestValidate_ExtraClusterRoles(t *testing.T) {
+	decl, err := Parse([]byte(`apiVersion: rbac.deckhouse.io/v1alpha1
+serviceAccounts:
+  - name: webhook
+    automountServiceAccountToken: true
+    extraClusterRoles:
+      - name: requester
+        bind: false
+        rules:
+          - apiGroups: [admission.cert-manager.io]
+            resources: [certificates]
+            verbs: [create]
+      - name: requester
+        rules:
+          - apiGroups: [""]
+            resources: [secrets]
+            verbs: [get]
+      - name: ""
+        rules: []
+      - name: d8:other:full-name
+        rules: []
+`))
+	require.NoError(t, err)
+	require.NotNil(t, decl.ServiceAccounts[0].AutomountToken)
+	assert.True(t, *decl.ServiceAccounts[0].AutomountToken)
+	assert.False(t, decl.ServiceAccounts[0].ExtraClusterRoles[0].IsBound())
+	assert.True(t, decl.ServiceAccounts[0].ExtraClusterRoles[1].IsBound())
+	assert.Equal(t, "d8:cert-manager:webhook:requester", decl.ServiceAccounts[0].ExtraClusterRoles[0].FullName("cert-manager", "webhook"))
+	assert.Equal(t, "d8:other:full-name", decl.ServiceAccounts[0].ExtraClusterRoles[3].FullName("cert-manager", "webhook"))
+
+	errs := Validate(decl, nil)
+
+	msgs := make([]string, 0, len(errs))
+	for _, e := range errs {
+		msgs = append(msgs, e.Error())
+	}
+
+	assert.Contains(t, msgs, `serviceAccounts[0] (webhook).extraClusterRoles[1]: duplicate name "requester"`)
+	assert.Contains(t, msgs, "serviceAccounts[0] (webhook).extraClusterRoles[2]: name is required")
+	assert.Contains(t, msgs, "serviceAccounts[0] (webhook).extraClusterRoles[3] (d8:other:full-name): rules is required")
+	assert.Len(t, msgs, 3, "got: %v", msgs)
+}

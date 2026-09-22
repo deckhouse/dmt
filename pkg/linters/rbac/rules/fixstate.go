@@ -33,17 +33,15 @@ import (
 //   - outcomes remembers the result of the first closure that ran for a target, so the others
 //     return it instead of doing the work again, and every copy of the finding ends the run in
 //     the same state;
-//   - rendered accumulates, at lint time, the rights every variant's render grants in a file, so
-//     the drop guard of the sync autofix judges the union rather than the render of whichever
-//     variant happened to run its closure first (D3).
+//   - foreign accumulates, at lint time, the objects every variant's render placed in a file that
+//     the declaration does not produce, so the refusal to rewrite such a file judges the union
+//     rather than the render of whichever variant happened to run its closure first.
 var fixState = struct {
 	sync.Mutex
 	outcomes map[string]error
-	rendered map[string]map[string]struct{}
 	foreign  map[string]map[string]struct{}
 }{
 	outcomes: map[string]error{},
-	rendered: map[string]map[string]struct{}{},
 	foreign:  map[string]map[string]struct{}{},
 }
 
@@ -66,35 +64,6 @@ func fixOnce(key string, fix func() error) error {
 	fixState.Unlock()
 
 	return err
-}
-
-// recordRenderedRights adds what one render variant grants in the file to what is known about it.
-func recordRenderedRights(file string, rights map[string]struct{}) {
-	fixState.Lock()
-	defer fixState.Unlock()
-
-	known := fixState.rendered[file]
-	if known == nil {
-		known = map[string]struct{}{}
-		fixState.rendered[file] = known
-	}
-
-	for r := range rights {
-		known[r] = struct{}{}
-	}
-}
-
-// renderedRights returns everything any render variant granted in the file.
-func renderedRights(file string) map[string]struct{} {
-	fixState.Lock()
-	defer fixState.Unlock()
-
-	out := make(map[string]struct{}, len(fixState.rendered[file]))
-	for r := range fixState.rendered[file] {
-		out[r] = struct{}{}
-	}
-
-	return out
 }
 
 // recordForeignObjects adds the objects one render variant placed in the file that the declaration
@@ -136,7 +105,6 @@ func resetFixState() {
 	defer fixState.Unlock()
 
 	fixState.outcomes = map[string]error{}
-	fixState.rendered = map[string]map[string]struct{}{}
 	fixState.foreign = map[string]map[string]struct{}{}
 }
 

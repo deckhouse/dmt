@@ -155,6 +155,38 @@ type ServiceAccount struct {
 	NamespaceRules   []PolicyRule      `yaml:"namespaceRules,omitempty"`
 	BindClusterRoles []string          `yaml:"bindClusterRoles,omitempty"`
 	BindRoles        []RoleRef         `yaml:"bindRoles,omitempty"`
+
+	// ExtraClusterRoles are further ClusterRoles that live in the account's rbac-for-us.yaml:
+	// controller roles split by concern (cert-manager's approve, certificates, ...), or roles the
+	// module ships for other subjects to bind (an aggregated apiserver's requester role). Each is
+	// d8:<module>:<name of the account>:<name>, or exactly the given name when it starts with d8:.
+	ExtraClusterRoles []ExtraClusterRole `yaml:"extraClusterRoles,omitempty"`
+
+	// AutomountToken is the ServiceAccount's automountServiceAccountToken; unset means false, the
+	// platform convention. A pod that needs the token sets it true on the pod, or the account
+	// declares true here.
+	AutomountToken *bool `yaml:"automountServiceAccountToken,omitempty"`
+}
+
+// ExtraClusterRole is one more ClusterRole in a ServiceAccount's file. Bind unset or true also
+// produces the ClusterRoleBinding of the same name to the account; false leaves the role unbound.
+type ExtraClusterRole struct {
+	Name  string       `yaml:"name"`
+	Rules []PolicyRule `yaml:"rules"`
+	Bind  *bool        `yaml:"bind,omitempty"`
+}
+
+// IsBound reports whether the role is bound to its account (the default).
+func (r ExtraClusterRole) IsBound() bool { return r.Bind == nil || *r.Bind }
+
+// FullName returns the ClusterRole name: the given one when it already starts with d8:, else
+// d8:<module>:<account>:<name>.
+func (r ExtraClusterRole) FullName(module, account string) string {
+	if len(r.Name) > 3 && r.Name[:3] == "d8:" {
+		return r.Name
+	}
+
+	return "d8:" + module + ":" + account + ":" + r.Name
 }
 
 // RoleRef names an existing Role in a foreign namespace to bind a ServiceAccount to.
@@ -176,8 +208,11 @@ type PrometheusAccess struct {
 // Role and RoleBinding access-to-<module>-<name> in templates/rbac-to-us.yaml. Exactly one of the
 // two must be set: the placement rule keeps cluster-scoped objects out of rbac-to-us.yaml.
 type Access struct {
-	Name           string       `yaml:"name"`
-	Subjects       []Subject    `yaml:"subjects"`
+	Name     string    `yaml:"name"`
+	Subjects []Subject `yaml:"subjects"`
+	// Path is the component directory under templates/ whose rbac-for-us.yaml (clusterRules) or
+	// rbac-to-us.yaml (namespaceRules) holds the objects; empty means the module root files.
+	Path           string       `yaml:"path,omitempty"`
 	ClusterRules   []PolicyRule `yaml:"clusterRules,omitempty"`
 	NamespaceRules []PolicyRule `yaml:"namespaceRules,omitempty"`
 }

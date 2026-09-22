@@ -25,6 +25,7 @@ import (
 	"sort"
 	"strings"
 
+	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/yaml"
@@ -32,6 +33,7 @@ import (
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/bootstrap"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/generate"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbaccontract"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbacyaml"
@@ -92,6 +94,7 @@ func (r *SyncRule) Check(_ context.Context) {
 
 	decl, err := rbacyaml.Load(modulePath)
 	if stderrors.Is(err, rbacyaml.ErrNotFound) {
+		r.bootstrap(declList)
 		return
 	}
 
@@ -228,7 +231,7 @@ func (r *SyncRule) Check(_ context.Context) {
 		fileList := r.errorList.WithFilePath(path).WithObjectID(path)
 
 		if file := model.File(path); file != nil {
-			fileList = fileList.WithFix(regenerateFix(modulePath, *file, actual, r.foreignObjects(*file)))
+			fileList = fileList.WithFix(regenerateFix(modulePath, *file, r.foreignObjects(*file)))
 			fileList.Errorf("%s does not match %s: %s. Run `%s` to regenerate the file from the declaration",
 				path, rbacyaml.Filename, strings.Join(list, "; "), FixCommand)
 
@@ -277,14 +280,118 @@ func (r *SyncRule) foreignObjects(file generate.File) []string {
 			continue
 		}
 
-		if _, ok := produced[index.AsString()]; !ok {
-			out = append(out, index.AsString())
+		if _, ok := produced[index.AsString()]; ok {
+			continue
 		}
+
+		// An object the generator produces under another name -- a binding with the same roleRef
+		// and subjects, a role with the same rules -- is replaced, not lost; the declaration carries
+		// its rights on. Only what has no counterpart is foreign.
+		if replacedByProduced(object, file.Objects) {
+			continue
+		}
+
+		out = append(out, index.AsString())
 	}
 
 	sort.Strings(out)
 
 	return out
+}
+
+// replacedByProduced reports whether a rendered object has a produced counterpart of the same kind
+// and content under another name.
+func replacedByProduced(object storage.StoreObject, produced []generate.Object) bool {
+	content := object.Unstructured.UnstructuredContent()
+
+	switch object.Unstructured.GetKind() {
+	case "ClusterRoleBinding", "RoleBinding":
+		binding := new(rbacv1.RoleBinding) // the fields compared are shared by both kinds
+		if runtime.DefaultUnstructuredConverter.FromUnstructured(content, binding) != nil {
+			return false
+		}
+
+		got := subjectSet(binding.Subjects)
+
+		for _, o := range produced {
+			if o.Kind != object.Unstructured.GetKind() || o.Namespace != object.Unstructured.GetNamespace() || o.RoleRefKind != binding.RoleRef.Kind {
+				continue
+			}
+
+			if roleRefMatches(o.RoleRefName, binding.RoleRef.Name, produced) && subjectSetOf(o.Subjects) == got {
+				return true
+			}
+		}
+	case "ClusterRole", "Role":
+		role := new(rbacv1.ClusterRole)
+		if runtime.DefaultUnstructuredConverter.FromUnstructured(content, role) != nil {
+			return false
+		}
+
+		got := expandRenderedRules(role.Rules)
+
+		for _, o := range produced {
+			if o.Kind != object.Unstructured.GetKind() || o.Namespace != object.Unstructured.GetNamespace() {
+				continue
+			}
+
+			always, conditional := expandModelRules(o.Rules)
+			for t := range conditional {
+				always.add(t)
+			}
+
+			if len(always.minus(got)) == 0 && len(got.minus(always)) == 0 {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// roleRefMatches accepts the produced roleRef itself or the rendered role it replaces by content.
+func roleRefMatches(producedRef, renderedRef string, produced []generate.Object) bool {
+	if producedRef == renderedRef {
+		return true
+	}
+
+	// The rendered binding pointed at a role the generator now produces under producedRef: accept
+	// when producedRef is a produced role and renderedRef is not.
+	for _, o := range produced {
+		if (o.Kind == "ClusterRole" || o.Kind == "Role") && o.Name == renderedRef {
+			return false
+		}
+	}
+
+	for _, o := range produced {
+		if (o.Kind == "ClusterRole" || o.Kind == "Role") && o.Name == producedRef {
+			return true
+		}
+	}
+
+	return false
+}
+
+func subjectSet(list []rbacv1.Subject) string {
+	parts := make([]string, 0, len(list))
+	for _, s := range list {
+		parts = append(parts, s.Kind+"/"+s.Namespace+"/"+s.Name)
+	}
+
+	sort.Strings(parts)
+
+	return strings.Join(parts, ",")
+}
+
+func subjectSetOf(list []generate.Subject) string {
+	parts := make([]string, 0, len(list))
+	for _, s := range list {
+		parts = append(parts, s.Kind+"/"+s.Namespace+"/"+s.Name)
+	}
+
+	sort.Strings(parts)
+
+	return strings.Join(parts, ",")
 }
 
 // managedObject is a rendered object the sync rule owns, with the class it was recognized by.
@@ -522,24 +629,23 @@ func crdScopes(crds []crdInfo) rbacyaml.CRDScopes {
 
 // regenerateFix returns the autofix for a generated file: write it from the declaration. Everything
 // the fix needs is captured now, while the render exists -- the object store is released before
-// --fix runs (R32). Two safeguards decide whether the file is written at all:
+// --fix runs (R32). The declaration is the source of truth: a right it no longer names leaves the
+// template (decided 2026-09-22, replacing D3), and the finding that led here listed it. Three
+// things are never written over:
 //
-//   - a file without the generator header is maintained by hand: the generated text is written
-//     beside it as _<file>.generated -- the underscore keeps Helm from rendering the copy as a
-//     second set of objects -- and the finding stays (R16, US-F2);
-//   - the regenerated file must grant everything the current render of that file grants (rules and
-//     aggregation edges); if anything would disappear the file is left alone and the finding names
-//     what would be lost (R25, D3). Removing a right is always a person's decision.
-func regenerateFix(modulePath string, file generate.File, actual map[string]managedObject, foreign []string) errors.AutofixFunc {
+//   - a file that also holds objects the declaration does not produce -- the generator writes the
+//     whole file and they would vanish;
+//   - a template that serves both role models behind the version gate (R30);
+//   - a file without the generator header, maintained by hand: the generated text is written
+//     beside it as _<file>.generated and the finding stays (R16, US-F2).
+func regenerateFix(modulePath string, file generate.File, foreign []string) errors.AutofixFunc {
 	content := generate.RenderFile(file)
-	expected := expectedRights(file)
 	fullPath := filepath.Join(modulePath, file.Path)
 
 	// Under --matrix the module is linted once per render variant and every variant collects its
 	// own finding with its own closure. Each records what its render grants now, while the store
 	// exists; the closure that runs first checks the union of them and writes, the others report
 	// its outcome (R36). A right rendered only under some values is therefore not lost (D3).
-	recordRenderedRights(fullPath, currentRights(file.Path, actual))
 	recordForeignObjects(fullPath, foreign)
 
 	return func() error {
@@ -577,11 +683,6 @@ func regenerateFix(modulePath string, file generate.File, actual map[string]mana
 				}
 			}
 
-			if dropped := sortedSetDiff(renderedRights(fullPath), expected); len(dropped) > 0 {
-				return fmt.Errorf("regenerating %s would drop rights the render grants today: %s; declare them in %s, or delete the file and run `%s` again to regenerate it without them",
-					file.Path, strings.Join(dropped, ", "), rbacyaml.Filename, FixCommand)
-			}
-
 			if exists && string(existing) == content {
 				return nil
 			}
@@ -600,68 +701,6 @@ func regenerateFix(modulePath string, file generate.File, actual map[string]mana
 	}
 }
 
-// currentRights collects what the render grants from the objects of this file: every tuple and
-// aggregation edge, keyed by object, from the objects the model declares for the file and from
-// the managed objects the render placed in the same template.
-func currentRights(path string, actual map[string]managedObject) map[string]struct{} {
-	out := map[string]struct{}{}
-
-	for identity, obj := range actual {
-		if obj.object.ShortPath() != path {
-			continue
-		}
-
-		content := obj.object.Unstructured.UnstructuredContent()
-
-		switch obj.object.Unstructured.GetKind() {
-		case "ClusterRole":
-			role := new(rbacv1.ClusterRole)
-			if runtime.DefaultUnstructuredConverter.FromUnstructured(content, role) == nil {
-				for t := range expandRenderedRules(role.Rules) {
-					out[identity+": "+t.String()] = struct{}{}
-				}
-
-				for l := range lineagesOfLabels(role.Labels) {
-					out[identity+": aggregation into "+l] = struct{}{}
-				}
-			}
-		case "Role":
-			role := new(rbacv1.Role)
-			if runtime.DefaultUnstructuredConverter.FromUnstructured(content, role) == nil {
-				for t := range expandRenderedRules(role.Rules) {
-					out[identity+": "+t.String()] = struct{}{}
-				}
-			}
-		}
-	}
-
-	return out
-}
-
-// expectedRights collects what the generated file will grant, conditional rules included: they
-// are in the text, so they are not lost by regeneration.
-func expectedRights(file generate.File) map[string]struct{} {
-	out := map[string]struct{}{}
-
-	for _, o := range file.Objects {
-		always, conditional := expandModelRules(o.Rules)
-
-		for t := range always {
-			out[o.Identity()+": "+t.String()] = struct{}{}
-		}
-
-		for t := range conditional {
-			out[o.Identity()+": "+t.String()] = struct{}{}
-		}
-
-		for l := range lineagesOfLabels(o.Labels) {
-			out[o.Identity()+": aggregation into "+l] = struct{}{}
-		}
-	}
-
-	return out
-}
-
 // asidePath is where the generated text of a hand-maintained file is written for comparison:
 // _<name>.generated in the same directory. Helm renders every file under templates/ whatever its
 // extension, so a plain copy would render a second set of objects; a name starting with an
@@ -674,4 +713,105 @@ func asidePath(path string) string {
 // d8:namespace-capability:<module>:<action> or d8:system-capability:<module>:<action>.
 func isModuleCapabilityName(name, module string) bool {
 	return strings.HasPrefix(name, "d8:namespace-capability:"+module+":") || strings.HasPrefix(name, "d8:system-capability:"+module+":")
+}
+
+// bootstrap is the entry of an existing module into the declaration: without rbac.yaml, the rule
+// reports the file missing and --fix writes it from the RBAC objects the module renders today --
+// the declaration a person would have transcribed from the templates, with a TODO wherever a
+// decision is still theirs (decided 2026-09-22; R22 said "contract only", the ADR said "coverage
+// creates the file"). From then on rbac.yaml is the source and the templates follow it.
+func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
+	modulePath := r.module.GetPath()
+	storage := r.module.GetStorage()
+
+	if len(storage) == 0 {
+		return
+	}
+
+	in := bootstrap.Input{Module: r.module.GetName(), Namespace: r.module.GetNamespace(), Subsystems: readModuleMetadata(modulePath).Subsystems, CRDs: map[string]string{}}
+
+	if crds, err := moduleCRDs(modulePath); err == nil {
+		for _, crd := range crds {
+			in.CRDs[crd.Key()] = crd.Scope
+		}
+	}
+
+	for _, object := range storage {
+		if o, ok := bootstrapObject(object); ok {
+			in.Objects = append(in.Objects, o)
+		}
+	}
+
+	if len(in.Objects) == 0 {
+		return
+	}
+
+	result := bootstrap.Build(in)
+	described := len(in.Objects) - len(result.Unmanaged)
+	path := rbacyaml.Path(modulePath)
+
+	declList.WithFix(func() error {
+		return fixOnce(path, func() error {
+			if _, err := os.Stat(path); err == nil {
+				return nil
+			}
+
+			content, err := bootstrap.Marshal(result)
+			if err != nil {
+				return fmt.Errorf("render %s: %w", rbacyaml.Filename, err)
+			}
+
+			return os.WriteFile(path, content, 0o644) //nolint:gosec // a source file of the module
+		})
+	}).Errorf("%s is missing: `%s` writes it from the RBAC objects the module renders today (%d of %d objects described, the rest listed in the file as hand-written); every TODO and note in it is a decision for a person before the templates are regenerated from it",
+		rbacyaml.Filename, FixCommand, described, len(in.Objects))
+}
+
+// bootstrapObject converts a rendered object of RBAC interest for the importer.
+func bootstrapObject(object storage.StoreObject) (bootstrap.Object, bool) {
+	u := object.Unstructured
+	o := bootstrap.Object{Kind: u.GetKind(), Name: u.GetName(), Namespace: u.GetNamespace(), Path: object.ShortPath(), Labels: u.GetLabels(), Annotations: u.GetAnnotations()}
+	content := u.UnstructuredContent()
+
+	switch o.Kind {
+	case "ClusterRole":
+		role := new(rbacv1.ClusterRole)
+		if runtime.DefaultUnstructuredConverter.FromUnstructured(content, role) != nil {
+			return o, false
+		}
+
+		o.Rules = role.Rules
+	case "Role":
+		role := new(rbacv1.Role)
+		if runtime.DefaultUnstructuredConverter.FromUnstructured(content, role) != nil {
+			return o, false
+		}
+
+		o.Rules = role.Rules
+	case "ClusterRoleBinding":
+		b := new(rbacv1.ClusterRoleBinding)
+		if runtime.DefaultUnstructuredConverter.FromUnstructured(content, b) != nil {
+			return o, false
+		}
+
+		o.RoleRef, o.Subjects = b.RoleRef, b.Subjects
+	case "RoleBinding":
+		b := new(rbacv1.RoleBinding)
+		if runtime.DefaultUnstructuredConverter.FromUnstructured(content, b) != nil {
+			return o, false
+		}
+
+		o.RoleRef, o.Subjects = b.RoleRef, b.Subjects
+	case "ServiceAccount":
+		sa := new(corev1.ServiceAccount)
+		if runtime.DefaultUnstructuredConverter.FromUnstructured(content, sa) != nil {
+			return o, false
+		}
+
+		o.Automount = sa.AutomountServiceAccountToken
+	default:
+		return o, false
+	}
+
+	return o, true
 }
