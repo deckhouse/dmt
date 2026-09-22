@@ -276,6 +276,7 @@ func (r *SyncRule) foreignObjects(file generate.File, model *generate.Model) []s
 	// Where the declaration puts every object it produces: an object rendered from another file
 	// than that is misplaced rather than unknown, and the refusal says so.
 	placed := map[string]string{}
+
 	for _, f := range model.Files {
 		for _, o := range f.Objects {
 			placed[o.Identity()] = f.Path
