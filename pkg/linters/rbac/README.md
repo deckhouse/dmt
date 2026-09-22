@@ -1417,6 +1417,9 @@ capabilities:
     description: {en: "Manage cert-manager Issuers in a namespace.", ru: "Управление Issuer модуля cert-manager в пространстве имён."}
 
 # ServiceAccount rights -> templates/[<path>/]rbac-for-us.yaml. Only declared accounts are managed.
+# automountServiceAccountToken defaults to false; extraClusterRoles are further ClusterRoles in the
+# account's file, d8:<module>:<account>:<name> (or exactly the name when it starts with d8:), bound
+# to the account unless bind: false -- roles split by concern, or roles shipped for others to bind.
 serviceAccounts:
   - name: cainjector
     path: cainjector                # templates/cainjector/rbac-for-us.yaml; omitted -> templates/rbac-for-us.yaml
@@ -1441,7 +1444,7 @@ serviceAccounts:
 prometheusAccess:
   deployments: [cert-manager]
 
-# Arbitrary subjects: clusterRules -> templates/rbac-for-us.yaml, namespaceRules -> templates/rbac-to-us.yaml
+# Arbitrary subjects: clusterRules -> templates/[<path>/]rbac-for-us.yaml, namespaceRules -> templates/[<path>/]rbac-to-us.yaml
 access:
   - name: admin-kubeconfig
     subjects:
@@ -1600,8 +1603,15 @@ a regeneration rather than a hand edit of every template.
 
 **Description:**
 
-Runs only when the module has an `rbac.yaml`. First validates the declaration; a declaration with
-errors is reported and nothing else is compared or generated. Then builds the objects the
+Without `rbac.yaml` the rule reports the declaration missing, and `--fix` writes it from the RBAC
+objects the module renders today: the declaration a person would have transcribed from the templates,
+with a `TODO` wherever a decision is still theirs (a resource without a CRD whose scope the linter
+cannot know, a CRD nobody grants, a namespaced resource granted cluster-wide) and a note on top for
+every object the generator will name differently or cannot describe. Review it, resolve the TODOs,
+then run `--fix` again to regenerate the templates from it. From then on `rbac.yaml` is the source.
+
+With `rbac.yaml` the rule first validates the declaration; a declaration with errors is reported and
+nothing else is compared or generated. Then builds the objects the
 declaration produces and compares them with the render.
 
 `sync` owns exactly three classes of rendered objects:
@@ -1623,11 +1633,13 @@ controller ClusterRoles with arbitrary names, objects with Helm-computed names).
 
 Findings are one per template file and carry the fix command; the text does not depend on the render variant.
 
-**Autofix:** regenerates the file from `rbac.yaml`, with three safeguards --
+**Autofix:** regenerates the file from `rbac.yaml`. The declaration is the source of truth: a right it
+no longer names leaves the template, and the finding that led there listed it. Three things are never
+written over --
 
-- a file that also holds objects the declaration does not produce -- a controller ClusterRole beside a declared ServiceAccount, a hand-written binding -- is never rewritten, because the generator writes the whole file and they would vanish (and so they would if the file were deleted); the refusal names them: declare them or move them to another template first;
+- a file that also holds objects the declaration does not produce -- a controller ClusterRole beside a declared ServiceAccount, a hand-written binding -- is never rewritten, because the generator writes the whole file and they would vanish (and so they would if the file were deleted); the refusal names them: declare them (`extraClusterRoles`, `access` with `path`) or move them first. An object the generator produces under another name -- a binding with the same roleRef and subjects, a role with the same rules -- is replaced, not foreign;
 - a file without the generator header is maintained by hand: the generated text is written beside it as `_<file>.generated` (the underscore keeps Helm from rendering the copy) and the finding stays (delete the file and run `--fix` again to hand it back to the generator);
-- the regenerated file must grant everything the render of that file grants today, rules and aggregation edges alike; otherwise the file is left alone and the finding names what would be lost. Removing a right is always a person's decision: declare it in `rbac.yaml` or remove it from the template by hand.
+- a template that serves both role models behind the version gate (`rbacv2_new_scheme`) is never regenerated: the legacy branch would vanish;
 
 A missing file is created. A second `--fix` without changes to `rbac.yaml` changes nothing. Under
 `--matrix` every render variant reports the file, but the fix runs once: the variants record what
