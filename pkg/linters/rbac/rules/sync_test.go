@@ -251,6 +251,21 @@ func TestSync_Divergences(t *testing.T) {
 			},
 			want: []string{"error: templates/user-authz-cluster-roles.yaml does not match rbac.yaml: ClusterRole/d8:user-authz:cert-manager:super-admin is in the render but rbac.yaml does not produce it: declare its rights in rbac.yaml or remove it from the template. Run `dmt lint --linter rbac --fix` to regenerate the file from the declaration"},
 		},
+		"D2: capabilities of the project lineage and platform-wide ones are not the declaration's": {
+			extra: func(t *testing.T, store *storage.UnstructuredObjectStore) {
+				putObject(t, store, "templates/rbacv2/project/capabilities/manage_rbac.yaml", generate.Object{
+					Kind: "ClusterRole", Name: "d8:project-capability:cert-manager:manage_rbac", Class: generate.ClassCapability,
+					Labels: map[string]string{"rbac.deckhouse.io/kind": "capability", "rbac.deckhouse.io/scope": "project", "rbac.deckhouse.io/aggregate-to-project-as": "admin"},
+					Rules:  []generate.Rule{{PolicyRule: rbacyaml.PolicyRule{APIGroups: []string{"rbac.authorization.k8s.io"}, Resources: []string{"rolebindings"}, Verbs: []string{"create"}}}},
+				})
+				putObject(t, store, "templates/rbacv2/global/namespace/capabilities/view_logs.yaml", generate.Object{
+					Kind: "ClusterRole", Name: "d8:namespace-capability:kubernetes:view_logs", Class: generate.ClassCapability,
+					Labels: map[string]string{"rbac.deckhouse.io/kind": "capability", "rbac.deckhouse.io/scope": "namespace", "rbac.deckhouse.io/aggregate-to-namespace-as": "viewer"},
+					Rules:  []generate.Rule{{PolicyRule: rbacyaml.PolicyRule{APIGroups: []string{""}, Resources: []string{"pods/log"}, Verbs: []string{"get"}}}},
+				})
+			},
+			want: nil,
+		},
 		"D2: a module capability in a file the declaration does not produce": {
 			extra: func(t *testing.T, store *storage.UnstructuredObjectStore) {
 				putObject(t, store, "templates/rbacv2/use/superadmin.yaml", generate.Object{
@@ -713,4 +728,48 @@ func TestSync_MissingFileWithConditionalObjectsIsReported(t *testing.T) {
 
 	// With the file in place and the condition still false, nothing is reported.
 	assert.Empty(t, texts(runSync(t, modulePath, store)))
+}
+
+// A generated file that also holds an object the declaration does not produce is never rewritten:
+// the generator writes the whole file, and the foreign object would vanish with it.
+func TestSync_FileWithForeignObjectsIsNotRegenerated(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+
+	const rel = "templates/cainjector/rbac-for-us.yaml"
+
+	// The render: the cainjector file lacks a declared rule and carries a controller ClusterRole
+	// of its own that nobody declared.
+	store := renderedFrom(t, model, func(o *generate.Object) bool {
+		if o.Kind == "ClusterRole" && o.Name == "d8:cert-manager:cainjector" {
+			o.Rules = o.Rules[:1]
+		}
+
+		return true
+	})
+	putObject(t, store, rel, generate.Object{
+		Kind: "ClusterRole", Name: "d8:cert-manager:cainjector:requester", Class: generate.ClassDeclared,
+		Rules: []generate.Rule{{PolicyRule: rbacyaml.PolicyRule{APIGroups: []string{""}, Resources: []string{"secrets"}, Verbs: []string{"get"}}}},
+	})
+
+	before, err := os.ReadFile(filepath.Join(modulePath, rel))
+	require.NoError(t, err)
+
+	errorList := runSync(t, modulePath, store)
+	for _, fix := range errorList.GetFixes() {
+		fix()
+	}
+
+	remaining := errorList.GetErrors()
+	require.Len(t, remaining, 1)
+	require.Error(t, remaining[0].FixError)
+	assert.Contains(t, remaining[0].FixError.Error(), "templates/cainjector/rbac-for-us.yaml also holds objects the declaration does not produce: ClusterRole/d8:cert-manager:cainjector:requester; regenerating the file would drop them")
+
+	after, err := os.ReadFile(filepath.Join(modulePath, rel))
+	require.NoError(t, err)
+	assert.Equal(t, string(before), string(after), "the file is left alone")
 }
