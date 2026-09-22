@@ -874,6 +874,7 @@ func TestSync_MisplacedObjectIsNamed(t *testing.T) {
 	}
 
 	var messages []string
+
 	for _, e := range errorList.GetErrors() {
 		if e.FixError != nil {
 			messages = append(messages, e.FixError.Error())

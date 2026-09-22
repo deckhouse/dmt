@@ -192,6 +192,7 @@ func Build(in Input) (*Model, error) {
 
 	sort.Slice(model.Files, func(i, j int) bool { return model.Files[i].Path < model.Files[j].Path })
 
+	// A marker past 63 characters fails the contract; only a long module name can cause it.
 	for _, f := range model.Files {
 		for _, o := range f.Objects {
 			if marker := o.Labels[rbaccontract.LabelCapability]; len(marker) > 63 {
@@ -207,6 +208,7 @@ func Build(in Input) (*Model, error) {
 // metadata, and the objects it would produce would fail the platform's other rules.
 func checkAgainstModule(in Input) error {
 	systemLevels := false
+
 	for _, r := range in.Decl.Resources {
 		if len(r.System) > 0 {
 			systemLevels = true
