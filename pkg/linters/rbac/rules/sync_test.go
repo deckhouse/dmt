@@ -321,11 +321,33 @@ func TestSync_InvalidDeclarationStopsEverything(t *testing.T) {
 	assert.Contains(t, got[0], "nothing is compared or generated until the declaration is valid")
 }
 
-func TestSync_WithoutDeclarationIsSilent(t *testing.T) {
+// Without rbac.yaml the rule reports the declaration missing, and --fix writes it from the render:
+// the file a person would have transcribed from the templates, ready to be read and corrected.
+func TestSync_WithoutDeclarationBootstrapsIt(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
 	modulePath := syncModuleDir(t)
 	model := syncModel(t, modulePath)
 	require.NoError(t, os.Remove(rbacyaml.Path(modulePath)))
 
+	errorList := runSync(t, modulePath, renderedFrom(t, model, nil))
+	got := texts(errorList)
+	require.Len(t, got, 1, "got: %v", got)
+	assert.Contains(t, got[0], "rbac.yaml is missing: `dmt lint --linter rbac --fix` writes it from the RBAC objects the module renders today (22 of 22 objects described")
+
+	for _, fix := range errorList.GetFixes() {
+		fix()
+	}
+
+	assert.Empty(t, errorList.GetErrors())
+
+	written, err := rbacyaml.Load(modulePath)
+	require.NoError(t, err, "the written declaration parses")
+	assert.Len(t, written.ServiceAccounts, 1)
+	assert.NotEmpty(t, written.Resources)
+
+	// The next run compares against it and, the render being what it declares, is silent.
 	assert.Empty(t, texts(runSync(t, modulePath, renderedFrom(t, model, nil))))
 }
 
@@ -370,7 +392,7 @@ func TestSync_Autofix(t *testing.T) {
 		assert.Equal(t, before.ModTime(), after.ModTime())
 	})
 
-	t.Run("D3: refuses to drop a right the render grants", func(t *testing.T) {
+	t.Run("the declaration wins: a right it does not name leaves the template", func(t *testing.T) {
 		resetFixState()
 
 		modulePath := syncModuleDir(t)
@@ -383,24 +405,27 @@ func TestSync_Autofix(t *testing.T) {
 			return true
 		})
 
-		// The file exists with a generator header, so only the guard stands in the way.
-		path := filepath.Join(modulePath, "templates/user-authz-cluster-roles.yaml")
+		const rel = "templates/user-authz-cluster-roles.yaml"
+
+		path := filepath.Join(modulePath, rel)
 		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-		require.NoError(t, os.WriteFile(path, []byte(generate.Header()+"\n# stale\n"), 0o600))
+		require.NoError(t, os.WriteFile(path, []byte(generate.Header()+"\n# stale, with the secrets rule the declaration does not name\n"), 0o600))
 
 		errorList := runSync(t, modulePath, store)
+		got := texts(errorList)
+		require.Len(t, got, 1, "got: %v", got)
+		assert.Contains(t, got[0], `get ""/secrets is in the render but not declared`, "the finding names what the rewrite removes")
+
 		for _, fix := range errorList.GetFixes() {
 			fix()
 		}
 
-		remaining := errorList.GetErrors()
-		require.Len(t, remaining, 1)
-		require.Error(t, remaining[0].FixError)
-		assert.Contains(t, remaining[0].FixError.Error(), `would drop rights the render grants today: ClusterRole/d8:user-authz:cert-manager:user: get ""/secrets`)
+		assert.Empty(t, errorList.GetErrors())
 
-		unchanged, err := os.ReadFile(path)
+		written, err := os.ReadFile(path)
 		require.NoError(t, err)
-		assert.Equal(t, generate.Header()+"\n# stale\n", string(unchanged), "the file is left alone")
+		assert.Equal(t, generate.RenderFile(*model.File(rel)), string(written))
+		assert.NotContains(t, string(written), "secrets")
 	})
 
 	t.Run("US-F2: a file without the header is maintained by hand", func(t *testing.T) {
@@ -475,39 +500,37 @@ func TestSync_ForeignContractVersionIsRegenerated(t *testing.T) {
 	assert.Equal(t, want, string(written))
 }
 
-// R36/D3: under --matrix every variant records its render at lint time, so the closure that runs
-// first refuses to drop a right only another variant rendered, and the other closures report the
-// same outcome instead of writing.
+// R36: under --matrix every variant records at lint time the objects it rendered into a file that the
+// declaration does not produce; the closure that runs first judges the union, so a foreign object
+// rendered only under some values still protects the file, and the other closures report the same.
 func TestSync_FixSeesEveryRenderVariant(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
 
 	modulePath := syncModuleDir(t)
 	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
 
-	// Both variants lack a declared rule (the file is stale); variant A also grants a right that is
-	// not declared -- as a template with a hand-written {{ if }} would under some values.
+	const rel = "templates/rbacv2/use/view.yaml"
+
+	// Both variants lack a declared rule (the file is stale); variant A also renders a foreign
+	// object from the same file, as a hand-added {{ if }} block would under some values.
 	stale := func(o *generate.Object) bool {
-		if o.Name == "d8:user-authz:cert-manager:user" {
+		if o.Name == "d8:namespace-capability:cert-manager:view" {
 			o.Rules = o.Rules[:len(o.Rules)-1]
 		}
 
 		return true
 	}
 	variantB := renderedFrom(t, model, stale)
-	variantA := renderedFrom(t, model, func(o *generate.Object) bool {
-		stale(o)
-
-		if o.Name == "d8:user-authz:cert-manager:user" {
-			o.Rules = append(o.Rules, generate.Rule{PolicyRule: rbacyaml.PolicyRule{APIGroups: []string{""}, Resources: []string{"secrets"}, Verbs: []string{"get"}}})
-		}
-
-		return true
+	variantA := renderedFrom(t, model, stale)
+	putObject(t, variantA, rel, generate.Object{
+		Kind: "ClusterRole", Name: "d8:cert-manager:only-sometimes", Class: generate.ClassDeclared,
+		Rules: []generate.Rule{{PolicyRule: rbacyaml.PolicyRule{APIGroups: []string{""}, Resources: []string{"secrets"}, Verbs: []string{"get"}}}},
 	})
 
-	path := filepath.Join(modulePath, "templates/user-authz-cluster-roles.yaml")
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-	require.NoError(t, os.WriteFile(path, []byte(generate.Header()+"\n# stale\n"), 0o600))
+	before, err := os.ReadFile(filepath.Join(modulePath, rel))
+	require.NoError(t, err)
 
 	// Lint both variants first, as the manager does, then apply the fixes: B's closure runs first.
 	listB := runSync(t, modulePath, variantB)
@@ -525,12 +548,12 @@ func TestSync_FixSeesEveryRenderVariant(t *testing.T) {
 		remaining := list.GetErrors()
 		require.Len(t, remaining, 1, "variant %s", name)
 		require.Error(t, remaining[0].FixError, "variant %s", name)
-		assert.Contains(t, remaining[0].FixError.Error(), `would drop rights the render grants today: ClusterRole/d8:user-authz:cert-manager:user: get ""/secrets`, "variant %s", name)
+		assert.Contains(t, remaining[0].FixError.Error(), "also holds objects the declaration does not produce: ClusterRole/d8:cert-manager:only-sometimes", "variant %s", name)
 	}
 
-	unchanged, err := os.ReadFile(path)
+	unchanged, err := os.ReadFile(filepath.Join(modulePath, rel))
 	require.NoError(t, err)
-	assert.Equal(t, generate.Header()+"\n# stale\n", string(unchanged), "no variant wrote the file")
+	assert.Equal(t, string(before), string(unchanged), "no variant wrote the file")
 }
 
 // R8a/D7: a declaration in an edition overlay is reported by sync and ignored by coverage.
@@ -772,4 +795,46 @@ func TestSync_FileWithForeignObjectsIsNotRegenerated(t *testing.T) {
 	after, err := os.ReadFile(filepath.Join(modulePath, rel))
 	require.NoError(t, err)
 	assert.Equal(t, string(before), string(after), "the file is left alone")
+}
+
+// A rendered object the generator produces under another name is replaced, not foreign: a binding
+// with the same roleRef and subjects, a role with the same rules.
+func TestSync_RenamedObjectsAreNotForeign(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+
+	const rel = "templates/rbac-to-us.yaml"
+
+	// The render still carries the old names a hand-written module gave the metrics access: the
+	// Role and its RoleBinding, with the same rules, roleRef and subjects.
+	store := renderedFrom(t, model, func(o *generate.Object) bool {
+		if o.Name == "access-to-cert-manager" && (o.Kind == "Role" || o.Kind == "RoleBinding") {
+			o.Name = "access-to-cert-manager-prometheus-metrics"
+
+			if o.Kind == "RoleBinding" {
+				o.RoleRefName = "access-to-cert-manager-prometheus-metrics"
+			}
+		}
+
+		return true
+	})
+
+	errorList := runSync(t, modulePath, store)
+	got := texts(errorList)
+	require.Len(t, got, 1, "got: %v", got)
+	assert.Contains(t, got[0], "is declared but absent from the render")
+
+	for _, fix := range errorList.GetFixes() {
+		fix()
+	}
+
+	assert.Empty(t, errorList.GetErrors(), "the renamed bindings are replaced, so the file is regenerated")
+
+	written, err := os.ReadFile(filepath.Join(modulePath, rel))
+	require.NoError(t, err)
+	assert.Equal(t, generate.RenderFile(*model.File(rel)), string(written))
 }

@@ -277,6 +277,29 @@ func validateServiceAccounts(accounts []ServiceAccount, report reporter) {
 		validatePolicyRules(sa.ClusterRules, where+".clusterRules", report)
 		validatePolicyRules(sa.NamespaceRules, where+".namespaceRules", report)
 
+		extraNames := make(map[string]struct{}, len(sa.ExtraClusterRoles))
+
+		for j, extra := range sa.ExtraClusterRoles {
+			ewhere := fmt.Sprintf("%s.extraClusterRoles[%d]", where, j)
+
+			if extra.Name == "" {
+				report("%s: name is required", ewhere)
+				continue
+			}
+
+			if _, dup := extraNames[extra.Name]; dup {
+				report("%s: duplicate name %q", ewhere, extra.Name)
+			}
+
+			extraNames[extra.Name] = struct{}{}
+
+			if len(extra.Rules) == 0 {
+				report("%s (%s): rules is required", ewhere, extra.Name)
+			}
+
+			validatePolicyRules(extra.Rules, ewhere+".rules", report)
+		}
+
 		for j, ref := range sa.BindRoles {
 			if ref.Namespace == "" || ref.Name == "" {
 				report("%s.bindRoles[%d]: namespace and name are required", where, j)
@@ -310,6 +333,10 @@ func validateAccess(access []Access, report reporter) {
 
 		if len(a.Subjects) == 0 {
 			report("%s: subjects is required", where)
+		}
+
+		if strings.HasPrefix(a.Path, "/") || strings.HasSuffix(a.Path, "/") || strings.Contains(a.Path, "..") {
+			report("%s: path must be a directory under templates/ without leading or trailing slashes, got %q", where, a.Path)
 		}
 
 		for j, s := range a.Subjects {

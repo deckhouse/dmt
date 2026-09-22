@@ -14,6 +14,11 @@ expect:
     level: warn
     textContains: "is of the legacy RBACv2 scheme (rbac.deckhouse.io/kind: manage, the manage/use model before DKP 1.78); migrate the module with rbacv2-migrate-module.sh"
     count: 2
+  - linter: rbac
+    rule: sync
+    level: warn
+    textContains: "rbac.yaml is missing"
+    count: 1
 expectPass:
   - linter: manager
   - linter: rbac
@@ -21,5 +26,3 @@ expectPass:
     textContains: "must"
   - linter: rbac
     rule: coverage
-  - linter: rbac
-    rule: sync
