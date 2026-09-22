@@ -360,7 +360,7 @@ func (b *builder) serviceAccounts() {
 			labels[k] = v
 		}
 
-		automount := false
+		automount := sa.AutomountToken != nil && *sa.AutomountToken
 		b.add(path, Object{
 			Kind: "ServiceAccount", Name: sa.Name, Namespace: b.in.Namespace, Class: ClassDeclared,
 			When: sa.When, Labels: labels, AutomountToken: &automount,
@@ -377,6 +377,15 @@ func (b *builder) serviceAccounts() {
 		if len(sa.NamespaceRules) > 0 {
 			b.add(path, Object{Kind: "Role", Name: sa.Name, Namespace: b.in.Namespace, Class: ClassDeclared, When: sa.When, Labels: labels, Rules: policyRules(sa.NamespaceRules)})
 			b.add(path, Object{Kind: "RoleBinding", Name: sa.Name, Namespace: b.in.Namespace, Class: ClassDeclared, When: sa.When, Labels: labels, RoleRefKind: "Role", RoleRefName: sa.Name, Subjects: subject})
+		}
+
+		for _, extra := range sa.ExtraClusterRoles {
+			extraName := extra.FullName(b.in.Module, sa.Name)
+			b.add(path, Object{Kind: "ClusterRole", Name: extraName, Class: ClassDeclared, When: sa.When, Labels: labels, Rules: policyRules(extra.Rules)})
+
+			if extra.IsBound() {
+				b.add(path, Object{Kind: "ClusterRoleBinding", Name: extraName, Class: ClassDeclared, When: sa.When, Labels: labels, RoleRefKind: "ClusterRole", RoleRefName: extraName, Subjects: subject})
+			}
 		}
 
 		for _, bound := range sa.BindClusterRoles {
@@ -440,16 +449,21 @@ func (b *builder) access() {
 			subjects = append(subjects, Subject{Kind: s.Kind, Name: s.Name, Namespace: s.Namespace})
 		}
 
+		dir := "templates/"
+		if a.Path != "" {
+			dir = "templates/" + a.Path + "/"
+		}
+
 		if len(a.ClusterRules) > 0 {
 			name := "d8:" + b.in.Module + ":" + a.Name
-			b.add("templates/rbac-for-us.yaml", Object{Kind: "ClusterRole", Name: name, Class: ClassDeclared, Rules: policyRules(a.ClusterRules)})
-			b.add("templates/rbac-for-us.yaml", Object{Kind: "ClusterRoleBinding", Name: name, Class: ClassDeclared, RoleRefKind: "ClusterRole", RoleRefName: name, Subjects: subjects})
+			b.add(dir+"rbac-for-us.yaml", Object{Kind: "ClusterRole", Name: name, Class: ClassDeclared, Rules: policyRules(a.ClusterRules)})
+			b.add(dir+"rbac-for-us.yaml", Object{Kind: "ClusterRoleBinding", Name: name, Class: ClassDeclared, RoleRefKind: "ClusterRole", RoleRefName: name, Subjects: subjects})
 		}
 
 		if len(a.NamespaceRules) > 0 {
 			name := "access-to-" + b.in.Module + "-" + a.Name
-			b.add("templates/rbac-to-us.yaml", Object{Kind: "Role", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, Rules: policyRules(a.NamespaceRules)})
-			b.add("templates/rbac-to-us.yaml", Object{Kind: "RoleBinding", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, RoleRefKind: "Role", RoleRefName: name, Subjects: subjects})
+			b.add(dir+"rbac-to-us.yaml", Object{Kind: "Role", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, Rules: policyRules(a.NamespaceRules)})
+			b.add(dir+"rbac-to-us.yaml", Object{Kind: "RoleBinding", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, RoleRefKind: "Role", RoleRefName: name, Subjects: subjects})
 		}
 	}
 }

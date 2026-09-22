@@ -199,3 +199,45 @@ func TestParseHeader(t *testing.T) {
 	generated, _ = ParseHeader("---\napiVersion: v1\n")
 	assert.False(t, generated, "a file without the header is maintained by hand")
 }
+
+// extraClusterRoles land in the account's file, bound unless said otherwise; the account's
+// automountServiceAccountToken follows the declaration and defaults to false.
+func TestBuild_ExtraClusterRolesAndAutomount(t *testing.T) {
+	yes, no := true, false
+	decl := &rbacyaml.Declaration{APIVersion: rbacyaml.APIVersionV1Alpha1, ServiceAccounts: []rbacyaml.ServiceAccount{
+		{Name: "webhook", Path: "webhook", AutomountToken: &yes, ExtraClusterRoles: []rbacyaml.ExtraClusterRole{
+			{Name: "requester", Bind: &no, Rules: []rbacyaml.PolicyRule{{APIGroups: []string{"admission.cert-manager.io"}, Resources: []string{"certificates"}, Verbs: []string{"create"}}}},
+			{Name: "approve", Rules: []rbacyaml.PolicyRule{{APIGroups: []string{"cert-manager.io"}, Resources: []string{"signers"}, Verbs: []string{"approve"}}}},
+			{Name: "d8:cert-manager:legacy-name", Rules: []rbacyaml.PolicyRule{{APIGroups: []string{""}, Resources: []string{"secrets"}, Verbs: []string{"get"}}}},
+		}},
+		{Name: "controller"},
+	}}
+
+	model, err := Build(Input{Module: "cert-manager", Namespace: "d8-cert-manager", Subsystems: []string{"security"}, Decl: decl})
+	require.NoError(t, err)
+
+	file := model.File("templates/webhook/rbac-for-us.yaml")
+	require.NotNil(t, file)
+
+	names := map[string]Object{}
+	for _, o := range file.Objects {
+		names[o.Kind+"/"+o.Name] = o
+	}
+
+	assert.Contains(t, names, "ClusterRole/d8:cert-manager:webhook:requester")
+	assert.NotContains(t, names, "ClusterRoleBinding/d8:cert-manager:webhook:requester", "bind: false leaves the role unbound")
+	assert.Contains(t, names, "ClusterRole/d8:cert-manager:webhook:approve")
+	assert.Contains(t, names, "ClusterRoleBinding/d8:cert-manager:webhook:approve")
+	assert.Equal(t, "d8:cert-manager:webhook:approve", names["ClusterRoleBinding/d8:cert-manager:webhook:approve"].RoleRefName)
+	assert.Contains(t, names, "ClusterRole/d8:cert-manager:legacy-name", "a full d8: name is kept as given")
+	assert.True(t, *names["ServiceAccount/webhook"].AutomountToken)
+
+	root := model.File("templates/rbac-for-us.yaml")
+	require.NotNil(t, root)
+
+	for _, o := range root.Objects {
+		if o.Kind == "ServiceAccount" && o.Name == "controller" {
+			assert.False(t, *o.AutomountToken, "unset means false")
+		}
+	}
+}
