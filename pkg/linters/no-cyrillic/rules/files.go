@@ -38,7 +38,7 @@ var (
 
 	// module.yaml and rbac.yaml carry the module's localized texts by design (descriptions.ru, the
 	// ru titles and descriptions of capabilities the rbac declaration requires), so they are not judged.
-	skipDocRe  = `doc-ru-.+\.y[a]?ml$|\.ru\.y[a]?ml$|\.ru\.json$|\.ru\.md$|\.ru\.html$|_RU\.md$|_ru\.html$|docs/site/_.+|docs/documentation/_.+|tools/spelling/.+|openapi/conversions/.+|module.yaml|(^|/)rbac\.yaml$|ru\..+`
+	skipDocRe  = `doc-ru-.+\.y[a]?ml$|\.ru\.y[a]?ml$|\.ru\.json$|\.ru\.md$|\.ru\.html$|_RU\.md$|_ru\.html$|docs/site/_.+|docs/documentation/_.+|tools/spelling/.+|openapi/conversions/.+|module.yaml|ru\..+`
 	skipSelfRe = `no_cyrillic(_test)?.go$`
 	skipI18NRe = `/i18n/`
 
@@ -109,7 +109,7 @@ func (r *FilesRule) checkFile(fileName string) {
 		return
 	}
 
-	if r.skipDocRe.MatchString(fileName) {
+	if r.skipDocRe.MatchString(fileName) || fName == "rbac.yaml" {
 		return
 	}
 

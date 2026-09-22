@@ -1692,5 +1692,5 @@ linters-settings:
 - `impact: ignore` on a rule switches its autofix off with it: `--fix` never rewrites files on behalf of findings nobody sees.
 - A `when` condition must parse as a Helm expression (sprig and Helm functions are known); whether it holds under the linter's value stubs is decided by the render -- a condition that breaks the render is reported by the `helm-render` rule, and the module is not linted further.
 - `dmt lint remote` does not run these rules: a published image carries no chart to render.
-- The keys of the `rbac` configuration blocks (`linters-settings.rbac`, its `exclude-rules`, the global `rbac` settings and its `rules`) are checked: an unknown key at those levels is an error, not a silent no-op. Keys inside a rule's level or an exclusion entry are viper's as before.
+- The keys of the `rbac` configuration blocks are checked down to a rule's `impact` and the `kind`/`name` of an exclusion entry: every unknown key is reported in one error, not dropped in silence.
 

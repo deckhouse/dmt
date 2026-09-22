@@ -85,6 +85,25 @@ linters-settings:
 		assert.Contains(t, err.Error(), `unknown key(s) coverage-rule under "linters-settings.rbac.exclude-rules"`)
 	})
 
+	t.Run("a misspelled impact of one rule is an error", func(t *testing.T) {
+		err := loadFrom(t, "global:\n  linters-settings:\n    rbac:\n      rules:\n        coverage: {impakt: warn}\n")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `unknown key(s) impakt under "global.linters-settings.rbac.rules.coverage": the accepted keys are impact`)
+	})
+
+	t.Run("a misspelled key of an exclusion entry is an error", func(t *testing.T) {
+		err := loadFrom(t, "linters-settings:\n  rbac:\n    exclude-rules:\n      contract:\n        - kidn: ClusterRole\n          name: x\n")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `unknown key(s) kidn under "linters-settings.rbac.exclude-rules.contract[0]": the accepted keys are kind, name`)
+	})
+
+	t.Run("every problem is reported at once", func(t *testing.T) {
+		err := loadFrom(t, "global:\n  linters-settings:\n    rbac:\n      rules:\n        coverge: {impact: warn}\nlinters-settings:\n  rbac:\n    exclude-rules:\n      sync: [just-a-string]\n")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unknown key(s) coverge")
+		assert.Contains(t, err.Error(), `entry 0 under "linters-settings.rbac.exclude-rules.sync" is not a kind/name pair`)
+	})
+
 	t.Run("other linters keep the lenient behaviour", func(t *testing.T) {
 		require.NoError(t, loadFrom(t, "linters-settings:\n  container:\n    impakt: warn\n"))
 	})

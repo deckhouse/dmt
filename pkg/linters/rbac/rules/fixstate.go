@@ -40,32 +40,34 @@ import (
 //     rather than the render of whichever variant happened to run its closure first.
 var fixState = struct {
 	sync.Mutex
-	outcomes  map[string]error
 	foreign   map[string]map[string]struct{}
 	bootstrap map[string]map[string]bootstrap.Object
 }{
-	outcomes:  map[string]error{},
 	foreign:   map[string]map[string]struct{}{},
 	bootstrap: map[string]map[string]bootstrap.Object{},
 }
 
-// fixOnce runs fix for the key the first time it is asked and returns that outcome on every later
-// call. Fixes run one at a time (Manager.ApplyFixes is sequential), and the fix itself reads the
-// state, so it runs outside the lock.
-func fixOnce(key string, fix func() error) error {
-	fixState.Lock()
-	err, done := fixState.outcomes[key]
-	fixState.Unlock()
+// fixOutcomes remembers the result of every fix that ran, by file. It has a lock of its own, held
+// while the fix runs: a fix reads fixState, so the two must not share a mutex, and holding this one
+// is what makes "once" hold under concurrent callers too, not only under the sequential
+// Manager.ApplyFixes.
+var fixOutcomes = struct {
+	sync.Mutex
+	done map[string]error
+}{done: map[string]error{}}
 
-	if done {
+// fixOnce runs fix for the key the first time it is asked and returns that outcome on every later
+// call.
+func fixOnce(key string, fix func() error) error {
+	fixOutcomes.Lock()
+	defer fixOutcomes.Unlock()
+
+	if err, done := fixOutcomes.done[key]; done {
 		return err
 	}
 
-	err = fix()
-
-	fixState.Lock()
-	fixState.outcomes[key] = err
-	fixState.Unlock()
+	err := fix()
+	fixOutcomes.done[key] = err
 
 	return err
 }
@@ -108,9 +110,13 @@ func resetFixState() {
 	fixState.Lock()
 	defer fixState.Unlock()
 
-	fixState.outcomes = map[string]error{}
 	fixState.foreign = map[string]map[string]struct{}{}
 	fixState.bootstrap = map[string]map[string]bootstrap.Object{}
+
+	fixOutcomes.Lock()
+	defer fixOutcomes.Unlock()
+
+	fixOutcomes.done = map[string]error{}
 }
 
 // recordBootstrapObjects adds the RBAC objects one render variant produced, for the first
