@@ -20,6 +20,7 @@ import (
 	"context"
 	stderrors "errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -29,6 +30,8 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/yaml"
+
+	"github.com/deckhouse/deckhouse/pkg/log"
 
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
@@ -237,7 +240,7 @@ func (r *SyncRule) Check(_ context.Context) {
 		fileList := r.errorList.WithFilePath(path).WithObjectID(path)
 
 		if file := model.File(path); file != nil {
-			fileList = fileList.WithFix(regenerateFix(modulePath, *file, r.foreignObjects(*file, model)))
+			fileList = fileList.WithFix(regenerateFix(modulePath, *file, r.foreignObjects(*file, model), removalsOf(list)))
 			fileList.Errorf("%s does not match %s: %s. Run `%s` to regenerate the file from the declaration",
 				path, rbacyaml.Filename, strings.Join(list, "; "), FixCommand)
 
@@ -659,7 +662,23 @@ func crdScopes(crds []crdInfo) rbacyaml.CRDScopes {
 //   - a template that serves both role models behind the version gate (R30);
 //   - a file without the generator header, maintained by hand: the generated text is written
 //     beside it as _<file>.generated and the finding stays (R16, US-F2).
-func regenerateFix(modulePath string, file generate.File, foreign []string) errors.AutofixFunc {
+//
+// removalsOf picks, from a file's divergences, what a regeneration takes away: rights and objects
+// the render has and the declaration does not name. They are logged when the file is written, so a
+// --fix run without a preceding dmt lint does not remove rights in silence.
+func removalsOf(divergences []string) []string {
+	var out []string
+
+	for _, d := range divergences {
+		if strings.Contains(d, "is in the render but not declared") || strings.Contains(d, "is in the render but rbac.yaml does not produce it") {
+			out = append(out, d)
+		}
+	}
+
+	return out
+}
+
+func regenerateFix(modulePath string, file generate.File, foreign, removals []string) errors.AutofixFunc {
 	content := generate.RenderFile(file)
 	fullPath := filepath.Join(modulePath, file.Path)
 
@@ -717,7 +736,20 @@ func regenerateFix(modulePath string, file generate.File, foreign []string) erro
 				perm = info.Mode().Perm()
 			}
 
-			return os.WriteFile(fullPath, []byte(content), perm)
+			if err := os.WriteFile(fullPath, []byte(content), perm); err != nil {
+				return err
+			}
+
+			// The declaration is the source: what it no longer names left the file. Say so where a
+			// --fix run without a preceding lint would otherwise remove it in silence.
+			if len(removals) > 0 {
+				log.Warn("rbac autofix regenerated a template and removed what the declaration does not name",
+					slog.String("file", file.Path), slog.Any("removed", removals))
+			} else {
+				log.Info("rbac autofix regenerated a template from rbac.yaml", slog.String("file", file.Path))
+			}
+
+			return nil
 		})
 	}
 }

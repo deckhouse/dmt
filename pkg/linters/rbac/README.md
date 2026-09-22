@@ -1634,7 +1634,8 @@ controller ClusterRoles with arbitrary names, objects with Helm-computed names).
 Findings are one per template file and carry the fix command; the text does not depend on the render variant.
 
 **Autofix:** regenerates the file from `rbac.yaml`. The declaration is the source of truth: a right it
-no longer names leaves the template, and the finding that led there listed it. Three things are never
+no longer names leaves the template; the finding that led there listed it, and the autofix logs what it
+removed, so a `--fix` run without a preceding `dmt lint` does not remove rights in silence. Three things are never
 written over --
 
 - a file that also holds objects the declaration does not produce -- a controller ClusterRole beside a declared ServiceAccount, a hand-written binding -- is never rewritten, because the generator writes the whole file and they would vanish (and so they would if the file were deleted); the refusal names them: declare them (`extraClusterRoles`, `access` with `path`) or move them first. An object the generator produces under another name -- a binding with the same roleRef and subjects, a role with the same rules -- is replaced, not foreign;
