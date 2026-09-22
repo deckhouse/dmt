@@ -302,4 +302,7 @@ func TestParseHeader_CRLF(t *testing.T) {
 	generated, version := ParseHeader(Header() + "\r\n---\r\n")
 	assert.True(t, generated)
 	assert.Equal(t, "1", version)
+
+	generated, _ = ParseHeader(Header() + "   \n---\n")
+	assert.True(t, generated, "trailing spaces do not hand the file over to a person")
 }
