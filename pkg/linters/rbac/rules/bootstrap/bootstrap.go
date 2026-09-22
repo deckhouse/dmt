@@ -261,7 +261,7 @@ func (b *builder) capabilitiesAndLegacy() {
 }
 
 func (b *builder) byKind(kind string) []Object {
-	var out []Object
+	out := make([]Object, 0, len(b.in.Objects))
 
 	for _, o := range b.in.Objects {
 		if o.Kind == kind {
@@ -301,7 +301,7 @@ func (b *builder) ownClusterRole(o Object) bool {
 }
 
 func (b *builder) bindingsOf(name string) []Object {
-	var out []Object
+	out := make([]Object, 0, len(b.in.Objects))
 
 	for _, o := range b.in.Objects {
 		if o.Kind == "ClusterRoleBinding" && o.RoleRef.Name == name {
