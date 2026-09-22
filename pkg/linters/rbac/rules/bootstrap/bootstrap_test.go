@@ -33,7 +33,7 @@ import (
 // objectsOf simulates the render of a model: every object as the chart would produce it, with the
 // module labels helm_lib adds and the module namespace stripped, as dmt renders it.
 func objectsOf(model *generate.Model, module, namespace string) []Object {
-	var out []Object
+	out := make([]Object, 0, len(model.Files))
 
 	for _, file := range model.Files {
 		for _, o := range file.Objects {
