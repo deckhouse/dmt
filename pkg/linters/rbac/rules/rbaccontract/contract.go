@@ -97,7 +97,7 @@ var (
 	// ProjectLevels are the levels of the project lineage; a module capability never aggregates
 	// there directly (project roles aggregate namespace roles), but the contract check on
 	// platform roles needs the set.
-	ProjectLevels = NamespaceLevels
+	ProjectLevels = slices.Clone(NamespaceLevels)
 )
 
 // ContractVersion is the version of the platform contract the generator writes templates for. It is

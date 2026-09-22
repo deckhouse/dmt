@@ -17,6 +17,7 @@ limitations under the License.
 package generate
 
 import (
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -110,10 +111,10 @@ func renderObject(b *strings.Builder, o Object) {
 	b.WriteString("apiVersion: " + apiVersion + "\n")
 	b.WriteString("kind: " + o.Kind + "\n")
 	b.WriteString("metadata:\n")
-	b.WriteString("  name: " + o.Name + "\n")
+	b.WriteString("  name: " + yamlScalar(o.Name) + "\n")
 
 	if o.Namespace != "" {
-		b.WriteString("  namespace: " + o.Namespace + "\n")
+		b.WriteString("  namespace: " + yamlScalar(o.Namespace) + "\n")
 	}
 
 	b.WriteString("  " + labelsInclude(o.Labels) + "\n")
@@ -134,15 +135,15 @@ func renderObject(b *strings.Builder, o Object) {
 	case "ClusterRole", "Role":
 		renderRules(b, o.Rules)
 	case "ClusterRoleBinding", "RoleBinding":
-		b.WriteString("roleRef:\n  apiGroup: rbac.authorization.k8s.io\n  kind: " + o.RoleRefKind + "\n  name: " + o.RoleRefName + "\n")
+		b.WriteString("roleRef:\n  apiGroup: rbac.authorization.k8s.io\n  kind: " + o.RoleRefKind + "\n  name: " + yamlScalar(o.RoleRefName) + "\n")
 		b.WriteString("subjects:\n")
 
 		for _, s := range o.Subjects {
 			switch s.Kind {
 			case "ServiceAccount":
-				b.WriteString("- kind: ServiceAccount\n  name: " + s.Name + "\n  namespace: " + s.Namespace + "\n")
+				b.WriteString("- kind: ServiceAccount\n  name: " + yamlScalar(s.Name) + "\n  namespace: " + yamlScalar(s.Namespace) + "\n")
 			default:
-				b.WriteString("- apiGroup: rbac.authorization.k8s.io\n  kind: " + s.Kind + "\n  name: " + s.Name + "\n")
+				b.WriteString("- apiGroup: rbac.authorization.k8s.io\n  kind: " + s.Kind + "\n  name: " + yamlScalar(s.Name) + "\n")
 			}
 		}
 	}
@@ -214,11 +215,23 @@ func renderRules(b *strings.Builder, rules []Rule) {
 // yamlScalar quotes the values YAML would otherwise misread: the empty core API group, the
 // wildcard, anything starting with an indicator character, and anything with a ": " or " #" inside.
 func yamlScalar(v string) string {
-	if v == "" || strings.ContainsAny(v[:1], "-?:,[]{}#&*!|>'\"%@`") || strings.Contains(v, ": ") || strings.Contains(v, " #") {
-		return strconv.Quote(v)
+	if plainScalarRe.MatchString(v) && !yaml11Reserved[strings.ToLower(v)] {
+		return v
 	}
 
-	return v
+	return strconv.Quote(v)
+}
+
+// plainScalarRe is the shape a value may take unquoted: a letter, underscore, slash or star,
+// then the characters of a Kubernetes name, URL path, API group or verb list. Anything else -- an
+// empty string, a leading indicator, a space or a digit first, a trailing colon -- is quoted.
+var plainScalarRe = regexp.MustCompile(`^[A-Za-z_/][A-Za-z0-9._/:*-]*[A-Za-z0-9_/*]$|^[A-Za-z_*]$`)
+
+// yaml11Reserved lists the words Helm's YAML 1.1 reader turns into booleans or null; "no" as a
+// resource name would render as false.
+var yaml11Reserved = map[string]bool{
+	"y": true, "yes": true, "n": true, "no": true, "true": true, "false": true,
+	"on": true, "off": true, "null": true, "~": true,
 }
 
 func sortedKeys(m map[string]string) []string {

@@ -183,6 +183,15 @@ func TestContract_Findings(t *testing.T) {
 				`error: aggregation label "rbac.deckhouse.io/aggregate-to-system-as" has invalid level "admin"; the system lineage has viewer, manager, superadmin`,
 			},
 		},
+		"R29: a system role named with a namespace level": {
+			object: clusterRole("d8:system:admin", map[string]string{"module": "cert-manager",
+				"rbac.deckhouse.io/kind": "role", "rbac.deckhouse.io/scope": "system", "rbac.deckhouse.io/use-role": "admin",
+			}, i18n, "aggregationRule:\n  clusterRoleSelectors:\n  - matchLabels:\n      rbac.deckhouse.io/aggregate-to-system-as: admin\n"),
+			wantErrs: []string{
+				`error: role name "d8:system:admin" has invalid level "admin"; the system lineage has viewer, manager, superadmin`,
+				`error: role "d8:system:admin" aggregation selector has invalid level "admin"`,
+			},
+		},
 		"R21: the module label names another module": {
 			object: clusterRole("d8:namespace-capability:x:view", map[string]string{"module": "other",
 				"rbac.deckhouse.io/kind": "capability", "rbac.deckhouse.io/scope": "namespace",

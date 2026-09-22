@@ -196,15 +196,50 @@ resources:
 	assert.NotContains(t, strings.Join(second, "\n"), "has no entry")
 	assert.Equal(t, 3, strings.Count(strings.Join(second, "\n"), `is still noAccess: "TODO"`))
 
-	// Idempotency (R17): fixes of a run that has nothing to add do not touch the file.
+	// Idempotency (R17): a run that has nothing to add carries no fixes, and appendStub itself
+	// leaves a present entry alone byte for byte.
 	third := runCoverage(t, modulePath)
-	for _, fix := range third.GetFixes() {
-		fix()
-	}
+	assert.Empty(t, third.GetFixes())
+
+	added, err := appendStub(rbacyaml.Path(modulePath), "a.io", "alphas")
+	require.NoError(t, err)
+	assert.False(t, added)
 
 	unchanged, err := os.ReadFile(rbacyaml.Path(modulePath))
 	require.NoError(t, err)
 	assert.Equal(t, string(after), string(unchanged))
+}
+
+// exclude-rules.coverage names a resource: neither the missing-entry finding nor the misspelling
+// warning of an entry with that key is reported.
+func TestCoverage_ExcludedResourceSilencesTheSpellingWarning(t *testing.T) {
+	modulePath := writeModule(t, map[string]string{
+		"crds/a.yaml":     crdYAML("a.io", "alphas", "Namespaced"),
+		rbacyaml.Filename: "apiVersion: rbac.deckhouse.io/v1alpha1\nresources:\n  - group: a.io\n    resource: alphaz\n    scope: Namespaced\n    namespace: {viewer: [get]}\n",
+	})
+
+	got := texts(runCoverage(t, modulePath, "a.io/alphas", "a.io/alphaz"))
+	assert.Empty(t, got, "got: %v", got)
+
+	got = texts(runCoverage(t, modulePath, "a.io/alphas"))
+	require.Len(t, got, 1, "got: %v", got)
+	assert.Contains(t, got[0], "alphaz names a resource the module's CRDs of group a.io do not have")
+}
+
+func TestAppendStub_ScalarResources(t *testing.T) {
+	modulePath := writeModule(t, map[string]string{
+		rbacyaml.Filename: "apiVersion: rbac.deckhouse.io/v1alpha1\nresources: null\n",
+	})
+
+	added, err := appendStub(rbacyaml.Path(modulePath), "a.io", "alphas")
+	require.NoError(t, err)
+	assert.True(t, added)
+
+	content, err := os.ReadFile(rbacyaml.Path(modulePath))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "resources:\n")
+	assert.Contains(t, string(content), "resource: alphas")
+	assert.NotContains(t, string(content), "resources: null")
 }
 
 func TestCoverage_ExcludedCRDAndDeclarationWithoutResources(t *testing.T) {

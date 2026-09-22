@@ -194,6 +194,16 @@ func Build(in Input) (*Model, error) {
 
 	// A marker past 63 characters fails the contract; only a long module name can cause it.
 	for _, f := range model.Files {
+		seen := make(map[string]struct{}, len(f.Objects))
+
+		for _, o := range f.Objects {
+			if _, dup := seen[o.Identity()]; dup {
+				return nil, fmt.Errorf("%s would hold two objects named %s: two declared roles or bindings map to the same generated name", f.Path, o.Identity())
+			}
+
+			seen[o.Identity()] = struct{}{}
+		}
+
 		for _, o := range f.Objects {
 			if marker := o.Labels[rbaccontract.LabelCapability]; len(marker) > 63 {
 				return nil, fmt.Errorf("capability marker %q is %d characters, a label value holds 63: the module name and the level name together are too long for %s", marker, len(marker), o.Name)

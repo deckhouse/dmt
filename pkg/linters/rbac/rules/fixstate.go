@@ -19,6 +19,7 @@ package rules
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -182,5 +183,56 @@ func templateHasGate(modulePath, shortPath string) bool {
 		return false
 	}
 
-	return strings.Contains(string(content), rbaccontract.GateMarker)
+	return templateGated(string(content), "")
+}
+
+// gateActionRe matches a template action that tests the platform version. A mention of the word
+// in a comment or a value does not count.
+var gateActionRe = regexp.MustCompile(`\{\{[^}]*deckhouseVersion`)
+
+// templateGated reports whether a template chooses between two role models by platform version:
+// it calls the helper rbacv2-migrate-module.sh writes, or tests deckhouseVersion in an action that
+// the declaration itself did not produce. A `when` on a declared resource may test the version too;
+// that action appears in the produced content as well and is not a gate.
+func templateGated(existing, produced string) bool {
+	if strings.Contains(existing, rbaccontract.GateMarker) {
+		return true
+	}
+
+	return gateActionRe.MatchString(existing) && !gateActionRe.MatchString(produced)
+}
+
+// writeFileAtomic writes content to path through a temporary file in the same directory and a
+// rename, so an interrupted --fix never leaves rbac.yaml or a template truncated.
+func writeFileAtomic(path string, content []byte, perm os.FileMode) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*.tmp")
+	if err != nil {
+		return err
+	}
+
+	tmpName := tmp.Name()
+
+	if _, err := tmp.Write(content); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpName)
+
+		return err
+	}
+
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpName)
+		return err
+	}
+
+	if err := os.Chmod(tmpName, perm); err != nil {
+		_ = os.Remove(tmpName)
+		return err
+	}
+
+	if err := os.Rename(tmpName, path); err != nil {
+		_ = os.Remove(tmpName)
+		return err
+	}
+
+	return nil
 }

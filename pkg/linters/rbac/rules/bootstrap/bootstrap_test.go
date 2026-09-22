@@ -176,6 +176,64 @@ func TestBuild_RoundTripOnTheCertManagerFixture(t *testing.T) {
 }
 
 // What the importer cannot decide is a TODO or a note, and objects outside the format stay listed.
+// A grant limited to resourceNames cannot be kept on a capability. When every grant of the
+// resource is limited, the entry is left undecided rather than widened; when one grant is
+// unrestricted, the levels stand.
+func TestBuild_ResourceNamesAreNotWidened(t *testing.T) {
+	labels := map[string]string{"module": "m", "rbac.deckhouse.io/kind": "capability", "rbac.deckhouse.io/scope": "namespace", "rbac.deckhouse.io/aggregate-to-namespace-as": "viewer"}
+	objects := []Object{
+		{Kind: "ClusterRole", Name: "d8:namespace-capability:m:view", Path: "templates/rbacv2/use/view.yaml", Labels: labels,
+			Rules: []rbacv1.PolicyRule{
+				{APIGroups: []string{""}, Resources: []string{"configmaps"}, ResourceNames: []string{"m-config"}, Verbs: []string{"get"}},
+				{APIGroups: []string{""}, Resources: []string{"secrets"}, ResourceNames: []string{"m-token"}, Verbs: []string{"get"}},
+				{APIGroups: []string{""}, Resources: []string{"secrets"}, Verbs: []string{"list"}},
+			}},
+	}
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: objects})
+
+	byKey := map[string]rbacyaml.Resource{}
+	for _, r := range got.Decl.Resources {
+		byKey[r.Group+"/"+r.Resource] = r
+	}
+
+	require.Contains(t, byKey, "/configmaps")
+	assert.Contains(t, byKey["/configmaps"].NoAccess, "TODO")
+	assert.Empty(t, byKey["/configmaps"].Namespace)
+	assert.Equal(t, "Namespaced", byKey["/configmaps"].Scope)
+
+	require.Contains(t, byKey, "/secrets")
+	assert.Empty(t, byKey["/secrets"].NoAccess)
+	assert.ElementsMatch(t, []string{"get", "list"}, byKey["/secrets"].Namespace["viewer"])
+
+	assert.Contains(t, strings.Join(got.Notes, "\n"), "/configmaps: every grant carried resourceNames")
+}
+
+// The lint path fills the input from a map; the result must not depend on that order.
+func TestBuild_IsIndependentOfInputOrder(t *testing.T) {
+	yes := true
+	objects := []Object{
+		{Kind: "ClusterRole", Name: "d8:namespace-capability:m:view", Path: "templates/rbacv2/use/view.yaml",
+			Labels: map[string]string{"module": "m", "rbac.deckhouse.io/kind": "capability", "rbac.deckhouse.io/scope": "namespace", "rbac.deckhouse.io/aggregate-to-namespace-as": "viewer"},
+			Rules:  []rbacv1.PolicyRule{{APIGroups: []string{"trivy.deckhouse.io"}, Resources: []string{"vulnerabilityreports"}, Verbs: []string{"get"}}}},
+		{Kind: "ClusterRole", Name: "d8:use:capability:module:m:view", Path: "templates/rbacv2/use/old.yaml", Labels: map[string]string{"module": "m", "rbac.deckhouse.io/kind": "use"}},
+		{Kind: "ClusterRole", Name: "d8:namespace-capability:kubernetes:view_logs", Path: "templates/rbacv2/global/x.yaml", Labels: map[string]string{"module": "m", "rbac.deckhouse.io/kind": "capability"}},
+		{Kind: "ServiceAccount", Name: "webhook", Path: "templates/webhook/rbac-for-us.yaml", Labels: map[string]string{"module": "m", "app": "webhook"}, Automount: &yes},
+		{Kind: "ClusterRole", Name: "d8:m:webhook:requester", Path: "templates/webhook/rbac-for-us.yaml", Labels: map[string]string{"module": "m"}, Rules: []rbacv1.PolicyRule{{APIGroups: []string{"x"}, Resources: []string{"y"}, Verbs: []string{"create"}}}},
+	}
+
+	forward := Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Objects: objects, CRDs: map[string]string{"deckhouse.io/things": "Namespaced"}})
+
+	reversed := make([]Object, 0, len(objects))
+	for i := len(objects) - 1; i >= 0; i-- {
+		reversed = append(reversed, objects[i])
+	}
+
+	backward := Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Objects: reversed, CRDs: map[string]string{"deckhouse.io/things": "Namespaced"}})
+
+	assert.Equal(t, forward, backward)
+}
+
 func TestBuild_TODOsAndUnmanaged(t *testing.T) {
 	yes := true
 	objects := []Object{
@@ -222,6 +280,6 @@ func TestBuild_TODOsAndUnmanaged(t *testing.T) {
 	assert.False(t, sa.ExtraClusterRoles[0].IsBound())
 
 	require.Len(t, got.Unmanaged, 2)
-	assert.Contains(t, got.Unmanaged[0]+got.Unmanaged[1], "d8:use:capability:module:m:view")
-	assert.Contains(t, got.Unmanaged[0]+got.Unmanaged[1], "d8:namespace-capability:kubernetes:view_logs")
+	assert.Contains(t, got.Unmanaged[0], "d8:namespace-capability:kubernetes:view_logs")
+	assert.Contains(t, got.Unmanaged[1], "d8:use:capability:module:m:view")
 }

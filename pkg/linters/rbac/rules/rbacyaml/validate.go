@@ -19,6 +19,7 @@ package rbacyaml
 import (
 	"fmt"
 	"slices"
+	"sort"
 	"strings"
 	"text/template"
 
@@ -100,6 +101,9 @@ func Validate(d *Declaration, crds CRDScopes) []error {
 		len(d.PrometheusAccess.Deployments)+len(d.PrometheusAccess.DaemonSets)+len(d.PrometheusAccess.StatefulSets) == 0 {
 		report("prometheusAccess: names no workload; remove the section or list deployments, daemonsets or statefulsets")
 	}
+
+	// Several checks walk maps; the reader and the e2e expectations get one order.
+	sort.SliceStable(errs, func(i, j int) bool { return errs[i].Error() < errs[j].Error() })
 
 	return errs
 }
@@ -398,6 +402,10 @@ func validatePolicyRules(rules []PolicyRule, where string, report reporter) {
 
 		if len(rule.NonResourceURLs) == 0 && len(rule.Resources) == 0 {
 			report("%s[%d]: resources (with apiGroups) or nonResourceURLs is required", where, i)
+		}
+
+		if len(rule.Resources) > 0 && len(rule.APIGroups) == 0 {
+			report("%s[%d]: resources require apiGroups; the core group is \"\"", where, i)
 		}
 	}
 }
