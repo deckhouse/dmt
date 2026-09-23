@@ -481,6 +481,40 @@ metadata:
 	if got := run(t, capability+"# Комментарий на русском\n"); len(got) != 1 {
 		t.Errorf("Cyrillic outside the annotations is still reported, got %v", got)
 	}
+
+	// A block scalar value is part of the annotation (review of #479, finding 13h).
+	block := capability + "    ru.meta.deckhouse.io/description: >-\n      Длинное описание\n      на две строки.\n  labels:\n    x: y\n"
+	if got := run(t, block); len(got) != 0 {
+		t.Errorf("a block scalar annotation must not be reported, got %v", got)
+	}
+
+	// Only a key counts: the name in a comment next to Russian text does not exempt the line.
+	if got := run(t, capability+"  # Ошибка доступа -- ru.meta.deckhouse.io/title\n"); len(got) != 1 {
+		t.Errorf("a line merely mentioning the key is still judged, got %v", got)
+	}
+}
+
+// Outside YAML templates the key name exempts nothing (review of #479, finding 13h).
+func TestFilesRule_CheckFile_LocalizedKeyInGoIsJudged(t *testing.T) {
+	mockModule := mocks.NewModuleMock(minimock.NewController(t))
+	tempDir := t.TempDir()
+	mockModule.GetPathMock.Return(tempDir)
+
+	path := filepath.Join(tempDir, "hooks", "x.go")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(path, []byte("package hooks\n\n// ru.meta.deckhouse.io/title: Ошибка доступа\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	errorList := errors.NewLintRuleErrorsList()
+	NewFilesRule(nil, nil, mockModule, errorList).checkFile(path)
+
+	if errs := errorList.GetErrors(); len(errs) != 1 {
+		t.Errorf("Cyrillic in a Go file is reported whatever key it follows, got %v", errs)
+	}
 }
 
 // rbac.yaml holds the ru titles and descriptions the rbac declaration requires for capabilities

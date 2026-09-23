@@ -75,13 +75,17 @@ type crdDocument struct {
 // Documents that are not a CustomResourceDefinition are skipped: a crds/ directory may hold a
 // README or other manifests. A file that does not parse is an error: a CRD the rule cannot read
 // is a CRD whose access nobody decided on.
-func moduleCRDs(modulePath string) ([]crdInfo, error) {
-	var out []crdInfo
+func moduleCRDs(modulePath string) ([]crdInfo, []error) {
+	var (
+		out     []crdInfo
+		skipped []error
+	)
 
 	for _, file := range fsutils.GetFiles(modulePath, true, filterCRDFiles) {
 		data, err := os.ReadFile(file)
 		if err != nil {
-			return nil, fmt.Errorf("read %s: %w", fsutils.Rel(modulePath, file), err)
+			skipped = append(skipped, fmt.Errorf("read %s: %w", fsutils.Rel(modulePath, file), err))
+			continue
 		}
 
 		for _, doc := range fsutils.SplitManifests(string(data)) {
@@ -89,9 +93,12 @@ func moduleCRDs(modulePath string) ([]crdInfo, error) {
 				continue
 			}
 
+			// One document that does not parse -- a Helm-templated CRD, say -- costs its own CRD,
+			// not every other one of the module.
 			var crd crdDocument
 			if err := yaml.Unmarshal([]byte(doc), &crd); err != nil {
-				return nil, fmt.Errorf("parse %s: %w", fsutils.Rel(modulePath, file), err)
+				skipped = append(skipped, fmt.Errorf("parse %s: %w", fsutils.Rel(modulePath, file), err))
+				continue
 			}
 
 			if crd.Kind != "CustomResourceDefinition" {
@@ -119,5 +126,5 @@ func moduleCRDs(modulePath string) ([]crdInfo, error) {
 		return out[i].File < out[j].File
 	})
 
-	return out, nil
+	return out, skipped
 }

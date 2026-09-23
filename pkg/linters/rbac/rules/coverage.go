@@ -77,10 +77,9 @@ func (r *CoverageRule) Check(_ context.Context) {
 		return
 	}
 
-	crds, err := moduleCRDs(modulePath)
-	if err != nil {
-		r.errorList.WithFilePath("crds").Errorf("cannot read the module CRDs: %v", err)
-		return
+	crds, skipped := moduleCRDs(modulePath)
+	for _, err := range skipped {
+		r.errorList.WithFilePath("crds").Warnf("a CRD document is skipped: %v; its resource is judged as external until it parses", err)
 	}
 
 	entries := make(map[string]rbacyaml.Resource, len(decl.Resources))

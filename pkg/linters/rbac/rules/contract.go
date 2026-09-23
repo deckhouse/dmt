@@ -123,6 +123,26 @@ func (r *ContractRule) Check(_ context.Context) {
 
 	sort.Slice(objects, func(i, j int) bool { return objects[i].Unstructured.GetName() < objects[j].Unstructured.GetName() })
 
+	// Two capabilities with one marker are indistinguishable to the console and to everything that
+	// selects a capability by it.
+	markers := map[string]string{}
+
+	for _, object := range objects {
+		marker := object.Unstructured.GetLabels()[rbaccontract.LabelCapability]
+		if marker == "" {
+			continue
+		}
+
+		if first, dup := markers[marker]; dup {
+			r.errorList.WithObjectID(object.Identity()).WithFilePath(object.ShortPath()).
+				Errorf("capability marker %q is also carried by %s; every capability of the module needs its own", marker, first)
+
+			continue
+		}
+
+		markers[marker] = object.Unstructured.GetName()
+	}
+
 	for _, object := range objects {
 		errorList := r.errorList.WithObjectID(object.Identity()).WithFilePath(object.ShortPath())
 
@@ -154,10 +174,10 @@ func (r *ContractRule) Check(_ context.Context) {
 func (r *ContractRule) resourceScopes() rbacyaml.CRDScopes {
 	scopes := make(rbacyaml.CRDScopes)
 
-	if crds, err := moduleCRDs(r.module.GetPath()); err == nil {
-		for _, crd := range crds {
-			scopes[crd.Key()] = crd.Scope
-		}
+	// A document that does not parse is reported by coverage; the others still give their scope.
+	crds, _ := moduleCRDs(r.module.GetPath())
+	for _, crd := range crds {
+		scopes[crd.Key()] = crd.Scope
 	}
 
 	if decl, err := rbacyaml.Load(r.module.GetPath()); err == nil {
@@ -378,7 +398,12 @@ func checkCapability(role *rbacv1.ClusterRole, scope string, scopes rbacyaml.CRD
 
 					warned[group+"/"+resource] = struct{}{}
 
-					if scopes[group+"/"+resource] == rbacyaml.ScopeCluster {
+					scope := scopes[group+"/"+resource]
+					if scope == "" {
+						scope, _ = rbacyaml.WellKnownScope(group, resource)
+					}
+
+					if scope == rbacyaml.ScopeCluster {
 						errorList.Warnf("capability %q grants %s/%s, a cluster-scoped resource, in a namespace capability: bound through a RoleBinding the rule grants nothing; move it to a system capability", name, group, resource)
 					}
 				}
