@@ -19,6 +19,7 @@ package generate
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -331,6 +332,30 @@ func TestBuild_RefusesDuplicateGeneratedNames(t *testing.T) {
 	_, err := Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Decl: decl})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "would hold two objects named ClusterRoleBinding/d8:m:worker:a-b")
+}
+
+// prometheusAccess.when gates the binding to the scraper only; the Role stays unconditional, as
+// the modules write it today.
+func TestBuild_PrometheusAccessWhen(t *testing.T) {
+	decl := &rbacyaml.Declaration{APIVersion: rbacyaml.APIVersionV1Alpha1,
+		Resources:        []rbacyaml.Resource{{Group: "x.io", Resource: "things", Scope: "Cluster", System: map[string][]string{"viewer": {"get"}}}},
+		PrometheusAccess: &rbacyaml.PrometheusAccess{Deployments: []string{"m"}, When: `.Values.global.enabledModules | has "prometheus"`},
+	}
+
+	model, err := Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Decl: decl})
+	require.NoError(t, err)
+
+	file := model.File("templates/rbac-to-us.yaml")
+	require.NotNil(t, file)
+	require.Len(t, file.Objects, 2)
+	assert.Equal(t, "Role", file.Objects[0].Kind)
+	assert.Empty(t, file.Objects[0].When)
+	assert.Equal(t, "RoleBinding", file.Objects[1].Kind)
+	assert.Equal(t, `.Values.global.enabledModules | has "prometheus"`, file.Objects[1].When)
+
+	rendered := RenderFile(*file)
+	assert.Equal(t, 1, strings.Count(rendered, `{{- if .Values.global.enabledModules | has "prometheus" }}`))
+	assert.Less(t, strings.Index(rendered, "kind: Role\n"), strings.Index(rendered, "{{- if"), "the Role comes before the gate")
 }
 
 // A generated file that acquired CRLF line endings is still the generator's.
