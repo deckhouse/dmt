@@ -185,6 +185,21 @@ var generatedModuleConfigVerbs = map[string][]string{
 	"edit": {"create", "update", "patch", "delete"},
 }
 
+// scopeTODO is the scope bootstrap writes for an external resource whose scope it cannot know.
+const scopeTODO = "TODO: Namespaced or Cluster"
+
+// wildcardGrant reports whether any rule grants "*" verbs or API groups, which the declaration
+// refuses at every level.
+func wildcardGrant(rules []rbacv1.PolicyRule) bool {
+	for _, r := range rules {
+		if slices.Contains(r.Verbs, "*") || slices.Contains(r.APIGroups, "*") {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (b *builder) addRules(sectionName, level string, rules []rbacv1.PolicyRule, systemCapability bool) {
 	for _, r := range rules {
 		if len(r.NonResourceURLs) > 0 {
@@ -199,10 +214,12 @@ func (b *builder) addRules(sectionName, level string, rules []rbacv1.PolicyRule,
 
 		for _, g := range groups {
 			for _, rs := range r.Resources {
-				if systemCapability && g == "deckhouse.io" && rs == "moduleconfigs" {
+				if systemCapability && g == "deckhouse.io" && rs == "moduleconfigs" && len(r.ResourceNames) > 0 {
 					// The generator adds the module's own ModuleConfig rule to view and edit; that one
-					// is not imported. Any other -- at another level, on another module's config,
-					// with other verbs -- the format cannot hold and is named instead of dropped.
+					// is not imported. Another one limited to names -- at another level, on another
+					// module's config, with other verbs -- the format cannot hold and is named instead
+					// of dropped. A grant on every ModuleConfig (no resourceNames, as the deckhouse
+					// module has) is an ordinary resource entry.
 					own := slices.Equal(r.ResourceNames, []string{b.in.Module})
 					if want, conventional := generatedModuleConfigVerbs[rbaccontract.CapabilityAction(level)]; !own || !conventional || !subset(r.Verbs, want) {
 						b.note("system/%s: a moduleconfigs rule the generator does not produce (%s on %v) is not carried over; the format has no place for it", level, strings.Join(r.Verbs, ","), r.ResourceNames)
@@ -242,6 +259,18 @@ func (b *builder) capabilitiesAndLegacy() {
 		}
 
 		if level := o.Annotations[rbaccontract.AccessLevelAnnotation]; level != "" {
+			if wildcardGrant(o.Rules) {
+				why := "grants \"*\" verbs or API groups, which the declaration refuses at every level; the regeneration of " + o.Path + " removes it"
+				if level == "SuperAdmin" {
+					why += " -- user-authz does not aggregate SuperAdmin, so the role grants nothing today"
+				}
+
+				b.unmanage(o, why)
+				b.mark(o)
+
+				continue
+			}
+
 			b.rename("ClusterRole", o.Name, "d8:user-authz:"+b.in.Module+":"+rbaccontract.LegacyKebab(level))
 			b.addRules("legacy", level, o.Rules, false)
 			b.mark(o)
@@ -261,6 +290,13 @@ func (b *builder) capabilitiesAndLegacy() {
 
 			lineage, action := m[1], m[3]
 			level := rbaccontract.LevelOfAction(action)
+
+			if wildcardGrant(o.Rules) {
+				b.unmanage(o, "grants \"*\" verbs or API groups, which the declaration refuses at every level; list them in the template before the declaration can describe it")
+				b.mark(o)
+
+				continue
+			}
 
 			b.addRules(lineage, level, o.Rules, lineage == rbaccontract.LineageSystem)
 			b.mark(o)
@@ -628,7 +664,9 @@ func (b *builder) resources() {
 			if s, ok := rbacyaml.WellKnownScope(group, base); ok {
 				scope = s
 			} else {
-				b.note("%s/%s: the module ships no CRD and the scope is not known; fill scope: Namespaced|Cluster", group, resource)
+				// A TODO value, not only a note: the run that writes the file keeps its finding, and
+				// the declaration does not validate until a person fills it.
+				scope = scopeTODO
 			}
 
 			if !strings.Contains(resource, "/") {

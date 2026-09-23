@@ -46,6 +46,8 @@ var wellKnownScopes = map[string]string{
 	"apiextensions.k8s.io/customresourcedefinitions": "Cluster", "apiregistration.k8s.io/apiservices": "Cluster",
 	"certificates.k8s.io/certificatesigningrequests": "Cluster",
 	"flowcontrol.apiserver.k8s.io/flowschemas":       "Cluster", "flowcontrol.apiserver.k8s.io/prioritylevelconfigurations": "Cluster",
+	// the platform's own configuration resource, which every module's system capabilities grant
+	"deckhouse.io/moduleconfigs": "Cluster",
 	// authentication / authorization (virtual, cluster-scoped)
 	"authentication.k8s.io/tokenreviews": "Cluster", "authorization.k8s.io/subjectaccessreviews": "Cluster", "authorization.k8s.io/selfsubjectaccessreviews": "Cluster",
 	"authorization.k8s.io/selfsubjectrulesreviews": "Cluster", "authorization.k8s.io/localsubjectaccessreviews": "Namespaced",
