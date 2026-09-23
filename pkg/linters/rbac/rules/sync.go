@@ -20,9 +20,12 @@ import (
 	"context"
 	stderrors "errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -236,6 +239,14 @@ func (r *SyncRule) compareRender(model *generate.Model, actual map[string]manage
 // must be what the declaration renders now, and a file that does not exist while an object it
 // holds is absent from the render was never written.
 func (r *SyncRule) compareText(modulePath string, model *generate.Model, actual map[string]managedObject, divergences map[string][]string) {
+	placed := map[string]string{}
+
+	for _, f := range model.Files {
+		for _, o := range f.Objects {
+			placed[o.Identity()] = f.Path
+		}
+	}
+
 	// A rule under `when` whose condition is false today is absent from the render without being
 	// a divergence (D4), yet it still has to reach the template -- so for these files the text is
 	// compared too. A file of another contract version is the same case (R40). A file without the
@@ -276,7 +287,8 @@ func (r *SyncRule) compareText(modulePath string, model *generate.Model, actual 
 				produced[o.Identity()] = struct{}{}
 			}
 
-			divergences[file.Path] = append(divergences[file.Path], noLongerProduced(string(content), produced)...)
+			divergences[file.Path] = append(divergences[file.Path], noLongerProduced(string(content), produced, placed)...)
+			divergences[file.Path] = append(divergences[file.Path], r.contractOneRemovals(file.Path, string(content), produced, placed)...)
 		}
 	}
 
@@ -287,19 +299,22 @@ func (r *SyncRule) compareText(modulePath string, model *generate.Model, actual 
 		inModel[f.Path] = struct{}{}
 	}
 
-	seen := map[string]struct{}{}
+	// The render shows only the files whose objects render under these values; a generated file
+	// whose every object is under a false condition is found on disk.
+	candidates := map[string]struct{}{}
 
 	for _, object := range r.module.GetStorage() {
-		path := object.ShortPath()
+		candidates[object.ShortPath()] = struct{}{}
+	}
+
+	for _, path := range generatedTemplates(modulePath) {
+		candidates[path] = struct{}{}
+	}
+
+	for _, path := range slices.Sorted(maps.Keys(candidates)) {
 		if _, ok := inModel[path]; ok {
 			continue
 		}
-
-		if _, ok := seen[path]; ok {
-			continue
-		}
-
-		seen[path] = struct{}{}
 
 		content, err := os.ReadFile(filepath.Join(modulePath, path))
 		if err != nil {
@@ -307,22 +322,63 @@ func (r *SyncRule) compareText(modulePath string, model *generate.Model, actual 
 		}
 
 		if generated, _ := generate.ParseHeader(string(content)); generated {
-			divergences[path] = append(divergences[path], noLongerProduced(string(content), nil)...)
+			divergences[path] = append(divergences[path], noLongerProduced(string(content), nil, placed)...)
+			divergences[path] = append(divergences[path], r.contractOneRemovals(path, string(content), nil, placed)...)
 		}
 	}
 }
 
+// contractOneRemovals does for a contract 1 file, which lists no owned objects, what
+// noLongerProduced does with the list: a rendered object the generator named that the declaration
+// no longer produces anywhere is a removal.
+func (r *SyncRule) contractOneRemovals(path, content string, produced map[string]struct{}, placed map[string]string) []string {
+	if _, listed := generate.ParseOwned(content); listed {
+		return nil
+	}
+
+	var out []string
+
+	for index, object := range r.module.GetStorage() {
+		id := index.AsString()
+
+		if object.ShortPath() != path || !isRBACKind(object.Unstructured.GetKind()) || !generatorNamed(object.Unstructured.GetName(), r.module.GetName()) {
+			continue
+		}
+
+		if _, ok := produced[id]; ok {
+			continue
+		}
+
+		if _, ok := placed[id]; ok {
+			continue
+		}
+
+		out = append(out, id+" was generated into this file and the declaration no longer produces it")
+	}
+
+	sort.Strings(out)
+
+	return out
+}
+
 // noLongerProduced lists, as divergences, the objects the header of a generated file names as the
 // generator's that the declaration no longer produces there.
-func noLongerProduced(content string, produced map[string]struct{}) []string {
+func noLongerProduced(content string, produced map[string]struct{}, placed map[string]string) []string {
 	owned, _ := generate.ParseOwned(content)
 
 	out := make([]string, 0, len(owned))
 
 	for id := range owned {
-		if _, ok := produced[id]; !ok {
-			out = append(out, id+" was generated into this file and the declaration no longer produces it")
+		if _, ok := produced[id]; ok {
+			continue
 		}
+
+		if where, moved := placed[id]; moved {
+			out = append(out, id+" moves to "+where)
+			continue
+		}
+
+		out = append(out, id+" was generated into this file and the declaration no longer produces it")
 	}
 
 	sort.Strings(out)
@@ -347,6 +403,12 @@ func (r *SyncRule) report(modulePath string, model *generate.Model, divergences 
 		dropped = store.Dropped
 	}
 
+	// Under --matrix another variant may regenerate a file this one could not render; record it
+	// for every variant's fix, whether or not this variant reports the file.
+	for path, cause := range dropped {
+		recordDropped(filepath.Join(modulePath, path), cause)
+	}
+
 	for _, path := range paths {
 		list := divergences[path]
 		sort.Strings(list)
@@ -357,7 +419,9 @@ func (r *SyncRule) report(modulePath string, model *generate.Model, divergences 
 		// the chart: its objects -- the foreign ones included -- were never seen, so neither the
 		// comparison nor a rewrite can be trusted.
 		if cause, skipped := dropped[path]; skipped {
+			recordDropped(filepath.Join(modulePath, path), cause)
 			fileList.Errorf("%s failed to render in this run (%s); nothing in it is compared or regenerated until it renders", path, cause)
+
 			continue
 		}
 
@@ -436,6 +500,10 @@ func removeFileFix(modulePath, path string, removed []string) errors.AutofixFunc
 
 	return func() error {
 		return fixOnce(fullPath, func() error {
+			if err := fixBlocked(modulePath, path); err != nil {
+				return err
+			}
+
 			removed := recordedRemovals(fullPath)
 
 			if foreign := foreignObjectsOf(fullPath); len(foreign) > 0 {
@@ -523,7 +591,12 @@ func (r *SyncRule) foreignObjects(file generate.File, model *generate.Model) []s
 // generator now produces under another name is a rename. Everything else is someone else's: a
 // ConfigMap, a Secret, a hand-written role -- and the fix refuses to drop it.
 func (r *SyncRule) foreignIn(path string, produced map[string]struct{}, producedObjects []generate.Object, model *generate.Model) []string {
-	owned, listed := ownedBy(filepath.Join(r.module.GetPath(), path))
+	fullPath := filepath.Join(r.module.GetPath(), path)
+	owned, listed := ownedBy(fullPath)
+	header := hasHeader(fullPath)
+	moves := map[string]string{}
+
+	defer func() { recordMoves(fullPath, moves) }()
 
 	// Where the declaration puts every object it produces: an object rendered from another file
 	// than that is misplaced rather than unknown, and the refusal says so.
@@ -556,17 +629,27 @@ func (r *SyncRule) foreignIn(path string, produced map[string]struct{}, produced
 			continue
 		}
 
-		if _, ok := owned[id]; ok {
+		// Produced in another file of the model: a move. It may leave this file only once the
+		// other file holds it -- the fix checks that when it runs (recordMoves), so an object never
+		// leaves one file for a target that is not written.
+		if where, declared := placed[id]; declared && where != path {
+			moves[id] = where
 			continue
 		}
 
-		if where, declared := placed[id]; declared {
-			out = append(out, id+" (the declaration puts it in "+where+"; move it there or delete both files and run the fix)")
+		if _, ok := owned[id]; ok {
 			continue
 		}
 
 		if !listed && isRBACKind(object.Unstructured.GetKind()) {
 			if m, ok := managed[id]; ok && m.class != generate.ClassDeclared {
+				continue
+			}
+
+			// A contract 1 file lists nothing, but it was generated whole: an object named the way
+			// the generator names the module's accounts and access (d8:<module>:..., access-to-<module>)
+			// is the generator's, so dropping it from the declaration removes it in the same run.
+			if header && generatorNamed(object.Unstructured.GetName(), r.module.GetName()) {
 				continue
 			}
 
@@ -596,6 +679,24 @@ func ownedBy(fullPath string) (map[string]struct{}, bool) {
 	}
 
 	return generate.ParseOwned(string(content))
+}
+
+// hasHeader reports whether the file carries the generator header.
+func hasHeader(fullPath string) bool {
+	content, err := os.ReadFile(fullPath)
+	if err != nil {
+		return false
+	}
+
+	generated, _ := generate.ParseHeader(string(content))
+
+	return generated
+}
+
+// generatorNamed reports whether a name is one the generator builds for the module's own
+// accounts, extra roles and access grants.
+func generatorNamed(name, module string) bool {
+	return strings.HasPrefix(name, "d8:"+module+":") || name == "access-to-"+module || strings.HasPrefix(name, "access-to-"+module+"-")
 }
 
 // isRBACKind reports whether the kind is one the generator produces.
@@ -1039,6 +1140,10 @@ func regenerateFix(modulePath string, file generate.File, foreign, removals []st
 
 	return func() error {
 		return fixOnce(fullPath, func() error {
+			if err := fixBlocked(modulePath, file.Path); err != nil {
+				return err
+			}
+
 			removals := recordedRemovals(fullPath)
 
 			existing, err := os.ReadFile(fullPath)
@@ -1254,4 +1359,44 @@ func openDecisions(content string) int {
 	}
 
 	return n
+}
+
+// fixBlocked says why a fix must leave the file alone although this variant would rewrite it: a
+// render variant skipped the template, or an object moving to another file is not there yet.
+func fixBlocked(modulePath, path string) error {
+	fullPath := filepath.Join(modulePath, path)
+
+	if cause, dropped := droppedCause(fullPath); dropped {
+		return fmt.Errorf("%s failed to render under some values (%s); it is not rewritten until it renders in every variant", path, cause)
+	}
+
+	if pending := unfinishedMoves(fullPath, modulePath); len(pending) > 0 {
+		return fmt.Errorf("%s holds objects the declaration moves to another file that does not hold them yet: %s; they leave this file only once the target is written -- run `%s` again after it is", path, strings.Join(pending, ", "), FixCommand)
+	}
+
+	return nil
+}
+
+// generatedTemplates lists, relative to the module, the files under templates/ that carry the
+// generator header.
+func generatedTemplates(modulePath string) []string {
+	var out []string
+
+	root := filepath.Join(modulePath, "templates")
+
+	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil //nolint:nilerr // an unreadable entry is not a generated file
+		}
+
+		if hasHeader(path) {
+			if rel, relErr := filepath.Rel(modulePath, path); relErr == nil {
+				out = append(out, filepath.ToSlash(rel))
+			}
+		}
+
+		return nil
+	})
+
+	return out
 }

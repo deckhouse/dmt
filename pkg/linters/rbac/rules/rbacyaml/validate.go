@@ -19,6 +19,7 @@ package rbacyaml
 import (
 	"fmt"
 	"reflect"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -139,12 +140,17 @@ func validateResource(r *Resource, where string, crds CRDScopes, usedCapabilitie
 
 	validateWhen(r.When, where, report)
 
-	if r.Group == "*" {
+	switch {
+	case r.Group == "*":
 		report("%s: group \"*\" grants the resource in every API group; name the group", where)
+	case !groupNameRe.MatchString(r.Group):
+		report("%s: group %q is not an API group name (lowercase DNS subdomain; \"\" for the core group)", where, r.Group)
 	}
 
-	if strings.Contains(r.Resource, "*") && r.Resource != "*" {
-		report("%s: resource %q: RBAC matches \"*\" only as a whole name; list the resources or use \"*\" with reason", where, r.Resource)
+	// RBAC matches "*" as a whole resource name or as the resource of "*/<subresource>"
+	// (k8s.io/component-helpers/auth/rbac/validation); anything else is no name Kubernetes knows.
+	if !resourceNameRe.MatchString(r.Resource) {
+		report("%s: resource %q is not a resource name: a lowercase plural, optionally /<subresource>; \"*\" and \"*/<subresource>\" are the only wildcards", where, r.Resource)
 	}
 
 	scope, scopeErr := resolveScope(r, crds)
@@ -517,3 +523,8 @@ func Warnings(d *Declaration) []string {
 
 	return out
 }
+
+var (
+	groupNameRe    = regexp.MustCompile(`^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
+	resourceNameRe = regexp.MustCompile(`^(\*|[a-z0-9]([-a-z0-9.]*[a-z0-9])?)(/[a-z0-9]([-a-z0-9]*[a-z0-9])?)?$`)
+)

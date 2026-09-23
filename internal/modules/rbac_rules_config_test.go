@@ -53,19 +53,19 @@ func TestRemapLinterSettings_RBACDeclarationRules(t *testing.T) {
 		}
 	})
 
-	t.Run("a module's own levels win over the root's", func(t *testing.T) {
+	t.Run("the linter's impact is the fallback below warn, and the root's per-rule level wins", func(t *testing.T) {
 		settings := remapLinterSettings(
-			&config.LintersSettings{Rbac: config.RbacSettings{Rules: config.RbacModuleRules{
-				SyncRule: config.RuleConfig{Impact: pkg.Ignored.String()},
-			}}},
+			&config.LintersSettings{Rbac: config.RbacSettings{Impact: pkg.Ignored.String()}},
 			&global.Linters{Rbac: global.RBACLinterConfig{Rules: global.RBACRules{
-				SyncRule:     global.RuleConfig{Impact: pkg.Error.String()},
-				CoverageRule: global.RuleConfig{Impact: pkg.Error.String()},
+				SyncRule: global.RuleConfig{Impact: pkg.Error.String()},
 			}}},
 		)
 
-		require.Equal(t, pkg.Ignored, *settings.RBAC.Rules.SyncRule.GetLevel())
-		require.Equal(t, pkg.Error, *settings.RBAC.Rules.CoverageRule.GetLevel())
+		require.Equal(t, pkg.Ignored, *settings.RBAC.Rules.CoverageRule.GetLevel(), "impact: ignored on the linter silences an unset rule")
+		require.Equal(t, pkg.Error, *settings.RBAC.Rules.SyncRule.GetLevel(), "a module cannot lower what the root sets")
+
+		settings = remapLinterSettings(&config.LintersSettings{Rbac: config.RbacSettings{Impact: pkg.Error.String()}}, &global.Linters{})
+		require.Equal(t, pkg.Warn, *settings.RBAC.Rules.ContractRule.GetLevel(), "error on the linter does not raise the unset rules above warn")
 	})
 
 	t.Run("module-level exclusions for the three rules", func(t *testing.T) {

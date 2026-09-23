@@ -166,11 +166,7 @@ var rbacKnownKeys = map[string]map[string]struct{}{
 	"global.linters-settings.rbac.rules.coverage": {"impact": {}},
 	"global.linters-settings.rbac.rules.sync":     {"impact": {}},
 	"global.linters-settings.rbac.rules.contract": {"impact": {}},
-	"linters-settings.rbac":                       {"impact": {}, "exclude-rules": {}, "rules": {}},
-	"linters-settings.rbac.rules":                 {"coverage": {}, "sync": {}, "contract": {}},
-	"linters-settings.rbac.rules.coverage":        {"impact": {}},
-	"linters-settings.rbac.rules.sync":            {"impact": {}},
-	"linters-settings.rbac.rules.contract":        {"impact": {}},
+	"linters-settings.rbac":                       {"impact": {}, "exclude-rules": {}},
 	"linters-settings.rbac.exclude-rules": {
 		"binding-subject": {}, "placement": {}, "wildcards": {}, "coverage": {}, "contract": {}, "sync": {},
 	},
