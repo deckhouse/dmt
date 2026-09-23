@@ -523,6 +523,7 @@ func (b *builder) prometheus(role, rb Object) bool {
 		b.decl.PrometheusAccess = &rbacyaml.PrometheusAccess{}
 	} else {
 		b.note("several Prometheus access Roles fold into one prometheusAccess (Role access-to-%s)", b.in.Module)
+		b.note("prometheusAccess: the render does not show whether the template gated the scraper binding on the prometheus module; add `when: .Values.global.enabledModules | has \"prometheus\"` if it did")
 	}
 
 	pa := b.decl.PrometheusAccess
@@ -596,12 +597,10 @@ func (b *builder) resources() {
 
 		switch {
 		case fromCRD:
-			// Written out even though the CRD says it: a lint of one edition directory does not see
-			// the CRDs of the other editions, and an entry without a scope would then stop the
-			// whole validation instead of raising one coverage warning.
-			if !strings.Contains(resource, "/") {
-				e.Scope = scope
-			}
+			// The CRD in crds/ is the source of the scope (ADR); writing it out would be a second
+			// copy that validation has to keep in step. A CRD that only an edition overlay ships
+			// is the one case where a lint of the base directory asks for scope: the author adds
+			// it then, as the validation message says.
 		case resource == "*":
 			e.Scope, scope = rbacyaml.ScopeCluster, rbacyaml.ScopeCluster
 			e.Reason = "TODO: the templates grant the whole group; say why the resource names are not known statically"
@@ -662,10 +661,8 @@ func (b *builder) resources() {
 		}
 
 		if !declared {
-			// The scope is written out for the same reason as above: a lint of one edition directory
-			// that lacks this CRD must read the entry as a documented external resource, not as a
-			// stale one.
-			b.decl.Resources = append(b.decl.Resources, rbacyaml.Resource{Group: group, Resource: plural, Scope: b.in.CRDs[k],
+			// No scope: the CRD in crds/ carries it, as for every CRD-backed entry above.
+			b.decl.Resources = append(b.decl.Resources, rbacyaml.Resource{Group: group, Resource: plural,
 				NoAccess: "TODO: no user-facing access in the templates today; grant levels or say why users get none"})
 		}
 	}

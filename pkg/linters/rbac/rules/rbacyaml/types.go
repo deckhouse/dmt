@@ -197,6 +197,10 @@ type PrometheusAccess struct {
 	Deployments  []string `yaml:"deployments,omitempty"`
 	DaemonSets   []string `yaml:"daemonsets,omitempty"`
 	StatefulSets []string `yaml:"statefulsets,omitempty"`
+	// When gates the RoleBinding to the scraper, the way the modules gate it today:
+	// `.Values.global.enabledModules | has "prometheus"`. The Role stays unconditional, so the
+	// generated file keeps the shape of the hand-written ones.
+	When string `yaml:"when,omitempty"`
 }
 
 // Access grants arbitrary subjects rights on the module. ClusterRules produce a ClusterRole and
