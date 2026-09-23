@@ -214,18 +214,8 @@ type OpenAPIExcludeRules struct {
 
 type RbacSettings struct {
 	ExcludeRules RBACExcludeRules `mapstructure:"exclude-rules"`
-	// Rules sets the levels of the declaration rules for this module; a module that is not ready
-	// for the declaration silences them here without touching the rest of the tree.
-	Rules RbacModuleRules `mapstructure:"rules"`
 
 	Impact string `mapstructure:"impact"`
-}
-
-// RbacModuleRules are the per-module levels of the rules added for the module RBAC declaration.
-type RbacModuleRules struct {
-	CoverageRule RuleConfig `mapstructure:"coverage"`
-	SyncRule     RuleConfig `mapstructure:"sync"`
-	ContractRule RuleConfig `mapstructure:"contract"`
 }
 
 type RBACExcludeRules struct {

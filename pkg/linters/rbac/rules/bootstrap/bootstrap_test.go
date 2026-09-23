@@ -286,7 +286,6 @@ func TestBuild_TODOsAndUnmanaged(t *testing.T) {
 		joined += n + "\n"
 	}
 
-	assert.Contains(t, joined, "trivy.deckhouse.io/vulnerabilityreports: the module ships no CRD and the scope is not known; fill scope")
 	assert.Contains(t, joined, "ServiceAccount webhook mounted its token")
 
 	byKey := map[string]rbacyaml.Resource{}
@@ -295,7 +294,7 @@ func TestBuild_TODOsAndUnmanaged(t *testing.T) {
 	}
 
 	assert.Equal(t, "Namespaced", byKey["/pods"].Scope, "a well-known core resource gets its scope")
-	assert.Equal(t, "", byKey["trivy.deckhouse.io/vulnerabilityreports"].Scope, "an unknown one is left for the author")
+	assert.Equal(t, "TODO: Namespaced or Cluster", byKey["trivy.deckhouse.io/vulnerabilityreports"].Scope, "an unknown one is a TODO value for the author (review of #479, reply to finding 9)")
 	assert.Contains(t, byKey["deckhouse.io/things"].NoAccess, "TODO", "a CRD nobody grants is an undecided entry")
 
 	require.Len(t, got.Decl.ServiceAccounts, 1)
@@ -342,4 +341,34 @@ func TestBuild_WhatTheFormatCannotHoldIsNamed(t *testing.T) {
 	require.Len(t, got.Decl.ServiceAccounts, 1)
 	assert.Empty(t, got.Decl.ServiceAccounts[0].BindRoles)
 	assert.Contains(t, strings.Join(got.Unmanaged, "\n"), "a RoleBinding to the ClusterRole view, which bindRoles cannot express")
+}
+
+// A role granting "*" verbs or API groups stays out of the declaration with a note, instead of
+// being written in a shape the validation refuses (review of #479, finding 21); a grant on every
+// ModuleConfig is an ordinary system entry (review of #479, reply to finding 13d).
+func TestBuild_WildcardRolesAndEveryModuleConfig(t *testing.T) {
+	got := Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Objects: []Object{
+		{Kind: "ClusterRole", Name: "d8:user-authz:m:super-admin", Path: "templates/user-authz-cluster-roles.yaml",
+			Annotations: map[string]string{"user-authz.deckhouse.io/access-level": "SuperAdmin"},
+			Rules:       []rbacv1.PolicyRule{{APIGroups: []string{"*"}, Resources: []string{"*"}, Verbs: []string{"*"}}}},
+		{Kind: "ClusterRole", Name: "d8:system-capability:m:view", Path: "templates/rbacv2/manage/view.yaml",
+			Labels: map[string]string{"module": "m", "rbac.deckhouse.io/kind": "capability", "rbac.deckhouse.io/scope": "system", "rbac.deckhouse.io/aggregate-to-security-as": "viewer"},
+			Rules:  []rbacv1.PolicyRule{{APIGroups: []string{"deckhouse.io"}, Resources: []string{"moduleconfigs"}, Verbs: []string{"get", "list", "watch"}}}},
+	}})
+
+	unmanaged := strings.Join(got.Unmanaged, "\n")
+	assert.Contains(t, unmanaged, "d8:user-authz:m:super-admin")
+	assert.Contains(t, unmanaged, "user-authz does not aggregate SuperAdmin")
+
+	var moduleConfigs rbacyaml.Resource
+
+	for _, r := range got.Decl.Resources {
+		assert.NotEqual(t, "*", r.Group, "no wildcard entry is written")
+
+		if r.Resource == "moduleconfigs" {
+			moduleConfigs = r
+		}
+	}
+
+	assert.Equal(t, []string{"get", "list", "watch"}, moduleConfigs.System["viewer"], "the grant on every ModuleConfig is kept")
 }

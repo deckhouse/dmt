@@ -565,7 +565,10 @@ func TestSync_FixSeesEveryRenderVariant(t *testing.T) {
 // R8a/D7: a declaration in an edition overlay is reported by sync and ignored by coverage.
 func TestSync_DeclarationInEditionOverlay(t *testing.T) {
 	src := syncModuleDir(t)
-	modulePath := filepath.Join(t.TempDir(), "ee", "be", "modules", "101-cert-manager")
+	root := t.TempDir()
+	// The module has a base in modules/, so the edition directory is an overlay.
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "modules", "101-cert-manager"), 0o755))
+	modulePath := filepath.Join(root, "ee", "be", "modules", "101-cert-manager")
 	require.NoError(t, os.MkdirAll(filepath.Dir(modulePath), 0o755))
 	require.NoError(t, os.Rename(src, modulePath))
 
@@ -586,14 +589,19 @@ func TestEditionOverlay(t *testing.T) {
 	assert.Equal(t, "ee/modules", editionOverlay(filepath.Join(root, "ee", "modules", "110-istio")), "merged over modules/110-istio")
 	assert.Empty(t, editionOverlay(filepath.Join(root, "ee", "modules", "030-cloud-provider-openstack")), "an EE-only module: ee/modules is its base")
 
+	// Review of #479, finding 19: a module of one edition directory only has its base there.
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "ee", "be", "modules", "350-node-local-dns"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "ee", "se-plus", "modules", "110-istio"), 0o755))
+	assert.Empty(t, editionOverlay(filepath.Join(root, "ee", "be", "modules", "350-node-local-dns")), "only in ee/be")
+	assert.Equal(t, "ee/se-plus/modules", editionOverlay(filepath.Join(root, "ee", "se-plus", "modules", "110-istio")), "merged over a base")
+
 	for path, want := range map[string]string{
-		"/r/modules/101-cert-manager":  "",
-		"/r/ee/be/modules/500-x":       "ee/be/modules",
-		"/r/ee/se-plus/modules/500-x/": "ee/se-plus/modules",
-		"/r/ee/fe/x":                   "",
-		"/r/external/x":                "",
-		"/r/ee/x":                      "",
-		"modules/x":                    "",
+		"/r/modules/101-cert-manager": "",
+		"/r/ee/be/modules/500-x":      "", // no base anywhere: this edition is its home
+		"/r/ee/fe/x":                  "",
+		"/r/external/x":               "",
+		"/r/ee/x":                     "",
+		"modules/x":                   "",
 	} {
 		assert.Equal(t, want, editionOverlay(path), path)
 	}
@@ -875,30 +883,56 @@ func TestSync_MisplacedObjectIsNamed(t *testing.T) {
 	model := syncModel(t, modulePath)
 	writeGenerated(t, modulePath, model)
 
-	// The edit capability renders from view.yaml.
+	// The edit capability renders from view.yaml; the declaration puts it in edit.yaml.
 	store := renderedFrom(t, model, func(o *generate.Object) bool { return o.Name != "d8:namespace-capability:cert-manager:edit" })
 	edit := *model.File("templates/rbacv2/use/edit.yaml")
 	putObject(t, store, "templates/rbacv2/use/view.yaml", edit.Objects[0])
 
-	// Make view.yaml's text stale so its fix is asked for.
 	viewPath := filepath.Join(modulePath, "templates/rbacv2/use/view.yaml")
+	editPath := filepath.Join(modulePath, "templates/rbacv2/use/edit.yaml")
+
 	require.NoError(t, os.WriteFile(viewPath, []byte(generate.Header()+"\n# stale\n"), 0o600))
 
-	errorList := runSync(t, modulePath, store)
-	for _, fix := range errorList.GetFixes() {
-		fix()
-	}
+	t.Run("the target holds the object: it leaves view.yaml", func(t *testing.T) {
+		resetFixState()
 
-	var messages []string
-
-	for _, e := range errorList.GetErrors() {
-		if e.FixError != nil {
-			messages = append(messages, e.FixError.Error())
+		errorList := runSync(t, modulePath, store)
+		for _, fix := range errorList.GetFixes() {
+			fix()
 		}
-	}
 
-	require.Len(t, messages, 1, "got: %v", messages)
-	assert.Contains(t, messages[0], "ClusterRole/d8:namespace-capability:cert-manager:edit (the declaration puts it in templates/rbacv2/use/edit.yaml; move it there or delete both files and run the fix)")
+		assert.Empty(t, errorList.GetErrors())
+
+		written, err := os.ReadFile(viewPath)
+		require.NoError(t, err)
+		assert.NotContains(t, string(written), "d8:namespace-capability:cert-manager:edit")
+	})
+
+	// Review of #479, finding 15: an object moving to a file that is not written must not leave.
+	t.Run("the target is maintained by hand: the object stays", func(t *testing.T) {
+		resetFixState()
+		require.NoError(t, os.WriteFile(viewPath, []byte(generate.Header()+"\n# stale\n"), 0o600))
+		require.NoError(t, os.WriteFile(editPath, []byte("# by hand\n"), 0o600))
+
+		errorList := runSync(t, modulePath, store)
+		for _, fix := range errorList.GetFixes() {
+			fix()
+		}
+
+		var messages []string
+
+		for _, e := range errorList.GetErrors() {
+			if e.FixError != nil {
+				messages = append(messages, e.FixError.Error())
+			}
+		}
+
+		assert.Contains(t, strings.Join(messages, "\n"), "templates/rbacv2/use/view.yaml holds objects the declaration moves to another file that does not hold them yet: ClusterRole/d8:namespace-capability:cert-manager:edit (to templates/rbacv2/use/edit.yaml)")
+
+		kept, err := os.ReadFile(viewPath)
+		require.NoError(t, err)
+		assert.Equal(t, generate.Header()+"\n# stale\n", string(kept), "view.yaml is left alone")
+	})
 }
 
 // Under --matrix the first declaration is written from the union of every variant's render.
@@ -1477,4 +1511,115 @@ func TestSync_BrokenModuleYAMLStops(t *testing.T) {
 	require.Len(t, got, 1, "got: %v", got)
 	assert.Contains(t, got[0], "parse module.yaml")
 	assert.Empty(t, errorList.GetFixes())
+}
+
+// A generated file whose objects are all under a false condition is found on disk and deleted
+// when the declaration drops them (review of #479, finding 16).
+func TestSync_OrphanWithEveryObjectUnderWhenIsFound(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+
+	const rel = "templates/cainjector/rbac-for-us.yaml"
+
+	// Default values: the cainjector account (under when) does not render.
+	store := renderedFrom(t, model, func(o *generate.Object) bool { return o.When == "" })
+
+	decl, err := rbacyaml.Load(modulePath)
+	require.NoError(t, err)
+
+	decl.ServiceAccounts = nil
+	raw, err := yaml.Marshal(decl)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(rbacyaml.Path(modulePath), raw, 0o600))
+
+	errorList := runSync(t, modulePath, store)
+	assert.Contains(t, strings.Join(texts(errorList), "\n"), rel+" does not match rbac.yaml")
+
+	for _, fix := range errorList.GetFixes() {
+		fix()
+	}
+
+	_, err = os.Stat(filepath.Join(modulePath, rel))
+	assert.True(t, os.IsNotExist(err), "the orphan is deleted")
+}
+
+// A template one render variant could not render is not rewritten by another variant's fix
+// (review of #479, finding 17).
+func TestSync_TemplateDroppedInAnotherVariantIsNotRewritten(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+
+	const rel = "templates/rbac-to-us.yaml"
+
+	fullPath := filepath.Join(modulePath, rel)
+	require.NoError(t, os.WriteFile(fullPath, []byte(generate.Header()+"\n# stale\n"), 0o600))
+
+	// The variant that could not render it.
+	failing := renderedFrom(t, model, nil)
+	failing.MarkDropped(rel, "required value missing")
+	runSync(t, modulePath, failing)
+
+	// The variant that renders it asks for a regeneration.
+	errorList := runSync(t, modulePath, renderedFrom(t, model, nil))
+	for _, fix := range errorList.GetFixes() {
+		fix()
+	}
+
+	var messages []string
+
+	for _, e := range errorList.GetErrors() {
+		if e.FixError != nil {
+			messages = append(messages, e.FixError.Error())
+		}
+	}
+
+	assert.Contains(t, strings.Join(messages, "\n"), rel+" failed to render under some values (required value missing)")
+
+	kept, err := os.ReadFile(fullPath)
+	require.NoError(t, err)
+	assert.Equal(t, generate.Header()+"\n# stale\n", string(kept))
+}
+
+// In a contract 1 file an object named the way the generator names the module's access is the
+// generator's: dropping it from the declaration removes it in the same run as the upgrade to
+// contract 2 (review of #479, reply to finding 4).
+func TestSync_ContractOneGeneratorNamedObjectIsRemoved(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+	store := renderedFrom(t, model, nil)
+
+	const rel = "templates/rbac-to-us.yaml"
+
+	asContractOne(t, filepath.Join(modulePath, rel))
+
+	decl, err := rbacyaml.Load(modulePath)
+	require.NoError(t, err)
+
+	decl.PrometheusAccess = nil
+	raw, err := yaml.Marshal(decl)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(rbacyaml.Path(modulePath), raw, 0o600))
+
+	errorList := runSync(t, modulePath, store)
+	for _, fix := range errorList.GetFixes() {
+		fix()
+	}
+
+	assert.Empty(t, errorList.GetErrors(), "the fix applies in the same run as the upgrade to contract 2")
+
+	if written, err := os.ReadFile(filepath.Join(modulePath, rel)); err == nil {
+		assert.NotContains(t, string(written), "name: access-to-cert-manager\n")
+	}
 }

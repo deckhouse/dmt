@@ -238,9 +238,9 @@ func mapRuleSettings(linterSettings *pkg.LintersSettings, configSettings *config
 }
 
 // mapRBACRules configures the per-rule levels of the rbac rules added for the module RBAC
-// declaration: coverage, sync and contract read their impact from the module's configuration,
-// then from the root one, and start at warn. The linter's own impact still caps them (see
-// rbac.New): impact: ignored on the linter silences every rbac rule.
+// declaration. As for every dmt linter, a per-rule level is read from the root configuration only
+// and wins over the linter's impact; a rule the root leaves unset falls back to the linter's impact
+// -- the module's, if it sets one -- but never above warn, the level these rules start at.
 func mapRBACRules(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings, globalConfig *global.Linters) {
 	// The declaration rules are new to every tree: a module without rbac.yaml sees only contract,
 	// and the platform tree still carries six dead rbac.yaml files of an older shape and rules the
@@ -248,22 +248,14 @@ func mapRBACRules(linterSettings *pkg.LintersSettings, configSettings *config.Li
 	// rules of the documentation linter -- and are raised to error per tree in its root
 	// .dmtlint.yaml once its modules are clean. The linter-level impact is intentionally not the
 	// fallback: impact: error on rbac means the four original rules, as it always did.
-	module := configSettings.Rbac.Rules
-
-	linterSettings.RBAC.Rules.CoverageRule.SetLevel(firstSet(module.CoverageRule.Impact, globalConfig.Rbac.Rules.CoverageRule.Impact), pkg.Warn.String())
-	linterSettings.RBAC.Rules.SyncRule.SetLevel(firstSet(module.SyncRule.Impact, globalConfig.Rbac.Rules.SyncRule.Impact), pkg.Warn.String())
-	linterSettings.RBAC.Rules.ContractRule.SetLevel(firstSet(module.ContractRule.Impact, globalConfig.Rbac.Rules.ContractRule.Impact), pkg.Warn.String())
-}
-
-// firstSet returns the first non-empty level.
-func firstSet(levels ...string) string {
-	for _, l := range levels {
-		if l != "" {
-			return l
-		}
+	fallback := pkg.Warn.String()
+	if impact := configSettings.Rbac.Impact; impact != "" && pkg.ParseStringToLevel(impact) < pkg.Warn {
+		fallback = impact
 	}
 
-	return ""
+	linterSettings.RBAC.Rules.CoverageRule.SetLevel(globalConfig.Rbac.Rules.CoverageRule.Impact, fallback)
+	linterSettings.RBAC.Rules.SyncRule.SetLevel(globalConfig.Rbac.Rules.SyncRule.Impact, fallback)
+	linterSettings.RBAC.Rules.ContractRule.SetLevel(globalConfig.Rbac.Rules.ContractRule.Impact, fallback)
 }
 
 // mapContainerRules configures Container linter rules

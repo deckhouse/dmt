@@ -17,9 +17,12 @@ limitations under the License.
 package errors
 
 import (
+	stderrors "errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/utils/ptr"
 
 	"github.com/deckhouse/dmt/pkg"
 )
@@ -42,4 +45,28 @@ func TestGetFixes_SkipsIgnoredFindings(t *testing.T) {
 	}
 
 	require.Equal(t, map[string]int{"active": 1}, ran)
+}
+
+// A fix that runs and does not close its finding fails the run at any level but ignored (review
+// of #479, reply to finding 9).
+func TestContainsFailedFixes(t *testing.T) {
+	list := NewLintRuleErrorsList().WithMaxLevel(ptr.To(pkg.Warn))
+	list.WithFix(func() error { return nil }).Warn("closed by its fix")
+	assert.False(t, list.ContainsFailedFixes(), "nothing ran yet")
+
+	for _, fix := range list.GetFixes() {
+		fix()
+	}
+
+	assert.False(t, list.ContainsFailedFixes(), "the fix closed its finding")
+
+	failing := NewLintRuleErrorsList().WithMaxLevel(ptr.To(pkg.Warn))
+	failing.WithFix(func() error { return stderrors.New("a decision is open") }).Warn("left open")
+
+	for _, fix := range failing.GetFixes() {
+		fix()
+	}
+
+	assert.True(t, failing.ContainsFailedFixes(), "a warn-level finding with a failed fix fails the run")
+	assert.False(t, failing.ContainsErrors(), "its level stays warn")
 }

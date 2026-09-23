@@ -73,12 +73,11 @@ linters-settings:
 		assert.Contains(t, err.Error(), "the accepted keys are contract, coverage, sync")
 	})
 
-	t.Run("a module sets the levels of the declaration rules", func(t *testing.T) {
-		require.NoError(t, loadFrom(t, "linters-settings:\n  rbac:\n    rules:\n      coverage: {impact: ignored}\n      sync: {impact: warn}\n"))
-
-		err := loadFrom(t, "linters-settings:\n  rbac:\n    rules:\n      placement: {impact: warn}\n")
+	t.Run("per-rule levels do not belong to the module block", func(t *testing.T) {
+		// ADR: per-rule levels are read from the root configuration only, as for every dmt linter.
+		err := loadFrom(t, "linters-settings:\n  rbac:\n    rules:\n      coverage: {impact: warn}\n")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), `unknown key(s) placement under "linters-settings.rbac.rules"`)
+		assert.Contains(t, err.Error(), `unknown key(s) rules under "linters-settings.rbac"`)
 	})
 
 	t.Run("an unknown level is an error, not a silent error level", func(t *testing.T) {

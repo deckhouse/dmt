@@ -331,7 +331,31 @@ resource: "secret*"
 scope: Namespaced
 noAccess: nobody`),
 			crds:    certManagerCRDs,
-			wantErr: `RBAC matches "*" only as a whole name`,
+			wantErr: `resource "secret*" is not a resource name`,
+		},
+		"review 20: the wildcard resource of a subresource is valid": {
+			yaml: entry(`group: external.io
+resource: "*/scale"
+scope: Namespaced
+noAccess: nobody`),
+			crds:    certManagerCRDs,
+			wantErr: "",
+		},
+		"review 6: a resource name with a space": {
+			yaml: entry(`group: external.io
+resource: "Widgets "
+scope: Namespaced
+noAccess: nobody`),
+			crds:    certManagerCRDs,
+			wantErr: `resource "Widgets " is not a resource name`,
+		},
+		"review 6: a group that is not a DNS name": {
+			yaml: entry(`group: "External_IO"
+resource: things
+scope: Namespaced
+noAccess: nobody`),
+			crds:    certManagerCRDs,
+			wantErr: `group "External_IO" is not an API group name`,
 		},
 		"review 13b: when with a template delimiter": {
 			yaml: entry(`group: cert-manager.io

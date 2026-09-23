@@ -25,6 +25,7 @@ import (
 	"sync"
 
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/bootstrap"
+	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/generate"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbaccontract"
 )
 
@@ -42,10 +43,14 @@ var fixState = struct {
 	sync.Mutex
 	foreign   map[string]map[string]struct{}
 	removals  map[string]map[string]struct{}
+	moves     map[string]map[string]string
+	dropped   map[string]string
 	bootstrap map[string]map[string]bootstrap.Object
 }{
 	foreign:   map[string]map[string]struct{}{},
 	removals:  map[string]map[string]struct{}{},
+	moves:     map[string]map[string]string{},
+	dropped:   map[string]string{},
 	bootstrap: map[string]map[string]bootstrap.Object{},
 }
 
@@ -114,6 +119,8 @@ func resetFixState() {
 
 	fixState.foreign = map[string]map[string]struct{}{}
 	fixState.removals = map[string]map[string]struct{}{}
+	fixState.moves = map[string]map[string]string{}
+	fixState.dropped = map[string]string{}
 	fixState.bootstrap = map[string]map[string]bootstrap.Object{}
 
 	fixOutcomes.Lock()
@@ -178,12 +185,20 @@ func editionOverlay(modulePath string) string {
 		// ee/modules is merged over modules/ for a module that exists in both; an EE-only module
 		// has no other directory, and ee/modules/<module> is its base.
 		root := string(filepath.Separator) + filepath.Join(parts[:n-3]...)
-		if _, err := os.Stat(filepath.Join(root, "modules", parts[n-1])); err != nil {
+		if !exists(filepath.Join(root, "modules", parts[n-1])) {
 			return ""
 		}
 
 		return "ee/modules"
 	case n >= 4 && parts[n-4] == "ee":
+		// An edition directory is an overlay only for a module that has a base to merge over; a
+		// module that lives in this edition alone (node-local-dns, cloud-provider-vsphere, ...) has
+		// its base here.
+		root := string(filepath.Separator) + filepath.Join(parts[:n-4]...)
+		if !exists(filepath.Join(root, "modules", parts[n-1])) && !exists(filepath.Join(root, "ee", "modules", parts[n-1])) {
+			return ""
+		}
+
 		return "ee/" + parts[n-3] + "/modules"
 	default:
 		return ""
@@ -283,4 +298,76 @@ func recordedRemovals(file string) []string {
 	sort.Strings(out)
 
 	return out
+}
+
+// recordMoves adds the objects one render variant saw in the file that the declaration now puts in
+// another file, with that file's full path.
+func recordMoves(file string, moves map[string]string) {
+	if len(moves) == 0 {
+		return
+	}
+
+	fixState.Lock()
+	defer fixState.Unlock()
+
+	known := fixState.moves[file]
+	if known == nil {
+		known = map[string]string{}
+		fixState.moves[file] = known
+	}
+
+	for id, target := range moves {
+		known[id] = target
+	}
+}
+
+// unfinishedMoves returns, sorted, the objects moving out of the file whose target does not hold
+// them yet: its header does not list them. Such an object must not leave the file.
+func unfinishedMoves(file, modulePath string) []string {
+	fixState.Lock()
+	moves := fixState.moves[file]
+	fixState.Unlock()
+
+	var out []string
+
+	for id, target := range moves {
+		content, err := os.ReadFile(filepath.Join(modulePath, target))
+		if err == nil {
+			if owned, _ := generate.ParseOwned(string(content)); owned != nil {
+				if _, there := owned[id]; there {
+					continue
+				}
+			}
+		}
+
+		out = append(out, id+" (to "+target+")")
+	}
+
+	sort.Strings(out)
+
+	return out
+}
+
+// recordDropped marks a template the render skipped in some variant: no variant's fix may rewrite
+// or delete it, since the objects that variant renders there were never seen.
+func recordDropped(file, cause string) {
+	fixState.Lock()
+	defer fixState.Unlock()
+
+	fixState.dropped[file] = cause
+}
+
+// droppedCause returns why a variant skipped the template, if one did.
+func droppedCause(file string) (string, bool) {
+	fixState.Lock()
+	defer fixState.Unlock()
+
+	cause, ok := fixState.dropped[file]
+
+	return cause, ok
+}
+
+func exists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }

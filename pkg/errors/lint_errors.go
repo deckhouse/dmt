@@ -278,6 +278,23 @@ func (l *LintRuleErrorsList) GetFixes() []func() {
 	return fixes
 }
 
+// ContainsFailedFixes reports whether a fix ran and did not close its finding: a stub written
+// that is not yet a decision, a regeneration refused. The run has to end non-zero whatever the
+// finding's level (ADR, rbac declaration: --fix with an open decision is a failure).
+func (l *LintRuleErrorsList) ContainsFailedFixes() bool {
+	if l.storage == nil {
+		return false
+	}
+
+	for _, err := range l.storage.GetErrors() {
+		if err.FixError != nil && err.Level != pkg.Ignored {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (l *LintRuleErrorsList) ContainsErrors() bool {
 	if l.storage == nil {
 		l.storage = &errStorage{}
