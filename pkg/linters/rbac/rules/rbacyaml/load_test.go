@@ -606,3 +606,17 @@ access:
 	assert.Contains(t, msgs, "access[0] (dup).subjects[1]: duplicate subject Group g")
 	assert.Len(t, msgs, 2, "configmaps and deployments/scale need no scope: %v", msgs)
 }
+
+// legacy.SuperAdmin validates but reaches nobody; it is a warning (review of #479, finding 13e).
+func TestWarnings_LegacySuperAdmin(t *testing.T) {
+	decl, err := Parse([]byte(entry(`group: cert-manager.io
+resource: issuers
+legacy:
+  SuperAdmin: [get]`)))
+	require.NoError(t, err)
+	assert.Empty(t, Validate(decl, certManagerCRDs))
+
+	w := Warnings(decl)
+	require.Len(t, w, 1)
+	assert.Contains(t, w[0], "legacy.SuperAdmin produces a role user-authz does not aggregate")
+}

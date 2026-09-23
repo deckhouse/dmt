@@ -17,6 +17,7 @@ limitations under the License.
 package generate
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -413,6 +414,43 @@ func TestBuild_PrometheusAccessWhen(t *testing.T) {
 	rendered := RenderFile(*file)
 	assert.Equal(t, 1, strings.Count(rendered, `{{- if .Values.global.enabledModules | has "prometheus" }}`))
 	assert.Less(t, strings.Index(rendered, "kind: Role\n"), strings.Index(rendered, "{{- if"), "the Role comes before the gate")
+}
+
+// A capability whose every rule is conditional is conditional as a whole: it is not rendered with
+// an empty rules list when the conditions do not hold (review of #479, finding 11).
+func TestBuild_AllRulesUnderWhenLiftTheCondition(t *testing.T) {
+	declWith := func(whens ...string) *rbacyaml.Declaration {
+		d := &rbacyaml.Declaration{APIVersion: rbacyaml.APIVersionV1Alpha1}
+		for i, w := range whens {
+			d.Resources = append(d.Resources, rbacyaml.Resource{Group: "x.io", Resource: fmt.Sprintf("things%d", i), Scope: "Namespaced", When: w,
+				Namespace: map[string][]string{"viewer": {"get"}}})
+		}
+
+		return d
+	}
+
+	capability := func(t *testing.T, decl *rbacyaml.Declaration) Object {
+		t.Helper()
+
+		model, err := Build(Input{Module: "m", Namespace: "d8-m", Decl: decl})
+		require.NoError(t, err)
+
+		f := model.File("templates/rbacv2/use/view.yaml")
+		require.NotNil(t, f)
+
+		return f.Objects[0]
+	}
+
+	one := capability(t, declWith(".Values.m.a", ".Values.m.a"))
+	assert.Equal(t, ".Values.m.a", one.When)
+	assert.Empty(t, one.Rules[0].When, "a shared condition leaves the rules")
+
+	two := capability(t, declWith(".Values.m.a", ".Values.m.b"))
+	assert.Equal(t, "or (.Values.m.a) (.Values.m.b)", two.When)
+	assert.Equal(t, ".Values.m.a", two.Rules[0].When, "different conditions stay on their rules")
+
+	mixed := capability(t, declWith(".Values.m.a", ""))
+	assert.Empty(t, mixed.When, "an unconditional rule keeps the role unconditional")
 }
 
 // A generated file that acquired CRLF line endings is still the generator's.

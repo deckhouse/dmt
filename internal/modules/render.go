@@ -46,6 +46,7 @@ func RunRender(m *Module, vals chartutil.Values, objectStore *storage.Unstructur
 		Values:           vals,
 		ExtraAPIVersions: render.ExtraAPIVersions(),
 		OnDrop: func(templatePath, cause string) {
+			objectStore.MarkDropped(templatePath, cause)
 			errorList.WithModule(m.GetName()).WithFilePath(templatePath).WithValue(cause).
 				Warnf("template %q failed to render and was skipped; the rest of the chart was still linted", templatePath)
 		},

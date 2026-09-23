@@ -271,3 +271,23 @@ func TestContract_LegacyScheme(t *testing.T) {
 		assert.Empty(t, runContract(t, modulePath, rendered{"templates/rbacv2/use/view.yaml", legacy}))
 	})
 }
+
+// Two capabilities of one module with one marker are refused; a namespace capability granting a
+// built-in cluster-scoped resource is warned about (review of #479, findings 13f and 13g).
+func TestContract_DuplicateMarkerAndBuiltInScope(t *testing.T) {
+	labels := func(marker string) map[string]string {
+		return map[string]string{"module": "cert-manager", "rbac.deckhouse.io/kind": "capability", "rbac.deckhouse.io/scope": "namespace",
+			"rbac.deckhouse.io/capability": marker, "rbac.deckhouse.io/aggregate-to-namespace-as": "viewer"}
+	}
+
+	got := runContract(t, t.TempDir(),
+		rendered{"templates/rbacv2/use/view.yaml", clusterRole("d8:namespace-capability:cert-manager:view", labels("namespace-capability.cert-manager.view"), i18n,
+			"rules:\n- apiGroups: [\"\"]\n  resources: [nodes]\n  verbs: [get]\n")},
+		rendered{"templates/rbacv2/use/view2.yaml", clusterRole("d8:namespace-capability:cert-manager:view_more", labels("namespace-capability.cert-manager.view"), i18n,
+			"rules:\n- apiGroups: [x.io]\n  resources: [ys]\n  verbs: [get]\n")},
+	)
+
+	joined := strings.Join(got, "\n")
+	assert.Contains(t, joined, `capability marker "namespace-capability.cert-manager.view" is also carried by d8:namespace-capability:cert-manager:view`)
+	assert.Contains(t, joined, "grants /nodes, a cluster-scoped resource, in a namespace capability")
+}

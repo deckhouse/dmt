@@ -175,6 +175,13 @@ func editionOverlay(modulePath string) string {
 
 	switch {
 	case parts[n-3] == "ee":
+		// ee/modules is merged over modules/ for a module that exists in both; an EE-only module
+		// has no other directory, and ee/modules/<module> is its base.
+		root := string(filepath.Separator) + filepath.Join(parts[:n-3]...)
+		if _, err := os.Stat(filepath.Join(root, "modules", parts[n-1])); err != nil {
+			return ""
+		}
+
 		return "ee/modules"
 	case n >= 4 && parts[n-4] == "ee":
 		return "ee/" + parts[n-3] + "/modules"

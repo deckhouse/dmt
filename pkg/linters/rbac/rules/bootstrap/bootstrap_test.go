@@ -204,9 +204,37 @@ func TestBuild_ResourceNamesAreNotWidened(t *testing.T) {
 
 	require.Contains(t, byKey, "/secrets")
 	assert.Empty(t, byKey["/secrets"].NoAccess)
-	assert.ElementsMatch(t, []string{"get", "list"}, byKey["/secrets"].Namespace["viewer"])
+	assert.Equal(t, []string{"list"}, byKey["/secrets"].Namespace["viewer"], "get was limited to m-token and is not widened")
 
-	assert.Contains(t, strings.Join(got.Notes, "\n"), "/configmaps: every grant carried resourceNames")
+	notes := strings.Join(got.Notes, "\n")
+	assert.Contains(t, notes, "/configmaps: every grant carried resourceNames")
+	assert.Contains(t, notes, "/secrets: grants limited to resourceNames are not carried over, the format would grant them on every object: namespace/viewer: get on [m-token]")
+}
+
+// An unrestricted grant at one level does not carry a restricted grant at another level with it
+// (review of #479, finding 8).
+func TestBuild_ResourceNamesOfOneLevelDoNotRideOnAnother(t *testing.T) {
+	capability := func(name, level string, rules ...rbacv1.PolicyRule) Object {
+		return Object{Kind: "ClusterRole", Name: name, Path: "templates/rbacv2/use/x.yaml", Rules: rules,
+			Labels: map[string]string{"module": "m", "rbac.deckhouse.io/kind": "capability", "rbac.deckhouse.io/scope": "namespace", "rbac.deckhouse.io/aggregate-to-namespace-as": level}}
+	}
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{
+		capability("d8:namespace-capability:m:view", "viewer", rbacv1.PolicyRule{APIGroups: []string{""}, Resources: []string{"secrets"}, Verbs: []string{"list"}}),
+		capability("d8:namespace-capability:m:edit", "manager", rbacv1.PolicyRule{APIGroups: []string{""}, Resources: []string{"secrets"}, ResourceNames: []string{"m-config"}, Verbs: []string{"get", "update", "delete"}}),
+	}})
+
+	var secrets rbacyaml.Resource
+
+	for _, r := range got.Decl.Resources {
+		if r.Resource == "secrets" {
+			secrets = r
+		}
+	}
+
+	assert.Equal(t, []string{"list"}, secrets.Namespace["viewer"])
+	assert.NotContains(t, secrets.Namespace, "manager", "the manager grant named m-config only")
+	assert.Contains(t, strings.Join(got.Notes, "\n"), "namespace/manager: get,update,delete on [m-config]")
 }
 
 // The lint path fills the input from a map; the result must not depend on that order.
@@ -282,4 +310,36 @@ func TestBuild_TODOsAndUnmanaged(t *testing.T) {
 	require.Len(t, got.Unmanaged, 2)
 	assert.Contains(t, got.Unmanaged[0], "d8:namespace-capability:kubernetes:view_logs")
 	assert.Contains(t, got.Unmanaged[1], "d8:use:capability:module:m:view")
+}
+
+// A system capability's moduleconfigs rule other than the one the generator adds is named, not
+// dropped in silence; a ServiceAccount's RoleBinding to a ClusterRole stays hand-written instead of
+// becoming a binding to a Role of that name (review of #479, findings 13c and 13d).
+func TestBuild_WhatTheFormatCannotHoldIsNamed(t *testing.T) {
+	capability := func(action, level string, rules ...rbacv1.PolicyRule) Object {
+		return Object{Kind: "ClusterRole", Name: "d8:system-capability:m:" + action, Path: "templates/rbacv2/manage/" + action + ".yaml", Rules: rules,
+			Labels: map[string]string{"module": "m", "rbac.deckhouse.io/kind": "capability", "rbac.deckhouse.io/scope": "system", "rbac.deckhouse.io/aggregate-to-security-as": level}}
+	}
+	moduleConfigs := func(names []string, verbs ...string) rbacv1.PolicyRule {
+		return rbacv1.PolicyRule{APIGroups: []string{"deckhouse.io"}, Resources: []string{"moduleconfigs"}, ResourceNames: names, Verbs: verbs}
+	}
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Objects: []Object{
+		capability("view", "viewer", moduleConfigs([]string{"m"}, "get", "list", "watch")),
+		capability("superadmin", "superadmin", moduleConfigs([]string{"m"}, "delete")),
+		capability("edit", "manager", moduleConfigs([]string{"other"}, "update")),
+		{Kind: "ServiceAccount", Name: "worker", Path: "templates/worker/rbac-for-us.yaml", Labels: map[string]string{"module": "m"}},
+		{Kind: "RoleBinding", Name: "worker-view", Namespace: "d8-m", Path: "templates/worker/rbac-for-us.yaml", Labels: map[string]string{"module": "m"},
+			RoleRef:  rbacv1.RoleRef{Kind: "ClusterRole", Name: "view"},
+			Subjects: []rbacv1.Subject{{Kind: "ServiceAccount", Name: "worker", Namespace: "d8-m"}}},
+	}})
+
+	notes := strings.Join(got.Notes, "\n")
+	assert.NotContains(t, notes, "system/viewer: a moduleconfigs rule", "the generator's own rule is not a note")
+	assert.Contains(t, notes, "system/superadmin: a moduleconfigs rule the generator does not produce (delete on [m])")
+	assert.Contains(t, notes, "system/manager: a moduleconfigs rule the generator does not produce (update on [other])")
+
+	require.Len(t, got.Decl.ServiceAccounts, 1)
+	assert.Empty(t, got.Decl.ServiceAccounts[0].BindRoles)
+	assert.Contains(t, strings.Join(got.Unmanaged, "\n"), "a RoleBinding to the ClusterRole view, which bindRoles cannot express")
 }
