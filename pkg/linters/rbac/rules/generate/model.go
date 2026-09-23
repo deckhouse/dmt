@@ -484,8 +484,10 @@ func (b *builder) access() {
 		name := "access-to-" + b.in.Module
 
 		b.add("templates/rbac-to-us.yaml", Object{Kind: "Role", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, Rules: rules})
+		// The Role is unconditional and only the binding to the scraper is gated: that is how the
+		// modules write it today, and a Role nobody is bound to grants nothing.
 		b.add("templates/rbac-to-us.yaml", Object{
-			Kind: "RoleBinding", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, RoleRefKind: "Role", RoleRefName: name,
+			Kind: "RoleBinding", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, RoleRefKind: "Role", RoleRefName: name, When: pa.When,
 			Subjects: []Subject{{Kind: "User", Name: "d8-monitoring:scraper"}, {Kind: "ServiceAccount", Name: "prometheus", Namespace: "d8-monitoring"}},
 		})
 	}

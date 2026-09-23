@@ -1440,9 +1440,11 @@ serviceAccounts:
       - namespace: kube-system
         name: extension-apiserver-authentication-reader
 
-# Metrics access -> templates/rbac-to-us.yaml (Role/RoleBinding access-to-<module>)
+# Metrics access -> templates/rbac-to-us.yaml (Role/RoleBinding access-to-<module>); `when` gates the
+# RoleBinding to the scraper only, the Role is unconditional, as the modules write it today
 prometheusAccess:
   deployments: [cert-manager]
+  when: .Values.global.enabledModules | has "prometheus"
 
 # Arbitrary subjects: clusterRules -> templates/[<path>/]rbac-for-us.yaml, namespaceRules -> templates/[<path>/]rbac-to-us.yaml
 access:

@@ -97,9 +97,12 @@ func Validate(d *Declaration, crds CRDScopes) []error {
 	validateServiceAccounts(d.ServiceAccounts, report)
 	validateAccess(d.Access, report)
 
-	if d.PrometheusAccess != nil &&
-		len(d.PrometheusAccess.Deployments)+len(d.PrometheusAccess.DaemonSets)+len(d.PrometheusAccess.StatefulSets) == 0 {
-		report("prometheusAccess: names no workload; remove the section or list deployments, daemonsets or statefulsets")
+	if d.PrometheusAccess != nil {
+		if len(d.PrometheusAccess.Deployments)+len(d.PrometheusAccess.DaemonSets)+len(d.PrometheusAccess.StatefulSets) == 0 {
+			report("prometheusAccess: names no workload; remove the section or list deployments, daemonsets or statefulsets")
+		}
+
+		validateWhen(d.PrometheusAccess.When, "prometheusAccess", report)
 	}
 
 	// Several checks walk maps; the reader and the e2e expectations get one order.

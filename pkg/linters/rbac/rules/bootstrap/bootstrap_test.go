@@ -107,8 +107,8 @@ func TestBuild_RoundTripOnTheCertManagerFixture(t *testing.T) {
 		require.True(t, ok, "resource %s missing", k)
 		assert.Equal(t, w.NoAccess != "", g.NoAccess != "", "%s: denied", k)
 
-		if g.NoAccess == "" && !strings.Contains(g.Resource, "/") {
-			assert.Equal(t, certManagerCRDs[k], g.Scope, "%s: the scope is written out even when the CRD says it", k)
+		if _, backed := certManagerCRDs[k]; backed {
+			assert.Empty(t, g.Scope, "%s: the CRD carries the scope, the entry does not repeat it", k)
 		}
 
 		assert.Equal(t, w.Namespace, g.Namespace, "%s: namespace levels", k)

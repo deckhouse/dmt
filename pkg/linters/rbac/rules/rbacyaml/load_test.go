@@ -449,6 +449,10 @@ func TestValidate_TopLevel(t *testing.T) {
 			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\nserviceAccounts:\n  - name: a\n    clusterRules: [{apiGroups: [x], resources: [y]}]\n",
 			wantErr: "serviceAccounts[0] (a).clusterRules[0]: verbs is required",
 		},
+		"prometheusAccess: when that is not a Helm expression": {
+			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\nprometheusAccess:\n  deployments: [a]\n  when: 'and (.Values.x'\n",
+			wantErr: "prometheusAccess: when",
+		},
 		"prometheusAccess: empty": {
 			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\nprometheusAccess: {}\n",
 			wantErr: "prometheusAccess: names no workload",
