@@ -325,6 +325,19 @@ func checkCapability(role *rbacv1.ClusterRole, scope string, scopes rbacyaml.CRD
 		errorList.Errorf("capability %q must define rules", name)
 	}
 
+	// A capability is what users are granted; nothing else checks its wildcards (the wildcards
+	// rule reads a ServiceAccount's templates only). resources: ["*"] stays possible for a group
+	// whose resources are not known statically; rbac.yaml asks for a reason there.
+	for _, rule := range role.Rules {
+		if slices.Contains(rule.Verbs, "*") {
+			errorList.Errorf("capability %q grants verb \"*\" on %s; list the verbs", name, strings.Join(append(append([]string{}, rule.APIGroups...), rule.Resources...), ", "))
+		}
+
+		if slices.Contains(rule.APIGroups, "*") {
+			errorList.Errorf("capability %q grants on every API group (apiGroups: [\"*\"]); name the groups", name)
+		}
+	}
+
 	if role.AggregationRule != nil {
 		errorList.Errorf("capability %q must not define aggregationRule", name)
 	}

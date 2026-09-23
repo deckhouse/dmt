@@ -194,6 +194,16 @@ func TestContract_Findings(t *testing.T) {
 				`error: role "d8:system:admin" aggregation selector has invalid level "admin"`,
 			},
 		},
+		"review 6: a capability with wildcard verbs and groups": {
+			object: clusterRole("d8:namespace-capability:x:view", map[string]string{"module": "cert-manager",
+				"rbac.deckhouse.io/kind": "capability", "rbac.deckhouse.io/scope": "namespace",
+				"rbac.deckhouse.io/capability": "namespace-capability.x.view", "rbac.deckhouse.io/aggregate-to-namespace-as": "viewer",
+			}, i18n, "rules:\n- apiGroups: [\"*\"]\n  resources: [secrets]\n  verbs: [\"*\"]\n"),
+			wantErrs: []string{
+				`error: capability "d8:namespace-capability:x:view" grants verb "*" on *, secrets; list the verbs`,
+				`error: capability "d8:namespace-capability:x:view" grants on every API group (apiGroups: ["*"]); name the groups`,
+			},
+		},
 		"R21: the module label names another module": {
 			object: clusterRole("d8:namespace-capability:x:view", map[string]string{"module": "other",
 				"rbac.deckhouse.io/kind": "capability", "rbac.deckhouse.io/scope": "namespace",

@@ -19,12 +19,15 @@ package generate
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	sigsyaml "sigs.k8s.io/yaml"
 
+	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbaccontract"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbacyaml"
 )
 
@@ -186,7 +189,7 @@ func TestRender_GoldenAndIdempotent(t *testing.T) {
 
 		generated, version := ParseHeader(f.Content)
 		assert.True(t, generated)
-		assert.Equal(t, "1", version)
+		assert.Equal(t, rbaccontract.ContractVersion, version)
 	}
 }
 
@@ -303,7 +306,9 @@ func TestYAMLScalar(t *testing.T) {
 	for in, want := range map[string]string{
 		"d8:cert-manager:cainjector": "d8:cert-manager:cainjector",
 		"/metrics":                   "/metrics",
-		"*":                          "*",
+		"*":                          `"*"`,
+		"*foo":                       `"*foo"`,
+		"pods/*":                     "pods/*",
 		"pods/log":                   "pods/log",
 		"cert-manager.io":            "cert-manager.io",
 		"":                           `""`,
@@ -319,6 +324,58 @@ func TestYAMLScalar(t *testing.T) {
 	} {
 		assert.Equal(t, want, yamlScalar(in), "input %q", in)
 	}
+}
+
+// Every value the generator writes must read back as itself: a wildcard in a service account's
+// rules renders a file that parses and carries the "*".
+func TestRender_WildcardRoundTrip(t *testing.T) {
+	decl := &rbacyaml.Declaration{APIVersion: rbacyaml.APIVersionV1Alpha1,
+		Resources: []rbacyaml.Resource{{Group: "x.io", Resource: "things", Scope: "Cluster", System: map[string][]string{"viewer": {"get"}}}},
+		ServiceAccounts: []rbacyaml.ServiceAccount{{Name: "worker", ClusterRules: []rbacyaml.PolicyRule{
+			{APIGroups: []string{"*"}, Resources: []string{"*"}, Verbs: []string{"*"}},
+		}}},
+	}
+
+	model, err := Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Decl: decl})
+	require.NoError(t, err)
+
+	file := model.File("templates/rbac-for-us.yaml")
+	require.NotNil(t, file)
+
+	for _, doc := range strings.Split(RenderFile(*file), "\n---\n") {
+		if !strings.HasPrefix(doc, "apiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\n") {
+			continue
+		}
+
+		var role struct {
+			Rules []struct {
+				APIGroups []string `json:"apiGroups"`
+				Verbs     []string `json:"verbs"`
+			} `json:"rules"`
+		}
+		require.NoError(t, sigsyaml.Unmarshal([]byte(helmTemplateLines.ReplaceAllString(doc, "")), &role), doc)
+		require.Len(t, role.Rules, 1)
+		assert.Equal(t, []string{"*"}, role.Rules[0].APIGroups)
+		assert.Equal(t, []string{"*"}, role.Rules[0].Verbs)
+	}
+}
+
+// helmTemplateLines drops the Helm actions of a generated document so it parses as plain YAML.
+var helmTemplateLines = regexp.MustCompile(`(?m)^.*\{\{.*\}\}.*$`)
+
+// A ServiceAccount and an access entry of one name map to the same ClusterRole in two templates;
+// Helm would refuse the release, so the model does (review of #479, finding 10).
+func TestBuild_RefusesNamesCollidingAcrossFiles(t *testing.T) {
+	decl := &rbacyaml.Declaration{APIVersion: rbacyaml.APIVersionV1Alpha1,
+		Resources:       []rbacyaml.Resource{{Group: "x.io", Resource: "things", Scope: "Cluster", System: map[string][]string{"viewer": {"get"}}}},
+		ServiceAccounts: []rbacyaml.ServiceAccount{{Name: "webhook", Path: "webhook", ClusterRules: []rbacyaml.PolicyRule{{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"get"}}}}},
+		Access: []rbacyaml.Access{{Name: "webhook", Subjects: []rbacyaml.Subject{{Kind: "Group", Name: "g"}},
+			ClusterRules: []rbacyaml.PolicyRule{{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"list"}}}}},
+	}
+
+	_, err := Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Decl: decl})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "would both hold ClusterRole/d8:m:webhook")
 }
 
 // Two declared roles whose names differ only by the separator produce one binding name; the
@@ -362,8 +419,17 @@ func TestBuild_PrometheusAccessWhen(t *testing.T) {
 func TestParseHeader_CRLF(t *testing.T) {
 	generated, version := ParseHeader(Header() + "\r\n---\r\n")
 	assert.True(t, generated)
-	assert.Equal(t, "1", version)
+	assert.Equal(t, rbaccontract.ContractVersion, version)
 
 	generated, _ = ParseHeader(Header() + "   \n---\n")
 	assert.True(t, generated, "trailing spaces do not hand the file over to a person")
+}
+
+func TestParseOwned(t *testing.T) {
+	owned, listed := ParseOwned(Header() + "\n# dmt:owns ClusterRole/a\n# dmt:owns d8-m/Role/b\r\n---\n# dmt:owns not-a-header-line\n")
+	assert.True(t, listed)
+	assert.Equal(t, map[string]struct{}{"ClusterRole/a": {}, "d8-m/Role/b": {}}, owned)
+
+	_, listed = ParseOwned(Header() + "\n---\n")
+	assert.False(t, listed, "a contract 1 file lists nothing")
 }
