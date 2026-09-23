@@ -41,9 +41,11 @@ import (
 var fixState = struct {
 	sync.Mutex
 	foreign   map[string]map[string]struct{}
+	removals  map[string]map[string]struct{}
 	bootstrap map[string]map[string]bootstrap.Object
 }{
 	foreign:   map[string]map[string]struct{}{},
+	removals:  map[string]map[string]struct{}{},
 	bootstrap: map[string]map[string]bootstrap.Object{},
 }
 
@@ -111,6 +113,7 @@ func resetFixState() {
 	defer fixState.Unlock()
 
 	fixState.foreign = map[string]map[string]struct{}{}
+	fixState.removals = map[string]map[string]struct{}{}
 	fixState.bootstrap = map[string]map[string]bootstrap.Object{}
 
 	fixOutcomes.Lock()
@@ -241,4 +244,36 @@ func writeFileAtomic(path string, content []byte, perm os.FileMode) error {
 	}
 
 	return nil
+}
+
+// recordRemovals adds what one render variant says a fix of the file takes away, so that the log
+// of the fix names the removals of every variant, not only of the one whose closure runs.
+func recordRemovals(file string, removals []string) {
+	fixState.Lock()
+	defer fixState.Unlock()
+
+	known := fixState.removals[file]
+	if known == nil {
+		known = map[string]struct{}{}
+		fixState.removals[file] = known
+	}
+
+	for _, r := range removals {
+		known[r] = struct{}{}
+	}
+}
+
+// recordedRemovals returns the union of the removals every variant recorded for the file, sorted.
+func recordedRemovals(file string) []string {
+	fixState.Lock()
+	defer fixState.Unlock()
+
+	out := make([]string, 0, len(fixState.removals[file]))
+	for r := range fixState.removals[file] {
+		out = append(out, r)
+	}
+
+	sort.Strings(out)
+
+	return out
 }

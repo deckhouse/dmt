@@ -106,7 +106,7 @@ var (
 // ContractVersion is the version of the platform contract the generator writes templates for. It is
 // recorded in the header of every generated file, so that a file produced under an older contract
 // is recognizable after the contract changes. Bump it when the generated shape changes.
-const ContractVersion = "1"
+const ContractVersion = "2"
 
 // LegacyKebab returns the name suffix of the legacy ClusterRole for an access level, as the
 // modules spell it today (d8:user-authz:<module>:cluster-editor for ClusterEditor).
@@ -134,8 +134,10 @@ func LegacyKebab(level string) string {
 // first four.
 var LegacyLevels = []string{"User", "PrivilegedUser", "Editor", "Admin", "ClusterEditor", "ClusterAdmin", "SuperAdmin"}
 
-// Verbs are the resource verbs Kubernetes RBAC knows. rbac.yaml lists verbs explicitly; there
-// are no aliases (spec 005 R2). "*" is accepted here and judged by the wildcards rule.
+// Verbs are the resource verbs Kubernetes RBAC knows, with the wildcard. rbac.yaml lists verbs
+// explicitly and has no aliases (spec 005 R2); the wildcard is refused at every user-facing level
+// (rbacyaml.Validate) and in a rendered capability (the contract rule), and judged by the wildcards
+// rule in a ServiceAccount's own rules.
 var Verbs = append(slices.Clone(ResourceVerbs), "*")
 
 // ResourceVerbs are the verbs a rule may list, without the wildcard.

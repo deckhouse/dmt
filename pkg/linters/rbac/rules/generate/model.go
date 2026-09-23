@@ -194,17 +194,26 @@ func Build(in Input) (*Model, error) {
 	sort.Slice(model.Files, func(i, j int) bool { return model.Files[i].Path < model.Files[j].Path })
 
 	// A marker past 63 characters fails the contract; only a long module name can cause it.
-	for _, f := range model.Files {
-		seen := make(map[string]struct{}, len(f.Objects))
+	// Helm refuses two objects of one name in a release, whichever templates they come from: a
+	// ServiceAccount and an access entry of the same name, an extra role with an absolute name
+	// equal to another account's role.
+	seen := map[string]string{}
 
+	for _, f := range model.Files {
 		for _, o := range f.Objects {
-			if _, dup := seen[o.Identity()]; dup {
-				return nil, fmt.Errorf("%s would hold two objects named %s: two declared roles or bindings map to the same generated name", f.Path, o.Identity())
+			if where, dup := seen[o.Identity()]; dup {
+				if where == f.Path {
+					return nil, fmt.Errorf("%s would hold two objects named %s: two declared roles or bindings map to the same generated name", f.Path, o.Identity())
+				}
+
+				return nil, fmt.Errorf("%s and %s would both hold %s: two declared entries map to the same generated name", where, f.Path, o.Identity())
 			}
 
-			seen[o.Identity()] = struct{}{}
+			seen[o.Identity()] = f.Path
 		}
+	}
 
+	for _, f := range model.Files {
 		for _, o := range f.Objects {
 			if marker := o.Labels[rbaccontract.LabelCapability]; len(marker) > 63 {
 				return nil, fmt.Errorf("capability marker %q is %d characters, a label value holds 63: the module name and the level name together are too long for %s", marker, len(marker), o.Name)

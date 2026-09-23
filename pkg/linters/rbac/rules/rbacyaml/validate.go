@@ -18,6 +18,7 @@ package rbacyaml
 
 import (
 	"fmt"
+	"reflect"
 	"slices"
 	"sort"
 	"strings"
@@ -48,6 +49,13 @@ func validateWhen(when, where string, report reporter) {
 		return
 	}
 
+	// The condition is written between "{{- if " and " }}"; a brace pair inside would close that
+	// action and put the rest of the value into the file as template text of its own.
+	if strings.Contains(when, "{{") || strings.Contains(when, "}}") {
+		report("%s: when %q holds a template delimiter; write the condition only, without {{ and }}", where, when)
+		return
+	}
+
 	if _, err := template.New("when").Funcs(helmFuncs).Parse("{{ if " + when + " }}{{ end }}"); err != nil {
 		report("%s: when %q is not a Helm expression: %v", where, when, err)
 	}
@@ -70,6 +78,8 @@ func Validate(d *Declaration, crds CRDScopes) []error {
 	if d.APIVersion != APIVersionV1Alpha1 {
 		report("apiVersion must be %q, got %q", APIVersionV1Alpha1, d.APIVersion)
 	}
+
+	validateNoTemplateText(reflect.ValueOf(d).Elem(), "", report)
 
 	for _, s := range d.Subsystems {
 		if !rbaccontract.IsSubsystem(s) {
@@ -128,6 +138,14 @@ func validateResource(r *Resource, where string, crds CRDScopes, usedCapabilitie
 	}
 
 	validateWhen(r.When, where, report)
+
+	if r.Group == "*" {
+		report("%s: group \"*\" grants the resource in every API group; name the group", where)
+	}
+
+	if strings.Contains(r.Resource, "*") && r.Resource != "*" {
+		report("%s: resource %q: RBAC matches \"*\" only as a whole name; list the resources or use \"*\" with reason", where, r.Resource)
+	}
 
 	scope, scopeErr := resolveScope(r, crds)
 	if scopeErr != "" {
@@ -217,7 +235,12 @@ func validateLevels(levels map[string][]string, lineage string, allowed []string
 		}
 
 		for _, verb := range verbs {
-			if !slices.Contains(rbaccontract.Verbs, verb) {
+			switch {
+			case verb == "*":
+				// No other rule sees a user-facing capability's wildcard: the wildcards rule reads a
+				// ServiceAccount's own templates only.
+				report("%s: %s.%s grants \"*\", every verb including the ones Kubernetes adds later; list the verbs (%s)", where, lineage, level, strings.Join(rbaccontract.ResourceVerbs, ", "))
+			case !slices.Contains(rbaccontract.Verbs, verb):
 				report("%s: %s.%s: %q is not a verb; verbs are listed explicitly (%s), there are no aliases", where, lineage, level, verb, strings.Join(rbaccontract.ResourceVerbs, ", "))
 			}
 		}
@@ -428,4 +451,52 @@ func firstDuplicate(values []string) string {
 	}
 
 	return ""
+}
+
+// validateNoTemplateText refuses a template delimiter in any value the generator writes into a
+// template, apart from the `when` conditions (validateWhen judges those). Helm would evaluate it:
+// a title like "Use {{ .Values.x }}" breaks the render or renders something the declaration does
+// not say, and the sync rule then diverges forever.
+func validateNoTemplateText(v reflect.Value, path string, report reporter) {
+	switch v.Kind() {
+	case reflect.String:
+		if s := v.String(); strings.Contains(s, "{{") || strings.Contains(s, "}}") {
+			report("%s: %q holds a template delimiter; the value is written into a Helm template as it is", strings.TrimPrefix(path, "."), s)
+		}
+	case reflect.Pointer, reflect.Interface:
+		if !v.IsNil() {
+			validateNoTemplateText(v.Elem(), path, report)
+		}
+	case reflect.Struct:
+		t := v.Type()
+		for i := range v.NumField() {
+			if t.Field(i).Name == "When" || !t.Field(i).IsExported() {
+				continue
+			}
+
+			validateNoTemplateText(v.Field(i), path+"."+yamlName(t.Field(i)), report)
+		}
+	case reflect.Slice, reflect.Array:
+		for i := range v.Len() {
+			validateNoTemplateText(v.Index(i), fmt.Sprintf("%s[%d]", path, i), report)
+		}
+	case reflect.Map:
+		keys := v.MapKeys()
+		sort.Slice(keys, func(i, j int) bool { return fmt.Sprint(keys[i]) < fmt.Sprint(keys[j]) })
+
+		for _, k := range keys {
+			validateNoTemplateText(k, path, report)
+			validateNoTemplateText(v.MapIndex(k), fmt.Sprintf("%s.%v", path, k), report)
+		}
+	}
+}
+
+// yamlName is the key a field has in rbac.yaml, for the messages.
+func yamlName(f reflect.StructField) string {
+	name, _, _ := strings.Cut(f.Tag.Get("yaml"), ",")
+	if name == "" {
+		return f.Name
+	}
+
+	return name
 }

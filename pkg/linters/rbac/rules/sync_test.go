@@ -37,6 +37,7 @@ import (
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/generate"
+	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbaccontract"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbacyaml"
 )
 
@@ -380,7 +381,7 @@ func TestSync_Autofix(t *testing.T) {
 
 		generated, version := generate.ParseHeader(string(written))
 		assert.True(t, generated)
-		assert.Equal(t, "1", version)
+		assert.Equal(t, rbaccontract.ContractVersion, version)
 
 		// Running the same fix again, in a new run, changes nothing.
 		resetFixState()
@@ -482,7 +483,7 @@ func TestSync_ForeignContractVersionIsRegenerated(t *testing.T) {
 
 	want := generate.RenderFile(*model.File(rel))
 	_, body, _ := strings.Cut(want, "\n")
-	stale := strings.Replace(generate.Header(), "contract 1.", "contract 0.", 1) + "\n" + body
+	stale := strings.Replace(generate.Header(), "contract "+rbaccontract.ContractVersion+".", "contract 0.", 1) + "\n" + body
 
 	path := filepath.Join(modulePath, rel)
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
@@ -491,7 +492,7 @@ func TestSync_ForeignContractVersionIsRegenerated(t *testing.T) {
 	errorList := runSync(t, modulePath, store)
 	got := texts(errorList)
 	require.Len(t, got, 1, "got: %v", got)
-	assert.Contains(t, got[0], `templates/rbacv2/use/view.yaml does not match rbac.yaml: the file was generated under contract version "0"; the current contract is "1". Run `+"`dmt lint --linter rbac --fix`")
+	assert.Contains(t, got[0], `templates/rbacv2/use/view.yaml does not match rbac.yaml: the file was generated under contract version "0"; the current contract is "`+rbaccontract.ContractVersion+`". Run `+"`dmt lint --linter rbac --fix`")
 
 	for _, fix := range errorList.GetFixes() {
 		fix()
@@ -812,6 +813,9 @@ func TestSync_RenamedObjectsAreNotForeign(t *testing.T) {
 	writeGenerated(t, modulePath, model)
 
 	const rel = "templates/rbac-to-us.yaml"
+
+	// A file of contract 1 lists no owned objects; only there does a rename apply.
+	asContractOne(t, filepath.Join(modulePath, rel))
 
 	// The render still carries the old names a hand-written module gave the metrics access: the
 	// Role and its RoleBinding, with the same rules, roleRef and subjects.
@@ -1192,4 +1196,178 @@ func TestSync_WhenOnDeckhouseVersionIsNotAGate(t *testing.T) {
 	after, err := os.ReadFile(fullPath)
 	require.NoError(t, err)
 	assert.Equal(t, generate.RenderFile(*model.File(rel)), string(after))
+}
+
+// asContractOne rewrites a generated file the way contract 1 wrote it: the header without the list
+// of owned objects.
+func asContractOne(t *testing.T, path string) {
+	t.Helper()
+
+	content, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	lines := strings.Split(string(content), "\n")
+	kept := lines[:1]
+	kept[0] = strings.Replace(kept[0], "contract "+rbaccontract.ContractVersion+".", "contract 1.", 1)
+
+	for _, l := range lines[1:] {
+		if !strings.HasPrefix(l, "# dmt:owns ") {
+			kept = append(kept, l)
+		}
+	}
+
+	require.NoError(t, os.WriteFile(path, []byte(strings.Join(kept, "\n")), 0o600))
+}
+
+// A generated file may carry objects of other kinds; the fix never drops them (review of #479,
+// finding 2): neither on a regeneration nor when the declaration stops producing the file.
+func TestSync_NonRBACObjectsInGeneratedFilesAreKept(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+
+	const rel = "templates/cainjector/rbac-for-us.yaml"
+
+	store := renderedFrom(t, model, func(o *generate.Object) bool {
+		if o.Kind == "ClusterRole" && o.Name == "d8:cert-manager:cainjector" {
+			o.Rules = o.Rules[:1]
+		}
+
+		return true
+	})
+	putConfigMap(t, store, rel, "cainjector-extra")
+
+	before, err := os.ReadFile(filepath.Join(modulePath, rel))
+	require.NoError(t, err)
+
+	errorList := runSync(t, modulePath, store)
+	for _, fix := range errorList.GetFixes() {
+		fix()
+	}
+
+	remaining := errorList.GetErrors()
+	require.Len(t, remaining, 1, "got: %v", texts(errorList))
+	require.Error(t, remaining[0].FixError)
+	assert.Contains(t, remaining[0].FixError.Error(), "also holds objects the declaration does not produce: d8-cert-manager/ConfigMap/cainjector-extra")
+
+	after, err := os.ReadFile(filepath.Join(modulePath, rel))
+	require.NoError(t, err)
+	assert.Equal(t, string(before), string(after))
+}
+
+// An object the generator wrote earlier and the declaration no longer names leaves the file with
+// the regeneration and is named in the finding, even when the file holds other objects (review of
+// #479, finding 4): dropping the legacy Admin level rewrites the legacy file.
+func TestSync_DroppedLegacyLevelIsRemoved(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+	store := renderedFrom(t, model, nil)
+
+	decl, err := rbacyaml.Load(modulePath)
+	require.NoError(t, err)
+
+	for i := range decl.Resources {
+		delete(decl.Resources[i].Legacy, "Admin")
+	}
+
+	raw, err := yaml.Marshal(decl)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(rbacyaml.Path(modulePath), raw, 0o600))
+
+	const rel = "templates/user-authz-cluster-roles.yaml"
+
+	errorList := runSync(t, modulePath, store)
+	got := texts(errorList)
+	require.Len(t, got, 1, "got: %v", got)
+	assert.Contains(t, got[0], "ClusterRole/d8:user-authz:cert-manager:admin")
+
+	for _, fix := range errorList.GetFixes() {
+		fix()
+	}
+
+	assert.Empty(t, errorList.GetErrors(), "the fix applies")
+
+	written, err := os.ReadFile(filepath.Join(modulePath, rel))
+	require.NoError(t, err)
+	assert.NotContains(t, string(written), "d8:user-authz:cert-manager:admin")
+	assert.Contains(t, string(written), "d8:user-authz:cert-manager:user")
+}
+
+// A hand-written role with the same rules as a produced one is a duplicate, not an old name, when
+// the produced one is rendered too (review of #479, finding 3): the fix refuses instead of dropping it.
+func TestSync_DuplicateOfARenderedObjectIsNotARename(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+
+	const rel = "templates/rbac-to-us.yaml"
+
+	asContractOne(t, filepath.Join(modulePath, rel))
+
+	store := renderedFrom(t, model, nil)
+
+	var produced generate.Object
+
+	for _, o := range model.File(rel).Objects {
+		if o.Kind == "Role" {
+			produced = o
+		}
+	}
+
+	duplicate := produced
+	duplicate.Name = "extra-reader-bound-elsewhere"
+	putObject(t, store, rel, duplicate)
+
+	errorList := runSync(t, modulePath, store)
+	for _, fix := range errorList.GetFixes() {
+		fix()
+	}
+
+	remaining := errorList.GetErrors()
+	require.Len(t, remaining, 1, "got: %v", texts(errorList))
+	require.Error(t, remaining[0].FixError)
+	assert.Contains(t, remaining[0].FixError.Error(), "d8-cert-manager/Role/extra-reader-bound-elsewhere")
+}
+
+func putConfigMap(t *testing.T, store *storage.UnstructuredObjectStore, path, name string) {
+	t.Helper()
+
+	cm := &corev1.ConfigMap{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "d8-cert-manager", Labels: map[string]string{"heritage": "deckhouse", "module": syncModule}}}
+	content, err := runtime.DefaultUnstructuredConverter.ToUnstructured(cm)
+	require.NoError(t, err)
+	require.NoError(t, store.Put("/module/"+path, path, content, []byte("d8-cert-manager/ConfigMap/"+name)))
+}
+
+// The access level of a legacy role and an aggregationRule on a declared role are compared too
+// (review of #479, finding 5): a render that differs there is a divergence, not silence.
+func TestSync_AccessLevelAndAggregationAreCompared(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+
+	store := renderedFrom(t, model, func(o *generate.Object) bool {
+		if o.Name == "d8:user-authz:cert-manager:user" {
+			o.Annotations = map[string]string{rbaccontract.AccessLevelAnnotation: "SuperAdmin"}
+		}
+
+		return true
+	})
+
+	got := texts(runSync(t, modulePath, store))
+	require.Len(t, got, 1, "got: %v", got)
+	assert.Contains(t, got[0], `ClusterRole/d8:user-authz:cert-manager:user: the user-authz.deckhouse.io/access-level annotation is "SuperAdmin" in the render, the declaration produces "User"`)
 }
