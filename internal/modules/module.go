@@ -238,18 +238,32 @@ func mapRuleSettings(linterSettings *pkg.LintersSettings, configSettings *config
 }
 
 // mapRBACRules configures the per-rule levels of the rbac rules added for the module RBAC
-// declaration: coverage, sync and contract read their impact from the root configuration and
-// fall back to the linter's.
-func mapRBACRules(linterSettings *pkg.LintersSettings, _ *config.LintersSettings, globalConfig *global.Linters) {
+// declaration: coverage, sync and contract read their impact from the module's configuration,
+// then from the root one, and start at warn. The linter's own impact still caps them (see
+// rbac.New): impact: ignored on the linter silences every rbac rule.
+func mapRBACRules(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings, globalConfig *global.Linters) {
 	// The declaration rules are new to every tree: a module without rbac.yaml sees only contract,
 	// and the platform tree still carries six dead rbac.yaml files of an older shape and rules the
 	// contract flags. They therefore start at warn wherever nothing sets them -- like the style
 	// rules of the documentation linter -- and are raised to error per tree in its root
 	// .dmtlint.yaml once its modules are clean. The linter-level impact is intentionally not the
 	// fallback: impact: error on rbac means the four original rules, as it always did.
-	linterSettings.RBAC.Rules.CoverageRule.SetLevel(globalConfig.Rbac.Rules.CoverageRule.Impact, pkg.Warn.String())
-	linterSettings.RBAC.Rules.SyncRule.SetLevel(globalConfig.Rbac.Rules.SyncRule.Impact, pkg.Warn.String())
-	linterSettings.RBAC.Rules.ContractRule.SetLevel(globalConfig.Rbac.Rules.ContractRule.Impact, pkg.Warn.String())
+	module := configSettings.Rbac.Rules
+
+	linterSettings.RBAC.Rules.CoverageRule.SetLevel(firstSet(module.CoverageRule.Impact, globalConfig.Rbac.Rules.CoverageRule.Impact), pkg.Warn.String())
+	linterSettings.RBAC.Rules.SyncRule.SetLevel(firstSet(module.SyncRule.Impact, globalConfig.Rbac.Rules.SyncRule.Impact), pkg.Warn.String())
+	linterSettings.RBAC.Rules.ContractRule.SetLevel(firstSet(module.ContractRule.Impact, globalConfig.Rbac.Rules.ContractRule.Impact), pkg.Warn.String())
+}
+
+// firstSet returns the first non-empty level.
+func firstSet(levels ...string) string {
+	for _, l := range levels {
+		if l != "" {
+			return l
+		}
+	}
+
+	return ""
 }
 
 // mapContainerRules configures Container linter rules

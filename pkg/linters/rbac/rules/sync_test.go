@@ -162,6 +162,7 @@ func runSync(t *testing.T, modulePath string, store *storage.UnstructuredObjectS
 	m.GetNameMock.Optional().Return(syncModule)
 	m.GetNamespaceMock.Optional().Return("d8-cert-manager")
 	m.GetStorageMock.Optional().Return(store.Storage)
+	m.GetObjectStoreMock.Optional().Return(store)
 
 	errorList := errors.NewLintRuleErrorsList()
 	NewSyncRule(excludes, m, errorList).Check(context.Background())
@@ -577,9 +578,16 @@ func TestSync_DeclarationInEditionOverlay(t *testing.T) {
 }
 
 func TestEditionOverlay(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "modules", "110-istio"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "ee", "modules", "110-istio"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "ee", "modules", "030-cloud-provider-openstack"), 0o755))
+
+	assert.Equal(t, "ee/modules", editionOverlay(filepath.Join(root, "ee", "modules", "110-istio")), "merged over modules/110-istio")
+	assert.Empty(t, editionOverlay(filepath.Join(root, "ee", "modules", "030-cloud-provider-openstack")), "an EE-only module: ee/modules is its base")
+
 	for path, want := range map[string]string{
 		"/r/modules/101-cert-manager":  "",
-		"/r/ee/modules/500-x":          "ee/modules",
 		"/r/ee/be/modules/500-x":       "ee/be/modules",
 		"/r/ee/se-plus/modules/500-x/": "ee/se-plus/modules",
 		"/r/ee/fe/x":                   "",
@@ -1370,4 +1378,103 @@ func TestSync_AccessLevelAndAggregationAreCompared(t *testing.T) {
 	got := texts(runSync(t, modulePath, store))
 	require.Len(t, got, 1, "got: %v", got)
 	assert.Contains(t, got[0], `ClusterRole/d8:user-authz:cert-manager:user: the user-authz.deckhouse.io/access-level annotation is "SuperAdmin" in the render, the declaration produces "User"`)
+}
+
+// A written declaration with TODO in it keeps the bootstrap finding and the non-zero exit: the
+// file exists, the decisions do not (review of #479, finding 9).
+func TestSync_BootstrapWithOpenDecisionsKeepsTheFinding(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	require.NoError(t, os.Remove(rbacyaml.Path(modulePath)))
+	require.NoError(t, os.WriteFile(filepath.Join(modulePath, "crds", "extra.yaml"), []byte(crdYAML("cert-manager.io", "nobodies", "Namespaced")), 0o600))
+
+	errorList := runSync(t, modulePath, renderedFrom(t, model, nil))
+	for _, fix := range errorList.GetFixes() {
+		fix()
+	}
+
+	remaining := errorList.GetErrors()
+	require.Len(t, remaining, 1)
+	require.Error(t, remaining[0].FixError)
+	assert.Contains(t, remaining[0].FixError.Error(), "rbac.yaml is written; 1 TODO in it are decisions only a person can make")
+
+	_, err := os.Stat(rbacyaml.Path(modulePath))
+	require.NoError(t, err, "the file is written all the same")
+}
+
+// A module directory in an edition overlay gets no declaration of its own (review of #479,
+// finding 9): nothing is reported and nothing is written.
+func TestSync_NoBootstrapInAnOverlay(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	root := t.TempDir()
+	base := filepath.Join(root, "modules", "101-cert-manager")
+	overlay := filepath.Join(root, "ee", "se-plus", "modules", "101-cert-manager")
+
+	require.NoError(t, os.MkdirAll(base, 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Dir(overlay), 0o755))
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	require.NoError(t, os.Remove(rbacyaml.Path(modulePath)))
+	require.NoError(t, os.Rename(modulePath, overlay))
+
+	errorList := runSync(t, overlay, renderedFrom(t, model, nil))
+	assert.Empty(t, texts(errorList))
+
+	_, err := os.Stat(rbacyaml.Path(overlay))
+	assert.True(t, os.IsNotExist(err))
+}
+
+// A template the tolerant render skipped is neither compared nor regenerated: its objects were
+// never seen (review of #479, finding 13k).
+func TestSync_DroppedTemplateIsNotRegenerated(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+
+	const rel = "templates/rbac-to-us.yaml"
+
+	// The render skipped the whole template, so none of its objects is in the storage.
+	dropped := map[string]struct{}{}
+	for _, o := range model.File(rel).Objects {
+		dropped[o.Identity()] = struct{}{}
+	}
+
+	store := renderedFrom(t, model, func(o *generate.Object) bool {
+		_, gone := dropped[o.Identity()]
+
+		return !gone
+	})
+	store.MarkDropped(rel, "required value missing")
+
+	errorList := runSync(t, modulePath, store)
+	got := texts(errorList)
+	require.Len(t, got, 1, "got: %v", got)
+	assert.Contains(t, got[0], rel+" failed to render in this run (required value missing); nothing in it is compared or regenerated")
+	assert.Empty(t, errorList.GetFixes())
+}
+
+// A module.yaml that does not parse stops the rule instead of generating without subsystems
+// (review of #479, finding 13k).
+func TestSync_BrokenModuleYAMLStops(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	require.NoError(t, os.WriteFile(filepath.Join(modulePath, "module.yaml"), []byte("name: [broken\n"), 0o600))
+
+	errorList := runSync(t, modulePath, renderedFrom(t, model, nil))
+	got := texts(errorList)
+	require.Len(t, got, 1, "got: %v", got)
+	assert.Contains(t, got[0], "parse module.yaml")
+	assert.Empty(t, errorList.GetFixes())
 }

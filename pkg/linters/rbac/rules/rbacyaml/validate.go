@@ -500,3 +500,20 @@ func yamlName(f reflect.StructField) string {
 
 	return name
 }
+
+// Warnings lists what the declaration may say but likely does not mean. They do not stop
+// generation.
+func Warnings(d *Declaration) []string {
+	var out []string
+
+	for i, r := range d.Resources {
+		// SuperAdmin is in the ClusterAuthorizationRule enum, but user-authz aggregates custom
+		// legacy roles only for User through ClusterAdmin: d8:user-authz:<module>:super-admin is
+		// generated and then ignored by the platform.
+		if _, ok := r.Legacy["SuperAdmin"]; ok {
+			out = append(out, fmt.Sprintf("resources[%d] (%s): legacy.SuperAdmin produces a role user-authz does not aggregate (it handles User through ClusterAdmin); the grant reaches nobody", i, r.Key()))
+		}
+	}
+
+	return out
+}

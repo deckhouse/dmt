@@ -28,6 +28,7 @@ package generate
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -188,6 +189,10 @@ func Build(in Input) (*Model, error) {
 
 	model := &Model{Files: make([]File, 0, len(b.files))}
 	for _, f := range b.files {
+		for i := range f.Objects {
+			liftRuleConditions(&f.Objects[i])
+		}
+
 		model.Files = append(model.Files, *f)
 	}
 
@@ -572,4 +577,47 @@ func sortRules(rules []Rule) []Rule {
 	})
 
 	return out
+}
+
+// liftRuleConditions moves the conditions of a role whose every rule is conditional onto the role
+// itself, so that the role is not rendered with an empty rules list when none of them holds
+// (ADR: a ClusterRole without rules is not generated). One shared condition is lifted as it is
+// and leaves the rules; different ones become an `or` of them, and each rule keeps its own.
+func liftRuleConditions(o *Object) {
+	if (o.Kind != "ClusterRole" && o.Kind != "Role") || len(o.Rules) == 0 {
+		return
+	}
+
+	var conditions []string
+
+	for _, r := range o.Rules {
+		if r.When == "" {
+			return
+		}
+
+		if !slices.Contains(conditions, r.When) {
+			conditions = append(conditions, r.When)
+		}
+	}
+
+	lifted := conditions[0]
+
+	if len(conditions) == 1 {
+		for i := range o.Rules {
+			o.Rules[i].When = ""
+		}
+	} else {
+		parts := make([]string, 0, len(conditions))
+		for _, c := range conditions {
+			parts = append(parts, "("+c+")")
+		}
+
+		lifted = "or " + strings.Join(parts, " ")
+	}
+
+	if o.When != "" {
+		lifted = "and (" + o.When + ") (" + lifted + ")"
+	}
+
+	o.When = lifted
 }

@@ -78,17 +78,25 @@ type moduleMetadata struct {
 	Subsystems []string `json:"subsystems"`
 }
 
-func readModuleMetadata(modulePath string) moduleMetadata {
+func readModuleMetadata(modulePath string) (moduleMetadata, error) {
 	var meta moduleMetadata
 
 	data, err := os.ReadFile(filepath.Join(modulePath, "module.yaml"))
 	if err != nil {
-		return meta
+		if stderrors.Is(err, os.ErrNotExist) {
+			return meta, nil
+		}
+
+		return meta, err
 	}
 
-	_ = yaml.Unmarshal(data, &meta)
+	// The subsystems decide the aggregation edges of every system capability; a module.yaml that
+	// does not parse must stop the rule, not strip them.
+	if err := yaml.Unmarshal(data, &meta); err != nil {
+		return meta, fmt.Errorf("parse module.yaml: %w", err)
+	}
 
-	return meta
+	return meta, nil
 }
 
 func (r *SyncRule) Check(_ context.Context) {
@@ -96,12 +104,19 @@ func (r *SyncRule) Check(_ context.Context) {
 	declList := r.errorList.WithFilePath(rbacyaml.Filename)
 
 	decl, err := rbacyaml.Load(modulePath)
+	overlay := editionOverlay(modulePath)
+
 	if stderrors.Is(err, rbacyaml.ErrNotFound) {
-		r.bootstrap(declList)
+		// An overlay carries no declaration of its own: the one in the base directory describes
+		// the union of editions, so there is nothing to write here.
+		if overlay == "" {
+			r.bootstrap(declList)
+		}
+
 		return
 	}
 
-	if overlay := editionOverlay(modulePath); overlay != "" {
+	if overlay != "" {
 		declList.Errorf("%s lies in the edition overlay %s; the declaration describes the union of editions and belongs to modules/<module>/ only -- CI merges the overlays over modules/ before linting, so a copy here would shadow it or go unseen. Only a person can close this: move the file",
 			rbacyaml.Filename, overlay)
 
@@ -119,9 +134,13 @@ func (r *SyncRule) Check(_ context.Context) {
 		return
 	}
 
-	crds, err := moduleCRDs(modulePath)
+	// A CRD document that does not parse is reported by coverage; the declaration is judged
+	// against the CRDs that do.
+	crds, _ := moduleCRDs(modulePath)
+
+	meta, err := readModuleMetadata(modulePath)
 	if err != nil {
-		r.errorList.WithFilePath("crds").Errorf("cannot read the module CRDs: %v", err)
+		r.errorList.WithFilePath("module.yaml").Errorf("%v; nothing is compared or generated until it parses: its subsystems decide the aggregation of every system capability", err)
 		return
 	}
 
@@ -133,10 +152,14 @@ func (r *SyncRule) Check(_ context.Context) {
 		return
 	}
 
+	for _, w := range rbacyaml.Warnings(decl) {
+		declList.Warnf("%s", w)
+	}
+
 	model, err := generate.Build(generate.Input{
 		Module:     r.module.GetName(),
 		Namespace:  r.module.GetNamespace(),
-		Subsystems: readModuleMetadata(modulePath).Subsystems,
+		Subsystems: meta.Subsystems,
 		Decl:       decl,
 	})
 	if err != nil {
@@ -224,7 +247,10 @@ func (r *SyncRule) compareText(modulePath string, model *generate.Model, actual 
 			// render cannot tell a conditional object whose condition is false from one whose
 			// template was never written, but the text can -- nothing produces it (D4 covers the
 			// render, not the file).
-			if stderrors.Is(err, os.ErrNotExist) && hasAbsentObject(file, actual) {
+			switch {
+			case !stderrors.Is(err, os.ErrNotExist):
+				divergences[file.Path] = append(divergences[file.Path], fmt.Sprintf("the file cannot be read: %v", err))
+			case hasAbsentObject(file, actual):
 				divergences[file.Path] = append(divergences[file.Path],
 					"the file does not exist, and objects the declaration puts in it are absent from the render (objects under `when` included: no template produces them)")
 			}
@@ -316,11 +342,24 @@ func (r *SyncRule) report(modulePath string, model *generate.Model, divergences 
 
 	sort.Strings(paths)
 
+	var dropped map[string]string
+	if store := r.module.GetObjectStore(); store != nil {
+		dropped = store.Dropped
+	}
+
 	for _, path := range paths {
 		list := divergences[path]
 		sort.Strings(list)
 
 		fileList := r.errorList.WithFilePath(path).WithObjectID(path)
+
+		// A template the render skipped is missing from the storage without being missing from
+		// the chart: its objects -- the foreign ones included -- were never seen, so neither the
+		// comparison nor a rewrite can be trusted.
+		if cause, skipped := dropped[path]; skipped {
+			fileList.Errorf("%s failed to render in this run (%s); nothing in it is compared or regenerated until it renders", path, cause)
+			continue
+		}
 
 		if file := model.File(path); file != nil {
 			fileList = fileList.WithFix(regenerateFix(modulePath, *file, r.foreignObjects(*file, model), removalsOf(list)))
@@ -1093,12 +1132,17 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 		return
 	}
 
-	in := bootstrap.Input{Module: r.module.GetName(), Namespace: r.module.GetNamespace(), Subsystems: readModuleMetadata(modulePath).Subsystems, CRDs: map[string]string{}}
+	meta, err := readModuleMetadata(modulePath)
+	if err != nil {
+		r.errorList.WithFilePath("module.yaml").Errorf("%v; the declaration is not written until it parses", err)
+		return
+	}
 
-	if crds, err := moduleCRDs(modulePath); err == nil {
-		for _, crd := range crds {
-			in.CRDs[crd.Key()] = crd.Scope
-		}
+	in := bootstrap.Input{Module: r.module.GetName(), Namespace: r.module.GetNamespace(), Subsystems: meta.Subsystems, CRDs: map[string]string{}}
+
+	crds, _ := moduleCRDs(modulePath)
+	for _, crd := range crds {
+		in.CRDs[crd.Key()] = crd.Scope
 	}
 
 	for _, object := range storage {
@@ -1133,7 +1177,17 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 				return fmt.Errorf("render %s: %w", rbacyaml.Filename, err)
 			}
 
-			return writeFileAtomic(path, content, 0o644) //nolint:gosec // a source file of the module
+			if err := writeFileAtomic(path, content, 0o644); err != nil { //nolint:gosec // a source file of the module
+				return err
+			}
+
+			// The file is written, but a TODO in it is a decision nobody has made yet: the finding
+			// stays, and so does the non-zero exit, until a person makes it (ADR, bootstrap).
+			if open := openDecisions(string(content)); open > 0 {
+				return fmt.Errorf("%s is written; %d TODO in it are decisions only a person can make -- resolve them, then run `%s` to regenerate the templates", rbacyaml.Filename, open, FixCommand)
+			}
+
+			return nil
 		})
 	}).Errorf("%s is missing: `%s` writes it from the RBAC objects the module renders today (%d of %d objects described, the rest listed in the file as hand-written); every TODO and note in it is a decision for a person before the templates are regenerated from it",
 		rbacyaml.Filename, FixCommand, described, len(in.Objects))
@@ -1186,4 +1240,18 @@ func bootstrapObject(object storage.StoreObject) (bootstrap.Object, bool) {
 	}
 
 	return o, true
+}
+
+// openDecisions counts the TODO values in a written declaration; the header comment that explains
+// them does not count.
+func openDecisions(content string) int {
+	n := 0
+
+	for line := range strings.SplitSeq(content, "\n") {
+		if !strings.HasPrefix(strings.TrimSpace(line), "#") {
+			n += strings.Count(line, "TODO")
+		}
+	}
+
+	return n
 }

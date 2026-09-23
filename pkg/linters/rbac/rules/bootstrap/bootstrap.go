@@ -110,16 +110,17 @@ func sortedLevels(m map[string]map[string]struct{}) map[string][]string {
 type builder struct {
 	in  Input
 	res map[[2]string]*resourceAcc
-	// restricted marks resources every grant of which carried resourceNames: the format cannot
-	// keep that limit on a capability, and widening a grant is not the importer's call.
-	restricted   map[[2]string]bool
-	unrestricted map[[2]string]bool
-	texts        map[string]rbacyaml.CapabilityText
-	lineages     map[string]struct{}
-	used         map[string]struct{}
-	notes        []string
-	unmanaged    []string
-	decl         *rbacyaml.Declaration
+	// restricted collects, per resource, the grants limited to resourceNames: the format cannot
+	// keep that limit on a capability, and widening a grant is not the importer's call, so they are
+	// left out of the levels and named in a note. Keyed by resource only for the note; the verbs of
+	// one level never widen another's.
+	restricted map[[2]string][]string
+	texts      map[string]rbacyaml.CapabilityText
+	lineages   map[string]struct{}
+	used       map[string]struct{}
+	notes      []string
+	unmanaged  []string
+	decl       *rbacyaml.Declaration
 }
 
 func (b *builder) note(format string, args ...any) {
@@ -165,7 +166,7 @@ func Build(in Input) Result {
 		return in.Objects[i].identity() < in.Objects[j].identity()
 	})
 
-	b := &builder{in: in, res: map[[2]string]*resourceAcc{}, restricted: map[[2]string]bool{}, unrestricted: map[[2]string]bool{}, texts: map[string]rbacyaml.CapabilityText{}, lineages: map[string]struct{}{}, used: map[string]struct{}{},
+	b := &builder{in: in, res: map[[2]string]*resourceAcc{}, restricted: map[[2]string][]string{}, texts: map[string]rbacyaml.CapabilityText{}, lineages: map[string]struct{}{}, used: map[string]struct{}{},
 		decl: &rbacyaml.Declaration{APIVersion: rbacyaml.APIVersionV1Alpha1}}
 
 	b.capabilitiesAndLegacy()
@@ -177,7 +178,14 @@ func Build(in Input) Result {
 	return Result{Decl: b.decl, Notes: b.notes, Unmanaged: b.unmanaged}
 }
 
-func (b *builder) addRules(sectionName, level string, rules []rbacv1.PolicyRule, skipModuleConfigs bool) {
+// generatedModuleConfigVerbs are the verbs of the moduleconfigs rule the generator adds itself to
+// the system view and edit capabilities, on the module's own ModuleConfig only.
+var generatedModuleConfigVerbs = map[string][]string{
+	"view": {"get", "list", "watch"},
+	"edit": {"create", "update", "patch", "delete"},
+}
+
+func (b *builder) addRules(sectionName, level string, rules []rbacv1.PolicyRule, systemCapability bool) {
 	for _, r := range rules {
 		if len(r.NonResourceURLs) > 0 {
 			b.note("%s/%s: a nonResourceURLs rule (%s) has no place in resources[]; keep it in a ServiceAccount's clusterRules", sectionName, level, strings.Join(r.NonResourceURLs, ", "))
@@ -191,20 +199,27 @@ func (b *builder) addRules(sectionName, level string, rules []rbacv1.PolicyRule,
 
 		for _, g := range groups {
 			for _, rs := range r.Resources {
-				if skipModuleConfigs && g == "deckhouse.io" && rs == "moduleconfigs" {
-					continue // the generator adds it
+				if systemCapability && g == "deckhouse.io" && rs == "moduleconfigs" {
+					// The generator adds the module's own ModuleConfig rule to view and edit; that one
+					// is not imported. Any other -- at another level, on another module's config,
+					// with other verbs -- the format cannot hold and is named instead of dropped.
+					own := slices.Equal(r.ResourceNames, []string{b.in.Module})
+					if want, conventional := generatedModuleConfigVerbs[rbaccontract.CapabilityAction(level)]; !own || !conventional || !subset(r.Verbs, want) {
+						b.note("system/%s: a moduleconfigs rule the generator does not produce (%s on %v) is not carried over; the format has no place for it", level, strings.Join(r.Verbs, ","), r.ResourceNames)
+					}
+
+					continue
 				}
 
 				key := [2]string{g, rs}
 
-				if len(r.ResourceNames) > 0 {
-					b.restricted[key] = true
-				} else {
-					b.unrestricted[key] = true
-				}
-
 				if b.res[key] == nil {
 					b.res[key] = newAcc()
+				}
+
+				if len(r.ResourceNames) > 0 {
+					b.restricted[key] = append(b.restricted[key], fmt.Sprintf("%s/%s: %s on %v", sectionName, level, strings.Join(r.Verbs, ","), r.ResourceNames))
+					continue
 				}
 
 				switch sectionName {
@@ -415,6 +430,11 @@ func (b *builder) serviceAccounts() {
 				b.rename("Role", role.Name, sa.Name)
 				b.rename("RoleBinding", rb.Name, sa.Name)
 				b.mark(role)
+			} else if rb.RoleRef.Kind != "Role" {
+				// bindRoles binds Roles; the format has no RoleBinding to a ClusterRole, and turning it
+				// into one to a Role of that name would bind nothing (Kubernetes accepts a binding to a
+				// Role that does not exist).
+				b.unmanage(rb, "a RoleBinding to the ClusterRole "+rb.RoleRef.Name+", which bindRoles cannot express")
 			} else {
 				e.BindRoles = append(e.BindRoles, rbacyaml.RoleRef{Namespace: b.ns(rb), Name: rb.RoleRef.Name})
 				b.rename("RoleBinding", b.ns(rb)+"/"+rb.Name, b.ns(rb)+"/"+clusterName+":"+rbaccontract.BindingSuffix(rb.RoleRef.Name))
@@ -627,17 +647,24 @@ func (b *builder) resources() {
 		}
 
 		e.Namespace, e.System, e.Legacy = sortedLevels(acc.namespace), sortedLevels(acc.system), sortedLevels(acc.legacy)
-		if !e.HasLevels() {
-			continue
+
+		// A grant limited to resourceNames is never widened to every object, at any level: it
+		// stays out of the entry and is named for the author. When nothing else grants the
+		// resource, the entry is left undecided and coverage keeps the run red until it is.
+		if restricted := b.restricted[k]; len(restricted) > 0 {
+			sort.Strings(restricted)
+
+			if !e.HasLevels() {
+				e = rbacyaml.Resource{Group: group, Resource: resource, Scope: e.Scope,
+					NoAccess: "TODO: the templates limited this grant to specific resourceNames, which the format cannot express; grant the levels to every object or keep denying"}
+				b.note("%s/%s: every grant carried resourceNames; left as noAccess TODO instead of widening it to every object (%s)", group, resource, strings.Join(restricted, "; "))
+			} else {
+				b.note("%s/%s: grants limited to resourceNames are not carried over, the format would grant them on every object: %s", group, resource, strings.Join(restricted, "; "))
+			}
 		}
 
-		// Every grant of this resource named specific objects (resourceNames); a declaration entry
-		// would grant every object. That widening is a person's decision, so the entry is left
-		// undecided and coverage keeps the run red until it is made.
-		if b.restricted[k] && !b.unrestricted[k] {
-			e = rbacyaml.Resource{Group: group, Resource: resource, Scope: e.Scope,
-				NoAccess: "TODO: the templates limited this grant to specific resourceNames, which the format cannot express; grant the levels to every object or keep denying"}
-			b.note("%s/%s: every grant carried resourceNames; left as noAccess TODO instead of widening it to every object", group, resource)
+		if !e.HasLevels() && e.NoAccess == "" {
+			continue
 		}
 
 		b.decl.Resources = append(b.decl.Resources, e)
@@ -716,4 +743,15 @@ func subjects(list []rbacv1.Subject) []rbacyaml.Subject {
 	}
 
 	return out
+}
+
+// subset reports whether every item of a is in b.
+func subset(a, b []string) bool {
+	for _, x := range a {
+		if !slices.Contains(b, x) {
+			return false
+		}
+	}
+
+	return true
 }

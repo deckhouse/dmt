@@ -94,8 +94,8 @@ func TestModuleCRDs(t *testing.T) {
 		"images/img/testdata/crds/look-alike.yaml": crdYAML("z.io", "zetas", "Cluster"),
 	})
 
-	crds, err := moduleCRDs(modulePath)
-	require.NoError(t, err)
+	crds, skipped := moduleCRDs(modulePath)
+	require.Empty(t, skipped)
 
 	keys := make([]string, 0, len(crds))
 	for _, c := range crds {
@@ -320,4 +320,18 @@ resources:
 	got := texts(runCoverage(t, modulePath))
 	require.Len(t, got, 1, "got: %v", got)
 	assert.Contains(t, got[0], "warn: gone.io/relics is denied access but the module ships no CRD for it and the entry names no scope")
+}
+
+// One CRD document that does not parse is skipped with a warning; the other CRDs are still
+// covered (review of #479, finding 13i).
+func TestCoverage_BadCRDDocumentIsSkipped(t *testing.T) {
+	modulePath := writeModule(t, map[string]string{
+		"crds/a.yaml":     crdYAML("a.io", "alphas", "Namespaced") + "---\n{{ if .Values.x }}: [\n",
+		rbacyaml.Filename: "apiVersion: rbac.deckhouse.io/v1alpha1\n",
+	})
+
+	got := texts(runCoverage(t, modulePath))
+	joined := strings.Join(got, "\n")
+	assert.Contains(t, joined, "warn: a CRD document is skipped: parse crds/a.yaml")
+	assert.Contains(t, joined, "a.io/alphas", "the CRD that parses is still judged")
 }

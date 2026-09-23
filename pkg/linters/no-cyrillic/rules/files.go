@@ -19,6 +19,7 @@ package rules
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -47,7 +48,9 @@ var (
 	// is product text the console shows to whoever grants access, not a source comment, so those
 	// lines are not judged -- otherwise every module would need the same exclusion for
 	// templates/rbacv2 in its own .dmtlint.yaml.
-	localizedAnnotationRe = `ru\.meta\.deckhouse\.io/(title|description)`
+	// Only a YAML key at the start of a line counts, quoted or not; a block scalar value (|, >) is
+	// followed on the next, deeper-indented lines.
+	localizedAnnotationRe = `^(\s*)["']?ru\.meta\.deckhouse\.io/(title|description)["']?\s*:(.*)$`
 )
 
 func NewFilesRule(excludeFileRules []pkg.StringRuleExclude,
@@ -128,7 +131,11 @@ func (r *FilesRule) checkFile(fileName string) {
 		return
 	}
 
-	cyrMsg, hasCyr := checkCyrillicLettersInArray(r.withoutLocalizedAnnotations(lines))
+	if isYAMLTemplate(fileName) {
+		lines = r.withoutLocalizedAnnotations(lines)
+	}
+
+	cyrMsg, hasCyr := checkCyrillicLettersInArray(lines)
 	if hasCyr {
 		errorList.WithFilePath(fName).WithValue(cyrMsg).
 			Error("has cyrillic letters")
@@ -151,8 +158,24 @@ func getFileContent(filename string) ([]string, error) {
 func (r *FilesRule) withoutLocalizedAnnotations(lines []string) []string {
 	out := make([]string, 0, len(lines))
 
+	// blockIndent is the indentation of a localized key whose value is a block scalar, -1 outside
+	// one: the lines below it that are indented deeper belong to the value.
+	blockIndent := -1
+
 	for _, line := range lines {
-		if r.localizedRe.MatchString(line) {
+		if blockIndent >= 0 {
+			if strings.TrimSpace(line) == "" || len(line)-len(strings.TrimLeft(line, " ")) > blockIndent {
+				continue
+			}
+
+			blockIndent = -1
+		}
+
+		if m := r.localizedRe.FindStringSubmatch(line); m != nil {
+			if value := strings.TrimSpace(m[3]); value != "" && strings.ContainsAny(value[:1], "|>") {
+				blockIndent = len(m[1])
+			}
+
 			continue
 		}
 
@@ -160,4 +183,14 @@ func (r *FilesRule) withoutLocalizedAnnotations(lines []string) []string {
 	}
 
 	return out
+}
+
+// isYAMLTemplate reports whether the file is one the localized annotations can live in.
+func isYAMLTemplate(fileName string) bool {
+	switch filepath.Ext(fileName) {
+	case ".yaml", ".yml", ".tpl":
+		return true
+	}
+
+	return false
 }

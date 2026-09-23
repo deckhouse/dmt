@@ -53,6 +53,21 @@ func TestRemapLinterSettings_RBACDeclarationRules(t *testing.T) {
 		}
 	})
 
+	t.Run("a module's own levels win over the root's", func(t *testing.T) {
+		settings := remapLinterSettings(
+			&config.LintersSettings{Rbac: config.RbacSettings{Rules: config.RbacModuleRules{
+				SyncRule: config.RuleConfig{Impact: pkg.Ignored.String()},
+			}}},
+			&global.Linters{Rbac: global.RBACLinterConfig{Rules: global.RBACRules{
+				SyncRule:     global.RuleConfig{Impact: pkg.Error.String()},
+				CoverageRule: global.RuleConfig{Impact: pkg.Error.String()},
+			}}},
+		)
+
+		require.Equal(t, pkg.Ignored, *settings.RBAC.Rules.SyncRule.GetLevel())
+		require.Equal(t, pkg.Error, *settings.RBAC.Rules.CoverageRule.GetLevel())
+	})
+
 	t.Run("module-level exclusions for the three rules", func(t *testing.T) {
 		settings := remapLinterSettings(
 			&config.LintersSettings{Rbac: config.RbacSettings{ExcludeRules: config.RBACExcludeRules{

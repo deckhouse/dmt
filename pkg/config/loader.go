@@ -166,7 +166,11 @@ var rbacKnownKeys = map[string]map[string]struct{}{
 	"global.linters-settings.rbac.rules.coverage": {"impact": {}},
 	"global.linters-settings.rbac.rules.sync":     {"impact": {}},
 	"global.linters-settings.rbac.rules.contract": {"impact": {}},
-	"linters-settings.rbac":                       {"impact": {}, "exclude-rules": {}},
+	"linters-settings.rbac":                       {"impact": {}, "exclude-rules": {}, "rules": {}},
+	"linters-settings.rbac.rules":                 {"coverage": {}, "sync": {}, "contract": {}},
+	"linters-settings.rbac.rules.coverage":        {"impact": {}},
+	"linters-settings.rbac.rules.sync":            {"impact": {}},
+	"linters-settings.rbac.rules.contract":        {"impact": {}},
 	"linters-settings.rbac.exclude-rules": {
 		"binding-subject": {}, "placement": {}, "wildcards": {}, "coverage": {}, "contract": {}, "sync": {},
 	},
@@ -187,8 +191,19 @@ func validateRbacKeys(v *viper.Viper) error {
 	var problems []string
 
 	for _, path := range slices.Sorted(maps.Keys(rbacKnownKeys)) {
-		if block, ok := v.Get(path).(map[string]any); ok {
-			problems = append(problems, unknownKeys(block, rbacKnownKeys[path], path)...)
+		block, ok := v.Get(path).(map[string]any)
+		if !ok {
+			continue
+		}
+
+		problems = append(problems, unknownKeys(block, rbacKnownKeys[path], path)...)
+
+		// A level that is not one of the known ones is read as error: "ignore" for "ignored" would
+		// raise a rule instead of silencing it.
+		if impact, set := block["impact"]; set {
+			if s, isString := impact.(string); !isString || !knownLevels[s] {
+				problems = append(problems, fmt.Sprintf("%s.impact is %v: the levels are ignored, warn, error, critical", path, impact))
+			}
 		}
 	}
 
@@ -215,6 +230,9 @@ func validateRbacKeys(v *viper.Viper) error {
 
 	return fmt.Errorf("%s in %s", strings.Join(problems, "; "), v.ConfigFileUsed())
 }
+
+// knownLevels are the impact values pkg.ParseStringToLevel knows.
+var knownLevels = map[string]bool{"ignored": true, "warn": true, "error": true, "critical": true}
 
 // unknownKeys names the keys of block that known does not list, with the accepted ones.
 func unknownKeys(block map[string]any, known map[string]struct{}, path string) []string {

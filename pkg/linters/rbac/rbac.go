@@ -49,6 +49,19 @@ func New(cfg *pkg.RBACLinterConfig, ruleIDs set.Set, m pkg.Module, errorList *er
 	}
 }
 
+// lower returns the lower of two caps: a rule's own level narrows the linter's, it never lifts it,
+// so impact: ignored on the linter silences the declaration rules as well.
+func lower(linter, rule *pkg.Level) *pkg.Level {
+	switch {
+	case linter == nil:
+		return rule
+	case rule == nil || *linter < *rule:
+		return linter
+	default:
+		return rule
+	}
+}
+
 func (l *Rbac) Lint(ctx context.Context) {
 	pkg.RunRules(ctx, l.ruleIDs, l.rules())
 }
@@ -67,7 +80,7 @@ func (l *Rbac) rules() []pkg.Rule {
 	// (coverage, contract, sync) do read their own level, so that they can start as
 	// warnings in a tree that has not adopted the declaration yet.
 	level := func(rule pkg.RuleConfig) *errors.LintRuleErrorsList {
-		return errorList.WithMaxLevel(rule.GetLevel())
+		return errorList.WithMaxLevel(lower(l.cfg.Impact, rule.GetLevel()))
 	}
 
 	return []pkg.Rule{
