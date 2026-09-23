@@ -309,6 +309,39 @@ namespace:
 			crds:    certManagerCRDs,
 			wantErr: "",
 		},
+		"review 6: the wildcard verb at a user-facing level": {
+			yaml: entry(`group: cert-manager.io
+resource: issuers
+namespace:
+  viewer: ["*"]`),
+			crds:    certManagerCRDs,
+			wantErr: `namespace.viewer grants "*", every verb`,
+		},
+		"review 6: every API group": {
+			yaml: entry(`group: "*"
+resource: things
+scope: Namespaced
+noAccess: nobody`),
+			crds:    certManagerCRDs,
+			wantErr: `group "*" grants the resource in every API group`,
+		},
+		"review 6: a partial wildcard in the resource name": {
+			yaml: entry(`group: external.io
+resource: "secret*"
+scope: Namespaced
+noAccess: nobody`),
+			crds:    certManagerCRDs,
+			wantErr: `RBAC matches "*" only as a whole name`,
+		},
+		"review 13b: when with a template delimiter": {
+			yaml: entry(`group: cert-manager.io
+resource: issuers
+when: 'true }}{{ include "x" . }}{{ if true'
+namespace:
+  viewer: [get]`),
+			crds:    certManagerCRDs,
+			wantErr: "holds a template delimiter; write the condition only",
+		},
 		"R26: namespaced resource at a system level without reason": {
 			yaml: entry(`group: cert-manager.io
 resource: issuers
@@ -452,6 +485,10 @@ func TestValidate_TopLevel(t *testing.T) {
 		"prometheusAccess: when that is not a Helm expression": {
 			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\nprometheusAccess:\n  deployments: [a]\n  when: 'and (.Values.x'\n",
 			wantErr: "prometheusAccess: when",
+		},
+		"review 13a: a template delimiter in a capability text": {
+			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\ncapabilities:\n  namespace.admin: {title: {en: 'Use {{ .Values.x }}', ru: b}, description: {en: c, ru: d}}\n",
+			wantErr: `capabilities.namespace.admin.title.en: "Use {{ .Values.x }}" holds a template delimiter`,
 		},
 		"prometheusAccess: empty": {
 			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\nprometheusAccess: {}\n",
