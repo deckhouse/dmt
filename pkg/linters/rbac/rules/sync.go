@@ -1311,7 +1311,7 @@ func bootstrapObject(object storage.StoreObject) (bootstrap.Object, bool) {
 			return o, false
 		}
 
-		o.Rules = role.Rules
+		o.Rules, o.Aggregated = role.Rules, role.AggregationRule != nil
 	case "Role":
 		role := new(rbacv1.Role)
 		if runtime.DefaultUnstructuredConverter.FromUnstructured(content, role) != nil {

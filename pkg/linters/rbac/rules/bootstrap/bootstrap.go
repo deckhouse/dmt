@@ -44,6 +44,9 @@ type Object struct {
 	RoleRef     rbacv1.RoleRef
 	Subjects    []rbacv1.Subject
 	Automount   *bool
+	// Aggregated marks a ClusterRole with an aggregationRule: its rules belong to the aggregation
+	// controller, and the declaration has no place for the selectors.
+	Aggregated bool
 }
 
 // Input is what the render says about the module.
@@ -362,7 +365,7 @@ func (b *builder) role(ns, name string) (Object, bool) {
 // ownClusterRole reports whether the ClusterRole is the module's own plain one: labelled with the
 // module, neither a capability nor a role of the model nor a legacy role.
 func (b *builder) ownClusterRole(o Object) bool {
-	return o.Kind == "ClusterRole" && o.Labels[rbaccontract.LabelModule] == b.in.Module && o.Labels[rbaccontract.LabelKind] == "" && o.Annotations[rbaccontract.AccessLevelAnnotation] == ""
+	return o.Kind == "ClusterRole" && !o.Aggregated && o.Labels[rbaccontract.LabelModule] == b.in.Module && o.Labels[rbaccontract.LabelKind] == "" && o.Annotations[rbaccontract.AccessLevelAnnotation] == ""
 }
 
 func (b *builder) bindingsOf(name string) []Object {

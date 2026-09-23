@@ -372,3 +372,23 @@ func TestBuild_WildcardRolesAndEveryModuleConfig(t *testing.T) {
 
 	assert.Equal(t, []string{"get", "list", "watch"}, moduleConfigs.System["viewer"], "the grant on every ModuleConfig is kept")
 }
+
+// An aggregated ClusterRole of a ServiceAccount is not an extra role without rules: the account
+// keeps its binding by name and the role stays hand-written (found while checking finding 21 on
+// node-manager).
+func TestBuild_AggregatedRoleOfAnAccountStaysHandWritten(t *testing.T) {
+	labels := map[string]string{"module": "m"}
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{
+		{Kind: "ServiceAccount", Name: "capi", Path: "templates/capi/rbac-for-us.yaml", Labels: labels},
+		{Kind: "ClusterRole", Name: "d8:m:capi:aggregated", Path: "templates/capi/rbac-for-us.yaml", Labels: labels, Aggregated: true},
+		{Kind: "ClusterRoleBinding", Name: "d8:m:capi:aggregated", Path: "templates/capi/rbac-for-us.yaml", Labels: labels,
+			RoleRef:  rbacv1.RoleRef{Kind: "ClusterRole", Name: "d8:m:capi:aggregated"},
+			Subjects: []rbacv1.Subject{{Kind: "ServiceAccount", Name: "capi", Namespace: "d8-m"}}},
+	}})
+
+	require.Len(t, got.Decl.ServiceAccounts, 1)
+	assert.Empty(t, got.Decl.ServiceAccounts[0].ExtraClusterRoles)
+	assert.Equal(t, []string{"d8:m:capi:aggregated"}, got.Decl.ServiceAccounts[0].BindClusterRoles)
+	assert.Contains(t, strings.Join(got.Unmanaged, "\n"), "ClusterRole/d8:m:capi:aggregated")
+	assert.Empty(t, rbacyaml.Validate(got.Decl, nil), "the written declaration validates")
+}
