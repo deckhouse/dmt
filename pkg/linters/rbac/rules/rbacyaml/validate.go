@@ -386,6 +386,8 @@ func validateAccess(access []Access, report reporter) {
 			report("%s: subjects is required", where)
 		}
 
+		validateWhen(a.When, where, report)
+
 		if strings.HasPrefix(a.Path, "/") || strings.HasSuffix(a.Path, "/") || strings.Contains(a.Path, "..") {
 			report("%s: path must be a directory under templates/ without leading or trailing slashes, got %q", where, a.Path)
 		}

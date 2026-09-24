@@ -218,7 +218,9 @@ type Access struct {
 	Subjects []Subject `yaml:"subjects"`
 	// Path is the component directory under templates/ whose rbac-for-us.yaml (clusterRules) or
 	// rbac-to-us.yaml (namespaceRules) holds the objects; empty means the module root files.
-	Path           string       `yaml:"path,omitempty"`
+	Path string `yaml:"path,omitempty"`
+	// When wraps the role and the binding in {{- if <When> }}, as for a ServiceAccount.
+	When           string       `yaml:"when,omitempty"`
 	ClusterRules   []PolicyRule `yaml:"clusterRules,omitempty"`
 	NamespaceRules []PolicyRule `yaml:"namespaceRules,omitempty"`
 }

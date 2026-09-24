@@ -1452,6 +1452,7 @@ prometheusAccess:
 # Arbitrary subjects: clusterRules -> templates/[<path>/]rbac-for-us.yaml, namespaceRules -> templates/[<path>/]rbac-to-us.yaml
 access:
   - name: admin-kubeconfig
+    when: .Values.certManager.adminKubeconfig   # optional; wraps the role and the binding, as for an account
     subjects:
       - kind: Group
         name: kubeadm:cluster-admins
@@ -1624,11 +1625,23 @@ with a `TODO` wherever a decision is still theirs (a resource without a CRD whos
 cannot know, a CRD nobody grants, a namespaced resource granted cluster-wide) and a note on top for
 every object the generator will name differently or cannot describe. An entry whose CRD is in `crds/`
 carries no `scope`: the CRD states it; an external resource whose scope is not known gets
-`scope: "TODO: Namespaced or Cluster"`. A grant limited to `resourceNames` is never widened to every
+`scope: "TODO: Namespaced or Cluster (Cluster drops the namespace levels)"`. A grant limited to `resourceNames` is never widened to every
 object: it is left out and named in a note. A role granting `*` verbs or API groups, which the format
-refuses, is listed as hand-written with the reason. The fix that writes the file keeps the finding
-while a `TODO` is left in it, and a `--fix` run with any fix left open exits non-zero whatever the
-level of its finding. Nothing is written into an edition overlay. Review
+refuses, is listed as hand-written with the reason.
+
+The render only holds what rendered for the linter's values, so the importer also reads the template
+text around each object. An object wrapped in `{{ if X }}` gets `when: X` (an `{{ else }}` branch
+`not (X)`, nested blocks an `and`); a condition that uses a template variable becomes a `TODO`, and so
+does an account or access entry whose role and binding render under different conditions. An object
+inside `{{ range }}`, `{{ with }}` or `{{ define }}`, one rendered by an include of a named template
+(`helm_lib_*`), and a role without rules stay hand-written. An object the text holds under a
+condition false for these values is in no render: the header names it, and the fix fails, so the
+regeneration does not drop it in silence. A block inside an object -- a rule under its own `{{ if }}`
+-- is noted. The Prometheus scrape binding keeps its gate as `prometheusAccess.when`.
+
+The fix that writes the file keeps the finding while a `TODO` is left in it or while the linter would
+refuse the written file (both are named in the fix error), and a `--fix` run with any fix left open
+exits non-zero whatever the level of its finding. Nothing is written into an edition overlay. Review
 it, resolve the TODOs, then run `--fix` again to regenerate the templates from it. From then on
 `rbac.yaml` is the source.
 
