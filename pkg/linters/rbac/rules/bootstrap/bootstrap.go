@@ -145,6 +145,9 @@ type builder struct {
 	// objects imported with the account being read.
 	partialIDs map[string]bool
 	current    []Object
+	// conditionalKeys are the resources a capability or a legacy role only some variants rendered
+	// grants, with why.
+	conditionalKeys map[[2]string][]string
 	// prometheusFolded is set once the note on folding several scrape Roles is written.
 	prometheusFolded bool
 }
@@ -193,7 +196,7 @@ func Build(in Input) Result {
 		return in.Objects[i].identity() < in.Objects[j].identity()
 	})
 
-	b := &builder{in: in, unmanagedIDs: map[string]bool{}, account: map[string]bool{}, partialIDs: map[string]bool{}, res: map[[2]string]*resourceAcc{}, restricted: map[[2]string][]string{}, texts: map[string]rbacyaml.CapabilityText{}, lineages: map[string]struct{}{}, used: map[string]struct{}{},
+	b := &builder{in: in, unmanagedIDs: map[string]bool{}, account: map[string]bool{}, partialIDs: map[string]bool{}, conditionalKeys: map[[2]string][]string{}, res: map[[2]string]*resourceAcc{}, restricted: map[[2]string][]string{}, texts: map[string]rbacyaml.CapabilityText{}, lineages: map[string]struct{}{}, used: map[string]struct{}{},
 		decl: &rbacyaml.Declaration{APIVersion: rbacyaml.APIVersionV1Alpha1}}
 
 	for _, p := range in.Partial {
@@ -338,6 +341,7 @@ func (b *builder) capabilitiesAndLegacy() {
 
 			b.rename("ClusterRole", o.Name, "d8:user-authz:"+b.in.Module+":"+rbaccontract.LegacyKebab(level))
 			b.addRules("legacy", level, o.Rules, false)
+			b.partialGrant(o)
 			b.mark(o)
 
 			continue
@@ -364,6 +368,7 @@ func (b *builder) capabilitiesAndLegacy() {
 			}
 
 			b.addRules(lineage, level, o.Rules, lineage == rbaccontract.LineageSystem)
+			b.partialGrant(o)
 			b.mark(o)
 
 			if lineage == rbaccontract.LineageSystem {
@@ -794,6 +799,10 @@ func (b *builder) resources() {
 			e.Reason = "TODO: a namespaced resource granted cluster-wide, as the templates did; confirm or move it to namespace"
 		}
 
+		if conditions := b.conditionalKeys[k]; len(conditions) > 0 {
+			e.Reason = conditionalReason(conditions, e.Reason)
+		}
+
 		e.Namespace, e.System, e.Legacy = sortedLevels(acc.namespace), sortedLevels(acc.system), sortedLevels(acc.legacy)
 
 		// A grant limited to resourceNames is never widened to every object, at any level: it
@@ -914,6 +923,43 @@ func (b *builder) markAccount(o Object) {
 // partial reports whether some render variants did not render the object.
 func (b *builder) partial(o Object) bool {
 	return b.partialIDs[o.Kind+"/"+o.Namespace+"/"+o.Name]
+}
+
+// partialGrant records a capability or a legacy role only some render variants rendered against
+// the resources it grants: resources[] have no `when`, and the regenerated role would render for
+// every value, so the entries get a TODO reason the run stays red for (review of #479, finding 41).
+func (b *builder) partialGrant(o Object) {
+	if !b.partial(o) {
+		return
+	}
+
+	msg := fmt.Sprintf("ClusterRole %s renders only under some of the linted values", o.Name)
+
+	for _, r := range o.Rules {
+		groups := r.APIGroups
+		if len(groups) == 0 {
+			groups = []string{""}
+		}
+
+		for _, g := range groups {
+			for _, rs := range r.Resources {
+				key := [2]string{g, rs}
+				if !slices.Contains(b.conditionalKeys[key], msg) {
+					b.conditionalKeys[key] = append(b.conditionalKeys[key], msg)
+				}
+			}
+		}
+	}
+}
+
+// conditionalReason puts the conditions of the roles granting a resource in front of its reason.
+func conditionalReason(conditions []string, reason string) string {
+	todo := "TODO: " + strings.Join(conditions, "; ") + "; resources[] have no `when`, so the regenerated role would render for every value -- decide, then write the reason"
+	if reason == "" {
+		return todo
+	}
+
+	return todo + "; " + strings.TrimPrefix(reason, "TODO: ")
 }
 
 // unmanagePartial keeps hand-written what renders only under some of the linted values where the

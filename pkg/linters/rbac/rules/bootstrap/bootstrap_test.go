@@ -552,3 +552,17 @@ func TestBuild_LibraryFileAndPartialScrapeAccess(t *testing.T) {
 	assert.Empty(t, got.Decl.Access)
 	assert.Nil(t, got.Decl.PrometheusAccess)
 }
+
+// A capability only some variants rendered leaves a TODO reason on what it grants: resources[] have
+// no `when` (review of #479, finding 41).
+func TestBuild_PartialCapabilityIsATODO(t *testing.T) {
+	labels := map[string]string{"module": "m", rbaccontract.LabelKind: rbaccontract.KindCapability}
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, CRDs: map[string]string{"x.io/things": "Namespaced"}, Objects: []Object{
+		{Kind: "ClusterRole", Name: "d8:namespace-capability:m:view", Path: "templates/rbacv2/use/view.yaml", Labels: labels,
+			Rules: []rbacv1.PolicyRule{{APIGroups: []string{"x.io"}, Resources: []string{"things"}, Verbs: []string{"get"}}}},
+	}, Partial: []string{"ClusterRole//d8:namespace-capability:m:view"}})
+
+	require.Len(t, got.Decl.Resources, 1)
+	assert.True(t, strings.HasPrefix(got.Decl.Resources[0].Reason, "TODO: ClusterRole d8:namespace-capability:m:view renders only under some of the linted values"), got.Decl.Resources[0].Reason)
+}
