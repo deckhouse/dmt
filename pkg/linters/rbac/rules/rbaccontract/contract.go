@@ -267,8 +267,19 @@ func IsLegacyKind(kind string) bool {
 	return kind == KindLegacyUse || kind == KindLegacyManage
 }
 
-// DeckhouseNamespaces are the namespaces the placement rule treats as the platform's own: there an
-// account of templates/<dir>/ may carry the module name in front of the directory.
+// AccessRoleName is the Role and RoleBinding name of a namespace access entry. The placement rule
+// wants access-to-<module>-... in templates/rbac-to-us.yaml and access-to-<directory>-... in
+// templates/<directory>/rbac-to-us.yaml.
+func AccessRoleName(module, path, name string) string {
+	if path == "" {
+		return "access-to-" + module + "-" + name
+	}
+
+	return "access-to-" + strings.ReplaceAll(path, "/", "-") + "-" + name
+}
+
+// DeckhouseNamespaces are the namespaces the placement rule treats as the platform's own: an
+// object there is named after the module as well as after its directory.
 //
 // TODO: remove the entries after d8-system once the RBAC object names are fixed.
 var DeckhouseNamespaces = []string{"d8-monitoring", "d8-system", "d8-admission-policy-engine", "d8-operator-trivy", "d8-log-shipper", "d8-local-path-provisioner"}
@@ -276,4 +287,30 @@ var DeckhouseNamespaces = []string{"d8-monitoring", "d8-system", "d8-admission-p
 // IsDeckhouseNamespace reports whether the namespace is one of DeckhouseNamespaces.
 func IsDeckhouseNamespace(ns string) bool {
 	return slices.Contains(DeckhouseNamespaces, ns)
+}
+
+// AccountRoleName is the Role and RoleBinding name of an account's namespaceRules. The placement
+// rule wants the objects of templates/<a>/<b>/rbac-for-us.yaml to start with a:b (or
+// <module>:a:b for an account named after the module); at the root the account's own name.
+func AccountRoleName(module, path, account string) string {
+	if path == "" {
+		return account
+	}
+
+	dirs := strings.ReplaceAll(path, "/", ":")
+	if account == module+"-"+strings.ReplaceAll(path, "/", "-") {
+		return module + ":" + dirs
+	}
+
+	return dirs
+}
+
+// AccountForeignBindingPrefix is the prefix of an account's RoleBindings in other namespaces
+// (bindRoles): d8:<module>:<account> at the root, d8:<module>:<a>:<b> for templates/<a>/<b>/.
+func AccountForeignBindingPrefix(module, path, account string) string {
+	if path == "" {
+		return "d8:" + module + ":" + account
+	}
+
+	return "d8:" + module + ":" + strings.ReplaceAll(path, "/", ":")
 }

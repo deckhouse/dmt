@@ -249,36 +249,24 @@ func checkAgainstModule(in Input) error {
 			continue
 		}
 
-		if strings.Contains(sa.Path, "/") {
-			return fmt.Errorf("serviceAccounts[%s].path %q: one directory under templates/ only; the placement rule names the objects of a nested directory in a way the generator cannot follow", sa.Name, sa.Path)
-		}
+		// The placement rule names the account of templates/<a>/<b>/rbac-for-us.yaml after its
+		// directories joined with dashes; with the module name in front only in a namespace of the
+		// platform (d8-system, d8-monitoring, ...).
+		dir := strings.ReplaceAll(sa.Path, "/", "-")
 
 		// In default and kube-system the placement rule wants the account named d8-<module>-<dir>,
 		// which the generator does not write (README, limits; review of #479, finding 43).
 		if in.Namespace == "default" || in.Namespace == "kube-system" {
-			return fmt.Errorf("serviceAccounts[%s].path %q: in %s the placement rule wants the account named %q, which the generator does not accept yet (a known limitation); keep the account hand-written", sa.Name, sa.Path, in.Namespace, "d8-"+in.Module+"-"+sa.Path)
+			return fmt.Errorf("serviceAccounts[%s].path %q: in %s the placement rule wants the account named %q, which the generator does not accept yet (a known limitation); keep the account hand-written", sa.Name, sa.Path, in.Namespace, "d8-"+in.Module+"-"+dir)
 		}
 
-		// The placement rule allows the module name in front of the directory only in a namespace of
-		// the platform, and then wants its Role and foreign RoleBindings named <module>:<dir>, which
-		// the generator does not write (review of #479, finding 37).
 		switch {
-		case sa.Name == sa.Path:
-		case sa.Name == in.Module+"-"+sa.Path && !rbaccontract.IsDeckhouseNamespace(in.Namespace):
-			return fmt.Errorf("serviceAccounts[%s].path %q: the placement rule allows the module name in front of the directory only in a namespace of the platform (d8-system, d8-monitoring, ...); in %s name the account %q", sa.Name, sa.Path, in.Namespace, sa.Path)
-		case sa.Name == in.Module+"-"+sa.Path && (len(sa.NamespaceRules) > 0 || len(sa.BindRoles) > 0):
-			return fmt.Errorf("serviceAccounts[%s].path %q: the placement rule wants the Role and RoleBindings of this account named %s:%s, which this version does not generate; name the account %q, or keep its namespaceRules and bindRoles by hand", sa.Name, sa.Path, in.Module, sa.Path, sa.Path)
-		case sa.Name == in.Module+"-"+sa.Path:
+		case sa.Name == dir:
+		case sa.Name == in.Module+"-"+dir && rbaccontract.IsDeckhouseNamespace(in.Namespace):
+		case sa.Name == in.Module+"-"+dir:
+			return fmt.Errorf("serviceAccounts[%s].path %q: the placement rule allows the module name in front of the directory only in a namespace of the platform (d8-system, d8-monitoring, ...); in %s name the account %q", sa.Name, sa.Path, in.Namespace, dir)
 		default:
-			return fmt.Errorf("serviceAccounts[%s].path %q: the placement rule wants the account named %q after its directory; rename the account or move it to the module root", sa.Name, sa.Path, sa.Path)
-		}
-	}
-
-	// templates/<dir>/rbac-to-us.yaml wants access-to-<dir>- names; the generator writes
-	// access-to-<module>-<name>, which the placement rule refuses there.
-	for _, a := range in.Decl.Access {
-		if a.Path != "" && len(a.NamespaceRules) > 0 {
-			return fmt.Errorf("access[%s].path %q: namespaceRules in a directory would be named access-to-%s-%s, and the placement rule wants access-to-%s- in templates/%s/rbac-to-us.yaml; this version generates namespaceRules at the module root only -- drop path, or keep the entry by hand", a.Name, a.Path, in.Module, a.Name, strings.ReplaceAll(a.Path, "/", "-"), a.Path)
+			return fmt.Errorf("serviceAccounts[%s].path %q: the placement rule wants the account named %q after its directory; rename the account or move it to the module root", sa.Name, sa.Path, dir)
 		}
 	}
 
@@ -375,7 +363,10 @@ func (b *builder) capabilities() {
 			labels[rbaccontract.AggregationLabelPrefix+subsystem+rbaccontract.AggregationLabelSuffix] = level
 		}
 
-		if strings.HasPrefix(b.in.Namespace, "d8-") {
+		// The user-authz controller projects the module's use-role RoleBindings into this namespace;
+		// every module namespace gets it -- kube-system included -- but default, which the
+		// secret-copier module fills with copies and which is nobody's to administer.
+		if b.in.Namespace != "" && b.in.Namespace != "default" {
 			labels[rbaccontract.LabelNamespace] = b.in.Namespace
 		}
 
@@ -457,41 +448,44 @@ func (b *builder) serviceAccounts() {
 		automount := sa.AutomountToken != nil && *sa.AutomountToken
 		b.add(path, Object{
 			Kind: "ServiceAccount", Name: sa.Name, Namespace: b.in.Namespace, Class: ClassDeclared,
-			When: sa.When, Labels: labels, AutomountToken: &automount,
+			When: sa.When, Labels: labels, Annotations: copyMap(sa.Annotations), AutomountToken: &automount,
 		})
+
+		ann := sa.RBACAnnotations
 
 		subject := []Subject{{Kind: "ServiceAccount", Name: sa.Name, Namespace: b.in.Namespace}}
 		clusterName := "d8:" + b.in.Module + ":" + sa.Name
 
 		if len(sa.ClusterRules) > 0 {
-			b.add(path, Object{Kind: "ClusterRole", Name: clusterName, Class: ClassDeclared, When: sa.When, Labels: labels, Rules: policyRules(sa.ClusterRules)})
-			b.add(path, Object{Kind: "ClusterRoleBinding", Name: clusterName, Class: ClassDeclared, When: sa.When, Labels: labels, RoleRefKind: "ClusterRole", RoleRefName: clusterName, Subjects: subject})
+			b.add(path, Object{Kind: "ClusterRole", Name: clusterName, Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann), Rules: policyRules(sa.ClusterRules)})
+			b.add(path, Object{Kind: "ClusterRoleBinding", Name: clusterName, Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann), RoleRefKind: "ClusterRole", RoleRefName: clusterName, Subjects: subject})
 		}
 
 		if len(sa.NamespaceRules) > 0 {
-			b.add(path, Object{Kind: "Role", Name: sa.Name, Namespace: b.in.Namespace, Class: ClassDeclared, When: sa.When, Labels: labels, Rules: policyRules(sa.NamespaceRules)})
-			b.add(path, Object{Kind: "RoleBinding", Name: sa.Name, Namespace: b.in.Namespace, Class: ClassDeclared, When: sa.When, Labels: labels, RoleRefKind: "Role", RoleRefName: sa.Name, Subjects: subject})
+			roleName := rbaccontract.AccountRoleName(b.in.Module, sa.Path, sa.Name)
+			b.add(path, Object{Kind: "Role", Name: roleName, Namespace: b.in.Namespace, Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann), Rules: policyRules(sa.NamespaceRules)})
+			b.add(path, Object{Kind: "RoleBinding", Name: roleName, Namespace: b.in.Namespace, Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann), RoleRefKind: "Role", RoleRefName: roleName, Subjects: subject})
 		}
 
 		for _, extra := range sa.ExtraClusterRoles {
 			extraName := extra.FullName(b.in.Module, sa.Name)
-			b.add(path, Object{Kind: "ClusterRole", Name: extraName, Class: ClassDeclared, When: sa.When, Labels: labels, Rules: policyRules(extra.Rules)})
+			b.add(path, Object{Kind: "ClusterRole", Name: extraName, Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann), Rules: policyRules(extra.Rules)})
 
 			if extra.IsBound() {
-				b.add(path, Object{Kind: "ClusterRoleBinding", Name: extraName, Class: ClassDeclared, When: sa.When, Labels: labels, RoleRefKind: "ClusterRole", RoleRefName: extraName, Subjects: subject})
+				b.add(path, Object{Kind: "ClusterRoleBinding", Name: extraName, Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann), RoleRefKind: "ClusterRole", RoleRefName: extraName, Subjects: subject})
 			}
 		}
 
 		for _, bound := range sa.BindClusterRoles {
 			b.add(path, Object{
-				Kind: "ClusterRoleBinding", Name: clusterName + ":" + rbaccontract.BindingSuffix(bound), Class: ClassDeclared, When: sa.When, Labels: labels,
+				Kind: "ClusterRoleBinding", Name: clusterName + ":" + rbaccontract.BindingSuffix(bound), Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann),
 				RoleRefKind: "ClusterRole", RoleRefName: bound, Subjects: subject,
 			})
 		}
 
 		for _, ref := range sa.BindRoles {
 			b.add(path, Object{
-				Kind: "RoleBinding", Name: clusterName + ":" + rbaccontract.BindingSuffix(ref.Name), Namespace: ref.Namespace, Class: ClassDeclared, When: sa.When, Labels: labels,
+				Kind: "RoleBinding", Name: rbaccontract.AccountForeignBindingPrefix(b.in.Module, sa.Path, sa.Name) + ":" + rbaccontract.BindingSuffix(ref.Name), Namespace: ref.Namespace, Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann),
 				RoleRefKind: "Role", RoleRefName: ref.Name, Subjects: subject,
 			})
 		}
@@ -521,11 +515,11 @@ func (b *builder) access() {
 		rules = sortRules(rules)
 		name := "access-to-" + b.in.Module
 
-		b.add("templates/rbac-to-us.yaml", Object{Kind: "Role", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, Rules: rules})
+		b.add("templates/rbac-to-us.yaml", Object{Kind: "Role", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, Labels: copyMap(pa.Labels), Annotations: copyMap(pa.Annotations), Rules: rules})
 		// The Role is unconditional and only the binding to the scraper is gated: that is how the
 		// modules write it today, and a Role nobody is bound to grants nothing.
 		b.add("templates/rbac-to-us.yaml", Object{
-			Kind: "RoleBinding", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, RoleRefKind: "Role", RoleRefName: name, When: pa.When,
+			Kind: "RoleBinding", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, Labels: copyMap(pa.Labels), Annotations: copyMap(pa.Annotations), RoleRefKind: "Role", RoleRefName: name, When: pa.When,
 			Subjects: []Subject{{Kind: "User", Name: "d8-monitoring:scraper"}, {Kind: "ServiceAccount", Name: "prometheus", Namespace: "d8-monitoring"}},
 		})
 	}
@@ -546,14 +540,15 @@ func (b *builder) access() {
 
 		if len(a.ClusterRules) > 0 {
 			name := "d8:" + b.in.Module + ":" + a.Name
-			b.add(dir+"rbac-for-us.yaml", Object{Kind: "ClusterRole", Name: name, Class: ClassDeclared, Rules: policyRules(a.ClusterRules)})
-			b.add(dir+"rbac-for-us.yaml", Object{Kind: "ClusterRoleBinding", Name: name, Class: ClassDeclared, RoleRefKind: "ClusterRole", RoleRefName: name, Subjects: subjects})
+			b.add(dir+"rbac-for-us.yaml", Object{Kind: "ClusterRole", Name: name, Class: ClassDeclared, When: a.When, Labels: copyMap(a.Labels), Annotations: copyMap(a.Annotations), Rules: policyRules(a.ClusterRules)})
+			b.add(dir+"rbac-for-us.yaml", Object{Kind: "ClusterRoleBinding", Name: name, Class: ClassDeclared, When: a.When, Labels: copyMap(a.Labels), Annotations: copyMap(a.Annotations), RoleRefKind: "ClusterRole", RoleRefName: name, Subjects: subjects})
 		}
 
 		if len(a.NamespaceRules) > 0 {
-			name := "access-to-" + b.in.Module + "-" + a.Name
-			b.add(dir+"rbac-to-us.yaml", Object{Kind: "Role", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, Rules: policyRules(a.NamespaceRules)})
-			b.add(dir+"rbac-to-us.yaml", Object{Kind: "RoleBinding", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, RoleRefKind: "Role", RoleRefName: name, Subjects: subjects})
+			name := rbaccontract.AccessRoleName(b.in.Module, a.Path, a.Name)
+
+			b.add(dir+"rbac-to-us.yaml", Object{Kind: "Role", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, When: a.When, Labels: copyMap(a.Labels), Annotations: copyMap(a.Annotations), Rules: policyRules(a.NamespaceRules)})
+			b.add(dir+"rbac-to-us.yaml", Object{Kind: "RoleBinding", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, When: a.When, Labels: copyMap(a.Labels), Annotations: copyMap(a.Annotations), RoleRefKind: "Role", RoleRefName: name, Subjects: subjects})
 		}
 	}
 }
@@ -644,4 +639,18 @@ func liftRuleConditions(o *Object) {
 	}
 
 	o.When = lifted
+}
+
+// copyMap returns a copy of m, nil for an empty one.
+func copyMap(m map[string]string) map[string]string {
+	if len(m) == 0 {
+		return nil
+	}
+
+	out := make(map[string]string, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+
+	return out
 }
