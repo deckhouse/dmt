@@ -1652,7 +1652,7 @@ controller ClusterRoles with arbitrary names, objects with Helm-computed names).
 
 **What it checks:**
 
-1. Every declared object is in the render (unless it is under `when`), and every rule of it: rules are compared as `(apiGroup, resource, resourceName, verb)` tuples, in both directions. A rule under `when` that did not render is not a divergence; a rule without `when` hidden behind a hand-written `{{ if }}` is.
+1. Every declared object is in the render (unless it is under a `when` that is false in this render: when another object of the file under the same `when` rendered, the condition holds, and an absent one is a divergence), and every rule of it: rules are compared as `(apiGroup, resource, resourceName, verb)` tuples, in both directions. A rule under `when` that did not render is not a divergence; a rule without `when` hidden behind a hand-written `{{ if }}` is.
 2. A capability's aggregation edges (`aggregate-to-<lineage>-as`) match in both directions: rules may agree while a lineage is lost. Its `rbac.deckhouse.io/capability` marker, `module` and `rbac.deckhouse.io/namespace` labels are what the generator writes.
 3. A binding's `roleRef` and subjects match.
 4. Every rendered legacy role and module capability is produced by the declaration.
