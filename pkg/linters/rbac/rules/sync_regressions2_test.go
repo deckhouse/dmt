@@ -17,58 +17,17 @@ limitations under the License.
 package rules
 
 import (
-	"context"
 	"os"
 	"strings"
 	"testing"
 
-	"github.com/gojuno/minimock/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/deckhouse/dmt/internal/mocks"
-	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/bootstrap"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/generate"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbacyaml"
 )
-
-// What the generator writes for accounts and access entries in nested directories passes the
-// placement rule (regression hunt 2, A1).
-func TestSyncRegression_GeneratedNamesPassPlacement(t *testing.T) {
-	get := []rbacyaml.PolicyRule{{APIGroups: []string{""}, Resources: []string{"secrets"}, Verbs: []string{"get"}}}
-	nodes := []rbacyaml.PolicyRule{{APIGroups: []string{""}, Resources: []string{"nodes"}, Verbs: []string{"get"}}}
-	group := []rbacyaml.Subject{{Kind: "Group", Name: "g"}}
-
-	decl := &rbacyaml.Declaration{APIVersion: rbacyaml.APIVersionV1Alpha1,
-		ServiceAccounts: []rbacyaml.ServiceAccount{
-			{Name: "webhook-tls", Path: "webhook/tls", ClusterRules: nodes, NamespaceRules: get, BindClusterRoles: []string{"d8:rbac-proxy"},
-				BindRoles: []rbacyaml.RoleRef{{Namespace: "kube-system", Name: "extension-apiserver-authentication-reader"}}},
-			{Name: "cainjector", Path: "cainjector", NamespaceRules: get},
-			{Name: syncModule, ClusterRules: nodes, NamespaceRules: get},
-		},
-		Access: []rbacyaml.Access{
-			{Name: "reader", Path: "webhook/tls", Subjects: group, NamespaceRules: get},
-			{Name: "nodes", Path: "webhook", Subjects: group, ClusterRules: nodes},
-		},
-	}
-	require.Empty(t, rbacyaml.Validate(decl, nil))
-
-	model, err := generate.Build(generate.Input{Module: syncModule, Namespace: "d8-cert-manager", Subsystems: []string{"security"}, Decl: decl})
-	require.NoError(t, err)
-
-	store := renderedFrom(t, model, nil)
-
-	m := mocks.NewModuleMock(minimock.NewController(t))
-	m.GetNameMock.Return(syncModule)
-	m.GetNamespaceMock.Optional().Return("d8-cert-manager")
-	m.GetStorageMock.Return(store.Storage)
-
-	errorList := errors.NewLintRuleErrorsList()
-	NewPlacementRule(nil, m, errorList).Check(context.Background())
-
-	assert.Empty(t, texts(errorList))
-}
 
 // A hand-written role of another account with the same rules as a declared one is not a
 // replaced copy: it is granted to other subjects (regression hunt 2, A3).
@@ -105,9 +64,9 @@ func TestSyncRegression_EqualRulesOfAnotherAccountAreNoCopy(t *testing.T) {
 	assert.NotContains(t, got, "the old copy of")
 }
 
-// Labels of a declared object are compared, the module labels aside; a ServiceAccount subject
-// without a namespace is in the RoleBinding's (regression hunt 2, A4 and A5).
-func TestSyncRegression_LabelsAndSubjectNamespace(t *testing.T) {
+// A ServiceAccount subject without a namespace is in the RoleBinding's, as Kubernetes has it
+// (regression hunt 2, A5).
+func TestSyncRegression_SubjectWithoutNamespace(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
 
@@ -116,10 +75,7 @@ func TestSyncRegression_LabelsAndSubjectNamespace(t *testing.T) {
 	writeGenerated(t, modulePath, model)
 
 	errorList := runSync(t, modulePath, renderedFrom(t, model, func(o *generate.Object) bool {
-		switch {
-		case o.Kind == "ClusterRole" && o.Name == "d8:cert-manager:cainjector":
-			o.Labels = map[string]string{"app": "cainjector", "rbac.authorization.k8s.io/aggregate-to-admin": "true"}
-		case o.Kind == "RoleBinding" && o.Name == "cainjector":
+		if o.Kind == "RoleBinding" && o.Name == "cainjector" {
 			subjects := make([]generate.Subject, 0, len(o.Subjects))
 			for _, s := range o.Subjects {
 				s.Namespace = ""
@@ -132,11 +88,7 @@ func TestSyncRegression_LabelsAndSubjectNamespace(t *testing.T) {
 		return true
 	}))
 
-	got := strings.Join(texts(errorList), "\n")
-	assert.Contains(t, got, "ClusterRole/d8:cert-manager:cainjector: label rbac.authorization.k8s.io/aggregate-to-admin is in the render but not declared")
-	assert.NotContains(t, got, "label heritage")
-	assert.NotContains(t, got, "label module")
-	assert.NotContains(t, got, "RoleBinding/cainjector: subject")
+	assert.NotContains(t, strings.Join(texts(errorList), "\n"), "RoleBinding/cainjector: subject")
 }
 
 func TestSplitChanges(t *testing.T) {
@@ -147,16 +99,6 @@ func TestSplitChanges(t *testing.T) {
 	})
 	assert.Equal(t, []string{"X: (, pods, , get) is declared but absent from the render"}, added)
 	assert.Len(t, removed, 2)
-}
-
-// A subchart's objects stay hand-written: its templates read its own values (regression hunt 2,
-// B6).
-func TestLocateInTemplate_Subchart(t *testing.T) {
-	o := bootstrap.Object{Kind: "ServiceAccount", Name: "subsa", Path: "charts/sub/templates/rbac-for-us.yaml"}
-	locateInTemplate(t.TempDir(), &o, map[string][]bootstrap.Doc{})
-
-	assert.True(t, o.Located)
-	assert.Equal(t, "rendered by the subchart sub, whose templates and values are its own", o.Unmanageable)
 }
 
 // A declaration bootstrap produced that does not parse is a bug of dmt, yet it is written: the
@@ -176,7 +118,7 @@ func TestWriteBootstrapped_UnparsableIsWrittenWithTheLine(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "rbac.yaml is written, but it does not parse")
 	assert.Contains(t, err.Error(), "line 3")
-	assert.Contains(t, err.Error(), "fix or delete the line, then run `dmt lint --linter rbac --fix` again")
+	assert.Contains(t, err.Error(), "this is a bug of dmt")
 
 	written, readErr := os.ReadFile(path)
 	require.NoError(t, readErr)

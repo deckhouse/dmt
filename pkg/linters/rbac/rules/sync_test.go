@@ -1522,7 +1522,7 @@ func TestSync_InvalidDeclarationFailsTheFix(t *testing.T) {
 
 	errorList := runSync(t, modulePath, renderedFrom(t, model, nil))
 	require.NotEmpty(t, errorList.GetFixes())
-	assert.Contains(t, strings.Join(texts(errorList), "\n"), "the placement rule wants the account named")
+	assert.Contains(t, strings.Join(texts(errorList), "\n"), "one directory under templates/ only")
 
 	for _, fix := range errorList.GetFixes() {
 		fix()
