@@ -253,8 +253,26 @@ func checkAgainstModule(in Input) error {
 			return fmt.Errorf("serviceAccounts[%s].path %q: one directory under templates/ only; the placement rule names the objects of a nested directory in a way the generator cannot follow", sa.Name, sa.Path)
 		}
 
-		if sa.Name != sa.Path && sa.Name != in.Module+"-"+sa.Path {
-			return fmt.Errorf("serviceAccounts[%s].path %q: the placement rule wants the account named %q or %q after its directory; rename the account or move it to the module root", sa.Name, sa.Path, sa.Path, in.Module+"-"+sa.Path)
+		// The placement rule allows the module name in front of the directory only in a namespace of
+		// the platform, and then wants its Role and foreign RoleBindings named <module>:<dir>, which
+		// the generator does not write (review of #479, finding 37).
+		switch {
+		case sa.Name == sa.Path:
+		case sa.Name == in.Module+"-"+sa.Path && !rbaccontract.IsDeckhouseNamespace(in.Namespace):
+			return fmt.Errorf("serviceAccounts[%s].path %q: the placement rule allows the module name in front of the directory only in a namespace of the platform (d8-system, d8-monitoring, ...); in %s name the account %q", sa.Name, sa.Path, in.Namespace, sa.Path)
+		case sa.Name == in.Module+"-"+sa.Path && (len(sa.NamespaceRules) > 0 || len(sa.BindRoles) > 0):
+			return fmt.Errorf("serviceAccounts[%s].path %q: the placement rule wants the Role and RoleBindings of this account named %s:%s, which this version does not generate; name the account %q, or keep its namespaceRules and bindRoles by hand", sa.Name, sa.Path, in.Module, sa.Path, sa.Path)
+		case sa.Name == in.Module+"-"+sa.Path:
+		default:
+			return fmt.Errorf("serviceAccounts[%s].path %q: the placement rule wants the account named %q after its directory; rename the account or move it to the module root", sa.Name, sa.Path, sa.Path)
+		}
+	}
+
+	// templates/<dir>/rbac-to-us.yaml wants access-to-<dir>- names; the generator writes
+	// access-to-<module>-<name>, which the placement rule refuses there.
+	for _, a := range in.Decl.Access {
+		if a.Path != "" && len(a.NamespaceRules) > 0 {
+			return fmt.Errorf("access[%s].path %q: namespaceRules in a directory would be named access-to-%s-%s, and the placement rule wants access-to-%s- in templates/%s/rbac-to-us.yaml; this version generates namespaceRules at the module root only -- drop path, or keep the entry by hand", a.Name, a.Path, in.Module, a.Name, strings.ReplaceAll(a.Path, "/", "-"), a.Path)
 		}
 	}
 
