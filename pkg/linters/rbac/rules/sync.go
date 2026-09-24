@@ -28,6 +28,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -218,6 +219,8 @@ func (r *SyncRule) compareRender(model *generate.Model, actual map[string]manage
 		}
 	}
 
+	divergences = r.replacedCopies(model, actual, modelIdentities, divergences)
+
 	for identity, obj := range actual {
 		if _, produced := modelIdentities[identity]; produced || obj.class == generate.ClassDeclared {
 			continue
@@ -355,6 +358,22 @@ func noLongerProduced(content string, produced map[string]struct{}, placed map[s
 // report emits one finding per template, with the fix that closes it when one exists: the
 // regeneration of a produced file, the deletion of an orphaned generated file, or none.
 func (r *SyncRule) report(modulePath string, model *generate.Model, divergences map[string][]string) {
+	// What every generated file holds by its text, rendered or not: an object under a false
+	// condition that the declaration moved is in its old file's text only, and writing it into the
+	// new one would define it twice once the condition holds.
+	held := map[string][]string{}
+
+	for _, path := range generatedTemplates(modulePath) {
+		content, err := os.ReadFile(filepath.Join(modulePath, path))
+		if err != nil {
+			continue
+		}
+
+		for _, doc := range textDocuments(string(content)) {
+			held[doc.id] = append(held[doc.id], path)
+		}
+	}
+
 	placed := map[string]string{}
 
 	for _, f := range model.Files {
@@ -403,6 +422,7 @@ func (r *SyncRule) report(modulePath string, model *generate.Model, divergences 
 			// An object this file produces that still renders from another file stays there until a
 			// person moves it; writing it here as well would render it twice.
 			recordBlocked(filepath.Join(modulePath, path), r.renderedElsewhere(*file))
+			recordBlocked(filepath.Join(modulePath, path), heldElsewhere(*file, held))
 			fileList = fileList.WithFix(regenerateFix(modulePath, *file, placed, r.foreignObjects(*file, model), removalsOf(list)))
 			fileList.Errorf("%s does not match %s: %s. Run `%s` to regenerate the file from the declaration",
 				path, rbacyaml.Filename, strings.Join(list, "; "), FixCommand)
@@ -622,7 +642,9 @@ func (r *SyncRule) foreignIn(path string, produced map[string]struct{}, produced
 		}
 
 		if !listed && isRBACKind(object.Unstructured.GetKind()) {
-			if m, ok := managed[id]; ok && m.class != generate.ClassDeclared {
+			// exclude-rules.sync silences an object's finding; it must not turn the object into a
+			// silent removal either.
+			if m, ok := managed[id]; ok && m.class != generate.ClassDeclared && r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {
 				continue
 			}
 
@@ -1082,13 +1104,17 @@ func crdScopes(crds []crdInfo) rbacyaml.CRDScopes {
 // the render has and the declaration does not name. They are logged when the file is written, so a
 // --fix run without a preceding dmt lint does not remove rights in silence.
 func removalsOf(divergences []string) []string {
+	// Every divergence is something the regeneration changes in the cluster -- a right removed, a
+	// token taken away, a level or a roleRef changed -- except the two that are only about the text.
 	var out []string
 
 	for _, d := range divergences {
-		if strings.Contains(d, "is in the render but not declared") || strings.Contains(d, "is in the render but rbac.yaml does not produce it") ||
-			strings.Contains(d, "the declaration no longer produces it") {
-			out = append(out, d)
+		if strings.HasPrefix(d, "the file carries the generator header but is not what the declaration renders now") ||
+			strings.HasPrefix(d, "the file was generated under contract version") {
+			continue
 		}
+
+		out = append(out, d)
 	}
 
 	return out
@@ -1132,9 +1158,11 @@ func regenerateFix(modulePath string, file generate.File, placed map[string]stri
 
 				// The render shows only what renders under these values; the text shows everything the
 				// file holds, objects under a false condition included.
-				if unknown := notTheGenerators(string(existing), identitiesOf(file.Objects), placed, file.Path); len(unknown) > 0 {
-					return fmt.Errorf("%s holds objects the fix cannot account for: %s; they are not what the generator wrote there, so regenerating the file would drop them -- declare them in %s, move them, or remove them by hand, then run `%s` again",
-						file.Path, strings.Join(unknown, ", "), rbacyaml.Filename, FixCommand)
+				if generated, _ := generate.ParseHeader(string(existing)); generated {
+					if unknown := notTheGenerators(string(existing), identitiesOf(file.Objects), placed, file.Path); len(unknown) > 0 {
+						return fmt.Errorf("%s holds objects the fix cannot account for: %s; they are not what the generator wrote there, so regenerating the file would drop them -- declare them in %s, move them, or remove them by hand, then run `%s` again",
+							file.Path, strings.Join(unknown, ", "), rbacyaml.Filename, FixCommand)
+					}
 				}
 
 				if templateGated(string(existing), content) {
@@ -1451,21 +1479,29 @@ type textDocument struct {
 }
 
 var (
-	kindLineRe      = regexp.MustCompile(`^kind:\s*(\S+)\s*$`)
-	nameLineRe      = regexp.MustCompile(`^  name:\s*"?([^"\s]+)"?\s*$`)
-	namespaceLineRe = regexp.MustCompile(`^  namespace:\s*"?([^"\s]+)"?\s*$`)
+	kindLineRe      = regexp.MustCompile(`^kind:\s*(\S+)\s*(#.*)?$`)
+	nameLineRe      = regexp.MustCompile(`^  name:\s*"?([^"\s#]+)"?\s*(#.*)?$`)
+	namespaceLineRe = regexp.MustCompile(`^  namespace:\s*"?([^"\s#]+)"?\s*(#.*)?$`)
+	separatorRe     = regexp.MustCompile(`(?m)^---[ \t]*(#.*)?$`)
+	// wrapperLineRe matches the lines the generator puts between objects: its conditions and
+	// their ends. Anything else outside an object is content the fix does not understand.
+	wrapperLineRe = regexp.MustCompile(`^\s*(\{\{-?\s*(if|else|end)\b[^}]*-?\}\}\s*)*$`)
 )
 
 // textDocuments parses the objects of a generated file from its text: the generator writes kind,
-// metadata.name and metadata.namespace on lines of their own. A document it cannot read yields an
-// identity that matches nothing, so the fix refuses rather than guesses.
+// metadata.name and metadata.namespace on lines of their own. A document it cannot read -- an
+// include, a templated name, anything that is neither an object nor the generator's own
+// wrapper lines -- yields an identity that matches nothing, so the fix refuses rather than guesses.
 func textDocuments(content string) []textDocument {
+	content = strings.ReplaceAll(content, "\r\n", "\n")
+
 	var out []textDocument
 
-	for _, doc := range strings.Split(content, "\n---\n")[1:] {
+	for i, doc := range separatorRe.Split(content, -1) {
 		var kind, name, namespace string
 
 		inMetadata := false
+		other := false
 
 		for _, line := range strings.Split(doc, "\n") {
 			switch {
@@ -1484,12 +1520,22 @@ func textDocuments(content string) []textDocument {
 
 				if m := kindLineRe.FindStringSubmatch(line); m != nil && kind == "" {
 					kind = m[1]
+					continue
+				}
+
+				trimmed := strings.TrimSpace(line)
+				if trimmed != "" && !strings.HasPrefix(trimmed, "#") && !wrapperLineRe.MatchString(line) && kind == "" {
+					other = true
 				}
 			}
 		}
 
-		if kind == "" {
-			continue // the end of a conditional block, not an object
+		switch {
+		case kind == "" && !other:
+			continue // the header, or the end of a conditional block
+		case kind == "" || name == "" || strings.Contains(name, "{{"):
+			out = append(out, textDocument{id: fmt.Sprintf("<unreadable document %d>", i)})
+			continue
 		}
 
 		id := kind + "/" + name
@@ -1498,10 +1544,142 @@ func textDocuments(content string) []textDocument {
 		}
 
 		managed := strings.Contains(doc, rbaccontract.AccessLevelAnnotation+":") ||
-			strings.Contains(doc, rbaccontract.LabelKind+": "+rbaccontract.KindCapability)
+			strings.Contains(doc, rbaccontract.LabelKind+": "+rbaccontract.KindCapability) ||
+			// the generator writes the module labels through helm_lib_module_labels, as a dict
+			strings.Contains(doc, strconv.Quote(rbaccontract.LabelKind)+" "+strconv.Quote(rbaccontract.KindCapability))
 
 		out = append(out, textDocument{id: id, managed: managed})
 	}
 
 	return out
+}
+
+// heldElsewhere lists the objects the file produces that another generated file's text holds.
+func heldElsewhere(file generate.File, held map[string][]string) []string {
+	var out []string
+
+	for _, o := range file.Objects {
+		for _, path := range held[o.Identity()] {
+			if path != file.Path {
+				out = append(out, o.Identity()+" (held by "+path+")")
+			}
+		}
+	}
+
+	sort.Strings(out)
+
+	return out
+}
+
+// replacedCopies reports a rendered object the declaration does not own that grants exactly what a
+// produced object grants while that produced object renders too: the object it replaced under
+// another name, often in another file (the Prometheus access Roles bootstrap folds into
+// access-to-<module>). Both render, so the old copy keeps the grant alive after the declaration
+// drops it. No fix: the copy sits in a file the generator does not own.
+func (r *SyncRule) replacedCopies(model *generate.Model, actual map[string]managedObject, produced map[string]struct{}, divergences map[string][]string) map[string][]string {
+	storage := r.module.GetStorage()
+
+	rendered := make(map[string]struct{}, len(storage))
+	for index := range storage {
+		rendered[index.AsString()] = struct{}{}
+	}
+
+	var all []generate.Object
+
+	for _, f := range model.Files {
+		all = append(all, f.Objects...)
+	}
+
+	copies := map[string]string{}
+
+	for index, object := range storage {
+		id := index.AsString()
+		if _, ok := produced[id]; ok {
+			continue
+		}
+
+		if _, ok := actual[id]; ok {
+			continue
+		}
+
+		if !isRBACKind(object.Unstructured.GetKind()) || object.Unstructured.GetKind() == "ServiceAccount" {
+			continue
+		}
+
+		if twin := renderedTwin(object, all, rendered); twin != "" {
+			copies[object.Unstructured.GetKind()+"/"+object.Unstructured.GetName()] = twin
+			divergences[object.ShortPath()] = append(divergences[object.ShortPath()],
+				id+" grants what "+twin+" grants, and both render: the declaration replaced it -- delete it from the template")
+		}
+	}
+
+	// A binding of such a copy is part of it.
+	for index, object := range storage {
+		kind := object.Unstructured.GetKind()
+		if kind != "RoleBinding" && kind != "ClusterRoleBinding" {
+			continue
+		}
+
+		if _, ok := produced[index.AsString()]; ok {
+			continue
+		}
+
+		binding := new(rbacv1.RoleBinding)
+		if runtime.DefaultUnstructuredConverter.FromUnstructured(object.Unstructured.UnstructuredContent(), binding) != nil {
+			continue
+		}
+
+		if twin, ok := copies[binding.RoleRef.Kind+"/"+binding.RoleRef.Name]; ok {
+			divergences[object.ShortPath()] = append(divergences[object.ShortPath()],
+				index.AsString()+" binds "+binding.RoleRef.Name+", the old copy of "+twin+" -- delete it with the copy")
+		}
+	}
+
+	return divergences
+}
+
+// renderedTwin returns the identity of a produced object that renders and grants exactly what the
+// object grants (same rules, or same roleRef and subjects), or "".
+func renderedTwin(object storage.StoreObject, produced []generate.Object, rendered map[string]struct{}) string {
+	content := object.Unstructured.UnstructuredContent()
+
+	for _, o := range produced {
+		if o.Kind != object.Unstructured.GetKind() || o.Namespace != object.Unstructured.GetNamespace() {
+			continue
+		}
+
+		if _, ok := rendered[o.Identity()]; !ok {
+			continue
+		}
+
+		switch o.Kind {
+		case "ClusterRole", "Role":
+			role := new(rbacv1.ClusterRole)
+			if runtime.DefaultUnstructuredConverter.FromUnstructured(content, role) != nil || role.AggregationRule != nil || len(role.Rules) == 0 {
+				continue
+			}
+
+			got := expandRenderedRules(role.Rules)
+			always, conditional := expandModelRules(o.Rules)
+
+			for t := range conditional {
+				always.add(t)
+			}
+
+			if len(always.minus(got)) == 0 && len(got.minus(always)) == 0 {
+				return o.Identity()
+			}
+		case "ClusterRoleBinding", "RoleBinding":
+			binding := new(rbacv1.RoleBinding)
+			if runtime.DefaultUnstructuredConverter.FromUnstructured(content, binding) != nil {
+				continue
+			}
+
+			if binding.RoleRef.Kind == o.RoleRefKind && binding.RoleRef.Name == o.RoleRefName && subjectSet(binding.Subjects) == subjectSetOf(o.Subjects) {
+				return o.Identity()
+			}
+		}
+	}
+
+	return ""
 }
