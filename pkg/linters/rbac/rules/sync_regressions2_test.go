@@ -177,3 +177,29 @@ func TestSyncRegression_GeneratedNamesPassPlacement(t *testing.T) {
 
 	assert.Empty(t, texts(errorList))
 }
+
+// Under --matrix an object only some variants rendered is named in the written declaration: its
+// condition is not in it (review of #479, finding 40).
+func TestSyncRegression_BootstrapNotesObjectsOfSomeVariants(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	require.NoError(t, os.Remove(rbacyaml.Path(modulePath)))
+
+	withoutInjector := renderedFrom(t, model, func(o *generate.Object) bool { return o.When == "" })
+	withInjector := renderedFrom(t, model, nil)
+
+	lists := []*errors.LintRuleErrorsList{runSync(t, modulePath, withoutInjector), runSync(t, modulePath, withInjector)}
+	for _, list := range lists {
+		for _, fix := range list.GetFixes() {
+			fix()
+		}
+	}
+
+	content, err := os.ReadFile(rbacyaml.Path(modulePath))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "ServiceAccount cainjector (templates/cainjector/rbac-for-us.yaml) renders only under some of the linted values")
+	assert.NotContains(t, string(content), "ServiceAccount cert-manager (templates/cert-manager/rbac-for-us.yaml) renders only under some")
+}
