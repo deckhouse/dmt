@@ -1855,11 +1855,6 @@ var rbacKinds = map[string]bool{"ClusterRole": true, "ClusterRoleBinding": true,
 // otherwise be left out of the first declaration without a word, and the regeneration would drop
 // it. Only the text can tell; a computed name is not followed.
 func unrenderedObjects(modulePath string, rendered []bootstrap.Object) []string {
-	seen := make(map[string]bool, len(rendered))
-	for _, o := range rendered {
-		seen[o.Kind+"/"+o.Name] = true
-	}
-
 	var out []string
 
 	root := filepath.Join(modulePath, "templates")
@@ -1877,11 +1872,23 @@ func unrenderedObjects(modulePath string, rendered []bootstrap.Object) []string 
 		rel, _ := filepath.Rel(modulePath, path)
 
 		for _, doc := range bootstrap.TemplateDocs(string(content)) {
-			if !rbacKinds[doc.Kind] || doc.Name == "" || seen[doc.Kind+"/"+doc.Name] || doc.Unmanageable != "" {
+			if !rbacKinds[doc.Kind] || doc.Unmanageable != "" || renderedAs(doc, rendered) {
 				continue
 			}
 
-			entry := fmt.Sprintf("%s/%s (%s", doc.Kind, doc.Name, rel)
+			// A computed name is listed as the template writes it: the person adds the objects it
+			// produces (review of #479, finding 34).
+			var entry string
+
+			switch {
+			case doc.Name != "":
+				entry = fmt.Sprintf("%s/%s (%s", doc.Kind, doc.Name, rel)
+			case doc.NameTemplate != "":
+				entry = fmt.Sprintf("a %s with the computed name %s (%s", doc.Kind, doc.NameTemplate, rel)
+			default:
+				continue
+			}
+
 			if doc.When != "" {
 				entry += ", under `" + doc.When + "`"
 			}
@@ -2071,4 +2078,20 @@ func markLibraryFiles(objects []bootstrap.Object) {
 	for i := range objects {
 		objects[i].LibraryFile = library[objects[i].Path]
 	}
+}
+
+// renderedAs reports whether a rendered object comes from the document: its literal name, or a
+// name its computed name can produce.
+func renderedAs(doc bootstrap.Doc, rendered []bootstrap.Object) bool {
+	for _, o := range rendered {
+		if o.Kind != doc.Kind {
+			continue
+		}
+
+		if (doc.Name != "" && o.Name == doc.Name) || (doc.NamePattern != nil && doc.NamePattern.MatchString(o.Name)) {
+			return true
+		}
+	}
+
+	return false
 }
