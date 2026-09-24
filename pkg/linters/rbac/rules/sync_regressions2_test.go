@@ -17,13 +17,17 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"os"
 	"strings"
 	"testing"
 
+	"github.com/gojuno/minimock/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/deckhouse/dmt/internal/mocks"
+	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/bootstrap"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/generate"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbacyaml"
@@ -135,4 +139,41 @@ func syncModelFromFixture(t *testing.T) *generate.Model {
 	t.Helper()
 
 	return syncModel(t, syncModuleDir(t))
+}
+
+// What the generator writes for the shapes this version supports passes the placement rule: an
+// account in a component directory, access with clusterRules in one, namespace access at the root
+// (review of #479, finding 37).
+func TestSyncRegression_GeneratedNamesPassPlacement(t *testing.T) {
+	get := []rbacyaml.PolicyRule{{APIGroups: []string{""}, Resources: []string{"secrets"}, Verbs: []string{"get"}}}
+	nodes := []rbacyaml.PolicyRule{{APIGroups: []string{""}, Resources: []string{"nodes"}, Verbs: []string{"get"}}}
+	group := []rbacyaml.Subject{{Kind: "Group", Name: "g"}}
+
+	decl := &rbacyaml.Declaration{APIVersion: rbacyaml.APIVersionV1Alpha1,
+		ServiceAccounts: []rbacyaml.ServiceAccount{
+			{Name: "webhook", Path: "webhook", ClusterRules: nodes, NamespaceRules: get, BindClusterRoles: []string{"d8:rbac-proxy"},
+				BindRoles: []rbacyaml.RoleRef{{Namespace: "kube-system", Name: "extension-apiserver-authentication-reader"}}},
+			{Name: syncModule, ClusterRules: nodes, NamespaceRules: get},
+		},
+		Access: []rbacyaml.Access{
+			{Name: "reader", Subjects: group, NamespaceRules: get},
+			{Name: "nodes", Path: "webhook", Subjects: group, ClusterRules: nodes},
+		},
+	}
+	require.Empty(t, rbacyaml.Validate(decl, nil))
+
+	model, err := generate.Build(generate.Input{Module: syncModule, Namespace: "d8-cert-manager", Subsystems: []string{"security"}, Decl: decl})
+	require.NoError(t, err)
+
+	store := renderedFrom(t, model, nil)
+
+	m := mocks.NewModuleMock(minimock.NewController(t))
+	m.GetNameMock.Return(syncModule)
+	m.GetNamespaceMock.Optional().Return("d8-cert-manager")
+	m.GetStorageMock.Return(store.Storage)
+
+	errorList := errors.NewLintRuleErrorsList()
+	NewPlacementRule(nil, m, errorList).Check(context.Background())
+
+	assert.Empty(t, texts(errorList))
 }

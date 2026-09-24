@@ -474,3 +474,21 @@ func TestBuild_LibraryAndEmptyRolesAreSetAside(t *testing.T) {
 	assert.Equal(t, []string{"d8:m:m:iop:istiod-1x25"}, got.Decl.ServiceAccounts[0].BindClusterRoles)
 	assert.Empty(t, rbacyaml.Validate(got.Decl, rbacyaml.CRDScopes{"x.io/things": "Namespaced"}))
 }
+
+// A namespace access Role of a component directory stays hand-written rather than becoming an
+// entry the generator refuses or names access-to-<module>-access-to-<dir>-x (review of #479,
+// finding 37).
+func TestBuild_NestedNamespaceAccessStaysHandWritten(t *testing.T) {
+	labels := map[string]string{"module": "istio"}
+
+	got := Build(Input{Module: "istio", Namespace: "d8-istio", Objects: []Object{
+		{Kind: "Role", Name: "access-to-kiali-http", Namespace: "d8-istio", Path: "templates/kiali/rbac-to-us.yaml", Labels: labels,
+			Rules: []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"services/proxy"}, Verbs: []string{"get"}}}},
+		{Kind: "RoleBinding", Name: "access-to-kiali-http", Namespace: "d8-istio", Path: "templates/kiali/rbac-to-us.yaml", Labels: labels,
+			RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "access-to-kiali-http"}, Subjects: []rbacv1.Subject{{Kind: "Group", Name: "g"}}},
+	}})
+
+	assert.Empty(t, got.Decl.Access)
+	assert.Len(t, got.Unmanaged, 2)
+	assert.NotContains(t, strings.Join(got.Notes, "\n"), "access-to-istio-access-to")
+}

@@ -596,8 +596,20 @@ func (b *builder) otherBindings() {
 			continue
 		}
 
+		// The generator writes namespace access at the module root only: an entry for a Role of
+		// templates/<dir>/rbac-to-us.yaml would be refused (review of #479, finding 37).
+		path := componentOf(role.Path, "rbac-to-us.yaml")
+		if path != "" {
+			b.unmanage(role, "a namespace access Role in templates/"+path+"/rbac-to-us.yaml; access entries with namespaceRules are generated at the module root only")
+			b.unmanage(rb, "binds "+role.Name+", which stays hand-written")
+			b.mark(role)
+			b.mark(rb)
+
+			continue
+		}
+
 		name := strings.TrimPrefix(rb.Name, "access-to-"+b.in.Module+"-")
-		b.decl.Access = append(b.decl.Access, rbacyaml.Access{Name: name, Path: componentOf(role.Path, "rbac-to-us.yaml"), Subjects: subjects(rb.Subjects), NamespaceRules: policyRules(role.Rules)})
+		b.decl.Access = append(b.decl.Access, rbacyaml.Access{Name: name, Subjects: subjects(rb.Subjects), NamespaceRules: policyRules(role.Rules)})
 		b.rename("Role", role.Name, "access-to-"+b.in.Module+"-"+name)
 		b.rename("RoleBinding", rb.Name, "access-to-"+b.in.Module+"-"+name)
 		b.mark(role)
