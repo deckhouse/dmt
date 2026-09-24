@@ -338,9 +338,47 @@ noAccess: nobody`),
 			yaml: entry(`group: external.io
 resource: "*/scale"
 scope: Namespaced
+reason: the resources of the group are not known statically
 noAccess: nobody`),
 			crds:    certManagerCRDs,
 			wantErr: "",
+		},
+		"regression hunt B12: the wildcard of a subresource needs a reason, as \"*\" does": {
+			yaml: entry(`group: external.io
+resource: "*/scale"
+scope: Namespaced
+noAccess: nobody`),
+			crds:    certManagerCRDs,
+			wantErr: `resource "*/scale" requires reason`,
+		},
+		"regression hunt B12: the wildcard of a subresource in a group of the module": {
+			yaml: entry(`group: cert-manager.io
+resource: "*/status"
+reason: every status
+noAccess: nobody`),
+			crds:    certManagerCRDs,
+			wantErr: `resource "*/status" is allowed only for a group the module ships no CRD for`,
+		},
+		"regression hunt B12: a built-in resource under the wrong scope": {
+			yaml: entry(`group: ""
+resource: nodes
+scope: Namespaced
+noAccess: nobody`),
+			wantErr: `scope "Namespaced" disagrees with Kubernetes, which serves /nodes as "Cluster"`,
+		},
+		"regression hunt 2 B7: namespaces declared Namespaced on purpose": {
+			yaml: entry(`group: ""
+resource: namespaces
+scope: Namespaced
+namespace: {viewer: [get]}`),
+			wantErr: "",
+		},
+		"regression hunt B12: no dot in a resource name": {
+			yaml: entry(`group: external.io
+resource: things.v1
+scope: Namespaced
+noAccess: nobody`),
+			wantErr: `resource "things.v1" is not a resource name`,
 		},
 		"review 6: a resource name with a space": {
 			yaml: entry(`group: external.io
@@ -478,7 +516,8 @@ func TestValidate_TopLevel(t *testing.T) {
 			wantErr: `"namespace.view" needs no texts`,
 		},
 		"capabilities: missing ru": {
-			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\ncapabilities:\n  namespace.admin: {title: {en: a}, description: {en: c, ru: d}}\n",
+			yaml: "apiVersion: rbac.deckhouse.io/v1alpha1\ncapabilities:\n  namespace.admin: {title: {en: a}, description: {en: c, ru: d}}\n" +
+				"resources:\n  - {group: x.io, resource: things, scope: Namespaced, namespace: {admin: [get]}}\n",
 			wantErr: "namespace.admin.title requires both en and ru",
 		},
 		"capabilities: bad key": {
@@ -512,7 +551,8 @@ func TestValidate_TopLevel(t *testing.T) {
 			wantErr: "prometheusAccess: when",
 		},
 		"review 13a: a template delimiter in a capability text": {
-			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\ncapabilities:\n  namespace.admin: {title: {en: 'Use {{ .Values.x }}', ru: b}, description: {en: c, ru: d}}\n",
+			yaml: "apiVersion: rbac.deckhouse.io/v1alpha1\ncapabilities:\n  namespace.admin: {title: {en: 'Use {{ .Values.x }}', ru: b}, description: {en: c, ru: d}}\n" +
+				"resources:\n  - {group: x.io, resource: things, scope: Namespaced, namespace: {admin: [get]}}\n",
 			wantErr: `capabilities.namespace.admin.title.en: "Use {{ .Values.x }}" holds a template delimiter`,
 		},
 		"prometheusAccess: empty": {
@@ -646,13 +686,46 @@ legacy:
 	assert.Contains(t, w[0], "legacy.SuperAdmin produces a role user-authz does not aggregate")
 }
 
-// Messages name a resource entry by its index in the file, although the entries are sorted
-// (regression hunt, B12).
-func TestValidate_IndexOfTheFile(t *testing.T) {
+// The generator writes label and annotation keys unquoted; the generator's and Helm's own
+// annotations are not the declaration's (regression hunt, B7).
+func TestValidate_AccountMetadataKeys(t *testing.T) {
+	decl := &Declaration{APIVersion: APIVersionV1Alpha1, ServiceAccounts: []ServiceAccount{{
+		Name:            "m",
+		Labels:          map[string]string{"bad key": "x"},
+		Annotations:     map[string]string{"helm.sh/resource-policy": "keep", "meta.helm.sh/release-name": "m"},
+		RBACAnnotations: map[string]string{"rbac.deckhouse.io/kind": "x", "werf.io/deploy-on": "pre-install"},
+	}}}
+
+	errs := Validate(decl, nil)
+
+	msgs := make([]string, 0, len(errs))
+	for _, e := range errs {
+		msgs = append(msgs, e.Error())
+	}
+
+	got := strings.Join(msgs, "\n")
+	assert.Contains(t, got, `serviceAccounts[0] (m).labels: "bad key" is not a valid key`)
+	assert.Contains(t, got, `serviceAccounts[0] (m).annotations: "meta.helm.sh/release-name" is set by the generator or by Helm`)
+	assert.Contains(t, got, `serviceAccounts[0] (m).rbacAnnotations: "rbac.deckhouse.io/kind" is set by the generator or by Helm`)
+	assert.NotContains(t, got, "helm.sh/resource-policy")
+	assert.NotContains(t, got, "werf.io")
+}
+
+// A text for a level nobody grants is reported; so are an account name Kubernetes refuses and an
+// empty value in a rule; messages carry the entry's index in the file (regression hunt, B12).
+func TestValidate_RegressionHuntB12(t *testing.T) {
 	decl, err := Parse([]byte(`apiVersion: rbac.deckhouse.io/v1alpha1
+capabilities:
+  namespace.approve: {title: {en: a, ru: b}, description: {en: c, ru: d}}
 resources:
   - {group: z.io, resource: things, scope: Namespaced, namespace: {viewer: [get]}}
   - {group: a.io, resource: things, scope: Namespaced, namespace: {viewer: [bogus]}}
+serviceAccounts:
+  - name: Bad_Name
+    clusterRules:
+      - apiGroups: [""]
+        resources: [""]
+        verbs: [get, ""]
 `))
 	require.NoError(t, err)
 
@@ -664,8 +737,32 @@ resources:
 	}
 
 	got := strings.Join(msgs, "\n")
-	assert.Contains(t, got, `resources[1] (a.io/things): namespace.viewer: "bogus" is not a verb`)
+	assert.Contains(t, got, `capabilities: "namespace.approve" has texts, but no resource entry grants namespace level "approve"`)
+	assert.Contains(t, got, `resources[1] (a.io/things): namespace.viewer: "bogus" is not a verb`, "the index of the file, not of the sorted list")
 	assert.NotContains(t, got, "resources[0] (a.io/things)")
+	assert.Contains(t, got, `serviceAccounts[0] (Bad_Name): a ServiceAccount name is a lowercase DNS subdomain`)
+	assert.Contains(t, got, `serviceAccounts[0] (Bad_Name).clusterRules[0]: verbs holds an empty value`)
+	assert.Contains(t, got, `serviceAccounts[0] (Bad_Name).clusterRules[0]: resources holds an empty value`)
+}
+
+// A condition that parses but passes a function without its arguments fails when it renders; the
+// validator names it (regression hunt 2, B1).
+func TestValidateWhen_BareFunction(t *testing.T) {
+	check := func(when string) string {
+		var got []string
+
+		validateWhen(when, "x", func(format string, args ...any) { got = append(got, fmt.Sprintf(format, args...)) })
+
+		return strings.Join(got, "\n")
+	}
+
+	assert.Contains(t, check("and not (.Values.a) (.Values.b)"), "passes not to another function without its arguments")
+	assert.Contains(t, check("and (.Values.a) not (.Values.b)"), "passes not")
+	assert.Empty(t, check("and (not (.Values.a)) (.Values.b)"))
+	assert.Empty(t, check(`.Values.global.enabledModules | has "prometheus"`))
+	assert.Empty(t, check(`and .Values.a (not .Values.b)`))
+	assert.Empty(t, check(`include "helper" . | eq "true"`))
+	assert.Empty(t, check(`lt (now | unixEpoch) 0 | not`))
 }
 
 // A TODO `when` is an open decision, not a malformed expression (review of #479, finding 51).
