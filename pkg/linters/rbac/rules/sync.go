@@ -1494,6 +1494,8 @@ var (
 	// wrapperLineRe matches the lines the generator puts between objects: its conditions and
 	// their ends. Anything else outside an object is content the fix does not understand.
 	wrapperLineRe = regexp.MustCompile(`^\s*(\{\{-?\s*(if|else|end)\b[^}]*-?\}\}\s*)*$`)
+	// labelsLineRe is the only other template action the generator writes: the module labels.
+	labelsLineRe = regexp.MustCompile(`^\s*\{\{- include "helm_lib_module_labels" \(list \..*\| nindent 2 \}\}\s*$`)
 )
 
 // textDocuments parses the objects of a generated file from its text: the generator writes kind,
@@ -1510,8 +1512,16 @@ func textDocuments(content string) []textDocument {
 
 		inMetadata := false
 		other := false
+		// An action the generator does not write -- an include, a range, a value from the values --
+		// makes the document someone else's wherever it stands, after the kind line too: what it
+		// renders under other values is not in this render (review of #479, finding 31).
+		foreign := false
 
 		for _, line := range strings.Split(doc, "\n") {
+			if strings.Contains(line, "{{") && !wrapperLineRe.MatchString(line) && !labelsLineRe.MatchString(line) {
+				foreign = true
+			}
+
 			switch {
 			case line == "metadata:":
 				inMetadata = true
@@ -1539,9 +1549,9 @@ func textDocuments(content string) []textDocument {
 		}
 
 		switch {
-		case kind == "" && !other:
+		case kind == "" && !other && !foreign:
 			continue // the header, or the end of a conditional block
-		case kind == "" || name == "" || strings.Contains(name, "{{"):
+		case foreign || kind == "" || name == "" || strings.Contains(name, "{{"):
 			out = append(out, textDocument{id: fmt.Sprintf("<unreadable document %d>", i)})
 			continue
 		}
