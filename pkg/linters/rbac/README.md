@@ -1471,9 +1471,11 @@ Format rules the loader enforces:
 - `prometheusAccess.when` gates the RoleBinding of the Prometheus scraper (typically `.Values.global.enabledModules | has "prometheus"`); the Role stays unconditional.
 - Levels: `namespace` -- `viewer`, `user`, `manager`, `admin`, `superadmin`; `system` -- `viewer`, `manager`, `superadmin`; `legacy` -- `User`, `PrivilegedUser`, `Editor`, `Admin`, `ClusterEditor`, `ClusterAdmin`, `SuperAdmin`.
 - `namespace` levels are allowed only for `Namespaced` resources; a `Namespaced` resource at a `system` level needs a `reason`.
-- `scope` is required for a resource the module ships no CRD for, and must agree with the CRD when the module ships one. `resource: "*"` is allowed only for a group without CRDs in the module and needs a `reason`.
+- `scope` is required for a resource the module ships no CRD for, and must agree with the CRD when the module ships one, or with Kubernetes for a built-in resource (`nodes` is `Cluster`). `resource: "*"` and `resource: "*/<subresource>"` are allowed only for a group without CRDs in the module and need a `reason`. A resource is a lowercase plural without dots.
 - `noAccess` is a non-empty reason and excludes the levels. `noAccess: "TODO"` is the stub the coverage autofix writes; it is not a decision. Any `noAccess`, `reason` or `scope` value that starts with `TODO` is an open decision: `coverage` reports it, and a `--fix` run that meets one exits non-zero.
-- A capability outside the view/edit convention (`admin`, `user`, `superadmin`) needs `capabilities.<lineage>.<level>` texts in both languages.
+- A capability outside the view/edit convention (`admin`, `user`, `superadmin`) needs `capabilities.<lineage>.<level>` texts in both languages; texts for a level no entry grants are an error (a typo in the key, or a removed entry).
+- A ServiceAccount name is a DNS subdomain; label and annotation keys are qualified names, and `rbac.deckhouse.io/*` and `meta.helm.sh/*` annotations are not the declaration's. A rule holds no empty verb, resource, resource name or URL.
+- Messages name a resource entry by its index in the file as written (`resources[3]`), although the entries are compared in sorted order.
 
 What the generator produces from it (level `viewer` -> capability `view`, `manager` -> `edit`, the rest as they are):
 
@@ -1543,7 +1545,8 @@ global:
       rules:
         contract: {impact: error}  # the level of this rule alone; unset it starts at warn, and the four original rules keep the linter level
 
-# module .dmtlint.yaml
+# module .dmtlint.yaml -- global: is read from the root only; a module file that sets
+# global.linters-settings.rbac is refused rather than ignored
 linters-settings:
   rbac:
     exclude-rules:
@@ -1570,7 +1573,7 @@ Runs only when the module has an `rbac.yaml`. Reads the CRDs under `crds/` at an
 
 1. Every CRD (`spec.group` / `spec.names.plural`) has an entry in `resources` that grants levels or denies access with a reason -- **error**, with an autofix.
 2. An entry left as `noAccess: "TODO"` -- **error**, no autofix: only a person can decide.
-3. An entry naming a group the module ships CRDs for, but a resource none of them spells -- **warning** (a likely misspelling). Whole-group (`"*"`) and subresource (`/`) entries are exempt.
+3. An entry naming a group the module ships CRDs for, but a resource none of them spells, one or two letters away from one that is -- **warning** (a likely misspelling). A resource further away is another module's CRD in a shared group (`deckhouse.io`). Whole-group (`"*"`) and subresource (`/`) entries are exempt.
 4. A `noAccess` entry of a group the module ships no CRD for, without a `scope` -- **warning**: a removed CRD is indistinguishable from an external resource nobody grants. Add `scope` to say the resource is external, or drop the entry if its CRD is gone.
 
 **Autofix:** appends an undecided stub for each CRD without an entry --

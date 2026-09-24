@@ -337,9 +337,40 @@ noAccess: nobody`),
 			yaml: entry(`group: external.io
 resource: "*/scale"
 scope: Namespaced
+reason: the resources of the group are not known statically
 noAccess: nobody`),
 			crds:    certManagerCRDs,
 			wantErr: "",
+		},
+		"regression hunt B12: the wildcard of a subresource needs a reason, as \"*\" does": {
+			yaml: entry(`group: external.io
+resource: "*/scale"
+scope: Namespaced
+noAccess: nobody`),
+			crds:    certManagerCRDs,
+			wantErr: `resource "*/scale" requires reason`,
+		},
+		"regression hunt B12: the wildcard of a subresource in a group of the module": {
+			yaml: entry(`group: cert-manager.io
+resource: "*/status"
+reason: every status
+noAccess: nobody`),
+			crds:    certManagerCRDs,
+			wantErr: `resource "*/status" is allowed only for a group the module ships no CRD for`,
+		},
+		"regression hunt B12: a built-in resource under the wrong scope": {
+			yaml: entry(`group: ""
+resource: nodes
+scope: Namespaced
+noAccess: nobody`),
+			wantErr: `scope "Namespaced" disagrees with Kubernetes, which serves /nodes as "Cluster"`,
+		},
+		"regression hunt B12: no dot in a resource name": {
+			yaml: entry(`group: external.io
+resource: things.v1
+scope: Namespaced
+noAccess: nobody`),
+			wantErr: `resource "things.v1" is not a resource name`,
 		},
 		"review 6: a resource name with a space": {
 			yaml: entry(`group: external.io
@@ -477,7 +508,8 @@ func TestValidate_TopLevel(t *testing.T) {
 			wantErr: `"namespace.view" needs no texts`,
 		},
 		"capabilities: missing ru": {
-			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\ncapabilities:\n  namespace.admin: {title: {en: a}, description: {en: c, ru: d}}\n",
+			yaml: "apiVersion: rbac.deckhouse.io/v1alpha1\ncapabilities:\n  namespace.admin: {title: {en: a}, description: {en: c, ru: d}}\n" +
+				"resources:\n  - {group: x.io, resource: things, scope: Namespaced, namespace: {admin: [get]}}\n",
 			wantErr: "namespace.admin.title requires both en and ru",
 		},
 		"capabilities: bad key": {
@@ -511,7 +543,8 @@ func TestValidate_TopLevel(t *testing.T) {
 			wantErr: "prometheusAccess: when",
 		},
 		"review 13a: a template delimiter in a capability text": {
-			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\ncapabilities:\n  namespace.admin: {title: {en: 'Use {{ .Values.x }}', ru: b}, description: {en: c, ru: d}}\n",
+			yaml: "apiVersion: rbac.deckhouse.io/v1alpha1\ncapabilities:\n  namespace.admin: {title: {en: 'Use {{ .Values.x }}', ru: b}, description: {en: c, ru: d}}\n" +
+				"resources:\n  - {group: x.io, resource: things, scope: Namespaced, namespace: {admin: [get]}}\n",
 			wantErr: `capabilities.namespace.admin.title.en: "Use {{ .Values.x }}" holds a template delimiter`,
 		},
 		"prometheusAccess: empty": {
@@ -668,4 +701,38 @@ func TestValidate_AccountMetadataKeys(t *testing.T) {
 	assert.Contains(t, got, `serviceAccounts[0] (m).rbacAnnotations: "rbac.deckhouse.io/kind" is set by the generator or by Helm`)
 	assert.NotContains(t, got, "helm.sh/resource-policy")
 	assert.NotContains(t, got, "werf.io")
+}
+
+// A text for a level nobody grants is reported; so are an account name Kubernetes refuses and an
+// empty value in a rule; messages carry the entry's index in the file (regression hunt, B12).
+func TestValidate_RegressionHuntB12(t *testing.T) {
+	decl, err := Parse([]byte(`apiVersion: rbac.deckhouse.io/v1alpha1
+capabilities:
+  namespace.approve: {title: {en: a, ru: b}, description: {en: c, ru: d}}
+resources:
+  - {group: z.io, resource: things, scope: Namespaced, namespace: {viewer: [get]}}
+  - {group: a.io, resource: things, scope: Namespaced, namespace: {viewer: [bogus]}}
+serviceAccounts:
+  - name: Bad_Name
+    clusterRules:
+      - apiGroups: [""]
+        resources: [""]
+        verbs: [get, ""]
+`))
+	require.NoError(t, err)
+
+	errs := Validate(decl, nil)
+
+	msgs := make([]string, 0, len(errs))
+	for _, e := range errs {
+		msgs = append(msgs, e.Error())
+	}
+
+	got := strings.Join(msgs, "\n")
+	assert.Contains(t, got, `capabilities: "namespace.approve" has texts, but no resource entry grants namespace level "approve"`)
+	assert.Contains(t, got, `resources[1] (a.io/things): namespace.viewer: "bogus" is not a verb`, "the index of the file, not of the sorted list")
+	assert.NotContains(t, got, "resources[0] (a.io/things)")
+	assert.Contains(t, got, `serviceAccounts[0] (Bad_Name): a ServiceAccount name is a lowercase DNS subdomain`)
+	assert.Contains(t, got, `serviceAccounts[0] (Bad_Name).clusterRules[0]: verbs holds an empty value`)
+	assert.Contains(t, got, `serviceAccounts[0] (Bad_Name).clusterRules[0]: resources holds an empty value`)
 }

@@ -45,6 +45,9 @@ const (
 type Declaration struct {
 	APIVersion string `yaml:"apiVersion"`
 
+	// parsed marks a declaration read by Parse: its resources carry their Position in the file.
+	parsed bool
+
 	// Subsystems are the lineages the module's system capabilities aggregate into. Empty means
 	// "the subsystems of module.yaml"; a module whose templates aggregate into more subsystems
 	// than module.yaml declares must set it (kube-dns, kube-proxy, istio).
@@ -69,6 +72,10 @@ type Declaration struct {
 type Resource struct {
 	Group    string `yaml:"group"`
 	Resource string `yaml:"resource"`
+
+	// Position is the entry's index in the file as written, for the messages: Normalize sorts
+	// the entries. Set by Parse only.
+	Position int `yaml:"-"`
 
 	// Scope is required when the module ships no CRD for the resource (the linter cannot see
 	// it) and when Resource is "*"; when the CRD is in the module tree the scope is read from
