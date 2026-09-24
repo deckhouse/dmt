@@ -17,8 +17,10 @@ limitations under the License.
 package bootstrap
 
 import (
+	"io"
 	"strings"
 	"testing"
+	"text/template"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -87,7 +89,7 @@ func TestTemplateDocs(t *testing.T) {
 	assert.Equal(t, ".Values.m.internal.enabled", byName["ServiceAccount/plain"].When)
 	assert.Equal(t, "d8-m", byName["ServiceAccount/plain"].Namespace)
 	assert.Equal(t, "and (.Values.m.internal.enabled) (.Values.m.extra)", byName["ClusterRole/d8:m:nested"].When)
-	assert.Equal(t, "and (.Values.m.internal.enabled) not (.Values.m.extra)", byName["ClusterRole/d8:m:otherwise"].When)
+	assert.Equal(t, "and (.Values.m.internal.enabled) (not (.Values.m.extra))", byName["ClusterRole/d8:m:otherwise"].When)
 	assert.True(t, byName["ClusterRole/d8:m:otherwise"].Partial, "a rule under its own block")
 	assert.False(t, byName["ClusterRole/d8:m:nested"].Partial)
 	assert.Contains(t, byName["ServiceAccount/"].Unmanageable, "{{ range }}")
@@ -197,4 +199,118 @@ func TestUnwrap(t *testing.T) {
 
 	_, ok := Locate(TemplateDocs("{{- if (.Values.a) }}\n---\nkind: Role\nmetadata:\n  name: r\n{{- if .Values.b }}\n---\nkind: Role\nmetadata:\n  name: r\n{{- end }}\n{{- end }}\n"), Object{Kind: "Role", Name: "r"})
 	assert.False(t, ok, "two documents of one name under different conditions are not one answer")
+}
+
+// The conditions bootstrap writes render: every argument of and is parenthesized, a negation
+// included, and a condition over several lines is joined (regression hunt 2, B1 and B2).
+func TestTemplateDocs_ConditionsRender(t *testing.T) {
+	text := "{{- if .Values.a }}\n---\nkind: Role\nmetadata:\n  name: first\n{{- else if .Values.b }}\n---\nkind: Role\nmetadata:\n  name: second\n" +
+		"{{- else }}\n---\nkind: Role\nmetadata:\n  name: third\n{{- end }}\n" +
+		"{{- if and\n    .Values.c\n    (not .Values.d) }}\n---\nkind: Role\nmetadata:\n  name: fourth\n{{- end }}\n"
+
+	want := map[string]string{
+		"first":  ".Values.a",
+		"second": "and (not (.Values.a)) (.Values.b)",
+		"third":  "and (not (.Values.a)) (not (.Values.b))",
+		"fourth": "and .Values.c (not .Values.d)",
+	}
+
+	values := map[string]any{"Values": map[string]any{"a": false, "b": true, "c": true, "d": false}}
+
+	for _, d := range TemplateDocs(text) {
+		require.Contains(t, want, d.Name)
+		assert.Equal(t, want[d.Name], d.When, d.Name)
+
+		tpl, err := template.New(d.Name).Parse("{{ if " + d.When + " }}yes{{ end }}")
+		require.NoError(t, err, d.When)
+		require.NoError(t, tpl.Execute(io.Discard, values), d.When)
+	}
+}
+
+// What the scanner reads besides: a quoted }} in a condition, a commented-out object, an include
+// with comments beside it, a kind or name with a comment or quotes, a computed name, a block
+// that stays open into the next document (regression hunt 2, B3, B4, B5, B8, B9).
+func TestTemplateDocs_Shapes(t *testing.T) {
+	text := `{{- if eq .Values.x "}}" }}
+---
+kind: "Role" # the role
+metadata:
+  name: quoted # a comment
+{{- end }}
+{{/*
+---
+kind: ClusterRole
+metadata:
+  name: commented
+*/}}
+---
+{{ include "helm_lib_csi_controller_rbac" . }}
+# =========================================
+---
+kind: ServiceAccount
+metadata:
+  name: {{ .Chart.Name }}-extra
+---
+kind: ServiceAccount
+metadata:
+  name: a
+{{- if .Values.b }}
+---
+kind: ServiceAccount
+metadata:
+  name: b
+{{- end }}
+`
+	docs := TemplateDocs(text)
+
+	byName := map[string]Doc{}
+	library := 0
+
+	for _, d := range docs {
+		byName[d.Kind+"/"+d.Name] = d
+		if d.Library {
+			library++
+		}
+	}
+
+	assert.True(t, strings.HasPrefix(byName["Role/quoted"].When, `TODO: eq .Values.x "}}" -- the template condition holds a template delimiter`), "read to the end, not cut at the quoted }}: %s", byName["Role/quoted"].When)
+	assert.NotContains(t, byName, "ClusterRole/commented")
+	assert.Equal(t, 1, library, "an include beside comments is still the library's document")
+	assert.False(t, byName["ServiceAccount/a"].Partial, "the if after it belongs to the next document")
+	assert.Equal(t, ".Values.b", byName["ServiceAccount/b"].When)
+
+	d, ok := Locate(docs, Object{Kind: "ServiceAccount", Name: "cert-manager-extra"})
+	require.True(t, ok)
+	assert.Empty(t, d.Name)
+	assert.NotNil(t, d.NamePattern)
+
+	withoutLibrary := make([]Doc, 0, len(docs))
+	for _, d := range docs {
+		if !d.Library {
+			withoutLibrary = append(withoutLibrary, d)
+		}
+	}
+
+	_, ok = Locate(withoutLibrary, Object{Kind: "ServiceAccount", Name: "unrelated"})
+	assert.False(t, ok, "a computed name matches only what it can produce")
+}
+
+// A note quoting a condition over several lines stays a comment, and the file parses
+// (regression hunt 2, B2); an account outside the module namespace is listed once (B10).
+func TestMarshal_MultilineNoteAndSingleListing(t *testing.T) {
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{
+		{Kind: "ServiceAccount", Name: "elsewhere", Namespace: "kube-system", Path: "templates/rbac-for-us.yaml", Labels: map[string]string{"module": "m"}},
+	}, Unrendered: []string{"Role/r (templates/x.yaml, under `and\n  (include \"a\" .)\n  .Values.b`)"}})
+
+	assert.Len(t, got.Unmanaged, 1, "got: %v", got.Unmanaged)
+
+	content, err := Marshal(got)
+	require.NoError(t, err)
+
+	_, err = rbacyaml.Parse(content)
+	require.NoError(t, err, string(content))
+
+	for _, line := range strings.Split(strings.TrimSpace(strings.SplitN(string(content), "apiVersion:", 2)[0]), "\n") {
+		assert.True(t, strings.HasPrefix(line, "#"), "a header line that is no comment: %q", line)
+	}
 }

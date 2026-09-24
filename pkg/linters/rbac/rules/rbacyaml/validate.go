@@ -25,6 +25,7 @@ import (
 	"sort"
 	"strings"
 	"text/template"
+	"text/template/parse"
 
 	"github.com/Masterminds/sprig/v3"
 
@@ -58,9 +59,64 @@ func validateWhen(when, where string, report reporter) {
 		return
 	}
 
-	if _, err := template.New("when").Funcs(helmFuncs).Parse("{{ if " + when + " }}{{ end }}"); err != nil {
+	tpl, err := template.New("when").Funcs(helmFuncs).Parse("{{ if " + when + " }}{{ end }}")
+	if err != nil {
 		report("%s: when %q is not a Helm expression: %v", where, when, err)
+		return
 	}
+
+	// `and not (a) (b)` parses: not is an argument of and, called with no arguments of its own,
+	// and the render fails. A function takes its arguments inside parentheses: (not (a)).
+	if tpl.Tree != nil && tpl.Tree.Root != nil {
+		if name := bareFunction(tpl.Tree.Root); name != "" {
+			report("%s: when %q passes %s to another function without its arguments; write (%s ...) in parentheses", where, when, name, name)
+		}
+	}
+}
+
+// bareFunction returns the first function that stands as an argument of another call without
+// arguments of its own -- a call with none, which only a function of no parameters survives.
+func bareFunction(node parse.Node) string {
+	switch n := node.(type) {
+	case *parse.ListNode:
+		for _, c := range n.Nodes {
+			if name := bareFunction(c); name != "" {
+				return name
+			}
+		}
+	case *parse.IfNode:
+		return bareFunction(n.Pipe)
+	case *parse.PipeNode:
+		if n == nil {
+			return ""
+		}
+
+		for _, cmd := range n.Cmds {
+			for i, arg := range cmd.Args {
+				if id, ok := arg.(*parse.IdentifierNode); ok && i > 0 && !niladic(id.Ident) {
+					return id.Ident
+				}
+
+				if name := bareFunction(arg); name != "" {
+					return name
+				}
+			}
+		}
+	}
+
+	return ""
+}
+
+// niladic reports whether the function takes no arguments (sprig's now, uuidv4, ...).
+func niladic(name string) bool {
+	f, ok := helmFuncs[name]
+	if !ok {
+		return false // a builtin: and, not, eq, len, ... all take arguments
+	}
+
+	t := reflect.TypeOf(f)
+
+	return t.Kind() == reflect.Func && t.NumIn() == 0
 }
 
 // Validate checks the declaration against the format rules. crds is what the linted tree says
@@ -215,7 +271,10 @@ func resolveScope(r *Resource, crds CRDScopes) (string, string) {
 	case r.Scope != "":
 		// A built-in resource has the scope Kubernetes serves it with; a declared one that differs
 		// would generate a capability that grants nothing (or a namespaced grant cluster-wide).
-		if builtin, ok := WellKnownScope(r.Group, r.Resource); ok && builtin != r.Scope {
+		// namespaces is the exception: a RoleBinding that grants get on namespaces lets its
+		// subject read the Namespace it is bound in, so a namespace capability declares it
+		// Namespaced on purpose (user-authz's view_resources does).
+		if builtin, ok := WellKnownScope(r.Group, r.Resource); ok && builtin != r.Scope && (r.Group != "" || base != "namespaces") {
 			return builtin, fmt.Sprintf("scope %q disagrees with Kubernetes, which serves %s as %q", r.Scope, r.Key(), builtin)
 		}
 

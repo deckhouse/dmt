@@ -27,6 +27,7 @@ import (
 
 	"github.com/deckhouse/dmt/internal/mocks"
 	"github.com/deckhouse/dmt/pkg/errors"
+	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/bootstrap"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/generate"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbacyaml"
 )
@@ -145,4 +146,14 @@ func TestSplitChanges(t *testing.T) {
 	})
 	assert.Equal(t, []string{"X: (, pods, , get) is declared but absent from the render"}, added)
 	assert.Len(t, removed, 2)
+}
+
+// A subchart's objects stay hand-written: its templates read its own values (regression hunt 2,
+// B6).
+func TestLocateInTemplate_Subchart(t *testing.T) {
+	o := bootstrap.Object{Kind: "ServiceAccount", Name: "subsa", Path: "charts/sub/templates/rbac-for-us.yaml"}
+	locateInTemplate(t.TempDir(), &o, map[string][]bootstrap.Doc{})
+
+	assert.True(t, o.Located)
+	assert.Equal(t, "rendered by the subchart sub, whose templates and values are its own", o.Unmanageable)
 }

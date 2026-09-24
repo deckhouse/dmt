@@ -1547,7 +1547,8 @@ global:
         contract: {impact: error}  # the level of this rule alone; unset it starts at warn, and the four original rules keep the linter level
 
 # module .dmtlint.yaml -- global: is read from the root only; a module file that sets
-# global.linters-settings.rbac is refused rather than ignored
+# global.linters-settings.rbac is refused rather than ignored. Linting one module directory
+# (dmt lint modules/<m>) makes its own .dmtlint.yaml the root, as for every dmt setting.
 linters-settings:
   rbac:
     exclude-rules:
