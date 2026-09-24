@@ -72,6 +72,12 @@ func Parse(data []byte) (*Declaration, error) {
 		return nil, fmt.Errorf("parse %s: %w", Filename, err)
 	}
 
+	for i := range decl.Resources {
+		decl.Resources[i].Position = i
+	}
+
+	decl.parsed = true
+
 	decl.Normalize()
 
 	return decl, nil
