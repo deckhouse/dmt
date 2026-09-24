@@ -18,15 +18,19 @@ package bootstrap
 
 import (
 	"regexp"
+	"sort"
 	"strings"
+	"text/template/parse"
 )
 
 // Doc is one YAML document of a template and the template blocks around it: what the render
 // cannot show, because it only holds what rendered for the linter's values.
 type Doc struct {
-	// Kind, Name and Namespace are the literal values of the document; Name is empty when the
-	// template computes it, and NamePattern then matches the names it can produce.
+	// Kind, Name and Namespace are the literal values of the document. A name the template computes
+	// is in NameTemplate as written, and NamePattern matches the names it can produce; a document
+	// whose name cannot be read has neither and matches nothing.
 	Kind, Name, Namespace string
+	NameTemplate          string
 	NamePattern           *regexp.Regexp
 	// Library marks a document without an object of its own that includes a named template: the
 	// objects it renders come from helm_lib or another chart.
@@ -35,189 +39,243 @@ type Doc struct {
 	When string
 	// Unmanageable says why the declaration cannot carry the condition: a range, a with, a define.
 	Unmanageable string
-	// Partial marks a block that opens inside the object: part of it is conditional.
+	// Partial marks a block that opens and closes inside the object: part of it is conditional.
 	Partial bool
 }
 
 var (
 	docSeparatorRe = regexp.MustCompile(`(?m)^---[ \t]*(#.*)?$`)
-	// An action ends at the first }} outside a quoted or raw string.
-	actionRe      = regexp.MustCompile("(?s)\\{\\{-?((?:[^\"`}]|\"(?:[^\"\\\\]|\\\\.)*\"|`[^`]*`|\\}[^}])*?)-?\\}\\}")
-	commentRe     = regexp.MustCompile(`(?s)\{\{-?\s*/\*.*?\*/\s*-?\}\}`)
-	docKindRe     = regexp.MustCompile(`(?m)^kind:[ \t]*["']?([A-Za-z]+)["']?[ \t]*(#.*)?$`)
-	docMetadataRe = regexp.MustCompile(`(?m)^metadata:[ \t]*$`)
-	docFieldRe    = regexp.MustCompile(`^  (name|namespace):[ \t]*(.+?)[ \t]*$`)
-	includeRe     = regexp.MustCompile(`\{\{-?\s*(include|template)\s+"`)
-	variableRe    = regexp.MustCompile(`\$[A-Za-z_]`)
+	docKindRe      = regexp.MustCompile(`(?m)^kind:[ \t]*["']?([A-Za-z]+)["']?[ \t]*(#.*)?$`)
+	metadataRe     = regexp.MustCompile(`(?m)^metadata:[ \t]*(\{.*\})?[ \t]*(#.*)?$`)
+	blockFieldRe   = regexp.MustCompile(`^([ \t]+)(name|namespace):[ \t]*(.*?)[ \t]*$`)
+	flowFieldRe    = regexp.MustCompile(`(name|namespace):[ \t]*("[^"]*"|'[^']*'|\{\{.*?\}\}[^,}]*|[^,}\s]+)`)
+	nameActionRe   = regexp.MustCompile(`\{\{.*?\}\}`)
+	variableRe     = regexp.MustCompile(`\$[A-Za-z_]`)
 )
 
-// frame is an open template block. For an if, cur is the condition of the branch being read and
-// prior the conditions of the branches before it.
+// frame is an open block of the template around a piece of text.
 type frame struct {
-	kind  string
-	cur   string
-	prior []string
+	kind string // if, else, range, with, define
+	cond string // the if's pipeline, as the parser prints it
 }
 
-type action struct {
-	offset int
-	words  []string
-	body   string
+// span is a piece of the template the parser saw, with the blocks open around it.
+type span struct {
+	start, end int
+	stack      []frame
+	include    bool // an include or template action
 }
 
-// TemplateDocs reads the documents of a template and the blocks around each. It is a reader of
-// the common shapes -- an object wrapped in {{ if }}, {{ else }}, {{ range }}, {{ with }} -- not a
-// template engine: what it cannot follow ends up as Unmanageable or as a TODO in the declaration.
+// block is a control structure with the extent of its body.
+type block struct {
+	start, end int
+}
+
+// reader collects what the parser saw in one template.
+type reader struct {
+	spans  []span
+	blocks []block
+}
+
+// TemplateDocs reads the documents of a template and the blocks around each, with the template
+// parser of the standard library. What it cannot follow ends up as Unmanageable or as a TODO in the
+// declaration; a template that does not parse yields no documents.
 func TemplateDocs(text string) []Doc {
 	text = strings.ReplaceAll(text, "\r\n", "\n")
 
-	// A comment is neither a block nor a document: a commented-out object renders nothing. Blank
-	// it, keeping the offsets.
-	text = commentRe.ReplaceAllStringFunc(text, func(c string) string {
-		return strings.Map(func(r rune) rune {
-			if r == '\n' {
-				return r
+	trees := map[string]*parse.Tree{}
+
+	root := parse.New("template")
+	root.Mode = parse.SkipFuncCheck
+
+	if _, err := root.Parse(text, "", "", trees); err != nil {
+		return nil
+	}
+
+	r := &reader{}
+
+	if _, ok := trees["template"]; !ok {
+		trees["template"] = root
+	}
+
+	for name, tree := range trees {
+		if tree == nil || tree.Root == nil {
+			continue
+		}
+
+		var stack []frame
+		if name != "template" {
+			stack = []frame{{kind: "define"}}
+		}
+
+		r.walk(tree.Root, stack)
+	}
+
+	sort.Slice(r.spans, func(i, j int) bool { return r.spans[i].start < r.spans[j].start })
+
+	return r.docs(text)
+}
+
+// walk records the text, actions and blocks under node and returns the end of what it saw.
+func (r *reader) walk(node parse.Node, stack []frame) int {
+	end := 0
+
+	switch n := node.(type) {
+	case *parse.ListNode:
+		if n == nil {
+			return 0
+		}
+
+		for _, c := range n.Nodes {
+			end = max(end, r.walk(c, stack))
+		}
+	case *parse.TextNode:
+		start := int(n.Position())
+		r.spans = append(r.spans, span{start: start, end: start + len(n.Text), stack: stack})
+
+		return start + len(n.Text)
+	case *parse.ActionNode:
+		start := int(n.Position())
+		r.spans = append(r.spans, span{start: start, end: start, stack: stack, include: includes(n.Pipe)})
+
+		return start
+	case *parse.TemplateNode:
+		start := int(n.Position())
+		r.spans = append(r.spans, span{start: start, end: start, stack: stack, include: true})
+
+		return start
+	case *parse.IfNode:
+		cond := n.Pipe.String()
+		end = max(r.walk(n.List, push(stack, frame{kind: "if", cond: cond})), r.walk(n.ElseList, push(stack, frame{kind: "else", cond: cond})))
+		r.blocks = append(r.blocks, block{start: int(n.Position()), end: end})
+	case *parse.RangeNode:
+		end = max(r.walk(n.List, push(stack, frame{kind: "range"})), r.walk(n.ElseList, push(stack, frame{kind: "range"})))
+		r.blocks = append(r.blocks, block{start: int(n.Position()), end: end})
+	case *parse.WithNode:
+		end = max(r.walk(n.List, push(stack, frame{kind: "with"})), r.walk(n.ElseList, push(stack, frame{kind: "with"})))
+		r.blocks = append(r.blocks, block{start: int(n.Position()), end: end})
+	}
+
+	return end
+}
+
+func push(stack []frame, f frame) []frame {
+	out := make([]frame, len(stack), len(stack)+1)
+	copy(out, stack)
+
+	return append(out, f)
+}
+
+// includes reports whether a pipeline calls include or template.
+func includes(pipe *parse.PipeNode) bool {
+	if pipe == nil {
+		return false
+	}
+
+	for _, cmd := range pipe.Cmds {
+		if len(cmd.Args) > 0 {
+			if id, ok := cmd.Args[0].(*parse.IdentifierNode); ok && (id.Ident == "include" || id.Ident == "tpl") {
+				return true
 			}
+		}
+	}
 
-			return ' '
-		}, c)
-	})
+	return false
+}
 
-	actions := templateActions(text)
+// textAt returns the span of text that holds offset, if any: offsets inside actions and comments
+// are not text.
+func (r *reader) textAt(offset int) (span, bool) {
+	i := sort.Search(len(r.spans), func(i int) bool { return r.spans[i].end > offset })
+	for ; i < len(r.spans) && r.spans[i].start <= offset; i++ {
+		if r.spans[i].end > offset {
+			return r.spans[i], true
+		}
+	}
+
+	return span{}, false
+}
+
+func (r *reader) docs(text string) []Doc {
+	// A separator counts only where the parser saw text: one inside a comment separates nothing.
+	var bounds [][2]int
+
+	for _, m := range docSeparatorRe.FindAllStringIndex(text, -1) {
+		if _, ok := r.textAt(m[0]); ok {
+			bounds = append(bounds, [2]int{m[0], m[1]})
+		}
+	}
+
+	bounds = append(bounds, [2]int{len(text), len(text)})
 
 	var (
 		out   []Doc
-		stack []frame
-		next  int
 		start int
 	)
 
-	bounds := docSeparatorRe.FindAllStringIndex(text, -1)
-	bounds = append(bounds, []int{len(text), len(text)})
-
 	for _, b := range bounds {
-		doc := text[start:b[0]]
 		docStart, docEnd := start, b[0]
 		start = b[1]
 
-		d := Doc{}
-		at := docEnd
-
-		if m := docKindRe.FindStringSubmatchIndex(doc); m != nil {
-			d.Kind = doc[m[2]:m[3]]
-			at = docStart + m[0]
+		if d, ok := r.doc(text, docStart, docEnd); ok {
+			out = append(out, d)
 		}
+	}
 
-		// The blocks open at the object's kind line are the object's condition.
-		for next < len(actions) && actions[next].offset < at {
-			stack = apply(stack, actions[next])
-			next++
+	return out
+}
+
+func (r *reader) doc(text string, docStart, docEnd int) (Doc, bool) {
+	body := text[docStart:docEnd]
+
+	kindAt := -1
+
+	var d Doc
+
+	for _, m := range docKindRe.FindAllStringSubmatchIndex(body, -1) {
+		if _, ok := r.textAt(docStart + m[0]); ok {
+			d.Kind, kindAt = body[m[2]:m[3]], docStart+m[0]
+			break
 		}
+	}
 
-		if d.Kind == "" {
-			// A document with no object of its own that includes a named template renders what the
-			// template holds: helm_lib's objects, typically, whatever comments sit beside it.
-			if includeRe.MatchString(doc) {
+	if kindAt < 0 {
+		// A document with no object of its own that includes a named template renders what the
+		// template holds.
+		for _, s := range r.spans {
+			if s.include && s.start >= docStart && s.start < docEnd {
 				d.Library = true
-				d.When, d.Unmanageable = conditionOf(stack)
-				out = append(out, d)
+				d.When, d.Unmanageable = conditionOf(s.stack)
+
+				return d, true
 			}
-
-			for next < len(actions) && actions[next].offset < docEnd {
-				stack = apply(stack, actions[next])
-				next++
-			}
-
-			continue
 		}
 
-		d.Name, d.Namespace, d.NamePattern = metadataOf(doc)
-		d.When, d.Unmanageable = conditionOf(stack)
-
-		// A block that opens and closes inside the object gates part of it; one that opens here
-		// and stays open belongs to the documents after it.
-		opened := 0
-
-		for next < len(actions) && actions[next].offset < docEnd {
-			if w := actions[next].words; len(w) > 0 {
-				switch {
-				case w[0] == "if" || w[0] == "range" || w[0] == "with":
-					opened++
-				case w[0] == "end" && opened > 0:
-					opened--
-					d.Partial = true
-				}
-			}
-
-			stack = apply(stack, actions[next])
-			next++
-		}
-
-		out = append(out, d)
+		return Doc{}, false
 	}
 
-	return out
-}
+	at, _ := r.textAt(kindAt)
+	d.When, d.Unmanageable = conditionOf(at.stack)
+	d.Name, d.Namespace, d.NameTemplate = metadataOf(body)
 
-func templateActions(text string) []action {
-	var out []action
-
-	for _, m := range actionRe.FindAllStringSubmatchIndex(text, -1) {
-		body := strings.TrimSpace(text[m[2]:m[3]])
-		if strings.HasPrefix(body, "/*") {
-			continue
-		}
-
-		out = append(out, action{offset: m[0], words: strings.Fields(body), body: body})
+	if d.NameTemplate != "" {
+		d.NamePattern = namePattern(d.NameTemplate)
 	}
 
-	return out
-}
-
-func apply(stack []frame, a action) []frame {
-	if len(a.words) == 0 {
-		return stack
-	}
-
-	switch a.words[0] {
-	case "if":
-		return append(stack, frame{kind: "if", cur: strings.TrimSpace(strings.TrimPrefix(a.body, "if"))})
-	case "range", "with", "define", "block":
-		return append(stack, frame{kind: a.words[0]})
-	case "else":
-		if len(stack) == 0 {
-			return stack
-		}
-
-		top := &stack[len(stack)-1]
-		if top.kind != "if" {
-			// {{ else }} of a range or a with: still not something the declaration expresses.
-			return stack
-		}
-
-		top.prior = append(top.prior, top.cur)
-
-		rest := strings.TrimSpace(strings.TrimPrefix(a.body, "else"))
-		switch {
-		case strings.HasPrefix(rest, "if "):
-			top.cur = strings.TrimSpace(strings.TrimPrefix(rest, "if"))
-		case rest == "":
-			top.cur = ""
-		default:
-			// else with ...: the dot changes.
-			top.kind = "with"
-		}
-	case "end":
-		if len(stack) > 0 {
-			return stack[:len(stack)-1]
+	// A block that opens and closes inside the object gates part of it; one that opens here and
+	// stays open belongs to the documents after it.
+	for _, blk := range r.blocks {
+		if blk.start > kindAt && blk.start < docEnd && blk.end <= docEnd {
+			d.Partial = true
 		}
 	}
 
-	return stack
+	return d, true
 }
 
 // conditionOf turns the open blocks into a `when`: an if branch is its condition, an else the
-// negation of the branches before it, nested blocks an `and` of them.
+// negation of it, nested blocks an `and` of them. Every argument of and is parenthesized, a
+// negation too: `and not (a) (b)` parses, yet passes not as a value and fails when it renders.
 func conditionOf(stack []frame) (string, string) {
 	var parts []string
 
@@ -227,16 +285,12 @@ func conditionOf(stack []frame) (string, string) {
 			return "", "rendered inside {{ range }}, which the declaration cannot express"
 		case "with":
 			return "", "rendered inside {{ with }}, which changes the dot the declaration's `when` is written against"
-		case "define", "block":
+		case "define":
 			return "", "rendered from a named template ({{ define }}), which the declaration cannot express"
-		}
-
-		for _, p := range f.prior {
-			parts = append(parts, "not ("+unwrap(oneLine(p))+")")
-		}
-
-		if f.cur != "" {
-			parts = append(parts, oneLine(f.cur))
+		case "if":
+			parts = append(parts, f.cond)
+		case "else":
+			parts = append(parts, "not ("+unwrap(f.cond)+")")
 		}
 	}
 
@@ -248,8 +302,6 @@ func conditionOf(stack []frame) (string, string) {
 	case 1:
 		when = parts[0]
 	default:
-		// Every argument of and is parenthesized, a negation too: `and not (a) (b)` parses, yet
-		// passes not as a value and fails when it renders.
 		for i, p := range parts {
 			parts[i] = "(" + unwrap(p) + ")"
 		}
@@ -270,51 +322,68 @@ func conditionOf(stack []frame) (string, string) {
 	return when, ""
 }
 
-func metadataOf(doc string) (string, string, *regexp.Regexp) {
-	m := docMetadataRe.FindStringIndex(doc)
+// metadataOf reads the name and namespace of a document: block style at any indentation, or flow
+// style. A computed name is returned as written.
+func metadataOf(body string) (string, string, string) {
+	m := metadataRe.FindStringSubmatchIndex(body)
 	if m == nil {
-		return "", "", nil
+		return "", "", ""
 	}
 
-	var (
-		name, namespace string
-		pattern         *regexp.Regexp
-	)
+	fields := map[string]string{}
 
-	for _, line := range strings.Split(doc[m[1]:], "\n")[1:] {
-		if !strings.HasPrefix(line, "  ") {
-			break
-		}
-
-		f := docFieldRe.FindStringSubmatch(line)
-		if f == nil {
-			continue
-		}
-
-		value := f[2]
-		if !strings.Contains(value, "{{") {
-			if i := strings.Index(value, " #"); i >= 0 {
-				value = strings.TrimSpace(value[:i])
+	if m[2] >= 0 {
+		for _, f := range flowFieldRe.FindAllStringSubmatch(body[m[2]:m[3]], -1) {
+			if _, seen := fields[f[1]]; !seen {
+				fields[f[1]] = f[2]
 			}
 		}
+	} else {
+		// The fields of metadata are the lines at the indentation of its first field, up to the
+		// first line back at column 0.
+		indent := ""
 
-		value = strings.Trim(value, `"'`)
-
-		switch {
-		case f[1] == "name" && name == "" && pattern == nil:
-			if strings.Contains(value, "{{") {
-				pattern = namePattern(value)
-			} else {
-				name = value
+		for _, line := range strings.Split(body[m[1]:], "\n")[1:] {
+			trimmed := strings.TrimSpace(line)
+			if trimmed == "" || strings.HasPrefix(trimmed, "{{") || strings.HasPrefix(trimmed, "#") {
+				continue
 			}
-		case f[1] == "namespace" && namespace == "":
-			if !strings.Contains(value, "{{") {
-				namespace = value
+
+			lead := len(line) - len(strings.TrimLeft(line, " \t"))
+			if lead == 0 {
+				break
+			}
+
+			if indent == "" {
+				indent = line[:lead]
+			}
+
+			if f := blockFieldRe.FindStringSubmatch(line); f != nil && f[1] == indent {
+				if _, seen := fields[f[2]]; !seen {
+					fields[f[2]] = f[3]
+				}
 			}
 		}
 	}
 
-	return name, namespace, pattern
+	name, template := literal(fields["name"])
+	namespace, _ := literal(fields["namespace"])
+
+	return name, namespace, template
+}
+
+// literal returns a YAML scalar as a literal, or, when the template computes it, "" and the
+// value as written.
+func literal(value string) (string, string) {
+	if !strings.Contains(value, "{{") {
+		if i := strings.Index(value, " #"); i >= 0 {
+			value = strings.TrimSpace(value[:i])
+		}
+
+		return strings.Trim(value, `"'`), ""
+	}
+
+	return "", strings.Trim(value, `"'`)
 }
 
 // namePattern matches the names a templated name can produce: its literal parts in place, any
@@ -325,7 +394,7 @@ func namePattern(value string) *regexp.Regexp {
 	b.WriteString("^")
 
 	last := 0
-	for _, m := range actionRe.FindAllStringIndex(value, -1) {
+	for _, m := range nameActionRe.FindAllStringIndex(value, -1) {
 		b.WriteString(regexp.QuoteMeta(value[last:m[0]]))
 		b.WriteString(".*")
 
@@ -338,9 +407,28 @@ func namePattern(value string) *regexp.Regexp {
 	return regexp.MustCompile(b.String())
 }
 
-// oneLine joins a condition written over several lines: the declaration holds it on one.
-func oneLine(expr string) string {
-	return strings.Join(strings.Fields(expr), " ")
+// unwrap drops parentheses around a whole expression: (a | b) -> a | b.
+func unwrap(expr string) string {
+	for len(expr) > 1 && expr[0] == '(' && expr[len(expr)-1] == ')' {
+		depth := 0
+
+		for i, c := range expr {
+			switch c {
+			case '(':
+				depth++
+			case ')':
+				depth--
+			}
+
+			if depth == 0 && i < len(expr)-1 {
+				return expr // the first parenthesis closes before the end: (a) and (b)
+			}
+		}
+
+		expr = strings.TrimSpace(expr[1 : len(expr)-1])
+	}
+
+	return expr
 }
 
 // Locate finds the document of a rendered object among the documents of its template. An object
@@ -358,7 +446,7 @@ func Locate(docs []Doc, o Object) (Doc, bool) {
 		switch {
 		case d.Name != "" && d.Name == o.Name:
 			byName = append(byName, d)
-		case d.Name == "" && (d.NamePattern == nil || d.NamePattern.MatchString(o.Name)):
+		case d.NamePattern != nil && d.NamePattern.MatchString(o.Name):
 			templated = append(templated, d)
 		}
 	}
@@ -385,28 +473,4 @@ func Locate(docs []Doc, o Object) (Doc, bool) {
 	}
 
 	return Doc{}, false
-}
-
-// unwrap drops parentheses around a whole expression: (a | b) -> a | b.
-func unwrap(expr string) string {
-	for len(expr) > 1 && expr[0] == '(' && expr[len(expr)-1] == ')' {
-		depth := 0
-
-		for i, c := range expr {
-			switch c {
-			case '(':
-				depth++
-			case ')':
-				depth--
-			}
-
-			if depth == 0 && i < len(expr)-1 {
-				return expr // the first parenthesis closes before the end: (a) and (b)
-			}
-		}
-
-		expr = strings.TrimSpace(expr[1 : len(expr)-1])
-	}
-
-	return expr
 }

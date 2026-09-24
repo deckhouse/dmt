@@ -157,8 +157,8 @@ type builder struct {
 	current    []Object
 	// partialKept are the objects kept hand-written because only some variants rendered them.
 	partialKept []Object
-	// conditionalKeys are the resources a capability or a legacy role only some variants rendered
-	// grants, with why.
+	// conditionalKeys are the resources a capability or a legacy role grants under a condition, or
+	// only in some render variants, with why.
 	conditionalKeys map[[2]string][]string
 	// prometheusFolded is set once the note on folding several scrape Roles is written.
 	prometheusFolded bool
@@ -315,7 +315,7 @@ func (b *builder) templateBlocks() {
 		switch {
 		// A legacy role or a capability is sync's whatever renders it (ADR, classes 1 and 2): one a
 		// library renders is imported (review of #479, finding 32).
-		case o.Unmanageable != "" && !(o.Library && b.ownedByClass(o)):
+		case o.Unmanageable != "" && (!o.Library || !b.ownedByClass(o)):
 			b.unmanage(o, o.Unmanageable)
 			b.mark(o)
 		case o.LibraryFile && !b.ownedByClass(o):
@@ -338,12 +338,42 @@ func (b *builder) ownedByClass(o Object) bool {
 	return o.Kind == "ClusterRole" && (o.Annotations[rbaccontract.AccessLevelAnnotation] != "" || o.Labels[rbaccontract.LabelKind] == rbaccontract.KindCapability)
 }
 
-// conditional notes a capability or a legacy role under a condition: resources[] have no `when`,
-// the regenerated role renders for every value.
+// conditional records a capability or a legacy role under a condition against the resources it
+// grants: resources[] have no `when`, so the regenerated role would render -- and aggregate into
+// user roles -- for every value. The entries get a TODO reason, a decision the run stays red for
+// (review of #479, finding 33).
 func (b *builder) conditional(o Object) {
-	if o.When != "" {
-		b.note("ClusterRole %s renders under `%s`; resources[] capabilities and legacy roles render unconditionally -- with the condition false, the regenerated role grants what the module does not grant today", o.Name, o.When)
+	if o.When == "" {
+		return
 	}
+
+	for _, r := range o.Rules {
+		groups := r.APIGroups
+		if len(groups) == 0 {
+			groups = []string{""}
+		}
+
+		for _, g := range groups {
+			for _, rs := range r.Resources {
+				key := [2]string{g, rs}
+				msg := fmt.Sprintf("ClusterRole %s renders under `%s`", o.Name, o.When)
+
+				if !slices.Contains(b.conditionalKeys[key], msg) {
+					b.conditionalKeys[key] = append(b.conditionalKeys[key], msg)
+				}
+			}
+		}
+	}
+}
+
+// conditionalReason puts the conditions of the roles granting a resource in front of its reason.
+func conditionalReason(conditions []string, reason string) string {
+	todo := "TODO: " + strings.Join(conditions, "; ") + "; resources[] have no `when`, so the regenerated role would render for every value -- decide, then write the reason"
+	if reason == "" {
+		return todo
+	}
+
+	return todo + "; " + strings.TrimPrefix(reason, "TODO: ")
 }
 
 func (b *builder) capabilitiesAndLegacy() {
@@ -1097,16 +1127,6 @@ func (b *builder) partialGrant(o Object) {
 			}
 		}
 	}
-}
-
-// conditionalReason puts the conditions of the roles granting a resource in front of its reason.
-func conditionalReason(conditions []string, reason string) string {
-	todo := "TODO: " + strings.Join(conditions, "; ") + "; resources[] have no `when`, so the regenerated role would render for every value -- decide, then write the reason"
-	if reason == "" {
-		return todo
-	}
-
-	return todo + "; " + strings.TrimPrefix(reason, "TODO: ")
 }
 
 // unmanagePartial keeps hand-written what renders only under some of the linted values where the
