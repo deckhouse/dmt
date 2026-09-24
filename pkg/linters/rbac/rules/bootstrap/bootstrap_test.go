@@ -440,3 +440,37 @@ func TestBuild_NotesAreWrittenOnce(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(notes, "whether the template gated the scraper binding"))
 	assert.Equal(t, 1, strings.Count(notes, "several Prometheus access Roles fold"))
 }
+
+// What a library renders stays hand-written, apart from the legacy roles and capabilities sync
+// owns by class; a role without rules stays hand-written and its binding binds a hand-written
+// role (review of #479, findings 32 and 39).
+func TestBuild_LibraryAndEmptyRolesAreSetAside(t *testing.T) {
+	labels := map[string]string{"module": "m"}
+	sa := []rbacv1.Subject{{Kind: "ServiceAccount", Name: "m", Namespace: "d8-m"}}
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{
+		{Kind: "ServiceAccount", Name: "csi", Path: "templates/csi/rbac-for-us.yaml", Labels: labels, Library: true},
+		{Kind: "ClusterRole", Name: "d8:m:csi:controller", Path: "templates/csi/rbac-for-us.yaml", Labels: labels, Library: true,
+			Rules: []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"nodes"}, Verbs: []string{"get"}}}},
+		{Kind: "ClusterRole", Name: "d8:m:user", Path: "templates/user-authz-cluster-roles.yaml", Labels: labels, Library: true,
+			Annotations: map[string]string{rbaccontract.AccessLevelAnnotation: "User"},
+			Rules:       []rbacv1.PolicyRule{{APIGroups: []string{"x.io"}, Resources: []string{"things"}, Verbs: []string{"get"}}}},
+		{Kind: "ServiceAccount", Name: "m", Path: "templates/rbac-for-us.yaml", Labels: labels},
+		{Kind: "ClusterRole", Name: "d8:m:m:iop:istiod-1x25", Path: "templates/rbac-for-us.yaml", Labels: labels},
+		{Kind: "ClusterRoleBinding", Name: "d8:m:m:iop:istiod-1x25", Path: "templates/rbac-for-us.yaml", Labels: labels,
+			RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: "d8:m:m:iop:istiod-1x25"}, Subjects: sa},
+	}, CRDs: map[string]string{"x.io/things": "Namespaced"}})
+
+	unmanaged := strings.Join(got.Unmanaged, "\n")
+	assert.Contains(t, unmanaged, "ServiceAccount/csi (templates/csi/rbac-for-us.yaml): rendered by an include of a named template")
+	assert.Contains(t, unmanaged, "ClusterRole/d8:m:csi:controller (templates/csi/rbac-for-us.yaml): rendered by an include")
+	assert.Contains(t, unmanaged, "ClusterRole/d8:m:m:iop:istiod-1x25 (templates/rbac-for-us.yaml): has no rules")
+
+	require.Len(t, got.Decl.Resources, 1, "the legacy role a library renders is imported")
+	assert.Contains(t, got.Decl.Resources[0].Legacy, "User")
+
+	require.Len(t, got.Decl.ServiceAccounts, 1)
+	assert.Empty(t, got.Decl.ServiceAccounts[0].ExtraClusterRoles, "no entry without rules")
+	assert.Equal(t, []string{"d8:m:m:iop:istiod-1x25"}, got.Decl.ServiceAccounts[0].BindClusterRoles)
+	assert.Empty(t, rbacyaml.Validate(got.Decl, rbacyaml.CRDScopes{"x.io/things": "Namespaced"}))
+}
