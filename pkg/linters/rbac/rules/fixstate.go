@@ -27,6 +27,7 @@ import (
 	"sync"
 
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/bootstrap"
+	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/generate"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbaccontract"
 )
 
@@ -229,6 +230,12 @@ var gateActionRe = regexp.MustCompile(`\{\{[^}]*deckhouseVersion`)
 func templateGated(existing, produced string) bool {
 	if strings.Contains(existing, rbaccontract.GateMarker) {
 		return true
+	}
+
+	// A file with the generator header is the generator's: a deckhouseVersion test in it is a `when`
+	// the declaration once had, not the migration gate, even when the declaration dropped it since.
+	if generated, _ := generate.ParseHeader(existing); generated {
+		return false
 	}
 
 	return gateActionRe.MatchString(existing) && !gateActionRe.MatchString(produced)
