@@ -321,6 +321,10 @@ func (b *builder) capabilitiesAndLegacy() {
 				continue
 			}
 
+			if len(o.Rules) == 0 {
+				b.note("ClusterRole %s (legacy %s) has no rules and grants nothing; the declaration writes no empty legacy role, so the regeneration drops it", o.Name, level)
+			}
+
 			b.rename("ClusterRole", o.Name, "d8:user-authz:"+b.in.Module+":"+rbaccontract.LegacyKebab(level))
 			b.addRules("legacy", level, o.Rules, false)
 			b.conditional(o)
@@ -464,9 +468,7 @@ func (b *builder) serviceAccounts() {
 			b.note("ServiceAccount %s lives in %s; the generator keeps accounts in templates/[<path>/]rbac-for-us.yaml and will write it to templates/rbac-for-us.yaml", sa.Name, sa.Path)
 		}
 
-		if app := sa.Labels["app"]; app != "" {
-			e.Labels = map[string]string{"app": app}
-		}
+		e.Labels = copyLabels(sa.Labels)
 
 		if sa.Automount == nil || *sa.Automount {
 			yes := true
@@ -492,6 +494,10 @@ func (b *builder) serviceAccounts() {
 		keep := func(o Object) {
 			if o.When != sa.When {
 				apart = append(apart, fmt.Sprintf("%s %s renders under `%s`", o.Kind, o.Name, orAlways(o.When)))
+			}
+
+			if !maps.Equal(copyLabels(o.Labels), e.Labels) {
+				b.note("%s %s carries labels other than ServiceAccount %s; the account's objects share its labels, so the regeneration writes those", o.Kind, o.Name, sa.Name)
 			}
 
 			switch {
@@ -549,8 +555,8 @@ func (b *builder) serviceAccounts() {
 
 			if role, ok := b.role(b.ns(rb), rb.RoleRef.Name); ok && !b.isUsed(role) && b.ns(rb) == b.in.Namespace && e.NamespaceRules == nil && rb.RoleRef.Kind == "Role" {
 				e.NamespaceRules = policyRules(role.Rules)
-				b.rename("Role", role.Name, sa.Name)
-				b.rename("RoleBinding", rb.Name, sa.Name)
+				b.rename("Role", role.Name, rbaccontract.AccountRoleName(b.in.Module, e.Path, sa.Name))
+				b.rename("RoleBinding", rb.Name, rbaccontract.AccountRoleName(b.in.Module, e.Path, sa.Name))
 				keep(role)
 				b.mark(role)
 			} else if rb.RoleRef.Kind != "Role" {
@@ -562,7 +568,7 @@ func (b *builder) serviceAccounts() {
 				b.note("RoleBinding %s/%s binds %s to the Role %s again; it folds into one", b.ns(rb), rb.Name, sa.Name, rb.RoleRef.Name)
 			} else {
 				e.BindRoles = append(e.BindRoles, rbacyaml.RoleRef{Namespace: b.ns(rb), Name: rb.RoleRef.Name})
-				b.rename("RoleBinding", b.ns(rb)+"/"+rb.Name, b.ns(rb)+"/"+clusterName+":"+rbaccontract.BindingSuffix(rb.RoleRef.Name))
+				b.rename("RoleBinding", b.ns(rb)+"/"+rb.Name, b.ns(rb)+"/"+rbaccontract.AccountForeignBindingPrefix(b.in.Module, e.Path, sa.Name)+":"+rbaccontract.BindingSuffix(rb.RoleRef.Name))
 			}
 
 			if rb.RoleRef.Kind == "Role" {
@@ -621,7 +627,8 @@ func (b *builder) otherBindings() {
 		}
 
 		name := strings.TrimPrefix(cr.Name, "d8:"+b.in.Module+":")
-		b.decl.Access = append(b.decl.Access, rbacyaml.Access{Name: name, Path: componentOf(cr.Path, "rbac-for-us.yaml"), When: accessWhen(cr, crb), Subjects: subjects(crb.Subjects), ClusterRules: policyRules(cr.Rules)})
+		b.decl.Access = append(b.decl.Access, rbacyaml.Access{Name: name, Path: componentOf(cr.Path, "rbac-for-us.yaml"), When: accessWhen(cr, crb),
+			Labels: b.sharedLabels(cr, crb), Annotations: b.sharedAnnotations(cr, crb), Subjects: subjects(crb.Subjects), ClusterRules: policyRules(cr.Rules)})
 		b.rename("ClusterRoleBinding", crb.Name, "d8:"+b.in.Module+":"+name)
 		b.rename("ClusterRole", cr.Name, "d8:"+b.in.Module+":"+name)
 		b.mark(cr)
@@ -659,7 +666,8 @@ func (b *builder) otherBindings() {
 			}
 		}
 
-		b.decl.Access = append(b.decl.Access, rbacyaml.Access{Name: name, Path: path, When: accessWhen(role, rb), Subjects: subjects(rb.Subjects), NamespaceRules: policyRules(role.Rules)})
+		b.decl.Access = append(b.decl.Access, rbacyaml.Access{Name: name, Path: path, When: accessWhen(role, rb),
+			Labels: b.sharedLabels(role, rb), Annotations: b.sharedAnnotations(role, rb), Subjects: subjects(rb.Subjects), NamespaceRules: policyRules(role.Rules)})
 		b.rename("Role", role.Name, rbaccontract.AccessRoleName(b.in.Module, path, name))
 		b.rename("RoleBinding", rb.Name, rbaccontract.AccessRoleName(b.in.Module, path, name))
 		b.mark(role)
@@ -692,7 +700,7 @@ func (b *builder) prometheus(role, rb Object) bool {
 
 	first := b.decl.PrometheusAccess == nil
 	if first {
-		b.decl.PrometheusAccess = &rbacyaml.PrometheusAccess{When: rb.When}
+		b.decl.PrometheusAccess = &rbacyaml.PrometheusAccess{When: rb.When, Labels: b.sharedLabels(role, rb), Annotations: b.sharedAnnotations(role, rb)}
 
 		if !rb.Located {
 			b.note("prometheusAccess: the template of RoleBinding %s could not be read, so whether it gated the scraper binding is unknown; add `when: .Values.global.enabledModules | has \"prometheus\"` if it did", rb.Name)
@@ -959,4 +967,45 @@ func accessWhen(role, binding Object) string {
 	}
 
 	return fmt.Sprintf("TODO: %s %s renders under `%s`, %s %s under `%s`; the access entry has one condition", role.Kind, role.Name, orAlways(role.When), binding.Kind, binding.Name, orAlways(binding.When))
+}
+
+// copyLabels returns the labels a declaration carries: helm_lib_module_labels writes heritage and
+// module on every object itself.
+func copyLabels(in map[string]string) map[string]string {
+	var out map[string]string
+
+	for k, v := range in {
+		if k == "heritage" || k == "module" {
+			continue
+		}
+
+		if out == nil {
+			out = make(map[string]string, len(in))
+		}
+
+		out[k] = v
+	}
+
+	return out
+}
+
+// sharedLabels are the labels of an entry whose role and binding the declaration writes with one
+// set; the binding's set is kept, and a role with another is noted.
+func (b *builder) sharedLabels(role, binding Object) map[string]string {
+	labels := copyLabels(binding.Labels)
+	if !maps.Equal(labels, copyLabels(role.Labels)) {
+		b.note("%s %s and %s %s carry different labels; the entry has one set, the binding's is kept", role.Kind, role.Name, binding.Kind, binding.Name)
+	}
+
+	return labels
+}
+
+// sharedAnnotations is sharedLabels for annotations.
+func (b *builder) sharedAnnotations(role, binding Object) map[string]string {
+	annotations := copyAnnotations(binding.Annotations)
+	if !maps.Equal(annotations, copyAnnotations(role.Annotations)) {
+		b.note("%s %s and %s %s carry different annotations; the entry has one set, the binding's is kept", role.Kind, role.Name, binding.Kind, binding.Name)
+	}
+
+	return annotations
 }

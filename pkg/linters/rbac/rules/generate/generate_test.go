@@ -275,19 +275,28 @@ func TestBuild_RefusesWhatTheModuleCannotCarry(t *testing.T) {
 		decl.ServiceAccounts = []rbacyaml.ServiceAccount{{Name: "helper", Path: "cainjector"}}
 		_, err := Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Decl: decl})
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), `the placement rule wants the account named "cainjector" or "m-cainjector"`)
+		assert.Contains(t, err.Error(), `the placement rule wants the account named "cainjector" after its directory`)
 
-		decl.ServiceAccounts = []rbacyaml.ServiceAccount{{Name: "m-cainjector", Path: "cainjector"}, {Name: "webhook", Path: "webhook"}, {Name: "anything", Path: ""}}
+		decl.ServiceAccounts = []rbacyaml.ServiceAccount{{Name: "cainjector", Path: "cainjector"}, {Name: "webhook", Path: "webhook"}, {Name: "anything", Path: ""}}
 		_, err = Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Decl: decl})
+		require.NoError(t, err)
+
+		// The module name in front is the platform namespaces' form only (regression hunt 2, A1).
+		decl.ServiceAccounts = []rbacyaml.ServiceAccount{{Name: "m-cainjector", Path: "cainjector"}}
+		_, err = Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Decl: decl})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `only in a namespace of the platform`)
+
+		_, err = Build(Input{Module: "m", Namespace: "d8-system", Subsystems: []string{"security"}, Decl: decl})
 		require.NoError(t, err)
 
 		decl.ServiceAccounts = []rbacyaml.ServiceAccount{{Name: "dir", Path: "some/nested/dir"}}
 		_, err = Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Decl: decl})
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), `wants the account named "some-nested-dir" or "m-some-nested-dir"`)
+		assert.Contains(t, err.Error(), `wants the account named "some-nested-dir"`)
 
 		// templates/<a>/<b>/rbac-for-us.yaml: the placement rule joins the directories.
-		decl.ServiceAccounts = []rbacyaml.ServiceAccount{{Name: "some-nested-dir", Path: "some/nested/dir"}, {Name: "m-a-b", Path: "a/b"}}
+		decl.ServiceAccounts = []rbacyaml.ServiceAccount{{Name: "some-nested-dir", Path: "some/nested/dir"}}
 		_, err = Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Decl: decl})
 		require.NoError(t, err)
 	})

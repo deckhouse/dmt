@@ -33,6 +33,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/yaml"
 
@@ -232,8 +233,16 @@ func (r *SyncRule) compareRender(model *generate.Model, actual map[string]manage
 			continue
 		}
 
+		why := "declare its rights in rbac.yaml or remove it from the template"
+
+		kind := obj.object.Unstructured.GetKind()
+		if rules, found, _ := unstructured.NestedSlice(obj.object.Unstructured.Object, "rules"); (kind == "Role" || kind == "ClusterRole") && (!found || len(rules) == 0) {
+			// A role without rules grants nothing and has nothing to declare.
+			why = "it has no rules and grants nothing, so the regeneration drops it -- remove it from the template"
+		}
+
 		divergences[obj.object.ShortPath()] = append(divergences[obj.object.ShortPath()],
-			fmt.Sprintf("%s is in the render but rbac.yaml does not produce it: declare its rights in rbac.yaml or remove it from the template", identity))
+			fmt.Sprintf("%s is in the render but rbac.yaml does not produce it: %s", identity, why))
 	}
 
 	return divergences
@@ -413,7 +422,7 @@ func (r *SyncRule) report(modulePath string, model *generate.Model, divergences 
 		// comparison nor a rewrite can be trusted.
 		if cause, skipped := dropped[path]; skipped {
 			recordDropped(filepath.Join(modulePath, path), cause)
-			fileList.Errorf("%s failed to render in this run (%s); nothing in it is compared or regenerated until it renders", path, cause)
+			fileList.WithFix(manualFix("make "+path+" render")).Errorf("%s failed to render in this run (%s); nothing in it is compared or regenerated until it renders", path, cause)
 
 			continue
 		}
@@ -446,7 +455,7 @@ func (r *SyncRule) report(modulePath string, model *generate.Model, divergences 
 			list = append(list, reason)
 		}
 
-		fileList.Errorf("%s does not match %s: %s. Only a person can close this: the declaration does not produce this file",
+		fileList.WithFix(manualFix("edit "+path+" by hand")).Errorf("%s does not match %s: %s. Only a person can close this: the declaration does not produce this file",
 			path, rbacyaml.Filename, strings.Join(list, "; "))
 	}
 }
@@ -912,6 +921,7 @@ func compareObject(expected generate.Object, actual storage.StoreObject, module 
 
 	if expected.Class == generate.ClassDeclared {
 		out = append(out, compareAnnotations(expected, actual)...)
+		out = append(out, compareLabels(expected, actual)...)
 	}
 
 	id := expected.Identity()
@@ -1015,7 +1025,13 @@ func compareObject(expected generate.Object, actual storage.StoreObject, module 
 		}
 
 		got := map[string]struct{}{}
+
 		for _, s := range subjects {
+			// Kubernetes puts a ServiceAccount subject without a namespace into the binding's.
+			if s.Kind == "ServiceAccount" && s.Namespace == "" && expected.Kind == "RoleBinding" {
+				s.Namespace = actual.Unstructured.GetNamespace()
+			}
+
 			got[s.Kind+"/"+s.Namespace+"/"+s.Name] = struct{}{}
 		}
 
@@ -1205,8 +1221,11 @@ func regenerateFix(modulePath string, file generate.File, placed map[string]stri
 			// The declaration is the source: what it no longer names left the file. Say so where a
 			// --fix run without a preceding lint would otherwise remove it in silence.
 			if len(removals) > 0 {
-				log.Warn("rbac autofix regenerated a template and removed what the declaration does not name",
-					slog.String("file", file.Path), slog.Any("removed", removals))
+				// The divergences go both ways: what the render has and the declaration does not
+				// leaves, what the declaration has and the render lacks arrives.
+				added, removed := splitChanges(removals)
+				log.Warn("rbac autofix regenerated a template: what the render had and the declaration does not name is removed, what the declaration names is added",
+					slog.String("file", file.Path), slog.Any("removed", removed), slog.Any("added", added))
 			} else {
 				log.Info("rbac autofix regenerated a template from rbac.yaml", slog.String("file", file.Path))
 			}
@@ -1615,6 +1634,8 @@ func (r *SyncRule) replacedCopies(model *generate.Model, actual map[string]manag
 	}
 
 	copies := map[string]string{}
+	renderedGrantees := renderedRoleSubjects(storage)
+	declaredGrantees := modelRoleSubjects(all)
 
 	for index, object := range storage {
 		id := index.AsString()
@@ -1626,11 +1647,18 @@ func (r *SyncRule) replacedCopies(model *generate.Model, actual map[string]manag
 			continue
 		}
 
-		if !isRBACKind(object.Unstructured.GetKind()) || object.Unstructured.GetKind() == "ServiceAccount" {
+		kind := object.Unstructured.GetKind()
+		if !isRBACKind(kind) || kind == "ServiceAccount" {
 			continue
 		}
 
 		if twin := renderedTwin(object, all, rendered); twin != "" {
+			// Equal rules alone do not make a copy: another account may need the same rights. A
+			// replaced role is granted to the subjects the declaration grants its successor to.
+			if (kind == "Role" || kind == "ClusterRole") && !shareGrantee(renderedGrantees[roleKey(kind, object.Unstructured.GetNamespace(), object.Unstructured.GetName())], declaredGrantees[twinRoleKey(all, twin)]) {
+				continue
+			}
+
 			copies[object.Unstructured.GetKind()+"/"+object.Unstructured.GetName()] = twin
 			divergences[object.ShortPath()] = append(divergences[object.ShortPath()],
 				id+" grants what "+twin+" grants, and both render: the declaration replaced it -- delete it from the template")
@@ -1717,6 +1745,11 @@ func compareAnnotations(expected generate.Object, actual storage.StoreObject) []
 	var out []string
 
 	for _, k := range slices.Sorted(maps.Keys(rendered)) {
+		// Helm's release annotations and the generator's own are nobody's to declare.
+		if strings.HasPrefix(k, "meta.helm.sh/") || strings.HasPrefix(k, "rbac.deckhouse.io/") {
+			continue
+		}
+
 		if want, ok := expected.Annotations[k]; !ok {
 			out = append(out, fmt.Sprintf("%s: annotation %s is in the render but not declared", id, k))
 		} else if want != rendered[k] {
@@ -1843,4 +1876,130 @@ func unrenderedObjects(modulePath string, rendered []bootstrap.Object) []string 
 	sort.Strings(out)
 
 	return out
+}
+
+// moduleLabels are the labels helm_lib_module_labels writes on every object; the declaration
+// names the others.
+var moduleLabels = map[string]bool{"heritage": true, "module": true}
+
+// compareLabels compares the labels of an object the declaration writes whole: an aggregation
+// label or a part-of label the declaration does not carry would be dropped by the next
+// regeneration, and an aggregation label is a right.
+func compareLabels(expected generate.Object, actual storage.StoreObject) []string {
+	id := expected.Identity()
+	rendered := actual.Unstructured.GetLabels()
+
+	var out []string
+
+	for _, k := range slices.Sorted(maps.Keys(rendered)) {
+		if moduleLabels[k] {
+			continue
+		}
+
+		if want, ok := expected.Labels[k]; !ok {
+			out = append(out, fmt.Sprintf("%s: label %s is in the render but not declared", id, k))
+		} else if want != rendered[k] {
+			out = append(out, fmt.Sprintf("%s: label %s is %q in the render, the declaration produces %q", id, k, rendered[k], want))
+		}
+	}
+
+	for _, k := range slices.Sorted(maps.Keys(expected.Labels)) {
+		if _, ok := rendered[k]; !ok && !moduleLabels[k] {
+			out = append(out, fmt.Sprintf("%s: label %s is declared but absent from the render", id, k))
+		}
+	}
+
+	return out
+}
+
+// roleKey names a role as bindings refer to it: a Role with its namespace, a ClusterRole without.
+func roleKey(kind, namespace, name string) string {
+	if kind == "ClusterRole" {
+		namespace = ""
+	}
+
+	return kind + "/" + namespace + "/" + name
+}
+
+// renderedRoleSubjects maps every role the render binds to the subject sets of its bindings.
+func renderedRoleSubjects(objects map[storage.ResourceIndex]storage.StoreObject) map[string]map[string]bool {
+	out := map[string]map[string]bool{}
+
+	for _, object := range objects {
+		kind := object.Unstructured.GetKind()
+		if kind != "RoleBinding" && kind != "ClusterRoleBinding" {
+			continue
+		}
+
+		binding := new(rbacv1.RoleBinding)
+		if runtime.DefaultUnstructuredConverter.FromUnstructured(object.Unstructured.UnstructuredContent(), binding) != nil {
+			continue
+		}
+
+		key := roleKey(binding.RoleRef.Kind, object.Unstructured.GetNamespace(), binding.RoleRef.Name)
+		if out[key] == nil {
+			out[key] = map[string]bool{}
+		}
+
+		out[key][subjectSet(binding.Subjects)] = true
+	}
+
+	return out
+}
+
+// modelRoleSubjects is renderedRoleSubjects for the objects the declaration produces.
+func modelRoleSubjects(all []generate.Object) map[string]map[string]bool {
+	out := map[string]map[string]bool{}
+
+	for _, o := range all {
+		if o.Kind != "RoleBinding" && o.Kind != "ClusterRoleBinding" {
+			continue
+		}
+
+		key := roleKey(o.RoleRefKind, o.Namespace, o.RoleRefName)
+		if out[key] == nil {
+			out[key] = map[string]bool{}
+		}
+
+		out[key][subjectSetOf(o.Subjects)] = true
+	}
+
+	return out
+}
+
+// twinRoleKey is the roleKey of the produced object with the identity.
+func twinRoleKey(all []generate.Object, identity string) string {
+	for _, o := range all {
+		if o.Identity() == identity {
+			return roleKey(o.Kind, o.Namespace, o.Name)
+		}
+	}
+
+	return ""
+}
+
+func shareGrantee(a, b map[string]bool) bool {
+	for k := range a {
+		if b[k] {
+			return true
+		}
+	}
+
+	return false
+}
+
+// splitChanges sorts the divergences of a regenerated file into what the regeneration adds (the
+// declaration names it, the render lacks it) and everything else, which it removes or changes.
+func splitChanges(divergences []string) ([]string, []string) {
+	var added, removed []string
+
+	for _, d := range divergences {
+		if strings.Contains(d, "is declared but absent from the render") {
+			added = append(added, d)
+		} else {
+			removed = append(removed, d)
+		}
+	}
+
+	return added, removed
 }

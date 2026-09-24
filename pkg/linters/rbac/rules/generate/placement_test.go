@@ -106,3 +106,27 @@ func TestBuild_AccountAnnotations(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(rendered, `helm.sh/resource-policy: "keep"`))
 	assert.Equal(t, 2, strings.Count(rendered, `werf.io/deploy-on: "pre-install"`))
 }
+
+// Access and Prometheus entries carry labels and annotations onto their role and binding
+// (regression hunt 2, A2).
+func TestBuild_AccessMetadata(t *testing.T) {
+	decl := placementDecl()
+	decl.Access = []rbacyaml.Access{{
+		Name: "manager", Subjects: []rbacyaml.Subject{{Kind: "Group", Name: "g"}},
+		Labels: map[string]string{"app": "capi"}, Annotations: map[string]string{"werf.io/deploy-on": "pre-install"},
+		ClusterRules: []rbacyaml.PolicyRule{{APIGroups: []string{""}, Resources: []string{"nodes"}, Verbs: []string{"get"}}},
+	}}
+	decl.PrometheusAccess = &rbacyaml.PrometheusAccess{Deployments: []string{"m"}, Labels: map[string]string{"app": "m"}}
+
+	model, err := Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Decl: decl})
+	require.NoError(t, err)
+
+	for _, o := range model.File("templates/rbac-for-us.yaml").Objects {
+		assert.Equal(t, map[string]string{"app": "capi"}, o.Labels, o.Identity())
+		assert.Equal(t, map[string]string{"werf.io/deploy-on": "pre-install"}, o.Annotations, o.Identity())
+	}
+
+	for _, o := range model.File("templates/rbac-to-us.yaml").Objects {
+		assert.Equal(t, map[string]string{"app": "m"}, o.Labels, o.Identity())
+	}
+}

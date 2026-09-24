@@ -999,7 +999,7 @@ func TestSync_OrphanGeneratedFileIsDeleted(t *testing.T) {
 	got = texts(errorList)
 	require.Len(t, got, 1, "got: %v", got)
 	assert.Contains(t, got[0], "the file also holds ClusterRole/d8:cert-manager:something-else, which the declaration does not describe. Only a person can close this")
-	assert.Empty(t, errorList.GetFixes())
+	assertOnlyFailingFixes(t, errorList, modulePath)
 }
 
 // exclude-rules.sync silences an object's findings without forgetting the object: a declared
@@ -1478,7 +1478,7 @@ func TestSync_DroppedTemplateIsNotRegenerated(t *testing.T) {
 	got := texts(errorList)
 	require.Len(t, got, 1, "got: %v", got)
 	assert.Contains(t, got[0], rel+" failed to render in this run (required value missing); nothing in it is compared or regenerated")
-	assert.Empty(t, errorList.GetFixes())
+	assertOnlyFailingFixes(t, errorList, modulePath)
 }
 
 // A module.yaml that does not parse stops the rule instead of generating without subsystems
@@ -1823,4 +1823,19 @@ func snapshotTree(t *testing.T, dir string) map[string]string {
 	}))
 
 	return out
+}
+
+// assertOnlyFailingFixes runs the fixes of a finding only a person can close: they change nothing
+// on disk and fail, so `--fix` does not exit 0 over them.
+func assertOnlyFailingFixes(t *testing.T, errorList *errors.LintRuleErrorsList, modulePath string) {
+	t.Helper()
+
+	before := snapshotTree(t, modulePath)
+
+	for _, fix := range errorList.GetFixes() {
+		fix()
+	}
+
+	assert.True(t, errorList.ContainsFailedFixes())
+	assert.Equal(t, before, snapshotTree(t, modulePath))
 }

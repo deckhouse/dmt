@@ -122,6 +122,8 @@ func Validate(d *Declaration, crds CRDScopes) []error {
 		}
 
 		validateWhen(d.PrometheusAccess.When, "prometheusAccess", report)
+		validateMetadataKeys(d.PrometheusAccess.Labels, "prometheusAccess.labels", false, report)
+		validateMetadataKeys(d.PrometheusAccess.Annotations, "prometheusAccess.annotations", true, report)
 	}
 
 	// Several checks walk maps; the reader and the e2e expectations get one order.
@@ -411,6 +413,8 @@ func validateAccess(access []Access, report reporter) {
 		}
 
 		validateWhen(a.When, where, report)
+		validateMetadataKeys(a.Labels, where+".labels", false, report)
+		validateMetadataKeys(a.Annotations, where+".annotations", true, report)
 
 		if strings.HasPrefix(a.Path, "/") || strings.HasSuffix(a.Path, "/") || strings.Contains(a.Path, "..") {
 			report("%s: path must be a directory under templates/ without leading or trailing slashes, got %q", where, a.Path)

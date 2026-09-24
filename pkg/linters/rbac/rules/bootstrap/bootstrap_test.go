@@ -444,3 +444,25 @@ func TestBuild_AnnotationsAndNestedAccessNames(t *testing.T) {
 	assert.NotContains(t, strings.Join(got.Notes, "\n"), "will be named", "the generator writes the names the module already has")
 	assert.Empty(t, rbacyaml.Validate(got.Decl, nil))
 }
+
+// Labels and annotations of an access entry and of the scrape access survive the import
+// (regression hunt 2, A2 and A4).
+func TestBuild_AccessMetadataImported(t *testing.T) {
+	labels := map[string]string{"module": "m", "heritage": "deckhouse", "app": "capi"}
+	hook := map[string]string{"werf.io/deploy-on": "pre-install"}
+	nodes := []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"nodes"}, Verbs: []string{"get"}}}
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{
+		{Kind: "ClusterRole", Name: "d8:m:manager", Path: "templates/rbac-for-us.yaml", Labels: labels, Annotations: hook, Rules: nodes},
+		{Kind: "ClusterRoleBinding", Name: "d8:m:manager", Path: "templates/rbac-for-us.yaml", Labels: labels, Annotations: hook,
+			RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: "d8:m:manager"}, Subjects: []rbacv1.Subject{{Kind: "Group", Name: "g"}}},
+		{Kind: "ServiceAccount", Name: "m", Path: "templates/rbac-for-us.yaml", Labels: map[string]string{"module": "m", "app.kubernetes.io/part-of": "gatekeeper"}},
+	}})
+
+	require.Len(t, got.Decl.Access, 1)
+	assert.Equal(t, map[string]string{"app": "capi"}, got.Decl.Access[0].Labels)
+	assert.Equal(t, hook, got.Decl.Access[0].Annotations)
+
+	require.Len(t, got.Decl.ServiceAccounts, 1)
+	assert.Equal(t, map[string]string{"app.kubernetes.io/part-of": "gatekeeper"}, got.Decl.ServiceAccounts[0].Labels)
+}
