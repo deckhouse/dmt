@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 	rbacv1 "k8s.io/api/rbac/v1"
 
+	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbaccontract"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbacyaml"
 )
 
@@ -313,4 +314,82 @@ func TestMarshal_MultilineNoteAndSingleListing(t *testing.T) {
 	for _, line := range strings.Split(strings.TrimSpace(strings.SplitN(string(content), "apiVersion:", 2)[0]), "\n") {
 		assert.True(t, strings.HasPrefix(line, "#"), "a header line that is no comment: %q", line)
 	}
+}
+
+// The template is read with text/template/parse: metadata at any indentation or in flow style,
+// string literals kept as written, an if without a space, a define (review of #479, finding 35).
+func TestTemplateDocs_Parser(t *testing.T) {
+	text := `{{- if eq .Values.m.mode "a  b" }}
+---
+kind: Role
+metadata:
+    name: four-spaces
+    namespace: d8-m
+{{- end }}
+{{if(.Values.m.flow)}}
+---
+kind: Role
+metadata: {name: flow, namespace: d8-m}
+{{end}}
+---
+kind: ServiceAccount
+metadata:
+  labels:
+    name: not-the-name
+{{- define "m.helper" }}
+---
+kind: Role
+metadata:
+  name: defined
+{{- end }}
+---
+{{ include "helm_lib_csi_controller_rbac" . }}
+`
+	docs := TemplateDocs(text)
+
+	byName := map[string]Doc{}
+	for _, d := range docs {
+		byName[d.Kind+"/"+d.Name] = d
+	}
+
+	assert.Equal(t, `eq .Values.m.mode "a  b"`, byName["Role/four-spaces"].When, "the literal keeps its two spaces")
+	assert.Equal(t, "d8-m", byName["Role/four-spaces"].Namespace)
+	assert.Equal(t, "(.Values.m.flow)", byName["Role/flow"].When)
+	assert.Equal(t, "d8-m", byName["Role/flow"].Namespace)
+	assert.Contains(t, byName["Role/defined"].Unmanageable, "define")
+
+	sa, ok := byName["ServiceAccount/"]
+	require.True(t, ok)
+	assert.Nil(t, sa.NamePattern, "a name nested under labels is no name")
+
+	// A document without a readable name matches nothing: the object the include renders is the
+	// library's, not that document's.
+	d, ok := Locate(docs, Object{Kind: "ServiceAccount", Name: "csi"})
+	require.True(t, ok)
+	assert.True(t, d.Library)
+
+	// A template that does not parse yields nothing rather than a guess.
+	assert.Empty(t, TemplateDocs("{{ if }"))
+}
+
+// A capability or a legacy role under a condition leaves a TODO reason on the resources it grants:
+// resources[] have no `when`, and a regeneration would grant them for every value (review of #479,
+// finding 33).
+func TestBuild_ConditionalCapabilityIsATODO(t *testing.T) {
+	labels := map[string]string{"module": "m", rbaccontract.LabelKind: rbaccontract.KindCapability}
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, CRDs: map[string]string{"x.io/things": "Namespaced", "x.io/others": "Namespaced"}, Objects: []Object{
+		{Kind: "ClusterRole", Name: "d8:namespace-capability:m:view", Path: "templates/rbacv2/use/view.yaml", Labels: labels, Located: true, When: ".Values.m.extra",
+			Rules: []rbacv1.PolicyRule{{APIGroups: []string{"x.io"}, Resources: []string{"things"}, Verbs: []string{"get"}}}},
+		{Kind: "ClusterRole", Name: "d8:namespace-capability:m:edit", Path: "templates/rbacv2/use/edit.yaml", Labels: labels, Located: true,
+			Rules: []rbacv1.PolicyRule{{APIGroups: []string{"x.io"}, Resources: []string{"others"}, Verbs: []string{"create"}}}},
+	}})
+
+	byKey := map[string]rbacyaml.Resource{}
+	for _, r := range got.Decl.Resources {
+		byKey[r.Key()] = r
+	}
+
+	assert.True(t, strings.HasPrefix(byKey["x.io/things"].Reason, "TODO: ClusterRole d8:namespace-capability:m:view renders under `.Values.m.extra`"), byKey["x.io/things"].Reason)
+	assert.Empty(t, byKey["x.io/others"].Reason)
 }
