@@ -294,7 +294,7 @@ func TestBuild_TODOsAndUnmanaged(t *testing.T) {
 	}
 
 	assert.Equal(t, "Namespaced", byKey["/pods"].Scope, "a well-known core resource gets its scope")
-	assert.Equal(t, "TODO: Namespaced or Cluster", byKey["trivy.deckhouse.io/vulnerabilityreports"].Scope, "an unknown one is a TODO value for the author (review of #479, reply to finding 9)")
+	assert.Equal(t, "TODO: Namespaced or Cluster (Cluster drops the namespace levels)", byKey["trivy.deckhouse.io/vulnerabilityreports"].Scope, "an unknown one is a TODO value for the author (review of #479, reply to finding 9)")
 	assert.Contains(t, byKey["deckhouse.io/things"].NoAccess, "TODO", "a CRD nobody grants is an undecided entry")
 
 	require.Len(t, got.Decl.ServiceAccounts, 1)

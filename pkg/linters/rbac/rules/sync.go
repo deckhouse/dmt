@@ -1256,8 +1256,11 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 		in.CRDs[crd.Key()] = crd.Scope
 	}
 
+	docs := map[string][]bootstrap.Doc{}
+
 	for _, object := range storage {
 		if o, ok := bootstrapObject(object); ok {
+			locateInTemplate(modulePath, &o, docs)
 			in.Objects = append(in.Objects, o)
 		}
 	}
@@ -1266,6 +1269,7 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 		return
 	}
 
+	in.Unrendered = unrenderedObjects(modulePath, in.Objects)
 	result := bootstrap.Build(in)
 	described := len(in.Objects) - len(result.Unmanaged)
 	path := rbacyaml.Path(modulePath)
@@ -1281,6 +1285,7 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 			}
 
 			in.Objects = bootstrapObjectsOf(path)
+			in.Unrendered = unrenderedObjects(modulePath, in.Objects)
 			result := bootstrap.Build(in)
 
 			content, err := bootstrap.Marshal(result)
@@ -1293,9 +1298,20 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 			}
 
 			// The file is written, but a TODO in it is a decision nobody has made yet: the finding
-			// stays, and so does the non-zero exit, until a person makes it (ADR, bootstrap).
+			// stays, and so does the non-zero exit, until a person makes it (ADR, bootstrap). What
+			// the linter would refuse in the written file is named here too, rather than on the
+			// next run.
+			problems := writtenProblems(content, crds, in)
+			if len(in.Unrendered) > 0 {
+				problems += "; the templates hold objects no render showed, and the declaration does not: " + strings.Join(in.Unrendered, ", ")
+			}
+
 			if open := openDecisions(string(content)); open > 0 {
-				return fmt.Errorf("%s is written; %d TODO in it are decisions only a person can make -- resolve them, then run `%s` to regenerate the templates", rbacyaml.Filename, open, FixCommand)
+				return fmt.Errorf("%s is written; %d TODO in it are decisions only a person can make%s -- resolve them, then run `%s` to regenerate the templates", rbacyaml.Filename, open, problems, FixCommand)
+			}
+
+			if problems != "" {
+				return fmt.Errorf("%s is written%s -- correct it, then run `%s` to regenerate the templates", rbacyaml.Filename, problems, FixCommand)
 			}
 
 			return nil
@@ -1719,4 +1735,108 @@ func manualFix(what string) errors.AutofixFunc {
 	return func() error {
 		return fmt.Errorf("nothing was generated: %s first", what)
 	}
+}
+
+// locateInTemplate reads the template blocks around a rendered object from its template's text:
+// the render only holds what rendered for the linter's values, the text holds the conditions.
+func locateInTemplate(modulePath string, o *bootstrap.Object, cache map[string][]bootstrap.Doc) {
+	docs, ok := cache[o.Path]
+	if !ok {
+		if content, err := os.ReadFile(filepath.Join(modulePath, o.Path)); err == nil {
+			docs = bootstrap.TemplateDocs(string(content))
+		}
+
+		cache[o.Path] = docs
+	}
+
+	d, found := bootstrap.Locate(docs, *o)
+	if !found {
+		return
+	}
+
+	o.Located = true
+	o.When, o.Unmanageable, o.Partial = d.When, d.Unmanageable, d.Partial
+
+	if d.Library && o.Unmanageable == "" {
+		o.Unmanageable = "rendered by an include of a named template (helm_lib or another chart), which owns it"
+	}
+}
+
+// writtenProblems lists what the linter refuses in a declaration bootstrap wrote, the TODO
+// values aside: they are counted on their own.
+func writtenProblems(content []byte, crds []crdInfo, in bootstrap.Input) string {
+	decl, err := rbacyaml.Parse(content)
+	if err != nil {
+		return "; it does not parse: " + err.Error()
+	}
+
+	var problems []string
+
+	for _, e := range rbacyaml.Validate(decl, crdScopes(crds)) {
+		if !strings.Contains(e.Error(), "TODO") {
+			problems = append(problems, e.Error())
+		}
+	}
+
+	if len(problems) == 0 {
+		if _, err := generate.Build(generate.Input{Module: in.Module, Namespace: in.Namespace, Subsystems: in.Subsystems, Decl: decl}); err != nil && !strings.Contains(err.Error(), "TODO") {
+			problems = append(problems, err.Error())
+		}
+	}
+
+	if len(problems) == 0 {
+		return ""
+	}
+
+	return "; the linter refuses: " + strings.Join(problems, "; ")
+}
+
+// rbacKinds are the kinds bootstrap describes.
+var rbacKinds = map[string]bool{"ClusterRole": true, "ClusterRoleBinding": true, "Role": true, "RoleBinding": true, "ServiceAccount": true}
+
+// unrenderedObjects lists the RBAC objects with a literal name that the module's templates hold
+// and no render showed: an object under a condition false for the linter's values would
+// otherwise be left out of the first declaration without a word, and the regeneration would drop
+// it. Only the text can tell; a computed name is not followed.
+func unrenderedObjects(modulePath string, rendered []bootstrap.Object) []string {
+	seen := make(map[string]bool, len(rendered))
+	for _, o := range rendered {
+		seen[o.Kind+"/"+o.Name] = true
+	}
+
+	var out []string
+
+	root := filepath.Join(modulePath, "templates")
+
+	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || strings.HasPrefix(d.Name(), "_") || (filepath.Ext(path) != ".yaml" && filepath.Ext(path) != ".yml") {
+			return nil //nolint:nilerr // an unreadable entry is not the importer's to report
+		}
+
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return nil //nolint:nilerr // as above
+		}
+
+		rel, _ := filepath.Rel(modulePath, path)
+
+		for _, doc := range bootstrap.TemplateDocs(string(content)) {
+			if !rbacKinds[doc.Kind] || doc.Name == "" || seen[doc.Kind+"/"+doc.Name] || doc.Unmanageable != "" {
+				continue
+			}
+
+			entry := fmt.Sprintf("%s/%s (%s", doc.Kind, doc.Name, rel)
+			if doc.When != "" {
+				entry += ", under `" + doc.When + "`"
+			}
+
+			out = append(out, entry+")")
+		}
+
+		return nil
+	})
+
+	sort.Strings(out)
+
+	return out
 }
