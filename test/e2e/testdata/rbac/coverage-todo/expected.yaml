@@ -6,7 +6,7 @@ expect:
   - linter: rbac
     rule: coverage
     level: warn
-    textContains: 'e2e.deckhouse.io/widgets is still noAccess: "TODO" in rbac.yaml'
+    textContains: 'e2e.deckhouse.io/widgets is still undecided in rbac.yaml (noAccess: "TODO")'
     count: 1
   - linter: rbac
     rule: coverage

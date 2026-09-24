@@ -22,6 +22,7 @@ import (
 	stderrors "errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -98,23 +99,44 @@ func (r *CoverageRule) Check(_ context.Context) {
 			continue
 		}
 
-		entry, ok := entries[crd.Key()]
-		if !ok {
+		if _, ok := entries[crd.Key()]; !ok {
 			errorList.
 				WithObjectID("CustomResourceDefinition/"+crd.Key()).
 				WithFix(appendStubFix(modulePath, crd)).
 				Errorf("CRD %s (%s) has no entry in %s: decide the user access to it -- namespace, system or legacy levels, or noAccess with the reason; `%s` adds an undecided stub",
 					crd.Key(), crd.File, rbacyaml.Filename, FixCommand)
+		}
+	}
 
+	// Any value that starts with TODO is a decision nobody has made yet: the stub the coverage
+	// autofix writes, and the scope, reason and noAccess values bootstrap leaves. Each keeps its
+	// finding, and a --fix run that meets one fails (the attached fix only says so), whatever the
+	// rule's level.
+	for _, res := range decl.Resources {
+		if !r.Enabled(res.Key()) {
 			continue
 		}
 
-		if entry.NoAccess == rbacyaml.NoAccessTODO {
-			errorList.
-				WithObjectID("CustomResourceDefinition/"+crd.Key()).
-				Errorf("%s is still noAccess: %q in %s: a decision is needed -- grant levels, or replace %q with the reason users get no access; only a person can close this",
-					crd.Key(), rbacyaml.NoAccessTODO, rbacyaml.Filename, rbacyaml.NoAccessTODO)
+		var open []string
+
+		for _, field := range []struct{ key, value string }{{"noAccess", res.NoAccess}, {"scope", res.Scope}, {"reason", res.Reason}} {
+			if strings.HasPrefix(field.value, rbacyaml.NoAccessTODO) {
+				open = append(open, fmt.Sprintf("%s: %q", field.key, field.value))
+			}
 		}
+
+		if len(open) == 0 {
+			continue
+		}
+
+		id := "rbac.yaml/" + res.Key()
+		if _, isCRD := known[res.Key()]; isCRD {
+			id = "CustomResourceDefinition/" + res.Key()
+		}
+
+		errorList.WithObjectID(id).
+			WithFix(openDecisionFix(res.Key())).
+			Errorf("%s is still undecided in %s (%s): a decision is needed -- only a person can close this", res.Key(), rbacyaml.Filename, strings.Join(open, ", "))
 	}
 
 	// A resource of a group the module ships CRDs for, but not one of them, is most likely a
@@ -144,6 +166,14 @@ func (r *CoverageRule) Check(_ context.Context) {
 				Warnf("%s names a resource the module's CRDs of group %s do not have; check the spelling, or drop the entry if the resource is gone",
 					res.Key(), res.Group)
 		}
+	}
+}
+
+// openDecisionFix is attached to a finding on a TODO value: there is nothing to write, and a --fix
+// run that meets it must not end green.
+func openDecisionFix(key string) errors.AutofixFunc {
+	return func() error {
+		return fmt.Errorf("%s: a TODO in %s is a decision only a person can make", key, rbacyaml.Filename)
 	}
 }
 
