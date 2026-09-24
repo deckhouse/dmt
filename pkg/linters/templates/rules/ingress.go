@@ -32,9 +32,20 @@ import (
 )
 
 const (
-	IngressRuleName = "ingress-rules"
-	snippet         = `{{ include "helm_lib_module_ingress_configuration_snippet" . | nindent 6 }}`
+	IngressRuleName                = "ingress-rules"
+	nginxAnnotationPrefix          = "nginx.ingress.kubernetes.io/"
+	configurationSnippetAnnotation = nginxAnnotationPrefix + "configuration-snippet"
+	ingressNginxHSTSAnnotation     = nginxAnnotationPrefix + "ingress-nginx-hsts"
+	legacyHSTSDirective            = `add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;`
 )
+
+var unsafeIngressAnnotations = []string{
+	configurationSnippetAnnotation,
+	nginxAnnotationPrefix + "server-snippet",
+	nginxAnnotationPrefix + "auth-snippet",
+	nginxAnnotationPrefix + "modsecurity-snippet",
+	nginxAnnotationPrefix + "stream-snippet",
+}
 
 type IngressRule struct {
 	pkg.RuleMeta
@@ -87,12 +98,37 @@ func (r *IngressRule) checkObject(object storage.StoreObject) {
 		return
 	}
 
-	for key, value := range ingress.GetAnnotations() {
-		if key == "nginx.ingress.kubernetes.io/configuration-snippet" {
-			if !strings.Contains(value, "add_header Strict-Transport-Security") {
-				errorList.WithObjectID(object.Unstructured.GetName()).
-					Errorf("Ingress annotation %q does not contain required snippet %q.", key, snippet)
-			}
+	annotations := ingress.GetAnnotations()
+	objectErrors := errorList.WithObjectID(object.Unstructured.GetName())
+
+	for _, annotation := range unsafeIngressAnnotations {
+		if _, found := annotations[annotation]; !found {
+			continue
+		}
+
+		objectErrors.Errorf("Ingress annotation %q is unsafe and requires manual migration.", annotation)
+	}
+
+	configurationSnippet, found := annotations[configurationSnippetAnnotation]
+	if !found {
+		return
+	}
+
+	hasSafeHSTS := annotations[ingressNginxHSTSAnnotation] == "true"
+
+	hasLegacyHSTS := hasLegacyHSTSDirective(configurationSnippet)
+	if !hasSafeHSTS && !hasLegacyHSTS {
+		objectErrors.Errorf("Ingress annotation %q requires annotation %q to be set to %q to preserve HSTS.",
+			configurationSnippetAnnotation, ingressNginxHSTSAnnotation, "true")
+	}
+}
+
+func hasLegacyHSTSDirective(configurationSnippet string) bool {
+	for line := range strings.SplitSeq(configurationSnippet, "\n") {
+		if strings.TrimSpace(line) == legacyHSTSDirective {
+			return true
 		}
 	}
+
+	return false
 }
