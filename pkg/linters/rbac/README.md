@@ -1623,7 +1623,8 @@ carries no `scope`: the CRD states it; an external resource whose scope is not k
 object: it is left out and named in a note. A role granting `*` verbs or API groups, which the format
 refuses, is listed as hand-written with the reason, and so are objects a helm_lib include renders
 (its legacy roles and capabilities aside, which sync owns whatever renders them), objects inside a
-`{{ range }}` and roles without rules. The render shows neither the conditions around an object nor
+`{{ range }}`, objects of the module in a file that also holds what a helm_lib include renders (the
+generator writes the whole file, so it could never regenerate it) and roles without rules. The render shows neither the conditions around an object nor
 labels and annotations the format has no field for: a note names, per object, the labels and
 annotations a regeneration would drop. Under `--matrix` an object only some variants rendered stays
 hand-written where the declaration has no `when` for it (access entries, the scrape access), an
