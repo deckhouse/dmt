@@ -1626,8 +1626,9 @@ refuses, is listed as hand-written with the reason, and so are objects a helm_li
 `{{ range }}` and roles without rules. The render shows neither the conditions around an object nor
 labels and annotations the format has no field for: a note names, per object, the labels and
 annotations a regeneration would drop. Under `--matrix` an object only some variants rendered stays
-hand-written where the declaration has no `when` for it (access entries, the scrape access), and an
-account with such objects gets a `TODO` `when`, so the run stays red until someone writes it. The fix that writes the file keeps the finding
+hand-written where the declaration has no `when` for it (access entries, the scrape access), an
+account with such objects gets a `TODO` `when`, and a legacy role or a capability a `TODO` reason on the
+resources it grants, so the run stays red until someone decides. The fix that writes the file keeps the finding
 while a `TODO` is left in it or while the linter would refuse the written file (both are named in the
 fix error); a written file that does not parse would be a bug of dmt, it is written all the same and
 the fix error carries the parse error. A `--fix` run with any fix left open exits non-zero whatever the
