@@ -36,7 +36,7 @@ func Marshal(r Result) ([]byte, error) {
 		head.WriteString("#\n# Notes:\n")
 
 		for _, n := range r.Notes {
-			head.WriteString("# - " + n + "\n")
+			head.WriteString(commentLines("# - ", n))
 		}
 	}
 
@@ -44,7 +44,7 @@ func Marshal(r Result) ([]byte, error) {
 		head.WriteString("#\n# Not described by the declaration (stays hand-written, as it is):\n")
 
 		for _, u := range r.Unmanaged {
-			head.WriteString("# - " + u + "\n")
+			head.WriteString(commentLines("# - ", u))
 		}
 	}
 
@@ -62,4 +62,22 @@ func Marshal(r Result) ([]byte, error) {
 	}
 
 	return []byte(head.String() + body.String()), nil
+}
+
+// commentLines writes a note as comment lines: a template condition quoted in it may span lines,
+// and a line without # would be YAML.
+func commentLines(prefix, text string) string {
+	lines := strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
+
+	var b strings.Builder
+
+	for i, line := range lines {
+		if i == 0 {
+			b.WriteString(prefix + line + "\n")
+		} else {
+			b.WriteString("#   " + line + "\n")
+		}
+	}
+
+	return b.String()
 }

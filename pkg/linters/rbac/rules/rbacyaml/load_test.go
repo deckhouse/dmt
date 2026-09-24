@@ -18,6 +18,7 @@ package rbacyaml
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -364,6 +365,13 @@ resource: nodes
 scope: Namespaced
 noAccess: nobody`),
 			wantErr: `scope "Namespaced" disagrees with Kubernetes, which serves /nodes as "Cluster"`,
+		},
+		"regression hunt 2 B7: namespaces declared Namespaced on purpose": {
+			yaml: entry(`group: ""
+resource: namespaces
+scope: Namespaced
+namespace: {viewer: [get]}`),
+			wantErr: "",
 		},
 		"regression hunt B12: no dot in a resource name": {
 			yaml: entry(`group: external.io
@@ -735,4 +743,24 @@ serviceAccounts:
 	assert.Contains(t, got, `serviceAccounts[0] (Bad_Name): a ServiceAccount name is a lowercase DNS subdomain`)
 	assert.Contains(t, got, `serviceAccounts[0] (Bad_Name).clusterRules[0]: verbs holds an empty value`)
 	assert.Contains(t, got, `serviceAccounts[0] (Bad_Name).clusterRules[0]: resources holds an empty value`)
+}
+
+// A condition that parses but passes a function without its arguments fails when it renders; the
+// validator names it (regression hunt 2, B1).
+func TestValidateWhen_BareFunction(t *testing.T) {
+	check := func(when string) string {
+		var got []string
+
+		validateWhen(when, "x", func(format string, args ...any) { got = append(got, fmt.Sprintf(format, args...)) })
+
+		return strings.Join(got, "\n")
+	}
+
+	assert.Contains(t, check("and not (.Values.a) (.Values.b)"), "passes not to another function without its arguments")
+	assert.Contains(t, check("and (.Values.a) not (.Values.b)"), "passes not")
+	assert.Empty(t, check("and (not (.Values.a)) (.Values.b)"))
+	assert.Empty(t, check(`.Values.global.enabledModules | has "prometheus"`))
+	assert.Empty(t, check(`and .Values.a (not .Values.b)`))
+	assert.Empty(t, check(`include "helper" . | eq "true"`))
+	assert.Empty(t, check(`lt (now | unixEpoch) 0 | not`))
 }

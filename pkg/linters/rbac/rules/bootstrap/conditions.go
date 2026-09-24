@@ -25,8 +25,9 @@ import (
 // cannot show, because it only holds what rendered for the linter's values.
 type Doc struct {
 	// Kind, Name and Namespace are the literal values of the document; Name is empty when the
-	// template computes it.
+	// template computes it, and NamePattern then matches the names it can produce.
 	Kind, Name, Namespace string
+	NamePattern           *regexp.Regexp
 	// Library marks a document without an object of its own that includes a named template: the
 	// objects it renders come from helm_lib or another chart.
 	Library bool
@@ -40,12 +41,14 @@ type Doc struct {
 
 var (
 	docSeparatorRe = regexp.MustCompile(`(?m)^---[ \t]*(#.*)?$`)
-	actionRe       = regexp.MustCompile(`(?s)\{\{-?(.*?)-?\}\}`)
-	docKindRe      = regexp.MustCompile(`(?m)^kind:[ \t]*(\S+)[ \t]*$`)
-	docMetadataRe  = regexp.MustCompile(`(?m)^metadata:[ \t]*$`)
-	docFieldRe     = regexp.MustCompile(`^  (name|namespace):[ \t]*(.+?)[ \t]*$`)
-	includeRe      = regexp.MustCompile(`\{\{-?\s*(include|template)\s+"`)
-	variableRe     = regexp.MustCompile(`\$[A-Za-z_]`)
+	// An action ends at the first }} outside a quoted or raw string.
+	actionRe      = regexp.MustCompile("(?s)\\{\\{-?((?:[^\"`}]|\"(?:[^\"\\\\]|\\\\.)*\"|`[^`]*`|\\}[^}])*?)-?\\}\\}")
+	commentRe     = regexp.MustCompile(`(?s)\{\{-?\s*/\*.*?\*/\s*-?\}\}`)
+	docKindRe     = regexp.MustCompile(`(?m)^kind:[ \t]*["']?([A-Za-z]+)["']?[ \t]*(#.*)?$`)
+	docMetadataRe = regexp.MustCompile(`(?m)^metadata:[ \t]*$`)
+	docFieldRe    = regexp.MustCompile(`^  (name|namespace):[ \t]*(.+?)[ \t]*$`)
+	includeRe     = regexp.MustCompile(`\{\{-?\s*(include|template)\s+"`)
+	variableRe    = regexp.MustCompile(`\$[A-Za-z_]`)
 )
 
 // frame is an open template block. For an if, cur is the condition of the branch being read and
@@ -67,6 +70,18 @@ type action struct {
 // template engine: what it cannot follow ends up as Unmanageable or as a TODO in the declaration.
 func TemplateDocs(text string) []Doc {
 	text = strings.ReplaceAll(text, "\r\n", "\n")
+
+	// A comment is neither a block nor a document: a commented-out object renders nothing. Blank
+	// it, keeping the offsets.
+	text = commentRe.ReplaceAllStringFunc(text, func(c string) string {
+		return strings.Map(func(r rune) rune {
+			if r == '\n' {
+				return r
+			}
+
+			return ' '
+		}, c)
+	})
 
 	actions := templateActions(text)
 
@@ -100,7 +115,9 @@ func TemplateDocs(text string) []Doc {
 		}
 
 		if d.Kind == "" {
-			if includeRe.MatchString(doc) && strings.TrimSpace(actionRe.ReplaceAllString(doc, "")) == "" {
+			// A document with no object of its own that includes a named template renders what the
+			// template holds: helm_lib's objects, typically, whatever comments sit beside it.
+			if includeRe.MatchString(doc) {
 				d.Library = true
 				d.When, d.Unmanageable = conditionOf(stack)
 				out = append(out, d)
@@ -114,12 +131,22 @@ func TemplateDocs(text string) []Doc {
 			continue
 		}
 
-		d.Name, d.Namespace = metadataOf(doc)
+		d.Name, d.Namespace, d.NamePattern = metadataOf(doc)
 		d.When, d.Unmanageable = conditionOf(stack)
 
+		// A block that opens and closes inside the object gates part of it; one that opens here
+		// and stays open belongs to the documents after it.
+		opened := 0
+
 		for next < len(actions) && actions[next].offset < docEnd {
-			if w := actions[next].words; len(w) > 0 && (w[0] == "if" || w[0] == "range" || w[0] == "with") {
-				d.Partial = true
+			if w := actions[next].words; len(w) > 0 {
+				switch {
+				case w[0] == "if" || w[0] == "range" || w[0] == "with":
+					opened++
+				case w[0] == "end" && opened > 0:
+					opened--
+					d.Partial = true
+				}
 			}
 
 			stack = apply(stack, actions[next])
@@ -205,11 +232,11 @@ func conditionOf(stack []frame) (string, string) {
 		}
 
 		for _, p := range f.prior {
-			parts = append(parts, "not ("+unwrap(p)+")")
+			parts = append(parts, "not ("+unwrap(oneLine(p))+")")
 		}
 
 		if f.cur != "" {
-			parts = append(parts, f.cur)
+			parts = append(parts, oneLine(f.cur))
 		}
 	}
 
@@ -221,30 +248,38 @@ func conditionOf(stack []frame) (string, string) {
 	case 1:
 		when = parts[0]
 	default:
+		// Every argument of and is parenthesized, a negation too: `and not (a) (b)` parses, yet
+		// passes not as a value and fails when it renders.
 		for i, p := range parts {
-			if !strings.HasPrefix(p, "not (") {
-				parts[i] = "(" + unwrap(p) + ")"
-			}
+			parts[i] = "(" + unwrap(p) + ")"
 		}
 
 		when = "and " + strings.Join(parts, " ")
 	}
 
 	// A variable of the template does not exist where the generator writes the condition.
-	if variableRe.MatchString(when) || strings.Contains(when, "{{") || strings.Contains(when, "}}") {
+	if variableRe.MatchString(when) {
 		return "TODO: " + when + " -- the template condition uses a variable of the template; write it against the root values", ""
+	}
+
+	// The declaration's `when` holds no delimiter: the generator writes it inside {{ if }}.
+	if strings.Contains(when, "{{") || strings.Contains(when, "}}") {
+		return "TODO: " + when + " -- the template condition holds a template delimiter, which `when` cannot; rewrite it without one", ""
 	}
 
 	return when, ""
 }
 
-func metadataOf(doc string) (string, string) {
+func metadataOf(doc string) (string, string, *regexp.Regexp) {
 	m := docMetadataRe.FindStringIndex(doc)
 	if m == nil {
-		return "", ""
+		return "", "", nil
 	}
 
-	var name, namespace string
+	var (
+		name, namespace string
+		pattern         *regexp.Regexp
+	)
 
 	for _, line := range strings.Split(doc[m[1]:], "\n")[1:] {
 		if !strings.HasPrefix(line, "  ") {
@@ -256,20 +291,56 @@ func metadataOf(doc string) (string, string) {
 			continue
 		}
 
-		value := strings.Trim(f[2], `"'`)
-		if strings.Contains(value, "{{") {
-			value = ""
+		value := f[2]
+		if !strings.Contains(value, "{{") {
+			if i := strings.Index(value, " #"); i >= 0 {
+				value = strings.TrimSpace(value[:i])
+			}
 		}
 
+		value = strings.Trim(value, `"'`)
+
 		switch {
-		case f[1] == "name" && name == "":
-			name = value
+		case f[1] == "name" && name == "" && pattern == nil:
+			if strings.Contains(value, "{{") {
+				pattern = namePattern(value)
+			} else {
+				name = value
+			}
 		case f[1] == "namespace" && namespace == "":
-			namespace = value
+			if !strings.Contains(value, "{{") {
+				namespace = value
+			}
 		}
 	}
 
-	return name, namespace
+	return name, namespace, pattern
+}
+
+// namePattern matches the names a templated name can produce: its literal parts in place, any
+// text for each action.
+func namePattern(value string) *regexp.Regexp {
+	var b strings.Builder
+
+	b.WriteString("^")
+
+	last := 0
+	for _, m := range actionRe.FindAllStringIndex(value, -1) {
+		b.WriteString(regexp.QuoteMeta(value[last:m[0]]))
+		b.WriteString(".*")
+
+		last = m[1]
+	}
+
+	b.WriteString(regexp.QuoteMeta(value[last:]))
+	b.WriteString("$")
+
+	return regexp.MustCompile(b.String())
+}
+
+// oneLine joins a condition written over several lines: the declaration holds it on one.
+func oneLine(expr string) string {
+	return strings.Join(strings.Fields(expr), " ")
 }
 
 // Locate finds the document of a rendered object among the documents of its template. An object
@@ -279,14 +350,15 @@ func Locate(docs []Doc, o Object) (Doc, bool) {
 	var byName, templated []Doc
 
 	for _, d := range docs {
-		if d.Kind != o.Kind {
+		// A namespace the text names must be the object's.
+		if d.Kind != o.Kind || (d.Namespace != "" && o.Namespace != "" && d.Namespace != o.Namespace) {
 			continue
 		}
 
-		switch d.Name {
-		case o.Name:
+		switch {
+		case d.Name != "" && d.Name == o.Name:
 			byName = append(byName, d)
-		case "":
+		case d.Name == "" && (d.NamePattern == nil || d.NamePattern.MatchString(o.Name)):
 			templated = append(templated, d)
 		}
 	}
