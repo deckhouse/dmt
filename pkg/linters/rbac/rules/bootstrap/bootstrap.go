@@ -290,6 +290,8 @@ func (b *builder) templateBlocks() {
 			b.mark(o)
 		case o.Partial:
 			b.note("%s %s (%s) has a template block inside it: part of it depends on the values, and the declaration holds what rendered with the linter's values -- put `when` on the rules the block gates", o.Kind, o.Name, o.Path)
+		case !o.Located && o.Path != "":
+			b.note("%s %s (%s) was not found in the text of its template, so whether it renders under a condition is unknown; the declaration writes it unconditionally -- add `when` if the template has one", o.Kind, o.Name, o.Path)
 		}
 	}
 }
@@ -457,6 +459,8 @@ func (b *builder) serviceAccounts() {
 
 		if b.ns(sa) != b.in.Namespace {
 			b.unmanage(sa, "outside the module namespace")
+			b.mark(sa)
+
 			continue
 		}
 

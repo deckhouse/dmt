@@ -1312,6 +1312,12 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 				return fmt.Errorf("render %s: %w", rbacyaml.Filename, err)
 			}
 
+			// A file that does not parse would stay on disk and stop every later bootstrap: the
+			// rule only writes a declaration that is missing.
+			if _, err := rbacyaml.Parse(content); err != nil {
+				return fmt.Errorf("%s is not written: the declaration bootstrap produced does not parse (%w); this is a bug of dmt, report it with the module", rbacyaml.Filename, err)
+			}
+
 			if err := writeFileAtomic(path, content, 0o644); err != nil { //nolint:gosec // a source file of the module
 				return err
 			}
@@ -1777,6 +1783,15 @@ func manualFix(what string) errors.AutofixFunc {
 // locateInTemplate reads the template blocks around a rendered object from its template's text:
 // the render only holds what rendered for the linter's values, the text holds the conditions.
 func locateInTemplate(modulePath string, o *bootstrap.Object, cache map[string][]bootstrap.Doc) {
+	// A subchart's template is written against the subchart's values, and the generator writes
+	// the module's own templates: the declaration has no place for its objects.
+	if strings.HasPrefix(o.Path, "charts/") {
+		o.Located = true
+		o.Unmanageable = "rendered by the subchart " + strings.SplitN(o.Path, "/", 3)[1] + ", whose templates and values are its own"
+
+		return
+	}
+
 	docs, ok := cache[o.Path]
 	if !ok {
 		if content, err := os.ReadFile(filepath.Join(modulePath, o.Path)); err == nil {
