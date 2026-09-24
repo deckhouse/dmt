@@ -1423,8 +1423,11 @@ capabilities:
 serviceAccounts:
   - name: cainjector
     path: cainjector                # templates/cainjector/rbac-for-us.yaml; omitted -> templates/rbac-for-us.yaml
+                                    # a nested path a/b names the account a-b or <module>-a-b (placement rule)
     when: .Values.certManager.internal.enableCAInjector
     labels: {app: cainjector}
+    annotations: {helm.sh/resource-policy: keep}    # on the ServiceAccount
+    rbacAnnotations: {werf.io/deploy-on: pre-install} # on every role and binding of the account
     clusterRules:                   # ClusterRole d8:<module>:<name> + ClusterRoleBinding
       - apiGroups: [cert-manager.io]
         resources: [certificates]
@@ -1446,10 +1449,11 @@ prometheusAccess:
   deployments: [cert-manager]
   when: .Values.global.enabledModules | has "prometheus"
 
-# Arbitrary subjects: clusterRules -> templates/[<path>/]rbac-for-us.yaml, namespaceRules -> templates/rbac-to-us.yaml
-# (namespaceRules with a path are refused: the placement rule wants access-to-<dir>- names there)
+# Arbitrary subjects: clusterRules -> templates/[<path>/]rbac-for-us.yaml, namespaceRules -> templates/[<path>/]rbac-to-us.yaml
 access:
   - name: admin-kubeconfig
+    when: .Values.certManager.adminKubeconfig   # optional; wraps the role and the binding, as for an account
+    labels: {app: cert-manager}                 # optional, on the role and the binding; annotations likewise
     subjects:
       - kind: Group
         name: kubeadm:cluster-admins
@@ -1466,12 +1470,13 @@ Format rules the loader enforces:
 - No value holds `{{` or `}}`: the generator writes the values into Helm templates as they are, and a `when` is the condition only.
 - `legacy.SuperAdmin` validates but is a warning: user-authz aggregates custom legacy roles for `User` through `ClusterAdmin` only.
 - `prometheusAccess.when` gates the RoleBinding of the Prometheus scraper (typically `.Values.global.enabledModules | has "prometheus"`); the Role stays unconditional.
-- Messages name a resource entry by its index in the file as written (`resources[3]`), although the entries are compared in sorted order.
 - Levels: `namespace` -- `viewer`, `user`, `manager`, `admin`, `superadmin`; `system` -- `viewer`, `manager`, `superadmin`; `legacy` -- `User`, `PrivilegedUser`, `Editor`, `Admin`, `ClusterEditor`, `ClusterAdmin`, `SuperAdmin`.
 - `namespace` levels are allowed only for `Namespaced` resources; a `Namespaced` resource at a `system` level needs a `reason`.
-- `scope` is required for a resource the module ships no CRD for, and must agree with the CRD when the module ships one. `resource: "*"` is allowed only for a group without CRDs in the module and needs a `reason`.
+- `scope` is required for a resource the module ships no CRD for, and must agree with the CRD when the module ships one, or with Kubernetes for a built-in resource (`nodes` is `Cluster`). `resource: "*"` and `resource: "*/<subresource>"` are allowed only for a group without CRDs in the module and need a `reason`. A resource is a lowercase plural without dots.
 - `noAccess` is a non-empty reason and excludes the levels. `noAccess: "TODO"` is the stub the coverage autofix writes; it is not a decision. Any `noAccess`, `reason` or `scope` value that starts with `TODO` is an open decision: `coverage` reports it, and a `--fix` run that meets one exits non-zero.
-- A capability outside the view/edit convention (`admin`, `user`, `superadmin`) needs `capabilities.<lineage>.<level>` texts in both languages.
+- A capability outside the view/edit convention (`admin`, `user`, `superadmin`) needs `capabilities.<lineage>.<level>` texts in both languages; texts for a level no entry grants are an error (a typo in the key, or a removed entry).
+- A ServiceAccount name is a DNS subdomain; label and annotation keys are qualified names, and `rbac.deckhouse.io/*` and `meta.helm.sh/*` annotations are not the declaration's. A rule holds no empty verb, resource, resource name or URL.
+- Messages name a resource entry by its index in the file as written (`resources[3]`), although the entries are compared in sorted order.
 
 What the generator produces from it (level `viewer` -> capability `view`, `manager` -> `edit`, the rest as they are):
 
@@ -1482,7 +1487,11 @@ What the generator produces from it (level `viewer` -> capability `view`, `manag
 | `resources[].legacy.<Level>` | `templates/user-authz-cluster-roles.yaml` | ClusterRole `d8:user-authz:<module>:<kebab-level>` with the `user-authz.deckhouse.io/access-level` annotation |
 | `serviceAccounts[]` | `templates/[<path>/]rbac-for-us.yaml` | ServiceAccount, ClusterRole/ClusterRoleBinding `d8:<module>:<name>`, Role/RoleBinding `<name>`, the extra bindings |
 | `access[]` with `clusterRules` | `templates/rbac-for-us.yaml` | ClusterRole/ClusterRoleBinding `d8:<module>:<name>` |
-| `prometheusAccess`, `access[]` with `namespaceRules` | `templates/rbac-to-us.yaml` | Role/RoleBinding `access-to-<module>[-<name>]` |
+| `prometheusAccess`, `access[]` with `namespaceRules` | `templates/[<path>/]rbac-to-us.yaml` | Role/RoleBinding `access-to-<module>[-<name>]`; with `path` `access-to-<path, / as ->-<name>`, as the placement rule wants |
+
+Every object gets the `rbac.deckhouse.io/namespace` label of the module namespace unless that namespace is
+`default`: user-authz projects the module's use roles by it, and `kube-system` is a module namespace as
+any `d8-*` one.
 
 Every generated file starts with a header line naming the generator and the contract version. A file
 without that header is maintained by hand and is never overwritten.
@@ -1537,7 +1546,9 @@ global:
       rules:
         contract: {impact: error}  # the level of this rule alone; unset it starts at warn, and the four original rules keep the linter level
 
-# module .dmtlint.yaml
+# module .dmtlint.yaml -- global: is read from the root only; a module file that sets
+# global.linters-settings.rbac is refused rather than ignored. Linting one module directory
+# (dmt lint modules/<m>) makes its own .dmtlint.yaml the root, as for every dmt setting.
 linters-settings:
   rbac:
     exclude-rules:
@@ -1564,7 +1575,7 @@ Runs only when the module has an `rbac.yaml`. Reads the CRDs under `crds/` at an
 
 1. Every CRD (`spec.group` / `spec.names.plural`) has an entry in `resources` that grants levels or denies access with a reason -- **error**, with an autofix.
 2. An entry left as `noAccess: "TODO"` -- **error**, no autofix: only a person can decide.
-3. An entry naming a group the module ships CRDs for, but a resource none of them spells -- **warning** (a likely misspelling). Whole-group (`"*"`) and subresource (`/`) entries are exempt.
+3. An entry naming a group the module ships CRDs for, but a resource none of them spells, one or two letters away from one that is -- **warning** (a likely misspelling). A resource further away is another module's CRD in a shared group (`deckhouse.io`). Whole-group (`"*"`) and subresource (`/`) entries are exempt.
 4. A `noAccess` entry of a group the module ships no CRD for, without a `scope` -- **warning**: a removed CRD is indistinguishable from an external resource nobody grants. Add `scope` to say the resource is external, or drop the entry if its CRD is gone.
 
 **Autofix:** appends an undecided stub for each CRD without an entry --
@@ -1619,21 +1630,35 @@ with a `TODO` wherever a decision is still theirs (a resource without a CRD whos
 cannot know, a CRD nobody grants, a namespaced resource granted cluster-wide) and a note on top for
 every object the generator will name differently or cannot describe. An entry whose CRD is in `crds/`
 carries no `scope`: the CRD states it; an external resource whose scope is not known gets
-`scope: "TODO: Namespaced or Cluster"`. A grant limited to `resourceNames` is never widened to every
+`scope: "TODO: Namespaced or Cluster (Cluster drops the namespace levels)"`. A grant limited to `resourceNames` is never widened to every
 object: it is left out and named in a note. A role granting `*` verbs or API groups, which the format
-refuses, is listed as hand-written with the reason, and so are objects a helm_lib include renders
-(its legacy roles and capabilities aside, which sync owns whatever renders them), objects inside a
-`{{ range }}`, objects of the module in a file that also holds what a helm_lib include renders (the
-generator writes the whole file, so it could never regenerate it) and roles without rules. The render shows neither the conditions around an object nor
-labels and annotations the format has no field for: a note names, per object, the labels and
-annotations a regeneration would drop. Under `--matrix` an object only some variants rendered stays
-hand-written where the declaration has no `when` for it (access entries, the scrape access), an
-account with such objects gets a `TODO` `when`, and a legacy role or a capability a `TODO` reason on the
-resources it grants, so the run stays red until someone decides. The fix that writes the file keeps the finding
-while a `TODO` is left in it or while the linter would refuse the written file (both are named in the
-fix error); a written file that does not parse would be a bug of dmt, it is written all the same and
-the fix error carries the parse error. A `--fix` run with any fix left open exits non-zero whatever the
-level of its finding. Nothing is written into an edition overlay. Review
+refuses, is listed as hand-written with the reason.
+
+The render only holds what rendered for the linter's values, so the importer also reads the template
+text around each object, with `text/template/parse`. An object wrapped in `{{ if X }}` gets `when: X`
+(an `{{ else }}` branch `not (X)`, nested blocks an `and`); a condition that uses a template variable
+becomes a `TODO`, and so does an account or access entry whose role and binding render under
+different conditions. An object inside `{{ range }}`, `{{ with }}` or `{{ define }}`, one rendered by
+an include of a named template (`helm_lib_*`), and a role without rules stay hand-written; a legacy role
+or a capability a library renders is imported all the same, since sync owns those whatever renders
+them. A legacy role or a capability under a condition gets a `TODO` reason: `resources[]` have no
+`when`, so the regenerated role would render for every value. An object the text holds under a
+condition false for these values is in no render: the header names it -- a document with a computed
+name as the kind and the pattern of its name -- and the fix fails, so the regeneration does not drop it
+in silence. A block inside an object -- a rule under its own `{{ if }}` -- is noted. The Prometheus
+scrape binding keeps its gate as `prometheusAccess.when`. A note names the labels and annotations of a
+legacy role or a capability the regeneration would drop. Under `--matrix` an object only some variants
+rendered whose condition the text did not give stays hand-written where the declaration has no `when`
+for it (access entries, the scrape access), an account with such objects gets a `TODO` `when`, and a
+legacy role or a capability a `TODO` reason on the resources it grants. An object of the module in a
+file that also holds a document a helm_lib include renders stays hand-written: the generator writes
+the whole file.
+
+The fix that writes the file keeps the finding while a `TODO` is left in it or while the linter would
+refuse the written file (both are named in the fix error); a written file that does not parse would be a
+bug of dmt, it is written all the same and the fix error carries the parse error. A `--fix` run with any
+fix left open exits non-zero whatever the level of its finding. Nothing is written into an edition
+overlay. Review
 it, resolve the TODOs, then run `--fix` again to regenerate the templates from it. From then on
 `rbac.yaml` is the source.
 
@@ -1653,25 +1678,23 @@ controller ClusterRoles with arbitrary names, objects with Helm-computed names).
 **What it checks:**
 
 1. Every declared object is in the render (unless it is under a `when` that is false in this render: when another object of the file under the same `when` rendered, the condition holds, and an absent one is a divergence), and every rule of it: rules are compared as `(apiGroup, resource, resourceName, verb)` tuples, in both directions. A rule under `when` that did not render is not a divergence; a rule without `when` hidden behind a hand-written `{{ if }}` is.
-2. A capability's aggregation edges (`aggregate-to-<lineage>-as`) match in both directions: rules may agree while a lineage is lost. Its `rbac.deckhouse.io/capability` marker, `module` and `rbac.deckhouse.io/namespace` labels are what the generator writes.
-3. A binding's `roleRef` and subjects match.
-4. Every rendered legacy role and module capability is produced by the declaration.
-5. A file the declaration produces that does not exist while an object it holds is absent from the render is a divergence, whether or not the object is under `when`: the render cannot tell a false condition from a template nobody wrote, the text can. A file that carries the generator header is the generator's, and its text must be what the declaration renders now: a rule under `when` whose condition is false today is absent from the render without being a divergence, yet it still has to reach the template, so for generator-owned files the text is compared too. A file of another contract version is the same case. Remove the header to maintain a file by hand; then only its render is judged.
+2. The labels and annotations of an object written from `serviceAccounts`, `access` or `prometheusAccess` match the declaration's (`labels`, `annotations`, `rbacAnnotations`): a `helm.sh/resource-policy: keep` or an aggregation label the declaration does not carry would be lost by the next regeneration. `heritage` and `module` (written by `helm_lib_module_labels`), Helm's `meta.helm.sh/*` and the generator's `rbac.deckhouse.io/*` annotations are not compared. A ServiceAccount subject without a namespace is read in the namespace of its RoleBinding, as Kubernetes does.
+3. A capability's aggregation edges (`aggregate-to-<lineage>-as`) match in both directions: rules may agree while a lineage is lost. Its `rbac.deckhouse.io/capability` marker, `module` and `rbac.deckhouse.io/namespace` labels are what the generator writes.
+4. A binding's `roleRef` and subjects match.
+5. Every rendered legacy role and module capability is produced by the declaration.
+6. A file the declaration produces that does not exist while an object it holds is absent from the render is a divergence, whether or not the object is under `when`: the render cannot tell a false condition from a template nobody wrote, the text can. A file that carries the generator header is the generator's, and its text must be what the declaration renders now: a rule under `when` whose condition is false today is absent from the render without being a divergence, yet it still has to reach the template, so for generator-owned files the text is compared too. A file of another contract version is the same case. Remove the header to maintain a file by hand; then only its render is judged.
 
 Findings are one per template file and carry the fix command; the text does not depend on the render variant.
-A declaration that does not parse or validate, one the generator cannot turn into objects, a broken
-`module.yaml`, a declaration in an edition overlay, a template that failed to render and a file only a
-person can close stop the rule or the file; their fix fails, so `--fix` exits non-zero instead of
-reporting a run that generated nothing. A ServiceAccount subject without a namespace is read in the
-namespace of its RoleBinding, as Kubernetes does. A role without rules grants nothing: the finding says
-the regeneration drops it.
+A declaration that does not parse or validate, one the generator cannot turn into objects (an account
+named against the placement rule), a broken `module.yaml` and a declaration in an edition overlay stop
+the rule; their fix fails, so `--fix` exits non-zero instead of reporting a run that generated nothing.
 
 **Autofix:** regenerates the file from `rbac.yaml`. The declaration is the source of truth: a right it
 no longer names leaves the template; the finding that led there listed it, and the autofix logs what it
-removed (and, apart from that, what it added), so a `--fix` run without a preceding `dmt lint` does not remove rights in silence. Three things are never
+removed, so a `--fix` run without a preceding `dmt lint` does not remove rights in silence. Three things are never
 written over --
 
-- a file that also holds objects of someone else -- a controller ClusterRole beside a declared ServiceAccount, a hand-written binding, a ConfigMap or a Secret -- is never rewritten, because the generator writes the whole file and they would vanish (and so they would if the file were deleted); the refusal names them: declare them (`extraClusterRoles`, `access` with `path` and `clusterRules`) or move them first. A generated file lists under its header, one `# dmt:owns <object>` line each, what the generator wrote into it (contract 2); an owned object the declaration no longer produces -- a legacy level dropped, a ServiceAccount removed -- is a removal, named in the finding and in the log, and everything else in the file is someone else's. The fix does not move objects between files: an object the declaration now puts in another file is refused in the file it renders from ("move it by hand, or delete this file"), and the target is not written while the object still renders elsewhere, so nothing is lost or rendered twice. An object the generator writes under a new name is a different object: until the old copy is deleted from its template both render, and the finding on the old copy says so when a binding grants it to the subjects the declaration grants its successor to. Besides the render, the fix reads the objects of a generated file from its text, so an object under a condition that is false for these values -- a hand-added ConfigMap, an account moved elsewhere -- is judged too. In a file without the list (contract 1, or hand-written), a legacy role or a module capability the declaration does not produce is a removal too; any other object is refused, whatever its name. To drop an account or an access entry from a contract 1 file, run `--fix` once with the declaration unchanged -- that writes contract 2 -- and drop it then. An object the generator produces under another name -- a binding with the same roleRef and subjects, a role with the same rules, while the new name is not rendered yet -- is replaced, not foreign;
+- a file that also holds objects of someone else -- a controller ClusterRole beside a declared ServiceAccount, a hand-written binding, a ConfigMap or a Secret -- is never rewritten, because the generator writes the whole file and they would vanish (and so they would if the file were deleted); the refusal names them: declare them (`extraClusterRoles`, `access` with `path`) or move them first. A generated file lists under its header, one `# dmt:owns <object>` line each, what the generator wrote into it (contract 2); an owned object the declaration no longer produces -- a legacy level dropped, a ServiceAccount removed -- is a removal, named in the finding and in the log, and everything else in the file is someone else's. The fix does not move objects between files: an object the declaration now puts in another file is refused in the file it renders from ("move it by hand, or delete this file"), and the target is not written while the object still renders elsewhere, so nothing is lost or rendered twice. An object the generator writes under a new name is a different object: until the old copy is deleted from its template both render, and the finding on the old copy says so when a binding grants it to the subjects the declaration grants its successor to. Besides the render, the fix reads the objects of a generated file from its text, so an object under a condition that is false for these values -- a hand-added ConfigMap, an account moved elsewhere -- is judged too. In a file without the list (contract 1, or hand-written), a legacy role or a module capability the declaration does not produce is a removal too; any other object is refused, whatever its name. To drop an account or an access entry from a contract 1 file, run `--fix` once with the declaration unchanged -- that writes contract 2 -- and drop it then. An object the generator produces under another name -- a binding with the same roleRef and subjects, a role with the same rules, while the new name is not rendered yet -- is replaced, not foreign;
 - a file without the generator header is maintained by hand: the generated text is written beside it as `_<file>.generated` (the underscore keeps Helm from rendering the copy) and the finding stays (delete the file and run `--fix` again to hand it back to the generator);
 - a template that serves both role models behind the version gate (`rbacv2_new_scheme`) is never regenerated: the legacy branch would vanish;
 
@@ -1719,7 +1742,7 @@ configuration error.
 - An account of a component directory in `default` or `kube-system` cannot be declared yet: the placement rule wants it named `d8-<module>-<dir>` there, and the generator accepts `<dir>` and, in a namespace of the platform, `<module>-<dir>` only. Bootstrap names the problem in the written file; the account stays hand-written until the two rules agree (control-plane-manager, vertical-pod-autoscaler).
 - **The three states a module can be in when the new `dmt` first runs.** *Only the legacy scheme* (an external module not yet migrated): `contract` reports one "migrate" finding per object; with an `rbac.yaml`, `sync` reports the generated files as absent and names the cause -- the template renders the legacy scheme -- and `--fix` leaves the legacy file alone (no generator header) with the generated version beside it. *Only the 1.78 scheme*: the ordinary case described above. *Both schemes behind the version gate* (`rbacv2-migrate-module.sh` without `--replace`): the linter's values answer the gate with the 1.78 model, so `contract` and `sync` see exactly the new objects and the legacy branch is neither judged nor "extra"; `--fix` never rewrites a gated file -- regenerating it would drop the legacy branch -- and says so. The legacy branch itself is exercised with `dmt lint --values-file` setting `global.deckhouseVersion` below 1.78; `--matrix` varies module values only, not the platform version.
 - The declaration is one per module and describes the union of editions. Linting a single edition directory shows the edition-only objects as absent; lint the merged tree as CI does. An `rbac.yaml` inside an edition overlay (`ee/be/modules`, `ee/se-plus/modules`, ..., and `ee/modules` for a module that also exists in `modules/`) is an error: CI merges the overlays over `modules/` before linting, so a copy there would shadow the base one or go unseen. A module that has no base elsewhere -- EE-only in `ee/modules/<module>`, or living in one edition directory only such as `ee/be/modules/350-node-local-dns` -- has its base there.
-- The generator refuses what the declaration alone cannot know is wrong: system levels on a module whose `module.yaml` names no `subsystems` (set `subsystems` in `rbac.yaml`); an account in a component directory named unlike it (the placement rule wants `<dir>` or `<module>-<dir>`) or in a nested directory; a capability marker past 63 characters (a module name of 32 characters and up with a `superadmin` level).
+- The generator refuses what the declaration alone cannot know is wrong: system levels on a module whose `module.yaml` names no `subsystems` (set `subsystems` in `rbac.yaml`); an account in a component directory named unlike it (the placement rule wants `<dir>`, with `/` as `-` for a nested directory, or `<module>-<dir>` in a namespace of the platform such as `d8-system`). The objects of an account at `a/b` follow the placement rule too: its Role and RoleBinding are `a:b`, its bindings in other namespaces `d8:<module>:a:b:<role>`; a capability marker past 63 characters (a module name of 32 characters and up with a `superadmin` level).
 - Built-in Kubernetes resources (`""`/configmaps, `apps`/deployments, `rbac.authorization.k8s.io`/clusterroles, ...) need no `scope`: the validator knows them. Anything else without a CRD in the module declares its scope.
 - An `rbac.yaml` of the earlier, never consumed shape (no `apiVersion`) is named for what it is: delete it and run `--fix` to write the declaration from the render.
 - Under `--matrix` the first declaration is written from the union of every variant's render; objects rendered only under values other than the defaults are still invisible to a default run, so lint with `--values-file` before the first regeneration if the module has such templates.

@@ -55,6 +55,24 @@ func NewLoader(cfg any, dir string) *Loader {
 	}
 }
 
+// ConfigFileUsed is the .dmtlint.yaml the loader read; empty when none was found.
+func (l *Loader) ConfigFileUsed() string {
+	return l.viper.ConfigFileUsed()
+}
+
+// RefuseRootOnlyKeys refuses, in a module's own .dmtlint.yaml, the keys only the root
+// configuration sets. Per-rule levels of the rbac rules are read from the root only (ADR, module
+// rbac.yaml); in a module's file they would be dropped without a word and the rule would keep its
+// level. rootFile is the root configuration's file; the same file is the root, not a module's.
+func (l *Loader) RefuseRootOnlyKeys(rootFile string) error {
+	used := l.viper.ConfigFileUsed()
+	if used == "" || used == rootFile || !l.viper.IsSet("global.linters-settings.rbac") {
+		return nil
+	}
+
+	return fmt.Errorf("%s sets global.linters-settings.rbac, which only the root .dmtlint.yaml sets; move it there, or use linters-settings.rbac for this module", used)
+}
+
 func (l *Loader) Load() error {
 	err := l.setConfigFile()
 	if err != nil {
