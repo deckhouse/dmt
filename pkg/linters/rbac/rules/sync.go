@@ -1604,8 +1604,12 @@ func (r *SyncRule) replacedCopies(model *generate.Model, actual map[string]manag
 		rendered[index.AsString()] = struct{}{}
 	}
 
-	var all []generate.Object
+	n := 0
+	for _, f := range model.Files {
+		n += len(f.Objects)
+	}
 
+	all := make([]generate.Object, 0, n)
 	for _, f := range model.Files {
 		all = append(all, f.Objects...)
 	}
