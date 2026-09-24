@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -52,6 +53,8 @@ var fixState = struct {
 	// rendered each object: under --matrix an object seen in fewer renders only under some values.
 	variants map[string]int
 	seen     map[string]map[string]int
+	// in names, per object, the variants that rendered it (review of #479, finding 52).
+	in map[string]map[string]string
 }{
 	foreign:   map[string]map[string]struct{}{},
 	removals:  map[string]map[string]struct{}{},
@@ -60,6 +63,7 @@ var fixState = struct {
 	bootstrap: map[string]map[string]bootstrap.Object{},
 	variants:  map[string]int{},
 	seen:      map[string]map[string]int{},
+	in:        map[string]map[string]string{},
 }
 
 // fixOutcomes remembers the result of every fix that ran, by file. It has a lock of its own, held
@@ -132,6 +136,7 @@ func resetFixState() {
 	fixState.bootstrap = map[string]map[string]bootstrap.Object{}
 	fixState.variants = map[string]int{}
 	fixState.seen = map[string]map[string]int{}
+	fixState.in = map[string]map[string]string{}
 
 	fixOutcomes.Lock()
 	defer fixOutcomes.Unlock()
@@ -154,12 +159,14 @@ func recordBootstrapObjects(path string, objects []bootstrap.Object) {
 	fixState.variants[path]++
 	if fixState.seen[path] == nil {
 		fixState.seen[path] = map[string]int{}
+		fixState.in[path] = map[string]string{}
 	}
 
 	for _, o := range objects {
 		key := o.Kind + "/" + o.Namespace + "/" + o.Name
 		known[key] = o
 		fixState.seen[path][key]++
+		fixState.in[path][key] += fmt.Sprintf("%d,", fixState.variants[path])
 	}
 }
 
@@ -391,6 +398,24 @@ func bootstrapPartialOf(path string) []string {
 	}
 
 	sort.Strings(out)
+
+	return out
+}
+
+// bootstrapVariantsOf names, per object (Kind/namespace/name), the render variants that rendered
+// it; empty without --matrix.
+func bootstrapVariantsOf(path string) map[string]string {
+	fixState.Lock()
+	defer fixState.Unlock()
+
+	if fixState.variants[path] < 2 {
+		return nil
+	}
+
+	out := make(map[string]string, len(fixState.in[path]))
+	for key, in := range fixState.in[path] {
+		out[key] = in
+	}
 
 	return out
 }

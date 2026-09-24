@@ -1324,6 +1324,7 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 			in.Objects = bootstrapObjectsOf(path)
 			markLibraryFiles(in.Objects)
 			in.Partial = bootstrapPartialOf(path)
+			in.Variants = bootstrapVariantsOf(path)
 			result := bootstrap.Build(in)
 
 			content, err := bootstrap.Marshal(result)

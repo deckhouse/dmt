@@ -581,7 +581,7 @@ func TestBuild_PartialObjectBesideDeclaredOnes(t *testing.T) {
 	}, Partial: []string{"ClusterRoleBinding//d8:m:supplement"}})
 
 	notes := strings.Join(got.Notes, "\n")
-	assert.Contains(t, notes, "ClusterRoleBinding d8:m:supplement stays hand-written in templates/rbac-for-us.yaml, which the declaration also writes: move it to a file of its own")
+	assert.Contains(t, notes, "ClusterRoleBinding d8:m:supplement stays hand-written in templates/rbac-for-us.yaml, which the declaration also writes: move it to the rbac-for-us.yaml of another component directory")
 	assert.Contains(t, notes, "ClusterRole d8:m:supplement stays hand-written in templates/rbac-for-us.yaml")
 }
 
@@ -618,4 +618,59 @@ func TestBuild_PartialObjectOfAnAlwaysRenderedAccount(t *testing.T) {
 
 	require.Len(t, got.Decl.ServiceAccounts, 1)
 	assert.Contains(t, got.Decl.ServiceAccounts[0].When, "the account always")
+}
+
+// A Role two accounts bind is neither account's own: it is not absorbed into one account's
+// namespaceRules, whatever order the accounts come in, and the hand-written binding of the other
+// keeps pointing at a Role that stays (review of #479, finding 53).
+func TestBuild_SharedRoleIsNoAccountsOwn(t *testing.T) {
+	labels := map[string]string{"module": "m"}
+	secrets := []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"secrets"}, Verbs: []string{"get"}}}
+
+	for _, names := range [][2]string{{"a", "z"}, {"z", "a"}} {
+		declared, other := names[0], names[1]
+
+		got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{
+			{Kind: "ServiceAccount", Name: declared, Namespace: "d8-m", Path: "templates/rbac-for-us.yaml", Labels: labels},
+			{Kind: "ServiceAccount", Name: other, Namespace: "d8-other", Path: "templates/rbac-for-us.yaml", Labels: labels},
+			{Kind: "Role", Name: "shared", Namespace: "d8-m", Path: "templates/rbac-for-us.yaml", Labels: labels, Rules: secrets},
+			{Kind: "RoleBinding", Name: declared, Namespace: "d8-m", Path: "templates/rbac-for-us.yaml", Labels: labels,
+				RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "shared"}, Subjects: []rbacv1.Subject{{Kind: "ServiceAccount", Name: declared, Namespace: "d8-m"}}},
+			{Kind: "RoleBinding", Name: other, Namespace: "d8-m", Path: "templates/rbac-for-us.yaml", Labels: labels,
+				RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "shared"}, Subjects: []rbacv1.Subject{{Kind: "ServiceAccount", Name: other, Namespace: "d8-other"}}},
+		}})
+
+		require.Len(t, got.Decl.ServiceAccounts, 1, names)
+		assert.Empty(t, got.Decl.ServiceAccounts[0].NamespaceRules, "%v: the shared Role is not absorbed", names)
+		assert.Contains(t, strings.Join(got.Unmanaged, "\n"), "d8-m/Role/shared", names)
+	}
+}
+
+// Objects of one account that render in other variants than the account -- the cluster-autoscaler
+// shape, two mutually exclusive sets -- get a TODO that says no single `when` holds them, rather
+// than asking for one (review of #479, finding 52).
+func TestBuild_AccountObjectsInOtherVariants(t *testing.T) {
+	labels := map[string]string{"module": "m"}
+	sa := []rbacv1.Subject{{Kind: "ServiceAccount", Name: "autoscaler", Namespace: "d8-m"}}
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{
+		{Kind: "ServiceAccount", Name: "autoscaler", Namespace: "d8-m", Path: "templates/autoscaler/rbac-for-us.yaml", Labels: labels},
+		{Kind: "ClusterRoleBinding", Name: "d8:m:autoscaler:plain", Path: "templates/autoscaler/rbac-for-us.yaml", Labels: labels,
+			RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: "d8:rbac-proxy"}, Subjects: sa},
+		{Kind: "ClusterRoleBinding", Name: "d8:m:autoscaler:mcm", Path: "templates/autoscaler/rbac-for-us.yaml", Labels: labels,
+			RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: "d8:mcm"}, Subjects: sa},
+	},
+		Partial: []string{"ClusterRoleBinding//d8:m:autoscaler:plain", "ClusterRoleBinding//d8:m:autoscaler:mcm"},
+		Variants: map[string]string{
+			"ServiceAccount/d8-m/autoscaler":            "1,2,",
+			"ClusterRoleBinding//d8:m:autoscaler:plain": "1,",
+			"ClusterRoleBinding//d8:m:autoscaler:mcm":   "2,",
+		}})
+
+	require.Len(t, got.Decl.ServiceAccounts, 1)
+	when := got.Decl.ServiceAccounts[0].When
+	assert.True(t, strings.HasPrefix(when, "TODO: "), when)
+	assert.Contains(t, when, "render in other variants than ServiceAccount autoscaler, so no single `when` holds")
+	assert.Contains(t, when, "ClusterRoleBinding d8:m:autoscaler:plain")
+	assert.Contains(t, when, "ClusterRoleBinding d8:m:autoscaler:mcm")
 }
