@@ -71,6 +71,8 @@ type Input struct {
 	// Partial are the objects (Kind/namespace/name) some render variants did not render: under
 	// --matrix, the objects under a condition. The declaration has no `when` for them yet.
 	Partial []string
+	// Variants names, per object (Kind/namespace/name), the render variants that rendered it.
+	Variants map[string]string
 }
 
 // Result is the declaration with the reader's homework.
@@ -438,11 +440,26 @@ func (b *builder) ownClusterRole(o Object) bool {
 	return o.Kind == "ClusterRole" && !o.Aggregated && o.Labels[rbaccontract.LabelModule] == b.in.Module && o.Labels[rbaccontract.LabelKind] == "" && o.Annotations[rbaccontract.AccessLevelAnnotation] == ""
 }
 
+// bindingsOf lists every binding of the ClusterRole: ClusterRoleBindings and RoleBindings that
+// refer to it (review of #479, finding 53).
 func (b *builder) bindingsOf(name string) []Object {
 	out := make([]Object, 0, len(b.in.Objects))
 
 	for _, o := range b.in.Objects {
-		if o.Kind == "ClusterRoleBinding" && o.RoleRef.Name == name {
+		if (o.Kind == "ClusterRoleBinding" || (o.Kind == "RoleBinding" && o.RoleRef.Kind == "ClusterRole")) && o.RoleRef.Name == name {
+			out = append(out, o)
+		}
+	}
+
+	return out
+}
+
+// roleBindingsOf lists the RoleBindings of a Role.
+func (b *builder) roleBindingsOf(namespace, name string) []Object {
+	out := make([]Object, 0, len(b.in.Objects))
+
+	for _, o := range b.in.Objects {
+		if o.Kind == "RoleBinding" && o.RoleRef.Kind == "Role" && o.RoleRef.Name == name && b.ns(o) == namespace {
 			out = append(out, o)
 		}
 	}
@@ -553,7 +570,8 @@ func (b *builder) serviceAccounts() {
 				continue
 			}
 
-			if role, ok := b.role(b.ns(rb), rb.RoleRef.Name); ok && !b.isUsed(role) && b.ns(rb) == b.in.Namespace && e.NamespaceRules == nil && rb.RoleRef.Kind == "Role" {
+			// A Role another binding also uses is not the account's own (finding 53).
+			if role, ok := b.role(b.ns(rb), rb.RoleRef.Name); ok && !b.isUsed(role) && b.ns(rb) == b.in.Namespace && e.NamespaceRules == nil && rb.RoleRef.Kind == "Role" && len(b.roleBindingsOf(b.ns(rb), role.Name)) == 1 {
 				e.NamespaceRules = policyRules(role.Rules)
 				b.rename("Role", role.Name, sa.Name)
 				b.rename("RoleBinding", rb.Name, sa.Name)
@@ -606,7 +624,19 @@ func (b *builder) serviceAccounts() {
 			}
 		}
 
+		// Objects that render in other variants than the account share no condition with it: the
+		// declaration's one `when` for the account cannot hold them (review of #479, finding 52).
+		var apartFromAccount []string
+
+		for _, o := range b.current {
+			if o.identity() != sa.identity() && b.variantsOf(o) != b.variantsOf(sa) {
+				apartFromAccount = append(apartFromAccount, o.Kind+" "+o.Name)
+			}
+		}
+
 		switch {
+		case len(apartFromAccount) > 0:
+			e.When = "TODO: " + strings.Join(apartFromAccount, ", ") + " render in other variants than ServiceAccount " + sa.Name + ", so no single `when` holds for the account's objects -- keep them hand-written, or split the account"
 		case len(partial) > 0 && b.partial(sa):
 			e.When = "TODO: " + strings.Join(partial, ", ") + " render only under some of the linted values; write the condition they render under"
 		case len(partial) > 0:
@@ -632,6 +662,12 @@ func (b *builder) otherBindings() {
 			continue
 		}
 
+		// A ClusterRole several bindings use is no single entry's own (finding 53).
+		if len(b.bindingsOf(cr.Name)) != 1 {
+			b.unmanage(crb, fmt.Sprintf("binds %s, which other bindings use too; it stays hand-written with them", crb.RoleRef.Name))
+			continue
+		}
+
 		if b.unmanagePartial(cr, crb) {
 			continue
 		}
@@ -650,6 +686,11 @@ func (b *builder) otherBindings() {
 		}
 
 		role, ok := b.role(b.ns(rb), rb.RoleRef.Name)
+		if ok && !b.isUsed(role) && rb.RoleRef.Kind == "Role" && len(b.roleBindingsOf(b.ns(rb), role.Name)) != 1 {
+			b.unmanage(rb, fmt.Sprintf("binds the Role %s, which other bindings use too; it stays hand-written with them", role.Name))
+			continue
+		}
+
 		if !ok || b.isUsed(role) || b.ns(rb) != b.in.Namespace || rb.RoleRef.Kind != "Role" {
 			b.unmanage(rb, fmt.Sprintf("binds %s/%s outside the module's own Roles", rb.RoleRef.Kind, rb.RoleRef.Name))
 			continue
@@ -935,6 +976,11 @@ func (b *builder) markAccount(o Object) {
 	b.current = append(b.current, o)
 }
 
+// variantsOf names the render variants that rendered the object; empty without --matrix.
+func (b *builder) variantsOf(o Object) string {
+	return b.in.Variants[o.Kind+"/"+o.Namespace+"/"+o.Name]
+}
+
 // partial reports whether some render variants did not render the object.
 func (b *builder) partial(o Object) bool {
 	return b.partialIDs[o.Kind+"/"+o.Namespace+"/"+o.Name]
@@ -1039,7 +1085,7 @@ func (b *builder) sharedWithDeclared() {
 	for _, kept := range b.partialKept {
 		for _, o := range b.in.Objects {
 			if o.Path == kept.Path && b.isUsed(o) && !b.unmanagedIDs[o.identity()] {
-				b.note("%s %s stays hand-written in %s, which the declaration also writes: move it to a file of its own (templates/<dir>/rbac-for-us.yaml) before `--fix`, or regenerating %s drops it", kept.Kind, kept.Name, kept.Path, kept.Path)
+				b.note("%s %s stays hand-written in %s, which the declaration also writes: move it to the rbac-for-us.yaml of another component directory before `--fix` (the placement rule accepts it in any), or regenerating %s drops it", kept.Kind, kept.Name, kept.Path, kept.Path)
 
 				break
 			}
@@ -1067,7 +1113,7 @@ func (b *builder) setAsideAccount(sa Object, why string) {
 					b.unmanage(cr, "bound only to "+sa.Name+", which stays hand-written")
 					b.mark(cr)
 				}
-			} else if role, ok := b.role(b.ns(binding), binding.RoleRef.Name); ok && !b.isUsed(role) {
+			} else if role, ok := b.role(b.ns(binding), binding.RoleRef.Name); ok && !b.isUsed(role) && len(b.roleBindingsOf(b.ns(binding), role.Name)) == 1 {
 				b.unmanage(role, "bound to "+sa.Name+", which stays hand-written")
 				b.mark(role)
 			}
