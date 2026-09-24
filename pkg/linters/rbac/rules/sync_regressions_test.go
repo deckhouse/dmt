@@ -643,3 +643,34 @@ func TestSyncRegression_WhenDoesNotExcuseAbsentSiblings(t *testing.T) {
 	got = strings.Join(texts(runSync(t, modulePath, renderedFrom(t, model, func(o *generate.Object) bool { return o.When == "" }))), "\n")
 	assert.NotContains(t, got, "cainjector is declared but absent")
 }
+
+// A document with a computed name that no render showed is listed as the template writes it; one
+// whose name a rendered object matches is not (review of #479, finding 34).
+func TestUnrenderedObjects_ComputedNames(t *testing.T) {
+	modulePath := writeModule(t, map[string]string{
+		"templates/cleaner/rbac-for-us.yaml": `{{- if has "cni-cilium" .Values.global.enabledModules }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: d8:{{ .Chart.Name }}:stale-dns-connections-cleaner
+rules: []
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: stale-dns-connections-cleaner
+{{- end }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Chart.Name }}
+`,
+	})
+
+	got := strings.Join(unrenderedObjects(modulePath, []bootstrap.Object{{Kind: "ServiceAccount", Name: "node-local-dns"}}), "\n")
+	assert.Contains(t, got, "a ClusterRole with the computed name d8:{{ .Chart.Name }}:stale-dns-connections-cleaner (templates/cleaner/rbac-for-us.yaml, under `has \"cni-cilium\" .Values.global.enabledModules`)")
+	assert.Contains(t, got, "ServiceAccount/stale-dns-connections-cleaner (templates/cleaner/rbac-for-us.yaml")
+	assert.NotContains(t, got, "computed name {{ .Chart.Name }} ", "the rendered account matches it")
+}
