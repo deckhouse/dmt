@@ -576,3 +576,10 @@ metadata:
 	assert.False(t, renderedInRange(text, "Role", "conditional"), "an if is no range")
 	assert.False(t, renderedInRange("{{ if }", "Role", "x"), "a template that does not parse tells nothing")
 }
+
+// A template with a document that only includes a named template holds library objects (review of
+// #479, finding 42).
+func TestHoldsLibraryDocument(t *testing.T) {
+	assert.True(t, holdsLibraryDocument("{{- include \"helm_lib_csi_controller_rbac\" . }}\n---\nkind: ClusterRole\nmetadata:\n  name: d8:m:csi\n"))
+	assert.False(t, holdsLibraryDocument("---\nkind: ClusterRole\nmetadata:\n  name: d8:m:csi\n  {{- include \"helm_lib_module_labels\" (list .) | nindent 2 }}\n"))
+}

@@ -516,9 +516,39 @@ func TestBuild_DroppedMetadataAndConditionsAreNoted(t *testing.T) {
 	notes := strings.Join(got.Notes, "\n")
 	assert.Contains(t, notes, "ServiceAccount m (templates/rbac-for-us.yaml) carries what the format does not describe (annotation helm.sh/resource-policy)")
 	assert.Contains(t, notes, "ClusterRoleBinding d8:m:m (templates/rbac-for-us.yaml) carries what the format does not describe (annotation werf.io/deploy-on)")
-	assert.Contains(t, notes, "ClusterRole d8:m:reader (templates/rbac-for-us.yaml) carries what the format does not describe (label gatekeeper.sh/system)")
-	assert.Contains(t, notes, "ClusterRoleBinding d8:m:reader (templates/rbac-for-us.yaml) renders only under some of the linted values")
+	// An access entry has no `when`: what renders only under some values stays hand-written
+	// (review of #479, finding 41).
+	unmanaged := strings.Join(got.Unmanaged, "\n")
+	assert.Contains(t, unmanaged, "ClusterRoleBinding/d8:m:reader (templates/rbac-for-us.yaml): renders only under some of the linted values")
+	assert.Contains(t, unmanaged, "ClusterRole/d8:m:reader (templates/rbac-for-us.yaml): renders only under some of the linted values")
+	assert.Empty(t, got.Decl.Access)
 	assert.NotContains(t, notes, "label app")
 	assert.NotContains(t, notes, "meta.helm.sh")
 	assert.NotContains(t, notes, "label heritage")
+}
+
+// An object of the module in a file that also holds what a helm_lib include renders stays
+// hand-written: the generator writes the whole file (review of #479, finding 42). A scrape Role
+// only some variants render stays hand-written too: prometheusAccess gates only the binding
+// (finding 41).
+func TestBuild_LibraryFileAndPartialScrapeAccess(t *testing.T) {
+	labels := map[string]string{"module": "m"}
+	metrics := []rbacv1.PolicyRule{{APIGroups: []string{"apps"}, Resources: []string{"deployments/prometheus-metrics"}, ResourceNames: []string{"m"}, Verbs: []string{"get"}}}
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{
+		{Kind: "ClusterRole", Name: "d8:m:csi", Path: "templates/csi/rbac-for-us.yaml", Labels: labels, LibraryFile: true,
+			Rules: []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"nodes"}, Verbs: []string{"get"}}}},
+		{Kind: "ClusterRoleBinding", Name: "d8:m:csi", Path: "templates/csi/rbac-for-us.yaml", Labels: labels, LibraryFile: true,
+			RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: "d8:m:csi"}, Subjects: []rbacv1.Subject{{Kind: "ServiceAccount", Name: "csi", Namespace: "d8-m"}}},
+		{Kind: "Role", Name: "access-to-m-prometheus-metrics", Namespace: "d8-m", Path: "templates/rbac-to-us.yaml", Labels: labels, Rules: metrics},
+		{Kind: "RoleBinding", Name: "access-to-m-prometheus-metrics", Namespace: "d8-m", Path: "templates/rbac-to-us.yaml", Labels: labels,
+			RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "access-to-m-prometheus-metrics"}, Subjects: []rbacv1.Subject{{Kind: "User", Name: "d8-monitoring:scraper"}}},
+	}, Partial: []string{"Role/d8-m/access-to-m-prometheus-metrics"}})
+
+	unmanaged := strings.Join(got.Unmanaged, "\n")
+	assert.Contains(t, unmanaged, "ClusterRole/d8:m:csi (templates/csi/rbac-for-us.yaml): shares templates/csi/rbac-for-us.yaml with objects a helm_lib include renders")
+	assert.Contains(t, unmanaged, "ClusterRoleBinding/d8:m:csi (templates/csi/rbac-for-us.yaml): shares")
+	assert.Contains(t, unmanaged, "d8-m/Role/access-to-m-prometheus-metrics (templates/rbac-to-us.yaml): renders only under some of the linted values")
+	assert.Empty(t, got.Decl.Access)
+	assert.Nil(t, got.Decl.PrometheusAccess)
 }

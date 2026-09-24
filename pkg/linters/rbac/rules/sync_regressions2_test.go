@@ -143,7 +143,9 @@ func syncModelFromFixture(t *testing.T) *generate.Model {
 
 // What the generator writes for the shapes this version supports passes the placement rule: an
 // account in a component directory, access with clusterRules in one, namespace access at the root
-// (review of #479, finding 37).
+// (review of #479, finding 37). The placement rule skips templates/rbac-for-us.yaml and
+// templates/rbac-to-us.yaml today (RBACv2Path is a prefix of both, finding 45), so the root shapes
+// are not proven here until that is fixed upstream.
 func TestSyncRegression_GeneratedNamesPassPlacement(t *testing.T) {
 	get := []rbacyaml.PolicyRule{{APIGroups: []string{""}, Resources: []string{"secrets"}, Verbs: []string{"get"}}}
 	nodes := []rbacyaml.PolicyRule{{APIGroups: []string{""}, Resources: []string{"nodes"}, Verbs: []string{"get"}}}
@@ -200,6 +202,17 @@ func TestSyncRegression_BootstrapNotesObjectsOfSomeVariants(t *testing.T) {
 
 	content, err := os.ReadFile(rbacyaml.Path(modulePath))
 	require.NoError(t, err)
-	assert.Contains(t, string(content), "ServiceAccount cainjector (templates/cainjector/rbac-for-us.yaml) renders only under some of the linted values")
-	assert.NotContains(t, string(content), "ServiceAccount cert-manager (templates/cert-manager/rbac-for-us.yaml) renders only under some")
+	decl, err := rbacyaml.Parse(content)
+	require.NoError(t, err)
+
+	whens := map[string]string{}
+	for _, sa := range decl.ServiceAccounts {
+		whens[sa.Name] = sa.When
+	}
+
+	// The account and its objects render only with the injector on: a TODO for their condition
+	// keeps the run red (review of #479, finding 41).
+	assert.True(t, strings.HasPrefix(whens["cainjector"], "TODO: "), whens["cainjector"])
+	assert.Contains(t, whens["cainjector"], "ServiceAccount cainjector")
+	assert.Empty(t, whens["cert-manager"])
 }

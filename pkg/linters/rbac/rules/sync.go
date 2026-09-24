@@ -1285,6 +1285,7 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 			}
 
 			o.Library = renderedByInclude(text, o.Kind, o.Name)
+			o.LibraryFile = holdsLibraryDocument(text)
 			o.Repeated = renderedInRange(text, o.Kind, o.Name)
 			in.Objects = append(in.Objects, o)
 		}
@@ -1932,6 +1933,28 @@ func renderedByInclude(content, kind, name string) bool {
 	}
 
 	return include
+}
+
+// holdsLibraryDocument reports whether the template has a document without a kind of its own
+// that includes a named template: what such a file renders is partly the library's (review of
+// #479, finding 42).
+func holdsLibraryDocument(content string) bool {
+	for _, doc := range separatorRe.Split(strings.ReplaceAll(content, "\r\n", "\n"), -1) {
+		kind := false
+
+		for _, line := range strings.Split(doc, "\n") {
+			if kindLineRe.MatchString(line) {
+				kind = true
+				break
+			}
+		}
+
+		if !kind && includeRe.MatchString(doc) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // namesMatch reports whether a metadata name as the template writes it can be the rendered name:
