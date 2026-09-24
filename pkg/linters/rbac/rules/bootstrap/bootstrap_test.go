@@ -492,3 +492,33 @@ func TestBuild_NestedNamespaceAccessStaysHandWritten(t *testing.T) {
 	assert.Len(t, got.Unmanaged, 2)
 	assert.NotContains(t, strings.Join(got.Notes, "\n"), "access-to-istio-access-to")
 }
+
+// What the format does not describe is noted per object: labels and annotations a regeneration
+// drops, and the condition of an object only some render variants showed (review of #479,
+// finding 40). An account's app label is the format's.
+func TestBuild_DroppedMetadataAndConditionsAreNoted(t *testing.T) {
+	labels := map[string]string{"module": "m", "heritage": "deckhouse", "app": "m"}
+	nodes := []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"nodes"}, Verbs: []string{"get"}}}
+	sa := []rbacv1.Subject{{Kind: "ServiceAccount", Name: "m", Namespace: "d8-m"}}
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{
+		{Kind: "ServiceAccount", Name: "m", Namespace: "d8-m", Path: "templates/rbac-for-us.yaml", Labels: labels,
+			Annotations: map[string]string{"helm.sh/resource-policy": "keep", "meta.helm.sh/release-name": "m"}},
+		{Kind: "ClusterRole", Name: "d8:m:m", Path: "templates/rbac-for-us.yaml", Labels: labels, Rules: nodes},
+		{Kind: "ClusterRoleBinding", Name: "d8:m:m", Path: "templates/rbac-for-us.yaml", Labels: labels,
+			Annotations: map[string]string{"werf.io/deploy-on": "pre-install"},
+			RoleRef:     rbacv1.RoleRef{Kind: "ClusterRole", Name: "d8:m:m"}, Subjects: sa},
+		{Kind: "ClusterRole", Name: "d8:m:reader", Path: "templates/rbac-for-us.yaml", Labels: map[string]string{"module": "m", "gatekeeper.sh/system": "yes"}, Rules: nodes},
+		{Kind: "ClusterRoleBinding", Name: "d8:m:reader", Path: "templates/rbac-for-us.yaml", Labels: map[string]string{"module": "m"},
+			RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: "d8:m:reader"}, Subjects: []rbacv1.Subject{{Kind: "Group", Name: "g"}}},
+	}, Partial: []string{"ClusterRoleBinding//d8:m:reader"}})
+
+	notes := strings.Join(got.Notes, "\n")
+	assert.Contains(t, notes, "ServiceAccount m (templates/rbac-for-us.yaml) carries what the format does not describe (annotation helm.sh/resource-policy)")
+	assert.Contains(t, notes, "ClusterRoleBinding d8:m:m (templates/rbac-for-us.yaml) carries what the format does not describe (annotation werf.io/deploy-on)")
+	assert.Contains(t, notes, "ClusterRole d8:m:reader (templates/rbac-for-us.yaml) carries what the format does not describe (label gatekeeper.sh/system)")
+	assert.Contains(t, notes, "ClusterRoleBinding d8:m:reader (templates/rbac-for-us.yaml) renders only under some of the linted values")
+	assert.NotContains(t, notes, "label app")
+	assert.NotContains(t, notes, "meta.helm.sh")
+	assert.NotContains(t, notes, "label heritage")
+}

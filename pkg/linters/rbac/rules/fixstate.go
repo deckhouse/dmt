@@ -48,12 +48,18 @@ var fixState = struct {
 	blocked   map[string]map[string]struct{}
 	dropped   map[string]string
 	bootstrap map[string]map[string]bootstrap.Object
+	// variants counts the render variants that recorded bootstrap objects, seen how many of them
+	// rendered each object: under --matrix an object seen in fewer renders only under some values.
+	variants map[string]int
+	seen     map[string]map[string]int
 }{
 	foreign:   map[string]map[string]struct{}{},
 	removals:  map[string]map[string]struct{}{},
 	blocked:   map[string]map[string]struct{}{},
 	dropped:   map[string]string{},
 	bootstrap: map[string]map[string]bootstrap.Object{},
+	variants:  map[string]int{},
+	seen:      map[string]map[string]int{},
 }
 
 // fixOutcomes remembers the result of every fix that ran, by file. It has a lock of its own, held
@@ -124,6 +130,8 @@ func resetFixState() {
 	fixState.blocked = map[string]map[string]struct{}{}
 	fixState.dropped = map[string]string{}
 	fixState.bootstrap = map[string]map[string]bootstrap.Object{}
+	fixState.variants = map[string]int{}
+	fixState.seen = map[string]map[string]int{}
 
 	fixOutcomes.Lock()
 	defer fixOutcomes.Unlock()
@@ -143,8 +151,15 @@ func recordBootstrapObjects(path string, objects []bootstrap.Object) {
 		fixState.bootstrap[path] = known
 	}
 
+	fixState.variants[path]++
+	if fixState.seen[path] == nil {
+		fixState.seen[path] = map[string]int{}
+	}
+
 	for _, o := range objects {
-		known[o.Kind+"/"+o.Namespace+"/"+o.Name] = o
+		key := o.Kind + "/" + o.Namespace + "/" + o.Name
+		known[key] = o
+		fixState.seen[path][key]++
 	}
 }
 
@@ -359,4 +374,23 @@ func droppedCause(file string) (string, bool) {
 func exists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// bootstrapPartialOf lists the objects that some render variants did not render, as
+// Kind/namespace/name; empty without --matrix.
+func bootstrapPartialOf(path string) []string {
+	fixState.Lock()
+	defer fixState.Unlock()
+
+	var out []string
+
+	for key, n := range fixState.seen[path] {
+		if n < fixState.variants[path] {
+			out = append(out, key)
+		}
+	}
+
+	sort.Strings(out)
+
+	return out
 }

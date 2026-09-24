@@ -1309,6 +1309,7 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 			}
 
 			in.Objects = bootstrapObjectsOf(path)
+			in.Partial = bootstrapPartialOf(path)
 			result := bootstrap.Build(in)
 
 			content, err := bootstrap.Marshal(result)

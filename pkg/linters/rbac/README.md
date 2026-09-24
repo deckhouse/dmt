@@ -1621,7 +1621,12 @@ every object the generator will name differently or cannot describe. An entry wh
 carries no `scope`: the CRD states it; an external resource whose scope is not known gets
 `scope: "TODO: Namespaced or Cluster"`. A grant limited to `resourceNames` is never widened to every
 object: it is left out and named in a note. A role granting `*` verbs or API groups, which the format
-refuses, is listed as hand-written with the reason. The fix that writes the file keeps the finding
+refuses, is listed as hand-written with the reason, and so are objects a helm_lib include renders
+(its legacy roles and capabilities aside, which sync owns whatever renders them), objects inside a
+`{{ range }}` and roles without rules. The render shows neither the conditions around an object nor
+labels and annotations the format has no field for: a note names, per object, the labels and
+annotations a regeneration would drop, and under `--matrix` every object only some variants rendered,
+whose `when` a person has to write. The fix that writes the file keeps the finding
 while a `TODO` is left in it or while the linter would refuse the written file (both are named in the
 fix error); a written file that does not parse would be a bug of dmt, it is written all the same and
 the fix error carries the parse error. A `--fix` run with any fix left open exits non-zero whatever the
