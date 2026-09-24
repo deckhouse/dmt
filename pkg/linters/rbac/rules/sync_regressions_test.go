@@ -402,6 +402,83 @@ func TestSyncRegression_ReplacedCopyIsReported(t *testing.T) {
 	assert.Contains(t, got, "d8-cert-manager/RoleBinding/access-to-cert-manager-prometheus-metrics binds access-to-cert-manager-prometheus-metrics, the old copy of d8-cert-manager/Role/access-to-cert-manager")
 }
 
+// An annotation on an object the declaration writes whole is compared: a resource policy the
+// declaration does not carry would be dropped by the next regeneration (regression hunt, B7).
+func TestSyncRegression_AnnotationsAreCompared(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+
+	errorList := runSync(t, modulePath, renderedFrom(t, model, func(o *generate.Object) bool {
+		if o.Kind == "ServiceAccount" && o.Name == "cainjector" {
+			o.Annotations = map[string]string{"helm.sh/resource-policy": "keep"}
+		}
+
+		return true
+	}))
+
+	assert.Contains(t, strings.Join(texts(errorList), "\n"), "ServiceAccount/cainjector: annotation helm.sh/resource-policy is in the render but not declared")
+}
+
+// Bootstrap reads the conditions from the template text: an account under {{ if }} keeps its
+// `when` (regression hunt, B1).
+func TestSyncRegression_BootstrapKeepsTheTemplateCondition(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+	require.NoError(t, os.Remove(rbacyaml.Path(modulePath)))
+
+	errorList := runSync(t, modulePath, renderedFrom(t, model, nil))
+	for _, fix := range errorList.GetFixes() {
+		fix()
+	}
+
+	written, err := rbacyaml.Load(modulePath)
+	require.NoError(t, err)
+	require.Len(t, written.ServiceAccounts, 1)
+	assert.Equal(t, ".Values.certManager.internal.enableCAInjector", written.ServiceAccounts[0].When)
+}
+
+// An object under a condition false for the linter's values is in no render; the text shows it,
+// the declaration header names it and the fix fails, rather than the regeneration dropping it
+// (regression hunt, B1).
+func TestSyncRegression_BootstrapNamesWhatDidNotRender(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+	require.NoError(t, os.Remove(rbacyaml.Path(modulePath)))
+
+	errorList := runSync(t, modulePath, renderedFrom(t, model, func(o *generate.Object) bool { return o.When == "" }))
+	for _, fix := range errorList.GetFixes() {
+		fix()
+	}
+
+	require.True(t, errorList.ContainsFailedFixes())
+
+	var fixErrors []string
+
+	for _, e := range errorList.GetErrors() {
+		if e.FixError != nil {
+			fixErrors = append(fixErrors, e.FixError.Error())
+		}
+	}
+
+	assert.Contains(t, strings.Join(fixErrors, "\n"), "ServiceAccount/cainjector (templates/cainjector/rbac-for-us.yaml, under `.Values.certManager.internal.enableCAInjector`)")
+
+	content, err := os.ReadFile(rbacyaml.Path(modulePath))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "ServiceAccount/cainjector (templates/cainjector/rbac-for-us.yaml, under `.Values.certManager.internal.enableCAInjector`) is in the templates but did not render")
+}
+
 // What the linter would refuse in a written declaration is named by the fix that wrote it
 // (regression hunt, B10).
 func TestSyncRegression_WrittenProblems(t *testing.T) {
@@ -409,7 +486,7 @@ func TestSyncRegression_WrittenProblems(t *testing.T) {
 
 	assert.Empty(t, writtenProblems([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\n"), nil, in))
 	assert.Contains(t, writtenProblems([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\nserviceAccounts:\n  - name: x\n    path: a/b\n"), nil, in),
-		"one directory under templates/ only")
+		`the placement rule wants the account named "a-b" after its directory`)
 	assert.Contains(t, writtenProblems([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\nserviceAccounts:\n  - name: x\n    when: .Values.x }}\n"), nil, in), "template delimiter")
 	assert.Empty(t, writtenProblems([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\nserviceAccounts:\n  - name: x\n    when: \"TODO: decide\"\n"), nil, in), "a TODO is counted on its own")
 }
@@ -525,56 +602,6 @@ func TestSyncRegression_IncludeOnTheLabelsLine(t *testing.T) {
 	got, err := os.ReadFile(fullPath)
 	require.NoError(t, err)
 	assert.Equal(t, patched, string(got))
-}
-
-// An object the template renders through an include of a named template is the library's; one
-// with a document of its own, literal or with a computed name, is the module's (review of #479,
-// finding 32).
-func TestRenderedByInclude(t *testing.T) {
-	text := `{{- include "helm_lib_csi_controller_rbac" . }}
-# ==========
----
-kind: ClusterRole
-metadata:
-  name: d8:csi-vsphere:csi
----
-kind: ServiceAccount
-metadata:
-  name: {{ .Chart.Name }}-extra
-`
-	assert.True(t, renderedByInclude(text, "ServiceAccount", "csi"), "no document of its own: the include renders it")
-	assert.True(t, renderedByInclude(text, "Role", "csi:controller:external-provisioner"))
-	assert.False(t, renderedByInclude(text, "ClusterRole", "d8:csi-vsphere:csi"), "a literal document of its own")
-	assert.False(t, renderedByInclude(text, "ServiceAccount", "csi-vsphere-extra"), "a document of its kind with a computed name")
-	assert.False(t, renderedByInclude("---\nkind: Role\nmetadata:\n  name: r\n", "Role", "other"), "no include: not the library's")
-}
-
-// An object a {{ range }} renders is found by the stdlib template parser; one beside the range is
-// not (review of #479, finding 39).
-func TestRenderedInRange(t *testing.T) {
-	text := `{{- range $version := .Values.istio.internal.versions }}
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: istiod-{{ $version | replace "." "x" }}
-{{- end }}
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: operator
-{{- if .Values.x }}
----
-kind: Role
-metadata:
-  name: conditional
-{{- end }}
-`
-	assert.True(t, renderedInRange(text, "ServiceAccount", "istiod-1x25"))
-	assert.False(t, renderedInRange(text, "ServiceAccount", "operator"))
-	assert.False(t, renderedInRange(text, "Role", "conditional"), "an if is no range")
-	assert.False(t, renderedInRange("{{ if }", "Role", "x"), "a template that does not parse tells nothing")
 }
 
 // A template that renders a library's objects marks its other objects: the render tells, so a

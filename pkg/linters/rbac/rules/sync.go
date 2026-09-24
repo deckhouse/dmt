@@ -30,7 +30,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"text/template/parse"
 
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -931,6 +930,11 @@ func compareFile(file generate.File, actual map[string]managedObject, module str
 func compareObject(expected generate.Object, actual storage.StoreObject, module string) []string {
 	var out []string
 
+	if expected.Class == generate.ClassDeclared {
+		out = append(out, compareAnnotations(expected, actual)...)
+		out = append(out, compareLabels(expected, actual)...)
+	}
+
 	id := expected.Identity()
 	content := actual.Unstructured.UnstructuredContent()
 
@@ -1282,21 +1286,11 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 		in.CRDs[crd.Key()] = crd.Scope
 	}
 
-	texts := map[string]string{}
+	docs := map[string][]bootstrap.Doc{}
 
 	for _, object := range storage {
 		if o, ok := bootstrapObject(object); ok {
-			text, read := texts[o.Path]
-			if !read {
-				if content, err := os.ReadFile(filepath.Join(modulePath, o.Path)); err == nil {
-					text = string(content)
-				}
-
-				texts[o.Path] = text
-			}
-
-			o.Library = renderedByInclude(text, o.Kind, o.Name)
-			o.Repeated = renderedInRange(text, o.Kind, o.Name)
+			locateInTemplate(modulePath, &o, docs)
 			in.Objects = append(in.Objects, o)
 		}
 	}
@@ -1307,6 +1301,7 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 
 	markLibraryFiles(in.Objects)
 
+	in.Unrendered = unrenderedObjects(modulePath, in.Objects)
 	result := bootstrap.Build(in)
 	described := len(in.Objects) - len(result.Unmanaged)
 	path := rbacyaml.Path(modulePath)
@@ -1325,6 +1320,7 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 			markLibraryFiles(in.Objects)
 			in.Partial = bootstrapPartialOf(path)
 			in.Variants = bootstrapVariantsOf(path)
+			in.Unrendered = unrenderedObjects(modulePath, in.Objects)
 			result := bootstrap.Build(in)
 
 			content, err := bootstrap.Marshal(result)
@@ -1748,12 +1744,191 @@ func renderedTwin(object storage.StoreObject, produced []generate.Object, render
 	return ""
 }
 
+// compareAnnotations compares the annotations of an object the declaration writes whole: a
+// resource policy or a deploy hook dropped by a regeneration changes what Helm or werf do with it.
+func compareAnnotations(expected generate.Object, actual storage.StoreObject) []string {
+	id := expected.Identity()
+	rendered := actual.Unstructured.GetAnnotations()
+
+	var out []string
+
+	for _, k := range slices.Sorted(maps.Keys(rendered)) {
+		// Helm's release annotations and the generator's own are nobody's to declare.
+		if strings.HasPrefix(k, "meta.helm.sh/") || strings.HasPrefix(k, "rbac.deckhouse.io/") {
+			continue
+		}
+
+		if want, ok := expected.Annotations[k]; !ok {
+			out = append(out, fmt.Sprintf("%s: annotation %s is in the render but not declared", id, k))
+		} else if want != rendered[k] {
+			out = append(out, fmt.Sprintf("%s: annotation %s is %q in the render, the declaration produces %q", id, k, rendered[k], want))
+		}
+	}
+
+	for _, k := range slices.Sorted(maps.Keys(expected.Annotations)) {
+		if _, ok := rendered[k]; !ok {
+			out = append(out, fmt.Sprintf("%s: annotation %s is declared but absent from the render", id, k))
+		}
+	}
+
+	return out
+}
+
 // manualFix is the fix of a finding only a person can close: nothing is generated while it
 // stands, so `--fix` must not report success (it fails with what to do).
 func manualFix(what string) errors.AutofixFunc {
 	return func() error {
 		return fmt.Errorf("nothing was generated: %s first", what)
 	}
+}
+
+// locateInTemplate reads the template blocks around a rendered object from its template's text:
+// the render only holds what rendered for the linter's values, the text holds the conditions.
+func locateInTemplate(modulePath string, o *bootstrap.Object, cache map[string][]bootstrap.Doc) {
+	// A subchart's template is written against the subchart's values, and the generator writes
+	// the module's own templates: the declaration has no place for its objects.
+	if strings.HasPrefix(o.Path, "charts/") {
+		o.Located = true
+		o.Unmanageable = "rendered by the subchart " + strings.SplitN(o.Path, "/", 3)[1] + ", whose templates and values are its own"
+
+		return
+	}
+
+	docs, ok := cache[o.Path]
+	if !ok {
+		if content, err := os.ReadFile(filepath.Join(modulePath, o.Path)); err == nil {
+			docs = bootstrap.TemplateDocs(string(content))
+		}
+
+		cache[o.Path] = docs
+	}
+
+	d, found := bootstrap.Locate(docs, *o)
+	if !found {
+		return
+	}
+
+	o.Located = true
+	o.When, o.Unmanageable, o.Partial = d.When, d.Unmanageable, d.Partial
+
+	o.Library = d.Library
+
+	if d.Library && o.Unmanageable == "" {
+		o.Unmanageable = "rendered by an include of a named template (helm_lib or another chart), which owns it"
+	}
+}
+
+// writtenProblems lists what the linter refuses in a declaration bootstrap wrote, the TODO
+// values aside: they are counted on their own.
+func writtenProblems(content []byte, crds []crdInfo, in bootstrap.Input) string {
+	decl, err := rbacyaml.Parse(content)
+	if err != nil {
+		return "; it does not parse: " + err.Error()
+	}
+
+	var problems []string
+
+	for _, e := range rbacyaml.Validate(decl, crdScopes(crds)) {
+		if !strings.Contains(e.Error(), "TODO") {
+			problems = append(problems, e.Error())
+		}
+	}
+
+	if len(problems) == 0 {
+		if _, err := generate.Build(generate.Input{Module: in.Module, Namespace: in.Namespace, Subsystems: in.Subsystems, Decl: decl}); err != nil && !strings.Contains(err.Error(), "TODO") {
+			problems = append(problems, err.Error())
+		}
+	}
+
+	if len(problems) == 0 {
+		return ""
+	}
+
+	return "; the linter refuses: " + strings.Join(problems, "; ")
+}
+
+// rbacKinds are the kinds bootstrap describes.
+var rbacKinds = map[string]bool{"ClusterRole": true, "ClusterRoleBinding": true, "Role": true, "RoleBinding": true, "ServiceAccount": true}
+
+// unrenderedObjects lists the RBAC objects with a literal name that the module's templates hold
+// and no render showed: an object under a condition false for the linter's values would
+// otherwise be left out of the first declaration without a word, and the regeneration would drop
+// it. Only the text can tell; a computed name is not followed.
+func unrenderedObjects(modulePath string, rendered []bootstrap.Object) []string {
+	seen := make(map[string]bool, len(rendered))
+	for _, o := range rendered {
+		seen[o.Kind+"/"+o.Name] = true
+	}
+
+	var out []string
+
+	root := filepath.Join(modulePath, "templates")
+
+	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || strings.HasPrefix(d.Name(), "_") || (filepath.Ext(path) != ".yaml" && filepath.Ext(path) != ".yml") {
+			return nil //nolint:nilerr // an unreadable entry is not the importer's to report
+		}
+
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return nil //nolint:nilerr // as above
+		}
+
+		rel, _ := filepath.Rel(modulePath, path)
+
+		for _, doc := range bootstrap.TemplateDocs(string(content)) {
+			if !rbacKinds[doc.Kind] || doc.Name == "" || seen[doc.Kind+"/"+doc.Name] || doc.Unmanageable != "" {
+				continue
+			}
+
+			entry := fmt.Sprintf("%s/%s (%s", doc.Kind, doc.Name, rel)
+			if doc.When != "" {
+				entry += ", under `" + doc.When + "`"
+			}
+
+			out = append(out, entry+")")
+		}
+
+		return nil
+	})
+
+	sort.Strings(out)
+
+	return out
+}
+
+// moduleLabels are the labels helm_lib_module_labels writes on every object; the declaration
+// names the others.
+var moduleLabels = map[string]bool{"heritage": true, "module": true}
+
+// compareLabels compares the labels of an object the declaration writes whole: an aggregation
+// label or a part-of label the declaration does not carry would be dropped by the next
+// regeneration, and an aggregation label is a right.
+func compareLabels(expected generate.Object, actual storage.StoreObject) []string {
+	id := expected.Identity()
+	rendered := actual.Unstructured.GetLabels()
+
+	var out []string
+
+	for _, k := range slices.Sorted(maps.Keys(rendered)) {
+		if moduleLabels[k] {
+			continue
+		}
+
+		if want, ok := expected.Labels[k]; !ok {
+			out = append(out, fmt.Sprintf("%s: label %s is in the render but not declared", id, k))
+		} else if want != rendered[k] {
+			out = append(out, fmt.Sprintf("%s: label %s is %q in the render, the declaration produces %q", id, k, rendered[k], want))
+		}
+	}
+
+	for _, k := range slices.Sorted(maps.Keys(expected.Labels)) {
+		if _, ok := rendered[k]; !ok && !moduleLabels[k] {
+			out = append(out, fmt.Sprintf("%s: label %s is declared but absent from the render", id, k))
+		}
+	}
+
+	return out
 }
 
 // roleKey names a role as bindings refer to it: a Role with its namespace, a ClusterRole without.
@@ -1849,21 +2024,27 @@ func splitChanges(divergences []string) ([]string, []string) {
 }
 
 // writeBootstrapped writes the declaration bootstrap produced and says what is left for a person.
-// A declaration that does not parse would be a bug of dmt; it is written all the same, so the
-// module's developer sees the file and the parse error rather than nothing.
+// A declaration that does not parse is a bug of dmt, yet it is written all the same: the module's
+// developer fixes the line the error names and goes on, instead of waiting for a dmt release with
+// nothing to look at. Bootstrap runs only while the file is missing, so the error says where to
+// look.
 func writeBootstrapped(path string, content []byte, crds []crdInfo, in bootstrap.Input) error {
 	if err := writeFileAtomic(path, content, 0o644); err != nil { //nolint:gosec // a source file of the module
 		return err
 	}
 
 	if _, err := rbacyaml.Parse(content); err != nil {
-		return fmt.Errorf("%s is written, but it does not parse: %w; this is a bug of dmt, report it with the module", rbacyaml.Filename, err)
+		return fmt.Errorf("%s is written, but it does not parse (%w); the declaration is complete apart from that line -- most likely a note in the header that lost its '#': fix or delete the line, then run `%s` again. This is a bug of dmt, report it with the module",
+			rbacyaml.Filename, err, FixCommand)
 	}
 
 	// The file is written, but a TODO in it is a decision nobody has made yet: the finding stays,
 	// and so does the non-zero exit, until a person makes it (ADR, bootstrap). What the linter
 	// would refuse in the written file is named here too, rather than on the next run.
 	problems := writtenProblems(content, crds, in)
+	if len(in.Unrendered) > 0 {
+		problems += "; the templates hold objects no render showed, and the declaration does not: " + strings.Join(in.Unrendered, ", ")
+	}
 
 	if open := openDecisions(string(content)); open > 0 {
 		return fmt.Errorf("%s is written; %d TODO in it are decisions only a person can make%s -- resolve them, then run `%s` to regenerate the templates", rbacyaml.Filename, open, problems, FixCommand)
@@ -1874,79 +2055,6 @@ func writeBootstrapped(path string, content []byte, crds []crdInfo, in bootstrap
 	}
 
 	return nil
-}
-
-// writtenProblems lists what the linter refuses in a declaration bootstrap wrote, the TODO
-// values aside: they are counted on their own.
-func writtenProblems(content []byte, crds []crdInfo, in bootstrap.Input) string {
-	decl, err := rbacyaml.Parse(content)
-	if err != nil {
-		return "; it does not parse: " + err.Error()
-	}
-
-	var problems []string
-
-	for _, e := range rbacyaml.Validate(decl, crdScopes(crds)) {
-		if !strings.Contains(e.Error(), "TODO") {
-			problems = append(problems, e.Error())
-		}
-	}
-
-	if len(problems) == 0 {
-		if _, err := generate.Build(generate.Input{Module: in.Module, Namespace: in.Namespace, Subsystems: in.Subsystems, Decl: decl}); err != nil && !strings.Contains(err.Error(), "TODO") {
-			problems = append(problems, err.Error())
-		}
-	}
-
-	if len(problems) == 0 {
-		return ""
-	}
-
-	return "; the linter refuses: " + strings.Join(problems, "; ")
-}
-
-var (
-	// includeRe finds an include of a named template (or the template action) in a document.
-	includeRe = regexp.MustCompile(`\{\{-?\s*(include|template)\s+"`)
-	// rawNameLineRe is a metadata name as written, computed or not.
-	rawNameLineRe = regexp.MustCompile(`^  name:\s*(.+?)\s*$`)
-	actionRe      = regexp.MustCompile(`\{\{.*?\}\}`)
-)
-
-// renderedByInclude reports whether the template renders the object through an include of a
-// named template -- helm_lib_csi_controller_rbac, typically -- rather than through a document of
-// its own: no document of the object's kind names it (literally or with a computed name), and a
-// document without a kind of its own includes a template.
-func renderedByInclude(content, kind, name string) bool {
-	include := false
-
-	for _, doc := range separatorRe.Split(strings.ReplaceAll(content, "\r\n", "\n"), -1) {
-		var docKind, docName string
-
-		for _, line := range strings.Split(doc, "\n") {
-			if m := kindLineRe.FindStringSubmatch(line); m != nil && docKind == "" {
-				docKind = m[1]
-			}
-
-			if m := rawNameLineRe.FindStringSubmatch(line); m != nil && docName == "" {
-				docName = m[1]
-				if i := strings.Index(docName, " #"); i >= 0 && !strings.Contains(docName, "{{") {
-					docName = strings.TrimSpace(docName[:i])
-				}
-
-				docName = strings.Trim(docName, `"'`)
-			}
-		}
-
-		switch {
-		case docKind == "":
-			include = include || includeRe.MatchString(doc)
-		case docKind == kind && namesMatch(docName, name):
-			return false
-		}
-	}
-
-	return include
 }
 
 // markLibraryFiles marks the objects of a template that also renders a library's objects: the
@@ -1963,115 +2071,4 @@ func markLibraryFiles(objects []bootstrap.Object) {
 	for i := range objects {
 		objects[i].LibraryFile = library[objects[i].Path]
 	}
-}
-
-// namesMatch reports whether a metadata name as the template writes it can be the rendered name:
-// equal, or with every action of a computed name standing for any text.
-func namesMatch(written, rendered string) bool {
-	if !strings.Contains(written, "{{") {
-		return written == rendered
-	}
-
-	var b strings.Builder
-
-	b.WriteString("^")
-
-	last := 0
-	for _, m := range actionRe.FindAllStringIndex(written, -1) {
-		b.WriteString(regexp.QuoteMeta(written[last:m[0]]))
-		b.WriteString(".*")
-
-		last = m[1]
-	}
-
-	b.WriteString(regexp.QuoteMeta(written[last:]) + "$")
-
-	re, err := regexp.Compile(b.String())
-
-	return err == nil && re.MatchString(rendered)
-}
-
-// renderedInRange reports whether the object's document sits inside a {{ range }} of its
-// template: one document renders several objects, and the declaration would freeze the one this
-// render produced under its literal name (istio's istiod-<version>). The template is read with
-// text/template/parse, not with patterns; a template that does not parse tells nothing.
-func renderedInRange(content, kind, name string) bool {
-	content = strings.ReplaceAll(content, "\r\n", "\n")
-
-	offset := documentOffset(content, kind, name)
-	if offset < 0 {
-		return false
-	}
-
-	tree := parse.New("template")
-	tree.Mode = parse.SkipFuncCheck
-
-	if _, err := tree.Parse(content, "", "", map[string]*parse.Tree{}); err != nil || tree.Root == nil {
-		return false
-	}
-
-	return inRange(tree.Root, offset, false)
-}
-
-// documentOffset is the offset of the metadata name line of the object's document, or -1.
-func documentOffset(content, kind, name string) int {
-	start := 0
-
-	for _, bounds := range append(separatorRe.FindAllStringIndex(content, -1), []int{len(content), len(content)}) {
-		doc := content[start:bounds[0]]
-		docStart := start
-		start = bounds[1]
-
-		var docKind string
-
-		offset, lineStart := -1, docStart
-
-		for _, line := range strings.SplitAfter(doc, "\n") {
-			trimmed := strings.TrimRight(line, "\n")
-
-			if m := kindLineRe.FindStringSubmatch(trimmed); m != nil && docKind == "" {
-				docKind = m[1]
-			}
-
-			if m := rawNameLineRe.FindStringSubmatch(trimmed); m != nil && offset < 0 && namesMatch(strings.Trim(m[1], `"'`), name) {
-				offset = lineStart
-			}
-
-			lineStart += len(line)
-		}
-
-		if docKind == kind && offset >= 0 {
-			return offset
-		}
-	}
-
-	return -1
-}
-
-// inRange reports whether the text at offset lies in the body of a range.
-func inRange(node parse.Node, offset int, ranged bool) bool {
-	switch n := node.(type) {
-	case *parse.ListNode:
-		if n == nil {
-			return false
-		}
-
-		for _, c := range n.Nodes {
-			if inRange(c, offset, ranged) {
-				return true
-			}
-		}
-	case *parse.TextNode:
-		start := int(n.Position())
-
-		return ranged && offset >= start && offset < start+len(n.Text)
-	case *parse.IfNode:
-		return inRange(n.List, offset, ranged) || inRange(n.ElseList, offset, ranged)
-	case *parse.WithNode:
-		return inRange(n.List, offset, ranged) || inRange(n.ElseList, offset, ranged)
-	case *parse.RangeNode:
-		return inRange(n.List, offset, true) || inRange(n.ElseList, offset, ranged)
-	}
-
-	return false
 }

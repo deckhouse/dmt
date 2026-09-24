@@ -64,7 +64,7 @@ func Marshal(r Result) ([]byte, error) {
 	return []byte(head.String() + body.String()), nil
 }
 
-// commentLines writes a note as comment lines: a note may span lines,
+// commentLines writes a note as comment lines: a template condition quoted in it may span lines,
 // and a line without # would be YAML.
 func commentLines(prefix, text string) string {
 	lines := strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")

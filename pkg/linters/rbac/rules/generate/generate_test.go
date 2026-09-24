@@ -283,25 +283,24 @@ func TestBuild_RefusesWhatTheModuleCannotCarry(t *testing.T) {
 		_, err = Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Decl: decl})
 		require.NoError(t, err)
 
-		// The module name in front: a namespace of the platform only, and without the Role and
-		// RoleBindings the placement rule would name <module>:<dir> (review of #479, finding 37).
+		// The module name in front is the platform namespaces' form only (regression hunt 2, A1).
 		decl.ServiceAccounts = []rbacyaml.ServiceAccount{{Name: "m-cainjector", Path: "cainjector"}}
 		_, err = Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Decl: decl})
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "only in a namespace of the platform")
+		assert.Contains(t, err.Error(), `only in a namespace of the platform`)
 
 		_, err = Build(Input{Module: "m", Namespace: "d8-system", Subsystems: []string{"security"}, Decl: decl})
 		require.NoError(t, err)
 
-		decl.ServiceAccounts[0].NamespaceRules = []rbacyaml.PolicyRule{{APIGroups: []string{""}, Resources: []string{"secrets"}, Verbs: []string{"get"}}}
-		_, err = Build(Input{Module: "m", Namespace: "d8-system", Subsystems: []string{"security"}, Decl: decl})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "named m:cainjector, which this version does not generate")
-
 		decl.ServiceAccounts = []rbacyaml.ServiceAccount{{Name: "dir", Path: "some/nested/dir"}}
 		_, err = Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Decl: decl})
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "one directory under templates/ only")
+		assert.Contains(t, err.Error(), `wants the account named "some-nested-dir"`)
+
+		// templates/<a>/<b>/rbac-for-us.yaml: the placement rule joins the directories.
+		decl.ServiceAccounts = []rbacyaml.ServiceAccount{{Name: "some-nested-dir", Path: "some/nested/dir"}}
+		_, err = Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Decl: decl})
+		require.NoError(t, err)
 
 		// In default and kube-system the placement rule wants d8-<module>-<dir>, which the generator
 		// does not accept: refused with the limitation named (review of #479, finding 43).
@@ -317,13 +316,12 @@ func TestBuild_RefusesWhatTheModuleCannotCarry(t *testing.T) {
 		decl := base()
 		decl.Access = []rbacyaml.Access{{Name: "reader", Path: "cainjector", Subjects: []rbacyaml.Subject{{Kind: "Group", Name: "g"}},
 			NamespaceRules: []rbacyaml.PolicyRule{{APIGroups: []string{""}, Resources: []string{"secrets"}, Verbs: []string{"get"}}}}}
-		_, err := Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Decl: decl})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "the placement rule wants access-to-cainjector- in templates/cainjector/rbac-to-us.yaml")
+		model, err := Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Decl: decl})
+		require.NoError(t, err)
 
-		decl.Access[0].ClusterRules, decl.Access[0].NamespaceRules = decl.Access[0].NamespaceRules, nil
-		_, err = Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Decl: decl})
-		require.NoError(t, err, "clusterRules in a directory follow the placement rule")
+		file := model.File("templates/cainjector/rbac-to-us.yaml")
+		require.NotNil(t, file)
+		assert.Equal(t, "access-to-cainjector-reader", file.Objects[0].Name, "the name the placement rule wants in the directory")
 	})
 
 	t.Run("a capability marker longer than a label value", func(t *testing.T) {
