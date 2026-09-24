@@ -47,6 +47,12 @@ type Object struct {
 	// Aggregated marks a ClusterRole with an aggregationRule: its rules belong to the aggregation
 	// controller, and the declaration has no place for the selectors.
 	Aggregated bool
+	// Library marks an object its template renders through an include of a named template
+	// (helm_lib): the library owns it, unless sync owns it by class.
+	Library bool
+	// Repeated marks an object its template renders inside a {{ range }}: one document, several
+	// objects, the name of this one frozen by a declaration.
+	Repeated bool
 }
 
 // Input is what the render says about the module.
@@ -174,6 +180,7 @@ func Build(in Input) Result {
 	b := &builder{in: in, res: map[[2]string]*resourceAcc{}, restricted: map[[2]string][]string{}, texts: map[string]rbacyaml.CapabilityText{}, lineages: map[string]struct{}{}, used: map[string]struct{}{},
 		decl: &rbacyaml.Declaration{APIVersion: rbacyaml.APIVersionV1Alpha1}}
 
+	b.setAside()
 	b.capabilitiesAndLegacy()
 	b.serviceAccounts()
 	b.otherBindings()
@@ -257,9 +264,34 @@ func (b *builder) addRules(sectionName, level string, rules []rbacv1.PolicyRule,
 	}
 }
 
+// setAside keeps out what the declaration cannot describe before anything is imported: objects a
+// library renders -- a legacy role or a capability is sync's whatever renders it (ADR, class 1 and
+// 2), so those are imported -- and roles without rules.
+func (b *builder) setAside() {
+	for _, o := range b.in.Objects {
+		switch {
+		case o.Library && !b.ownedByClass(o):
+			b.unmanage(o, "rendered by an include of a named template (helm_lib), which owns it")
+			b.mark(o)
+		case o.Repeated && !b.ownedByClass(o):
+			b.unmanage(o, "rendered inside {{ range }}: one document renders several objects, and the declaration would freeze this one under its name")
+			b.mark(o)
+		case (b.ownClusterRole(o) || o.Kind == "Role") && len(o.Rules) == 0:
+			b.unmanage(o, "has no rules; the declaration writes no role without them")
+			b.mark(o)
+		}
+	}
+}
+
+// ownedByClass reports whether sync owns the object by its class rather than by its name: a
+// legacy role (the access-level annotation) or a capability (the kind label).
+func (b *builder) ownedByClass(o Object) bool {
+	return o.Kind == "ClusterRole" && (o.Annotations[rbaccontract.AccessLevelAnnotation] != "" || o.Labels[rbaccontract.LabelKind] == rbaccontract.KindCapability)
+}
+
 func (b *builder) capabilitiesAndLegacy() {
 	for _, o := range b.in.Objects {
-		if o.Kind != "ClusterRole" {
+		if o.Kind != "ClusterRole" || b.isUsed(o) {
 			continue
 		}
 
@@ -404,6 +436,10 @@ var pathRe = regexp.MustCompile(`^templates/(?:(.*)/)?rbac-for-us\.yaml$`)
 
 func (b *builder) serviceAccounts() {
 	for _, sa := range b.byKind("ServiceAccount") {
+		if b.isUsed(sa) {
+			continue
+		}
+
 		if b.ns(sa) != b.in.Namespace {
 			b.unmanage(sa, "outside the module namespace")
 			b.mark(sa)
@@ -440,7 +476,7 @@ func (b *builder) serviceAccounts() {
 			}
 
 			cr, found := b.clusterRole(crb.RoleRef.Name)
-			exclusive := found && b.ownClusterRole(cr) && len(b.bindingsOf(cr.Name)) == 1
+			exclusive := found && !b.isUsed(cr) && b.ownClusterRole(cr) && len(b.bindingsOf(cr.Name)) == 1
 
 			switch {
 			case exclusive && cr.Name == clusterName && e.ClusterRules == nil:
@@ -476,7 +512,7 @@ func (b *builder) serviceAccounts() {
 				continue
 			}
 
-			if role, ok := b.role(b.ns(rb), rb.RoleRef.Name); ok && b.ns(rb) == b.in.Namespace && e.NamespaceRules == nil && rb.RoleRef.Kind == "Role" {
+			if role, ok := b.role(b.ns(rb), rb.RoleRef.Name); ok && !b.isUsed(role) && b.ns(rb) == b.in.Namespace && e.NamespaceRules == nil && rb.RoleRef.Kind == "Role" {
 				e.NamespaceRules = policyRules(role.Rules)
 				b.rename("Role", role.Name, sa.Name)
 				b.rename("RoleBinding", rb.Name, sa.Name)
@@ -532,8 +568,8 @@ func (b *builder) otherBindings() {
 		}
 
 		cr, found := b.clusterRole(crb.RoleRef.Name)
-		if !found || !b.ownClusterRole(cr) {
-			b.unmanage(crb, fmt.Sprintf("binds %s, which is not a plain ClusterRole of this module", crb.RoleRef.Name))
+		if !found || !b.ownClusterRole(cr) || b.isUsed(cr) {
+			b.unmanage(crb, fmt.Sprintf("binds %s, which is not a plain ClusterRole of this module the declaration describes", crb.RoleRef.Name))
 			continue
 		}
 
@@ -551,7 +587,7 @@ func (b *builder) otherBindings() {
 		}
 
 		role, ok := b.role(b.ns(rb), rb.RoleRef.Name)
-		if !ok || b.ns(rb) != b.in.Namespace || rb.RoleRef.Kind != "Role" {
+		if !ok || b.isUsed(role) || b.ns(rb) != b.in.Namespace || rb.RoleRef.Kind != "Role" {
 			b.unmanage(rb, fmt.Sprintf("binds %s/%s outside the module's own Roles", rb.RoleRef.Kind, rb.RoleRef.Name))
 			continue
 		}
