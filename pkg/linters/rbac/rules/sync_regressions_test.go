@@ -413,3 +413,71 @@ func TestSyncRegression_WrittenProblems(t *testing.T) {
 	assert.Contains(t, writtenProblems([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\nserviceAccounts:\n  - name: x\n    when: .Values.x }}\n"), nil, in), "template delimiter")
 	assert.Empty(t, writtenProblems([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\nserviceAccounts:\n  - name: x\n    when: \"TODO: decide\"\n"), nil, in), "a TODO is counted on its own")
 }
+
+// An include inside an object's document, after its kind line, is someone else's too: the fix
+// neither deletes the file (the account dropped) nor regenerates it without the include (nothing
+// changed) (review of #479, finding 31).
+func TestSyncRegression_IncludeInsideTheDocument(t *testing.T) {
+	const rel = "templates/cainjector/rbac-for-us.yaml"
+
+	inject := func(t *testing.T, modulePath string) string {
+		t.Helper()
+
+		fullPath := filepath.Join(modulePath, rel)
+		content, err := os.ReadFile(fullPath)
+		require.NoError(t, err)
+
+		i := strings.LastIndex(string(content), "{{- end }}\n")
+		require.GreaterOrEqual(t, i, 0)
+
+		patched := string(content[:i]) + "{{- if .Values.handExtra }}\n{{ include \"cainjector-extra\" . }}\n{{- end }}\n" + string(content[i:])
+		require.NoError(t, os.WriteFile(fullPath, []byte(patched), 0o600))
+
+		return patched
+	}
+
+	t.Run("the account dropped: the file is not deleted", func(t *testing.T) {
+		resetFixState()
+		t.Cleanup(resetFixState)
+
+		modulePath := syncModuleDir(t)
+		model := syncModel(t, modulePath)
+		writeGenerated(t, modulePath, model)
+		inject(t, modulePath)
+
+		decl, err := rbacyaml.Load(modulePath)
+		require.NoError(t, err)
+
+		decl.ServiceAccounts = nil
+		raw, err := yaml.Marshal(decl)
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(rbacyaml.Path(modulePath), raw, 0o600))
+
+		list := runSync(t, modulePath, renderedFrom(t, model, nil))
+		for _, fix := range list.GetFixes() {
+			fix()
+		}
+
+		_, err = os.Stat(filepath.Join(modulePath, rel))
+		assert.NoError(t, err, "a file holding a hand-added include must not be deleted")
+	})
+
+	t.Run("nothing changed: the include is not dropped", func(t *testing.T) {
+		resetFixState()
+		t.Cleanup(resetFixState)
+
+		modulePath := syncModuleDir(t)
+		model := syncModel(t, modulePath)
+		writeGenerated(t, modulePath, model)
+		patched := inject(t, modulePath)
+
+		list := runSync(t, modulePath, renderedFrom(t, model, nil))
+		for _, fix := range list.GetFixes() {
+			fix()
+		}
+
+		got, err := os.ReadFile(filepath.Join(modulePath, rel))
+		require.NoError(t, err)
+		assert.Equal(t, patched, string(got))
+	})
+}
