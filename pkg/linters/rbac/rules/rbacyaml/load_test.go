@@ -18,6 +18,7 @@ package rbacyaml
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -665,4 +666,15 @@ resources:
 	got := strings.Join(msgs, "\n")
 	assert.Contains(t, got, `resources[1] (a.io/things): namespace.viewer: "bogus" is not a verb`)
 	assert.NotContains(t, got, "resources[0] (a.io/things)")
+}
+
+// A TODO `when` is an open decision, not a malformed expression (review of #479, finding 51).
+func TestValidateWhen_TODO(t *testing.T) {
+	var got []string
+
+	validateWhen("TODO: write the condition", "serviceAccounts[0] (m)", func(format string, args ...any) { got = append(got, fmt.Sprintf(format, args...)) })
+
+	require.Len(t, got, 1)
+	assert.Contains(t, got[0], "is still undecided: a decision is needed")
+	assert.NotContains(t, got[0], "not a Helm expression")
 }

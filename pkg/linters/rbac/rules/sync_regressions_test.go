@@ -577,9 +577,42 @@ metadata:
 	assert.False(t, renderedInRange("{{ if }", "Role", "x"), "a template that does not parse tells nothing")
 }
 
-// A template with a document that only includes a named template holds library objects (review of
-// #479, finding 42).
-func TestHoldsLibraryDocument(t *testing.T) {
-	assert.True(t, holdsLibraryDocument("{{- include \"helm_lib_csi_controller_rbac\" . }}\n---\nkind: ClusterRole\nmetadata:\n  name: d8:m:csi\n"))
-	assert.False(t, holdsLibraryDocument("---\nkind: ClusterRole\nmetadata:\n  name: d8:m:csi\n  {{- include \"helm_lib_module_labels\" (list .) | nindent 2 }}\n"))
+// A template that renders a library's objects marks its other objects: the render tells, so a
+// define holding an include marks nothing (review of #479, finding 50).
+func TestMarkLibraryFiles(t *testing.T) {
+	objects := []bootstrap.Object{
+		{Kind: "ServiceAccount", Name: "csi", Path: "templates/csi/rbac-for-us.yaml", Library: true},
+		{Kind: "ClusterRole", Name: "d8:m:csi", Path: "templates/csi/rbac-for-us.yaml"},
+		{Kind: "ClusterRole", Name: "user-authz:m:user", Path: "templates/user-authz-cluster-roles.yaml"},
+	}
+
+	markLibraryFiles(objects)
+
+	assert.True(t, objects[0].LibraryFile)
+	assert.True(t, objects[1].LibraryFile)
+	assert.False(t, objects[2].LibraryFile)
+}
+
+// A `when` excuses an absent object only while its condition is false: when the account under the
+// same `when` rendered, its missing ClusterRole and binding are drift (review of #479, finding 47).
+func TestSyncRegression_WhenDoesNotExcuseAbsentSiblings(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+
+	store := renderedFrom(t, model, func(o *generate.Object) bool {
+		return o.When == "" || o.Kind == "ServiceAccount"
+	})
+
+	got := strings.Join(texts(runSync(t, modulePath, store)), "\n")
+	assert.Contains(t, got, "ClusterRole/d8:cert-manager:cainjector is declared but absent from the render")
+
+	// With the condition false for the whole file, nothing is reported.
+	resetFixState()
+
+	got = strings.Join(texts(runSync(t, modulePath, renderedFrom(t, model, func(o *generate.Object) bool { return o.When == "" }))), "\n")
+	assert.NotContains(t, got, "cainjector is declared but absent")
 }

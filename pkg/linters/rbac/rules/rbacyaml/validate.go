@@ -57,6 +57,13 @@ func validateWhen(when, where string, report reporter) {
 		return
 	}
 
+	// A TODO is a decision nobody has made yet, not a malformed expression (review of #479,
+	// finding 51).
+	if strings.HasPrefix(when, NoAccessTODO) {
+		report("%s: when %q is still undecided: a decision is needed -- only a person can close this", where, when)
+		return
+	}
+
 	if _, err := template.New("when").Funcs(helmFuncs).Parse("{{ if " + when + " }}{{ end }}"); err != nil {
 		report("%s: when %q is not a Helm expression: %v", where, when, err)
 	}

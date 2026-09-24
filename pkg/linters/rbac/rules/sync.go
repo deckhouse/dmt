@@ -901,10 +901,21 @@ func hasAbsentObject(file generate.File, actual map[string]managedObject) bool {
 func compareFile(file generate.File, actual map[string]managedObject, module string) []string {
 	var out []string
 
+	// A `when` excuses an absent object only while its condition is false: when another object of
+	// the file under the same `when` rendered, the condition holds in this render, and the absence
+	// is drift (review of #479, finding 47).
+	holds := map[string]bool{}
+
+	for _, o := range file.Objects {
+		if _, ok := actual[o.Identity()]; ok && o.When != "" {
+			holds[o.When] = true
+		}
+	}
+
 	for _, expected := range file.Objects {
 		act, ok := actual[expected.Identity()]
 		if !ok {
-			if expected.When == "" {
+			if expected.When == "" || holds[expected.When] {
 				out = append(out, fmt.Sprintf("%s is declared but absent from the render", expected.Identity()))
 			}
 
@@ -1285,7 +1296,6 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 			}
 
 			o.Library = renderedByInclude(text, o.Kind, o.Name)
-			o.LibraryFile = holdsLibraryDocument(text)
 			o.Repeated = renderedInRange(text, o.Kind, o.Name)
 			in.Objects = append(in.Objects, o)
 		}
@@ -1294,6 +1304,8 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 	if len(in.Objects) == 0 {
 		return
 	}
+
+	markLibraryFiles(in.Objects)
 
 	result := bootstrap.Build(in)
 	described := len(in.Objects) - len(result.Unmanaged)
@@ -1310,6 +1322,7 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 			}
 
 			in.Objects = bootstrapObjectsOf(path)
+			markLibraryFiles(in.Objects)
 			in.Partial = bootstrapPartialOf(path)
 			result := bootstrap.Build(in)
 
@@ -1935,26 +1948,20 @@ func renderedByInclude(content, kind, name string) bool {
 	return include
 }
 
-// holdsLibraryDocument reports whether the template has a document without a kind of its own
-// that includes a named template: what such a file renders is partly the library's (review of
-// #479, finding 42).
-func holdsLibraryDocument(content string) bool {
-	for _, doc := range separatorRe.Split(strings.ReplaceAll(content, "\r\n", "\n"), -1) {
-		kind := false
+// markLibraryFiles marks the objects of a template that also renders a library's objects: the
+// render tells, not the text (review of #479, finding 50).
+func markLibraryFiles(objects []bootstrap.Object) {
+	library := map[string]bool{}
 
-		for _, line := range strings.Split(doc, "\n") {
-			if kindLineRe.MatchString(line) {
-				kind = true
-				break
-			}
-		}
-
-		if !kind && includeRe.MatchString(doc) {
-			return true
+	for _, o := range objects {
+		if o.Library {
+			library[o.Path] = true
 		}
 	}
 
-	return false
+	for i := range objects {
+		objects[i].LibraryFile = library[objects[i].Path]
+	}
 }
 
 // namesMatch reports whether a metadata name as the template writes it can be the rendered name:

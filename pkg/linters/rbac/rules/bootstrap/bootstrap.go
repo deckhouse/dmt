@@ -145,6 +145,8 @@ type builder struct {
 	// objects imported with the account being read.
 	partialIDs map[string]bool
 	current    []Object
+	// partialKept are the objects kept hand-written because only some variants rendered them.
+	partialKept []Object
 	// conditionalKeys are the resources a capability or a legacy role only some variants rendered
 	// grants, with why.
 	conditionalKeys map[[2]string][]string
@@ -210,6 +212,7 @@ func Build(in Input) Result {
 	b.leftovers()
 	b.resources()
 	b.dropped()
+	b.sharedWithDeclared()
 
 	return Result{Decl: b.decl, Notes: b.notes, Unmanaged: b.unmanaged}
 }
@@ -481,6 +484,14 @@ func (b *builder) serviceAccounts() {
 
 		if m := pathRe.FindStringSubmatch(sa.Path); m != nil {
 			e.Path = m[1]
+
+			// The generator refuses such an account (README, limits): it stays hand-written with
+			// what binds it, rather than making the whole declaration refused (finding 49).
+			if e.Path != "" && (b.in.Namespace == "default" || b.in.Namespace == "kube-system") {
+				b.setAsideAccount(sa, fmt.Sprintf("in %s the placement rule wants the account named %q, which the generator does not accept yet (a known limitation)", b.in.Namespace, "d8-"+b.in.Module+"-"+strings.ReplaceAll(e.Path, "/", "-")))
+
+				continue
+			}
 		} else {
 			b.note("ServiceAccount %s lives in %s; the generator keeps accounts in templates/[<path>/]rbac-for-us.yaml and will write it to templates/rbac-for-us.yaml", sa.Name, sa.Path)
 		}
@@ -595,8 +606,12 @@ func (b *builder) serviceAccounts() {
 			}
 		}
 
-		if len(partial) > 0 {
+		switch {
+		case len(partial) > 0 && b.partial(sa):
 			e.When = "TODO: " + strings.Join(partial, ", ") + " render only under some of the linted values; write the condition they render under"
+		case len(partial) > 0:
+			// The account itself renders always: narrowing its `when` would take it away (finding 51).
+			e.When = "TODO: " + strings.Join(partial, ", ") + " render only under some of the linted values, the account always; the declaration puts them under one `when` -- keep them hand-written, or decide that they share one condition"
 		}
 
 		b.decl.ServiceAccounts = append(b.decl.ServiceAccounts, e)
@@ -974,6 +989,7 @@ func (b *builder) unmanagePartial(objects ...Object) bool {
 		for _, p := range objects {
 			b.unmanage(p, "renders only under some of the linted values, and the declaration has no `when` for it here")
 			b.mark(p)
+			b.partialKept = append(b.partialKept, p)
 		}
 
 		return true
@@ -1011,6 +1027,50 @@ func (b *builder) dropped() {
 
 		if len(lost) > 0 {
 			b.note("%s %s (%s) carries what the format does not describe (%s); the regeneration drops it", o.Kind, o.Name, o.Path, strings.Join(lost, ", "))
+		}
+	}
+}
+
+// sharedWithDeclared notes a partially rendered object kept hand-written in a file the declaration
+// writes objects into: a --fix without --matrix does not see it, puts the generated file beside
+// the template and advises to delete the template, which would drop it (review of #479, finding
+// 48).
+func (b *builder) sharedWithDeclared() {
+	for _, kept := range b.partialKept {
+		for _, o := range b.in.Objects {
+			if o.Path == kept.Path && b.isUsed(o) && !b.unmanagedIDs[o.identity()] {
+				b.note("%s %s stays hand-written in %s, which the declaration also writes: move it to a file of its own (templates/<dir>/rbac-for-us.yaml) before `--fix`, or regenerating %s drops it", kept.Kind, kept.Name, kept.Path, kept.Path)
+
+				break
+			}
+		}
+	}
+}
+
+// setAsideAccount keeps an account hand-written with the bindings that bind only it and the
+// module's own roles only they bind.
+func (b *builder) setAsideAccount(sa Object, why string) {
+	b.unmanage(sa, why)
+	b.mark(sa)
+
+	for _, kind := range []string{"ClusterRoleBinding", "RoleBinding"} {
+		for _, binding := range b.byKind(kind) {
+			if b.isUsed(binding) || !subjectsAreOnly(binding, sa.Name, b.ns(sa)) {
+				continue
+			}
+
+			b.unmanage(binding, "binds "+sa.Name+", which stays hand-written")
+			b.mark(binding)
+
+			if binding.RoleRef.Kind == "ClusterRole" {
+				if cr, ok := b.clusterRole(binding.RoleRef.Name); ok && !b.isUsed(cr) && b.ownClusterRole(cr) && len(b.bindingsOf(cr.Name)) == 1 {
+					b.unmanage(cr, "bound only to "+sa.Name+", which stays hand-written")
+					b.mark(cr)
+				}
+			} else if role, ok := b.role(b.ns(binding), binding.RoleRef.Name); ok && !b.isUsed(role) {
+				b.unmanage(role, "bound to "+sa.Name+", which stays hand-written")
+				b.mark(role)
+			}
 		}
 	}
 }
