@@ -18,6 +18,7 @@ package rbacyaml
 
 import (
 	"fmt"
+	"maps"
 	"reflect"
 	"regexp"
 	"slices"
@@ -316,6 +317,10 @@ func validateServiceAccounts(accounts []ServiceAccount, report reporter) {
 
 		validateWhen(sa.When, where, report)
 
+		validateMetadataKeys(sa.Labels, where+".labels", false, report)
+		validateMetadataKeys(sa.Annotations, where+".annotations", true, report)
+		validateMetadataKeys(sa.RBACAnnotations, where+".rbacAnnotations", true, report)
+
 		if strings.HasPrefix(sa.Path, "/") || strings.HasSuffix(sa.Path, "/") || strings.Contains(sa.Path, "..") {
 			report("%s: path must be a directory under templates/ without leading or trailing slashes, got %q", where, sa.Path)
 		}
@@ -528,3 +533,21 @@ var (
 	groupNameRe    = regexp.MustCompile(`^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
 	resourceNameRe = regexp.MustCompile(`^(\*|[a-z0-9]([-a-z0-9.]*[a-z0-9])?)(/[a-z0-9]([-a-z0-9]*[a-z0-9])?)?$`)
 )
+
+// qualifiedNameRe is a Kubernetes label or annotation key: an optional DNS prefix and a name.
+var qualifiedNameRe = regexp.MustCompile(`^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?[A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?$`)
+
+// validateMetadataKeys checks label or annotation keys: the generator writes them unquoted, and
+// the rbac.deckhouse.io and meta.helm.sh annotations belong to the generator and to Helm.
+func validateMetadataKeys(m map[string]string, where string, annotations bool, report reporter) {
+	for _, k := range slices.Sorted(maps.Keys(m)) {
+		if len(k) > 316 || !qualifiedNameRe.MatchString(k) {
+			report("%s: %q is not a valid key ([prefix/]name, the name up to 63 characters of letters, digits, '-', '_' and '.')", where, k)
+			continue
+		}
+
+		if annotations && (strings.HasPrefix(k, "rbac.deckhouse.io/") || strings.HasPrefix(k, "meta.helm.sh/")) {
+			report("%s: %q is set by the generator or by Helm, not by the declaration", where, k)
+		}
+	}
+}

@@ -158,6 +158,11 @@ type ServiceAccount struct {
 	// d8:<module>:<name of the account>:<name>, or exactly the given name when it starts with d8:.
 	ExtraClusterRoles []ExtraClusterRole `yaml:"extraClusterRoles,omitempty"`
 
+	// Annotations go on the ServiceAccount (helm.sh/resource-policy: keep, werf.io/deploy-on, ...);
+	// RBACAnnotations on every role and binding generated for the account.
+	Annotations     map[string]string `yaml:"annotations,omitempty"`
+	RBACAnnotations map[string]string `yaml:"rbacAnnotations,omitempty"`
+
 	// AutomountToken is the ServiceAccount's automountServiceAccountToken; unset means false, the
 	// platform convention. A pod that needs the token sets it true on the pod, or the account
 	// declares true here.
@@ -205,7 +210,8 @@ type PrometheusAccess struct {
 
 // Access grants arbitrary subjects rights on the module. ClusterRules produce a ClusterRole and
 // ClusterRoleBinding d8:<module>:<name> in templates/rbac-for-us.yaml; NamespaceRules produce a
-// Role and RoleBinding access-to-<module>-<name> in templates/rbac-to-us.yaml. Exactly one of the
+// Role and RoleBinding access-to-<module>-<name> in templates/rbac-to-us.yaml, or
+// access-to-<path with dashes>-<name> in templates/<path>/rbac-to-us.yaml. Exactly one of the
 // two must be set: the placement rule keeps cluster-scoped objects out of rbac-to-us.yaml.
 type Access struct {
 	Name     string    `yaml:"name"`

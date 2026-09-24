@@ -400,3 +400,24 @@ func TestSyncRegression_ReplacedCopyIsReported(t *testing.T) {
 	assert.Contains(t, got, "templates/cert-manager/rbac-to-us.yaml does not match rbac.yaml: d8-cert-manager/Role/access-to-cert-manager-prometheus-metrics grants what d8-cert-manager/Role/access-to-cert-manager grants, and both render")
 	assert.Contains(t, got, "d8-cert-manager/RoleBinding/access-to-cert-manager-prometheus-metrics binds access-to-cert-manager-prometheus-metrics, the old copy of d8-cert-manager/Role/access-to-cert-manager")
 }
+
+// An annotation on an object the declaration writes whole is compared: a resource policy the
+// declaration does not carry would be dropped by the next regeneration (regression hunt, B7).
+func TestSyncRegression_AnnotationsAreCompared(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+
+	errorList := runSync(t, modulePath, renderedFrom(t, model, func(o *generate.Object) bool {
+		if o.Kind == "ServiceAccount" && o.Name == "cainjector" {
+			o.Annotations = map[string]string{"helm.sh/resource-policy": "keep"}
+		}
+
+		return true
+	}))
+
+	assert.Contains(t, strings.Join(texts(errorList), "\n"), "ServiceAccount/cainjector: annotation helm.sh/resource-policy is in the render but not declared")
+}

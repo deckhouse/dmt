@@ -412,3 +412,35 @@ func TestBuild_RepeatedBindingOfAnAccountFolds(t *testing.T) {
 	assert.Regexp(t, `ClusterRoleBinding d8:m:autoscaler(-mcm)?:rbac-proxy binds autoscaler to d8:rbac-proxy again; it folds into d8:m:autoscaler:rbac-proxy`, strings.Join(got.Notes, "\n"))
 	assert.Empty(t, rbacyaml.Validate(got.Decl, nil))
 }
+
+// Annotations of an account and of its roles survive the import, apart from Helm's and the
+// generator's own; a nested access Role keeps its entry name (regression hunt, B7 and B8).
+func TestBuild_AnnotationsAndNestedAccessNames(t *testing.T) {
+	labels := map[string]string{"module": "m"}
+	subject := []rbacv1.Subject{{Kind: "ServiceAccount", Name: "m", Namespace: "d8-m"}}
+	rules := []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"nodes"}, Verbs: []string{"get"}}}
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{
+		{Kind: "ServiceAccount", Name: "m", Path: "templates/rbac-for-us.yaml", Labels: labels,
+			Annotations: map[string]string{"helm.sh/resource-policy": "keep", "meta.helm.sh/release-name": "m"}},
+		{Kind: "ClusterRole", Name: "d8:m:m", Path: "templates/rbac-for-us.yaml", Labels: labels, Rules: rules,
+			Annotations: map[string]string{"werf.io/deploy-on": "pre-install"}},
+		{Kind: "ClusterRoleBinding", Name: "d8:m:m", Path: "templates/rbac-for-us.yaml", Labels: labels,
+			RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: "d8:m:m"}, Subjects: subject,
+			Annotations: map[string]string{"werf.io/deploy-on": "pre-install"}},
+		{Kind: "Role", Name: "access-to-webhook-reader", Namespace: "d8-m", Path: "templates/webhook/rbac-to-us.yaml", Labels: labels,
+			Rules: []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"secrets"}, Verbs: []string{"get"}}}},
+		{Kind: "RoleBinding", Name: "access-to-webhook-reader", Namespace: "d8-m", Path: "templates/webhook/rbac-to-us.yaml", Labels: labels,
+			RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "access-to-webhook-reader"}, Subjects: []rbacv1.Subject{{Kind: "Group", Name: "g"}}},
+	}})
+
+	require.Len(t, got.Decl.ServiceAccounts, 1)
+	assert.Equal(t, map[string]string{"helm.sh/resource-policy": "keep"}, got.Decl.ServiceAccounts[0].Annotations)
+	assert.Equal(t, map[string]string{"werf.io/deploy-on": "pre-install"}, got.Decl.ServiceAccounts[0].RBACAnnotations)
+
+	require.Len(t, got.Decl.Access, 1)
+	assert.Equal(t, "reader", got.Decl.Access[0].Name)
+	assert.Equal(t, "webhook", got.Decl.Access[0].Path)
+	assert.NotContains(t, strings.Join(got.Notes, "\n"), "will be named", "the generator writes the names the module already has")
+	assert.Empty(t, rbacyaml.Validate(got.Decl, nil))
+}

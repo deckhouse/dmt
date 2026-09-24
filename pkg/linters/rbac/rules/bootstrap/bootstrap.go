@@ -22,6 +22,7 @@ package bootstrap
 
 import (
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"sort"
@@ -422,9 +423,25 @@ func (b *builder) serviceAccounts() {
 			b.note("ServiceAccount %s mounted its token (automountServiceAccountToken unset or true); kept as true -- set false once its pods mount the token themselves", sa.Name)
 		}
 
+		e.Annotations = copyAnnotations(sa.Annotations)
+
 		b.mark(sa)
 
 		clusterName := "d8:" + b.in.Module + ":" + sa.Name
+
+		// The roles and bindings of the account carry one set of annotations in the format; the
+		// first object's set is kept and a differing one is noted.
+		var rbacFrom string
+
+		keep := func(o Object) {
+			switch {
+			case rbacFrom == "":
+				rbacFrom = o.Kind + " " + o.Name
+				e.RBACAnnotations = copyAnnotations(o.Annotations)
+			case !maps.Equal(e.RBACAnnotations, copyAnnotations(o.Annotations)):
+				b.note("%s %s carries annotations other than %s; the account's roles and bindings share one set (rbacAnnotations), the set of %s is kept", o.Kind, o.Name, rbacFrom, rbacFrom)
+			}
+		}
 
 		for _, crb := range b.byKind("ClusterRoleBinding") {
 			if b.isUsed(crb) || !subjectsAreOnly(crb, sa.Name, b.in.Namespace) {
@@ -457,9 +474,11 @@ func (b *builder) serviceAccounts() {
 			}
 
 			if exclusive {
+				keep(cr)
 				b.mark(cr)
 			}
 
+			keep(crb)
 			b.mark(crb)
 		}
 
@@ -472,6 +491,7 @@ func (b *builder) serviceAccounts() {
 				e.NamespaceRules = policyRules(role.Rules)
 				b.rename("Role", role.Name, sa.Name)
 				b.rename("RoleBinding", rb.Name, sa.Name)
+				keep(role)
 				b.mark(role)
 			} else if rb.RoleRef.Kind != "Role" {
 				// bindRoles binds Roles; the format has no RoleBinding to a ClusterRole, and turning it
@@ -483,6 +503,10 @@ func (b *builder) serviceAccounts() {
 			} else {
 				e.BindRoles = append(e.BindRoles, rbacyaml.RoleRef{Namespace: b.ns(rb), Name: rb.RoleRef.Name})
 				b.rename("RoleBinding", b.ns(rb)+"/"+rb.Name, b.ns(rb)+"/"+clusterName+":"+rbaccontract.BindingSuffix(rb.RoleRef.Name))
+			}
+
+			if rb.RoleRef.Kind == "Role" {
+				keep(rb)
 			}
 
 			b.mark(rb)
@@ -504,6 +528,7 @@ func (b *builder) serviceAccounts() {
 
 			e.ExtraClusterRoles = append(e.ExtraClusterRoles, extra)
 
+			keep(cr)
 			b.mark(cr)
 		}
 
@@ -552,10 +577,25 @@ func (b *builder) otherBindings() {
 			continue
 		}
 
-		name := strings.TrimPrefix(rb.Name, "access-to-"+b.in.Module+"-")
-		b.decl.Access = append(b.decl.Access, rbacyaml.Access{Name: name, Path: componentOf(role.Path, "rbac-to-us.yaml"), Subjects: subjects(rb.Subjects), NamespaceRules: policyRules(role.Rules)})
-		b.rename("Role", role.Name, "access-to-"+b.in.Module+"-"+name)
-		b.rename("RoleBinding", rb.Name, "access-to-"+b.in.Module+"-"+name)
+		path := componentOf(role.Path, "rbac-to-us.yaml")
+		name := rb.Name
+
+		// The entry name is what follows the placement prefix: access-to-<directory>- in a
+		// component file, access-to-<module>- (with or without the directory) at the root.
+		for _, prefix := range []string{
+			"access-to-" + b.in.Module + "-" + strings.ReplaceAll(path, "/", "-") + "-",
+			"access-to-" + strings.ReplaceAll(path, "/", "-") + "-",
+			"access-to-" + b.in.Module + "-",
+		} {
+			if trimmed, ok := strings.CutPrefix(name, prefix); ok && trimmed != "" && (path != "" || prefix == "access-to-"+b.in.Module+"-") {
+				name = trimmed
+				break
+			}
+		}
+
+		b.decl.Access = append(b.decl.Access, rbacyaml.Access{Name: name, Path: path, Subjects: subjects(rb.Subjects), NamespaceRules: policyRules(role.Rules)})
+		b.rename("Role", role.Name, rbaccontract.AccessRoleName(b.in.Module, path, name))
+		b.rename("RoleBinding", rb.Name, rbaccontract.AccessRoleName(b.in.Module, path, name))
 		b.mark(role)
 		b.mark(rb)
 	}
@@ -801,4 +841,24 @@ func subset(a, b []string) bool {
 	}
 
 	return true
+}
+
+// copyAnnotations returns the annotations a declaration can carry: Helm's own meta.helm.sh keys
+// are stamped at install time and the rbac.deckhouse.io keys are the generator's.
+func copyAnnotations(in map[string]string) map[string]string {
+	var out map[string]string
+
+	for k, v := range in {
+		if strings.HasPrefix(k, "meta.helm.sh/") || strings.HasPrefix(k, "rbac.deckhouse.io/") {
+			continue
+		}
+
+		if out == nil {
+			out = make(map[string]string, len(in))
+		}
+
+		out[k] = v
+	}
+
+	return out
 }

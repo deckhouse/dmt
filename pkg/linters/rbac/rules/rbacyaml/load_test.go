@@ -644,3 +644,28 @@ legacy:
 	require.Len(t, w, 1)
 	assert.Contains(t, w[0], "legacy.SuperAdmin produces a role user-authz does not aggregate")
 }
+
+// The generator writes label and annotation keys unquoted; the generator's and Helm's own
+// annotations are not the declaration's (regression hunt, B7).
+func TestValidate_AccountMetadataKeys(t *testing.T) {
+	decl := &Declaration{APIVersion: APIVersionV1Alpha1, ServiceAccounts: []ServiceAccount{{
+		Name:            "m",
+		Labels:          map[string]string{"bad key": "x"},
+		Annotations:     map[string]string{"helm.sh/resource-policy": "keep", "meta.helm.sh/release-name": "m"},
+		RBACAnnotations: map[string]string{"rbac.deckhouse.io/kind": "x", "werf.io/deploy-on": "pre-install"},
+	}}}
+
+	errs := Validate(decl, nil)
+
+	msgs := make([]string, 0, len(errs))
+	for _, e := range errs {
+		msgs = append(msgs, e.Error())
+	}
+
+	got := strings.Join(msgs, "\n")
+	assert.Contains(t, got, `serviceAccounts[0] (m).labels: "bad key" is not a valid key`)
+	assert.Contains(t, got, `serviceAccounts[0] (m).annotations: "meta.helm.sh/release-name" is set by the generator or by Helm`)
+	assert.Contains(t, got, `serviceAccounts[0] (m).rbacAnnotations: "rbac.deckhouse.io/kind" is set by the generator or by Helm`)
+	assert.NotContains(t, got, "helm.sh/resource-policy")
+	assert.NotContains(t, got, "werf.io")
+}
