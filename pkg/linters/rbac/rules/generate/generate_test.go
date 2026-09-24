@@ -284,7 +284,12 @@ func TestBuild_RefusesWhatTheModuleCannotCarry(t *testing.T) {
 		decl.ServiceAccounts = []rbacyaml.ServiceAccount{{Name: "dir", Path: "some/nested/dir"}}
 		_, err = Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Decl: decl})
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "one directory under templates/ only")
+		assert.Contains(t, err.Error(), `wants the account named "some-nested-dir" or "m-some-nested-dir"`)
+
+		// templates/<a>/<b>/rbac-for-us.yaml: the placement rule joins the directories.
+		decl.ServiceAccounts = []rbacyaml.ServiceAccount{{Name: "some-nested-dir", Path: "some/nested/dir"}, {Name: "m-a-b", Path: "a/b"}}
+		_, err = Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Decl: decl})
+		require.NoError(t, err)
 	})
 
 	t.Run("a capability marker longer than a label value", func(t *testing.T) {

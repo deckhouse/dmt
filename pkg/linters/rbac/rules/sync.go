@@ -122,7 +122,7 @@ func (r *SyncRule) Check(_ context.Context) {
 	}
 
 	if overlay != "" {
-		declList.Errorf("%s lies in the edition overlay %s; the declaration describes the union of editions and belongs to modules/<module>/ only -- CI merges the overlays over modules/ before linting, so a copy here would shadow it or go unseen. Only a person can close this: move the file",
+		declList.WithFix(manualFix("move the declaration out of the edition overlay")).Errorf("%s lies in the edition overlay %s; the declaration describes the union of editions and belongs to modules/<module>/ only -- CI merges the overlays over modules/ before linting, so a copy here would shadow it or go unseen. Only a person can close this: move the file",
 			rbacyaml.Filename, overlay)
 
 		return
@@ -130,11 +130,11 @@ func (r *SyncRule) Check(_ context.Context) {
 
 	if err != nil {
 		if content, readErr := os.ReadFile(rbacyaml.Path(modulePath)); readErr == nil && !strings.Contains(string(content), "apiVersion:") {
-			declList.Errorf("%s is not a declaration (no apiVersion): an rbac.yaml of an earlier shape that nothing reads; delete it and run `%s` to write the declaration from the render", rbacyaml.Filename, FixCommand)
+			declList.WithFix(manualFix("delete the rbac.yaml of an earlier shape")).Errorf("%s is not a declaration (no apiVersion): an rbac.yaml of an earlier shape that nothing reads; delete it and run `%s` to write the declaration from the render", rbacyaml.Filename, FixCommand)
 			return
 		}
 
-		declList.Errorf("%v; nothing is compared or generated until the declaration parses", err)
+		declList.WithFix(manualFix("make the declaration parse")).Errorf("%v; nothing is compared or generated until the declaration parses", err)
 
 		return
 	}
@@ -145,13 +145,13 @@ func (r *SyncRule) Check(_ context.Context) {
 
 	meta, err := readModuleMetadata(modulePath)
 	if err != nil {
-		r.errorList.WithFilePath("module.yaml").Errorf("%v; nothing is compared or generated until it parses: its subsystems decide the aggregation of every system capability", err)
+		r.errorList.WithFilePath("module.yaml").WithFix(manualFix("make module.yaml parse")).Errorf("%v; nothing is compared or generated until it parses: its subsystems decide the aggregation of every system capability", err)
 		return
 	}
 
 	if errs := rbacyaml.Validate(decl, crdScopes(crds)); len(errs) > 0 {
 		for _, e := range errs {
-			declList.Errorf("%v; nothing is compared or generated until the declaration is valid", e)
+			declList.WithFix(manualFix("correct the declaration")).Errorf("%v; nothing is compared or generated until the declaration is valid", e)
 		}
 
 		return
@@ -168,7 +168,7 @@ func (r *SyncRule) Check(_ context.Context) {
 		Decl:       decl,
 	})
 	if err != nil {
-		declList.Errorf("cannot derive the RBAC objects from the declaration: %v", err)
+		declList.WithFix(manualFix("correct the declaration")).Errorf("cannot derive the RBAC objects from the declaration: %v", err)
 		return
 	}
 
@@ -910,6 +910,10 @@ func compareFile(file generate.File, actual map[string]managedObject, module str
 func compareObject(expected generate.Object, actual storage.StoreObject, module string) []string {
 	var out []string
 
+	if expected.Class == generate.ClassDeclared {
+		out = append(out, compareAnnotations(expected, actual)...)
+	}
+
 	id := expected.Identity()
 	content := actual.Unstructured.UnstructuredContent()
 
@@ -1241,7 +1245,7 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 
 	meta, err := readModuleMetadata(modulePath)
 	if err != nil {
-		r.errorList.WithFilePath("module.yaml").Errorf("%v; the declaration is not written until it parses", err)
+		r.errorList.WithFilePath("module.yaml").WithFix(manualFix("make module.yaml parse")).Errorf("%v; the declaration is not written until it parses", err)
 		return
 	}
 
@@ -1682,4 +1686,37 @@ func renderedTwin(object storage.StoreObject, produced []generate.Object, render
 	}
 
 	return ""
+}
+
+// compareAnnotations compares the annotations of an object the declaration writes whole: a
+// resource policy or a deploy hook dropped by a regeneration changes what Helm or werf do with it.
+func compareAnnotations(expected generate.Object, actual storage.StoreObject) []string {
+	id := expected.Identity()
+	rendered := actual.Unstructured.GetAnnotations()
+
+	var out []string
+
+	for _, k := range slices.Sorted(maps.Keys(rendered)) {
+		if want, ok := expected.Annotations[k]; !ok {
+			out = append(out, fmt.Sprintf("%s: annotation %s is in the render but not declared", id, k))
+		} else if want != rendered[k] {
+			out = append(out, fmt.Sprintf("%s: annotation %s is %q in the render, the declaration produces %q", id, k, rendered[k], want))
+		}
+	}
+
+	for _, k := range slices.Sorted(maps.Keys(expected.Annotations)) {
+		if _, ok := rendered[k]; !ok {
+			out = append(out, fmt.Sprintf("%s: annotation %s is declared but absent from the render", id, k))
+		}
+	}
+
+	return out
+}
+
+// manualFix is the fix of a finding only a person can close: nothing is generated while it
+// stands, so `--fix` must not report success (it fails with what to do).
+func manualFix(what string) errors.AutofixFunc {
+	return func() error {
+		return fmt.Errorf("nothing was generated: %s first", what)
+	}
 }
