@@ -17,15 +17,16 @@ limitations under the License.
 package rules
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
 
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/bootstrap"
-	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/generate"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbaccontract"
 )
 
@@ -43,13 +44,13 @@ var fixState = struct {
 	sync.Mutex
 	foreign   map[string]map[string]struct{}
 	removals  map[string]map[string]struct{}
-	moves     map[string]map[string]string
+	blocked   map[string]map[string]struct{}
 	dropped   map[string]string
 	bootstrap map[string]map[string]bootstrap.Object
 }{
 	foreign:   map[string]map[string]struct{}{},
 	removals:  map[string]map[string]struct{}{},
-	moves:     map[string]map[string]string{},
+	blocked:   map[string]map[string]struct{}{},
 	dropped:   map[string]string{},
 	bootstrap: map[string]map[string]bootstrap.Object{},
 }
@@ -119,7 +120,7 @@ func resetFixState() {
 
 	fixState.foreign = map[string]map[string]struct{}{}
 	fixState.removals = map[string]map[string]struct{}{}
-	fixState.moves = map[string]map[string]string{}
+	fixState.blocked = map[string]map[string]struct{}{}
 	fixState.dropped = map[string]string{}
 	fixState.bootstrap = map[string]map[string]bootstrap.Object{}
 
@@ -300,52 +301,33 @@ func recordedRemovals(file string) []string {
 	return out
 }
 
-// recordMoves adds the objects one render variant saw in the file that the declaration now puts in
-// another file, with that file's full path.
-func recordMoves(file string, moves map[string]string) {
-	if len(moves) == 0 {
+// recordBlocked adds, for a file one render variant would regenerate, the objects it would write
+// that the render shows in another file.
+func recordBlocked(file string, objects []string) {
+	if len(objects) == 0 {
 		return
 	}
 
 	fixState.Lock()
 	defer fixState.Unlock()
 
-	known := fixState.moves[file]
+	known := fixState.blocked[file]
 	if known == nil {
-		known = map[string]string{}
-		fixState.moves[file] = known
+		known = map[string]struct{}{}
+		fixState.blocked[file] = known
 	}
 
-	for id, target := range moves {
-		known[id] = target
+	for _, o := range objects {
+		known[o] = struct{}{}
 	}
 }
 
-// unfinishedMoves returns, sorted, the objects moving out of the file whose target does not hold
-// them yet: its header does not list them. Such an object must not leave the file.
-func unfinishedMoves(file, modulePath string) []string {
+// blockedBy returns, sorted, what keeps the file from being regenerated.
+func blockedBy(file string) []string {
 	fixState.Lock()
-	moves := fixState.moves[file]
-	fixState.Unlock()
+	defer fixState.Unlock()
 
-	var out []string
-
-	for id, target := range moves {
-		content, err := os.ReadFile(filepath.Join(modulePath, target))
-		if err == nil {
-			if owned, _ := generate.ParseOwned(string(content)); owned != nil {
-				if _, there := owned[id]; there {
-					continue
-				}
-			}
-		}
-
-		out = append(out, id+" (to "+target+")")
-	}
-
-	sort.Strings(out)
-
-	return out
+	return slices.Sorted(maps.Keys(fixState.blocked[file]))
 }
 
 // recordDropped marks a template the render skipped in some variant: no variant's fix may rewrite
