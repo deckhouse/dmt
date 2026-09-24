@@ -250,10 +250,17 @@ func checkAgainstModule(in Input) error {
 		}
 
 		// The placement rule names the account of templates/<a>/<b>/rbac-for-us.yaml after its
-		// directories joined with dashes, with or without the module name in front.
+		// directories joined with dashes; with the module name in front only in a namespace of the
+		// platform (d8-system, d8-monitoring, ...).
 		dir := strings.ReplaceAll(sa.Path, "/", "-")
-		if sa.Name != dir && sa.Name != in.Module+"-"+dir {
-			return fmt.Errorf("serviceAccounts[%s].path %q: the placement rule wants the account named %q or %q after its directory; rename the account or move it to the module root", sa.Name, sa.Path, dir, in.Module+"-"+dir)
+
+		switch {
+		case sa.Name == dir:
+		case sa.Name == in.Module+"-"+dir && rbaccontract.IsDeckhouseNamespace(in.Namespace):
+		case sa.Name == in.Module+"-"+dir:
+			return fmt.Errorf("serviceAccounts[%s].path %q: the placement rule allows the module name in front of the directory only in a namespace of the platform (d8-system, d8-monitoring, ...); in %s name the account %q", sa.Name, sa.Path, in.Namespace, dir)
+		default:
+			return fmt.Errorf("serviceAccounts[%s].path %q: the placement rule wants the account named %q after its directory; rename the account or move it to the module root", sa.Name, sa.Path, dir)
 		}
 	}
 
@@ -449,8 +456,9 @@ func (b *builder) serviceAccounts() {
 		}
 
 		if len(sa.NamespaceRules) > 0 {
-			b.add(path, Object{Kind: "Role", Name: sa.Name, Namespace: b.in.Namespace, Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann), Rules: policyRules(sa.NamespaceRules)})
-			b.add(path, Object{Kind: "RoleBinding", Name: sa.Name, Namespace: b.in.Namespace, Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann), RoleRefKind: "Role", RoleRefName: sa.Name, Subjects: subject})
+			roleName := rbaccontract.AccountRoleName(b.in.Module, sa.Path, sa.Name)
+			b.add(path, Object{Kind: "Role", Name: roleName, Namespace: b.in.Namespace, Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann), Rules: policyRules(sa.NamespaceRules)})
+			b.add(path, Object{Kind: "RoleBinding", Name: roleName, Namespace: b.in.Namespace, Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann), RoleRefKind: "Role", RoleRefName: roleName, Subjects: subject})
 		}
 
 		for _, extra := range sa.ExtraClusterRoles {
@@ -471,7 +479,7 @@ func (b *builder) serviceAccounts() {
 
 		for _, ref := range sa.BindRoles {
 			b.add(path, Object{
-				Kind: "RoleBinding", Name: clusterName + ":" + rbaccontract.BindingSuffix(ref.Name), Namespace: ref.Namespace, Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann),
+				Kind: "RoleBinding", Name: rbaccontract.AccountForeignBindingPrefix(b.in.Module, sa.Path, sa.Name) + ":" + rbaccontract.BindingSuffix(ref.Name), Namespace: ref.Namespace, Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann),
 				RoleRefKind: "Role", RoleRefName: ref.Name, Subjects: subject,
 			})
 		}
@@ -501,11 +509,11 @@ func (b *builder) access() {
 		rules = sortRules(rules)
 		name := "access-to-" + b.in.Module
 
-		b.add("templates/rbac-to-us.yaml", Object{Kind: "Role", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, Rules: rules})
+		b.add("templates/rbac-to-us.yaml", Object{Kind: "Role", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, Labels: copyMap(pa.Labels), Annotations: copyMap(pa.Annotations), Rules: rules})
 		// The Role is unconditional and only the binding to the scraper is gated: that is how the
 		// modules write it today, and a Role nobody is bound to grants nothing.
 		b.add("templates/rbac-to-us.yaml", Object{
-			Kind: "RoleBinding", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, RoleRefKind: "Role", RoleRefName: name, When: pa.When,
+			Kind: "RoleBinding", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, Labels: copyMap(pa.Labels), Annotations: copyMap(pa.Annotations), RoleRefKind: "Role", RoleRefName: name, When: pa.When,
 			Subjects: []Subject{{Kind: "User", Name: "d8-monitoring:scraper"}, {Kind: "ServiceAccount", Name: "prometheus", Namespace: "d8-monitoring"}},
 		})
 	}
@@ -526,15 +534,15 @@ func (b *builder) access() {
 
 		if len(a.ClusterRules) > 0 {
 			name := "d8:" + b.in.Module + ":" + a.Name
-			b.add(dir+"rbac-for-us.yaml", Object{Kind: "ClusterRole", Name: name, Class: ClassDeclared, When: a.When, Rules: policyRules(a.ClusterRules)})
-			b.add(dir+"rbac-for-us.yaml", Object{Kind: "ClusterRoleBinding", Name: name, Class: ClassDeclared, When: a.When, RoleRefKind: "ClusterRole", RoleRefName: name, Subjects: subjects})
+			b.add(dir+"rbac-for-us.yaml", Object{Kind: "ClusterRole", Name: name, Class: ClassDeclared, When: a.When, Labels: copyMap(a.Labels), Annotations: copyMap(a.Annotations), Rules: policyRules(a.ClusterRules)})
+			b.add(dir+"rbac-for-us.yaml", Object{Kind: "ClusterRoleBinding", Name: name, Class: ClassDeclared, When: a.When, Labels: copyMap(a.Labels), Annotations: copyMap(a.Annotations), RoleRefKind: "ClusterRole", RoleRefName: name, Subjects: subjects})
 		}
 
 		if len(a.NamespaceRules) > 0 {
 			name := rbaccontract.AccessRoleName(b.in.Module, a.Path, a.Name)
 
-			b.add(dir+"rbac-to-us.yaml", Object{Kind: "Role", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, When: a.When, Rules: policyRules(a.NamespaceRules)})
-			b.add(dir+"rbac-to-us.yaml", Object{Kind: "RoleBinding", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, When: a.When, RoleRefKind: "Role", RoleRefName: name, Subjects: subjects})
+			b.add(dir+"rbac-to-us.yaml", Object{Kind: "Role", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, When: a.When, Labels: copyMap(a.Labels), Annotations: copyMap(a.Annotations), Rules: policyRules(a.NamespaceRules)})
+			b.add(dir+"rbac-to-us.yaml", Object{Kind: "RoleBinding", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, When: a.When, Labels: copyMap(a.Labels), Annotations: copyMap(a.Annotations), RoleRefKind: "Role", RoleRefName: name, Subjects: subjects})
 		}
 	}
 }

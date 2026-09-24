@@ -486,7 +486,7 @@ func TestSyncRegression_WrittenProblems(t *testing.T) {
 
 	assert.Empty(t, writtenProblems([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\n"), nil, in))
 	assert.Contains(t, writtenProblems([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\nserviceAccounts:\n  - name: x\n    path: a/b\n"), nil, in),
-		`the placement rule wants the account named "a-b" or "m-a-b"`)
+		`the placement rule wants the account named "a-b" after its directory`)
 	assert.Contains(t, writtenProblems([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\nserviceAccounts:\n  - name: x\n    when: .Values.x }}\n"), nil, in), "template delimiter")
 	assert.Empty(t, writtenProblems([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\nserviceAccounts:\n  - name: x\n    when: \"TODO: decide\"\n"), nil, in), "a TODO is counted on its own")
 }

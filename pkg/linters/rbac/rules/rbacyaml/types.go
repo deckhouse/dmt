@@ -213,6 +213,9 @@ type PrometheusAccess struct {
 	// `.Values.global.enabledModules | has "prometheus"`. The Role stays unconditional, so the
 	// generated file keeps the shape of the hand-written ones.
 	When string `yaml:"when,omitempty"`
+	// Labels and Annotations go on the Role and the RoleBinding.
+	Labels      map[string]string `yaml:"labels,omitempty"`
+	Annotations map[string]string `yaml:"annotations,omitempty"`
 }
 
 // Access grants arbitrary subjects rights on the module. ClusterRules produce a ClusterRole and
@@ -227,9 +230,12 @@ type Access struct {
 	// rbac-to-us.yaml (namespaceRules) holds the objects; empty means the module root files.
 	Path string `yaml:"path,omitempty"`
 	// When wraps the role and the binding in {{- if <When> }}, as for a ServiceAccount.
-	When           string       `yaml:"when,omitempty"`
-	ClusterRules   []PolicyRule `yaml:"clusterRules,omitempty"`
-	NamespaceRules []PolicyRule `yaml:"namespaceRules,omitempty"`
+	When string `yaml:"when,omitempty"`
+	// Labels and Annotations go on the role and the binding.
+	Labels         map[string]string `yaml:"labels,omitempty"`
+	Annotations    map[string]string `yaml:"annotations,omitempty"`
+	ClusterRules   []PolicyRule      `yaml:"clusterRules,omitempty"`
+	NamespaceRules []PolicyRule      `yaml:"namespaceRules,omitempty"`
 }
 
 // Subject is an RBAC subject; Namespace is required for a ServiceAccount.
