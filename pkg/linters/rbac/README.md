@@ -1645,7 +1645,9 @@ regeneration does not drop it in silence. A block inside an object -- a rule und
 -- is noted. The Prometheus scrape binding keeps its gate as `prometheusAccess.when`.
 
 The fix that writes the file keeps the finding while a `TODO` is left in it or while the linter would
-refuse the written file (both are named in the fix error), and a `--fix` run with any fix left open
+refuse the written file (both are named in the fix error). A written file that does not parse is a bug
+of dmt; it is written all the same and the fix error names the line, so the module's developer fixes
+that line and goes on, and a `--fix` run with any fix left open
 exits non-zero whatever the level of its finding. Nothing is written into an edition overlay. Review
 it, resolve the TODOs, then run `--fix` again to regenerate the templates from it. From then on
 `rbac.yaml` is the source.

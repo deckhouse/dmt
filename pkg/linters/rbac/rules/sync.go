@@ -1312,34 +1312,7 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 				return fmt.Errorf("render %s: %w", rbacyaml.Filename, err)
 			}
 
-			// A file that does not parse would stay on disk and stop every later bootstrap: the
-			// rule only writes a declaration that is missing.
-			if _, err := rbacyaml.Parse(content); err != nil {
-				return fmt.Errorf("%s is not written: the declaration bootstrap produced does not parse (%w); this is a bug of dmt, report it with the module", rbacyaml.Filename, err)
-			}
-
-			if err := writeFileAtomic(path, content, 0o644); err != nil { //nolint:gosec // a source file of the module
-				return err
-			}
-
-			// The file is written, but a TODO in it is a decision nobody has made yet: the finding
-			// stays, and so does the non-zero exit, until a person makes it (ADR, bootstrap). What
-			// the linter would refuse in the written file is named here too, rather than on the
-			// next run.
-			problems := writtenProblems(content, crds, in)
-			if len(in.Unrendered) > 0 {
-				problems += "; the templates hold objects no render showed, and the declaration does not: " + strings.Join(in.Unrendered, ", ")
-			}
-
-			if open := openDecisions(string(content)); open > 0 {
-				return fmt.Errorf("%s is written; %d TODO in it are decisions only a person can make%s -- resolve them, then run `%s` to regenerate the templates", rbacyaml.Filename, open, problems, FixCommand)
-			}
-
-			if problems != "" {
-				return fmt.Errorf("%s is written%s -- correct it, then run `%s` to regenerate the templates", rbacyaml.Filename, problems, FixCommand)
-			}
-
-			return nil
+			return writeBootstrapped(path, content, crds, in)
 		})
 	}).Errorf("%s is missing: `%s` writes it from the RBAC objects the module renders today (%d of %d objects described, the rest listed in the file as hand-written); every TODO and note in it is a decision for a person before the templates are regenerated from it",
 		rbacyaml.Filename, FixCommand, described, len(in.Objects))
@@ -2017,4 +1990,38 @@ func splitChanges(divergences []string) ([]string, []string) {
 	}
 
 	return added, removed
+}
+
+// writeBootstrapped writes the declaration bootstrap produced and says what is left for a person.
+// A declaration that does not parse is a bug of dmt, yet it is written all the same: the module's
+// developer fixes the line the error names and goes on, instead of waiting for a dmt release with
+// nothing to look at. Bootstrap runs only while the file is missing, so the error says where to
+// look.
+func writeBootstrapped(path string, content []byte, crds []crdInfo, in bootstrap.Input) error {
+	if err := writeFileAtomic(path, content, 0o644); err != nil { //nolint:gosec // a source file of the module
+		return err
+	}
+
+	if _, err := rbacyaml.Parse(content); err != nil {
+		return fmt.Errorf("%s is written, but it does not parse (%w); the declaration is complete apart from that line -- most likely a note in the header that lost its '#': fix or delete the line, then run `%s` again. This is a bug of dmt, report it with the module",
+			rbacyaml.Filename, err, FixCommand)
+	}
+
+	// The file is written, but a TODO in it is a decision nobody has made yet: the finding stays,
+	// and so does the non-zero exit, until a person makes it (ADR, bootstrap). What the linter
+	// would refuse in the written file is named here too, rather than on the next run.
+	problems := writtenProblems(content, crds, in)
+	if len(in.Unrendered) > 0 {
+		problems += "; the templates hold objects no render showed, and the declaration does not: " + strings.Join(in.Unrendered, ", ")
+	}
+
+	if open := openDecisions(string(content)); open > 0 {
+		return fmt.Errorf("%s is written; %d TODO in it are decisions only a person can make%s -- resolve them, then run `%s` to regenerate the templates", rbacyaml.Filename, open, problems, FixCommand)
+	}
+
+	if problems != "" {
+		return fmt.Errorf("%s is written%s -- correct it, then run `%s` to regenerate the templates", rbacyaml.Filename, problems, FixCommand)
+	}
+
+	return nil
 }

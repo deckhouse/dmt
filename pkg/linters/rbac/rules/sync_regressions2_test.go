@@ -18,6 +18,7 @@ package rules
 
 import (
 	"context"
+	"os"
 	"strings"
 	"testing"
 
@@ -156,4 +157,40 @@ func TestLocateInTemplate_Subchart(t *testing.T) {
 
 	assert.True(t, o.Located)
 	assert.Equal(t, "rendered by the subchart sub, whose templates and values are its own", o.Unmanageable)
+}
+
+// A declaration bootstrap produced that does not parse is a bug of dmt, yet it is written: the
+// error names the line, the developer fixes it and goes on. The next lint reads the file, it does
+// not bootstrap again.
+func TestWriteBootstrapped_UnparsableIsWrittenWithTheLine(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	path := rbacyaml.Path(modulePath)
+	require.NoError(t, os.Remove(path))
+
+	broken := []byte("# Written by dmt\n# - a note over\n  two lines that lost its #\napiVersion: rbac.deckhouse.io/v1alpha1\n")
+
+	err := writeBootstrapped(path, broken, nil, bootstrap.Input{Module: syncModule, Namespace: "d8-cert-manager"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "rbac.yaml is written, but it does not parse")
+	assert.Contains(t, err.Error(), "line 3")
+	assert.Contains(t, err.Error(), "fix or delete the line, then run `dmt lint --linter rbac --fix` again")
+
+	written, readErr := os.ReadFile(path)
+	require.NoError(t, readErr)
+	assert.Equal(t, broken, written)
+
+	got := strings.Join(texts(runSync(t, modulePath, renderedFrom(t, syncModelFromFixture(t), nil))), "\n")
+	assert.Contains(t, got, "nothing is compared or generated until the declaration parses")
+	assert.NotContains(t, got, "rbac.yaml is missing")
+}
+
+// syncModelFromFixture builds the model of the cert-manager fixture without reading the module's
+// rbac.yaml, which a test may have broken.
+func syncModelFromFixture(t *testing.T) *generate.Model {
+	t.Helper()
+
+	return syncModel(t, syncModuleDir(t))
 }
