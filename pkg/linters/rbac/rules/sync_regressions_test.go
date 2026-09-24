@@ -481,3 +481,48 @@ func TestSyncRegression_IncludeInsideTheDocument(t *testing.T) {
 		assert.Equal(t, patched, string(got))
 	})
 }
+
+// The generator's labels line is recognized only in the shapes the generator writes: an include
+// or labels from the values appended to it are someone else's (review of #479, finding 31).
+func TestLabelsLineRe(t *testing.T) {
+	for line, want := range map[string]bool{
+		`  {{- include "helm_lib_module_labels" (list .) | nindent 2 }}`:                                      true,
+		`  {{- include "helm_lib_module_labels" (list . (dict "app" "cainjector")) | nindent 2 }}`:            true,
+		`  {{- include "helm_lib_module_labels" (list . (dict "a" "x \" y" "b" "z")) | nindent 2 }}`:          true,
+		`  {{- include "helm_lib_module_labels" (list .) | nindent 2 }}{{ include "x" . | nindent 2 }}`:       false,
+		`  {{- include "helm_lib_module_labels" (list . .Values.m.labels) | nindent 2 }}`:                     false,
+		`  {{- include "helm_lib_module_labels" (list . (dict "app" .Values.m.app)) | nindent 2 }}`:           false,
+		`  {{- include "helm_lib_module_labels" (list . (dict "app" "a")) | nindent 2 }} {{ include "x" . }}`: false,
+	} {
+		assert.Equal(t, want, labelsLineRe.MatchString(line), line)
+	}
+}
+
+// An include appended to the generator's labels line is not dropped by a regeneration.
+func TestSyncRegression_IncludeOnTheLabelsLine(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	const rel = "templates/cainjector/rbac-for-us.yaml"
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+
+	fullPath := filepath.Join(modulePath, rel)
+	content, err := os.ReadFile(fullPath)
+	require.NoError(t, err)
+
+	patched := strings.Replace(string(content), "| nindent 2 }}\n", "| nindent 2 }}{{ include \"extra-labels\" . | nindent 2 }}\n", 1)
+	require.NotEqual(t, string(content), patched)
+	require.NoError(t, os.WriteFile(fullPath, []byte(patched), 0o600))
+
+	list := runSync(t, modulePath, renderedFrom(t, model, nil))
+	for _, fix := range list.GetFixes() {
+		fix()
+	}
+
+	got, err := os.ReadFile(fullPath)
+	require.NoError(t, err)
+	assert.Equal(t, patched, string(got))
+}
