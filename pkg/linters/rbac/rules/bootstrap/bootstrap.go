@@ -22,6 +22,7 @@ package bootstrap
 
 import (
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"sort"
@@ -64,6 +65,9 @@ type Input struct {
 	Objects    []Object
 	// CRDs maps group/plural to scope for the CRDs under crds/.
 	CRDs map[string]string
+	// Partial are the objects (Kind/namespace/name) some render variants did not render: under
+	// --matrix, the objects under a condition. The declaration has no `when` for them yet.
+	Partial []string
 }
 
 // Result is the declaration with the reader's homework.
@@ -130,6 +134,10 @@ type builder struct {
 	notes      []string
 	unmanaged  []string
 	decl       *rbacyaml.Declaration
+	// unmanagedIDs are the objects left hand-written; account the objects imported with an
+	// account, which carry its app label.
+	unmanagedIDs map[string]bool
+	account      map[string]bool
 	// prometheusFolded is set once the note on folding several scrape Roles is written.
 	prometheusFolded bool
 }
@@ -139,6 +147,7 @@ func (b *builder) note(format string, args ...any) {
 }
 
 func (b *builder) unmanage(o Object, why string) {
+	b.unmanagedIDs[o.identity()] = true
 	b.unmanaged = append(b.unmanaged, fmt.Sprintf("%s (%s): %s", o.identity(), o.Path, why))
 }
 
@@ -177,7 +186,7 @@ func Build(in Input) Result {
 		return in.Objects[i].identity() < in.Objects[j].identity()
 	})
 
-	b := &builder{in: in, res: map[[2]string]*resourceAcc{}, restricted: map[[2]string][]string{}, texts: map[string]rbacyaml.CapabilityText{}, lineages: map[string]struct{}{}, used: map[string]struct{}{},
+	b := &builder{in: in, unmanagedIDs: map[string]bool{}, account: map[string]bool{}, res: map[[2]string]*resourceAcc{}, restricted: map[[2]string][]string{}, texts: map[string]rbacyaml.CapabilityText{}, lineages: map[string]struct{}{}, used: map[string]struct{}{},
 		decl: &rbacyaml.Declaration{APIVersion: rbacyaml.APIVersionV1Alpha1}}
 
 	b.setAside()
@@ -186,6 +195,7 @@ func Build(in Input) Result {
 	b.otherBindings()
 	b.leftovers()
 	b.resources()
+	b.dropped()
 
 	return Result{Decl: b.decl, Notes: b.notes, Unmanaged: b.unmanaged}
 }
@@ -442,7 +452,7 @@ func (b *builder) serviceAccounts() {
 
 		if b.ns(sa) != b.in.Namespace {
 			b.unmanage(sa, "outside the module namespace")
-			b.mark(sa)
+			b.markAccount(sa)
 
 			continue
 		}
@@ -466,7 +476,7 @@ func (b *builder) serviceAccounts() {
 			b.note("ServiceAccount %s mounted its token (automountServiceAccountToken unset or true); kept as true -- set false once its pods mount the token themselves", sa.Name)
 		}
 
-		b.mark(sa)
+		b.markAccount(sa)
 
 		clusterName := "d8:" + b.in.Module + ":" + sa.Name
 
@@ -501,10 +511,10 @@ func (b *builder) serviceAccounts() {
 			}
 
 			if exclusive {
-				b.mark(cr)
+				b.markAccount(cr)
 			}
 
-			b.mark(crb)
+			b.markAccount(crb)
 		}
 
 		for _, rb := range b.byKind("RoleBinding") {
@@ -516,7 +526,7 @@ func (b *builder) serviceAccounts() {
 				e.NamespaceRules = policyRules(role.Rules)
 				b.rename("Role", role.Name, sa.Name)
 				b.rename("RoleBinding", rb.Name, sa.Name)
-				b.mark(role)
+				b.markAccount(role)
 			} else if rb.RoleRef.Kind != "Role" {
 				// bindRoles binds Roles; the format has no RoleBinding to a ClusterRole, and turning it
 				// into one to a Role of that name would bind nothing (Kubernetes accepts a binding to a
@@ -529,7 +539,7 @@ func (b *builder) serviceAccounts() {
 				b.rename("RoleBinding", b.ns(rb)+"/"+rb.Name, b.ns(rb)+"/"+clusterName+":"+rbaccontract.BindingSuffix(rb.RoleRef.Name))
 			}
 
-			b.mark(rb)
+			b.markAccount(rb)
 		}
 
 		// Unbound ClusterRoles of the module in the account's file: roles shipped for others to
@@ -548,7 +558,7 @@ func (b *builder) serviceAccounts() {
 
 			e.ExtraClusterRoles = append(e.ExtraClusterRoles, extra)
 
-			b.mark(cr)
+			b.markAccount(cr)
 		}
 
 		if n := len(e.ExtraClusterRoles); n > 1 {
@@ -859,4 +869,53 @@ func subset(a, b []string) bool {
 	}
 
 	return true
+}
+
+// markAccount marks an object imported with an account: it carries the account's app label.
+func (b *builder) markAccount(o Object) {
+	b.mark(o)
+	b.account[o.identity()] = true
+}
+
+// dropped notes, per object the declaration describes, what a regeneration drops without the
+// format saying so: labels and annotations it has no field for, and under --matrix the condition
+// of an object some variants did not render (review of #479, finding 40).
+func (b *builder) dropped() {
+	partial := make(map[string]bool, len(b.in.Partial))
+	for _, p := range b.in.Partial {
+		partial[p] = true
+	}
+
+	for _, o := range b.in.Objects {
+		id := o.identity()
+		if !b.isUsed(o) || b.unmanagedIDs[id] {
+			continue
+		}
+
+		if partial[o.Kind+"/"+o.Namespace+"/"+o.Name] {
+			b.note("%s %s (%s) renders only under some of the linted values; the declaration writes it unconditionally -- add `when` if its template has a condition", o.Kind, o.Name, o.Path)
+		}
+
+		var lost []string
+
+		for _, k := range slices.Sorted(maps.Keys(o.Labels)) {
+			if k == "heritage" || k == "module" || strings.HasPrefix(k, "rbac.deckhouse.io/") || (k == "app" && b.account[id]) {
+				continue
+			}
+
+			lost = append(lost, "label "+k)
+		}
+
+		for _, k := range slices.Sorted(maps.Keys(o.Annotations)) {
+			if strings.HasPrefix(k, "meta.helm.sh/") || strings.HasPrefix(k, "rbac.deckhouse.io/") || k == rbaccontract.AccessLevelAnnotation || slices.Contains(rbaccontract.I18nAnnotations, k) {
+				continue
+			}
+
+			lost = append(lost, "annotation "+k)
+		}
+
+		if len(lost) > 0 {
+			b.note("%s %s (%s) carries what the format does not describe (%s); the regeneration drops it", o.Kind, o.Name, o.Path, strings.Join(lost, ", "))
+		}
+	}
 }
