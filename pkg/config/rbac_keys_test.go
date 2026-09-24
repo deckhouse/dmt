@@ -115,3 +115,36 @@ linters-settings:
 		require.NoError(t, loadFrom(t, "linters-settings:\n  container:\n    impakt: warn\n"))
 	})
 }
+
+// A module's own .dmtlint.yaml may not set the per-rule rbac levels: they are read from the root
+// only and would be dropped without a word (regression hunt, B13).
+func TestRefuseRootOnlyKeys(t *testing.T) {
+	root := t.TempDir()
+	module := filepath.Join(root, "modules", "m")
+	require.NoError(t, os.MkdirAll(module, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, ".dmtlint.yaml"), []byte("global:\n  linters-settings:\n    rbac:\n      rules:\n        sync:\n          impact: error\n"), 0o600))
+
+	rootCfg, err := NewDefaultRootConfig(root)
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(root, ".dmtlint.yaml"), rootCfg.File)
+
+	// Without a file of its own the module reads the root one: nothing to refuse.
+	own := NewLoader(&ModuleConfig{}, module)
+	require.NoError(t, own.Load())
+	require.NoError(t, own.RefuseRootOnlyKeys(rootCfg.File))
+
+	require.NoError(t, os.WriteFile(filepath.Join(module, ".dmtlint.yaml"), []byte("linters-settings:\n  rbac:\n    impact: warn\n"), 0o600))
+
+	own = NewLoader(&ModuleConfig{}, module)
+	require.NoError(t, own.Load())
+	require.NoError(t, own.RefuseRootOnlyKeys(rootCfg.File))
+
+	require.NoError(t, os.WriteFile(filepath.Join(module, ".dmtlint.yaml"), []byte("global:\n  linters-settings:\n    rbac:\n      rules:\n        sync:\n          impact: ignored\n"), 0o600))
+
+	own = NewLoader(&ModuleConfig{}, module)
+	require.NoError(t, own.Load())
+
+	err = own.RefuseRootOnlyKeys(rootCfg.File)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "sets global.linters-settings.rbac, which only the root .dmtlint.yaml sets")
+}

@@ -155,7 +155,7 @@ resources:
 	assert.Contains(t, got, "error: CRD a.io/gammas (crds/a.yaml) has no entry in rbac.yaml: decide the user access to it -- namespace, system or legacy levels, or noAccess with the reason; `dmt lint --linter rbac --fix` adds an undecided stub")
 	assert.Contains(t, got, "error: CRD d.io/deltas (crds/d.yaml) has no entry in rbac.yaml: decide the user access to it -- namespace, system or legacy levels, or noAccess with the reason; `dmt lint --linter rbac --fix` adds an undecided stub")
 	assert.Contains(t, got, `error: a.io/betas is still undecided in rbac.yaml (noAccess: "TODO"): a decision is needed -- only a person can close this`)
-	assert.Contains(t, got, "warn: a.io/gamas names a resource the module's CRDs of group a.io do not have; check the spelling, or drop the entry if the resource is gone")
+	assert.Contains(t, got, "warn: a.io/gamas names a resource the module's CRDs of group a.io do not have, and a.io/gammas is one letter or two away; check the spelling, or drop the entry if the resource is gone")
 
 	// --fix: two stubs are written, and both findings stay, each with the reason (R33); the open
 	// decision fails its fix too, so the run does not end green.
@@ -358,4 +358,17 @@ func TestCoverage_TODOPrefixIsAnOpenDecision(t *testing.T) {
 	}
 
 	assert.True(t, errorList.ContainsFailedFixes(), "a --fix run with open decisions fails")
+}
+
+// A resource of a shared group that is no near miss of the module's CRDs is external: another
+// module's CRD in deckhouse.io, not a misspelling (regression hunt, B11).
+func TestNearestResource(t *testing.T) {
+	known := map[string]struct{}{"deckhouse.io/nodegroups": {}, "deckhouse.io/instances": {}}
+
+	assert.Equal(t, "deckhouse.io/nodegroups", nearestResource(rbacyaml.Resource{Group: "deckhouse.io", Resource: "nodegroup"}, known))
+	assert.Equal(t, "deckhouse.io/instances", nearestResource(rbacyaml.Resource{Group: "deckhouse.io", Resource: "instanses"}, known))
+	assert.Empty(t, nearestResource(rbacyaml.Resource{Group: "deckhouse.io", Resource: "modulesources"}, known))
+	assert.Empty(t, nearestResource(rbacyaml.Resource{Group: "other.io", Resource: "nodegroup"}, known))
+	assert.Equal(t, 0, editDistance("abc", "abc"))
+	assert.Equal(t, 3, editDistance("", "abc"))
 }

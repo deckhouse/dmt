@@ -94,7 +94,14 @@ func Validate(d *Declaration, crds CRDScopes) []error {
 
 	for i := range d.Resources {
 		r := &d.Resources[i]
-		where := fmt.Sprintf("resources[%d] (%s)", i, r.Key())
+
+		// The index the author sees in the file, not the one after sorting.
+		pos := i
+		if d.parsed {
+			pos = r.Position
+		}
+
+		where := fmt.Sprintf("resources[%d] (%s)", pos, r.Key())
 
 		if _, dup := seen[r.Key()]; dup {
 			report("%s: duplicate entry for %s", where, r.Key())
@@ -159,13 +166,14 @@ func validateResource(r *Resource, where string, crds CRDScopes, usedCapabilitie
 		report("%s: %s", where, scopeErr)
 	}
 
-	if r.IsWildcard() {
+	// "*/<subresource>" is a wildcard over the resources as much as "*" is.
+	if r.IsWildcard() || strings.HasPrefix(r.Resource, "*/") {
 		if crds.groupKnown(r.Group) {
-			report("%s: resource \"*\" is allowed only for a group the module ships no CRD for; list the resources of %q", where, r.Group)
+			report("%s: resource %q is allowed only for a group the module ships no CRD for; list the resources of %q", where, r.Resource, r.Group)
 		}
 
 		if r.Reason == "" {
-			report("%s: resource \"*\" requires reason: why the resource names are not known statically", where)
+			report("%s: resource %q requires reason: why the resource names are not known statically", where, r.Resource)
 		}
 	}
 
@@ -203,6 +211,12 @@ func resolveScope(r *Resource, crds CRDScopes) (string, string) {
 	case known:
 		return fromCRD, ""
 	case r.Scope != "":
+		// A built-in resource has the scope Kubernetes serves it with; a declared one that differs
+		// would generate a capability that grants nothing (or a namespaced grant cluster-wide).
+		if builtin, ok := WellKnownScope(r.Group, r.Resource); ok && builtin != r.Scope {
+			return builtin, fmt.Sprintf("scope %q disagrees with Kubernetes, which serves %s as %q", r.Scope, r.Key(), builtin)
+		}
+
 		return r.Scope, ""
 	default:
 		if scope, ok := WellKnownScope(r.Group, r.Resource); ok {
@@ -265,7 +279,9 @@ func validateLevels(levels map[string][]string, lineage string, allowed []string
 // validateCapabilities requires localized texts for every capability outside the platform
 // convention (anything but view/edit) and rejects malformed entries.
 func validateCapabilities(texts map[string]CapabilityText, used map[string]struct{}, report reporter) {
-	for key, text := range texts {
+	for _, key := range slices.Sorted(maps.Keys(texts)) {
+		text := texts[key]
+
 		lineage, action, ok := strings.Cut(key, ".")
 		if !ok || (lineage != rbaccontract.LineageNamespace && lineage != rbaccontract.LineageSystem) {
 			report("capabilities: key %q must be \"namespace.<level>\" or \"system.<level>\"", key)
@@ -274,6 +290,10 @@ func validateCapabilities(texts map[string]CapabilityText, used map[string]struc
 
 		if rbaccontract.IsConventionalAction(action) {
 			report("capabilities: %q needs no texts: view and edit capabilities take the platform's conventional texts", key)
+		} else if _, isUsed := used[key]; !isUsed {
+			// A text for a level nobody grants -- a typo in the key, or an entry that was removed --
+			// produces nothing, and the level it was meant for is left without texts.
+			report("capabilities: %q has texts, but no resource entry grants %s level %q; check the key, or drop the texts", key, lineage, action)
 		}
 
 		for _, field := range []struct {
@@ -307,6 +327,10 @@ func validateServiceAccounts(accounts []ServiceAccount, report reporter) {
 		if sa.Name == "" {
 			report("serviceAccounts[%d]: name is required", i)
 			continue
+		}
+
+		if len(sa.Name) > 253 || !dnsSubdomainRe.MatchString(sa.Name) {
+			report("%s: a ServiceAccount name is a lowercase DNS subdomain (letters, digits, '-' and '.')", where)
 		}
 
 		if _, dup := names[sa.Name]; dup {
@@ -438,6 +462,16 @@ func validatePolicyRules(rules []PolicyRule, where string, report reporter) {
 			report("%s[%d]: verbs is required", where, i)
 		}
 
+		// An empty string is no verb, resource or name: Kubernetes keeps it and it matches nothing.
+		for _, field := range []struct {
+			name   string
+			values []string
+		}{{"verbs", rule.Verbs}, {"resources", rule.Resources}, {"resourceNames", rule.ResourceNames}, {"nonResourceURLs", rule.NonResourceURLs}} {
+			if slices.Contains(field.values, "") {
+				report("%s[%d]: %s holds an empty value", where, i, field.name)
+			}
+		}
+
 		if len(rule.NonResourceURLs) > 0 && (len(rule.APIGroups) > 0 || len(rule.Resources) > 0 || len(rule.ResourceNames) > 0) {
 			report("%s[%d]: nonResourceURLs cannot be combined with apiGroups, resources or resourceNames", where, i)
 		}
@@ -533,7 +567,8 @@ func Warnings(d *Declaration) []string {
 
 var (
 	groupNameRe    = regexp.MustCompile(`^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
-	resourceNameRe = regexp.MustCompile(`^(\*|[a-z0-9]([-a-z0-9.]*[a-z0-9])?)(/[a-z0-9]([-a-z0-9]*[a-z0-9])?)?$`)
+	resourceNameRe = regexp.MustCompile(`^(\*|[a-z0-9]([-a-z0-9]*[a-z0-9])?)(/[a-z0-9]([-a-z0-9]*[a-z0-9])?)?$`)
+	dnsSubdomainRe = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
 )
 
 // qualifiedNameRe is a Kubernetes label or annotation key: an optional DNS prefix and a name.

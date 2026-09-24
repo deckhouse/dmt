@@ -25,6 +25,8 @@ import (
 type RootConfig struct {
 	GlobalSettings *global.Global `mapstructure:"global"`
 	Remote         RemoteSettings `mapstructure:"remote"`
+	// File is the .dmtlint.yaml the root configuration came from; empty without one.
+	File string `mapstructure:"-"`
 }
 
 // RemoteSettings holds the linter settings of the scopes that lint a published
@@ -60,9 +62,12 @@ func NewDefaultRootConfig(dir string) (*RootConfig, error) {
 		GlobalSettings: &global.Global{},
 	}
 
-	if err := NewLoader(cfg, dir).Load(); err != nil {
+	loader := NewLoader(cfg, dir)
+	if err := loader.Load(); err != nil {
 		return nil, err
 	}
+
+	cfg.File = loader.ConfigFileUsed()
 
 	return cfg, nil
 }
