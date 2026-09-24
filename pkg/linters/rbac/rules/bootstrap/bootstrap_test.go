@@ -566,3 +566,56 @@ func TestBuild_PartialCapabilityIsATODO(t *testing.T) {
 	require.Len(t, got.Decl.Resources, 1)
 	assert.True(t, strings.HasPrefix(got.Decl.Resources[0].Reason, "TODO: ClusterRole d8:namespace-capability:m:view renders only under some of the linted values"), got.Decl.Resources[0].Reason)
 }
+
+// A partially rendered object kept hand-written in a file the declaration also writes is named
+// with the way out (review of #479, finding 48).
+func TestBuild_PartialObjectBesideDeclaredOnes(t *testing.T) {
+	labels := map[string]string{"module": "m"}
+	nodes := []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"nodes"}, Verbs: []string{"get"}}}
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{
+		{Kind: "ServiceAccount", Name: "m", Namespace: "d8-m", Path: "templates/rbac-for-us.yaml", Labels: labels},
+		{Kind: "ClusterRole", Name: "d8:m:supplement", Path: "templates/rbac-for-us.yaml", Labels: labels, Rules: nodes},
+		{Kind: "ClusterRoleBinding", Name: "d8:m:supplement", Path: "templates/rbac-for-us.yaml", Labels: labels,
+			RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: "d8:m:supplement"}, Subjects: []rbacv1.Subject{{Kind: "Group", Name: "g"}}},
+	}, Partial: []string{"ClusterRoleBinding//d8:m:supplement"}})
+
+	notes := strings.Join(got.Notes, "\n")
+	assert.Contains(t, notes, "ClusterRoleBinding d8:m:supplement stays hand-written in templates/rbac-for-us.yaml, which the declaration also writes: move it to a file of its own")
+	assert.Contains(t, notes, "ClusterRole d8:m:supplement stays hand-written in templates/rbac-for-us.yaml")
+}
+
+// An account of a component directory in kube-system stays hand-written with what binds it: the
+// generator refuses it, and the declaration would be refused whole (review of #479, finding 49).
+func TestBuild_KubeSystemComponentAccountIsSetAside(t *testing.T) {
+	labels := map[string]string{"module": "m"}
+	sa := []rbacv1.Subject{{Kind: "ServiceAccount", Name: "proxy", Namespace: "kube-system"}}
+
+	got := Build(Input{Module: "m", Namespace: "kube-system", Objects: []Object{
+		{Kind: "ServiceAccount", Name: "proxy", Namespace: "kube-system", Path: "templates/proxy/rbac-for-us.yaml", Labels: labels},
+		{Kind: "ClusterRole", Name: "d8:m:proxy", Path: "templates/proxy/rbac-for-us.yaml", Labels: labels,
+			Rules: []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"nodes"}, Verbs: []string{"get"}}}},
+		{Kind: "ClusterRoleBinding", Name: "d8:m:proxy", Path: "templates/proxy/rbac-for-us.yaml", Labels: labels,
+			RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: "d8:m:proxy"}, Subjects: sa},
+	}})
+
+	assert.Empty(t, got.Decl.ServiceAccounts)
+	assert.Empty(t, got.Decl.Access)
+	assert.Len(t, got.Unmanaged, 3, "got: %v", got.Unmanaged)
+	assert.Contains(t, strings.Join(got.Unmanaged, "\n"), `in kube-system the placement rule wants the account named "d8-m-proxy"`)
+}
+
+// When only an object of an account renders in some variants, the TODO does not invite narrowing
+// the account itself (review of #479, finding 51).
+func TestBuild_PartialObjectOfAnAlwaysRenderedAccount(t *testing.T) {
+	labels := map[string]string{"module": "m"}
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{
+		{Kind: "ServiceAccount", Name: "m", Namespace: "d8-m", Path: "templates/rbac-for-us.yaml", Labels: labels},
+		{Kind: "ClusterRoleBinding", Name: "d8:m:m:rbac-proxy", Path: "templates/rbac-for-us.yaml", Labels: labels,
+			RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: "d8:rbac-proxy"}, Subjects: []rbacv1.Subject{{Kind: "ServiceAccount", Name: "m", Namespace: "d8-m"}}},
+	}, Partial: []string{"ClusterRoleBinding//d8:m:m:rbac-proxy"}})
+
+	require.Len(t, got.Decl.ServiceAccounts, 1)
+	assert.Contains(t, got.Decl.ServiceAccounts[0].When, "the account always")
+}
