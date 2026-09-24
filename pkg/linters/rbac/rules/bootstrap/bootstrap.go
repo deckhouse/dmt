@@ -447,6 +447,10 @@ func (b *builder) serviceAccounts() {
 
 				e.ExtraClusterRoles = append(e.ExtraClusterRoles, extra)
 				b.rename("ClusterRoleBinding", crb.Name, extra.FullName(b.in.Module, sa.Name))
+			case slices.Contains(e.BindClusterRoles, crb.RoleRef.Name):
+				// A second binding of the same account to the same role grants nothing more, and the
+				// generator names one binding per role: it folds into the first.
+				b.note("ClusterRoleBinding %s binds %s to %s again; it folds into %s", crb.Name, sa.Name, crb.RoleRef.Name, clusterName+":"+rbaccontract.BindingSuffix(crb.RoleRef.Name))
 			default:
 				e.BindClusterRoles = append(e.BindClusterRoles, crb.RoleRef.Name)
 				b.rename("ClusterRoleBinding", crb.Name, clusterName+":"+rbaccontract.BindingSuffix(crb.RoleRef.Name))
@@ -474,6 +478,8 @@ func (b *builder) serviceAccounts() {
 				// into one to a Role of that name would bind nothing (Kubernetes accepts a binding to a
 				// Role that does not exist).
 				b.unmanage(rb, "a RoleBinding to the ClusterRole "+rb.RoleRef.Name+", which bindRoles cannot express")
+			} else if ref := (rbacyaml.RoleRef{Namespace: b.ns(rb), Name: rb.RoleRef.Name}); slices.Contains(e.BindRoles, ref) {
+				b.note("RoleBinding %s/%s binds %s to the Role %s again; it folds into one", b.ns(rb), rb.Name, sa.Name, rb.RoleRef.Name)
 			} else {
 				e.BindRoles = append(e.BindRoles, rbacyaml.RoleRef{Namespace: b.ns(rb), Name: rb.RoleRef.Name})
 				b.rename("RoleBinding", b.ns(rb)+"/"+rb.Name, b.ns(rb)+"/"+clusterName+":"+rbaccontract.BindingSuffix(rb.RoleRef.Name))

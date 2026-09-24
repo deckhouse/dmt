@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"slices"
 	"sort"
 	"strings"
 
@@ -65,6 +66,31 @@ func (t tuple) String() string {
 type tupleSet map[tuple]struct{}
 
 func (s tupleSet) add(t tuple) { s[t] = struct{}{} }
+
+// uncoveredBy returns the tuples of s that other does not grant, sorted. A tuple limited to one
+// object name is granted by the same group, resource and verb without a name as well: a rule on
+// every ModuleConfig covers the one on the module's own.
+func (s tupleSet) uncoveredBy(other tupleSet) []tuple {
+	var out []tuple
+
+	for t := range s {
+		if _, ok := other[t]; ok {
+			continue
+		}
+
+		if parts := strings.Split(string(t), "|"); len(parts) == 4 && parts[2] != "" {
+			if _, ok := other[resourceTuple(parts[0], parts[1], "", parts[3])]; ok {
+				continue
+			}
+		}
+
+		out = append(out, t)
+	}
+
+	slices.Sort(out)
+
+	return out
+}
 
 // minus returns the tuples of s absent from other, sorted.
 func (s tupleSet) minus(other tupleSet) []tuple {

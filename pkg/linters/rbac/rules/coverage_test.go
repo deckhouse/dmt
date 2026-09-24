@@ -154,12 +154,13 @@ resources:
 	require.Len(t, got, 4, "got: %v", got)
 	assert.Contains(t, got, "error: CRD a.io/gammas (crds/a.yaml) has no entry in rbac.yaml: decide the user access to it -- namespace, system or legacy levels, or noAccess with the reason; `dmt lint --linter rbac --fix` adds an undecided stub")
 	assert.Contains(t, got, "error: CRD d.io/deltas (crds/d.yaml) has no entry in rbac.yaml: decide the user access to it -- namespace, system or legacy levels, or noAccess with the reason; `dmt lint --linter rbac --fix` adds an undecided stub")
-	assert.Contains(t, got, `error: a.io/betas is still noAccess: "TODO" in rbac.yaml: a decision is needed -- grant levels, or replace "TODO" with the reason users get no access; only a person can close this`)
+	assert.Contains(t, got, `error: a.io/betas is still undecided in rbac.yaml (noAccess: "TODO"): a decision is needed -- only a person can close this`)
 	assert.Contains(t, got, "warn: a.io/gamas names a resource the module's CRDs of group a.io do not have; check the spelling, or drop the entry if the resource is gone")
 
-	// --fix: two stubs are written, and both findings stay, each with the reason (R33).
+	// --fix: two stubs are written, and both findings stay, each with the reason (R33); the open
+	// decision fails its fix too, so the run does not end green.
 	fixes := errorList.GetFixes()
-	require.Len(t, fixes, 2, "only the two missing entries carry an autofix")
+	require.Len(t, fixes, 3, "the two missing entries write stubs, the open decision only fails")
 
 	for _, fix := range fixes {
 		fix()
@@ -174,11 +175,11 @@ resources:
 		if e.FixError != nil {
 			fixErrors++
 
-			assert.Contains(t, e.FixError.Error(), `was added to rbac.yaml; decide its access (noAccess: "TODO" is not a decision)`)
+			assert.Regexp(t, `was added to rbac.yaml; decide its access \(noAccess: "TODO" is not a decision\)|a TODO in rbac.yaml is a decision only a person can make`, e.FixError.Error())
 		}
 	}
 
-	assert.Equal(t, 2, fixErrors)
+	assert.Equal(t, 3, fixErrors)
 
 	after, err := os.ReadFile(rbacyaml.Path(modulePath))
 	require.NoError(t, err)
@@ -194,12 +195,14 @@ resources:
 	second := texts(runCoverage(t, modulePath))
 	assert.Len(t, second, 4, "got: %v", second)
 	assert.NotContains(t, strings.Join(second, "\n"), "has no entry")
-	assert.Equal(t, 3, strings.Count(strings.Join(second, "\n"), `is still noAccess: "TODO"`))
+	assert.Equal(t, 3, strings.Count(strings.Join(second, "\n"), `(noAccess: "TODO")`))
 
-	// Idempotency (R17): a run that has nothing to add carries no fixes, and appendStub itself
-	// leaves a present entry alone byte for byte.
+	// Idempotency (R17): a run that has nothing to add writes nothing -- its fixes only report the
+	// open decisions -- and appendStub itself leaves a present entry alone byte for byte.
 	third := runCoverage(t, modulePath)
-	assert.Empty(t, third.GetFixes())
+	for _, fix := range third.GetFixes() {
+		fix()
+	}
 
 	added, err := appendStub(rbacyaml.Path(modulePath), "a.io", "alphas")
 	require.NoError(t, err)
@@ -334,4 +337,25 @@ func TestCoverage_BadCRDDocumentIsSkipped(t *testing.T) {
 	joined := strings.Join(got, "\n")
 	assert.Contains(t, joined, "warn: a CRD document is skipped: parse crds/a.yaml")
 	assert.Contains(t, joined, "a.io/alphas", "the CRD that parses is still judged")
+}
+
+// A value that starts with TODO is an open decision whatever field holds it: the scope and reason
+// bootstrap leaves count as well as the stub, and --fix fails on them (review of #479, reply to 9).
+func TestCoverage_TODOPrefixIsAnOpenDecision(t *testing.T) {
+	modulePath := writeModule(t, map[string]string{
+		rbacyaml.Filename: "apiVersion: rbac.deckhouse.io/v1alpha1\nresources:\n" +
+			"  - group: x.io\n    resource: things\n    scope: \"TODO: Namespaced or Cluster\"\n    namespace: {viewer: [get]}\n" +
+			"  - group: y.io\n    resource: others\n    scope: Namespaced\n    noAccess: \"TODO: say why users get none\"\n",
+	})
+
+	errorList := runCoverage(t, modulePath)
+	got := strings.Join(texts(errorList), "\n")
+	assert.Contains(t, got, `x.io/things is still undecided in rbac.yaml (scope: "TODO: Namespaced or Cluster")`)
+	assert.Contains(t, got, `y.io/others is still undecided in rbac.yaml (noAccess: "TODO: say why users get none")`)
+
+	for _, fix := range errorList.GetFixes() {
+		fix()
+	}
+
+	assert.True(t, errorList.ContainsFailedFixes(), "a --fix run with open decisions fails")
 }

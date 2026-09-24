@@ -392,3 +392,23 @@ func TestBuild_AggregatedRoleOfAnAccountStaysHandWritten(t *testing.T) {
 	assert.Contains(t, strings.Join(got.Unmanaged, "\n"), "ClusterRole/d8:m:capi:aggregated")
 	assert.Empty(t, rbacyaml.Validate(got.Decl, nil), "the written declaration validates")
 }
+
+// Two bindings of one account to one role fold into the one binding the generator names, instead of
+// producing a declaration that does not generate (review of #479, finding 28: node-manager).
+func TestBuild_RepeatedBindingOfAnAccountFolds(t *testing.T) {
+	labels := map[string]string{"module": "m"}
+	subject := []rbacv1.Subject{{Kind: "ServiceAccount", Name: "autoscaler", Namespace: "d8-m"}}
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{
+		{Kind: "ServiceAccount", Name: "autoscaler", Path: "templates/autoscaler/rbac-for-us.yaml", Labels: labels},
+		{Kind: "ClusterRoleBinding", Name: "d8:m:autoscaler:rbac-proxy", Path: "templates/autoscaler/rbac-for-us.yaml", Labels: labels,
+			RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: "d8:rbac-proxy"}, Subjects: subject},
+		{Kind: "ClusterRoleBinding", Name: "d8:m:autoscaler-mcm:rbac-proxy", Path: "templates/autoscaler/rbac-for-us.yaml", Labels: labels,
+			RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: "d8:rbac-proxy"}, Subjects: subject},
+	}})
+
+	require.Len(t, got.Decl.ServiceAccounts, 1)
+	assert.Equal(t, []string{"d8:rbac-proxy"}, got.Decl.ServiceAccounts[0].BindClusterRoles)
+	assert.Regexp(t, `ClusterRoleBinding d8:m:autoscaler(-mcm)?:rbac-proxy binds autoscaler to d8:rbac-proxy again; it folds into d8:m:autoscaler:rbac-proxy`, strings.Join(got.Notes, "\n"))
+	assert.Empty(t, rbacyaml.Validate(got.Decl, nil))
+}
