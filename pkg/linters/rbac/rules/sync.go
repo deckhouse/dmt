@@ -30,6 +30,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"text/template/parse"
 
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -1270,8 +1271,21 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 		in.CRDs[crd.Key()] = crd.Scope
 	}
 
+	texts := map[string]string{}
+
 	for _, object := range storage {
 		if o, ok := bootstrapObject(object); ok {
+			text, read := texts[o.Path]
+			if !read {
+				if content, err := os.ReadFile(filepath.Join(modulePath, o.Path)); err == nil {
+					text = string(content)
+				}
+
+				texts[o.Path] = text
+			}
+
+			o.Library = renderedByInclude(text, o.Kind, o.Name)
+			o.Repeated = renderedInRange(text, o.Kind, o.Name)
 			in.Objects = append(in.Objects, o)
 		}
 	}
@@ -1873,4 +1887,159 @@ func writtenProblems(content []byte, crds []crdInfo, in bootstrap.Input) string 
 	}
 
 	return "; the linter refuses: " + strings.Join(problems, "; ")
+}
+
+var (
+	// includeRe finds an include of a named template (or the template action) in a document.
+	includeRe = regexp.MustCompile(`\{\{-?\s*(include|template)\s+"`)
+	// rawNameLineRe is a metadata name as written, computed or not.
+	rawNameLineRe = regexp.MustCompile(`^  name:\s*(.+?)\s*$`)
+	actionRe      = regexp.MustCompile(`\{\{.*?\}\}`)
+)
+
+// renderedByInclude reports whether the template renders the object through an include of a
+// named template -- helm_lib_csi_controller_rbac, typically -- rather than through a document of
+// its own: no document of the object's kind names it (literally or with a computed name), and a
+// document without a kind of its own includes a template.
+func renderedByInclude(content, kind, name string) bool {
+	include := false
+
+	for _, doc := range separatorRe.Split(strings.ReplaceAll(content, "\r\n", "\n"), -1) {
+		var docKind, docName string
+
+		for _, line := range strings.Split(doc, "\n") {
+			if m := kindLineRe.FindStringSubmatch(line); m != nil && docKind == "" {
+				docKind = m[1]
+			}
+
+			if m := rawNameLineRe.FindStringSubmatch(line); m != nil && docName == "" {
+				docName = m[1]
+				if i := strings.Index(docName, " #"); i >= 0 && !strings.Contains(docName, "{{") {
+					docName = strings.TrimSpace(docName[:i])
+				}
+
+				docName = strings.Trim(docName, `"'`)
+			}
+		}
+
+		switch {
+		case docKind == "":
+			include = include || includeRe.MatchString(doc)
+		case docKind == kind && namesMatch(docName, name):
+			return false
+		}
+	}
+
+	return include
+}
+
+// namesMatch reports whether a metadata name as the template writes it can be the rendered name:
+// equal, or with every action of a computed name standing for any text.
+func namesMatch(written, rendered string) bool {
+	if !strings.Contains(written, "{{") {
+		return written == rendered
+	}
+
+	var b strings.Builder
+
+	b.WriteString("^")
+
+	last := 0
+	for _, m := range actionRe.FindAllStringIndex(written, -1) {
+		b.WriteString(regexp.QuoteMeta(written[last:m[0]]))
+		b.WriteString(".*")
+
+		last = m[1]
+	}
+
+	b.WriteString(regexp.QuoteMeta(written[last:]) + "$")
+
+	re, err := regexp.Compile(b.String())
+
+	return err == nil && re.MatchString(rendered)
+}
+
+// renderedInRange reports whether the object's document sits inside a {{ range }} of its
+// template: one document renders several objects, and the declaration would freeze the one this
+// render produced under its literal name (istio's istiod-<version>). The template is read with
+// text/template/parse, not with patterns; a template that does not parse tells nothing.
+func renderedInRange(content, kind, name string) bool {
+	content = strings.ReplaceAll(content, "\r\n", "\n")
+
+	offset := documentOffset(content, kind, name)
+	if offset < 0 {
+		return false
+	}
+
+	tree := parse.New("template")
+	tree.Mode = parse.SkipFuncCheck
+
+	if _, err := tree.Parse(content, "", "", map[string]*parse.Tree{}); err != nil || tree.Root == nil {
+		return false
+	}
+
+	return inRange(tree.Root, offset, false)
+}
+
+// documentOffset is the offset of the metadata name line of the object's document, or -1.
+func documentOffset(content, kind, name string) int {
+	start := 0
+
+	for _, bounds := range append(separatorRe.FindAllStringIndex(content, -1), []int{len(content), len(content)}) {
+		doc := content[start:bounds[0]]
+		docStart := start
+		start = bounds[1]
+
+		var docKind string
+
+		offset, lineStart := -1, docStart
+
+		for _, line := range strings.SplitAfter(doc, "\n") {
+			trimmed := strings.TrimRight(line, "\n")
+
+			if m := kindLineRe.FindStringSubmatch(trimmed); m != nil && docKind == "" {
+				docKind = m[1]
+			}
+
+			if m := rawNameLineRe.FindStringSubmatch(trimmed); m != nil && offset < 0 && namesMatch(strings.Trim(m[1], `"'`), name) {
+				offset = lineStart
+			}
+
+			lineStart += len(line)
+		}
+
+		if docKind == kind && offset >= 0 {
+			return offset
+		}
+	}
+
+	return -1
+}
+
+// inRange reports whether the text at offset lies in the body of a range.
+func inRange(node parse.Node, offset int, ranged bool) bool {
+	switch n := node.(type) {
+	case *parse.ListNode:
+		if n == nil {
+			return false
+		}
+
+		for _, c := range n.Nodes {
+			if inRange(c, offset, ranged) {
+				return true
+			}
+		}
+	case *parse.TextNode:
+		start := int(n.Position())
+
+		return ranged && offset >= start && offset < start+len(n.Text)
+	case *parse.IfNode:
+		return inRange(n.List, offset, ranged) || inRange(n.ElseList, offset, ranged)
+	case *parse.WithNode:
+		return inRange(n.List, offset, ranged) || inRange(n.ElseList, offset, ranged)
+	case *parse.RangeNode:
+		return inRange(n.List, offset, true) || inRange(n.ElseList, offset, ranged)
+	}
+
+	return false
 }

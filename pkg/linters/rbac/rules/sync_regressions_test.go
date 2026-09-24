@@ -526,3 +526,53 @@ func TestSyncRegression_IncludeOnTheLabelsLine(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, patched, string(got))
 }
+
+// An object the template renders through an include of a named template is the library's; one
+// with a document of its own, literal or with a computed name, is the module's (review of #479,
+// finding 32).
+func TestRenderedByInclude(t *testing.T) {
+	text := `{{- include "helm_lib_csi_controller_rbac" . }}
+# ==========
+---
+kind: ClusterRole
+metadata:
+  name: d8:csi-vsphere:csi
+---
+kind: ServiceAccount
+metadata:
+  name: {{ .Chart.Name }}-extra
+`
+	assert.True(t, renderedByInclude(text, "ServiceAccount", "csi"), "no document of its own: the include renders it")
+	assert.True(t, renderedByInclude(text, "Role", "csi:controller:external-provisioner"))
+	assert.False(t, renderedByInclude(text, "ClusterRole", "d8:csi-vsphere:csi"), "a literal document of its own")
+	assert.False(t, renderedByInclude(text, "ServiceAccount", "csi-vsphere-extra"), "a document of its kind with a computed name")
+	assert.False(t, renderedByInclude("---\nkind: Role\nmetadata:\n  name: r\n", "Role", "other"), "no include: not the library's")
+}
+
+// An object a {{ range }} renders is found by the stdlib template parser; one beside the range is
+// not (review of #479, finding 39).
+func TestRenderedInRange(t *testing.T) {
+	text := `{{- range $version := .Values.istio.internal.versions }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: istiod-{{ $version | replace "." "x" }}
+{{- end }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: operator
+{{- if .Values.x }}
+---
+kind: Role
+metadata:
+  name: conditional
+{{- end }}
+`
+	assert.True(t, renderedInRange(text, "ServiceAccount", "istiod-1x25"))
+	assert.False(t, renderedInRange(text, "ServiceAccount", "operator"))
+	assert.False(t, renderedInRange(text, "Role", "conditional"), "an if is no range")
+	assert.False(t, renderedInRange("{{ if }", "Role", "x"), "a template that does not parse tells nothing")
+}
