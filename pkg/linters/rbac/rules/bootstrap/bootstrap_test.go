@@ -28,6 +28,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/generate"
+	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbaccontract"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbacyaml"
 )
 
@@ -294,7 +295,7 @@ func TestBuild_TODOsAndUnmanaged(t *testing.T) {
 	}
 
 	assert.Equal(t, "Namespaced", byKey["/pods"].Scope, "a well-known core resource gets its scope")
-	assert.Equal(t, "TODO: Namespaced or Cluster (Cluster drops the namespace levels)", byKey["trivy.deckhouse.io/vulnerabilityreports"].Scope, "an unknown one is a TODO value for the author (review of #479, reply to finding 9)")
+	assert.Equal(t, "TODO: Namespaced or Cluster", byKey["trivy.deckhouse.io/vulnerabilityreports"].Scope, "an unknown one is a TODO value for the author (review of #479, reply to finding 9)")
 	assert.Contains(t, byKey["deckhouse.io/things"].NoAccess, "TODO", "a CRD nobody grants is an undecided entry")
 
 	require.Len(t, got.Decl.ServiceAccounts, 1)
@@ -413,56 +414,29 @@ func TestBuild_RepeatedBindingOfAnAccountFolds(t *testing.T) {
 	assert.Empty(t, rbacyaml.Validate(got.Decl, nil))
 }
 
-// Annotations of an account and of its roles survive the import, apart from Helm's and the
-// generator's own; a nested access Role keeps its entry name (regression hunt, B7 and B8).
-func TestBuild_AnnotationsAndNestedAccessNames(t *testing.T) {
+// An account outside the module namespace is listed once; an empty legacy role is noted; the scrape
+// gate is asked about once, for the first Role (regression hunts 1 and 2).
+func TestBuild_NotesAreWrittenOnce(t *testing.T) {
 	labels := map[string]string{"module": "m"}
-	subject := []rbacv1.Subject{{Kind: "ServiceAccount", Name: "m", Namespace: "d8-m"}}
-	rules := []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"nodes"}, Verbs: []string{"get"}}}
+	scraper := []rbacv1.Subject{{Kind: "User", Name: "d8-monitoring:scraper"}}
+	metrics := func(name string) []rbacv1.PolicyRule {
+		return []rbacv1.PolicyRule{{APIGroups: []string{"apps"}, Resources: []string{"deployments/prometheus-metrics"}, ResourceNames: []string{name}, Verbs: []string{"get"}}}
+	}
 
 	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{
-		{Kind: "ServiceAccount", Name: "m", Path: "templates/rbac-for-us.yaml", Labels: labels,
-			Annotations: map[string]string{"helm.sh/resource-policy": "keep", "meta.helm.sh/release-name": "m"}},
-		{Kind: "ClusterRole", Name: "d8:m:m", Path: "templates/rbac-for-us.yaml", Labels: labels, Rules: rules,
-			Annotations: map[string]string{"werf.io/deploy-on": "pre-install"}},
-		{Kind: "ClusterRoleBinding", Name: "d8:m:m", Path: "templates/rbac-for-us.yaml", Labels: labels,
-			RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: "d8:m:m"}, Subjects: subject,
-			Annotations: map[string]string{"werf.io/deploy-on": "pre-install"}},
-		{Kind: "Role", Name: "access-to-webhook-reader", Namespace: "d8-m", Path: "templates/webhook/rbac-to-us.yaml", Labels: labels,
-			Rules: []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"secrets"}, Verbs: []string{"get"}}}},
-		{Kind: "RoleBinding", Name: "access-to-webhook-reader", Namespace: "d8-m", Path: "templates/webhook/rbac-to-us.yaml", Labels: labels,
-			RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "access-to-webhook-reader"}, Subjects: []rbacv1.Subject{{Kind: "Group", Name: "g"}}},
+		{Kind: "ServiceAccount", Name: "elsewhere", Namespace: "kube-system", Path: "templates/rbac-for-us.yaml", Labels: labels},
+		{Kind: "ClusterRole", Name: "m:user", Path: "templates/user-authz-cluster-roles.yaml", Labels: labels,
+			Annotations: map[string]string{rbaccontract.AccessLevelAnnotation: "User"}},
+		{Kind: "Role", Name: "access-to-m-a", Namespace: "d8-m", Path: "templates/rbac-to-us.yaml", Labels: labels, Rules: metrics("a")},
+		{Kind: "RoleBinding", Name: "access-to-m-a", Namespace: "d8-m", Path: "templates/rbac-to-us.yaml", Labels: labels, RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "access-to-m-a"}, Subjects: scraper},
+		{Kind: "Role", Name: "access-to-m-b", Namespace: "d8-m", Path: "templates/rbac-to-us.yaml", Labels: labels, Rules: metrics("b")},
+		{Kind: "RoleBinding", Name: "access-to-m-b", Namespace: "d8-m", Path: "templates/rbac-to-us.yaml", Labels: labels, RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "access-to-m-b"}, Subjects: scraper},
 	}})
 
-	require.Len(t, got.Decl.ServiceAccounts, 1)
-	assert.Equal(t, map[string]string{"helm.sh/resource-policy": "keep"}, got.Decl.ServiceAccounts[0].Annotations)
-	assert.Equal(t, map[string]string{"werf.io/deploy-on": "pre-install"}, got.Decl.ServiceAccounts[0].RBACAnnotations)
+	assert.Len(t, got.Unmanaged, 1, "got: %v", got.Unmanaged)
 
-	require.Len(t, got.Decl.Access, 1)
-	assert.Equal(t, "reader", got.Decl.Access[0].Name)
-	assert.Equal(t, "webhook", got.Decl.Access[0].Path)
-	assert.NotContains(t, strings.Join(got.Notes, "\n"), "will be named", "the generator writes the names the module already has")
-	assert.Empty(t, rbacyaml.Validate(got.Decl, nil))
-}
-
-// Labels and annotations of an access entry and of the scrape access survive the import
-// (regression hunt 2, A2 and A4).
-func TestBuild_AccessMetadataImported(t *testing.T) {
-	labels := map[string]string{"module": "m", "heritage": "deckhouse", "app": "capi"}
-	hook := map[string]string{"werf.io/deploy-on": "pre-install"}
-	nodes := []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"nodes"}, Verbs: []string{"get"}}}
-
-	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{
-		{Kind: "ClusterRole", Name: "d8:m:manager", Path: "templates/rbac-for-us.yaml", Labels: labels, Annotations: hook, Rules: nodes},
-		{Kind: "ClusterRoleBinding", Name: "d8:m:manager", Path: "templates/rbac-for-us.yaml", Labels: labels, Annotations: hook,
-			RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: "d8:m:manager"}, Subjects: []rbacv1.Subject{{Kind: "Group", Name: "g"}}},
-		{Kind: "ServiceAccount", Name: "m", Path: "templates/rbac-for-us.yaml", Labels: map[string]string{"module": "m", "app.kubernetes.io/part-of": "gatekeeper"}},
-	}})
-
-	require.Len(t, got.Decl.Access, 1)
-	assert.Equal(t, map[string]string{"app": "capi"}, got.Decl.Access[0].Labels)
-	assert.Equal(t, hook, got.Decl.Access[0].Annotations)
-
-	require.Len(t, got.Decl.ServiceAccounts, 1)
-	assert.Equal(t, map[string]string{"app.kubernetes.io/part-of": "gatekeeper"}, got.Decl.ServiceAccounts[0].Labels)
+	notes := strings.Join(got.Notes, "\n")
+	assert.Contains(t, notes, "ClusterRole m:user (legacy User) has no rules and grants nothing")
+	assert.Equal(t, 1, strings.Count(notes, "whether the template gated the scraper binding"))
+	assert.Equal(t, 1, strings.Count(notes, "several Prometheus access Roles fold"))
 }

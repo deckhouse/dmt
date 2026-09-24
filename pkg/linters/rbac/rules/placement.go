@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,7 +28,6 @@ import (
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
-	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbaccontract"
 )
 
 const (
@@ -67,13 +67,14 @@ const (
 )
 
 // TODO: remove entries after 'd8-system' after fixing RBAC objects names
+var deckhouseNamespaces = []string{"d8-monitoring", "d8-system", "d8-admission-policy-engine", "d8-operator-trivy", "d8-log-shipper", "d8-local-path-provisioner"}
 
 func isSystemNamespace(actual string) bool {
 	return actual == metav1.NamespaceDefault || actual == metav1.NamespaceSystem
 }
 
 func isDeckhouseSystemNamespace(actual string) bool {
-	return rbaccontract.IsDeckhouseNamespace(actual)
+	return slices.Contains(deckhouseNamespaces, actual)
 }
 
 func (r *PlacementRule) Check(_ context.Context) {

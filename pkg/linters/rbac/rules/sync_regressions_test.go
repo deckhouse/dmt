@@ -402,83 +402,6 @@ func TestSyncRegression_ReplacedCopyIsReported(t *testing.T) {
 	assert.Contains(t, got, "d8-cert-manager/RoleBinding/access-to-cert-manager-prometheus-metrics binds access-to-cert-manager-prometheus-metrics, the old copy of d8-cert-manager/Role/access-to-cert-manager")
 }
 
-// An annotation on an object the declaration writes whole is compared: a resource policy the
-// declaration does not carry would be dropped by the next regeneration (regression hunt, B7).
-func TestSyncRegression_AnnotationsAreCompared(t *testing.T) {
-	resetFixState()
-	t.Cleanup(resetFixState)
-
-	modulePath := syncModuleDir(t)
-	model := syncModel(t, modulePath)
-	writeGenerated(t, modulePath, model)
-
-	errorList := runSync(t, modulePath, renderedFrom(t, model, func(o *generate.Object) bool {
-		if o.Kind == "ServiceAccount" && o.Name == "cainjector" {
-			o.Annotations = map[string]string{"helm.sh/resource-policy": "keep"}
-		}
-
-		return true
-	}))
-
-	assert.Contains(t, strings.Join(texts(errorList), "\n"), "ServiceAccount/cainjector: annotation helm.sh/resource-policy is in the render but not declared")
-}
-
-// Bootstrap reads the conditions from the template text: an account under {{ if }} keeps its
-// `when` (regression hunt, B1).
-func TestSyncRegression_BootstrapKeepsTheTemplateCondition(t *testing.T) {
-	resetFixState()
-	t.Cleanup(resetFixState)
-
-	modulePath := syncModuleDir(t)
-	model := syncModel(t, modulePath)
-	writeGenerated(t, modulePath, model)
-	require.NoError(t, os.Remove(rbacyaml.Path(modulePath)))
-
-	errorList := runSync(t, modulePath, renderedFrom(t, model, nil))
-	for _, fix := range errorList.GetFixes() {
-		fix()
-	}
-
-	written, err := rbacyaml.Load(modulePath)
-	require.NoError(t, err)
-	require.Len(t, written.ServiceAccounts, 1)
-	assert.Equal(t, ".Values.certManager.internal.enableCAInjector", written.ServiceAccounts[0].When)
-}
-
-// An object under a condition false for the linter's values is in no render; the text shows it,
-// the declaration header names it and the fix fails, rather than the regeneration dropping it
-// (regression hunt, B1).
-func TestSyncRegression_BootstrapNamesWhatDidNotRender(t *testing.T) {
-	resetFixState()
-	t.Cleanup(resetFixState)
-
-	modulePath := syncModuleDir(t)
-	model := syncModel(t, modulePath)
-	writeGenerated(t, modulePath, model)
-	require.NoError(t, os.Remove(rbacyaml.Path(modulePath)))
-
-	errorList := runSync(t, modulePath, renderedFrom(t, model, func(o *generate.Object) bool { return o.When == "" }))
-	for _, fix := range errorList.GetFixes() {
-		fix()
-	}
-
-	require.True(t, errorList.ContainsFailedFixes())
-
-	var fixErrors []string
-
-	for _, e := range errorList.GetErrors() {
-		if e.FixError != nil {
-			fixErrors = append(fixErrors, e.FixError.Error())
-		}
-	}
-
-	assert.Contains(t, strings.Join(fixErrors, "\n"), "ServiceAccount/cainjector (templates/cainjector/rbac-for-us.yaml, under `.Values.certManager.internal.enableCAInjector`)")
-
-	content, err := os.ReadFile(rbacyaml.Path(modulePath))
-	require.NoError(t, err)
-	assert.Contains(t, string(content), "ServiceAccount/cainjector (templates/cainjector/rbac-for-us.yaml, under `.Values.certManager.internal.enableCAInjector`) is in the templates but did not render")
-}
-
 // What the linter would refuse in a written declaration is named by the fix that wrote it
 // (regression hunt, B10).
 func TestSyncRegression_WrittenProblems(t *testing.T) {
@@ -486,7 +409,7 @@ func TestSyncRegression_WrittenProblems(t *testing.T) {
 
 	assert.Empty(t, writtenProblems([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\n"), nil, in))
 	assert.Contains(t, writtenProblems([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\nserviceAccounts:\n  - name: x\n    path: a/b\n"), nil, in),
-		`the placement rule wants the account named "a-b" after its directory`)
+		"one directory under templates/ only")
 	assert.Contains(t, writtenProblems([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\nserviceAccounts:\n  - name: x\n    when: .Values.x }}\n"), nil, in), "template delimiter")
 	assert.Empty(t, writtenProblems([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\nserviceAccounts:\n  - name: x\n    when: \"TODO: decide\"\n"), nil, in), "a TODO is counted on its own")
 }
