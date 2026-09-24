@@ -63,7 +63,7 @@ const (
 	UserAuthzClusterRolePath    = "templates/user-authz-cluster-roles.yaml"
 	RootRBACForUsPath           = "templates/rbac-for-us.yaml"
 	RootRBACToUsPath            = "templates/rbac-to-us.yaml"
-	RBACv2Path                  = "templates/rbac"
+	RBACv2Path                  = "templates/rbac" // a directory, not a file
 )
 
 // TODO: remove entries after 'd8-system' after fixing RBAC objects names
@@ -88,8 +88,12 @@ func (r *PlacementRule) Check(_ context.Context) {
 			continue
 		}
 
+		// RBACv2Path names the RBAC v2 *directory*, so the skip must match a whole
+		// path segment. A bare prefix match on "templates/rbac" also swallows the
+		// root "templates/rbac-for-us.yaml" and "templates/rbac-to-us.yaml" — the
+		// very files this rule exists to check.
 		shortPath := object.ShortPath()
-		if shortPath == UserAuthzClusterRolePath || strings.HasPrefix(shortPath, RBACv2Path) {
+		if shortPath == UserAuthzClusterRolePath || strings.HasPrefix(shortPath, RBACv2Path+"/") {
 			continue
 		}
 
