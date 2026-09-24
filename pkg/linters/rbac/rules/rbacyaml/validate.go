@@ -18,14 +18,12 @@ package rbacyaml
 
 import (
 	"fmt"
-	"maps"
 	"reflect"
 	"regexp"
 	"slices"
 	"sort"
 	"strings"
 	"text/template"
-	"text/template/parse"
 
 	"github.com/Masterminds/sprig/v3"
 
@@ -59,64 +57,9 @@ func validateWhen(when, where string, report reporter) {
 		return
 	}
 
-	tpl, err := template.New("when").Funcs(helmFuncs).Parse("{{ if " + when + " }}{{ end }}")
-	if err != nil {
+	if _, err := template.New("when").Funcs(helmFuncs).Parse("{{ if " + when + " }}{{ end }}"); err != nil {
 		report("%s: when %q is not a Helm expression: %v", where, when, err)
-		return
 	}
-
-	// `and not (a) (b)` parses: not is an argument of and, called with no arguments of its own,
-	// and the render fails. A function takes its arguments inside parentheses: (not (a)).
-	if tpl.Tree != nil && tpl.Tree.Root != nil {
-		if name := bareFunction(tpl.Tree.Root); name != "" {
-			report("%s: when %q passes %s to another function without its arguments; write (%s ...) in parentheses", where, when, name, name)
-		}
-	}
-}
-
-// bareFunction returns the first function that stands as an argument of another call without
-// arguments of its own -- a call with none, which only a function of no parameters survives.
-func bareFunction(node parse.Node) string {
-	switch n := node.(type) {
-	case *parse.ListNode:
-		for _, c := range n.Nodes {
-			if name := bareFunction(c); name != "" {
-				return name
-			}
-		}
-	case *parse.IfNode:
-		return bareFunction(n.Pipe)
-	case *parse.PipeNode:
-		if n == nil {
-			return ""
-		}
-
-		for _, cmd := range n.Cmds {
-			for i, arg := range cmd.Args {
-				if id, ok := arg.(*parse.IdentifierNode); ok && i > 0 && !niladic(id.Ident) {
-					return id.Ident
-				}
-
-				if name := bareFunction(arg); name != "" {
-					return name
-				}
-			}
-		}
-	}
-
-	return ""
-}
-
-// niladic reports whether the function takes no arguments (sprig's now, uuidv4, ...).
-func niladic(name string) bool {
-	f, ok := helmFuncs[name]
-	if !ok {
-		return false // a builtin: and, not, eq, len, ... all take arguments
-	}
-
-	t := reflect.TypeOf(f)
-
-	return t.Kind() == reflect.Func && t.NumIn() == 0
 }
 
 // Validate checks the declaration against the format rules. crds is what the linted tree says
@@ -178,8 +121,6 @@ func Validate(d *Declaration, crds CRDScopes) []error {
 		}
 
 		validateWhen(d.PrometheusAccess.When, "prometheusAccess", report)
-		validateMetadataKeys(d.PrometheusAccess.Labels, "prometheusAccess.labels", false, report)
-		validateMetadataKeys(d.PrometheusAccess.Annotations, "prometheusAccess.annotations", true, report)
 	}
 
 	// Several checks walk maps; the reader and the e2e expectations get one order.
@@ -224,14 +165,13 @@ func validateResource(r *Resource, where string, crds CRDScopes, usedCapabilitie
 		report("%s: %s", where, scopeErr)
 	}
 
-	// "*/<subresource>" is a wildcard over the resources as much as "*" is.
-	if r.IsWildcard() || strings.HasPrefix(r.Resource, "*/") {
+	if r.IsWildcard() {
 		if crds.groupKnown(r.Group) {
-			report("%s: resource %q is allowed only for a group the module ships no CRD for; list the resources of %q", where, r.Resource, r.Group)
+			report("%s: resource \"*\" is allowed only for a group the module ships no CRD for; list the resources of %q", where, r.Group)
 		}
 
 		if r.Reason == "" {
-			report("%s: resource %q requires reason: why the resource names are not known statically", where, r.Resource)
+			report("%s: resource \"*\" requires reason: why the resource names are not known statically", where)
 		}
 	}
 
@@ -269,15 +209,6 @@ func resolveScope(r *Resource, crds CRDScopes) (string, string) {
 	case known:
 		return fromCRD, ""
 	case r.Scope != "":
-		// A built-in resource has the scope Kubernetes serves it with; a declared one that differs
-		// would generate a capability that grants nothing (or a namespaced grant cluster-wide).
-		// namespaces is the exception: a RoleBinding that grants get on namespaces lets its
-		// subject read the Namespace it is bound in, so a namespace capability declares it
-		// Namespaced on purpose (user-authz's view_resources does).
-		if builtin, ok := WellKnownScope(r.Group, r.Resource); ok && builtin != r.Scope && (r.Group != "" || base != "namespaces") {
-			return builtin, fmt.Sprintf("scope %q disagrees with Kubernetes, which serves %s as %q", r.Scope, r.Key(), builtin)
-		}
-
 		return r.Scope, ""
 	default:
 		if scope, ok := WellKnownScope(r.Group, r.Resource); ok {
@@ -340,9 +271,7 @@ func validateLevels(levels map[string][]string, lineage string, allowed []string
 // validateCapabilities requires localized texts for every capability outside the platform
 // convention (anything but view/edit) and rejects malformed entries.
 func validateCapabilities(texts map[string]CapabilityText, used map[string]struct{}, report reporter) {
-	for _, key := range slices.Sorted(maps.Keys(texts)) {
-		text := texts[key]
-
+	for key, text := range texts {
 		lineage, action, ok := strings.Cut(key, ".")
 		if !ok || (lineage != rbaccontract.LineageNamespace && lineage != rbaccontract.LineageSystem) {
 			report("capabilities: key %q must be \"namespace.<level>\" or \"system.<level>\"", key)
@@ -351,10 +280,6 @@ func validateCapabilities(texts map[string]CapabilityText, used map[string]struc
 
 		if rbaccontract.IsConventionalAction(action) {
 			report("capabilities: %q needs no texts: view and edit capabilities take the platform's conventional texts", key)
-		} else if _, isUsed := used[key]; !isUsed {
-			// A text for a level nobody grants -- a typo in the key, or an entry that was removed --
-			// produces nothing, and the level it was meant for is left without texts.
-			report("capabilities: %q has texts, but no resource entry grants %s level %q; check the key, or drop the texts", key, lineage, action)
 		}
 
 		for _, field := range []struct {
@@ -390,10 +315,6 @@ func validateServiceAccounts(accounts []ServiceAccount, report reporter) {
 			continue
 		}
 
-		if len(sa.Name) > 253 || !dnsSubdomainRe.MatchString(sa.Name) {
-			report("%s: a ServiceAccount name is a lowercase DNS subdomain (letters, digits, '-' and '.')", where)
-		}
-
 		if _, dup := names[sa.Name]; dup {
 			report("%s: duplicate name", where)
 		}
@@ -401,10 +322,6 @@ func validateServiceAccounts(accounts []ServiceAccount, report reporter) {
 		names[sa.Name] = struct{}{}
 
 		validateWhen(sa.When, where, report)
-
-		validateMetadataKeys(sa.Labels, where+".labels", false, report)
-		validateMetadataKeys(sa.Annotations, where+".annotations", true, report)
-		validateMetadataKeys(sa.RBACAnnotations, where+".rbacAnnotations", true, report)
 
 		if strings.HasPrefix(sa.Path, "/") || strings.HasSuffix(sa.Path, "/") || strings.Contains(sa.Path, "..") {
 			report("%s: path must be a directory under templates/ without leading or trailing slashes, got %q", where, sa.Path)
@@ -471,10 +388,6 @@ func validateAccess(access []Access, report reporter) {
 			report("%s: subjects is required", where)
 		}
 
-		validateWhen(a.When, where, report)
-		validateMetadataKeys(a.Labels, where+".labels", false, report)
-		validateMetadataKeys(a.Annotations, where+".annotations", true, report)
-
 		if strings.HasPrefix(a.Path, "/") || strings.HasSuffix(a.Path, "/") || strings.Contains(a.Path, "..") {
 			report("%s: path must be a directory under templates/ without leading or trailing slashes, got %q", where, a.Path)
 		}
@@ -523,16 +436,6 @@ func validatePolicyRules(rules []PolicyRule, where string, report reporter) {
 	for i, rule := range rules {
 		if len(rule.Verbs) == 0 {
 			report("%s[%d]: verbs is required", where, i)
-		}
-
-		// An empty string is no verb, resource or name: Kubernetes keeps it and it matches nothing.
-		for _, field := range []struct {
-			name   string
-			values []string
-		}{{"verbs", rule.Verbs}, {"resources", rule.Resources}, {"resourceNames", rule.ResourceNames}, {"nonResourceURLs", rule.NonResourceURLs}} {
-			if slices.Contains(field.values, "") {
-				report("%s[%d]: %s holds an empty value", where, i, field.name)
-			}
 		}
 
 		if len(rule.NonResourceURLs) > 0 && (len(rule.APIGroups) > 0 || len(rule.Resources) > 0 || len(rule.ResourceNames) > 0) {
@@ -630,24 +533,5 @@ func Warnings(d *Declaration) []string {
 
 var (
 	groupNameRe    = regexp.MustCompile(`^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
-	resourceNameRe = regexp.MustCompile(`^(\*|[a-z0-9]([-a-z0-9]*[a-z0-9])?)(/[a-z0-9]([-a-z0-9]*[a-z0-9])?)?$`)
-	dnsSubdomainRe = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
+	resourceNameRe = regexp.MustCompile(`^(\*|[a-z0-9]([-a-z0-9.]*[a-z0-9])?)(/[a-z0-9]([-a-z0-9]*[a-z0-9])?)?$`)
 )
-
-// qualifiedNameRe is a Kubernetes label or annotation key: an optional DNS prefix and a name.
-var qualifiedNameRe = regexp.MustCompile(`^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?[A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?$`)
-
-// validateMetadataKeys checks label or annotation keys: the generator writes them unquoted, and
-// the rbac.deckhouse.io and meta.helm.sh annotations belong to the generator and to Helm.
-func validateMetadataKeys(m map[string]string, where string, annotations bool, report reporter) {
-	for _, k := range slices.Sorted(maps.Keys(m)) {
-		if len(k) > 316 || !qualifiedNameRe.MatchString(k) {
-			report("%s: %q is not a valid key ([prefix/]name, the name up to 63 characters of letters, digits, '-', '_' and '.')", where, k)
-			continue
-		}
-
-		if annotations && (strings.HasPrefix(k, "rbac.deckhouse.io/") || strings.HasPrefix(k, "meta.helm.sh/")) {
-			report("%s: %q is set by the generator or by Helm, not by the declaration", where, k)
-		}
-	}
-}

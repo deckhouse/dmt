@@ -21,9 +21,7 @@ import (
 	"context"
 	stderrors "errors"
 	"fmt"
-	"maps"
 	"os"
-	"slices"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -162,17 +160,11 @@ func (r *CoverageRule) Check(_ context.Context) {
 			continue
 		}
 
-		if _, resourceKnown := known[res.Key()]; resourceKnown {
-			continue
-		}
-
-		// Several modules share a group (deckhouse.io): a resource of another module's CRD is
-		// external, not a misspelling. Only a name close to one of this module's is flagged.
-		if near := nearestResource(res, known); near != "" {
+		if _, resourceKnown := known[res.Key()]; !resourceKnown {
 			errorList.
 				WithObjectID("rbac.yaml/"+res.Key()).
-				Warnf("%s names a resource the module's CRDs of group %s do not have, and %s is one letter or two away; check the spelling, or drop the entry if the resource is gone",
-					res.Key(), res.Group, near)
+				Warnf("%s names a resource the module's CRDs of group %s do not have; check the spelling, or drop the entry if the resource is gone",
+					res.Key(), res.Group)
 		}
 	}
 }
@@ -302,49 +294,4 @@ func scalarValue(node *yaml.Node) string {
 	}
 
 	return node.Value
-}
-
-// nearestResource returns the module CRD of the entry's group whose plural is at most two edits
-// away from the entry's resource, or "" when none is.
-func nearestResource(res rbacyaml.Resource, known map[string]struct{}) string {
-	best, bestDistance := "", 3
-
-	for _, key := range slices.Sorted(maps.Keys(known)) {
-		group, plural, _ := strings.Cut(key, "/")
-		if group != res.Group {
-			continue
-		}
-
-		if d := editDistance(res.Resource, plural); d < bestDistance {
-			best, bestDistance = key, d
-		}
-	}
-
-	return best
-}
-
-// editDistance is the Levenshtein distance of two ASCII names.
-func editDistance(a, b string) int {
-	prev := make([]int, len(b)+1)
-	for j := range prev {
-		prev[j] = j
-	}
-
-	for i := 1; i <= len(a); i++ {
-		cur := make([]int, len(b)+1)
-		cur[0] = i
-
-		for j := 1; j <= len(b); j++ {
-			cost := 1
-			if a[i-1] == b[j-1] {
-				cost = 0
-			}
-
-			cur[j] = min(prev[j]+1, cur[j-1]+1, prev[j-1]+cost)
-		}
-
-		prev = cur
-	}
-
-	return prev[len(b)]
 }
