@@ -1625,8 +1625,9 @@ refuses, is listed as hand-written with the reason, and so are objects a helm_li
 (its legacy roles and capabilities aside, which sync owns whatever renders them), objects inside a
 `{{ range }}` and roles without rules. The render shows neither the conditions around an object nor
 labels and annotations the format has no field for: a note names, per object, the labels and
-annotations a regeneration would drop, and under `--matrix` every object only some variants rendered,
-whose `when` a person has to write. The fix that writes the file keeps the finding
+annotations a regeneration would drop. Under `--matrix` an object only some variants rendered stays
+hand-written where the declaration has no `when` for it (access entries, the scrape access), and an
+account with such objects gets a `TODO` `when`, so the run stays red until someone writes it. The fix that writes the file keeps the finding
 while a `TODO` is left in it or while the linter would refuse the written file (both are named in the
 fix error); a written file that does not parse would be a bug of dmt, it is written all the same and
 the fix error carries the parse error. A `--fix` run with any fix left open exits non-zero whatever the
@@ -1712,6 +1713,7 @@ configuration error.
 **Limits worth knowing:**
 
 - A conditional rule is checked only where it renders: with the default values, `dmt lint --values-file` or `dmt lint --matrix`.
+- The cloud-data-discoverer account of the cloud providers (and csi-vsphere) keeps its own Role `d8:<module>:cloud-data-discoverer:secret-reader` in `kube-system`, in the account's `rbac-for-us.yaml`. The format cannot declare a Role in another namespace, so the file holds an object the declaration does not produce and `--fix` refuses to rewrite it; the account stays hand-written until the format can say it.
 - An account of a component directory in `default` or `kube-system` cannot be declared yet: the placement rule wants it named `d8-<module>-<dir>` there, and the generator accepts `<dir>` and, in a namespace of the platform, `<module>-<dir>` only. Bootstrap names the problem in the written file; the account stays hand-written until the two rules agree (control-plane-manager, vertical-pod-autoscaler).
 - **The three states a module can be in when the new `dmt` first runs.** *Only the legacy scheme* (an external module not yet migrated): `contract` reports one "migrate" finding per object; with an `rbac.yaml`, `sync` reports the generated files as absent and names the cause -- the template renders the legacy scheme -- and `--fix` leaves the legacy file alone (no generator header) with the generated version beside it. *Only the 1.78 scheme*: the ordinary case described above. *Both schemes behind the version gate* (`rbacv2-migrate-module.sh` without `--replace`): the linter's values answer the gate with the 1.78 model, so `contract` and `sync` see exactly the new objects and the legacy branch is neither judged nor "extra"; `--fix` never rewrites a gated file -- regenerating it would drop the legacy branch -- and says so. The legacy branch itself is exercised with `dmt lint --values-file` setting `global.deckhouseVersion` below 1.78; `--matrix` varies module values only, not the platform version.
 - The declaration is one per module and describes the union of editions. Linting a single edition directory shows the edition-only objects as absent; lint the merged tree as CI does. An `rbac.yaml` inside an edition overlay (`ee/be/modules`, `ee/se-plus/modules`, ..., and `ee/modules` for a module that also exists in `modules/`) is an error: CI merges the overlays over `modules/` before linting, so a copy there would shadow the base one or go unseen. A module that has no base elsewhere -- EE-only in `ee/modules/<module>`, or living in one edition directory only such as `ee/be/modules/350-node-local-dns` -- has its base there.

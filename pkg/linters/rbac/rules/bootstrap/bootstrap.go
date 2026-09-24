@@ -54,6 +54,9 @@ type Object struct {
 	// Repeated marks an object its template renders inside a {{ range }}: one document, several
 	// objects, the name of this one frozen by a declaration.
 	Repeated bool
+	// LibraryFile marks an object whose template also holds a document a library renders: the
+	// generator writes the whole file, so it can never regenerate it.
+	LibraryFile bool
 }
 
 // Input is what the render says about the module.
@@ -138,6 +141,10 @@ type builder struct {
 	// account, which carry its app label.
 	unmanagedIDs map[string]bool
 	account      map[string]bool
+	// partialIDs are the objects some render variants did not render (Input.Partial); current the
+	// objects imported with the account being read.
+	partialIDs map[string]bool
+	current    []Object
 	// prometheusFolded is set once the note on folding several scrape Roles is written.
 	prometheusFolded bool
 }
@@ -186,8 +193,12 @@ func Build(in Input) Result {
 		return in.Objects[i].identity() < in.Objects[j].identity()
 	})
 
-	b := &builder{in: in, unmanagedIDs: map[string]bool{}, account: map[string]bool{}, res: map[[2]string]*resourceAcc{}, restricted: map[[2]string][]string{}, texts: map[string]rbacyaml.CapabilityText{}, lineages: map[string]struct{}{}, used: map[string]struct{}{},
+	b := &builder{in: in, unmanagedIDs: map[string]bool{}, account: map[string]bool{}, partialIDs: map[string]bool{}, res: map[[2]string]*resourceAcc{}, restricted: map[[2]string][]string{}, texts: map[string]rbacyaml.CapabilityText{}, lineages: map[string]struct{}{}, used: map[string]struct{}{},
 		decl: &rbacyaml.Declaration{APIVersion: rbacyaml.APIVersionV1Alpha1}}
+
+	for _, p := range in.Partial {
+		b.partialIDs[p] = true
+	}
 
 	b.setAside()
 	b.capabilitiesAndLegacy()
@@ -282,6 +293,9 @@ func (b *builder) setAside() {
 		switch {
 		case o.Library && !b.ownedByClass(o):
 			b.unmanage(o, "rendered by an include of a named template (helm_lib), which owns it")
+			b.mark(o)
+		case o.LibraryFile && !b.ownedByClass(o):
+			b.unmanage(o, "shares "+o.Path+" with objects a helm_lib include renders; the generator writes the whole file, so it stays hand-written")
 			b.mark(o)
 		case o.Repeated && !b.ownedByClass(o):
 			b.unmanage(o, "rendered inside {{ range }}: one document renders several objects, and the declaration would freeze this one under its name")
@@ -458,6 +472,7 @@ func (b *builder) serviceAccounts() {
 		}
 
 		e := rbacyaml.ServiceAccount{Name: sa.Name}
+		b.current = nil
 
 		if m := pathRe.FindStringSubmatch(sa.Path); m != nil {
 			e.Path = m[1]
@@ -565,6 +580,20 @@ func (b *builder) serviceAccounts() {
 			b.note("ServiceAccount %s has %d ClusterRoles of its own besides d8:%s:%s; they are kept separate as extraClusterRoles -- merge them into clusterRules if nothing binds them separately", sa.Name, n, b.in.Module, sa.Name)
 		}
 
+		// An account and its objects share its `when`: what renders only under some values leaves a
+		// TODO for its condition, so the run stays red until someone writes it (finding 41).
+		var partial []string
+
+		for _, o := range b.current {
+			if b.partial(o) {
+				partial = append(partial, o.Kind+" "+o.Name)
+			}
+		}
+
+		if len(partial) > 0 {
+			e.When = "TODO: " + strings.Join(partial, ", ") + " render only under some of the linted values; write the condition they render under"
+		}
+
 		b.decl.ServiceAccounts = append(b.decl.ServiceAccounts, e)
 	}
 }
@@ -580,6 +609,10 @@ func (b *builder) otherBindings() {
 		cr, found := b.clusterRole(crb.RoleRef.Name)
 		if !found || !b.ownClusterRole(cr) || b.isUsed(cr) {
 			b.unmanage(crb, fmt.Sprintf("binds %s, which is not a plain ClusterRole of this module the declaration describes", crb.RoleRef.Name))
+			continue
+		}
+
+		if b.unmanagePartial(cr, crb) {
 			continue
 		}
 
@@ -602,7 +635,7 @@ func (b *builder) otherBindings() {
 			continue
 		}
 
-		if b.prometheus(role, rb) {
+		if b.unmanagePartial(role, rb) || b.prometheus(role, rb) {
 			continue
 		}
 
@@ -875,25 +908,41 @@ func subset(a, b []string) bool {
 func (b *builder) markAccount(o Object) {
 	b.mark(o)
 	b.account[o.identity()] = true
+	b.current = append(b.current, o)
+}
+
+// partial reports whether some render variants did not render the object.
+func (b *builder) partial(o Object) bool {
+	return b.partialIDs[o.Kind+"/"+o.Namespace+"/"+o.Name]
+}
+
+// unmanagePartial keeps hand-written what renders only under some of the linted values where the
+// declaration has no `when` for it: written unconditionally, it would grant for every value
+// (review of #479, finding 41).
+func (b *builder) unmanagePartial(objects ...Object) bool {
+	for _, o := range objects {
+		if !b.partial(o) {
+			continue
+		}
+
+		for _, p := range objects {
+			b.unmanage(p, "renders only under some of the linted values, and the declaration has no `when` for it here")
+			b.mark(p)
+		}
+
+		return true
+	}
+
+	return false
 }
 
 // dropped notes, per object the declaration describes, what a regeneration drops without the
-// format saying so: labels and annotations it has no field for, and under --matrix the condition
-// of an object some variants did not render (review of #479, finding 40).
+// format saying so: labels and annotations it has no field for (review of #479, finding 40).
 func (b *builder) dropped() {
-	partial := make(map[string]bool, len(b.in.Partial))
-	for _, p := range b.in.Partial {
-		partial[p] = true
-	}
-
 	for _, o := range b.in.Objects {
 		id := o.identity()
 		if !b.isUsed(o) || b.unmanagedIDs[id] {
 			continue
-		}
-
-		if partial[o.Kind+"/"+o.Namespace+"/"+o.Name] {
-			b.note("%s %s (%s) renders only under some of the linted values; the declaration writes it unconditionally -- add `when` if its template has a condition", o.Kind, o.Name, o.Path)
 		}
 
 		var lost []string

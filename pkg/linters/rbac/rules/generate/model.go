@@ -253,6 +253,12 @@ func checkAgainstModule(in Input) error {
 			return fmt.Errorf("serviceAccounts[%s].path %q: one directory under templates/ only; the placement rule names the objects of a nested directory in a way the generator cannot follow", sa.Name, sa.Path)
 		}
 
+		// In default and kube-system the placement rule wants the account named d8-<module>-<dir>,
+		// which the generator does not write (README, limits; review of #479, finding 43).
+		if in.Namespace == "default" || in.Namespace == "kube-system" {
+			return fmt.Errorf("serviceAccounts[%s].path %q: in %s the placement rule wants the account named %q, which the generator does not accept yet (a known limitation); keep the account hand-written", sa.Name, sa.Path, in.Namespace, "d8-"+in.Module+"-"+sa.Path)
+		}
+
 		// The placement rule allows the module name in front of the directory only in a namespace of
 		// the platform, and then wants its Role and foreign RoleBindings named <module>:<dir>, which
 		// the generator does not write (review of #479, finding 37).

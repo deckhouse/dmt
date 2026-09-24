@@ -156,6 +156,8 @@ func TestBuild_SubsystemsOverrideAndNamespaceLabel(t *testing.T) {
 	in := certManagerInput(t)
 	in.Decl.Subsystems = []string{"networking", "kubernetes"}
 	in.Namespace = "default"
+	// Accounts of component directories cannot live in default (README, limits).
+	in.Decl.ServiceAccounts = nil
 	in.Decl.Normalize()
 
 	model, err := Build(in)
@@ -300,6 +302,15 @@ func TestBuild_RefusesWhatTheModuleCannotCarry(t *testing.T) {
 		_, err = Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Decl: decl})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "one directory under templates/ only")
+
+		// In default and kube-system the placement rule wants d8-<module>-<dir>, which the generator
+		// does not accept: refused with the limitation named (review of #479, finding 43).
+		decl.ServiceAccounts = []rbacyaml.ServiceAccount{{Name: "control-plane-proxy", Path: "control-plane-proxy"}}
+		for _, ns := range []string{"kube-system", "default"} {
+			_, err = Build(Input{Module: "m", Namespace: ns, Subsystems: []string{"security"}, Decl: decl})
+			require.Error(t, err, ns)
+			assert.Contains(t, err.Error(), `the placement rule wants the account named "d8-m-control-plane-proxy", which the generator does not accept yet (a known limitation)`)
+		}
 	})
 
 	t.Run("namespace access in a directory", func(t *testing.T) {
