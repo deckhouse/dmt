@@ -1494,8 +1494,11 @@ var (
 	// wrapperLineRe matches the lines the generator puts between objects: its conditions and
 	// their ends. Anything else outside an object is content the fix does not understand.
 	wrapperLineRe = regexp.MustCompile(`^\s*(\{\{-?\s*(if|else|end)\b[^}]*-?\}\}\s*)*$`)
-	// labelsLineRe is the only other template action the generator writes: the module labels.
-	labelsLineRe = regexp.MustCompile(`^\s*\{\{- include "helm_lib_module_labels" \(list \..*\| nindent 2 \}\}\s*$`)
+	// labelsLineRe is the only other template action the generator writes: the module labels, with
+	// no labels of its own or a dict of quoted literals (generate.labelsInclude). Anything else on
+	// that line -- another include, labels from the values -- is not the generator's (review of
+	// #479, finding 31).
+	labelsLineRe = regexp.MustCompile(`^  \{\{- include "helm_lib_module_labels" \(list \.(?: \(dict(?: "(?:[^"\\]|\\.)*" "(?:[^"\\]|\\.)*")+\))?\) \| nindent 2 \}\}$`)
 )
 
 // textDocuments parses the objects of a generated file from its text: the generator writes kind,
