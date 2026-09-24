@@ -266,3 +266,14 @@ var I18nAnnotations = []string{AnnotationTitleEN, AnnotationTitleRU, AnnotationD
 func IsLegacyKind(kind string) bool {
 	return kind == KindLegacyUse || kind == KindLegacyManage
 }
+
+// AccessRoleName is the Role and RoleBinding name of a namespace access entry. The placement rule
+// wants access-to-<module>-... in templates/rbac-to-us.yaml and access-to-<directory>-... in
+// templates/<directory>/rbac-to-us.yaml.
+func AccessRoleName(module, path, name string) string {
+	if path == "" {
+		return "access-to-" + module + "-" + name
+	}
+
+	return "access-to-" + strings.ReplaceAll(path, "/", "-") + "-" + name
+}

@@ -1423,8 +1423,11 @@ capabilities:
 serviceAccounts:
   - name: cainjector
     path: cainjector                # templates/cainjector/rbac-for-us.yaml; omitted -> templates/rbac-for-us.yaml
+                                    # a nested path a/b names the account a-b or <module>-a-b (placement rule)
     when: .Values.certManager.internal.enableCAInjector
     labels: {app: cainjector}
+    annotations: {helm.sh/resource-policy: keep}    # on the ServiceAccount
+    rbacAnnotations: {werf.io/deploy-on: pre-install} # on every role and binding of the account
     clusterRules:                   # ClusterRole d8:<module>:<name> + ClusterRoleBinding
       - apiGroups: [cert-manager.io]
         resources: [certificates]
@@ -1480,7 +1483,11 @@ What the generator produces from it (level `viewer` -> capability `view`, `manag
 | `resources[].legacy.<Level>` | `templates/user-authz-cluster-roles.yaml` | ClusterRole `d8:user-authz:<module>:<kebab-level>` with the `user-authz.deckhouse.io/access-level` annotation |
 | `serviceAccounts[]` | `templates/[<path>/]rbac-for-us.yaml` | ServiceAccount, ClusterRole/ClusterRoleBinding `d8:<module>:<name>`, Role/RoleBinding `<name>`, the extra bindings |
 | `access[]` with `clusterRules` | `templates/rbac-for-us.yaml` | ClusterRole/ClusterRoleBinding `d8:<module>:<name>` |
-| `prometheusAccess`, `access[]` with `namespaceRules` | `templates/rbac-to-us.yaml` | Role/RoleBinding `access-to-<module>[-<name>]` |
+| `prometheusAccess`, `access[]` with `namespaceRules` | `templates/[<path>/]rbac-to-us.yaml` | Role/RoleBinding `access-to-<module>[-<name>]`; with `path` `access-to-<path, / as ->-<name>`, as the placement rule wants |
+
+Every object gets the `rbac.deckhouse.io/namespace` label of the module namespace unless that namespace is
+`default`: user-authz projects the module's use roles by it, and `kube-system` is a module namespace as
+any `d8-*` one.
 
 Every generated file starts with a header line naming the generator and the contract version. A file
 without that header is maintained by hand and is never overwritten.
@@ -1641,12 +1648,16 @@ controller ClusterRoles with arbitrary names, objects with Helm-computed names).
 **What it checks:**
 
 1. Every declared object is in the render (unless it is under `when`), and every rule of it: rules are compared as `(apiGroup, resource, resourceName, verb)` tuples, in both directions. A rule under `when` that did not render is not a divergence; a rule without `when` hidden behind a hand-written `{{ if }}` is.
-2. A capability's aggregation edges (`aggregate-to-<lineage>-as`) match in both directions: rules may agree while a lineage is lost. Its `rbac.deckhouse.io/capability` marker, `module` and `rbac.deckhouse.io/namespace` labels are what the generator writes.
-3. A binding's `roleRef` and subjects match.
-4. Every rendered legacy role and module capability is produced by the declaration.
-5. A file the declaration produces that does not exist while an object it holds is absent from the render is a divergence, whether or not the object is under `when`: the render cannot tell a false condition from a template nobody wrote, the text can. A file that carries the generator header is the generator's, and its text must be what the declaration renders now: a rule under `when` whose condition is false today is absent from the render without being a divergence, yet it still has to reach the template, so for generator-owned files the text is compared too. A file of another contract version is the same case. Remove the header to maintain a file by hand; then only its render is judged.
+2. The annotations of an object written from `serviceAccounts` or `access` match the declaration's (`annotations`, `rbacAnnotations`): a `helm.sh/resource-policy: keep` the declaration does not carry would be lost by the next regeneration.
+3. A capability's aggregation edges (`aggregate-to-<lineage>-as`) match in both directions: rules may agree while a lineage is lost. Its `rbac.deckhouse.io/capability` marker, `module` and `rbac.deckhouse.io/namespace` labels are what the generator writes.
+4. A binding's `roleRef` and subjects match.
+5. Every rendered legacy role and module capability is produced by the declaration.
+6. A file the declaration produces that does not exist while an object it holds is absent from the render is a divergence, whether or not the object is under `when`: the render cannot tell a false condition from a template nobody wrote, the text can. A file that carries the generator header is the generator's, and its text must be what the declaration renders now: a rule under `when` whose condition is false today is absent from the render without being a divergence, yet it still has to reach the template, so for generator-owned files the text is compared too. A file of another contract version is the same case. Remove the header to maintain a file by hand; then only its render is judged.
 
 Findings are one per template file and carry the fix command; the text does not depend on the render variant.
+A declaration that does not parse or validate, one the generator cannot turn into objects (an account
+named against the placement rule), a broken `module.yaml` and a declaration in an edition overlay stop
+the rule; their fix fails, so `--fix` exits non-zero instead of reporting a run that generated nothing.
 
 **Autofix:** regenerates the file from `rbac.yaml`. The declaration is the source of truth: a right it
 no longer names leaves the template; the finding that led there listed it, and the autofix logs what it

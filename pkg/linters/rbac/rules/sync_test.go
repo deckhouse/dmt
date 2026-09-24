@@ -18,6 +18,7 @@ package rules
 
 import (
 	"context"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1494,7 +1495,40 @@ func TestSync_BrokenModuleYAMLStops(t *testing.T) {
 	got := texts(errorList)
 	require.Len(t, got, 1, "got: %v", got)
 	assert.Contains(t, got[0], "parse module.yaml")
-	assert.Empty(t, errorList.GetFixes())
+
+	// The fix writes nothing and fails, so `--fix` does not exit 0 over a module it left alone.
+	before := snapshotTree(t, modulePath)
+
+	for _, fix := range errorList.GetFixes() {
+		fix()
+	}
+
+	assert.True(t, errorList.ContainsFailedFixes())
+	assert.Equal(t, before, snapshotTree(t, modulePath))
+}
+
+// A declaration the linter refuses carries a failing fix: nothing is generated and `--fix`
+// reports it rather than exiting 0 (regression hunt, B5).
+func TestSync_InvalidDeclarationFailsTheFix(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+
+	decl, err := os.ReadFile(filepath.Join(modulePath, "rbac.yaml"))
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(modulePath, "rbac.yaml"), []byte(strings.Replace(string(decl), "serviceAccounts:\n", "serviceAccounts:\n  - name: wrong-name\n    path: a/b\n", 1)), 0o600))
+
+	errorList := runSync(t, modulePath, renderedFrom(t, model, nil))
+	require.NotEmpty(t, errorList.GetFixes())
+	assert.Contains(t, strings.Join(texts(errorList), "\n"), "the placement rule wants the account named")
+
+	for _, fix := range errorList.GetFixes() {
+		fix()
+	}
+
+	assert.True(t, errorList.ContainsFailedFixes())
 }
 
 // A generated file whose objects are all under a false condition is found on disk and deleted
@@ -1769,4 +1803,24 @@ func TestSync_ContractOneHandAddedGeneratorNamedIsForeign(t *testing.T) {
 	}
 
 	assert.Contains(t, strings.Join(messages, "\n"), "ClusterRole/d8:cert-manager:hand-extra")
+}
+
+// snapshotTree maps every file under dir to its content.
+func snapshotTree(t *testing.T, dir string) map[string]string {
+	t.Helper()
+
+	out := map[string]string{}
+
+	require.NoError(t, filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+
+		data, err := os.ReadFile(path)
+		out[path] = string(data)
+
+		return err
+	}))
+
+	return out
 }
