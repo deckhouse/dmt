@@ -195,10 +195,11 @@ type syncRun struct {
 	fromFile map[string]map[string]storage.StoreObject
 }
 
-// templateText is one template as the lint reads it.
+// templateText is one template as the lint reads it; err is why it could not be read.
 type templateText struct {
 	content string
 	docs    []textDocument
+	err     error
 }
 
 func (r *SyncRule) newSyncRun(modulePath string, model *generate.Model) *syncRun {
@@ -381,7 +382,12 @@ func (r *SyncRule) report(run *syncRun, divergences map[string][]string) {
 func (r *SyncRule) unfixable(run *syncRun, file generate.File) []string {
 	var out []string
 
+	// What the lint could not read, the fix must not write over.
 	text := run.templates[file.Path]
+	if text.err != nil {
+		return []string{fmt.Sprintf("the file cannot be read (%v), so what it holds is unknown", text.err)}
+	}
+
 	if templateGated(text.content, generate.RenderFile(file)) {
 		out = append(out, fmt.Sprintf("the template serves both role models behind the version gate (the %s gate of rbacv2-migrate-module.sh, or a deckhouseVersion test the declaration does not produce), and a rewrite would drop the legacy branch -- edit the new branch, or drop the gate and the legacy object once clusters below DKP 1.78 are no longer served",
 			rbaccontract.GateMarker))
@@ -1262,14 +1268,18 @@ func templateTexts(modulePath string) map[string]templateText {
 	out := map[string]templateText{}
 
 	for _, path := range templateFiles(modulePath) {
+		rel, err := filepath.Rel(modulePath, path)
+		if err != nil {
+			continue // GetFiles lists paths under the module: a path outside it is not a template
+		}
+
 		content, err := os.ReadFile(path)
 		if err != nil {
+			out[filepath.ToSlash(rel)] = templateText{err: err}
 			continue
 		}
 
-		if rel, relErr := filepath.Rel(modulePath, path); relErr == nil {
-			out[filepath.ToSlash(rel)] = templateText{content: string(content), docs: textDocuments(string(content))}
-		}
+		out[filepath.ToSlash(rel)] = templateText{content: string(content), docs: textDocuments(string(content))}
 	}
 
 	return out
