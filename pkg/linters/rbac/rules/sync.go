@@ -1110,7 +1110,7 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 
 			return writeBootstrapped(path, content)
 		})
-	}).Errorf("%s is missing: `%s` writes it from the RBAC objects the module renders today (%d of %d objects described, the rest listed in the file as hand-written); every TODO and note in it is a decision for a person before --fix rewrites the templates from it",
+	}).Errorf("%s is missing: `%s` writes it from the RBAC objects the module renders today (%d of %d objects described, the rest listed in its notes and left as they are); every TODO in it is a decision `dmt lint` reports, and the notes say what the declaration does not carry",
 		rbacyaml.Filename, FixCommand, described, len(in.Objects))
 }
 
