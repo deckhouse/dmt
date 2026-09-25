@@ -669,8 +669,12 @@ metadata:
 `,
 	})
 
-	got := strings.Join(unrenderedObjects(modulePath, []bootstrap.Object{{Kind: "ServiceAccount", Name: "node-local-dns"}}), "\n")
+	got := strings.Join(unrenderedObjects(modulePath, []bootstrap.Object{{Kind: "ServiceAccount", Name: "node-local-dns", Path: "templates/cleaner/rbac-for-us.yaml"}}), "\n")
 	assert.Contains(t, got, "a ClusterRole with the computed name d8:{{ .Chart.Name }}:stale-dns-connections-cleaner (templates/cleaner/rbac-for-us.yaml, under `has \"cni-cilium\" .Values.global.enabledModules`)")
 	assert.Contains(t, got, "ServiceAccount/stale-dns-connections-cleaner (templates/cleaner/rbac-for-us.yaml")
 	assert.NotContains(t, got, "computed name {{ .Chart.Name }} ", "the rendered account matches it")
+
+	// An object of another template is not the document's, whatever its name (review of #480).
+	got = strings.Join(unrenderedObjects(modulePath, []bootstrap.Object{{Kind: "ServiceAccount", Name: "node-local-dns", Path: "templates/other/rbac-for-us.yaml"}}), "\n")
+	assert.Contains(t, got, "a ServiceAccount with the computed name {{ .Chart.Name }} (templates/cleaner/rbac-for-us.yaml")
 }
