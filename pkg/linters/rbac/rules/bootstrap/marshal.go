@@ -27,8 +27,8 @@ import (
 func Marshal(r Result) ([]byte, error) {
 	var head strings.Builder
 
-	head.WriteString("# Written by dmt (rbac/sync --fix) from the RBAC objects the module rendered. Review it, resolve every TODO\n")
-	head.WriteString("# and every note below, then run \"dmt lint --linter rbac --fix\" to bring the templates in line with it.\n")
+	head.WriteString("# The module RBAC declaration, read from the RBAC objects the module renders. Review it: every TODO is a\n")
+	head.WriteString("# decision \"dmt lint\" reports; then run \"dmt lint --linter rbac --fix\" to bring the templates in line with it.\n")
 	head.WriteString("# Objects rendered only under values other than the defaults are not here: lint with --values-file (or\n")
 	head.WriteString("# --matrix) before the first --fix of the templates if the module has such templates, and declare them with when.\n")
 
