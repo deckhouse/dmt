@@ -466,11 +466,25 @@ func Locate(docs []Doc, o Object) (Doc, bool) {
 		return set[0], true
 	}
 
+	// The library documents are one answer only when their blocks agree too: an include under a
+	// condition beside one without would give its objects no condition (review of #480).
+	var library []Doc
+
 	for _, d := range docs {
 		if d.Library {
-			return d, true
+			library = append(library, d)
 		}
 	}
 
-	return Doc{}, false
+	if len(library) == 0 {
+		return Doc{}, false
+	}
+
+	for _, d := range library[1:] {
+		if d.When != library[0].When || d.Unmanageable != library[0].Unmanageable {
+			return Doc{}, false
+		}
+	}
+
+	return library[0], true
 }
