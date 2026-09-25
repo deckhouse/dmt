@@ -802,10 +802,10 @@ func TestSync_MisplacedObjectIsNamed(t *testing.T) {
 
 	errorList := runSync(t, modulePath, store)
 	joined := strings.Join(texts(errorList), "\n")
-	assert.Contains(t, joined, "templates/rbacv2/use/view.yaml does not match rbac.yaml: ClusterRole/d8:namespace-capability:cert-manager:edit renders here; the declaration puts it in templates/rbacv2/use/edit.yaml")
-	assert.Contains(t, joined, "ClusterRole/d8:namespace-capability:cert-manager:edit is declared in templates/rbacv2/use/edit.yaml -- move it there")
-	assert.Contains(t, joined, "ClusterRole/d8:namespace-capability:cert-manager:edit (renders from templates/rbacv2/use/view.yaml) -- the declaration puts it in this file: move it here",
+	assert.Contains(t, joined, "templates/rbacv2/use/view.yaml does not match rbac.yaml: ClusterRole/d8:namespace-capability:cert-manager:edit renders here; the declaration puts it in templates/rbacv2/use/edit.yaml. The autofix leaves the file as it is: move ClusterRole/d8:namespace-capability:cert-manager:edit to templates/rbacv2/use/edit.yaml")
+	assert.Contains(t, joined, "templates/rbacv2/use/edit.yaml does not match rbac.yaml: ClusterRole/d8:namespace-capability:cert-manager:edit renders from templates/rbacv2/use/view.yaml; the declaration puts it in this file. The autofix leaves the file as it is: move ClusterRole/d8:namespace-capability:cert-manager:edit here from templates/rbacv2/use/view.yaml",
 		"the target is not written either, so the object never renders twice")
+	assert.Equal(t, 4, strings.Count(joined, "ClusterRole/d8:namespace-capability:cert-manager:edit"), "one fact and one action in each of the two findings")
 	assertLintOnly(t, errorList, modulePath)
 }
 
@@ -1378,7 +1378,7 @@ func TestSync_ObjectHeldByAnotherTemplateIsNotWrittenTwice(t *testing.T) {
 	// neither is rewritten.
 	errorList := runSync(t, modulePath, renderedFrom(t, model, nil))
 	joined := strings.Join(texts(errorList), "\n")
-	assert.Contains(t, joined, "(held by "+rel+") -- the declaration puts it in this file: move it here")
+	assert.Contains(t, joined, "move d8-cert-manager/ServiceAccount/cainjector here from "+rel)
 	assertLintOnly(t, errorList, modulePath)
 
 	root, err := os.ReadFile(filepath.Join(modulePath, "templates/rbac-for-us.yaml"))

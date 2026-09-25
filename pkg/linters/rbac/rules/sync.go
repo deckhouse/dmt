@@ -241,7 +241,7 @@ func (r *SyncRule) compareRender(run *syncRun) map[string][]string {
 	divergences := map[string][]string{}
 
 	for _, file := range run.model.Files {
-		kind, isLegacy := legacy[file.Path]
+		_, isLegacy := legacy[file.Path]
 
 		// A template that serves both models behind the version gate rendered its legacy branch:
 		// the values of this run say the cluster is below 1.78. The 1.78 objects it declares are
@@ -251,16 +251,9 @@ func (r *SyncRule) compareRender(run *syncRun) map[string][]string {
 			continue
 		}
 
-		found := compareFile(r.enabledObjects(run.withoutUnrendered(file)), run.actual, r.module.GetName())
-
-		// The template renders the scheme before 1.78 where the declaration produces the new one:
-		// the objects the declaration names cannot be there. Say so once instead of listing them.
-		if isLegacy && len(found) > 0 {
-			found = append(found, fmt.Sprintf("the template renders the legacy RBACv2 scheme (%s: %s, the manage/use model before DKP 1.78) where the declaration produces the 1.78 model; migrate the module with rbacv2-migrate-module.sh to serve both, or delete the file and run `%s` to serve the new one only",
-				rbaccontract.LabelKind, kind, FixCommand))
-		}
-
-		divergences[file.Path] = append(divergences[file.Path], found...)
+		// A template that renders the scheme before 1.78 where the declaration produces the new one
+		// is named by the case that keeps its fix off (unfixable).
+		divergences[file.Path] = append(divergences[file.Path], compareFile(r.enabledObjects(run.withoutUnrendered(file)), run.actual, r.module.GetName())...)
 	}
 
 	divergences = r.replacedCopies(run, divergences)
@@ -377,16 +370,16 @@ func (r *SyncRule) report(run *syncRun, divergences map[string][]string) {
 // its text holds must be one the declaration puts there, a legacy role or a module capability the
 // declaration no longer produces (the rewrite drops it: sync owns them by class), or an object the
 // declaration now produces under another name. The text is the same in every render variant, so
-// every variant reaches the same answer; the render adds what the text cannot show: an object the
-// file would produce that renders from another template.
+// every variant reaches the same answer; the render adds what the text cannot show. An object in
+// the wrong file is one case, whichever way the lint saw it.
 func (r *SyncRule) unfixable(run *syncRun, file generate.File) []string {
-	var out []string
-
 	// What the lint could not read, the fix must not write over.
 	text := run.templates[file.Path]
 	if text.err != nil {
 		return []string{fmt.Sprintf("the file cannot be read (%v), so what it holds is unknown", text.err)}
 	}
+
+	var out []string
 
 	if templateGated(text.content, generate.RenderFile(file)) {
 		out = append(out, fmt.Sprintf("the template serves both role models behind the version gate (the %s gate of rbacv2-migrate-module.sh, or a deckhouseVersion test the declaration does not produce), and a rewrite would drop the legacy branch -- edit the new branch, or drop the gate and the legacy object once clusters below DKP 1.78 are no longer served",
@@ -396,6 +389,9 @@ func (r *SyncRule) unfixable(run *syncRun, file generate.File) []string {
 	produced := identitiesOf(file.Objects)
 	fromFile := run.fromFile[file.Path]
 	renderedRoles := renderedRolesOf(r.module.GetStorage(), file.Path)
+
+	// misplaced collects, per object, where it should go or where it is now: one case each.
+	misplaced := map[string]string{}
 
 	for _, doc := range text.docs {
 		if _, ok := produced[doc.id]; ok {
@@ -408,7 +404,7 @@ func (r *SyncRule) unfixable(run *syncRun, file generate.File) []string {
 		}
 
 		if where, ok := run.placed[doc.id]; ok && where != file.Path {
-			out = append(out, doc.id+" is declared in "+where+" -- move it there")
+			misplaced[doc.id] = "move " + doc.id + " to " + where
 			continue
 		}
 
@@ -433,7 +429,7 @@ func (r *SyncRule) unfixable(run *syncRun, file generate.File) []string {
 		}
 
 		if where, ok := run.placed[id]; ok && where != file.Path {
-			out = append(out, id+" is declared in "+where+" -- move it there")
+			misplaced[id] = "move " + id + " to " + where
 			continue
 		}
 
@@ -442,10 +438,11 @@ func (r *SyncRule) unfixable(run *syncRun, file generate.File) []string {
 			continue
 		}
 
-		// The model before 1.78: rewriting the file would serve the new model only, a decision the
-		// finding above leaves to a person.
-		if kind == "ClusterRole" && rbaccontract.IsLegacyKind(object.Unstructured.GetLabels()[rbaccontract.LabelKind]) {
-			out = append(out, "a rewrite would replace the legacy RBACv2 scheme the template renders")
+		// The model before 1.78: rewriting the file would serve the new model only.
+		if level := object.Unstructured.GetLabels()[rbaccontract.LabelKind]; kind == "ClusterRole" && rbaccontract.IsLegacyKind(level) {
+			misplaced["legacy scheme"] = fmt.Sprintf("the template renders the legacy RBACv2 scheme (%s: %s, the manage/use model before DKP 1.78) where the declaration produces the 1.78 model; migrate the module with rbacv2-migrate-module.sh to serve both, or delete the file and run `%s` to serve the new one only",
+				rbaccontract.LabelKind, level, FixCommand)
+
 			continue
 		}
 
@@ -456,17 +453,46 @@ func (r *SyncRule) unfixable(run *syncRun, file generate.File) []string {
 		out = append(out, id+", which "+rbacyaml.Filename+" does not produce -- declare it in "+rbacyaml.Filename+" or move it to another template")
 	}
 
-	for _, id := range r.renderedElsewhere(file) {
-		out = append(out, id+" -- the declaration puts it in this file: move it here")
+	// An object this file should hold that renders from, or is written in, another template: the
+	// fix does not move objects between files, and writing it here would render it twice.
+	for _, o := range file.Objects {
+		id := o.Identity()
+		if _, ok := misplaced[id]; ok {
+			continue
+		}
+
+		if at := run.elsewhere(id, file.Path); at != "" {
+			misplaced[id] = "move " + id + " here from " + at
+		}
 	}
 
-	for _, id := range heldElsewhere(file, run.templates) {
-		out = append(out, id+" -- the declaration puts it in this file: move it here")
-	}
-
+	out = append(out, slices.Collect(maps.Values(misplaced))...)
 	sort.Strings(out)
 
 	return slices.Compact(out)
+}
+
+// elsewhere returns the template other than path that renders the object or holds it by its text.
+func (run *syncRun) elsewhere(id, path string) string {
+	for _, at := range slices.Sorted(maps.Keys(run.fromFile)) {
+		if _, ok := run.fromFile[at][id]; ok && at != path {
+			return at
+		}
+	}
+
+	for _, at := range slices.Sorted(maps.Keys(run.templates)) {
+		if at == path {
+			continue
+		}
+
+		for _, doc := range run.templates[at].docs {
+			if doc.id == id {
+				return at
+			}
+		}
+	}
+
+	return ""
 }
 
 // withoutUnrendered leaves out the objects a template holds by its text when nothing rendered from
@@ -1136,24 +1162,6 @@ func bootstrapObject(object storage.StoreObject) (bootstrap.Object, bool) {
 	return o, true
 }
 
-// renderedElsewhere lists the objects the file produces that the render shows in another file.
-func (r *SyncRule) renderedElsewhere(file generate.File) []string {
-	produced := identitiesOf(file.Objects)
-
-	var out []string
-
-	for index, object := range r.module.GetStorage() {
-		id := index.AsString()
-		if _, ok := produced[id]; ok && object.ShortPath() != file.Path {
-			out = append(out, id+" (renders from "+object.ShortPath()+")")
-		}
-	}
-
-	sort.Strings(out)
-
-	return out
-}
-
 // identitiesOf returns the identities of the objects.
 func identitiesOf(objects []generate.Object) map[string]struct{} {
 	out := make(map[string]struct{}, len(objects))
@@ -1291,32 +1299,6 @@ func templateFiles(modulePath string) []string {
 	return fsutils.GetFiles(filepath.Join(modulePath, "templates"), false, func(_, path string) bool {
 		return !strings.HasPrefix(filepath.Base(path), "_")
 	})
-}
-
-// heldElsewhere lists the objects the file produces that another template's text holds.
-func heldElsewhere(file generate.File, templates map[string]templateText) []string {
-	var out []string
-
-	for _, path := range slices.Sorted(maps.Keys(templates)) {
-		if path == file.Path {
-			continue
-		}
-
-		held := map[string]bool{}
-		for _, doc := range templates[path].docs {
-			held[doc.id] = true
-		}
-
-		for _, o := range file.Objects {
-			if held[o.Identity()] {
-				out = append(out, o.Identity()+" (held by "+path+")")
-			}
-		}
-	}
-
-	sort.Strings(out)
-
-	return out
 }
 
 // replacedCopies reports a rendered object the declaration does not own that grants exactly what a
