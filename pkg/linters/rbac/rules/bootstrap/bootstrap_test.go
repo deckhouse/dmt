@@ -590,7 +590,7 @@ func TestBuild_PartialObjectBesideDeclaredOnes(t *testing.T) {
 	}, Partial: []string{"ClusterRoleBinding//d8:m:supplement"}})
 
 	notes := strings.Join(got.Notes, "\n")
-	assert.Contains(t, notes, "ClusterRoleBinding d8:m:supplement stays hand-written in templates/rbac-for-us.yaml, which the declaration also writes: move it to the rbac-for-us.yaml of another component directory")
+	assert.Contains(t, notes, "ClusterRoleBinding d8:m:supplement stays hand-written in templates/rbac-for-us.yaml, which the declaration also writes: move it to the rbac-for-us.yaml of another component directory (the placement rule accepts it in any): until then templates/rbac-for-us.yaml gets no fix")
 	assert.Contains(t, notes, "ClusterRole d8:m:supplement stays hand-written in templates/rbac-for-us.yaml")
 }
 
