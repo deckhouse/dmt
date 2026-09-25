@@ -114,9 +114,11 @@ go test ./test/e2e/ -run 'TestE2E/<linter>/<your-case>' -v
 | `rbac/coverage-fix-writes-stub` | rbac linter `coverage` with `--fix` (a stub is written and the fix succeeds; the stub is not a decision, the lint that follows reports it) |
 | `rbac/coverage-todo` | rbac linter `coverage` (undecided `noAccess: "TODO"` stub; misspelled resource of a known group is a warning) |
 | `rbac/coverage-without-rbac-yaml` | rbac linter `coverage` stays silent on a module without rbac.yaml |
-| `rbac/sync-clean` | rbac linter `sync` (templates generated from rbac.yaml render exactly the declaration; the generated files also pass placement, contract and coverage; renders `helm_lib_module_labels` from the vendored `deckhouse_lib_helm` chart) |
-| `rbac/sync-hand-edited` | rbac linter `sync` (a rule added by hand to a generated capability, and a legacy role the declaration does not produce -- one finding per template) |
-| `rbac/sync-fix-regenerates` | rbac linter `sync` with `--fix` (a missing generated capability file is written from rbac.yaml and the finding is resolved) |
+| `rbac/sync-clean` | rbac linter `sync` (templates written from rbac.yaml render exactly the declaration and also pass placement, contract and coverage; renders `helm_lib_module_labels` from the vendored `deckhouse_lib_helm` chart) |
+| `rbac/sync-hand-edited` | rbac linter `sync` (a rule added by hand to a declared capability, and a legacy role the declaration does not produce -- one finding per template) |
+| `rbac/sync-fix-regenerates` | rbac linter `sync` with `--fix` (a missing capability file the declaration produces is written from rbac.yaml and the finding is resolved) |
+| `rbac/sync-fix-leaves-foreign-object` | rbac linter `sync` with `--fix` (a declared file that diverges and holds a ConfigMap written by hand: the finding names the ConfigMap, carries no fix, and the file stays) |
+| `rbac/sync-template-does-not-render` | rbac linter `sync` (a template the render skips: the render's warning is the only finding, sync reports nothing for the objects its text holds) |
 | `rbac/bootstrap-writes-declaration` | rbac linter `sync` with `--fix` on a module without rbac.yaml (the first declaration is written from the render) |
 | `rbac/scheme-legacy-only` | rbac linter `contract` on a module with the pre-1.78 use/manage scheme only (one finding naming the migration script) |
 | `rbac/scheme-legacy-with-declaration` | rbac linters `contract` and `sync` on a module that has rbac.yaml and still renders the legacy scheme (the legacy files are named) |
