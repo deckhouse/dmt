@@ -244,12 +244,18 @@ type RBACLinterRules struct {
 	BindingRule   RuleConfig
 	PlacementRule RuleConfig
 	WildcardsRule RuleConfig
+	CoverageRule  RuleConfig
+	SyncRule      RuleConfig
+	ContractRule  RuleConfig
 }
 
 type RBACExcludeRules struct {
 	BindingSubject StringRuleExcludeList
 	Placement      KindRuleExcludeList
 	Wildcards      KindRuleExcludeList
+	Coverage       StringRuleExcludeList
+	Contract       KindRuleExcludeList
+	Sync           KindRuleExcludeList
 }
 type HooksLinterConfig struct {
 	LinterConfig

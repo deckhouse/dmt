@@ -1,0 +1,33 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    heritage: deckhouse
+    module: e2e-rbac
+    rbac.deckhouse.io/aggregate-to-security-as: manager
+    rbac.deckhouse.io/level: module
+    rbac.deckhouse.io/namespace: d8-e2e-rbac
+    rbac.deckhouse.io/kind: manage
+  name: d8:manage:permission:module:e2e-rbac:edit
+rules:
+- apiGroups:
+  - e2e.deckhouse.io
+  resources:
+  - daemons
+  verbs:
+  - create
+  - update
+  - patch
+  - delete
+  - deletecollection
+- apiGroups:
+  - deckhouse.io
+  resourceNames:
+  - e2e-rbac
+  resources:
+  - moduleconfigs
+  verbs:
+  - create
+  - update
+  - patch
+  - delete

@@ -1,0 +1,14 @@
+description: >
+  A module that serves both role models from one branch, as rbacv2-migrate-module.sh writes it: the
+  new object and the legacy one in one template behind the version gate. The linter's values answer
+  the gate with the 1.78 model, so contract and sync see exactly what the declaration produces and
+  report nothing; the legacy branch is neither judged nor "extra".
+module: module
+expectPass:
+  - linter: manager
+  - linter: rbac
+    rule: contract
+  - linter: rbac
+    rule: coverage
+  - linter: rbac
+    rule: sync

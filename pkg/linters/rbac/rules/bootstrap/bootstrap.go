@@ -1,0 +1,1122 @@
+/*
+Copyright 2026 Flant JSC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package bootstrap writes the first rbac.yaml of a module from the RBAC objects it renders today:
+// the declaration a person would have transcribed from the templates by hand, with a note wherever
+// a decision is still theirs. It is the entry point of an existing module into the declaration;
+// from then on rbac.yaml is the source and the templates follow it.
+package bootstrap
+
+import (
+	"fmt"
+	"maps"
+	"regexp"
+	"slices"
+	"sort"
+	"strings"
+
+	rbacv1 "k8s.io/api/rbac/v1"
+
+	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbaccontract"
+	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbacyaml"
+)
+
+// Object is one rendered RBAC object or ServiceAccount.
+type Object struct {
+	Kind, Name, Namespace string
+	// Path is the template the object came from, relative to the module root.
+	Path        string
+	Labels      map[string]string
+	Annotations map[string]string
+	Rules       []rbacv1.PolicyRule
+	RoleRef     rbacv1.RoleRef
+	Subjects    []rbacv1.Subject
+	Automount   *bool
+	// Aggregated marks a ClusterRole with an aggregationRule: its rules belong to the aggregation
+	// controller, and the declaration has no place for the selectors.
+	Aggregated bool
+	// Library marks an object its template renders through an include of a named template
+	// (helm_lib): the library owns it, unless sync owns it by class.
+	Library bool
+	// Repeated marks an object its template renders inside a {{ range }}: one document, several
+	// objects, the name of this one frozen by a declaration.
+	Repeated bool
+	// LibraryFile marks an object whose template also holds a document a library renders: the
+	// generator writes the whole file, so it can never regenerate it.
+	LibraryFile bool
+}
+
+// Input is what the render says about the module.
+type Input struct {
+	Module, Namespace string
+	// Subsystems are the module.yaml subsystems; the declaration overrides them only when the
+	// rendered system capabilities aggregate into a different set.
+	Subsystems []string
+	Objects    []Object
+	// CRDs maps group/plural to scope for the CRDs under crds/.
+	CRDs map[string]string
+	// Partial are the objects (Kind/namespace/name) some render variants did not render: under
+	// --matrix, the objects under a condition. The declaration has no `when` for them yet.
+	Partial []string
+	// Variants names, per object (Kind/namespace/name), the render variants that rendered it.
+	Variants map[string]string
+}
+
+// Result is the declaration with the reader's homework.
+type Result struct {
+	Decl *rbacyaml.Declaration
+	// Notes are decisions the reader must check: scopes the linter could not tell, grants kept as
+	// TODO, objects the generator will name differently.
+	Notes []string
+	// Unmanaged are the RBAC objects the declaration cannot describe; they stay hand-written.
+	Unmanaged []string
+}
+
+var capabilityRe = regexp.MustCompile(`^d8:(namespace|system)-capability:([a-z0-9-]+):([a-z0-9_]+)$`)
+
+type resourceAcc struct {
+	namespace, system, legacy map[string]map[string]struct{}
+}
+
+func newAcc() *resourceAcc {
+	return &resourceAcc{namespace: map[string]map[string]struct{}{}, system: map[string]map[string]struct{}{}, legacy: map[string]map[string]struct{}{}}
+}
+
+func addVerbs(into map[string]map[string]struct{}, level string, verbs []string) {
+	if into[level] == nil {
+		into[level] = map[string]struct{}{}
+	}
+
+	for _, v := range verbs {
+		into[level][v] = struct{}{}
+	}
+}
+
+func sortedLevels(m map[string]map[string]struct{}) map[string][]string {
+	if len(m) == 0 {
+		return nil
+	}
+
+	out := make(map[string][]string, len(m))
+
+	for level, verbs := range m {
+		list := make([]string, 0, len(verbs))
+		for v := range verbs {
+			list = append(list, v)
+		}
+
+		sort.Strings(list)
+		out[level] = list
+	}
+
+	return out
+}
+
+type builder struct {
+	in  Input
+	res map[[2]string]*resourceAcc
+	// restricted collects, per resource, the grants limited to resourceNames: the format cannot
+	// keep that limit on a capability, and widening a grant is not the importer's call, so they are
+	// left out of the levels and named in a note. Keyed by resource only for the note; the verbs of
+	// one level never widen another's.
+	restricted map[[2]string][]string
+	texts      map[string]rbacyaml.CapabilityText
+	lineages   map[string]struct{}
+	used       map[string]struct{}
+	notes      []string
+	unmanaged  []string
+	decl       *rbacyaml.Declaration
+	// unmanagedIDs are the objects left hand-written; account the objects imported with an
+	// account, which carry its app label.
+	unmanagedIDs map[string]bool
+	account      map[string]bool
+	// partialIDs are the objects some render variants did not render (Input.Partial); current the
+	// objects imported with the account being read.
+	partialIDs map[string]bool
+	current    []Object
+	// partialKept are the objects kept hand-written because only some variants rendered them.
+	partialKept []Object
+	// conditionalKeys are the resources a capability or a legacy role only some variants rendered
+	// grants, with why.
+	conditionalKeys map[[2]string][]string
+	// prometheusFolded is set once the note on folding several scrape Roles is written.
+	prometheusFolded bool
+}
+
+func (b *builder) note(format string, args ...any) {
+	b.notes = append(b.notes, fmt.Sprintf(format, args...))
+}
+
+func (b *builder) unmanage(o Object, why string) {
+	b.unmanagedIDs[o.identity()] = true
+	b.unmanaged = append(b.unmanaged, fmt.Sprintf("%s (%s): %s", o.identity(), o.Path, why))
+}
+
+func (b *builder) mark(o Object) { b.used[o.identity()] = struct{}{} }
+
+func (b *builder) isUsed(o Object) bool { _, ok := b.used[o.identity()]; return ok }
+
+func (b *builder) ns(o Object) string {
+	if o.Namespace == "" {
+		return b.in.Namespace
+	}
+
+	return o.Namespace
+}
+
+func (b *builder) rename(kind, from, to string) {
+	if from != to {
+		b.note("%s %s will be named %s by the generator", kind, from, to)
+	}
+}
+
+func (o Object) identity() string {
+	if o.Namespace != "" {
+		return o.Namespace + "/" + o.Kind + "/" + o.Name
+	}
+
+	return o.Kind + "/" + o.Name
+}
+
+// Build derives the declaration.
+func Build(in Input) Result {
+	// The lint path fills Objects from a map; the notes and the unmanaged list go into the file
+	// header in this order, so it is fixed here rather than at every caller.
+	in.Objects = slices.Clone(in.Objects)
+	sort.SliceStable(in.Objects, func(i, j int) bool {
+		return in.Objects[i].identity() < in.Objects[j].identity()
+	})
+
+	b := &builder{in: in, unmanagedIDs: map[string]bool{}, account: map[string]bool{}, partialIDs: map[string]bool{}, conditionalKeys: map[[2]string][]string{}, res: map[[2]string]*resourceAcc{}, restricted: map[[2]string][]string{}, texts: map[string]rbacyaml.CapabilityText{}, lineages: map[string]struct{}{}, used: map[string]struct{}{},
+		decl: &rbacyaml.Declaration{APIVersion: rbacyaml.APIVersionV1Alpha1}}
+
+	for _, p := range in.Partial {
+		b.partialIDs[p] = true
+	}
+
+	b.setAside()
+	b.capabilitiesAndLegacy()
+	b.serviceAccounts()
+	b.otherBindings()
+	b.leftovers()
+	b.resources()
+	b.dropped()
+	b.sharedWithDeclared()
+
+	return Result{Decl: b.decl, Notes: b.notes, Unmanaged: b.unmanaged}
+}
+
+// generatedModuleConfigVerbs are the verbs of the moduleconfigs rule the generator adds itself to
+// the system view and edit capabilities, on the module's own ModuleConfig only.
+var generatedModuleConfigVerbs = map[string][]string{
+	"view": {"get", "list", "watch"},
+	"edit": {"create", "update", "patch", "delete"},
+}
+
+// scopeTODO is the scope bootstrap writes for an external resource whose scope it cannot know.
+const scopeTODO = "TODO: Namespaced or Cluster"
+
+// wildcardGrant reports whether any rule grants "*" verbs or API groups, which the declaration
+// refuses at every level.
+func wildcardGrant(rules []rbacv1.PolicyRule) bool {
+	for _, r := range rules {
+		if slices.Contains(r.Verbs, "*") || slices.Contains(r.APIGroups, "*") {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (b *builder) addRules(sectionName, level string, rules []rbacv1.PolicyRule, systemCapability bool) {
+	for _, r := range rules {
+		if len(r.NonResourceURLs) > 0 {
+			b.note("%s/%s: a nonResourceURLs rule (%s) has no place in resources[]; keep it in a ServiceAccount's clusterRules", sectionName, level, strings.Join(r.NonResourceURLs, ", "))
+			continue
+		}
+
+		groups := r.APIGroups
+		if len(groups) == 0 {
+			groups = []string{""}
+		}
+
+		for _, g := range groups {
+			for _, rs := range r.Resources {
+				if systemCapability && g == "deckhouse.io" && rs == "moduleconfigs" && len(r.ResourceNames) > 0 {
+					// The generator adds the module's own ModuleConfig rule to view and edit; that one
+					// is not imported. Another one limited to names -- at another level, on another
+					// module's config, with other verbs -- the format cannot hold and is named instead
+					// of dropped. A grant on every ModuleConfig (no resourceNames, as the deckhouse
+					// module has) is an ordinary resource entry.
+					own := slices.Equal(r.ResourceNames, []string{b.in.Module})
+					if want, conventional := generatedModuleConfigVerbs[rbaccontract.CapabilityAction(level)]; !own || !conventional || !subset(r.Verbs, want) {
+						b.note("system/%s: a moduleconfigs rule the generator does not produce (%s on %v) is not carried over; the format has no place for it", level, strings.Join(r.Verbs, ","), r.ResourceNames)
+					}
+
+					continue
+				}
+
+				key := [2]string{g, rs}
+
+				if b.res[key] == nil {
+					b.res[key] = newAcc()
+				}
+
+				if len(r.ResourceNames) > 0 {
+					b.restricted[key] = append(b.restricted[key], fmt.Sprintf("%s/%s: %s on %v", sectionName, level, strings.Join(r.Verbs, ","), r.ResourceNames))
+					continue
+				}
+
+				switch sectionName {
+				case rbaccontract.LineageNamespace:
+					addVerbs(b.res[key].namespace, level, r.Verbs)
+				case rbaccontract.LineageSystem:
+					addVerbs(b.res[key].system, level, r.Verbs)
+				default:
+					addVerbs(b.res[key].legacy, level, r.Verbs)
+				}
+			}
+		}
+	}
+}
+
+// setAside keeps out what the declaration cannot describe before anything is imported: objects a
+// library renders -- a legacy role or a capability is sync's whatever renders it (ADR, class 1 and
+// 2), so those are imported -- and roles without rules.
+func (b *builder) setAside() {
+	for _, o := range b.in.Objects {
+		switch {
+		case o.Library && !b.ownedByClass(o):
+			b.unmanage(o, "rendered by an include of a named template (helm_lib), which owns it")
+			b.mark(o)
+		case o.LibraryFile && !b.ownedByClass(o):
+			b.unmanage(o, "shares "+o.Path+" with objects a helm_lib include renders; the generator writes the whole file, so it stays hand-written")
+			b.mark(o)
+		case o.Repeated && !b.ownedByClass(o):
+			b.unmanage(o, "rendered inside {{ range }}: one document renders several objects, and the declaration would freeze this one under its name")
+			b.mark(o)
+		case (b.ownClusterRole(o) || o.Kind == "Role") && len(o.Rules) == 0:
+			b.unmanage(o, "has no rules; the declaration writes no role without them")
+			b.mark(o)
+		}
+	}
+}
+
+// ownedByClass reports whether sync owns the object by its class rather than by its name: a
+// legacy role (the access-level annotation) or a capability (the kind label).
+func (b *builder) ownedByClass(o Object) bool {
+	return o.Kind == "ClusterRole" && (o.Annotations[rbaccontract.AccessLevelAnnotation] != "" || o.Labels[rbaccontract.LabelKind] == rbaccontract.KindCapability)
+}
+
+func (b *builder) capabilitiesAndLegacy() {
+	for _, o := range b.in.Objects {
+		if o.Kind != "ClusterRole" || b.isUsed(o) {
+			continue
+		}
+
+		if level := o.Annotations[rbaccontract.AccessLevelAnnotation]; level != "" {
+			if wildcardGrant(o.Rules) {
+				why := "grants \"*\" verbs or API groups, which the declaration refuses at every level; the regeneration of " + o.Path + " removes it"
+				if level == "SuperAdmin" {
+					why += " -- user-authz does not aggregate SuperAdmin, so the role grants nothing today"
+				}
+
+				b.unmanage(o, why)
+				b.mark(o)
+
+				continue
+			}
+
+			if len(o.Rules) == 0 {
+				b.note("ClusterRole %s (legacy %s) has no rules and grants nothing; the declaration writes no empty legacy role, so the regeneration drops it", o.Name, level)
+			}
+
+			b.rename("ClusterRole", o.Name, "d8:user-authz:"+b.in.Module+":"+rbaccontract.LegacyKebab(level))
+			b.addRules("legacy", level, o.Rules, false)
+			b.partialGrant(o)
+			b.mark(o)
+
+			continue
+		}
+
+		switch o.Labels[rbaccontract.LabelKind] {
+		case rbaccontract.KindCapability:
+			m := capabilityRe.FindStringSubmatch(o.Name)
+			if m == nil || m[2] != b.in.Module {
+				b.unmanage(o, "a capability the declaration cannot produce (not d8:<namespace|system>-capability:"+b.in.Module+":<action>)")
+				b.mark(o)
+
+				continue
+			}
+
+			lineage, action := m[1], m[3]
+			level := rbaccontract.LevelOfAction(action)
+
+			if wildcardGrant(o.Rules) {
+				b.unmanage(o, "grants \"*\" verbs or API groups, which the declaration refuses at every level; list them in the template before the declaration can describe it")
+				b.mark(o)
+
+				continue
+			}
+
+			b.addRules(lineage, level, o.Rules, lineage == rbaccontract.LineageSystem)
+			b.partialGrant(o)
+			b.mark(o)
+
+			if lineage == rbaccontract.LineageSystem {
+				for key := range o.Labels {
+					if strings.HasPrefix(key, rbaccontract.AggregationLabelPrefix) && strings.HasSuffix(key, rbaccontract.AggregationLabelSuffix) {
+						b.lineages[strings.TrimSuffix(strings.TrimPrefix(key, rbaccontract.AggregationLabelPrefix), rbaccontract.AggregationLabelSuffix)] = struct{}{}
+					}
+				}
+			}
+
+			if !rbaccontract.IsConventionalAction(action) {
+				b.texts[lineage+"."+action] = rbacyaml.CapabilityText{
+					Title:       rbacyaml.LocalizedText{EN: o.Annotations[rbaccontract.AnnotationTitleEN], RU: o.Annotations[rbaccontract.AnnotationTitleRU]},
+					Description: rbacyaml.LocalizedText{EN: o.Annotations[rbaccontract.AnnotationDescriptionEN], RU: o.Annotations[rbaccontract.AnnotationDescriptionRU]},
+				}
+			}
+		case rbaccontract.KindRole:
+			b.unmanage(o, "a role of the role model")
+			b.mark(o)
+		case rbaccontract.KindLegacyUse, rbaccontract.KindLegacyManage:
+			b.unmanage(o, "a capability of the RBACv2 scheme before DKP 1.78; run rbacv2-migrate-module.sh first")
+			b.mark(o)
+		}
+	}
+}
+
+func (b *builder) byKind(kind string) []Object {
+	out := make([]Object, 0, len(b.in.Objects))
+
+	for _, o := range b.in.Objects {
+		if o.Kind == kind {
+			out = append(out, o)
+		}
+	}
+
+	sort.Slice(out, func(i, j int) bool { return out[i].identity() < out[j].identity() })
+
+	return out
+}
+
+func (b *builder) clusterRole(name string) (Object, bool) {
+	for _, o := range b.in.Objects {
+		if o.Kind == "ClusterRole" && o.Name == name {
+			return o, true
+		}
+	}
+
+	return Object{}, false
+}
+
+func (b *builder) role(ns, name string) (Object, bool) {
+	for _, o := range b.in.Objects {
+		if o.Kind == "Role" && o.Name == name && b.ns(o) == ns {
+			return o, true
+		}
+	}
+
+	return Object{}, false
+}
+
+// ownClusterRole reports whether the ClusterRole is the module's own plain one: labelled with the
+// module, neither a capability nor a role of the model nor a legacy role.
+func (b *builder) ownClusterRole(o Object) bool {
+	return o.Kind == "ClusterRole" && !o.Aggregated && o.Labels[rbaccontract.LabelModule] == b.in.Module && o.Labels[rbaccontract.LabelKind] == "" && o.Annotations[rbaccontract.AccessLevelAnnotation] == ""
+}
+
+// bindingsOf lists every binding of the ClusterRole: ClusterRoleBindings and RoleBindings that
+// refer to it (review of #479, finding 53).
+func (b *builder) bindingsOf(name string) []Object {
+	out := make([]Object, 0, len(b.in.Objects))
+
+	for _, o := range b.in.Objects {
+		if (o.Kind == "ClusterRoleBinding" || (o.Kind == "RoleBinding" && o.RoleRef.Kind == "ClusterRole")) && o.RoleRef.Name == name {
+			out = append(out, o)
+		}
+	}
+
+	return out
+}
+
+// roleBindingsOf lists the RoleBindings of a Role.
+func (b *builder) roleBindingsOf(namespace, name string) []Object {
+	out := make([]Object, 0, len(b.in.Objects))
+
+	for _, o := range b.in.Objects {
+		if o.Kind == "RoleBinding" && o.RoleRef.Kind == "Role" && o.RoleRef.Name == name && b.ns(o) == namespace {
+			out = append(out, o)
+		}
+	}
+
+	return out
+}
+
+func subjectsAreOnly(o Object, saName, saNS string) bool {
+	if len(o.Subjects) == 0 {
+		return false
+	}
+
+	for _, s := range o.Subjects {
+		if s.Kind != "ServiceAccount" || s.Name != saName || (s.Namespace != "" && s.Namespace != saNS) {
+			return false
+		}
+	}
+
+	return true
+}
+
+var pathRe = regexp.MustCompile(`^templates/(?:(.*)/)?rbac-for-us\.yaml$`)
+
+func (b *builder) serviceAccounts() {
+	for _, sa := range b.byKind("ServiceAccount") {
+		if b.isUsed(sa) {
+			continue
+		}
+
+		if b.ns(sa) != b.in.Namespace {
+			b.unmanage(sa, "outside the module namespace")
+			b.markAccount(sa)
+
+			continue
+		}
+
+		e := rbacyaml.ServiceAccount{Name: sa.Name}
+		b.current = nil
+
+		if m := pathRe.FindStringSubmatch(sa.Path); m != nil {
+			e.Path = m[1]
+
+			// The generator refuses such an account (README, limits): it stays hand-written with
+			// what binds it, rather than making the whole declaration refused (finding 49).
+			if e.Path != "" && (b.in.Namespace == "default" || b.in.Namespace == "kube-system") {
+				b.setAsideAccount(sa, fmt.Sprintf("in %s the placement rule wants the account named %q, which the generator does not accept yet (a known limitation)", b.in.Namespace, "d8-"+b.in.Module+"-"+strings.ReplaceAll(e.Path, "/", "-")))
+
+				continue
+			}
+		} else {
+			b.note("ServiceAccount %s lives in %s; the generator keeps accounts in templates/[<path>/]rbac-for-us.yaml and will write it to templates/rbac-for-us.yaml", sa.Name, sa.Path)
+		}
+
+		if app := sa.Labels["app"]; app != "" {
+			e.Labels = map[string]string{"app": app}
+		}
+
+		if sa.Automount == nil || *sa.Automount {
+			yes := true
+			e.AutomountToken = &yes
+
+			b.note("ServiceAccount %s mounted its token (automountServiceAccountToken unset or true); kept as true -- set false once its pods mount the token themselves", sa.Name)
+		}
+
+		b.markAccount(sa)
+
+		clusterName := "d8:" + b.in.Module + ":" + sa.Name
+
+		for _, crb := range b.byKind("ClusterRoleBinding") {
+			if b.isUsed(crb) || !subjectsAreOnly(crb, sa.Name, b.in.Namespace) {
+				continue
+			}
+
+			cr, found := b.clusterRole(crb.RoleRef.Name)
+			exclusive := found && !b.isUsed(cr) && b.ownClusterRole(cr) && len(b.bindingsOf(cr.Name)) == 1
+
+			switch {
+			case exclusive && cr.Name == clusterName && e.ClusterRules == nil:
+				e.ClusterRules = policyRules(cr.Rules)
+
+				b.rename("ClusterRoleBinding", crb.Name, clusterName)
+			case exclusive:
+				extra := rbacyaml.ExtraClusterRole{Name: strings.TrimPrefix(cr.Name, clusterName+":"), Rules: policyRules(cr.Rules)}
+				if !strings.HasPrefix(cr.Name, clusterName+":") && !strings.HasPrefix(cr.Name, "d8:") {
+					b.rename("ClusterRole", cr.Name, extra.FullName(b.in.Module, sa.Name))
+				}
+
+				e.ExtraClusterRoles = append(e.ExtraClusterRoles, extra)
+				b.rename("ClusterRoleBinding", crb.Name, extra.FullName(b.in.Module, sa.Name))
+			case slices.Contains(e.BindClusterRoles, crb.RoleRef.Name):
+				// A second binding of the same account to the same role grants nothing more, and the
+				// generator names one binding per role: it folds into the first.
+				b.note("ClusterRoleBinding %s binds %s to %s again; it folds into %s", crb.Name, sa.Name, crb.RoleRef.Name, clusterName+":"+rbaccontract.BindingSuffix(crb.RoleRef.Name))
+			default:
+				e.BindClusterRoles = append(e.BindClusterRoles, crb.RoleRef.Name)
+				b.rename("ClusterRoleBinding", crb.Name, clusterName+":"+rbaccontract.BindingSuffix(crb.RoleRef.Name))
+			}
+
+			if exclusive {
+				b.markAccount(cr)
+			}
+
+			b.markAccount(crb)
+		}
+
+		for _, rb := range b.byKind("RoleBinding") {
+			if b.isUsed(rb) || !subjectsAreOnly(rb, sa.Name, b.in.Namespace) {
+				continue
+			}
+
+			// A Role another binding also uses is not the account's own (finding 53).
+			if role, ok := b.role(b.ns(rb), rb.RoleRef.Name); ok && !b.isUsed(role) && b.ns(rb) == b.in.Namespace && e.NamespaceRules == nil && rb.RoleRef.Kind == "Role" && len(b.roleBindingsOf(b.ns(rb), role.Name)) == 1 {
+				e.NamespaceRules = policyRules(role.Rules)
+				b.rename("Role", role.Name, sa.Name)
+				b.rename("RoleBinding", rb.Name, sa.Name)
+				b.markAccount(role)
+			} else if rb.RoleRef.Kind != "Role" {
+				// bindRoles binds Roles; the format has no RoleBinding to a ClusterRole, and turning it
+				// into one to a Role of that name would bind nothing (Kubernetes accepts a binding to a
+				// Role that does not exist).
+				b.unmanage(rb, "a RoleBinding to the ClusterRole "+rb.RoleRef.Name+", which bindRoles cannot express")
+			} else if ref := (rbacyaml.RoleRef{Namespace: b.ns(rb), Name: rb.RoleRef.Name}); slices.Contains(e.BindRoles, ref) {
+				b.note("RoleBinding %s/%s binds %s to the Role %s again; it folds into one", b.ns(rb), rb.Name, sa.Name, rb.RoleRef.Name)
+			} else {
+				e.BindRoles = append(e.BindRoles, rbacyaml.RoleRef{Namespace: b.ns(rb), Name: rb.RoleRef.Name})
+				b.rename("RoleBinding", b.ns(rb)+"/"+rb.Name, b.ns(rb)+"/"+clusterName+":"+rbaccontract.BindingSuffix(rb.RoleRef.Name))
+			}
+
+			b.markAccount(rb)
+		}
+
+		// Unbound ClusterRoles of the module in the account's file: roles shipped for others to
+		// bind (an aggregated apiserver's requester). They travel with the account, unbound.
+		for _, cr := range b.byKind("ClusterRole") {
+			if b.isUsed(cr) || !b.ownClusterRole(cr) || cr.Path != sa.Path || len(b.bindingsOf(cr.Name)) != 0 {
+				continue
+			}
+
+			no := false
+			extra := rbacyaml.ExtraClusterRole{Name: strings.TrimPrefix(cr.Name, clusterName+":"), Rules: policyRules(cr.Rules), Bind: &no}
+
+			if !strings.HasPrefix(cr.Name, clusterName+":") && !strings.HasPrefix(cr.Name, "d8:") {
+				b.rename("ClusterRole", cr.Name, extra.FullName(b.in.Module, sa.Name))
+			}
+
+			e.ExtraClusterRoles = append(e.ExtraClusterRoles, extra)
+
+			b.markAccount(cr)
+		}
+
+		if n := len(e.ExtraClusterRoles); n > 1 {
+			b.note("ServiceAccount %s has %d ClusterRoles of its own besides d8:%s:%s; they are kept separate as extraClusterRoles -- merge them into clusterRules if nothing binds them separately", sa.Name, n, b.in.Module, sa.Name)
+		}
+
+		// An account and its objects share its `when`: what renders only under some values leaves a
+		// TODO for its condition, so the run stays red until someone writes it (finding 41).
+		var partial []string
+
+		for _, o := range b.current {
+			if b.partial(o) {
+				partial = append(partial, o.Kind+" "+o.Name)
+			}
+		}
+
+		// Objects that render in other variants than the account share no condition with it: the
+		// declaration's one `when` for the account cannot hold them (review of #479, finding 52).
+		var apartFromAccount []string
+
+		for _, o := range b.current {
+			if o.identity() != sa.identity() && b.variantsOf(o) != b.variantsOf(sa) {
+				apartFromAccount = append(apartFromAccount, o.Kind+" "+o.Name)
+			}
+		}
+
+		switch {
+		case len(apartFromAccount) > 0:
+			e.When = "TODO: " + strings.Join(apartFromAccount, ", ") + " render in other variants than ServiceAccount " + sa.Name + ", so no single `when` holds for the account's objects -- keep them hand-written, or split the account"
+		case len(partial) > 0 && b.partial(sa):
+			e.When = "TODO: " + strings.Join(partial, ", ") + " render only under some of the linted values; write the condition they render under"
+		case len(partial) > 0:
+			// The account itself renders always: narrowing its `when` would take it away (finding 51).
+			e.When = "TODO: " + strings.Join(partial, ", ") + " render only under some of the linted values, the account always; the declaration puts them under one `when` -- keep them hand-written, or decide that they share one condition"
+		}
+
+		b.decl.ServiceAccounts = append(b.decl.ServiceAccounts, e)
+	}
+}
+
+// otherBindings turns bindings to subjects other than the module's accounts into access entries
+// and the Prometheus scrape access.
+func (b *builder) otherBindings() {
+	for _, crb := range b.byKind("ClusterRoleBinding") {
+		if b.isUsed(crb) {
+			continue
+		}
+
+		cr, found := b.clusterRole(crb.RoleRef.Name)
+		if !found || !b.ownClusterRole(cr) || b.isUsed(cr) {
+			b.unmanage(crb, fmt.Sprintf("binds %s, which is not a plain ClusterRole of this module the declaration describes", crb.RoleRef.Name))
+			continue
+		}
+
+		// A ClusterRole several bindings use is no single entry's own (finding 53).
+		if len(b.bindingsOf(cr.Name)) != 1 {
+			b.unmanage(crb, fmt.Sprintf("binds %s, which other bindings use too; it stays hand-written with them", crb.RoleRef.Name))
+			continue
+		}
+
+		if b.unmanagePartial(cr, crb) {
+			continue
+		}
+
+		name := strings.TrimPrefix(cr.Name, "d8:"+b.in.Module+":")
+		b.decl.Access = append(b.decl.Access, rbacyaml.Access{Name: name, Path: componentOf(cr.Path, "rbac-for-us.yaml"), Subjects: subjects(crb.Subjects), ClusterRules: policyRules(cr.Rules)})
+		b.rename("ClusterRoleBinding", crb.Name, "d8:"+b.in.Module+":"+name)
+		b.rename("ClusterRole", cr.Name, "d8:"+b.in.Module+":"+name)
+		b.mark(cr)
+		b.mark(crb)
+	}
+
+	for _, rb := range b.byKind("RoleBinding") {
+		if b.isUsed(rb) {
+			continue
+		}
+
+		role, ok := b.role(b.ns(rb), rb.RoleRef.Name)
+		if ok && !b.isUsed(role) && rb.RoleRef.Kind == "Role" && len(b.roleBindingsOf(b.ns(rb), role.Name)) != 1 {
+			b.unmanage(rb, fmt.Sprintf("binds the Role %s, which other bindings use too; it stays hand-written with them", role.Name))
+			continue
+		}
+
+		if !ok || b.isUsed(role) || b.ns(rb) != b.in.Namespace || rb.RoleRef.Kind != "Role" {
+			b.unmanage(rb, fmt.Sprintf("binds %s/%s outside the module's own Roles", rb.RoleRef.Kind, rb.RoleRef.Name))
+			continue
+		}
+
+		if b.unmanagePartial(role, rb) || b.prometheus(role, rb) {
+			continue
+		}
+
+		// The generator writes namespace access at the module root only: an entry for a Role of
+		// templates/<dir>/rbac-to-us.yaml would be refused (review of #479, finding 37).
+		path := componentOf(role.Path, "rbac-to-us.yaml")
+		if path != "" {
+			b.unmanage(role, "a namespace access Role in templates/"+path+"/rbac-to-us.yaml; access entries with namespaceRules are generated at the module root only")
+			b.unmanage(rb, "binds "+role.Name+", which stays hand-written")
+			b.mark(role)
+			b.mark(rb)
+
+			continue
+		}
+
+		name := strings.TrimPrefix(rb.Name, "access-to-"+b.in.Module+"-")
+		b.decl.Access = append(b.decl.Access, rbacyaml.Access{Name: name, Subjects: subjects(rb.Subjects), NamespaceRules: policyRules(role.Rules)})
+		b.rename("Role", role.Name, "access-to-"+b.in.Module+"-"+name)
+		b.rename("RoleBinding", rb.Name, "access-to-"+b.in.Module+"-"+name)
+		b.mark(role)
+		b.mark(rb)
+	}
+}
+
+// prometheus recognizes the scrape access: a Role of <kind>/prometheus-metrics rules bound to the
+// scraper. Several such Roles fold into one prometheusAccess.
+func (b *builder) prometheus(role, rb Object) bool {
+	scraper := false
+
+	for _, s := range rb.Subjects {
+		if s.Name == "d8-monitoring:scraper" || (s.Kind == "ServiceAccount" && s.Name == "prometheus" && s.Namespace == "d8-monitoring") {
+			scraper = true
+		}
+	}
+
+	if !scraper || len(role.Rules) == 0 {
+		return false
+	}
+
+	for _, r := range role.Rules {
+		for _, res := range r.Resources {
+			if !strings.HasSuffix(res, "/prometheus-metrics") {
+				return false
+			}
+		}
+	}
+
+	// Each note once: the gate is a question for the first scrape Role already.
+	if b.decl.PrometheusAccess == nil {
+		b.decl.PrometheusAccess = &rbacyaml.PrometheusAccess{}
+		b.note("prometheusAccess: the render does not show whether the template gated the scraper binding on the prometheus module; add `when: .Values.global.enabledModules | has \"prometheus\"` if it did")
+	} else if !b.prometheusFolded {
+		b.prometheusFolded = true
+		b.note("several Prometheus access Roles fold into one prometheusAccess (Role access-to-%s)", b.in.Module)
+	}
+
+	pa := b.decl.PrometheusAccess
+
+	for _, r := range role.Rules {
+		for _, res := range r.Resources {
+			switch strings.TrimSuffix(res, "/prometheus-metrics") {
+			case "deployments":
+				pa.Deployments = append(pa.Deployments, r.ResourceNames...)
+			case "daemonsets":
+				pa.DaemonSets = append(pa.DaemonSets, r.ResourceNames...)
+			case "statefulsets":
+				pa.StatefulSets = append(pa.StatefulSets, r.ResourceNames...)
+			}
+		}
+	}
+
+	sort.Strings(pa.Deployments)
+	sort.Strings(pa.DaemonSets)
+	sort.Strings(pa.StatefulSets)
+	b.rename("Role", role.Name, "access-to-"+b.in.Module)
+	b.rename("RoleBinding", rb.Name, "access-to-"+b.in.Module)
+	b.mark(role)
+	b.mark(rb)
+
+	return true
+}
+
+func (b *builder) leftovers() {
+	for _, o := range b.in.Objects {
+		if b.isUsed(o) {
+			continue
+		}
+
+		switch o.Kind {
+		case "ClusterRole":
+			b.unmanage(o, "bound to nothing the declaration describes")
+		case "Role":
+			b.unmanage(o, "bound to nothing the declaration describes")
+		case "ClusterRoleBinding", "RoleBinding", "ServiceAccount":
+			b.unmanage(o, "not described")
+		}
+	}
+}
+
+func (b *builder) resources() {
+	keys := make([][2]string, 0, len(b.res))
+	for k := range b.res {
+		keys = append(keys, k)
+	}
+
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i][0] != keys[j][0] {
+			return keys[i][0] < keys[j][0]
+		}
+
+		return keys[i][1] < keys[j][1]
+	})
+
+	for _, k := range keys {
+		group, resource := k[0], k[1]
+		acc := b.res[k]
+		e := rbacyaml.Resource{Group: group, Resource: resource}
+
+		base := resource
+		if i := strings.IndexByte(base, '/'); i >= 0 {
+			base = base[:i]
+		}
+
+		scope, fromCRD := b.in.CRDs[group+"/"+base]
+
+		switch {
+		case fromCRD:
+			// The CRD in crds/ is the source of the scope (ADR); writing it out would be a second
+			// copy that validation has to keep in step. A CRD that only an edition overlay ships
+			// is the one case where a lint of the base directory asks for scope: the author adds
+			// it then, as the validation message says.
+		case resource == "*":
+			e.Scope, scope = rbacyaml.ScopeCluster, rbacyaml.ScopeCluster
+			e.Reason = "TODO: the templates grant the whole group; say why the resource names are not known statically"
+		default:
+			if s, ok := rbacyaml.WellKnownScope(group, base); ok {
+				scope = s
+			} else {
+				// A TODO value, not only a note: the run that writes the file keeps its finding, and
+				// the declaration does not validate until a person fills it.
+				scope = scopeTODO
+			}
+
+			if !strings.Contains(resource, "/") {
+				e.Scope = scope
+			}
+		}
+
+		if len(acc.namespace) > 0 && scope == rbacyaml.ScopeCluster {
+			b.note("%s/%s: cluster-scoped, yet granted in a namespace capability -- the rule granted nothing through a RoleBinding and is dropped from namespace", group, resource)
+
+			acc.namespace = map[string]map[string]struct{}{}
+		}
+
+		if len(acc.system) > 0 && scope == rbacyaml.ScopeNamespaced && e.Reason == "" {
+			e.Reason = "TODO: a namespaced resource granted cluster-wide, as the templates did; confirm or move it to namespace"
+		}
+
+		if conditions := b.conditionalKeys[k]; len(conditions) > 0 {
+			e.Reason = conditionalReason(conditions, e.Reason)
+		}
+
+		e.Namespace, e.System, e.Legacy = sortedLevels(acc.namespace), sortedLevels(acc.system), sortedLevels(acc.legacy)
+
+		// A grant limited to resourceNames is never widened to every object, at any level: it
+		// stays out of the entry and is named for the author. When nothing else grants the
+		// resource, the entry is left undecided and coverage keeps the run red until it is.
+		if restricted := b.restricted[k]; len(restricted) > 0 {
+			sort.Strings(restricted)
+
+			if !e.HasLevels() {
+				e = rbacyaml.Resource{Group: group, Resource: resource, Scope: e.Scope,
+					NoAccess: "TODO: the templates limited this grant to specific resourceNames, which the format cannot express; grant the levels to every object or keep denying"}
+				b.note("%s/%s: every grant carried resourceNames; left as noAccess TODO instead of widening it to every object (%s)", group, resource, strings.Join(restricted, "; "))
+			} else {
+				b.note("%s/%s: grants limited to resourceNames are not carried over, the format would grant them on every object: %s", group, resource, strings.Join(restricted, "; "))
+			}
+		}
+
+		if !e.HasLevels() && e.NoAccess == "" {
+			continue
+		}
+
+		b.decl.Resources = append(b.decl.Resources, e)
+	}
+
+	crdKeys := make([]string, 0, len(b.in.CRDs))
+	for k := range b.in.CRDs {
+		crdKeys = append(crdKeys, k)
+	}
+
+	sort.Strings(crdKeys)
+
+	for _, k := range crdKeys {
+		group, plural, _ := strings.Cut(k, "/")
+		declared := false
+
+		for _, r := range b.decl.Resources {
+			if r.Group == group && r.Resource == plural {
+				declared = true
+			}
+		}
+
+		if !declared {
+			// No scope: the CRD in crds/ carries it, as for every CRD-backed entry above.
+			b.decl.Resources = append(b.decl.Resources, rbacyaml.Resource{Group: group, Resource: plural,
+				NoAccess: "TODO: no user-facing access in the templates today; grant levels or say why users get none"})
+		}
+	}
+
+	if len(b.lineages) > 0 {
+		got := make([]string, 0, len(b.lineages))
+		for l := range b.lineages {
+			got = append(got, l)
+		}
+
+		sort.Strings(got)
+
+		want := append([]string(nil), b.in.Subsystems...)
+		sort.Strings(want)
+
+		if strings.Join(got, ",") != strings.Join(want, ",") {
+			b.decl.Subsystems = got
+			b.note("system capabilities aggregate into %v while module.yaml says %v; subsystems is set explicitly", got, want)
+		}
+	}
+
+	if len(b.texts) > 0 {
+		b.decl.Capabilities = b.texts
+	}
+}
+
+// componentOf returns the component directory of templates/<component>/<file>, "" for the root file
+// or any other template.
+func componentOf(path, file string) string {
+	rest, ok := strings.CutPrefix(path, "templates/")
+	if !ok || !strings.HasSuffix(rest, "/"+file) {
+		return ""
+	}
+
+	return strings.TrimSuffix(rest, "/"+file)
+}
+
+func policyRules(rules []rbacv1.PolicyRule) []rbacyaml.PolicyRule {
+	out := make([]rbacyaml.PolicyRule, 0, len(rules))
+	for _, r := range rules {
+		out = append(out, rbacyaml.PolicyRule{APIGroups: r.APIGroups, Resources: r.Resources, ResourceNames: r.ResourceNames, NonResourceURLs: r.NonResourceURLs, Verbs: r.Verbs})
+	}
+
+	return out
+}
+
+func subjects(list []rbacv1.Subject) []rbacyaml.Subject {
+	out := make([]rbacyaml.Subject, 0, len(list))
+	for _, s := range list {
+		out = append(out, rbacyaml.Subject{Kind: s.Kind, Name: s.Name, Namespace: s.Namespace})
+	}
+
+	return out
+}
+
+// subset reports whether every item of a is in b.
+func subset(a, b []string) bool {
+	for _, x := range a {
+		if !slices.Contains(b, x) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// markAccount marks an object imported with an account: it carries the account's app label.
+func (b *builder) markAccount(o Object) {
+	b.mark(o)
+	b.account[o.identity()] = true
+	b.current = append(b.current, o)
+}
+
+// variantsOf names the render variants that rendered the object; empty without --matrix.
+func (b *builder) variantsOf(o Object) string {
+	return b.in.Variants[o.Kind+"/"+o.Namespace+"/"+o.Name]
+}
+
+// partial reports whether some render variants did not render the object.
+func (b *builder) partial(o Object) bool {
+	return b.partialIDs[o.Kind+"/"+o.Namespace+"/"+o.Name]
+}
+
+// partialGrant records a capability or a legacy role only some render variants rendered against
+// the resources it grants: resources[] have no `when`, and the regenerated role would render for
+// every value, so the entries get a TODO reason the run stays red for (review of #479, finding 41).
+func (b *builder) partialGrant(o Object) {
+	if !b.partial(o) {
+		return
+	}
+
+	msg := fmt.Sprintf("ClusterRole %s renders only under some of the linted values", o.Name)
+
+	for _, r := range o.Rules {
+		groups := r.APIGroups
+		if len(groups) == 0 {
+			groups = []string{""}
+		}
+
+		for _, g := range groups {
+			for _, rs := range r.Resources {
+				key := [2]string{g, rs}
+				if !slices.Contains(b.conditionalKeys[key], msg) {
+					b.conditionalKeys[key] = append(b.conditionalKeys[key], msg)
+				}
+			}
+		}
+	}
+}
+
+// conditionalReason puts the conditions of the roles granting a resource in front of its reason.
+func conditionalReason(conditions []string, reason string) string {
+	todo := "TODO: " + strings.Join(conditions, "; ") + "; resources[] have no `when`, so the regenerated role would render for every value -- decide, then write the reason"
+	if reason == "" {
+		return todo
+	}
+
+	return todo + "; " + strings.TrimPrefix(reason, "TODO: ")
+}
+
+// unmanagePartial keeps hand-written what renders only under some of the linted values where the
+// declaration has no `when` for it: written unconditionally, it would grant for every value
+// (review of #479, finding 41).
+func (b *builder) unmanagePartial(objects ...Object) bool {
+	for _, o := range objects {
+		if !b.partial(o) {
+			continue
+		}
+
+		for _, p := range objects {
+			b.unmanage(p, "renders only under some of the linted values, and the declaration has no `when` for it here")
+			b.mark(p)
+			b.partialKept = append(b.partialKept, p)
+		}
+
+		return true
+	}
+
+	return false
+}
+
+// dropped notes, per object the declaration describes, what a regeneration drops without the
+// format saying so: labels and annotations it has no field for (review of #479, finding 40).
+func (b *builder) dropped() {
+	for _, o := range b.in.Objects {
+		id := o.identity()
+		if !b.isUsed(o) || b.unmanagedIDs[id] {
+			continue
+		}
+
+		var lost []string
+
+		for _, k := range slices.Sorted(maps.Keys(o.Labels)) {
+			if k == "heritage" || k == "module" || strings.HasPrefix(k, "rbac.deckhouse.io/") || (k == "app" && b.account[id]) {
+				continue
+			}
+
+			lost = append(lost, "label "+k)
+		}
+
+		for _, k := range slices.Sorted(maps.Keys(o.Annotations)) {
+			if strings.HasPrefix(k, "meta.helm.sh/") || strings.HasPrefix(k, "rbac.deckhouse.io/") || k == rbaccontract.AccessLevelAnnotation || slices.Contains(rbaccontract.I18nAnnotations, k) {
+				continue
+			}
+
+			lost = append(lost, "annotation "+k)
+		}
+
+		if len(lost) > 0 {
+			b.note("%s %s (%s) carries what the format does not describe (%s); the regeneration drops it", o.Kind, o.Name, o.Path, strings.Join(lost, ", "))
+		}
+	}
+}
+
+// sharedWithDeclared notes a partially rendered object kept hand-written in a file the declaration
+// writes objects into: a --fix without --matrix does not see it, puts the generated file beside
+// the template and advises to delete the template, which would drop it (review of #479, finding
+// 48).
+func (b *builder) sharedWithDeclared() {
+	for _, kept := range b.partialKept {
+		for _, o := range b.in.Objects {
+			if o.Path == kept.Path && b.isUsed(o) && !b.unmanagedIDs[o.identity()] {
+				b.note("%s %s stays hand-written in %s, which the declaration also writes: move it to the rbac-for-us.yaml of another component directory before `--fix` (the placement rule accepts it in any), or regenerating %s drops it", kept.Kind, kept.Name, kept.Path, kept.Path)
+
+				break
+			}
+		}
+	}
+}
+
+// setAsideAccount keeps an account hand-written with the bindings that bind only it and the
+// module's own roles only they bind.
+func (b *builder) setAsideAccount(sa Object, why string) {
+	b.unmanage(sa, why)
+	b.mark(sa)
+
+	for _, kind := range []string{"ClusterRoleBinding", "RoleBinding"} {
+		for _, binding := range b.byKind(kind) {
+			if b.isUsed(binding) || !subjectsAreOnly(binding, sa.Name, b.ns(sa)) {
+				continue
+			}
+
+			b.unmanage(binding, "binds "+sa.Name+", which stays hand-written")
+			b.mark(binding)
+
+			if binding.RoleRef.Kind == "ClusterRole" {
+				if cr, ok := b.clusterRole(binding.RoleRef.Name); ok && !b.isUsed(cr) && b.ownClusterRole(cr) && len(b.bindingsOf(cr.Name)) == 1 {
+					b.unmanage(cr, "bound only to "+sa.Name+", which stays hand-written")
+					b.mark(cr)
+				}
+			} else if role, ok := b.role(b.ns(binding), binding.RoleRef.Name); ok && !b.isUsed(role) && len(b.roleBindingsOf(b.ns(binding), role.Name)) == 1 {
+				b.unmanage(role, "bound to "+sa.Name+", which stays hand-written")
+				b.mark(role)
+			}
+		}
+	}
+}

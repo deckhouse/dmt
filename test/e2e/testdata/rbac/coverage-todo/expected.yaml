@@ -1,0 +1,15 @@
+description: >
+  An undecided stub is an error the autofix cannot close, and a resource of a known group that no
+  CRD spells is a warning about a likely misspelling.
+module: module
+expect:
+  - linter: rbac
+    rule: coverage
+    level: warn
+    textContains: 'e2e.deckhouse.io/widgets is still undecided in rbac.yaml (noAccess: "TODO")'
+    count: 1
+  - linter: rbac
+    rule: coverage
+    level: warn
+    textContains: "e2e.deckhouse.io/widgts names a resource the module's CRDs of group e2e.deckhouse.io do not have"
+    count: 1

@@ -19,6 +19,7 @@ package rules
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -36,9 +37,20 @@ var (
 	// what fsutils.FilterFileByExtensions compares against.
 	fileExtensions = []string{".yaml", ".yml", ".json", ".go"}
 
+	// module.yaml and rbac.yaml carry the module's localized texts by design (descriptions.ru, the
+	// ru titles and descriptions of capabilities the rbac declaration requires), so they are not judged.
 	skipDocRe  = `doc-ru-.+\.y[a]?ml$|\.ru\.y[a]?ml$|\.ru\.json$|\.ru\.md$|\.ru\.html$|_RU\.md$|_ru\.html$|docs/site/_.+|docs/documentation/_.+|tools/spelling/.+|openapi/conversions/.+|module.yaml|ru\..+`
 	skipSelfRe = `no_cyrillic(_test)?.go$`
 	skipI18NRe = `/i18n/`
+
+	// localizedAnnotationRe matches the Russian title and description the RBACv2 role model requires
+	// on every role and capability (ru.meta.deckhouse.io/*, enforced by the rbac contract rule). That
+	// is product text the console shows to whoever grants access, not a source comment, so those
+	// lines are not judged -- otherwise every module would need the same exclusion for
+	// templates/rbacv2 in its own .dmtlint.yaml.
+	// Only a YAML key at the start of a line counts, quoted or not; a block scalar value (|, >) is
+	// followed on the next, deeper-indented lines.
+	localizedAnnotationRe = `^(\s*)["']?ru\.meta\.deckhouse\.io/(title|description)["']?\s*:(.*)$`
 )
 
 func NewFilesRule(excludeFileRules []pkg.StringRuleExclude,
@@ -52,11 +64,12 @@ func NewFilesRule(excludeFileRules []pkg.StringRuleExclude,
 			ExcludeStringRules:    excludeFileRules,
 			ExcludeDirectoryRules: excludeDirectoryRules,
 		},
-		skipDocRe:  regexp.MustCompile(skipDocRe),
-		skipI18NRe: regexp.MustCompile(skipI18NRe),
-		skipSelfRe: regexp.MustCompile(skipSelfRe),
-		module:     m,
-		errorList:  errorList.WithRule(FilesRuleName),
+		skipDocRe:   regexp.MustCompile(skipDocRe),
+		skipI18NRe:  regexp.MustCompile(skipI18NRe),
+		skipSelfRe:  regexp.MustCompile(skipSelfRe),
+		localizedRe: regexp.MustCompile(localizedAnnotationRe),
+		module:      m,
+		errorList:   errorList.WithRule(FilesRuleName),
 	}
 }
 
@@ -64,9 +77,10 @@ type FilesRule struct {
 	pkg.RuleMeta
 	pkg.PathRule
 
-	skipDocRe  *regexp.Regexp
-	skipI18NRe *regexp.Regexp
-	skipSelfRe *regexp.Regexp
+	skipDocRe   *regexp.Regexp
+	skipI18NRe  *regexp.Regexp
+	skipSelfRe  *regexp.Regexp
+	localizedRe *regexp.Regexp
 
 	module    pkg.Module
 	errorList *errors.LintRuleErrorsList
@@ -98,7 +112,7 @@ func (r *FilesRule) checkFile(fileName string) {
 		return
 	}
 
-	if r.skipDocRe.MatchString(fileName) {
+	if r.skipDocRe.MatchString(fileName) || fName == "rbac.yaml" {
 		return
 	}
 
@@ -117,6 +131,10 @@ func (r *FilesRule) checkFile(fileName string) {
 		return
 	}
 
+	if isYAMLTemplate(fileName) {
+		lines = r.withoutLocalizedAnnotations(lines)
+	}
+
 	cyrMsg, hasCyr := checkCyrillicLettersInArray(lines)
 	if hasCyr {
 		errorList.WithFilePath(fName).WithValue(cyrMsg).
@@ -133,4 +151,46 @@ func getFileContent(filename string) ([]string, error) {
 	sliceData := strings.Split(string(fileBytes), "\n")
 
 	return sliceData, nil
+}
+
+// withoutLocalizedAnnotations drops the ru.meta.deckhouse.io/title|description lines: Russian there is
+// required by the role model, not a mistake.
+func (r *FilesRule) withoutLocalizedAnnotations(lines []string) []string {
+	out := make([]string, 0, len(lines))
+
+	// blockIndent is the indentation of a localized key whose value is a block scalar, -1 outside
+	// one: the lines below it that are indented deeper belong to the value.
+	blockIndent := -1
+
+	for _, line := range lines {
+		if blockIndent >= 0 {
+			if strings.TrimSpace(line) == "" || len(line)-len(strings.TrimLeft(line, " ")) > blockIndent {
+				continue
+			}
+
+			blockIndent = -1
+		}
+
+		if m := r.localizedRe.FindStringSubmatch(line); m != nil {
+			if value := strings.TrimSpace(m[3]); value != "" && strings.ContainsAny(value[:1], "|>") {
+				blockIndent = len(m[1])
+			}
+
+			continue
+		}
+
+		out = append(out, line)
+	}
+
+	return out
+}
+
+// isYAMLTemplate reports whether the file is one the localized annotations can live in.
+func isYAMLTemplate(fileName string) bool {
+	switch filepath.Ext(fileName) {
+	case ".yaml", ".yml", ".tpl":
+		return true
+	}
+
+	return false
 }

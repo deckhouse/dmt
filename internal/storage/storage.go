@@ -383,10 +383,22 @@ func (s *StoreObject) Identity() string {
 
 type UnstructuredObjectStore struct {
 	Storage map[ResourceIndex]StoreObject
+	// Dropped holds the templates the tolerant render skipped, by path relative to the module, with
+	// the render error. Their objects are missing from Storage without being absent from the chart.
+	Dropped map[string]string
 }
 
 func NewUnstructuredObjectStore() *UnstructuredObjectStore {
-	return &UnstructuredObjectStore{Storage: make(map[ResourceIndex]StoreObject)}
+	return &UnstructuredObjectStore{Storage: make(map[ResourceIndex]StoreObject), Dropped: make(map[string]string)}
+}
+
+// MarkDropped records a template the render skipped.
+func (s *UnstructuredObjectStore) MarkDropped(path, cause string) {
+	if s.Dropped == nil {
+		s.Dropped = make(map[string]string)
+	}
+
+	s.Dropped[path] = cause
 }
 
 func (s *UnstructuredObjectStore) Put(path, shortPath string, object map[string]any, raw []byte) error {
@@ -431,6 +443,7 @@ func (s *UnstructuredObjectStore) Close() {
 // does not drop the backing map, which is what makes reuse cheap.
 func (s *UnstructuredObjectStore) Reset() {
 	clear(s.Storage)
+	clear(s.Dropped)
 }
 
 func NewSHA256(data []byte) string {
