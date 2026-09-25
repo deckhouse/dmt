@@ -220,7 +220,7 @@ func TestWriteBootstrapped_UnparsableIsWrittenWithTheLine(t *testing.T) {
 
 	err := writeBootstrapped(path, broken)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "rbac.yaml is written, but it does not parse")
+	assert.Contains(t, err.Error(), "the written rbac.yaml does not parse")
 	assert.Contains(t, err.Error(), "line 3")
 	assert.Contains(t, err.Error(), "fix or delete the line")
 
