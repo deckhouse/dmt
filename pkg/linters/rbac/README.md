@@ -1353,7 +1353,7 @@ source of the RBAC a module ships. It describes, per resource, the access every 
 (the RBACv2 namespace and system lineages, and the legacy user-authz access levels), the rights of the
 module's ServiceAccounts, and the access other components get to the module. The templates under
 `templates/rbacv2/`, `templates/user-authz-cluster-roles.yaml`, `templates/**/rbac-for-us.yaml` and
-`templates/rbac-to-us.yaml` are **generated** from it by `dmt lint --linter rbac --fix`.
+`templates/rbac-to-us.yaml` are **written** from it by `dmt lint --linter rbac --fix`.
 
 ```yaml
 # modules/<module>/rbac.yaml
@@ -1467,7 +1467,7 @@ Format rules the loader enforces:
 
 - `apiVersion` is required and must be `rbac.deckhouse.io/v1alpha1`; unknown keys anywhere are an error.
 - Verbs are listed explicitly (`get`, `list`, `watch`, `create`, `update`, `patch`, `delete`, `deletecollection`); there are no aliases, and `*` is refused at every level (the `contract` rule reports `*` verbs and `apiGroups: ["*"]` in a rendered capability, too). `group: "*"` is refused; a group is a lowercase DNS name and a resource a lowercase plural with an optional `/<subresource>`, where `*` and `*/<subresource>` are the only wildcards.
-- No value holds `{{` or `}}`: the generator writes the values into Helm templates as they are, and a `when` is the condition only.
+- No value holds `{{` or `}}`: `--fix` writes the values into Helm templates as they are, and a `when` is the condition only.
 - `legacy.SuperAdmin` validates but is a warning: user-authz aggregates custom legacy roles for `User` through `ClusterAdmin` only.
 - `prometheusAccess.when` gates the RoleBinding of the Prometheus scraper (typically `.Values.global.enabledModules | has "prometheus"`); the Role stays unconditional.
 - Levels: `namespace` -- `viewer`, `user`, `manager`, `admin`, `superadmin`; `system` -- `viewer`, `manager`, `superadmin`; `legacy` -- `User`, `PrivilegedUser`, `Editor`, `Admin`, `ClusterEditor`, `ClusterAdmin`, `SuperAdmin`.
@@ -1478,7 +1478,7 @@ Format rules the loader enforces:
 - A ServiceAccount name is a DNS subdomain; label and annotation keys are qualified names, and `rbac.deckhouse.io/*` and `meta.helm.sh/*` annotations are not the declaration's. A rule holds no empty verb, resource, resource name or URL.
 - Messages name a resource entry by its index in the file as written (`resources[3]`), although the entries are compared in sorted order.
 
-What the generator produces from it (level `viewer` -> capability `view`, `manager` -> `edit`, the rest as they are):
+What the declaration produces (level `viewer` -> capability `view`, `manager` -> `edit`, the rest as they are):
 
 | Section | File | Objects |
 |---|---|---|
@@ -1625,7 +1625,7 @@ Without `rbac.yaml` the rule reports the declaration missing, and `--fix` writes
 objects the module renders today: the declaration a person would have transcribed from the templates,
 with a `TODO` wherever a decision is still theirs (a resource without a CRD whose scope the linter
 cannot know, a CRD nobody grants, a namespaced resource granted cluster-wide) and a note on top for
-every object the generator will name differently or cannot describe. An entry whose CRD is in `crds/`
+every object `--fix` will name differently or the format cannot describe. An entry whose CRD is in `crds/`
 carries no `scope`: the CRD states it; an external resource whose scope is not known gets
 `scope: "TODO: Namespaced or Cluster (Cluster drops the namespace levels)"`. A grant limited to `resourceNames` is never widened to every
 object: it is left out and named in a note. A role granting `*` verbs or API groups, which the format
@@ -1666,16 +1666,16 @@ declaration produces and compares them with the render.
 
 1. legacy roles -- ClusterRoles with the `user-authz.deckhouse.io/access-level` annotation;
 2. the module's own RBACv2 capabilities -- ClusterRoles named `d8:namespace-capability:<module>:<action>` or `d8:system-capability:<module>:<action>` with `rbac.deckhouse.io/kind: capability` and `module: <module>`. Capabilities of the project lineage and platform-wide ones named after a lineage rather than the module (user-authz, multitenancy-manager) are not the declaration's: the format has no place for them, so they stay hand-written;
-3. declared objects -- those whose names the generator builds from `serviceAccounts`, `access` and `prometheusAccess`.
+3. declared objects -- those whose names the declaration builds from `serviceAccounts`, `access` and `prometheusAccess`.
 
-Everything else in the render is unmanaged: not generated, not reported (`include "helm_lib_csi_controller_rbac"`,
+Everything else in the render is unmanaged: not written, not reported (`include "helm_lib_csi_controller_rbac"`,
 controller ClusterRoles with arbitrary names, objects with Helm-computed names).
 
 **What it checks:**
 
 1. Every declared object is in the render (unless it is under a `when` that is false in this render: when another object of the file under the same `when` rendered, the condition holds, and an absent one is a divergence), and every rule of it: rules are compared as `(apiGroup, resource, resourceName, verb)` tuples, in both directions. A rule under `when` that did not render is not a divergence; a rule without `when` hidden behind a hand-written `{{ if }}` is.
-2. The labels and annotations of an object written from `serviceAccounts`, `access` or `prometheusAccess` match the declaration's (`labels`, `annotations`, `rbacAnnotations`): a `helm.sh/resource-policy: keep` or an aggregation label the declaration does not carry would be lost by the next `--fix`. `heritage` and `module` (written by `helm_lib_module_labels`), Helm's `meta.helm.sh/*` and the generator's `rbac.deckhouse.io/*` annotations are not compared. A ServiceAccount subject without a namespace is read in the namespace of its RoleBinding, as Kubernetes does.
-3. A capability's aggregation edges (`aggregate-to-<lineage>-as`) match in both directions: rules may agree while a lineage is lost. Its `rbac.deckhouse.io/capability` marker, `module` and `rbac.deckhouse.io/namespace` labels are what the generator writes.
+2. The labels and annotations of an object written from `serviceAccounts`, `access` or `prometheusAccess` match the declaration's (`labels`, `annotations`, `rbacAnnotations`): a `helm.sh/resource-policy: keep` or an aggregation label the declaration does not carry would be lost by the next `--fix`. `heritage` and `module` (written by `helm_lib_module_labels`), Helm's `meta.helm.sh/*` and dmt's `rbac.deckhouse.io/*` annotations are not compared. A ServiceAccount subject without a namespace is read in the namespace of its RoleBinding, as Kubernetes does.
+3. A capability's aggregation edges (`aggregate-to-<lineage>-as`) match in both directions: rules may agree while a lineage is lost. Its `rbac.deckhouse.io/capability` marker, `module` and `rbac.deckhouse.io/namespace` labels are what `--fix` writes.
 4. A binding's `roleRef` and subjects match.
 5. Every rendered legacy role and module capability is produced by the declaration.
 6. A file the declaration produces that does not exist while an object it holds is absent from the render is a divergence, whether or not the object is under `when`: the render cannot tell a false condition from a template nobody wrote, the file system can.
@@ -1706,7 +1706,7 @@ finding names the case and what closes it -- when the file holds:
 - an object the declaration puts in another file, or one this file should hold that renders from, or is written in, another template: the fix does not move objects between files, and writing it here would render it twice. Move it;
 - a document the linter cannot read: an include, a `range`, a computed name, a `fail` or `required` guard -- anything the declaration does not write;
 - both role models behind the version gate (`rbacv2_new_scheme`, or a `deckhouseVersion` test with an `else` branch that the declaration does not produce): a rewrite would drop the legacy branch;
-- the legacy RBACv2 scheme only: a rewrite would serve the new model only, a decision the finding leaves to a person (migrate with `rbacv2-migrate-module.sh`, or delete the file and run `--fix`).
+- the legacy RBACv2 scheme only: a rewrite would serve the new model only, so the finding carries no fix (migrate with `rbacv2-migrate-module.sh`, or delete the file and run `--fix`).
 
 The text is the same in every render variant, so every variant reaches the same answer; under
 `--matrix` a variant whose render shows such a case keeps the fix of every other variant off the file.
@@ -1750,10 +1750,10 @@ configuration error.
 
 - A conditional rule is checked only where it renders: with the default values, `dmt lint --values-file` or `dmt lint --matrix`.
 - The cloud-data-discoverer account of the cloud providers (and csi-vsphere) keeps its own Role `d8:<module>:cloud-data-discoverer:secret-reader` in `kube-system`, in the account's `rbac-for-us.yaml`. The format cannot declare a Role in another namespace, so the file holds an object the declaration does not produce and its finding carries no fix; the account stays hand-written until the format can say it.
-- An account of a component directory in `default` or `kube-system` cannot be declared yet: the placement rule wants it named `d8-<module>-<dir>` there, and the generator accepts `<dir>` and, in a namespace of the platform, `<module>-<dir>` only. Bootstrap names the problem in the written file; the account stays hand-written until the two rules agree (control-plane-manager, vertical-pod-autoscaler).
+- An account of a component directory in `default` or `kube-system` cannot be declared yet: the placement rule wants it named `d8-<module>-<dir>` there, and the declaration accepts `<dir>` and, in a namespace of the platform, `<module>-<dir>` only. Bootstrap names the problem in the written file; the account stays hand-written until the two rules agree (control-plane-manager, vertical-pod-autoscaler).
 - **The three states a module can be in when the new `dmt` first runs.** *Only the legacy scheme* (an external module not yet migrated): `contract` reports one "migrate" finding per object; with an `rbac.yaml`, `sync` reports the declared objects as absent and names the cause -- the template renders the legacy scheme -- and the finding carries no fix: rewriting the file would serve the new model only. *Only the 1.78 scheme*: the ordinary case described above. *Both schemes behind the version gate* (`rbacv2-migrate-module.sh` without `--replace`): the linter's values answer the gate with the 1.78 model, so `contract` and `sync` see exactly the new objects and the legacy branch is neither judged nor "extra"; a gated file gets no fix -- rewriting it would drop the legacy branch -- and the finding says so. The legacy branch itself is exercised with `dmt lint --values-file` setting `global.deckhouseVersion` below 1.78; `--matrix` varies module values only, not the platform version.
 - The declaration is one per module and describes the union of editions. Linting a single edition directory shows the edition-only objects as absent; lint the merged tree as CI does. An `rbac.yaml` inside an edition overlay (`ee/be/modules`, `ee/se-plus/modules`, ..., and `ee/modules` for a module that also exists in `modules/`) is an error: CI merges the overlays over `modules/` before linting, so a copy there would shadow the base one or go unseen. A module that has no base elsewhere -- EE-only in `ee/modules/<module>`, or living in one edition directory only such as `ee/be/modules/350-node-local-dns` -- has its base there.
-- The generator refuses what the declaration alone cannot know is wrong: system levels on a module whose `module.yaml` names no `subsystems` (set `subsystems` in `rbac.yaml`); an account in a component directory named unlike it (the placement rule wants `<dir>`, with `/` as `-` for a nested directory, or `<module>-<dir>` in a namespace of the platform such as `d8-system`). The objects of an account at `a/b` follow the placement rule too: its Role and RoleBinding are `a:b`, its bindings in other namespaces `d8:<module>:a:b:<role>`; a capability marker past 63 characters (a module name of 32 characters and up with a `superadmin` level).
+- `sync` refuses what the declaration alone cannot know is wrong: system levels on a module whose `module.yaml` names no `subsystems` (set `subsystems` in `rbac.yaml`); an account in a component directory named unlike it (the placement rule wants `<dir>`, with `/` as `-` for a nested directory, or `<module>-<dir>` in a namespace of the platform such as `d8-system`). The objects of an account at `a/b` follow the placement rule too: its Role and RoleBinding are `a:b`, its bindings in other namespaces `d8:<module>:a:b:<role>`; a capability marker past 63 characters (a module name of 32 characters and up with a `superadmin` level).
 - Built-in Kubernetes resources (`""`/configmaps, `apps`/deployments, `rbac.authorization.k8s.io`/clusterroles, ...) need no `scope`: the validator knows them. Anything else without a CRD in the module declares its scope.
 - An `rbac.yaml` of the earlier, never consumed shape (no `apiVersion`) is named for what it is: delete it and run `--fix` to write the declaration from the render.
 - Under `--matrix` the first declaration is written from the union of every variant's render; objects rendered only under values other than the defaults are still invisible to a default run, so lint with `--values-file` before the first `--fix` of the templates if the module has such templates.

@@ -292,7 +292,7 @@ func TestBuild_RefusesWhatTheModuleCannotCarry(t *testing.T) {
 		for _, ns := range []string{"kube-system", "default"} {
 			_, err = Build(Input{Module: "m", Namespace: ns, Subsystems: []string{"security"}, Decl: decl})
 			require.Error(t, err, ns)
-			assert.Contains(t, err.Error(), `the placement rule wants the account named "d8-m-control-plane-proxy", which the generator does not accept yet (a known limitation)`)
+			assert.Contains(t, err.Error(), `the placement rule wants the account named "d8-m-control-plane-proxy", which the declaration does not accept yet (a known limitation)`)
 		}
 	})
 

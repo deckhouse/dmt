@@ -336,8 +336,8 @@ func TestBuild_WhatTheFormatCannotHoldIsNamed(t *testing.T) {
 
 	notes := strings.Join(got.Notes, "\n")
 	assert.NotContains(t, notes, "system/viewer: a moduleconfigs rule", "the generator's own rule is not a note")
-	assert.Contains(t, notes, "system/superadmin: a moduleconfigs rule the generator does not produce (delete on [m])")
-	assert.Contains(t, notes, "system/manager: a moduleconfigs rule the generator does not produce (update on [other])")
+	assert.Contains(t, notes, "system/superadmin: a moduleconfigs rule the declaration does not produce (delete on [m])")
+	assert.Contains(t, notes, "system/manager: a moduleconfigs rule the declaration does not produce (update on [other])")
 
 	require.Len(t, got.Decl.ServiceAccounts, 1)
 	assert.Empty(t, got.Decl.ServiceAccounts[0].BindRoles)

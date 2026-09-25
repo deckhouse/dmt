@@ -137,7 +137,7 @@ func (r *SyncRule) Check(_ context.Context) {
 			return
 		}
 
-		declList.Errorf("%v; nothing is compared or generated until the declaration parses", err)
+		declList.Errorf("%v; nothing is compared or written until the declaration parses", err)
 
 		return
 	}
@@ -148,13 +148,13 @@ func (r *SyncRule) Check(_ context.Context) {
 
 	meta, err := readModuleMetadata(modulePath)
 	if err != nil {
-		r.errorList.WithFilePath("module.yaml").Errorf("%v; nothing is compared or generated until it parses: its subsystems decide the aggregation of every system capability", err)
+		r.errorList.WithFilePath("module.yaml").Errorf("%v; nothing is compared or written until it parses: its subsystems decide the aggregation of every system capability", err)
 		return
 	}
 
 	if errs := rbacyaml.Validate(decl, crdScopes(crds)); len(errs) > 0 {
 		for _, e := range errs {
-			declList.Errorf("%v; nothing is compared or generated until the declaration is valid", e)
+			declList.Errorf("%v; nothing is compared or written until the declaration is valid", e)
 		}
 
 		return

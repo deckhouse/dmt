@@ -187,7 +187,7 @@ func (b *builder) ns(o Object) string {
 
 func (b *builder) rename(kind, from, to string) {
 	if from != to {
-		b.note("%s %s will be named %s by the generator", kind, from, to)
+		b.note("%s %s will be named %s by --fix", kind, from, to)
 	}
 }
 
@@ -277,7 +277,7 @@ func (b *builder) addRules(sectionName, level string, rules []rbacv1.PolicyRule,
 					// module has) is an ordinary resource entry.
 					own := slices.Equal(r.ResourceNames, []string{b.in.Module})
 					if want, conventional := generatedModuleConfigVerbs[rbaccontract.CapabilityAction(level)]; !own || !conventional || !subset(r.Verbs, want) {
-						b.note("system/%s: a moduleconfigs rule the generator does not produce (%s on %v) is not carried over; the format has no place for it", level, strings.Join(r.Verbs, ","), r.ResourceNames)
+						b.note("system/%s: a moduleconfigs rule the declaration does not produce (%s on %v) is not carried over; the format has no place for it", level, strings.Join(r.Verbs, ","), r.ResourceNames)
 					}
 
 					continue
@@ -319,7 +319,7 @@ func (b *builder) templateBlocks() {
 			b.unmanage(o, o.Unmanageable)
 			b.mark(o)
 		case o.LibraryFile && !b.ownedByClass(o):
-			b.unmanage(o, "shares "+o.Path+" with objects a helm_lib include renders; the generator writes the whole file, so it stays hand-written")
+			b.unmanage(o, "shares "+o.Path+" with objects a helm_lib include renders; --fix writes the whole file, so it stays hand-written")
 			b.mark(o)
 		case (b.ownClusterRole(o) || o.Kind == "Role") && len(o.Rules) == 0:
 			b.unmanage(o, "has no rules with these values; the declaration writes no role without them")
@@ -562,12 +562,12 @@ func (b *builder) serviceAccounts() {
 			// The generator refuses such an account (README, limits): it stays hand-written with
 			// what binds it, rather than making the whole declaration refused (finding 49).
 			if e.Path != "" && (b.in.Namespace == "default" || b.in.Namespace == "kube-system") {
-				b.setAsideAccount(sa, fmt.Sprintf("in %s the placement rule wants the account named %q, which the generator does not accept yet (a known limitation)", b.in.Namespace, "d8-"+b.in.Module+"-"+strings.ReplaceAll(e.Path, "/", "-")))
+				b.setAsideAccount(sa, fmt.Sprintf("in %s the placement rule wants the account named %q, which the declaration does not accept yet (a known limitation)", b.in.Namespace, "d8-"+b.in.Module+"-"+strings.ReplaceAll(e.Path, "/", "-")))
 
 				continue
 			}
 		} else {
-			b.note("ServiceAccount %s lives in %s; the generator keeps accounts in templates/[<path>/]rbac-for-us.yaml and will write it to templates/rbac-for-us.yaml", sa.Name, sa.Path)
+			b.note("ServiceAccount %s lives in %s; the declaration keeps accounts in templates/[<path>/]rbac-for-us.yaml and --fix will write it to templates/rbac-for-us.yaml", sa.Name, sa.Path)
 		}
 
 		e.Labels = copyLabels(sa.Labels)

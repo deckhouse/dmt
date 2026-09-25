@@ -325,7 +325,7 @@ func TestSync_InvalidDeclarationStopsEverything(t *testing.T) {
 	got := texts(runSync(t, modulePath, renderedFrom(t, model, nil)))
 	require.Len(t, got, 1, "got: %v", got)
 	assert.Contains(t, got[0], "namespace levels are not allowed for a cluster-scoped resource")
-	assert.Contains(t, got[0], "nothing is compared or generated until the declaration is valid")
+	assert.Contains(t, got[0], "nothing is compared or written until the declaration is valid")
 }
 
 // Without rbac.yaml the rule reports the declaration missing, and --fix writes it from the render:
