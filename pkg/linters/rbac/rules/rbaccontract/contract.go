@@ -27,6 +27,8 @@ package rbaccontract
 import (
 	"slices"
 	"strings"
+
+	"github.com/iancoleman/strcase"
 )
 
 // Label and annotation keys of the role model
@@ -106,22 +108,7 @@ var (
 // LegacyKebab returns the name suffix of the legacy ClusterRole for an access level, as the
 // modules spell it today (d8:user-authz:<module>:cluster-editor for ClusterEditor).
 func LegacyKebab(level string) string {
-	var b []byte
-
-	for i := 0; i < len(level); i++ {
-		c := level[i]
-		if c >= 'A' && c <= 'Z' {
-			if i > 0 {
-				b = append(b, '-')
-			}
-
-			c += 'a' - 'A'
-		}
-
-		b = append(b, c)
-	}
-
-	return string(b)
+	return strcase.ToKebab(level)
 }
 
 // LegacyLevels is the access-level enum of ClusterAuthorizationRule
@@ -149,10 +136,8 @@ func LevelsOf(lineage string) []string {
 		return SystemLevels
 	}
 
-	for _, s := range Subsystems {
-		if s == lineage {
-			return SystemLevels
-		}
+	if IsSubsystem(lineage) {
+		return SystemLevels
 	}
 
 	return nil
@@ -265,13 +250,7 @@ var DeckhouseNamespaces = []string{"d8-monitoring", "d8-system", "d8-admission-p
 
 // IsDeckhouseNamespace reports whether the namespace is one of DeckhouseNamespaces.
 func IsDeckhouseNamespace(ns string) bool {
-	for _, n := range DeckhouseNamespaces {
-		if n == ns {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(DeckhouseNamespaces, ns)
 }
 
 // AccountRoleName is the Role and RoleBinding name of an account's namespaceRules. The placement

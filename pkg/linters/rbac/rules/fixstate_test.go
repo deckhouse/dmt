@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"github.com/deckhouse/dmt/internal/set"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/bootstrap"
 )
 
@@ -25,8 +26,8 @@ func resetFixState() {
 	fixState.Lock()
 	defer fixState.Unlock()
 
-	fixState.withheld = map[string]struct{}{}
-	fixState.changes = map[string]map[string]struct{}{}
+	fixState.withheld = set.New()
+	fixState.changes = map[string]set.Set{}
 	fixState.bootstrap = map[string]map[string]bootstrap.Object{}
 	fixState.variants = map[string]int{}
 	fixState.seen = map[string]map[string]int{}

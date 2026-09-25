@@ -44,14 +44,16 @@ type Doc struct {
 	Partial bool
 }
 
+// DocSeparatorRe matches the line that separates two YAML documents of a template.
+var DocSeparatorRe = regexp.MustCompile(`(?m)^---[ \t]*(#.*)?$`)
+
 var (
-	docSeparatorRe = regexp.MustCompile(`(?m)^---[ \t]*(#.*)?$`)
-	docKindRe      = regexp.MustCompile(`(?m)^kind:[ \t]*["']?([A-Za-z]+)["']?[ \t]*(#.*)?$`)
-	metadataRe     = regexp.MustCompile(`(?m)^metadata:[ \t]*(\{.*\})?[ \t]*(#.*)?$`)
-	blockFieldRe   = regexp.MustCompile(`^([ \t]+)(name|namespace):[ \t]*(.*?)[ \t]*$`)
-	flowFieldRe    = regexp.MustCompile(`(name|namespace):[ \t]*("[^"]*"|'[^']*'|\{\{.*?\}\}[^,}]*|[^,}\s]+)`)
-	nameActionRe   = regexp.MustCompile(`\{\{.*?\}\}`)
-	variableRe     = regexp.MustCompile(`\$[A-Za-z_]`)
+	docKindRe    = regexp.MustCompile(`(?m)^kind:[ \t]*["']?([A-Za-z]+)["']?[ \t]*(#.*)?$`)
+	metadataRe   = regexp.MustCompile(`(?m)^metadata:[ \t]*(\{.*\})?[ \t]*(#.*)?$`)
+	blockFieldRe = regexp.MustCompile(`^([ \t]+)(name|namespace):[ \t]*(.*?)[ \t]*$`)
+	flowFieldRe  = regexp.MustCompile(`(name|namespace):[ \t]*("[^"]*"|'[^']*'|\{\{.*?\}\}[^,}]*|[^,}\s]+)`)
+	nameActionRe = regexp.MustCompile(`\{\{.*?\}\}`)
+	variableRe   = regexp.MustCompile(`\$[A-Za-z_]`)
 )
 
 // frame is an open block of the template around a piece of text.
@@ -201,7 +203,7 @@ func (r *reader) docs(text string) []Doc {
 	// A separator counts only where the parser saw text: one inside a comment separates nothing.
 	var bounds [][2]int
 
-	for _, m := range docSeparatorRe.FindAllStringIndex(text, -1) {
+	for _, m := range DocSeparatorRe.FindAllStringIndex(text, -1) {
 		if _, ok := r.textAt(m[0]); ok {
 			bounds = append(bounds, [2]int{m[0], m[1]})
 		}

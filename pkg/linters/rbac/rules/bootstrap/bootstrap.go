@@ -399,7 +399,7 @@ func (b *builder) capabilitiesAndLegacy() {
 				b.note("ClusterRole %s (legacy %s) has no rules and grants nothing; the declaration writes no empty legacy role, so the fix drops it", o.Name, level)
 			}
 
-			b.rename("ClusterRole", o.Name, "d8:user-authz:"+b.in.Module+":"+rbaccontract.LegacyKebab(level))
+			b.rename("ClusterRole", o.Name, rbaccontract.LegacyRolePrefix+b.in.Module+":"+rbaccontract.LegacyKebab(level))
 			b.addRules("legacy", level, o.Rules, false)
 			b.conditional(o)
 			b.partialGrant(o)
@@ -1169,7 +1169,7 @@ func (b *builder) dropped() {
 		var lost []string
 
 		for _, k := range slices.Sorted(maps.Keys(o.Labels)) {
-			if k == "heritage" || k == "module" || strings.HasPrefix(k, "rbac.deckhouse.io/") || (k == "app" && b.account[id]) {
+			if k == rbaccontract.LabelHeritage || k == rbaccontract.LabelModule || strings.HasPrefix(k, "rbac.deckhouse.io/") || (k == "app" && b.account[id]) {
 				continue
 			}
 
@@ -1279,7 +1279,7 @@ func copyLabels(in map[string]string) map[string]string {
 	var out map[string]string
 
 	for k, v := range in {
-		if k == "heritage" || k == "module" {
+		if k == rbaccontract.LabelHeritage || k == rbaccontract.LabelModule {
 			continue
 		}
 
