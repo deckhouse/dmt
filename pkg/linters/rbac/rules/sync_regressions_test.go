@@ -446,8 +446,8 @@ func TestSyncRegression_BootstrapKeepsTheTemplateCondition(t *testing.T) {
 }
 
 // An object under a condition false for the linter's values is in no render; the text shows it,
-// the declaration header names it and the fix fails, rather than the regeneration dropping it
-// (regression hunt, B1).
+// and the declaration header names it, rather than the regeneration dropping it (regression hunt,
+// B1).
 func TestSyncRegression_BootstrapNamesWhatDidNotRender(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
@@ -462,33 +462,13 @@ func TestSyncRegression_BootstrapNamesWhatDidNotRender(t *testing.T) {
 		fix()
 	}
 
-	require.True(t, errorList.ContainsFailedFixes())
-
-	var fixErrors []string
-
 	for _, e := range errorList.GetErrors() {
-		if e.FixError != nil {
-			fixErrors = append(fixErrors, e.FixError.Error())
-		}
+		require.NoError(t, e.FixError)
 	}
-
-	assert.Contains(t, strings.Join(fixErrors, "\n"), "ServiceAccount/cainjector (templates/cainjector/rbac-for-us.yaml, under `.Values.certManager.internal.enableCAInjector`)")
 
 	content, err := os.ReadFile(rbacyaml.Path(modulePath))
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "ServiceAccount/cainjector (templates/cainjector/rbac-for-us.yaml, under `.Values.certManager.internal.enableCAInjector`) is in the templates but did not render")
-}
-
-// What the linter would refuse in a written declaration is named by the fix that wrote it
-// (regression hunt, B10).
-func TestSyncRegression_WrittenProblems(t *testing.T) {
-	in := bootstrap.Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}}
-
-	assert.Empty(t, writtenProblems([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\n"), nil, in))
-	assert.Contains(t, writtenProblems([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\nserviceAccounts:\n  - name: x\n    path: a/b\n"), nil, in),
-		`the placement rule wants the account named "a-b" after its directory`)
-	assert.Contains(t, writtenProblems([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\nserviceAccounts:\n  - name: x\n    when: .Values.x }}\n"), nil, in), "template delimiter")
-	assert.Empty(t, writtenProblems([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\nserviceAccounts:\n  - name: x\n    when: \"TODO: decide\"\n"), nil, in), "a TODO is counted on its own")
 }
 
 // An include inside an object's document, after its kind line, is someone else's too: the fix

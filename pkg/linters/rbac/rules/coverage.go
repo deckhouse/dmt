@@ -111,9 +111,8 @@ func (r *CoverageRule) Check(_ context.Context) {
 	}
 
 	// Any value that starts with TODO is a decision nobody has made yet: the stub the coverage
-	// autofix writes, and the scope, reason and noAccess values bootstrap leaves. Each keeps its
-	// finding, and a --fix run that meets one fails (the attached fix only says so), whatever the
-	// rule's level.
+	// autofix writes, and the scope, reason and noAccess values bootstrap leaves. Each is a lint
+	// finding with nothing to fix.
 	for _, res := range decl.Resources {
 		if !r.Enabled(res.Key()) {
 			continue
@@ -137,8 +136,7 @@ func (r *CoverageRule) Check(_ context.Context) {
 		}
 
 		errorList.WithObjectID(id).
-			WithFix(openDecisionFix(res.Key())).
-			Errorf("%s is still undecided in %s (%s): a decision is needed -- only a person can close this", res.Key(), rbacyaml.Filename, strings.Join(open, ", "))
+			Errorf("%s is still undecided in %s (%s): a decision is needed", res.Key(), rbacyaml.Filename, strings.Join(open, ", "))
 	}
 
 	// A resource of a group the module ships CRDs for, but not one of them, is most likely a
@@ -177,36 +175,21 @@ func (r *CoverageRule) Check(_ context.Context) {
 	}
 }
 
-// openDecisionFix is attached to a finding on a TODO value: there is nothing to write, and a --fix
-// run that meets it must not end green.
-func openDecisionFix(key string) errors.AutofixFunc {
-	return func() error {
-		return fmt.Errorf("%s: a TODO in %s is a decision only a person can make", key, rbacyaml.Filename)
-	}
-}
-
 // appendStubFix returns the autofix for a CRD without an entry: append an undecided stub to
 // rbac.yaml. The closure reads the file when it runs, so several stubs written in one run land
-// in the same file; it leaves an already present entry alone, so the fix is idempotent. It
-// returns an error on purpose after a successful write: the stub is not a decision, and the
-// finding must stay in the output and in the exit code of the run that wrote it (R33).
+// in the same file; it leaves an already present entry alone, so the fix is idempotent. The stub
+// is not a decision: the lint after --fix reports its TODO.
 func appendStubFix(modulePath string, crd crdInfo) errors.AutofixFunc {
 	path := rbacyaml.Path(modulePath)
 
 	return func() error {
 		// One stub per CRD per run, however many render variants reported it (R36).
 		return fixOnce(path+"#"+crd.Key(), func() error {
-			added, err := appendStub(path, crd.Group, crd.Plural)
-			if err != nil {
+			if _, err := appendStub(path, crd.Group, crd.Plural); err != nil {
 				return fmt.Errorf("add a stub for %s to %s: %w", crd.Key(), rbacyaml.Filename, err)
 			}
 
-			if !added {
-				return nil
-			}
-
-			return fmt.Errorf("a stub for %s was added to %s; decide its access (noAccess: %q is not a decision)",
-				crd.Key(), rbacyaml.Filename, rbacyaml.NoAccessTODO)
+			return nil
 		})
 	}
 }
