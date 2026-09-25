@@ -576,7 +576,7 @@ func TestSync_DeclarationInEditionOverlay(t *testing.T) {
 	got := texts(runSync(t, modulePath, storage.NewUnstructuredObjectStore()))
 	require.Len(t, got, 1, "got: %v", got)
 	assert.Contains(t, got[0], "rbac.yaml lies in the edition overlay ee/be/modules; the declaration describes the union of editions and belongs to modules/<module>/ only")
-	assert.Contains(t, got[0], "Only a person can close this")
+	assert.Empty(t, runSync(t, modulePath, storage.NewUnstructuredObjectStore()).GetFixes(), "a lint finding: nothing to fix")
 
 	assert.Empty(t, texts(runCoverage(t, modulePath)), "coverage leaves the overlay finding to sync")
 }
@@ -1496,20 +1496,13 @@ func TestSync_BrokenModuleYAMLStops(t *testing.T) {
 	require.Len(t, got, 1, "got: %v", got)
 	assert.Contains(t, got[0], "parse module.yaml")
 
-	// The fix writes nothing and fails, so `--fix` does not exit 0 over a module it left alone.
-	before := snapshotTree(t, modulePath)
-
-	for _, fix := range errorList.GetFixes() {
-		fix()
-	}
-
-	assert.True(t, errorList.ContainsFailedFixes())
-	assert.Equal(t, before, snapshotTree(t, modulePath))
+	// A broken module.yaml is a lint finding: no fix is attached, and --fix leaves the module alone.
+	assert.Empty(t, errorList.GetFixes())
 }
 
-// A declaration the linter refuses carries a failing fix: nothing is generated and `--fix`
-// reports it rather than exiting 0 (regression hunt, B5).
-func TestSync_InvalidDeclarationFailsTheFix(t *testing.T) {
+// A declaration the linter refuses is a lint finding without a fix: nothing is generated from it
+// (regression hunt, B5).
+func TestSync_InvalidDeclarationIsALintFinding(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
 
@@ -1521,14 +1514,8 @@ func TestSync_InvalidDeclarationFailsTheFix(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(modulePath, "rbac.yaml"), []byte(strings.Replace(string(decl), "serviceAccounts:\n", "serviceAccounts:\n  - name: wrong-name\n    path: a/b\n", 1)), 0o600))
 
 	errorList := runSync(t, modulePath, renderedFrom(t, model, nil))
-	require.NotEmpty(t, errorList.GetFixes())
 	assert.Contains(t, strings.Join(texts(errorList), "\n"), "the placement rule wants the account named")
-
-	for _, fix := range errorList.GetFixes() {
-		fix()
-	}
-
-	assert.True(t, errorList.ContainsFailedFixes())
+	assert.Empty(t, errorList.GetFixes())
 }
 
 // A generated file whose objects are all under a false condition is found on disk and deleted
