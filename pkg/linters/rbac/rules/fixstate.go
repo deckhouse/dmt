@@ -25,6 +25,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/deckhouse/dmt/internal/set"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/bootstrap"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbaccontract"
 )
@@ -41,8 +42,8 @@ import (
 //     rewrite the file under it.
 var fixState = struct {
 	sync.Mutex
-	withheld  map[string]struct{}
-	changes   map[string]map[string]struct{}
+	withheld  set.Set
+	changes   map[string]set.Set
 	bootstrap map[string]map[string]bootstrap.Object
 	// variants counts the render variants that recorded bootstrap objects, seen how many of them
 	// rendered each object: under --matrix an object seen in fewer renders only under some values.
@@ -51,8 +52,8 @@ var fixState = struct {
 	// in names, per object, the variants that rendered it (review of #479, finding 52).
 	in map[string]map[string]string
 }{
-	withheld:  map[string]struct{}{},
-	changes:   map[string]map[string]struct{}{},
+	withheld:  set.New(),
+	changes:   map[string]set.Set{},
 	bootstrap: map[string]map[string]bootstrap.Object{},
 	variants:  map[string]int{},
 	seen:      map[string]map[string]int{},
@@ -89,7 +90,7 @@ func withholdFix(file string) {
 	fixState.Lock()
 	defer fixState.Unlock()
 
-	fixState.withheld[file] = struct{}{}
+	fixState.withheld.Add(file)
 }
 
 // fixWithheld reports whether any render variant reported the file without a fix.
@@ -97,9 +98,7 @@ func fixWithheld(file string) bool {
 	fixState.Lock()
 	defer fixState.Unlock()
 
-	_, ok := fixState.withheld[file]
-
-	return ok
+	return fixState.withheld.Has(file)
 }
 
 // recordBootstrapObjects adds the RBAC objects one render variant produced, for the first
@@ -262,15 +261,11 @@ func recordChanges(file string, changes []string) {
 	fixState.Lock()
 	defer fixState.Unlock()
 
-	known := fixState.changes[file]
-	if known == nil {
-		known = map[string]struct{}{}
-		fixState.changes[file] = known
+	if fixState.changes[file] == nil {
+		fixState.changes[file] = set.New()
 	}
 
-	for _, r := range changes {
-		known[r] = struct{}{}
-	}
+	fixState.changes[file].Add(changes...)
 }
 
 // recordedChanges returns the union of the changes every variant recorded for the file, sorted.
@@ -278,14 +273,7 @@ func recordedChanges(file string) []string {
 	fixState.Lock()
 	defer fixState.Unlock()
 
-	out := make([]string, 0, len(fixState.changes[file]))
-	for r := range fixState.changes[file] {
-		out = append(out, r)
-	}
-
-	sort.Strings(out)
-
-	return out
+	return fixState.changes[file].Slice()
 }
 
 func exists(path string) bool {

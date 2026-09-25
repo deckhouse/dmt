@@ -20,7 +20,6 @@ import (
 	"context"
 	stderrors "errors"
 	"fmt"
-	"io/fs"
 	"log/slog"
 	"maps"
 	"os"
@@ -39,6 +38,7 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
+	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -526,14 +526,9 @@ func (r *SyncRule) legacyFiles() map[string]string {
 	return out
 }
 
-// isRBACKind reports whether the kind is one the generator produces.
+// isRBACKind reports whether the kind is one the declaration writes.
 func isRBACKind(kind string) bool {
-	switch kind {
-	case "ClusterRole", "Role", "ClusterRoleBinding", "RoleBinding", "ServiceAccount":
-		return true
-	}
-
-	return false
+	return rbacKinds[kind]
 }
 
 // replacedByProduced reports whether a rendered object has a produced counterpart of the same kind
@@ -1012,7 +1007,7 @@ func regenerateFix(modulePath string, file generate.File, changes []string) erro
 // isModuleCapabilityName reports whether the name is one the generator builds for this module:
 // d8:namespace-capability:<module>:<action> or d8:system-capability:<module>:<action>.
 func isModuleCapabilityName(name, module string) bool {
-	return strings.HasPrefix(name, "d8:namespace-capability:"+module+":") || strings.HasPrefix(name, "d8:system-capability:"+module+":")
+	return strings.HasPrefix(name, rbaccontract.NamespaceCapabilityPrefix+module+":") || strings.HasPrefix(name, rbaccontract.SystemCapabilityPrefix+module+":")
 }
 
 // bootstrap is the entry of an existing module into the declaration: without rbac.yaml, the rule
@@ -1034,12 +1029,8 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 		return
 	}
 
-	in := bootstrap.Input{Module: r.module.GetName(), Namespace: r.module.GetNamespace(), Subsystems: meta.Subsystems, CRDs: map[string]string{}}
-
 	crds, _ := moduleCRDs(modulePath)
-	for _, crd := range crds {
-		in.CRDs[crd.Key()] = crd.Scope
-	}
+	in := bootstrap.Input{Module: r.module.GetName(), Namespace: r.module.GetNamespace(), Subsystems: meta.Subsystems, CRDs: crdScopes(crds)}
 
 	docs := map[string][]bootstrap.Doc{}
 
@@ -1178,7 +1169,6 @@ var (
 	kindLineRe      = regexp.MustCompile(`^kind:\s*(\S+)\s*(#.*)?$`)
 	nameLineRe      = regexp.MustCompile(`^  name:\s*"?([^"\s#]+)"?\s*(#.*)?$`)
 	namespaceLineRe = regexp.MustCompile(`^  namespace:\s*"?([^"\s#]+)"?\s*(#.*)?$`)
-	separatorRe     = regexp.MustCompile(`(?m)^---[ \t]*(#.*)?$`)
 	// wrapperLineRe matches the lines the declaration writes between objects: its conditions and
 	// their ends. Anything else outside an object is content the lint does not understand.
 	wrapperLineRe = regexp.MustCompile(`^\s*(\{\{-?\s*(if|else|end)\b[^}]*-?\}\}\s*)*$`)
@@ -1201,7 +1191,7 @@ func textDocuments(content string) []textDocument {
 
 	var out []textDocument
 
-	for i, doc := range separatorRe.Split(content, -1) {
+	for i, doc := range bootstrap.DocSeparatorRe.Split(content, -1) {
 		var kind, name, namespace string
 
 		inMetadata := false
@@ -1266,31 +1256,30 @@ func textDocuments(content string) []textDocument {
 	return out
 }
 
-// templateTexts reads every template of the module, by path relative to the module. A partial (a
-// name starting with an underscore) renders no objects.
+// templateTexts reads every template of the module, by path relative to the module.
 func templateTexts(modulePath string) map[string]templateText {
 	out := map[string]templateText{}
 
-	root := filepath.Join(modulePath, "templates")
-
-	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || strings.HasPrefix(d.Name(), "_") {
-			return nil //nolint:nilerr // an unreadable entry holds no documents to judge
-		}
-
-		content, readErr := os.ReadFile(path)
-		if readErr != nil {
-			return nil //nolint:nilerr // as above
+	for _, path := range templateFiles(modulePath) {
+		content, err := os.ReadFile(path)
+		if err != nil {
+			continue
 		}
 
 		if rel, relErr := filepath.Rel(modulePath, path); relErr == nil {
 			out[filepath.ToSlash(rel)] = templateText{content: string(content), docs: textDocuments(string(content))}
 		}
-
-		return nil
-	})
+	}
 
 	return out
+}
+
+// templateFiles lists the templates Helm renders: every file under templates/ but a partial (a
+// name starting with an underscore), which renders no objects.
+func templateFiles(modulePath string) []string {
+	return fsutils.GetFiles(filepath.Join(modulePath, "templates"), false, func(_, path string) bool {
+		return !strings.HasPrefix(filepath.Base(path), "_")
+	})
 }
 
 // heldElsewhere lists the objects the file produces that another template's text holds.
@@ -1511,19 +1500,16 @@ var rbacKinds = map[string]bool{"ClusterRole": true, "ClusterRoleBinding": true,
 func unrenderedObjects(modulePath string, rendered []bootstrap.Object) []string {
 	var out []string
 
-	root := filepath.Join(modulePath, "templates")
-
-	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || strings.HasPrefix(d.Name(), "_") || (filepath.Ext(path) != ".yaml" && filepath.Ext(path) != ".yml") {
-			return nil //nolint:nilerr // an unreadable entry is not the importer's to report
-		}
-
+	for _, path := range templateFiles(modulePath) {
 		content, err := os.ReadFile(path)
 		if err != nil {
-			return nil //nolint:nilerr // as above
+			continue // an unreadable template is not the importer's to report
 		}
 
-		rel, _ := filepath.Rel(modulePath, path)
+		rel, err := filepath.Rel(modulePath, path)
+		if err != nil {
+			continue
+		}
 
 		for _, doc := range bootstrap.TemplateDocs(string(content)) {
 			if !rbacKinds[doc.Kind] || doc.Unmanageable != "" || renderedAs(doc, rel, rendered) {
@@ -1549,9 +1535,7 @@ func unrenderedObjects(modulePath string, rendered []bootstrap.Object) []string 
 
 			out = append(out, entry+")")
 		}
-
-		return nil
-	})
+	}
 
 	sort.Strings(out)
 
@@ -1560,7 +1544,7 @@ func unrenderedObjects(modulePath string, rendered []bootstrap.Object) []string 
 
 // moduleLabels are the labels helm_lib_module_labels writes on every object; the declaration
 // names the others.
-var moduleLabels = map[string]bool{"heritage": true, "module": true}
+var moduleLabels = map[string]bool{rbaccontract.LabelHeritage: true, rbaccontract.LabelModule: true}
 
 // compareLabels compares the labels of an object the declaration writes whole: an aggregation
 // label or a part-of label the declaration does not carry would be dropped by the next
