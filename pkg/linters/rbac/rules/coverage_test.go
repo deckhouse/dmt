@@ -154,32 +154,21 @@ resources:
 	require.Len(t, got, 4, "got: %v", got)
 	assert.Contains(t, got, "error: CRD a.io/gammas (crds/a.yaml) has no entry in rbac.yaml: decide the user access to it -- namespace, system or legacy levels, or noAccess with the reason; `dmt lint --linter rbac --fix` adds an undecided stub")
 	assert.Contains(t, got, "error: CRD d.io/deltas (crds/d.yaml) has no entry in rbac.yaml: decide the user access to it -- namespace, system or legacy levels, or noAccess with the reason; `dmt lint --linter rbac --fix` adds an undecided stub")
-	assert.Contains(t, got, `error: a.io/betas is still undecided in rbac.yaml (noAccess: "TODO"): a decision is needed -- only a person can close this`)
-	assert.Contains(t, got, "warn: a.io/gamas names a resource the module's CRDs of group a.io do not have; check the spelling, or drop the entry if the resource is gone")
+	assert.Contains(t, got, `error: a.io/betas is still undecided in rbac.yaml (noAccess: "TODO"): a decision is needed`)
+	assert.Contains(t, got, "warn: a.io/gamas names a resource the module's CRDs of group a.io do not have, and a.io/gammas is one letter or two away; check the spelling, or drop the entry if the resource is gone")
 
-	// --fix: two stubs are written, and both findings stay, each with the reason (R33); the open
-	// decision fails its fix too, so the run does not end green.
+	// --fix: the two missing entries get stubs and their fixes succeed; the open decision is a lint
+	// finding with nothing to fix.
 	fixes := errorList.GetFixes()
-	require.Len(t, fixes, 3, "the two missing entries write stubs, the open decision only fails")
+	require.Len(t, fixes, 2, "only the missing entries have a fix")
 
 	for _, fix := range fixes {
 		fix()
 	}
 
-	remaining := errorList.GetErrors()
-	require.Len(t, remaining, 4, "a stub is not a decision: the findings stay after --fix")
-
-	var fixErrors int
-
-	for _, e := range remaining {
-		if e.FixError != nil {
-			fixErrors++
-
-			assert.Regexp(t, `was added to rbac.yaml; decide its access \(noAccess: "TODO" is not a decision\)|a TODO in rbac.yaml is a decision only a person can make`, e.FixError.Error())
-		}
+	for _, e := range errorList.GetErrors() {
+		assert.NoError(t, e.FixError)
 	}
-
-	assert.Equal(t, 3, fixErrors)
 
 	after, err := os.ReadFile(rbacyaml.Path(modulePath))
 	require.NoError(t, err)
@@ -197,16 +186,11 @@ resources:
 	assert.NotContains(t, strings.Join(second, "\n"), "has no entry")
 	assert.Equal(t, 3, strings.Count(strings.Join(second, "\n"), `(noAccess: "TODO")`))
 
-	// Idempotency (R17): a run that has nothing to add writes nothing -- its fixes only report the
-	// open decisions -- and appendStub itself leaves a present entry alone byte for byte.
-	third := runCoverage(t, modulePath)
-	for _, fix := range third.GetFixes() {
-		fix()
-	}
+	// Idempotency (R17): a run that has nothing to add has no fix, and appendStub itself leaves a
+	// present entry alone byte for byte.
+	assert.Empty(t, runCoverage(t, modulePath).GetFixes())
 
-	added, err := appendStub(rbacyaml.Path(modulePath), "a.io", "alphas")
-	require.NoError(t, err)
-	assert.False(t, added)
+	require.NoError(t, appendStub(rbacyaml.Path(modulePath), "a.io", "alphas"))
 
 	unchanged, err := os.ReadFile(rbacyaml.Path(modulePath))
 	require.NoError(t, err)
@@ -234,9 +218,7 @@ func TestAppendStub_ScalarResources(t *testing.T) {
 		rbacyaml.Filename: "apiVersion: rbac.deckhouse.io/v1alpha1\nresources: null\n",
 	})
 
-	added, err := appendStub(rbacyaml.Path(modulePath), "a.io", "alphas")
-	require.NoError(t, err)
-	assert.True(t, added)
+	require.NoError(t, appendStub(rbacyaml.Path(modulePath), "a.io", "alphas"))
 
 	content, err := os.ReadFile(rbacyaml.Path(modulePath))
 	require.NoError(t, err)
@@ -289,10 +271,9 @@ func TestCoverage_StubFixOncePerRun(t *testing.T) {
 	}
 
 	for _, list := range []*errors.LintRuleErrorsList{variantA, variantB} {
-		remaining := list.GetErrors()
-		require.Len(t, remaining, 1)
-		require.Error(t, remaining[0].FixError)
-		assert.Contains(t, remaining[0].FixError.Error(), "a stub for a.io/alphas was added to rbac.yaml")
+		for _, e := range list.GetErrors() {
+			assert.NoError(t, e.FixError)
+		}
 	}
 
 	after, err := os.ReadFile(rbacyaml.Path(modulePath))
@@ -350,12 +331,33 @@ func TestCoverage_TODOPrefixIsAnOpenDecision(t *testing.T) {
 
 	errorList := runCoverage(t, modulePath)
 	got := strings.Join(texts(errorList), "\n")
-	assert.Contains(t, got, `x.io/things is still undecided in rbac.yaml (scope: "TODO: Namespaced or Cluster")`)
 	assert.Contains(t, got, `y.io/others is still undecided in rbac.yaml (noAccess: "TODO: say why users get none")`)
+	assert.NotContains(t, got, "x.io/things", "an undecided scope is the validation's to report, once")
 
-	for _, fix := range errorList.GetFixes() {
-		fix()
+	decl, err := rbacyaml.Load(modulePath)
+	require.NoError(t, err)
+
+	errs := rbacyaml.Validate(decl, nil)
+
+	validation := make([]string, 0, len(errs))
+	for _, e := range errs {
+		validation = append(validation, e.Error())
 	}
 
-	assert.True(t, errorList.ContainsFailedFixes(), "a --fix run with open decisions fails")
+	assert.Contains(t, strings.Join(validation, "\n"), `scope "TODO: Namespaced or Cluster" is still undecided: a decision is needed`)
+
+	assert.Empty(t, errorList.GetFixes(), "an open decision is a lint finding with nothing to fix")
+}
+
+// A resource of a shared group that is no near miss of the module's CRDs is external: another
+// module's CRD in deckhouse.io, not a misspelling (regression hunt, B11).
+func TestNearestResource(t *testing.T) {
+	known := map[string]struct{}{"deckhouse.io/nodegroups": {}, "deckhouse.io/instances": {}}
+
+	assert.Equal(t, "deckhouse.io/nodegroups", nearestResource(rbacyaml.Resource{Group: "deckhouse.io", Resource: "nodegroup"}, known))
+	assert.Equal(t, "deckhouse.io/instances", nearestResource(rbacyaml.Resource{Group: "deckhouse.io", Resource: "instanses"}, known))
+	assert.Empty(t, nearestResource(rbacyaml.Resource{Group: "deckhouse.io", Resource: "modulesources"}, known))
+	assert.Empty(t, nearestResource(rbacyaml.Resource{Group: "other.io", Resource: "nodegroup"}, known))
+	assert.Equal(t, 0, editDistance("abc", "abc"))
+	assert.Equal(t, 3, editDistance("", "abc"))
 }

@@ -295,7 +295,7 @@ func TestBuild_TODOsAndUnmanaged(t *testing.T) {
 	}
 
 	assert.Equal(t, "Namespaced", byKey["/pods"].Scope, "a well-known core resource gets its scope")
-	assert.Equal(t, "TODO: Namespaced or Cluster", byKey["trivy.deckhouse.io/vulnerabilityreports"].Scope, "an unknown one is a TODO value for the author (review of #479, reply to finding 9)")
+	assert.Equal(t, "TODO: Namespaced or Cluster (Cluster drops the namespace levels)", byKey["trivy.deckhouse.io/vulnerabilityreports"].Scope, "an unknown one is a TODO value for the author (review of #479, reply to finding 9)")
 	assert.Contains(t, byKey["deckhouse.io/things"].NoAccess, "TODO", "a CRD nobody grants is an undecided entry")
 
 	require.Len(t, got.Decl.ServiceAccounts, 1)
@@ -336,8 +336,8 @@ func TestBuild_WhatTheFormatCannotHoldIsNamed(t *testing.T) {
 
 	notes := strings.Join(got.Notes, "\n")
 	assert.NotContains(t, notes, "system/viewer: a moduleconfigs rule", "the generator's own rule is not a note")
-	assert.Contains(t, notes, "system/superadmin: a moduleconfigs rule the generator does not produce (delete on [m])")
-	assert.Contains(t, notes, "system/manager: a moduleconfigs rule the generator does not produce (update on [other])")
+	assert.Contains(t, notes, "system/superadmin: a moduleconfigs rule the declaration does not produce (delete on [m])")
+	assert.Contains(t, notes, "system/manager: a moduleconfigs rule the declaration does not produce (update on [other])")
 
 	require.Len(t, got.Decl.ServiceAccounts, 1)
 	assert.Empty(t, got.Decl.ServiceAccounts[0].BindRoles)
@@ -414,31 +414,58 @@ func TestBuild_RepeatedBindingOfAnAccountFolds(t *testing.T) {
 	assert.Empty(t, rbacyaml.Validate(got.Decl, nil))
 }
 
-// An account outside the module namespace is listed once; an empty legacy role is noted; the scrape
-// gate is asked about once, for the first Role (regression hunts 1 and 2).
-func TestBuild_NotesAreWrittenOnce(t *testing.T) {
+// Annotations of an account and of its roles survive the import, apart from Helm's and the
+// generator's own; a nested access Role keeps its entry name (regression hunt, B7 and B8).
+func TestBuild_AnnotationsAndNestedAccessNames(t *testing.T) {
 	labels := map[string]string{"module": "m"}
-	scraper := []rbacv1.Subject{{Kind: "User", Name: "d8-monitoring:scraper"}}
-	metrics := func(name string) []rbacv1.PolicyRule {
-		return []rbacv1.PolicyRule{{APIGroups: []string{"apps"}, Resources: []string{"deployments/prometheus-metrics"}, ResourceNames: []string{name}, Verbs: []string{"get"}}}
-	}
+	subject := []rbacv1.Subject{{Kind: "ServiceAccount", Name: "m", Namespace: "d8-m"}}
+	rules := []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"nodes"}, Verbs: []string{"get"}}}
 
 	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{
-		{Kind: "ServiceAccount", Name: "elsewhere", Namespace: "kube-system", Path: "templates/rbac-for-us.yaml", Labels: labels},
-		{Kind: "ClusterRole", Name: "m:user", Path: "templates/user-authz-cluster-roles.yaml", Labels: labels,
-			Annotations: map[string]string{rbaccontract.AccessLevelAnnotation: "User"}},
-		{Kind: "Role", Name: "access-to-m-a", Namespace: "d8-m", Path: "templates/rbac-to-us.yaml", Labels: labels, Rules: metrics("a")},
-		{Kind: "RoleBinding", Name: "access-to-m-a", Namespace: "d8-m", Path: "templates/rbac-to-us.yaml", Labels: labels, RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "access-to-m-a"}, Subjects: scraper},
-		{Kind: "Role", Name: "access-to-m-b", Namespace: "d8-m", Path: "templates/rbac-to-us.yaml", Labels: labels, Rules: metrics("b")},
-		{Kind: "RoleBinding", Name: "access-to-m-b", Namespace: "d8-m", Path: "templates/rbac-to-us.yaml", Labels: labels, RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "access-to-m-b"}, Subjects: scraper},
+		{Kind: "ServiceAccount", Name: "m", Path: "templates/rbac-for-us.yaml", Labels: labels,
+			Annotations: map[string]string{"helm.sh/resource-policy": "keep", "meta.helm.sh/release-name": "m"}},
+		{Kind: "ClusterRole", Name: "d8:m:m", Path: "templates/rbac-for-us.yaml", Labels: labels, Rules: rules,
+			Annotations: map[string]string{"werf.io/deploy-on": "pre-install"}},
+		{Kind: "ClusterRoleBinding", Name: "d8:m:m", Path: "templates/rbac-for-us.yaml", Labels: labels,
+			RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: "d8:m:m"}, Subjects: subject,
+			Annotations: map[string]string{"werf.io/deploy-on": "pre-install"}},
+		{Kind: "Role", Name: "access-to-webhook-reader", Namespace: "d8-m", Path: "templates/webhook/rbac-to-us.yaml", Labels: labels,
+			Rules: []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"secrets"}, Verbs: []string{"get"}}}},
+		{Kind: "RoleBinding", Name: "access-to-webhook-reader", Namespace: "d8-m", Path: "templates/webhook/rbac-to-us.yaml", Labels: labels,
+			RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "access-to-webhook-reader"}, Subjects: []rbacv1.Subject{{Kind: "Group", Name: "g"}}},
 	}})
 
-	assert.Len(t, got.Unmanaged, 1, "got: %v", got.Unmanaged)
+	require.Len(t, got.Decl.ServiceAccounts, 1)
+	assert.Equal(t, map[string]string{"helm.sh/resource-policy": "keep"}, got.Decl.ServiceAccounts[0].Annotations)
+	assert.Equal(t, map[string]string{"werf.io/deploy-on": "pre-install"}, got.Decl.ServiceAccounts[0].RBACAnnotations)
 
-	notes := strings.Join(got.Notes, "\n")
-	assert.Contains(t, notes, "ClusterRole m:user (legacy User) has no rules and grants nothing")
-	assert.Equal(t, 1, strings.Count(notes, "whether the template gated the scraper binding"))
-	assert.Equal(t, 1, strings.Count(notes, "several Prometheus access Roles fold"))
+	require.Len(t, got.Decl.Access, 1)
+	assert.Equal(t, "reader", got.Decl.Access[0].Name)
+	assert.Equal(t, "webhook", got.Decl.Access[0].Path)
+	assert.NotContains(t, strings.Join(got.Notes, "\n"), "will be named", "the generator writes the names the module already has")
+	assert.Empty(t, rbacyaml.Validate(got.Decl, nil))
+}
+
+// Labels and annotations of an access entry and of the scrape access survive the import
+// (regression hunt 2, A2 and A4).
+func TestBuild_AccessMetadataImported(t *testing.T) {
+	labels := map[string]string{"module": "m", "heritage": "deckhouse", "app": "capi"}
+	hook := map[string]string{"werf.io/deploy-on": "pre-install"}
+	nodes := []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"nodes"}, Verbs: []string{"get"}}}
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{
+		{Kind: "ClusterRole", Name: "d8:m:manager", Path: "templates/rbac-for-us.yaml", Labels: labels, Annotations: hook, Rules: nodes},
+		{Kind: "ClusterRoleBinding", Name: "d8:m:manager", Path: "templates/rbac-for-us.yaml", Labels: labels, Annotations: hook,
+			RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: "d8:m:manager"}, Subjects: []rbacv1.Subject{{Kind: "Group", Name: "g"}}},
+		{Kind: "ServiceAccount", Name: "m", Path: "templates/rbac-for-us.yaml", Labels: map[string]string{"module": "m", "app.kubernetes.io/part-of": "gatekeeper"}},
+	}})
+
+	require.Len(t, got.Decl.Access, 1)
+	assert.Equal(t, map[string]string{"app": "capi"}, got.Decl.Access[0].Labels)
+	assert.Equal(t, hook, got.Decl.Access[0].Annotations)
+
+	require.Len(t, got.Decl.ServiceAccounts, 1)
+	assert.Equal(t, map[string]string{"app.kubernetes.io/part-of": "gatekeeper"}, got.Decl.ServiceAccounts[0].Labels)
 }
 
 // What a library renders stays hand-written, apart from the legacy roles and capabilities sync
@@ -449,10 +476,10 @@ func TestBuild_LibraryAndEmptyRolesAreSetAside(t *testing.T) {
 	sa := []rbacv1.Subject{{Kind: "ServiceAccount", Name: "m", Namespace: "d8-m"}}
 
 	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{
-		{Kind: "ServiceAccount", Name: "csi", Path: "templates/csi/rbac-for-us.yaml", Labels: labels, Library: true},
-		{Kind: "ClusterRole", Name: "d8:m:csi:controller", Path: "templates/csi/rbac-for-us.yaml", Labels: labels, Library: true,
+		{Kind: "ServiceAccount", Name: "csi", Path: "templates/csi/rbac-for-us.yaml", Labels: labels, Unmanageable: "rendered by an include of a named template (helm_lib or another chart), which owns it", Located: true, Library: true},
+		{Kind: "ClusterRole", Name: "d8:m:csi:controller", Path: "templates/csi/rbac-for-us.yaml", Labels: labels, Unmanageable: "rendered by an include of a named template (helm_lib or another chart), which owns it", Located: true, Library: true,
 			Rules: []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"nodes"}, Verbs: []string{"get"}}}},
-		{Kind: "ClusterRole", Name: "d8:m:user", Path: "templates/user-authz-cluster-roles.yaml", Labels: labels, Library: true,
+		{Kind: "ClusterRole", Name: "d8:m:user", Path: "templates/user-authz-cluster-roles.yaml", Labels: labels, Unmanageable: "rendered by an include of a named template (helm_lib or another chart), which owns it", Located: true, Library: true,
 			Annotations: map[string]string{rbaccontract.AccessLevelAnnotation: "User"},
 			Rules:       []rbacv1.PolicyRule{{APIGroups: []string{"x.io"}, Resources: []string{"things"}, Verbs: []string{"get"}}}},
 		{Kind: "ServiceAccount", Name: "m", Path: "templates/rbac-for-us.yaml", Labels: labels},
@@ -463,8 +490,10 @@ func TestBuild_LibraryAndEmptyRolesAreSetAside(t *testing.T) {
 
 	unmanaged := strings.Join(got.Unmanaged, "\n")
 	assert.Contains(t, unmanaged, "ServiceAccount/csi (templates/csi/rbac-for-us.yaml): rendered by an include of a named template")
+	assert.NotContains(t, unmanaged, "ClusterRole/d8:m:user", "a legacy role a library renders is sync's")
 	assert.Contains(t, unmanaged, "ClusterRole/d8:m:csi:controller (templates/csi/rbac-for-us.yaml): rendered by an include")
 	assert.Contains(t, unmanaged, "ClusterRole/d8:m:m:iop:istiod-1x25 (templates/rbac-for-us.yaml): has no rules")
+	assert.Equal(t, 3, strings.Count(unmanaged, "\n")+1, "got: %s", unmanaged)
 
 	require.Len(t, got.Decl.Resources, 1, "the legacy role a library renders is imported")
 	assert.Contains(t, got.Decl.Resources[0].Legacy, "User")
@@ -475,56 +504,36 @@ func TestBuild_LibraryAndEmptyRolesAreSetAside(t *testing.T) {
 	assert.Empty(t, rbacyaml.Validate(got.Decl, rbacyaml.CRDScopes{"x.io/things": "Namespaced"}))
 }
 
-// A namespace access Role of a component directory stays hand-written rather than becoming an
-// entry the generator refuses or names access-to-<module>-access-to-<dir>-x (review of #479,
-// finding 37).
-func TestBuild_NestedNamespaceAccessStaysHandWritten(t *testing.T) {
-	labels := map[string]string{"module": "istio"}
-
-	got := Build(Input{Module: "istio", Namespace: "d8-istio", Objects: []Object{
-		{Kind: "Role", Name: "access-to-kiali-http", Namespace: "d8-istio", Path: "templates/kiali/rbac-to-us.yaml", Labels: labels,
-			Rules: []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"services/proxy"}, Verbs: []string{"get"}}}},
-		{Kind: "RoleBinding", Name: "access-to-kiali-http", Namespace: "d8-istio", Path: "templates/kiali/rbac-to-us.yaml", Labels: labels,
-			RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "access-to-kiali-http"}, Subjects: []rbacv1.Subject{{Kind: "Group", Name: "g"}}},
-	}})
-
-	assert.Empty(t, got.Decl.Access)
-	assert.Len(t, got.Unmanaged, 2)
-	assert.NotContains(t, strings.Join(got.Notes, "\n"), "access-to-istio-access-to")
-}
-
-// What the format does not describe is noted per object: labels and annotations a regeneration
-// drops, and the condition of an object only some render variants showed (review of #479,
-// finding 40). An account's app label is the format's.
+// What the format still does not carry is noted per object: the labels and annotations of a
+// legacy role or a capability, and the condition of an object only some render variants showed
+// when the template did not give it (review of #479, finding 40). An account carries its own.
 func TestBuild_DroppedMetadataAndConditionsAreNoted(t *testing.T) {
-	labels := map[string]string{"module": "m", "heritage": "deckhouse", "app": "m"}
-	nodes := []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"nodes"}, Verbs: []string{"get"}}}
-	sa := []rbacv1.Subject{{Kind: "ServiceAccount", Name: "m", Namespace: "d8-m"}}
+	labels := map[string]string{"module": "m", "heritage": "deckhouse"}
 
 	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{
-		{Kind: "ServiceAccount", Name: "m", Namespace: "d8-m", Path: "templates/rbac-for-us.yaml", Labels: labels,
+		{Kind: "ServiceAccount", Name: "m", Namespace: "d8-m", Path: "templates/rbac-for-us.yaml", Labels: labels, Located: true,
 			Annotations: map[string]string{"helm.sh/resource-policy": "keep", "meta.helm.sh/release-name": "m"}},
-		{Kind: "ClusterRole", Name: "d8:m:m", Path: "templates/rbac-for-us.yaml", Labels: labels, Rules: nodes},
-		{Kind: "ClusterRoleBinding", Name: "d8:m:m", Path: "templates/rbac-for-us.yaml", Labels: labels,
-			Annotations: map[string]string{"werf.io/deploy-on": "pre-install"},
-			RoleRef:     rbacv1.RoleRef{Kind: "ClusterRole", Name: "d8:m:m"}, Subjects: sa},
-		{Kind: "ClusterRole", Name: "d8:m:reader", Path: "templates/rbac-for-us.yaml", Labels: map[string]string{"module": "m", "gatekeeper.sh/system": "yes"}, Rules: nodes},
-		{Kind: "ClusterRoleBinding", Name: "d8:m:reader", Path: "templates/rbac-for-us.yaml", Labels: map[string]string{"module": "m"},
-			RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: "d8:m:reader"}, Subjects: []rbacv1.Subject{{Kind: "Group", Name: "g"}}},
-	}, Partial: []string{"ClusterRoleBinding//d8:m:reader"}})
+		{Kind: "ClusterRole", Name: "d8:m:user", Path: "templates/user-authz-cluster-roles.yaml", Located: true,
+			Labels:      map[string]string{"module": "m", "gatekeeper.sh/system": "yes"},
+			Annotations: map[string]string{rbaccontract.AccessLevelAnnotation: "User", "werf.io/deploy-on": "pre-install"},
+			Rules:       []rbacv1.PolicyRule{{APIGroups: []string{"x.io"}, Resources: []string{"things"}, Verbs: []string{"get"}}}},
+		{Kind: "ClusterRole", Name: "d8:m:admin", Path: "templates/user-authz-cluster-roles.yaml", Located: true, When: ".Values.m.on",
+			Labels:      map[string]string{"module": "m"},
+			Annotations: map[string]string{rbaccontract.AccessLevelAnnotation: "Admin"},
+			Rules:       []rbacv1.PolicyRule{{APIGroups: []string{"x.io"}, Resources: []string{"things"}, Verbs: []string{"delete"}}}},
+	}, CRDs: map[string]string{"x.io/things": "Namespaced"}, Partial: []string{"ClusterRole//d8:m:user", "ClusterRole//d8:m:admin"}})
 
 	notes := strings.Join(got.Notes, "\n")
-	assert.Contains(t, notes, "ServiceAccount m (templates/rbac-for-us.yaml) carries what the format does not describe (annotation helm.sh/resource-policy)")
-	assert.Contains(t, notes, "ClusterRoleBinding d8:m:m (templates/rbac-for-us.yaml) carries what the format does not describe (annotation werf.io/deploy-on)")
-	// An access entry has no `when`: what renders only under some values stays hand-written
+	assert.Contains(t, notes, "ClusterRole d8:m:user (templates/user-authz-cluster-roles.yaml) carries what the format does not describe (label gatekeeper.sh/system, annotation werf.io/deploy-on)")
+	// A legacy role only some variants rendered, its condition unknown, leaves a TODO reason
 	// (review of #479, finding 41).
-	unmanaged := strings.Join(got.Unmanaged, "\n")
-	assert.Contains(t, unmanaged, "ClusterRoleBinding/d8:m:reader (templates/rbac-for-us.yaml): renders only under some of the linted values")
-	assert.Contains(t, unmanaged, "ClusterRole/d8:m:reader (templates/rbac-for-us.yaml): renders only under some of the linted values")
-	assert.Empty(t, got.Decl.Access)
-	assert.NotContains(t, notes, "label app")
-	assert.NotContains(t, notes, "meta.helm.sh")
-	assert.NotContains(t, notes, "label heritage")
+	require.Len(t, got.Decl.Resources, 1)
+	assert.Contains(t, got.Decl.Resources[0].Reason, "ClusterRole d8:m:user renders only under some of the linted values")
+	assert.NotContains(t, got.Decl.Resources[0].Reason, "ClusterRole d8:m:admin renders only under some", "its condition was read from the template")
+	assert.NotContains(t, notes, "ServiceAccount m (templates/rbac-for-us.yaml) carries", "an account carries its annotations")
+
+	require.Len(t, got.Decl.ServiceAccounts, 1)
+	assert.Equal(t, map[string]string{"helm.sh/resource-policy": "keep"}, got.Decl.ServiceAccounts[0].Annotations)
 }
 
 // An object of the module in a file that also holds what a helm_lib include renders stays
@@ -581,7 +590,7 @@ func TestBuild_PartialObjectBesideDeclaredOnes(t *testing.T) {
 	}, Partial: []string{"ClusterRoleBinding//d8:m:supplement"}})
 
 	notes := strings.Join(got.Notes, "\n")
-	assert.Contains(t, notes, "ClusterRoleBinding d8:m:supplement stays hand-written in templates/rbac-for-us.yaml, which the declaration also writes: move it to the rbac-for-us.yaml of another component directory")
+	assert.Contains(t, notes, "ClusterRoleBinding d8:m:supplement stays hand-written in templates/rbac-for-us.yaml, which the declaration also writes: move it to the rbac-for-us.yaml of another component directory (the placement rule accepts it in any): until then templates/rbac-for-us.yaml gets no fix")
 	assert.Contains(t, notes, "ClusterRole d8:m:supplement stays hand-written in templates/rbac-for-us.yaml")
 }
 

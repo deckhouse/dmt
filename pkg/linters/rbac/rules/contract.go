@@ -26,6 +26,7 @@ import (
 
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
@@ -49,8 +50,6 @@ const (
 
 var (
 	aggregateLabelRe = regexp.MustCompile(`^rbac\.deckhouse\.io/aggregate-to-([a-z0-9-]+)-as$`)
-	// labelValueRe is the Kubernetes label-value grammar the capability marker must satisfy.
-	labelValueRe = regexp.MustCompile(`^(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?$`)
 
 	roleNameRe = map[string]*regexp.Regexp{
 		"system":    regexp.MustCompile(`^d8:system:([a-z]+)$`),
@@ -60,9 +59,9 @@ var (
 	}
 
 	capabilityNamePrefix = map[string]string{
-		"system":    "d8:system-capability:",
+		"system":    rbaccontract.SystemCapabilityPrefix,
 		"subsystem": "d8:subsystem-capability:",
-		"namespace": "d8:namespace-capability:",
+		"namespace": rbaccontract.NamespaceCapabilityPrefix,
 		"project":   "d8:project-capability:",
 	}
 
@@ -380,7 +379,7 @@ func checkCapability(role *rbacv1.ClusterRole, scope string, scopes rbacyaml.CRD
 	switch {
 	case marker == "":
 		errorList.Errorf("capability %q must carry the %s label", name, rbaccontract.LabelCapability)
-	case len(marker) > 63 || !labelValueRe.MatchString(marker):
+	case len(validation.IsValidLabelValue(marker)) > 0:
 		errorList.Errorf("capability %q has invalid %s label value %q", name, rbaccontract.LabelCapability, marker)
 	}
 

@@ -27,6 +27,8 @@ package rbaccontract
 import (
 	"slices"
 	"strings"
+
+	"github.com/iancoleman/strcase"
 )
 
 // Label and annotation keys of the role model
@@ -103,30 +105,10 @@ var (
 	ProjectLevels = slices.Clone(NamespaceLevels)
 )
 
-// ContractVersion is the version of the platform contract the generator writes templates for. It is
-// recorded in the header of every generated file, so that a file produced under an older contract
-// is recognizable after the contract changes. Bump it when the generated shape changes.
-const ContractVersion = "2"
-
 // LegacyKebab returns the name suffix of the legacy ClusterRole for an access level, as the
 // modules spell it today (d8:user-authz:<module>:cluster-editor for ClusterEditor).
 func LegacyKebab(level string) string {
-	var b []byte
-
-	for i := 0; i < len(level); i++ {
-		c := level[i]
-		if c >= 'A' && c <= 'Z' {
-			if i > 0 {
-				b = append(b, '-')
-			}
-
-			c += 'a' - 'A'
-		}
-
-		b = append(b, c)
-	}
-
-	return string(b)
+	return strcase.ToKebab(level)
 }
 
 // LegacyLevels is the access-level enum of ClusterAuthorizationRule
@@ -143,16 +125,6 @@ var Verbs = append(slices.Clone(ResourceVerbs), "*")
 // ResourceVerbs are the verbs a rule may list, without the wildcard.
 var ResourceVerbs = []string{"get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"}
 
-// AllLineages returns every lineage a capability label may name: the three base lineages and
-// the seven subsystems.
-func AllLineages() []string {
-	out := make([]string, 0, 3+len(Subsystems))
-	out = append(out, LineageNamespace, LineageProject, LineageSystem)
-	out = append(out, Subsystems...)
-
-	return out
-}
-
 // LevelsOf returns the levels the given lineage accepts, or nil for an unknown lineage.
 func LevelsOf(lineage string) []string {
 	switch lineage {
@@ -164,10 +136,8 @@ func LevelsOf(lineage string) []string {
 		return SystemLevels
 	}
 
-	for _, s := range Subsystems {
-		if s == lineage {
-			return SystemLevels
-		}
+	if IsSubsystem(lineage) {
+		return SystemLevels
 	}
 
 	return nil
@@ -211,10 +181,6 @@ func LevelOfAction(action string) string {
 func BindingSuffix(roleName string) string {
 	return strings.ReplaceAll(strings.TrimPrefix(roleName, "d8:"), ":", "-")
 }
-
-// ConventionalActions are the capability actions whose localized texts come from the platform
-// convention and need no capabilities entry in rbac.yaml.
-var ConventionalActions = []string{"view", "edit"}
 
 // IsConventionalAction reports whether the texts of a capability with this action are supplied
 // by the platform (view/edit) rather than by the declaration.
@@ -267,17 +233,48 @@ func IsLegacyKind(kind string) bool {
 	return kind == KindLegacyUse || kind == KindLegacyManage
 }
 
-// DeckhouseNamespaces are the namespaces the placement rule treats as the platform's own: there an
-// account of templates/<dir>/ may carry the module name in front of the directory.
+// AccessRoleName is the Role and RoleBinding name of a namespace access entry. The placement rule
+// wants access-to-<module>-... in templates/rbac-to-us.yaml and access-to-<directory>-... in
+// templates/<directory>/rbac-to-us.yaml.
+func AccessRoleName(module, path, name string) string {
+	if path == "" {
+		return "access-to-" + module + "-" + name
+	}
+
+	return "access-to-" + strings.ReplaceAll(path, "/", "-") + "-" + name
+}
+
+// DeckhouseNamespaces are the namespaces the placement rule treats as the platform's own: an
+// object there is named after the module as well as after its directory.
 var DeckhouseNamespaces = []string{"d8-monitoring", "d8-system", "d8-admission-policy-engine", "d8-operator-trivy", "d8-log-shipper", "d8-local-path-provisioner"}
 
 // IsDeckhouseNamespace reports whether the namespace is one of DeckhouseNamespaces.
 func IsDeckhouseNamespace(ns string) bool {
-	for _, n := range DeckhouseNamespaces {
-		if n == ns {
-			return true
-		}
+	return slices.Contains(DeckhouseNamespaces, ns)
+}
+
+// AccountRoleName is the Role and RoleBinding name of an account's namespaceRules. The placement
+// rule wants the objects of templates/<a>/<b>/rbac-for-us.yaml to start with a:b (or
+// <module>:a:b for an account named after the module); at the root the account's own name.
+func AccountRoleName(module, path, account string) string {
+	if path == "" {
+		return account
 	}
 
-	return false
+	dirs := strings.ReplaceAll(path, "/", ":")
+	if account == module+"-"+strings.ReplaceAll(path, "/", "-") {
+		return module + ":" + dirs
+	}
+
+	return dirs
+}
+
+// AccountForeignBindingPrefix is the prefix of an account's RoleBindings in other namespaces
+// (bindRoles): d8:<module>:<account> at the root, d8:<module>:<a>:<b> for templates/<a>/<b>/.
+func AccountForeignBindingPrefix(module, path, account string) string {
+	if path == "" {
+		return "d8:" + module + ":" + account
+	}
+
+	return "d8:" + module + ":" + strings.ReplaceAll(path, "/", ":")
 }

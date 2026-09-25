@@ -1,0 +1,13 @@
+description: >
+  A capability template the render skips (a required value dmt cannot supply offline): the render
+  warns about the template, and sync reports nothing for the objects its text holds and rewrites
+  nothing -- the render's warning is the finding.
+module: module
+expect:
+  - linter: manager
+    level: warn
+    textContains: 'template "templates/rbacv2/use/admin.yaml" failed to render and was skipped'
+    count: 1
+expectPass:
+  - linter: rbac
+    rule: sync

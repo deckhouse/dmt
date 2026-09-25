@@ -675,7 +675,13 @@ func NewModule(path string, vals *chartutil.Values, globalSchema *spec.Schema, r
 
 	// Load module config
 	cfg := &config.ModuleConfig{}
-	if err := config.NewLoader(cfg, path).Load(); err != nil {
+
+	loader := config.NewLoader(cfg, path)
+	if err := loader.Load(); err != nil {
+		return nil, fmt.Errorf("can not parse module config: %w", err)
+	}
+
+	if err := loader.RefuseRootOnlyKeys(rootConfig.File); err != nil {
 		return nil, fmt.Errorf("can not parse module config: %w", err)
 	}
 

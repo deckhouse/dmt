@@ -113,9 +113,5 @@ func runLint(ctx context.Context, src manager.Source) error {
 		return errors.New("critical errors found")
 	}
 
-	if flags.Fix && mng.HasFailedFixes() {
-		return errors.New("some fixes did not close their findings; see AutofixError")
-	}
-
 	return nil
 }

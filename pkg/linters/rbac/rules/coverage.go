@@ -21,7 +21,9 @@ import (
 	"context"
 	stderrors "errors"
 	"fmt"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -40,11 +42,11 @@ const (
 
 // CoverageRule requires a decision on the user access to every CRD the module ships: an entry
 // in rbac.yaml that grants levels or denies access with a reason. It runs only when the module
-// has an rbac.yaml (spec 005 R22); without one, only the contract rule applies.
+// has an rbac.yaml (spec 005 R22); without one, sync reports the file missing and writes it.
 //
 // Its autofix appends an undecided stub (noAccess: "TODO") for each CRD without an entry and
-// then reports that a decision is still owed, so a --fix run that wrote stubs does not end
-// green (R33): the tool never takes the decision for the author (R10).
+// succeeds; the stub is not a decision, and the lint that follows --fix reports it (R33): the tool
+// never takes the decision for the author (R10).
 type CoverageRule struct {
 	pkg.RuleMeta
 	pkg.StringRule
@@ -109,9 +111,8 @@ func (r *CoverageRule) Check(_ context.Context) {
 	}
 
 	// Any value that starts with TODO is a decision nobody has made yet: the stub the coverage
-	// autofix writes, and the scope, reason and noAccess values bootstrap leaves. Each keeps its
-	// finding, and a --fix run that meets one fails (the attached fix only says so), whatever the
-	// rule's level.
+	// autofix writes, and the scope, reason and noAccess values bootstrap leaves. Each is a lint
+	// finding with nothing to fix.
 	for _, res := range decl.Resources {
 		if !r.Enabled(res.Key()) {
 			continue
@@ -119,7 +120,8 @@ func (r *CoverageRule) Check(_ context.Context) {
 
 		var open []string
 
-		for _, field := range []struct{ key, value string }{{"noAccess", res.NoAccess}, {"scope", res.Scope}, {"reason", res.Reason}} {
+		// An undecided scope is reported by the validation of sync, which stops on it.
+		for _, field := range []struct{ key, value string }{{"noAccess", res.NoAccess}, {"reason", res.Reason}} {
 			if strings.HasPrefix(field.value, rbacyaml.NoAccessTODO) {
 				open = append(open, fmt.Sprintf("%s: %q", field.key, field.value))
 			}
@@ -135,8 +137,7 @@ func (r *CoverageRule) Check(_ context.Context) {
 		}
 
 		errorList.WithObjectID(id).
-			WithFix(openDecisionFix(res.Key())).
-			Errorf("%s is still undecided in %s (%s): a decision is needed -- only a person can close this", res.Key(), rbacyaml.Filename, strings.Join(open, ", "))
+			Errorf("%s is still undecided in %s (%s): a decision is needed", res.Key(), rbacyaml.Filename, strings.Join(open, ", "))
 	}
 
 	// A resource of a group the module ships CRDs for, but not one of them, is most likely a
@@ -160,65 +161,56 @@ func (r *CoverageRule) Check(_ context.Context) {
 			continue
 		}
 
-		if _, resourceKnown := known[res.Key()]; !resourceKnown {
+		if _, resourceKnown := known[res.Key()]; resourceKnown {
+			continue
+		}
+
+		// Several modules share a group (deckhouse.io): a resource of another module's CRD is
+		// external, not a misspelling. Only a name close to one of this module's is flagged.
+		if near := nearestResource(res, known); near != "" {
 			errorList.
 				WithObjectID("rbac.yaml/"+res.Key()).
-				Warnf("%s names a resource the module's CRDs of group %s do not have; check the spelling, or drop the entry if the resource is gone",
-					res.Key(), res.Group)
+				Warnf("%s names a resource the module's CRDs of group %s do not have, and %s is one letter or two away; check the spelling, or drop the entry if the resource is gone",
+					res.Key(), res.Group, near)
 		}
-	}
-}
-
-// openDecisionFix is attached to a finding on a TODO value: there is nothing to write, and a --fix
-// run that meets it must not end green.
-func openDecisionFix(key string) errors.AutofixFunc {
-	return func() error {
-		return fmt.Errorf("%s: a TODO in %s is a decision only a person can make", key, rbacyaml.Filename)
 	}
 }
 
 // appendStubFix returns the autofix for a CRD without an entry: append an undecided stub to
 // rbac.yaml. The closure reads the file when it runs, so several stubs written in one run land
-// in the same file; it leaves an already present entry alone, so the fix is idempotent. It
-// returns an error on purpose after a successful write: the stub is not a decision, and the
-// finding must stay in the output and in the exit code of the run that wrote it (R33).
+// in the same file; it leaves an already present entry alone, so the fix is idempotent. The stub
+// is not a decision: the lint after --fix reports its TODO.
 func appendStubFix(modulePath string, crd crdInfo) errors.AutofixFunc {
 	path := rbacyaml.Path(modulePath)
 
 	return func() error {
 		// One stub per CRD per run, however many render variants reported it (R36).
 		return fixOnce(path+"#"+crd.Key(), func() error {
-			added, err := appendStub(path, crd.Group, crd.Plural)
-			if err != nil {
+			if err := appendStub(path, crd.Group, crd.Plural); err != nil {
 				return fmt.Errorf("add a stub for %s to %s: %w", crd.Key(), rbacyaml.Filename, err)
 			}
 
-			if !added {
-				return nil
-			}
-
-			return fmt.Errorf("a stub for %s was added to %s; decide its access (noAccess: %q is not a decision)",
-				crd.Key(), rbacyaml.Filename, rbacyaml.NoAccessTODO)
+			return nil
 		})
 	}
 }
 
 // appendStub adds `- group: <group>\n  resource: <resource>\n  noAccess: "TODO"` to the
-// resources of the declaration, keeping the rest of the file -- comments included -- as it is.
-// It reports whether anything was written.
-func appendStub(path, group, resource string) (bool, error) {
+// resources of the declaration, keeping the rest of the file -- comments included -- as it is. An
+// entry already present is left alone.
+func appendStub(path, group, resource string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	var root yaml.Node
 	if err := yaml.Unmarshal(data, &root); err != nil {
-		return false, err
+		return err
 	}
 
 	if root.Kind != yaml.DocumentNode || len(root.Content) != 1 || root.Content[0].Kind != yaml.MappingNode {
-		return false, stderrors.New("the file is not a YAML mapping")
+		return stderrors.New("the file is not a YAML mapping")
 	}
 
 	doc := root.Content[0]
@@ -238,7 +230,7 @@ func appendStub(path, group, resource string) (bool, error) {
 
 	for _, item := range resources.Content {
 		if scalarValue(mappingValue(item, "group")) == group && scalarValue(mappingValue(item, "resource")) == resource {
-			return false, nil
+			return nil
 		}
 	}
 
@@ -258,19 +250,19 @@ func appendStub(path, group, resource string) (bool, error) {
 	encoder.SetIndent(2)
 
 	if err := encoder.Encode(&root); err != nil {
-		return false, err
+		return err
 	}
 
 	if err := encoder.Close(); err != nil {
-		return false, err
+		return err
 	}
 
 	info, err := os.Stat(path)
 	if err != nil {
-		return false, err
+		return err
 	}
 
-	return true, writeFileAtomic(path, buf.Bytes(), info.Mode().Perm())
+	return writeFileAtomic(path, buf.Bytes(), info.Mode().Perm())
 }
 
 // mappingValue returns the value node of key in a mapping node, or nil.
@@ -294,4 +286,49 @@ func scalarValue(node *yaml.Node) string {
 	}
 
 	return node.Value
+}
+
+// nearestResource returns the module CRD of the entry's group whose plural is at most two edits
+// away from the entry's resource, or "" when none is.
+func nearestResource(res rbacyaml.Resource, known map[string]struct{}) string {
+	best, bestDistance := "", 3
+
+	for _, key := range slices.Sorted(maps.Keys(known)) {
+		group, plural, _ := strings.Cut(key, "/")
+		if group != res.Group {
+			continue
+		}
+
+		if d := editDistance(res.Resource, plural); d < bestDistance {
+			best, bestDistance = key, d
+		}
+	}
+
+	return best
+}
+
+// editDistance is the Levenshtein distance of two ASCII names.
+func editDistance(a, b string) int {
+	prev := make([]int, len(b)+1)
+	for j := range prev {
+		prev[j] = j
+	}
+
+	for i := 1; i <= len(a); i++ {
+		cur := make([]int, len(b)+1)
+		cur[0] = i
+
+		for j := 1; j <= len(b); j++ {
+			cost := 1
+			if a[i-1] == b[j-1] {
+				cost = 0
+			}
+
+			cur[j] = min(prev[j]+1, cur[j-1]+1, prev[j-1]+cost)
+		}
+
+		prev = cur
+	}
+
+	return prev[len(b)]
 }
