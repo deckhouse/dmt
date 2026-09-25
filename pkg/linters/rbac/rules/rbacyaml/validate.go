@@ -260,6 +260,11 @@ func validateResource(r *Resource, where string, crds CRDScopes, usedCapabilitie
 // CRD when the tree has it; the CRD's when nothing is declared; and an error when neither is
 // available. A subresource inherits the scope of its base resource.
 func resolveScope(r *Resource, crds CRDScopes) (string, string) {
+	// Nothing is compared or written while the scope is undecided: the templates depend on it.
+	if strings.HasPrefix(r.Scope, NoAccessTODO) {
+		return "", fmt.Sprintf("scope %q is still undecided: a decision is needed", r.Scope)
+	}
+
 	if r.Scope != "" && r.Scope != ScopeNamespaced && r.Scope != ScopeCluster {
 		return "", fmt.Sprintf("scope must be %q or %q, got %q", ScopeNamespaced, ScopeCluster, r.Scope)
 	}

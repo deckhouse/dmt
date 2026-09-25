@@ -331,8 +331,20 @@ func TestCoverage_TODOPrefixIsAnOpenDecision(t *testing.T) {
 
 	errorList := runCoverage(t, modulePath)
 	got := strings.Join(texts(errorList), "\n")
-	assert.Contains(t, got, `x.io/things is still undecided in rbac.yaml (scope: "TODO: Namespaced or Cluster")`)
 	assert.Contains(t, got, `y.io/others is still undecided in rbac.yaml (noAccess: "TODO: say why users get none")`)
+	assert.NotContains(t, got, "x.io/things", "an undecided scope is the validation's to report, once")
+
+	decl, err := rbacyaml.Load(modulePath)
+	require.NoError(t, err)
+
+	errs := rbacyaml.Validate(decl, nil)
+
+	validation := make([]string, 0, len(errs))
+	for _, e := range errs {
+		validation = append(validation, e.Error())
+	}
+
+	assert.Contains(t, strings.Join(validation, "\n"), `scope "TODO: Namespaced or Cluster" is still undecided: a decision is needed`)
 
 	assert.Empty(t, errorList.GetFixes(), "an open decision is a lint finding with nothing to fix")
 }
