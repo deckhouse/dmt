@@ -1447,6 +1447,38 @@ func snapshotTree(t *testing.T, dir string) map[string]string {
 	return out
 }
 
+// A declared file the lint cannot read is not written over: what it holds is unknown.
+func TestSync_UnreadableTemplateIsNotRewritten(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+
+	const rel = "templates/rbacv2/use/view.yaml"
+
+	fullPath := filepath.Join(modulePath, rel)
+	require.NoError(t, os.Chmod(fullPath, 0o000))
+	t.Cleanup(func() { _ = os.Chmod(fullPath, 0o600) })
+
+	if _, err := os.ReadFile(fullPath); err == nil {
+		t.Skip("the file stays readable (running as root)")
+	}
+
+	store := renderedFrom(t, model, func(o *generate.Object) bool {
+		if o.Name == "d8:namespace-capability:cert-manager:view" {
+			o.Rules = o.Rules[:len(o.Rules)-1]
+		}
+
+		return true
+	})
+
+	errorList := runSync(t, modulePath, store)
+	assert.Contains(t, strings.Join(texts(errorList), "\n"), "The autofix leaves the file as it is: the file cannot be read")
+	require.Empty(t, errorList.GetFixes())
+}
+
 // assertLintOnly checks a run whose findings are the linter's to report and no fix's to close:
 // --fix changes nothing on disk and no fix fails.
 func assertLintOnly(t *testing.T, errorList *errors.LintRuleErrorsList, modulePath string) {
