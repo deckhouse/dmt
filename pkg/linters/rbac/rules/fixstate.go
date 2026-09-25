@@ -61,9 +61,9 @@ var fixState = struct {
 }
 
 // fixOutcomes remembers the result of every fix that ran, by file. It has a lock of its own, held
-// while the fix runs: a fix reads fixState, so the two must not share a mutex, and holding this one
-// is what makes "once" hold under concurrent callers too, not only under the sequential
-// Manager.ApplyFixes.
+// while the fix runs -- file I/O included, on purpose: holding it is what makes "once" hold under
+// concurrent callers too, not only under the sequential Manager.ApplyFixes. A fix takes fixState
+// inside it, so fixState is never held while fixOutcomes is taken.
 var fixOutcomes = struct {
 	sync.Mutex
 	done map[string]error
