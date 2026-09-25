@@ -1399,9 +1399,9 @@ func TestSync_AccessLevelAndAggregationAreCompared(t *testing.T) {
 	assert.Contains(t, got[0], `ClusterRole/d8:user-authz:cert-manager:user: the user-authz.deckhouse.io/access-level annotation is "SuperAdmin" in the render, the declaration produces "User"`)
 }
 
-// A written declaration with TODO in it keeps the bootstrap finding and the non-zero exit: the
-// file exists, the decisions do not (review of #479, finding 9).
-func TestSync_BootstrapWithOpenDecisionsKeepsTheFinding(t *testing.T) {
+// The fix writes the declaration with its TODOs and succeeds; the lint that follows reports each
+// TODO as a decision to make (review of #479, finding 9).
+func TestSync_BootstrapWritesTheDeclarationTheLintReportsItsTODO(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
 
@@ -1415,13 +1415,14 @@ func TestSync_BootstrapWithOpenDecisionsKeepsTheFinding(t *testing.T) {
 		fix()
 	}
 
-	remaining := errorList.GetErrors()
-	require.Len(t, remaining, 1)
-	require.Error(t, remaining[0].FixError)
-	assert.Contains(t, remaining[0].FixError.Error(), "rbac.yaml is written; 1 TODO in it are decisions only a person can make")
+	for _, e := range errorList.GetErrors() {
+		require.NoError(t, e.FixError)
+	}
 
 	_, err := os.Stat(rbacyaml.Path(modulePath))
-	require.NoError(t, err, "the file is written all the same")
+	require.NoError(t, err, "the file is written")
+
+	assert.Contains(t, strings.Join(texts(runCoverage(t, modulePath)), "\n"), "cert-manager.io/nobodies is still undecided in rbac.yaml")
 }
 
 // A module directory in an edition overlay gets no declaration of its own (review of #479,
