@@ -393,3 +393,32 @@ func TestBuild_ConditionalCapabilityIsATODO(t *testing.T) {
 	assert.True(t, strings.HasPrefix(byKey["x.io/things"].Reason, "TODO: ClusterRole d8:namespace-capability:m:view renders under `.Values.m.extra`"), byKey["x.io/things"].Reason)
 	assert.Empty(t, byKey["x.io/others"].Reason)
 }
+
+// Several library documents are one answer only when their conditions agree: an include under a
+// condition beside one without gives its objects no condition otherwise (review of #480).
+func TestLocate_LibraryDocumentsMustAgree(t *testing.T) {
+	docs := TemplateDocs(`{{ include "helm_lib_cloud_provider_user_authz_cluster_roles" . }}
+---
+{{- if .Values.x }}
+{{ include "helm_lib_other_roles" . }}
+{{- end }}
+`)
+
+	library := 0
+
+	for _, d := range docs {
+		if d.Library {
+			library++
+		}
+	}
+
+	require.Equal(t, 2, library)
+
+	_, ok := Locate(docs, Object{Kind: "ClusterRole", Name: "d8:m:user"})
+	assert.False(t, ok, "the two includes disagree on the condition")
+
+	agreeing := TemplateDocs("{{ include \"a\" . }}\n---\n{{ include \"b\" . }}\n")
+	d, ok := Locate(agreeing, Object{Kind: "ClusterRole", Name: "d8:m:user"})
+	require.True(t, ok)
+	assert.True(t, d.Library)
+}

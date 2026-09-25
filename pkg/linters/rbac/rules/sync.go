@@ -1872,7 +1872,7 @@ func unrenderedObjects(modulePath string, rendered []bootstrap.Object) []string 
 		rel, _ := filepath.Rel(modulePath, path)
 
 		for _, doc := range bootstrap.TemplateDocs(string(content)) {
-			if !rbacKinds[doc.Kind] || doc.Unmanageable != "" || renderedAs(doc, rendered) {
+			if !rbacKinds[doc.Kind] || doc.Unmanageable != "" || renderedAs(doc, rel, rendered) {
 				continue
 			}
 
@@ -2080,11 +2080,17 @@ func markLibraryFiles(objects []bootstrap.Object) {
 	}
 }
 
-// renderedAs reports whether a rendered object comes from the document: its literal name, or a
-// name its computed name can produce.
-func renderedAs(doc bootstrap.Doc, rendered []bootstrap.Object) bool {
+// renderedAs reports whether a rendered object comes from the document: rendered from the same
+// template, in the namespace the document names if it names one, under its literal name or a name
+// its computed name can produce. An object of another template is not the document's, whatever
+// its name (review of #480).
+func renderedAs(doc bootstrap.Doc, path string, rendered []bootstrap.Object) bool {
 	for _, o := range rendered {
-		if o.Kind != doc.Kind {
+		if o.Kind != doc.Kind || o.Path != path {
+			continue
+		}
+
+		if doc.Namespace != "" && o.Namespace != "" && doc.Namespace != o.Namespace {
 			continue
 		}
 
