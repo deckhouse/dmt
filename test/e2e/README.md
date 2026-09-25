@@ -116,13 +116,13 @@ go test ./test/e2e/ -run 'TestE2E/<linter>/<your-case>' -v
 | `rbac/coverage-without-rbac-yaml` | rbac linter `coverage` stays silent on a module without rbac.yaml |
 | `rbac/sync-clean` | rbac linter `sync` (templates written from rbac.yaml render exactly the declaration and also pass placement, contract and coverage; renders `helm_lib_module_labels` from the vendored `deckhouse_lib_helm` chart) |
 | `rbac/sync-hand-edited` | rbac linter `sync` (a rule added by hand to a declared capability, and a legacy role the declaration does not produce -- one finding per template) |
-| `rbac/sync-fix-regenerates` | rbac linter `sync` with `--fix` (a missing capability file the declaration produces is written from rbac.yaml and the finding is resolved) |
+| `rbac/sync-fix-writes-missing-file` | rbac linter `sync` with `--fix` (a missing capability file the declaration produces is written from rbac.yaml and the finding is resolved) |
 | `rbac/sync-fix-leaves-foreign-object` | rbac linter `sync` with `--fix` (a declared file that diverges and holds a ConfigMap written by hand: the finding names the ConfigMap, carries no fix, and the file stays) |
 | `rbac/sync-template-does-not-render` | rbac linter `sync` (a template the render skips: the render's warning is the only finding, sync reports nothing for the objects its text holds) |
 | `rbac/bootstrap-writes-declaration` | rbac linter `sync` with `--fix` on a module without rbac.yaml (the first declaration is written from the render) |
 | `rbac/scheme-legacy-only` | rbac linter `contract` on a module with the pre-1.78 use/manage scheme only (one finding naming the migration script) |
 | `rbac/scheme-legacy-with-declaration` | rbac linters `contract` and `sync` on a module that has rbac.yaml and still renders the legacy scheme (the legacy files are named) |
-| `rbac/scheme-dual` | rbac linters on a module whose templates carry both schemes behind the version gate of `rbacv2-migrate-module.sh` (silent; the gated files are not regenerated) |
+| `rbac/scheme-dual` | rbac linters on a module whose templates carry both schemes behind the version gate of `rbacv2-migrate-module.sh` (silent; the gated files get no fix) |
 | `hooks/ingress` | hooks linter (Ingress without copy_custom_certificate hook) |
 | `openapi/bilingual` | openapi linter (missing doc-ru- translation, missing CRD module label) |
 | `images/werf` | images linter (werf fromImage not under base/) |

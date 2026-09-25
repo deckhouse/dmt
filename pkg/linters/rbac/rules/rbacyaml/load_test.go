@@ -706,8 +706,8 @@ func TestValidate_AccountMetadataKeys(t *testing.T) {
 	got := strings.Join(msgs, "\n")
 	assert.Contains(t, got, `serviceAccounts[0] (m).labels: "bad key" is not a valid key`)
 	assert.Contains(t, got, `serviceAccounts[0] (m).labels: "example.com/`+strings.Repeat("a", 80)+`" is not a valid key`, "the name of a key is 63 characters at most")
-	assert.Contains(t, got, `serviceAccounts[0] (m).annotations: "meta.helm.sh/release-name" is set by the generator or by Helm`)
-	assert.Contains(t, got, `serviceAccounts[0] (m).rbacAnnotations: "rbac.deckhouse.io/kind" is set by the generator or by Helm`)
+	assert.Contains(t, got, `serviceAccounts[0] (m).annotations: "meta.helm.sh/release-name" is set by dmt or by Helm`)
+	assert.Contains(t, got, `serviceAccounts[0] (m).rbacAnnotations: "rbac.deckhouse.io/kind" is set by dmt or by Helm`)
 	assert.NotContains(t, got, "helm.sh/resource-policy")
 	assert.NotContains(t, got, "werf.io")
 }

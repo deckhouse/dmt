@@ -651,7 +651,7 @@ func validateMetadataKeys(m map[string]string, where string, annotations bool, r
 		}
 
 		if annotations && (strings.HasPrefix(k, "rbac.deckhouse.io/") || strings.HasPrefix(k, "meta.helm.sh/")) {
-			report("%s: %q is set by the generator or by Helm, not by the declaration", where, k)
+			report("%s: %q is set by dmt or by Helm, not by the declaration", where, k)
 		}
 	}
 }
