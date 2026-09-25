@@ -21,20 +21,19 @@ import (
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/bootstrap"
 )
 
-// resetFixState forgets everything; tests call it between runs.
+// resetFixState forgets everything; tests call it between runs. The two locks are taken one after
+// the other, never one inside the other: fixOnce holds fixOutcomes while its fix takes fixState.
 func resetFixState() {
 	fixState.Lock()
-	defer fixState.Unlock()
-
 	fixState.withheld = set.New()
 	fixState.changes = map[string]set.Set{}
 	fixState.bootstrap = map[string]map[string]bootstrap.Object{}
 	fixState.variants = map[string]int{}
 	fixState.seen = map[string]map[string]int{}
 	fixState.in = map[string]map[string]string{}
+	fixState.Unlock()
 
 	fixOutcomes.Lock()
-	defer fixOutcomes.Unlock()
-
 	fixOutcomes.done = map[string]error{}
+	fixOutcomes.Unlock()
 }
