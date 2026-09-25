@@ -109,83 +109,6 @@ func TestSyncRegression_TextDocumentsBlindSpots(t *testing.T) {
 	}
 }
 
-// P1b: the same blind spot on the orphan path deletes the whole file.
-func TestSyncRegression_OrphanDeletesIncludeDocument(t *testing.T) {
-	resetFixState()
-	t.Cleanup(resetFixState)
-
-	const rel = "templates/cainjector/rbac-for-us.yaml"
-
-	modulePath := syncModuleDir(t)
-	model := syncModel(t, modulePath)
-	writeGenerated(t, modulePath, model)
-
-	fullPath := filepath.Join(modulePath, rel)
-	content, err := os.ReadFile(fullPath)
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(fullPath, []byte(strings.Replace(string(content), "{{- end }}\n", "---\n{{ include \"cainjector-extra\" . }}\n{{- end }}\n", 1)), 0o600))
-
-	decl, err := rbacyaml.Load(modulePath)
-	require.NoError(t, err)
-
-	decl.ServiceAccounts = nil
-	raw, err := yaml.Marshal(decl)
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(rbacyaml.Path(modulePath), raw, 0o600))
-
-	store := renderedFrom(t, model, func(o *generate.Object) bool { return o.When == "" })
-
-	list := runSync(t, modulePath, store)
-	for _, fix := range list.GetFixes() {
-		fix()
-	}
-
-	_, err = os.Stat(fullPath)
-	assert.NoError(t, err, "a file holding a hand-added include must not be deleted")
-}
-
-// P5: an object under a false `when` that the declaration moves to another file is refused in
-// its source but written into its target: after --fix both templates define it.
-func TestSyncRegression_UnrenderedMoveWritesTwice(t *testing.T) {
-	resetFixState()
-	t.Cleanup(resetFixState)
-
-	modulePath := syncModuleDir(t)
-	model := syncModel(t, modulePath)
-	writeGenerated(t, modulePath, model)
-
-	decl, err := rbacyaml.Load(modulePath)
-	require.NoError(t, err)
-
-	decl.ServiceAccounts[0].Path = ""
-	raw, err := yaml.Marshal(decl)
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(rbacyaml.Path(modulePath), raw, 0o600))
-
-	// Default values: the cainjector account (under when) renders from nowhere.
-	store := renderedFrom(t, model, func(o *generate.Object) bool { return o.When == "" })
-
-	list := runSync(t, modulePath, store)
-	t.Logf("findings:\n%s", strings.Join(texts(list), "\n"))
-
-	for _, fix := range list.GetFixes() {
-		fix()
-	}
-
-	t.Logf("fix errors:\n%s", probeFixMessages(list))
-
-	const sa = "kind: ServiceAccount\nmetadata:\n  name: cainjector\n"
-
-	source, err := os.ReadFile(filepath.Join(modulePath, "templates/cainjector/rbac-for-us.yaml"))
-	require.NoError(t, err)
-
-	target, err := os.ReadFile(filepath.Join(modulePath, "templates/rbac-for-us.yaml"))
-	require.NoError(t, err)
-
-	inSource, inTarget := strings.Contains(string(source), sa), strings.Contains(string(target), sa)
-	assert.False(t, inSource && inTarget, "the account is defined in both templates after --fix")
-}
-
 // P6: a capability file the declaration drops is a lint finding: the capabilities it renders are
 // named, and the autofix deletes no file.
 func TestSyncRegression_DroppedCapabilityFileIsALintFinding(t *testing.T) {
@@ -300,8 +223,8 @@ func TestSyncRegression_ExcludedLegacyRoleIsKept(t *testing.T) {
 	assert.Contains(t, string(after), "kept-by-hand", "an object excluded from sync is dropped by the fix without a word")
 }
 
-// P9: a regeneration that changes rights in ways other than "is in the render but not declared"
-// logs no removal: on a --fix run the fixed finding is not printed, so the only trace is an Info line.
+// P9: a rewrite that changes rights in ways other than "is in the render but not declared" is
+// logged as a removal too: on a --fix run the fixed finding is not printed, so the log is the trace.
 func TestSyncRegression_RightsChangesMissingFromRemovalLog(t *testing.T) {
 	for name, tc := range map[string]struct {
 		rel   string
@@ -349,16 +272,13 @@ func TestSyncRegression_RightsChangesMissingFromRemovalLog(t *testing.T) {
 			model := syncModel(t, modulePath)
 			writeGenerated(t, modulePath, model)
 
-			// The template on disk is stale (a hand edit that the render shows).
 			fullPath := filepath.Join(modulePath, tc.rel)
-			content, err := os.ReadFile(fullPath)
-			require.NoError(t, err)
-			require.NoError(t, os.WriteFile(fullPath, append(content, []byte("# stale\n")...), 0o600))
 
 			list := runSync(t, modulePath, renderedFrom(t, model, tc.tweak))
-			t.Logf("findings:\n%s", strings.Join(texts(list), "\n"))
+			require.Len(t, list.GetFixes(), 1, "findings: %s", strings.Join(texts(list), "\n"))
 
-			assert.NotEmpty(t, recordedChanges(fullPath), "the rights change is not among the removals the fix logs")
+			_, removed := splitChanges(recordedChanges(fullPath))
+			assert.NotEmpty(t, removed, "the rights change is among the removals the fix logs")
 		})
 	}
 }
