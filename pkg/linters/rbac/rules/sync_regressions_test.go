@@ -568,3 +568,18 @@ metadata:
 	got = strings.Join(unrenderedObjects(modulePath, []bootstrap.Object{{Kind: "ServiceAccount", Name: "node-local-dns", Path: "templates/other/rbac-for-us.yaml"}}), "\n")
 	assert.Contains(t, got, "a ServiceAccount with the computed name {{ .Chart.Name }} (templates/cleaner/rbac-for-us.yaml")
 }
+
+// A `when` may call a helper (include "<chart>.<helper>" .): the condition line --fix writes is
+// readable, while one that aborts the render is not the declaration's.
+func TestTextDocuments_ConditionLines(t *testing.T) {
+	doc := "---\napiVersion: v1\nkind: ServiceAccount\nmetadata:\n  name: a\n  namespace: d8-m\n{{- end }}\n"
+
+	withInclude := textDocuments("{{- if include \"cert_manager.yandex_dns_configured\" . }}\n" + doc)
+	require.Len(t, withInclude, 1)
+	assert.False(t, withInclude[0].unreadable, "the condition --fix writes for such a when")
+	assert.Equal(t, "d8-m/ServiceAccount/a", withInclude[0].id)
+
+	withRequired := textDocuments("{{- if required \"x is required\" .Values.x }}\n" + doc)
+	require.Len(t, withRequired, 2)
+	assert.True(t, withRequired[0].unreadable, "an abort of the render is not the declaration's")
+}
