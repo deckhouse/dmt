@@ -175,10 +175,10 @@ func Build(in Input) (*Model, error) {
 		for _, o := range f.Objects {
 			if where, dup := seen[o.Identity()]; dup {
 				if where == f.Path {
-					return nil, fmt.Errorf("%s would hold two objects named %s: two declared roles or bindings map to the same generated name", f.Path, o.Identity())
+					return nil, fmt.Errorf("%s would hold two objects named %s: two declared roles or bindings map to the same name", f.Path, o.Identity())
 				}
 
-				return nil, fmt.Errorf("%s and %s would both hold %s: two declared entries map to the same generated name", where, f.Path, o.Identity())
+				return nil, fmt.Errorf("%s and %s would both hold %s: two declared entries map to the same name", where, f.Path, o.Identity())
 			}
 
 			seen[o.Identity()] = f.Path
@@ -224,7 +224,7 @@ func checkAgainstModule(in Input) error {
 		// In default and kube-system the placement rule wants the account named d8-<module>-<dir>,
 		// which the generator does not write (README, limits; review of #479, finding 43).
 		if in.Namespace == "default" || in.Namespace == "kube-system" {
-			return fmt.Errorf("serviceAccounts[%s].path %q: in %s the placement rule wants the account named %q, which the generator does not accept yet (a known limitation); keep the account hand-written", sa.Name, sa.Path, in.Namespace, "d8-"+in.Module+"-"+dir)
+			return fmt.Errorf("serviceAccounts[%s].path %q: in %s the placement rule wants the account named %q, which the declaration does not accept yet (a known limitation); keep the account hand-written", sa.Name, sa.Path, in.Namespace, "d8-"+in.Module+"-"+dir)
 		}
 
 		switch {
