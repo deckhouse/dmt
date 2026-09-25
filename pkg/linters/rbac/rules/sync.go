@@ -174,32 +174,83 @@ func (r *SyncRule) Check(_ context.Context) {
 		return
 	}
 
-	actual := r.managedObjects(model)
-	divergences := r.compareRender(model, actual)
-	r.compareFiles(modulePath, model, actual, divergences)
-	r.report(modulePath, model, divergences)
+	run := r.newSyncRun(modulePath, model)
+	divergences := r.compareRender(run)
+	compareFiles(run, divergences)
+	r.report(run, divergences)
+}
+
+// syncRun is what one Check computes once and every step reads: the model, the rendered objects the
+// rule owns, where the declaration puts each object, and the text of every template.
+type syncRun struct {
+	modulePath string
+	model      *generate.Model
+	actual     map[string]managedObject
+	// placed maps every identity the declaration produces to the file it puts the object in.
+	placed map[string]string
+	// templates holds the text of every template, by path relative to the module.
+	templates map[string]templateText
+	// rendered is the identity of every rendered object; fromFile the rendered objects by template.
+	rendered map[string]struct{}
+	fromFile map[string]map[string]storage.StoreObject
+}
+
+// templateText is one template as the lint reads it.
+type templateText struct {
+	content string
+	docs    []textDocument
+}
+
+func (r *SyncRule) newSyncRun(modulePath string, model *generate.Model) *syncRun {
+	run := &syncRun{
+		modulePath: modulePath,
+		model:      model,
+		actual:     r.managedObjects(model),
+		placed:     map[string]string{},
+		templates:  templateTexts(modulePath),
+		rendered:   map[string]struct{}{},
+		fromFile:   map[string]map[string]storage.StoreObject{},
+	}
+
+	for _, file := range model.Files {
+		for _, o := range file.Objects {
+			run.placed[o.Identity()] = file.Path
+		}
+	}
+
+	for index, object := range r.module.GetStorage() {
+		id := index.AsString()
+		run.rendered[id] = struct{}{}
+
+		if run.fromFile[object.ShortPath()] == nil {
+			run.fromFile[object.ShortPath()] = map[string]storage.StoreObject{}
+		}
+
+		run.fromFile[object.ShortPath()][id] = object
+	}
+
+	return run
 }
 
 // compareRender judges the declaration against the rendered objects, both ways: every produced
 // object must be rendered as produced, and every legacy role or module capability rendered must be
 // produced. The findings are collected per template.
-func (r *SyncRule) compareRender(model *generate.Model, actual map[string]managedObject) map[string][]string {
-	modulePath := r.module.GetPath()
+func (r *SyncRule) compareRender(run *syncRun) map[string][]string {
 	legacy := r.legacyFiles()
 	divergences := map[string][]string{}
 
-	for _, file := range model.Files {
+	for _, file := range run.model.Files {
 		kind, isLegacy := legacy[file.Path]
 
 		// A template that serves both models behind the version gate rendered its legacy branch:
 		// the values of this run say the cluster is below 1.78. The 1.78 objects it declares are
 		// conditional on the gate and are compared in the run where the gate answers "new" -- the
 		// default one -- so this is not a divergence (the same reading as a rule under when, D4).
-		if isLegacy && templateHasGate(modulePath, file.Path) {
+		if isLegacy && templateGated(run.templates[file.Path].content, "") {
 			continue
 		}
 
-		found := compareFile(r.enabledObjects(r.withoutUnrendered(modulePath, file)), actual, r.module.GetName())
+		found := compareFile(r.enabledObjects(run.withoutUnrendered(file)), run.actual, r.module.GetName())
 
 		// The template renders the scheme before 1.78 where the declaration produces the new one:
 		// the objects the declaration names cannot be there. Say so once instead of listing them.
@@ -211,42 +262,26 @@ func (r *SyncRule) compareRender(model *generate.Model, actual map[string]manage
 		divergences[file.Path] = append(divergences[file.Path], found...)
 	}
 
-	// A legacy role or a module capability the declaration does not produce is an object the
-	// declaration must own: it is reported under the template it came from.
-	modelIdentities := map[string]struct{}{}
-
-	for _, file := range model.Files {
-		for _, o := range file.Objects {
-			modelIdentities[o.Identity()] = struct{}{}
-		}
-	}
-
-	divergences = r.replacedCopies(model, actual, modelIdentities, divergences)
+	divergences = r.replacedCopies(run, divergences)
 
 	// A produced object that renders from another template than the one the declaration puts it
 	// in is misplaced: both files are reported, and neither is rewritten while it renders there.
-	placed := map[string]string{}
+	for path, objects := range run.fromFile {
+		for id, object := range objects {
+			where, produced := run.placed[id]
+			if !produced || path == where || !r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {
+				continue
+			}
 
-	for _, file := range model.Files {
-		for _, o := range file.Objects {
-			placed[o.Identity()] = file.Path
+			divergences[where] = append(divergences[where], id+" renders from "+path+"; the declaration puts it in this file")
+			divergences[path] = append(divergences[path], id+" renders here; the declaration puts it in "+where)
 		}
 	}
 
-	for index, object := range r.module.GetStorage() {
-		id := index.AsString()
-
-		where, produced := placed[id]
-		if !produced || object.ShortPath() == where || !r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {
-			continue
-		}
-
-		divergences[where] = append(divergences[where], id+" renders from "+object.ShortPath()+"; the declaration puts it in this file")
-		divergences[object.ShortPath()] = append(divergences[object.ShortPath()], id+" renders here; the declaration puts it in "+where)
-	}
-
-	for identity, obj := range actual {
-		if _, produced := modelIdentities[identity]; produced || obj.class == generate.ClassDeclared {
+	// A legacy role or a module capability the declaration does not produce is an object the
+	// declaration must own: it is reported under the template it came from.
+	for identity, obj := range run.actual {
+		if _, produced := run.placed[identity]; produced || obj.class == generate.ClassDeclared {
 			continue
 		}
 
@@ -275,15 +310,15 @@ func (r *SyncRule) compareRender(model *generate.Model, actual map[string]manage
 // holds is absent from the render: the render cannot tell a conditional object whose condition is
 // false from one whose template was never written, but the file system can (D4 covers the render,
 // not the file).
-func (r *SyncRule) compareFiles(modulePath string, model *generate.Model, actual map[string]managedObject, divergences map[string][]string) {
-	for _, file := range model.Files {
-		_, err := os.Stat(filepath.Join(modulePath, file.Path))
+func compareFiles(run *syncRun, divergences map[string][]string) {
+	for _, file := range run.model.Files {
+		_, err := os.Stat(filepath.Join(run.modulePath, file.Path))
 
 		switch {
 		case err == nil:
 		case !stderrors.Is(err, os.ErrNotExist):
 			divergences[file.Path] = append(divergences[file.Path], fmt.Sprintf("the file cannot be read: %v", err))
-		case hasAbsentObject(file, actual):
+		case hasAbsentObject(file, run.actual):
 			divergences[file.Path] = append(divergences[file.Path],
 				"the file does not exist, and objects the declaration puts in it are absent from the render (objects under `when` included: no template produces them)")
 		}
@@ -295,37 +330,15 @@ func (r *SyncRule) compareFiles(modulePath string, model *generate.Model, actual
 // declaration closes: then the finding names the case and carries no fix. A template the
 // declaration produces nothing for is a finding without a fix: declare what it renders or delete
 // it, the autofix deletes no file.
-func (r *SyncRule) report(modulePath string, model *generate.Model, divergences map[string][]string) {
-	texts := templateTexts(modulePath)
-
-	// What every template holds by its text, rendered or not: an object under a false condition
-	// that the declaration moved is in its old file's text only, and writing it into the new one
-	// would define it twice once the condition holds.
-	held := map[string][]string{}
-
-	for _, path := range slices.Sorted(maps.Keys(texts)) {
-		for _, doc := range texts[path] {
-			held[doc.id] = append(held[doc.id], path)
-		}
-	}
-
-	placed := map[string]string{}
-
-	for _, f := range model.Files {
-		for _, o := range f.Objects {
-			placed[o.Identity()] = f.Path
-		}
-	}
-
+func (r *SyncRule) report(run *syncRun, divergences map[string][]string) {
 	// Every variant judges every produced file, reported or not: under --matrix the fix of one
 	// variant must not rewrite a file another variant found a case in.
-	cases := make(map[string][]string, len(model.Files))
-	managed := r.managedObjects(model)
+	cases := make(map[string][]string, len(run.model.Files))
 
-	for _, file := range model.Files {
-		if found := r.unfixable(modulePath, file, managed, placed, held, texts[file.Path]); len(found) > 0 {
+	for _, file := range run.model.Files {
+		if found := r.unfixable(run, file); len(found) > 0 {
 			cases[file.Path] = found
-			withholdFix(filepath.Join(modulePath, file.Path))
+			withholdFix(filepath.Join(run.modulePath, file.Path))
 		}
 	}
 
@@ -344,7 +357,7 @@ func (r *SyncRule) report(modulePath string, model *generate.Model, divergences 
 
 		fileList := r.errorList.WithFilePath(path).WithObjectID(path)
 
-		file := model.File(path)
+		file := run.model.File(path)
 
 		switch {
 		case file == nil:
@@ -353,7 +366,7 @@ func (r *SyncRule) report(modulePath string, model *generate.Model, divergences 
 			fileList.Errorf("%s does not match %s: %s. The autofix leaves the file as it is: %s",
 				path, rbacyaml.Filename, strings.Join(list, "; "), strings.Join(cases[path], "; "))
 		default:
-			fileList.WithFix(regenerateFix(modulePath, *file, list)).Errorf("%s does not match %s: %s. Run `%s` to rewrite the file from the declaration",
+			fileList.WithFix(regenerateFix(run.modulePath, *file, list)).Errorf("%s does not match %s: %s. Run `%s` to rewrite the file from the declaration",
 				path, rbacyaml.Filename, strings.Join(list, "; "), FixCommand)
 		}
 	}
@@ -365,30 +378,20 @@ func (r *SyncRule) report(modulePath string, model *generate.Model, divergences 
 // declaration now produces under another name. The text is the same in every render variant, so
 // every variant reaches the same answer; the render adds what the text cannot show: an object the
 // file would produce that renders from another template.
-func (r *SyncRule) unfixable(modulePath string, file generate.File, managed map[string]managedObject, placed map[string]string, held map[string][]string, docs []textDocument) []string {
+func (r *SyncRule) unfixable(run *syncRun, file generate.File) []string {
 	var out []string
 
-	content, err := os.ReadFile(filepath.Join(modulePath, file.Path))
-	if err == nil && templateGated(string(content), generate.RenderFile(file)) {
+	text := run.templates[file.Path]
+	if templateGated(text.content, generate.RenderFile(file)) {
 		out = append(out, fmt.Sprintf("the template serves both role models behind the version gate (the %s gate of rbacv2-migrate-module.sh, or a deckhouseVersion test the declaration does not produce), and a rewrite would drop the legacy branch -- edit the new branch, or drop the gate and the legacy object once clusters below DKP 1.78 are no longer served",
 			rbaccontract.GateMarker))
 	}
 
 	produced := identitiesOf(file.Objects)
-	store := r.module.GetStorage()
+	fromFile := run.fromFile[file.Path]
+	renderedRoles := renderedRolesOf(r.module.GetStorage(), file.Path)
 
-	rendered := make(map[string]struct{}, len(store))
-	fromFile := map[string]storage.StoreObject{}
-
-	for index, object := range store {
-		rendered[index.AsString()] = struct{}{}
-
-		if object.ShortPath() == file.Path {
-			fromFile[index.AsString()] = object
-		}
-	}
-
-	for _, doc := range docs {
+	for _, doc := range text.docs {
 		if _, ok := produced[doc.id]; ok {
 			continue
 		}
@@ -398,7 +401,7 @@ func (r *SyncRule) unfixable(modulePath string, file generate.File, managed map[
 			continue
 		}
 
-		if where, ok := placed[doc.id]; ok && where != file.Path {
+		if where, ok := run.placed[doc.id]; ok && where != file.Path {
 			out = append(out, doc.id+" is declared in "+where+" -- move it there")
 			continue
 		}
@@ -409,7 +412,7 @@ func (r *SyncRule) unfixable(modulePath string, file generate.File, managed map[
 			continue
 		}
 
-		if object, ok := fromFile[doc.id]; ok && replacedByProduced(object, file.Objects, renderedRolesOf(store, file.Path), rendered) {
+		if object, ok := fromFile[doc.id]; ok && replacedByProduced(object, file.Objects, renderedRoles, run.rendered) {
 			continue
 		}
 
@@ -423,13 +426,13 @@ func (r *SyncRule) unfixable(modulePath string, file generate.File, managed map[
 			continue
 		}
 
-		if where, ok := placed[id]; ok && where != file.Path {
+		if where, ok := run.placed[id]; ok && where != file.Path {
 			out = append(out, id+" is declared in "+where+" -- move it there")
 			continue
 		}
 
 		kind, name := object.Unstructured.GetKind(), object.Unstructured.GetName()
-		if m, ok := managed[id]; ok && m.class != generate.ClassDeclared && r.Enabled(kind, name) {
+		if m, ok := run.actual[id]; ok && m.class != generate.ClassDeclared && r.Enabled(kind, name) {
 			continue
 		}
 
@@ -440,7 +443,7 @@ func (r *SyncRule) unfixable(modulePath string, file generate.File, managed map[
 			continue
 		}
 
-		if replacedByProduced(object, file.Objects, renderedRolesOf(store, file.Path), rendered) {
+		if replacedByProduced(object, file.Objects, renderedRoles, run.rendered) {
 			continue
 		}
 
@@ -451,7 +454,7 @@ func (r *SyncRule) unfixable(modulePath string, file generate.File, managed map[
 		out = append(out, id+" -- the declaration puts it in this file: move it here")
 	}
 
-	for _, id := range heldElsewhere(file, held) {
+	for _, id := range heldElsewhere(file, run.templates) {
 		out = append(out, id+" -- the declaration puts it in this file: move it here")
 	}
 
@@ -464,20 +467,13 @@ func (r *SyncRule) unfixable(modulePath string, file generate.File, managed map[
 // it: the render skipped the template (and warned about it) or every object in it is under a
 // condition false for these values. Either way the render tells nothing about them, and they are
 // judged where the template renders.
-func (r *SyncRule) withoutUnrendered(modulePath string, file generate.File) generate.File {
-	for _, object := range r.module.GetStorage() {
-		if object.ShortPath() == file.Path {
-			return file
-		}
-	}
-
-	content, err := os.ReadFile(filepath.Join(modulePath, file.Path))
-	if err != nil {
+func (run *syncRun) withoutUnrendered(file generate.File) generate.File {
+	if len(run.fromFile[file.Path]) > 0 {
 		return file
 	}
 
 	inText := map[string]bool{}
-	for _, doc := range textDocuments(string(content)) {
+	for _, doc := range run.templates[file.Path].docs {
 		inText[doc.id] = true
 	}
 
@@ -1270,10 +1266,10 @@ func textDocuments(content string) []textDocument {
 	return out
 }
 
-// templateTexts reads the documents of every template of the module from its text, by path
-// relative to the module. A partial (a name starting with an underscore) renders no objects.
-func templateTexts(modulePath string) map[string][]textDocument {
-	out := map[string][]textDocument{}
+// templateTexts reads every template of the module, by path relative to the module. A partial (a
+// name starting with an underscore) renders no objects.
+func templateTexts(modulePath string) map[string]templateText {
+	out := map[string]templateText{}
 
 	root := filepath.Join(modulePath, "templates")
 
@@ -1288,7 +1284,7 @@ func templateTexts(modulePath string) map[string][]textDocument {
 		}
 
 		if rel, relErr := filepath.Rel(modulePath, path); relErr == nil {
-			out[filepath.ToSlash(rel)] = textDocuments(string(content))
+			out[filepath.ToSlash(rel)] = templateText{content: string(content), docs: textDocuments(string(content))}
 		}
 
 		return nil
@@ -1298,12 +1294,21 @@ func templateTexts(modulePath string) map[string][]textDocument {
 }
 
 // heldElsewhere lists the objects the file produces that another template's text holds.
-func heldElsewhere(file generate.File, held map[string][]string) []string {
+func heldElsewhere(file generate.File, templates map[string]templateText) []string {
 	var out []string
 
-	for _, o := range file.Objects {
-		for _, path := range held[o.Identity()] {
-			if path != file.Path {
+	for _, path := range slices.Sorted(maps.Keys(templates)) {
+		if path == file.Path {
+			continue
+		}
+
+		held := map[string]bool{}
+		for _, doc := range templates[path].docs {
+			held[doc.id] = true
+		}
+
+		for _, o := range file.Objects {
+			if held[o.Identity()] {
 				out = append(out, o.Identity()+" (held by "+path+")")
 			}
 		}
@@ -1319,35 +1324,25 @@ func heldElsewhere(file generate.File, held map[string][]string) []string {
 // another name, often in another file (the Prometheus access Roles bootstrap folds into
 // access-to-<module>). Both render, so the old copy keeps the grant alive after the declaration
 // drops it. No fix: the copy sits in a file the generator does not own.
-func (r *SyncRule) replacedCopies(model *generate.Model, actual map[string]managedObject, produced map[string]struct{}, divergences map[string][]string) map[string][]string {
-	storage := r.module.GetStorage()
+func (r *SyncRule) replacedCopies(run *syncRun, divergences map[string][]string) map[string][]string {
+	store := r.module.GetStorage()
 
-	rendered := make(map[string]struct{}, len(storage))
-	for index := range storage {
-		rendered[index.AsString()] = struct{}{}
-	}
-
-	n := 0
-	for _, f := range model.Files {
-		n += len(f.Objects)
-	}
-
-	all := make([]generate.Object, 0, n)
-	for _, f := range model.Files {
+	all := make([]generate.Object, 0, len(run.placed))
+	for _, f := range run.model.Files {
 		all = append(all, f.Objects...)
 	}
 
 	copies := map[string]string{}
-	renderedGrantees := renderedRoleSubjects(storage)
+	renderedGrantees := renderedRoleSubjects(store)
 	declaredGrantees := modelRoleSubjects(all)
 
-	for index, object := range storage {
+	for index, object := range store {
 		id := index.AsString()
-		if _, ok := produced[id]; ok {
+		if _, ok := run.placed[id]; ok {
 			continue
 		}
 
-		if _, ok := actual[id]; ok {
+		if _, ok := run.actual[id]; ok {
 			continue
 		}
 
@@ -1356,7 +1351,7 @@ func (r *SyncRule) replacedCopies(model *generate.Model, actual map[string]manag
 			continue
 		}
 
-		if twin := renderedTwin(object, all, rendered); twin != "" {
+		if twin := renderedTwin(object, all, run.rendered); twin != "" {
 			// Equal rules alone do not make a copy: another account may need the same rights. A
 			// replaced role is granted to the subjects the declaration grants its successor to.
 			if (kind == "Role" || kind == "ClusterRole") && !shareGrantee(renderedGrantees[roleKey(kind, object.Unstructured.GetNamespace(), object.Unstructured.GetName())], declaredGrantees[twinRoleKey(all, twin)]) {
@@ -1370,13 +1365,13 @@ func (r *SyncRule) replacedCopies(model *generate.Model, actual map[string]manag
 	}
 
 	// A binding of such a copy is part of it.
-	for index, object := range storage {
+	for index, object := range store {
 		kind := object.Unstructured.GetKind()
 		if kind != "RoleBinding" && kind != "ClusterRoleBinding" {
 			continue
 		}
 
-		if _, ok := produced[index.AsString()]; ok {
+		if _, ok := run.placed[index.AsString()]; ok {
 			continue
 		}
 

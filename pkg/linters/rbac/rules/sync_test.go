@@ -1396,7 +1396,7 @@ func TestTemplateTexts_SkipsPartials(t *testing.T) {
 
 	got := templateTexts(modulePath)
 	assert.Equal(t, []string{"templates/rbacv2/use/view.yaml"}, slices.Collect(maps.Keys(got)))
-	assert.Equal(t, "ServiceAccount/a", got["templates/rbacv2/use/view.yaml"][0].id)
+	assert.Equal(t, "ServiceAccount/a", got["templates/rbacv2/use/view.yaml"].docs[0].id)
 }
 
 // A hand-added object named the way the generator names things is someone else's, not a removal
