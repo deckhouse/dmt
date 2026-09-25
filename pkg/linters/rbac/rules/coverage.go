@@ -42,11 +42,11 @@ const (
 
 // CoverageRule requires a decision on the user access to every CRD the module ships: an entry
 // in rbac.yaml that grants levels or denies access with a reason. It runs only when the module
-// has an rbac.yaml (spec 005 R22); without one, only the contract rule applies.
+// has an rbac.yaml (spec 005 R22); without one, sync reports the file missing and writes it.
 //
 // Its autofix appends an undecided stub (noAccess: "TODO") for each CRD without an entry and
-// then reports that a decision is still owed, so a --fix run that wrote stubs does not end
-// green (R33): the tool never takes the decision for the author (R10).
+// succeeds; the stub is not a decision, and the lint that follows --fix reports it (R33): the tool
+// never takes the decision for the author (R10).
 type CoverageRule struct {
 	pkg.RuleMeta
 	pkg.StringRule

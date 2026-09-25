@@ -34,12 +34,15 @@ import (
 // one run. dmt lints a module once per variant under --matrix and every variant collects its own
 // finding with its own closure; the state makes them behave as one fix per target (spec 005 R36):
 //
-//   - outcomes remembers the result of the first closure that ran for a target, so the others
-//     return it instead of doing the work again, and every copy of the finding ends the run in
-//     the same state;
 //   - withheld names the files some variant reported without a fix: the lint found a case only a
 //     change of the templates or the declaration closes, and the fix of another variant must not
-//     rewrite the file under it.
+//     rewrite the file under it;
+//   - changes collects what every variant's fix of a file adds and removes, for its log;
+//   - bootstrap, variants, seen and in collect the objects of every variant for the first
+//     declaration, and which variants rendered each.
+//
+// fixOutcomes, below, remembers the result of the first closure that ran for a target, so the
+// others return it instead of doing the work again.
 var fixState = struct {
 	sync.Mutex
 	withheld  set.Set
