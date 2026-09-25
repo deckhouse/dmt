@@ -1473,7 +1473,7 @@ Format rules the loader enforces:
 - Levels: `namespace` -- `viewer`, `user`, `manager`, `admin`, `superadmin`; `system` -- `viewer`, `manager`, `superadmin`; `legacy` -- `User`, `PrivilegedUser`, `Editor`, `Admin`, `ClusterEditor`, `ClusterAdmin`, `SuperAdmin`.
 - `namespace` levels are allowed only for `Namespaced` resources; a `Namespaced` resource at a `system` level needs a `reason`.
 - `scope` is required for a resource the module ships no CRD for, and must agree with the CRD when the module ships one, or with Kubernetes for a built-in resource (`nodes` is `Cluster`). `resource: "*"` and `resource: "*/<subresource>"` are allowed only for a group without CRDs in the module and need a `reason`. A resource is a lowercase plural without dots.
-- `noAccess` is a non-empty reason and excludes the levels. `noAccess: "TODO"` is the stub the coverage autofix writes; it is not a decision. Any `noAccess`, `reason` or `scope` value that starts with `TODO` is an open decision: `coverage` reports it; it is a lint finding with nothing to fix.
+- `noAccess` is a non-empty reason and excludes the levels. `noAccess: "TODO"` is the stub the coverage autofix writes; it is not a decision. Any `noAccess`, `reason` or `scope` value that starts with `TODO` is an open decision, a lint finding with nothing to fix: `coverage` reports `noAccess` and `reason`, the validation of `sync` reports `scope` (nothing is compared or written until the scope is decided).
 - A capability outside the view/edit convention (`admin`, `user`, `superadmin`) needs `capabilities.<lineage>.<level>` texts in both languages; texts for a level no entry grants are an error (a typo in the key, or a removed entry).
 - A ServiceAccount name is a DNS subdomain; label and annotation keys are qualified names, and `rbac.deckhouse.io/*` and `meta.helm.sh/*` annotations are not the declaration's. A rule holds no empty verb, resource, resource name or URL.
 - Messages name a resource entry by its index in the file as written (`resources[3]`), although the entries are compared in sorted order.
@@ -1652,8 +1652,8 @@ file that also holds a document a helm_lib include renders stays hand-written: t
 whole file.
 
 The fix writes the file and succeeds. Every `TODO` in it and everything the linter refuses in it are
-lint findings of the run that follows `--fix`: a `TODO` in `resources` is reported by `coverage`, one in a
-`when` by the validation of `sync`. A written file that does not parse would be a bug of dmt; it is
+lint findings of the run that follows `--fix`: a `TODO` in `noAccess` or `reason` is reported by
+`coverage`, one in a `scope` or a `when` by the validation of `sync`. A written file that does not parse would be a bug of dmt; it is
 written all the same, and the lint that follows reports the line. Nothing is written into an edition
 overlay. Review the file, resolve the TODOs, then run `--fix` again to bring the templates in line with
 it. From then on `rbac.yaml` is the source.

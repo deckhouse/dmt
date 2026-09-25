@@ -120,7 +120,8 @@ func (r *CoverageRule) Check(_ context.Context) {
 
 		var open []string
 
-		for _, field := range []struct{ key, value string }{{"noAccess", res.NoAccess}, {"scope", res.Scope}, {"reason", res.Reason}} {
+		// An undecided scope is reported by the validation of sync, which stops on it.
+		for _, field := range []struct{ key, value string }{{"noAccess", res.NoAccess}, {"reason", res.Reason}} {
 			if strings.HasPrefix(field.value, rbacyaml.NoAccessTODO) {
 				open = append(open, fmt.Sprintf("%s: %q", field.key, field.value))
 			}
