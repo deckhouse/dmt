@@ -28,6 +28,7 @@ package generate
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -613,10 +614,5 @@ func copyMap(m map[string]string) map[string]string {
 		return nil
 	}
 
-	out := make(map[string]string, len(m))
-	for k, v := range m {
-		out[k] = v
-	}
-
-	return out
+	return maps.Clone(m)
 }
