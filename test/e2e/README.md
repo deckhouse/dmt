@@ -111,7 +111,7 @@ go test ./test/e2e/ -run 'TestE2E/<linter>/<your-case>' -v
 | `rbac/contract-violations` | rbac linter `contract` (missing ru texts, missing capability marker, role with its own rules) |
 | `rbac/contract-cluster-scoped-in-namespace-capability` | rbac linter `contract` (warning: cluster-scoped resource, scope read from a nested `crds/`, inside a namespace capability) |
 | `rbac/coverage-missing-entry` | rbac linter `coverage` (CRD without an entry in rbac.yaml) |
-| `rbac/coverage-fix-keeps-finding` | rbac linter `coverage` with `--fix` (a stub is written and the finding stays -- a stub is not a decision) |
+| `rbac/coverage-fix-writes-stub` | rbac linter `coverage` with `--fix` (a stub is written and the fix succeeds; the stub is not a decision, the lint that follows reports it) |
 | `rbac/coverage-todo` | rbac linter `coverage` (undecided `noAccess: "TODO"` stub; misspelled resource of a known group is a warning) |
 | `rbac/coverage-without-rbac-yaml` | rbac linter `coverage` stays silent on a module without rbac.yaml |
 | `rbac/sync-clean` | rbac linter `sync` (templates generated from rbac.yaml render exactly the declaration; the generated files also pass placement, contract and coverage; renders `helm_lib_module_labels` from the vendored `deckhouse_lib_helm` chart) |

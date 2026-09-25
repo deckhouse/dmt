@@ -62,7 +62,7 @@ func validateWhen(when, where string, report reporter) {
 	// A TODO is a decision nobody has made yet, not a malformed expression (review of #479,
 	// finding 51).
 	if strings.HasPrefix(when, NoAccessTODO) {
-		report("%s: when %q is still undecided: a decision is needed -- only a person can close this", where, when)
+		report("%s: when %q is still undecided: a decision is needed", where, when)
 		return
 	}
 
