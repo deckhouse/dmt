@@ -1655,18 +1655,13 @@ func splitChanges(divergences []string) ([]string, []string) {
 	return added, removed
 }
 
-// writeBootstrapped writes the declaration bootstrap produced. Its TODOs and notes are for the lint
-// that follows --fix to report: the fix did its work. A declaration that does not parse would be a
-// bug of dmt; it is written all the same, so that the module's developer fixes the line the error
-// names and goes on instead of waiting for a dmt release with nothing to look at.
+// writeBootstrapped writes the declaration bootstrap produced. Its TODOs are for the lint that
+// follows --fix to report: the fix did its work. A declaration that does not parse would be a bug
+// of dmt; the next lint reports it with the line, and the module's developer fixes the line and
+// goes on instead of waiting for a dmt release.
 func writeBootstrapped(path string, content []byte) error {
 	if err := writeFileAtomic(path, content, 0o644); err != nil { //nolint:gosec // a source file of the module
 		return fmt.Errorf("write %s: %w", rbacyaml.Filename, err)
-	}
-
-	if _, err := rbacyaml.Parse(content); err != nil {
-		return fmt.Errorf("the written %s does not parse, most likely a note of its header that lost its '#' (a bug of dmt: fix or delete the line, and report it with the module): %w",
-			rbacyaml.Filename, err)
 	}
 
 	return nil
