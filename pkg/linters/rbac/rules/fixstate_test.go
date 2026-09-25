@@ -17,6 +17,12 @@ limitations under the License.
 package rules
 
 import (
+	stderrors "errors"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/deckhouse/dmt/internal/set"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/bootstrap"
 )
@@ -36,4 +42,25 @@ func resetFixState() {
 	fixOutcomes.Lock()
 	fixOutcomes.done = map[string]error{}
 	fixOutcomes.Unlock()
+}
+
+// fixOnce runs the fix of a target once, however many render variants ask, and returns its outcome
+// to every caller.
+func TestFixOnce(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	calls := 0
+	failing := stderrors.New("write failed")
+
+	for range 3 {
+		err := fixOnce("target", func() error {
+			calls++
+
+			return failing
+		})
+		require.ErrorIs(t, err, failing)
+	}
+
+	assert.Equal(t, 1, calls)
 }
