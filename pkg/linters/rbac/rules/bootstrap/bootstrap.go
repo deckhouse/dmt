@@ -60,7 +60,7 @@ type Object struct {
 	// (helm_lib): the library owns it, unless sync owns it by class.
 	Library bool
 	// LibraryFile marks an object whose template also holds a document a library renders: the
-	// generator writes the whole file, so it can never regenerate it.
+	// generator writes the whole file, so it can never rewrite it.
 	LibraryFile bool
 }
 
@@ -1151,7 +1151,7 @@ func (b *builder) unmanagePartial(objects ...Object) bool {
 	return false
 }
 
-// dropped notes, per object the declaration describes, what a regeneration drops without the
+// dropped notes, per object the declaration describes, what a rewrite drops without the
 // format saying so: labels and annotations it has no field for (review of #479, finding 40).
 func (b *builder) dropped() {
 	for _, o := range b.in.Objects {
@@ -1191,14 +1191,13 @@ func (b *builder) dropped() {
 }
 
 // sharedWithDeclared notes a partially rendered object kept hand-written in a file the declaration
-// writes objects into: a --fix without --matrix does not see it, puts the generated file beside
-// the template and advises to delete the template, which would drop it (review of #479, finding
-// 48).
+// writes objects into: the file stays a lint finding without a fix while it holds the object
+// (review of #479, finding 48).
 func (b *builder) sharedWithDeclared() {
 	for _, kept := range b.partialKept {
 		for _, o := range b.in.Objects {
 			if o.Path == kept.Path && b.isUsed(o) && !b.unmanagedIDs[o.identity()] {
-				b.note("%s %s stays hand-written in %s, which the declaration also writes: move it to the rbac-for-us.yaml of another component directory before `--fix` (the placement rule accepts it in any), or the fix of %s drops it", kept.Kind, kept.Name, kept.Path, kept.Path)
+				b.note("%s %s stays hand-written in %s, which the declaration also writes: move it to the rbac-for-us.yaml of another component directory (the placement rule accepts it in any): until then %s gets no fix", kept.Kind, kept.Name, kept.Path, kept.Path)
 
 				break
 			}

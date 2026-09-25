@@ -57,8 +57,9 @@ const SyncRuleName = "sync"
 // capabilities, and the objects whose names the generator builds; everything else in the render is
 // unmanaged and never reported.
 //
-// It runs only when the module has an rbac.yaml. A declaration that does not validate is reported
-// and nothing else is compared or generated (spec 005 R14). A rule declared under `when` that is
+// Without rbac.yaml it reports the file missing and --fix writes it from the render (bootstrap).
+// With it, a declaration that does not validate is a finding and nothing else is compared (spec
+// 005 R14). A rule declared under `when` that is
 // absent from the render is not a divergence (R13a); a rule declared without `when` that is absent
 // is (R13b) -- the condition belongs to the declaration.
 type SyncRule struct {
@@ -290,7 +291,7 @@ func (r *SyncRule) compareRender(run *syncRun) map[string][]string {
 		kind := obj.object.Unstructured.GetKind()
 		if rules, found, _ := unstructured.NestedSlice(obj.object.Unstructured.Object, "rules"); (kind == "Role" || kind == "ClusterRole") && (!found || len(rules) == 0) {
 			// A role without rules grants nothing and has nothing to declare.
-			why = "it has no rules and grants nothing, so the fix drops it -- remove it from the template"
+			why = "it has no rules and grants nothing -- remove it from the template"
 		}
 
 		divergences[obj.object.ShortPath()] = append(divergences[obj.object.ShortPath()],
@@ -360,7 +361,7 @@ func (r *SyncRule) report(run *syncRun, divergences map[string][]string) {
 			fileList.Errorf("%s does not match %s: %s. The autofix leaves the file as it is: %s",
 				path, rbacyaml.Filename, strings.Join(list, "; "), strings.Join(cases[path], "; "))
 		default:
-			fileList.WithFix(regenerateFix(run.modulePath, *file, list)).Errorf("%s does not match %s: %s. Run `%s` to rewrite the file from the declaration",
+			fileList.WithFix(rewriteFix(run.modulePath, *file, list)).Errorf("%s does not match %s: %s. Run `%s` to rewrite the file from the declaration",
 				path, rbacyaml.Filename, strings.Join(list, "; "), FixCommand)
 		}
 	}
@@ -836,7 +837,7 @@ func compareObject(expected generate.Object, actual storage.StoreObject, module 
 			out = append(out, compareCapabilityLabels(expected, actual, module, aggregation)...)
 		} else if aggregation != nil {
 			// The generator writes no aggregationRule on any other role; one in the render collects
-			// rights the declaration does not name, and a regeneration would drop it.
+			// rights the declaration does not name, and a rewrite would drop it.
 			out = append(out, fmt.Sprintf("%s: an aggregationRule is in the render but the declaration produces none", id))
 		}
 
@@ -855,7 +856,7 @@ func compareObject(expected generate.Object, actual storage.StoreObject, module 
 		}
 
 		// Kubernetes mounts the token unless told otherwise; the generator writes what the
-		// declaration says, false by default. A regeneration must not take a token away unnoticed.
+		// declaration says, false by default. A rewrite must not take a token away unnoticed.
 		rendered := sa.AutomountServiceAccountToken == nil || *sa.AutomountServiceAccountToken
 		declared := expected.AutomountToken != nil && *expected.AutomountToken
 
@@ -976,12 +977,12 @@ func crdScopes(crds []crdInfo) rbacyaml.CRDScopes {
 	return scopes
 }
 
-// regenerateFix returns the autofix for a file the declaration produces: write it from the
+// rewriteFix returns the autofix for a file the declaration produces: write it from the
 // declaration. Everything the fix needs is captured now, while the render exists -- the object store
 // is released before --fix runs (R32). The declaration is the source of truth: a right it no longer
 // names leaves the template (decided 2026-09-22, replacing D3); the finding that led here listed it,
 // and the fix logs it, so a --fix run without a preceding dmt lint does not remove rights in silence.
-func regenerateFix(modulePath string, file generate.File, changes []string) errors.AutofixFunc {
+func rewriteFix(modulePath string, file generate.File, changes []string) errors.AutofixFunc {
 	content := generate.RenderFile(file)
 	fullPath := filepath.Join(modulePath, file.Path)
 
@@ -1249,7 +1250,7 @@ func textDocuments(content string) []textDocument {
 
 		switch {
 		case kind == "" && !other && !foreign:
-			continue // the header, or the end of a conditional block
+			continue // comments, or the end of a conditional block
 		case foreign || kind == "" || name == "" || strings.Contains(name, "{{"):
 			out = append(out, textDocument{id: fmt.Sprintf("<unreadable document %d>", i), unreadable: true})
 			continue
@@ -1411,7 +1412,7 @@ func renderedTwin(object storage.StoreObject, produced []generate.Object, render
 }
 
 // compareAnnotations compares the annotations of an object the declaration writes whole: a
-// resource policy or a deploy hook dropped by a regeneration changes what Helm or werf do with it.
+// resource policy or a deploy hook dropped by a rewrite changes what Helm or werf do with it.
 func compareAnnotations(expected generate.Object, actual storage.StoreObject) []string {
 	id := expected.Identity()
 	rendered := actual.Unstructured.GetAnnotations()
@@ -1481,7 +1482,7 @@ var rbacKinds = map[string]bool{"ClusterRole": true, "ClusterRoleBinding": true,
 
 // unrenderedObjects lists the RBAC objects with a literal name that the module's templates hold
 // and no render showed: an object under a condition false for the linter's values would
-// otherwise be left out of the first declaration without a word, and the regeneration would drop
+// otherwise be left out of the first declaration without a word, and the rewrite would drop
 // it. Only the text can tell; a computed name is not followed.
 func unrenderedObjects(modulePath string, rendered []bootstrap.Object) []string {
 	var out []string
@@ -1534,7 +1535,7 @@ var moduleLabels = map[string]bool{rbaccontract.LabelHeritage: true, rbaccontrac
 
 // compareLabels compares the labels of an object the declaration writes whole: an aggregation
 // label or a part-of label the declaration does not carry would be dropped by the next
-// regeneration, and an aggregation label is a right.
+// rewrite, and an aggregation label is a right.
 func compareLabels(expected generate.Object, actual storage.StoreObject) []string {
 	id := expected.Identity()
 	rendered := actual.Unstructured.GetLabels()
@@ -1638,7 +1639,7 @@ func shareGrantee(a, b map[string]bool) bool {
 	return false
 }
 
-// splitChanges sorts the divergences of a regenerated file into what the regeneration adds (the
+// splitChanges sorts the divergences of a rewritten file into what the rewrite adds (the
 // declaration names it, the render lacks it) and everything else, which it removes or changes.
 func splitChanges(divergences []string) ([]string, []string) {
 	var added, removed []string
@@ -1654,21 +1655,17 @@ func splitChanges(divergences []string) ([]string, []string) {
 	return added, removed
 }
 
-// writeBootstrapped writes the declaration bootstrap produced and says what is left for a person.
-// A declaration that does not parse is a bug of dmt, yet it is written all the same: the module's
-// developer fixes the line the error names and goes on, instead of waiting for a dmt release with
-// nothing to look at. Bootstrap runs only while the file is missing, so the error says where to
-// look.
+// writeBootstrapped writes the declaration bootstrap produced. Its TODOs and notes are for the lint
+// that follows --fix to report: the fix did its work. A declaration that does not parse would be a
+// bug of dmt; it is written all the same, so that the module's developer fixes the line the error
+// names and goes on instead of waiting for a dmt release with nothing to look at.
 func writeBootstrapped(path string, content []byte) error {
 	if err := writeFileAtomic(path, content, 0o644); err != nil { //nolint:gosec // a source file of the module
-		return err
+		return fmt.Errorf("write %s: %w", rbacyaml.Filename, err)
 	}
 
-	// The TODOs and the notes in the written file are for the lint that follows --fix to report:
-	// the fix did its work. A file that does not parse would be a bug of dmt; it is written all
-	// the same, so the error can name the line.
 	if _, err := rbacyaml.Parse(content); err != nil {
-		return fmt.Errorf("%s is written, but it does not parse (%w); the declaration is complete apart from that line -- most likely a note in the header that lost its '#': fix or delete the line. This is a bug of dmt, report it with the module",
+		return fmt.Errorf("the written %s does not parse, most likely a note of its header that lost its '#' (a bug of dmt: fix or delete the line, and report it with the module): %w",
 			rbacyaml.Filename, err)
 	}
 
