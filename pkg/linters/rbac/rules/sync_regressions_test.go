@@ -186,9 +186,9 @@ func TestSyncRegression_UnrenderedMoveWritesTwice(t *testing.T) {
 	assert.False(t, inSource && inTarget, "the account is defined in both templates after --fix")
 }
 
-// P6: a contract 1 capability file the declaration drops is announced as deleted by --fix, and
-// the fix refuses: the text parse does not recognize the capability label the generator writes.
-func TestSyncRegression_ContractOneCapabilityOrphanRefused(t *testing.T) {
+// P6: a capability file the declaration drops is a lint finding: the capabilities it renders are
+// named, and the autofix deletes no file.
+func TestSyncRegression_DroppedCapabilityFileIsALintFinding(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
 
@@ -197,7 +197,6 @@ func TestSyncRegression_ContractOneCapabilityOrphanRefused(t *testing.T) {
 	modulePath := syncModuleDir(t)
 	model := syncModel(t, modulePath)
 	writeGenerated(t, modulePath, model)
-	asContractOne(t, filepath.Join(modulePath, rel))
 
 	store := renderedFrom(t, model, nil)
 
@@ -220,16 +219,8 @@ func TestSyncRegression_ContractOneCapabilityOrphanRefused(t *testing.T) {
 	list := runSync(t, modulePath, store)
 	joined := strings.Join(texts(list), "\n")
 	require.Contains(t, joined, rel+" does not match rbac.yaml")
-	t.Logf("findings:\n%s", joined)
-
-	for _, fix := range list.GetFixes() {
-		fix()
-	}
-
-	t.Logf("fix errors:\n%s", probeFixMessages(list))
-
-	_, err = os.Stat(filepath.Join(modulePath, rel))
-	assert.True(t, os.IsNotExist(err), "the finding says --fix deletes the file")
+	assert.Contains(t, joined, "is in the render but rbac.yaml does not produce it")
+	assertLintOnly(t, list, modulePath)
 }
 
 // P7: a `when` on deckhouseVersion that the declaration drops turns the generated file into a
@@ -267,9 +258,9 @@ func TestSyncRegression_DroppedVersionWhenLooksLikeAGate(t *testing.T) {
 	assert.NotContains(t, msgs, "renders one of two role models", "the file never had a gate")
 }
 
-// P8: in a contract 1 file, a legacy role excluded from sync (exclude-rules.sync) is dropped by
-// a regeneration, and the removal is neither reported nor logged.
-func TestSyncRegression_ExcludedLegacyRoleDroppedFromContractOne(t *testing.T) {
+// P8: a legacy role excluded from sync (exclude-rules.sync) is not dropped by a rewrite without a
+// word: it keeps the file as it is.
+func TestSyncRegression_ExcludedLegacyRoleIsKept(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
 
@@ -280,7 +271,6 @@ func TestSyncRegression_ExcludedLegacyRoleDroppedFromContractOne(t *testing.T) {
 	writeGenerated(t, modulePath, model)
 
 	fullPath := filepath.Join(modulePath, rel)
-	asContractOne(t, fullPath)
 
 	extra := generate.Object{Kind: "ClusterRole", Name: "d8:user-authz:cert-manager:kept-by-hand", Class: generate.ClassLegacy,
 		Annotations: map[string]string{"user-authz.deckhouse.io/access-level": "User"},

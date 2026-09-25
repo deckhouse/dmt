@@ -1,6 +1,6 @@
 description: >
-  A generated capability file that is missing is reported by sync; --fix writes it from rbac.yaml
-  and the finding is resolved in the same run (nothing is dropped, so the safeguard lets it through).
+  A capability file the declaration produces is missing and is reported by sync; --fix writes it
+  from rbac.yaml and the finding is resolved in the same run.
 kind: fix
 module: module
 expectPass:
