@@ -60,9 +60,9 @@ var (
 	}
 
 	capabilityNamePrefix = map[string]string{
-		"system":    "d8:system-capability:",
+		"system":    rbaccontract.SystemCapabilityPrefix,
 		"subsystem": "d8:subsystem-capability:",
-		"namespace": "d8:namespace-capability:",
+		"namespace": rbaccontract.NamespaceCapabilityPrefix,
 		"project":   "d8:project-capability:",
 	}
 
