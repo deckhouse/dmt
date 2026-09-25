@@ -24,23 +24,6 @@ import (
 	"strings"
 )
 
-// Rendered is the text of one generated file.
-type Rendered struct {
-	Path    string
-	Content string
-}
-
-// Render writes every file of the model as a Helm template. The output is a pure function of the
-// model: the same declaration always renders the same bytes.
-func Render(m *Model) []Rendered {
-	out := make([]Rendered, 0, len(m.Files))
-	for _, f := range m.Files {
-		out = append(out, Rendered{Path: f.Path, Content: RenderFile(f)})
-	}
-
-	return out
-}
-
 // RenderFile renders one file: each object as its own YAML document, wrapped in
 // {{- if <when> }} when the object is conditional.
 func RenderFile(f File) string {

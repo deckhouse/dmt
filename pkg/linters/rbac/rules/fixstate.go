@@ -42,7 +42,7 @@ import (
 var fixState = struct {
 	sync.Mutex
 	withheld  map[string]struct{}
-	removals  map[string]map[string]struct{}
+	changes   map[string]map[string]struct{}
 	bootstrap map[string]map[string]bootstrap.Object
 	// variants counts the render variants that recorded bootstrap objects, seen how many of them
 	// rendered each object: under --matrix an object seen in fewer renders only under some values.
@@ -52,7 +52,7 @@ var fixState = struct {
 	in map[string]map[string]string
 }{
 	withheld:  map[string]struct{}{},
-	removals:  map[string]map[string]struct{}{},
+	changes:   map[string]map[string]struct{}{},
 	bootstrap: map[string]map[string]bootstrap.Object{},
 	variants:  map[string]int{},
 	seen:      map[string]map[string]int{},
@@ -100,24 +100,6 @@ func fixWithheld(file string) bool {
 	_, ok := fixState.withheld[file]
 
 	return ok
-}
-
-// resetFixState forgets everything; tests call it between runs.
-func resetFixState() {
-	fixState.Lock()
-	defer fixState.Unlock()
-
-	fixState.withheld = map[string]struct{}{}
-	fixState.removals = map[string]map[string]struct{}{}
-	fixState.bootstrap = map[string]map[string]bootstrap.Object{}
-	fixState.variants = map[string]int{}
-	fixState.seen = map[string]map[string]int{}
-	fixState.in = map[string]map[string]string{}
-
-	fixOutcomes.Lock()
-	defer fixOutcomes.Unlock()
-
-	fixOutcomes.done = map[string]error{}
 }
 
 // recordBootstrapObjects adds the RBAC objects one render variant produced, for the first
@@ -274,30 +256,30 @@ func writeFileAtomic(path string, content []byte, perm os.FileMode) error {
 	return nil
 }
 
-// recordRemovals adds what one render variant says a fix of the file takes away, so that the log
-// of the fix names the removals of every variant, not only of the one whose closure runs.
-func recordRemovals(file string, removals []string) {
+// recordChanges adds what one render variant says a fix of the file changes, so that the log
+// of the fix names the changes of every variant, not only of the one whose closure runs.
+func recordChanges(file string, changes []string) {
 	fixState.Lock()
 	defer fixState.Unlock()
 
-	known := fixState.removals[file]
+	known := fixState.changes[file]
 	if known == nil {
 		known = map[string]struct{}{}
-		fixState.removals[file] = known
+		fixState.changes[file] = known
 	}
 
-	for _, r := range removals {
+	for _, r := range changes {
 		known[r] = struct{}{}
 	}
 }
 
-// recordedRemovals returns the union of the removals every variant recorded for the file, sorted.
-func recordedRemovals(file string) []string {
+// recordedChanges returns the union of the changes every variant recorded for the file, sorted.
+func recordedChanges(file string) []string {
 	fixState.Lock()
 	defer fixState.Unlock()
 
-	out := make([]string, 0, len(fixState.removals[file]))
-	for r := range fixState.removals[file] {
+	out := make([]string, 0, len(fixState.changes[file]))
+	for r := range fixState.changes[file] {
 		out = append(out, r)
 	}
 
