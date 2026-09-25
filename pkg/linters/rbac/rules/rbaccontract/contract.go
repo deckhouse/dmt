@@ -138,16 +138,6 @@ var Verbs = append(slices.Clone(ResourceVerbs), "*")
 // ResourceVerbs are the verbs a rule may list, without the wildcard.
 var ResourceVerbs = []string{"get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"}
 
-// AllLineages returns every lineage a capability label may name: the three base lineages and
-// the seven subsystems.
-func AllLineages() []string {
-	out := make([]string, 0, 3+len(Subsystems))
-	out = append(out, LineageNamespace, LineageProject, LineageSystem)
-	out = append(out, Subsystems...)
-
-	return out
-}
-
 // LevelsOf returns the levels the given lineage accepts, or nil for an unknown lineage.
 func LevelsOf(lineage string) []string {
 	switch lineage {
@@ -206,10 +196,6 @@ func LevelOfAction(action string) string {
 func BindingSuffix(roleName string) string {
 	return strings.ReplaceAll(strings.TrimPrefix(roleName, "d8:"), ":", "-")
 }
-
-// ConventionalActions are the capability actions whose localized texts come from the platform
-// convention and need no capabilities entry in rbac.yaml.
-var ConventionalActions = []string{"view", "edit"}
 
 // IsConventionalAction reports whether the texts of a capability with this action are supplied
 // by the platform (view/edit) rather than by the declaration.
