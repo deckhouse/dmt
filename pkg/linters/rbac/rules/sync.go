@@ -123,7 +123,7 @@ func (r *SyncRule) Check(_ context.Context) {
 	}
 
 	if overlay != "" {
-		declList.WithFix(manualFix("move the declaration out of the edition overlay")).Errorf("%s lies in the edition overlay %s; the declaration describes the union of editions and belongs to modules/<module>/ only -- CI merges the overlays over modules/ before linting, so a copy here would shadow it or go unseen. Only a person can close this: move the file",
+		declList.Errorf("%s lies in the edition overlay %s; the declaration describes the union of editions and belongs to modules/<module>/ only -- CI merges the overlays over modules/ before linting, so a copy here would shadow it or go unseen: move the file",
 			rbacyaml.Filename, overlay)
 
 		return
@@ -131,11 +131,11 @@ func (r *SyncRule) Check(_ context.Context) {
 
 	if err != nil {
 		if content, readErr := os.ReadFile(rbacyaml.Path(modulePath)); readErr == nil && !strings.Contains(string(content), "apiVersion:") {
-			declList.WithFix(manualFix("delete the rbac.yaml of an earlier shape")).Errorf("%s is not a declaration (no apiVersion): an rbac.yaml of an earlier shape that nothing reads; delete it and run `%s` to write the declaration from the render", rbacyaml.Filename, FixCommand)
+			declList.Errorf("%s is not a declaration (no apiVersion): an rbac.yaml of an earlier shape that nothing reads; delete it and run `%s` to write the declaration from the render", rbacyaml.Filename, FixCommand)
 			return
 		}
 
-		declList.WithFix(manualFix("make the declaration parse")).Errorf("%v; nothing is compared or generated until the declaration parses", err)
+		declList.Errorf("%v; nothing is compared or generated until the declaration parses", err)
 
 		return
 	}
@@ -146,13 +146,13 @@ func (r *SyncRule) Check(_ context.Context) {
 
 	meta, err := readModuleMetadata(modulePath)
 	if err != nil {
-		r.errorList.WithFilePath("module.yaml").WithFix(manualFix("make module.yaml parse")).Errorf("%v; nothing is compared or generated until it parses: its subsystems decide the aggregation of every system capability", err)
+		r.errorList.WithFilePath("module.yaml").Errorf("%v; nothing is compared or generated until it parses: its subsystems decide the aggregation of every system capability", err)
 		return
 	}
 
 	if errs := rbacyaml.Validate(decl, crdScopes(crds)); len(errs) > 0 {
 		for _, e := range errs {
-			declList.WithFix(manualFix("correct the declaration")).Errorf("%v; nothing is compared or generated until the declaration is valid", e)
+			declList.Errorf("%v; nothing is compared or generated until the declaration is valid", e)
 		}
 
 		return
@@ -169,7 +169,7 @@ func (r *SyncRule) Check(_ context.Context) {
 		Decl:       decl,
 	})
 	if err != nil {
-		declList.WithFix(manualFix("correct the declaration")).Errorf("cannot derive the RBAC objects from the declaration: %v", err)
+		declList.Errorf("cannot derive the RBAC objects from the declaration: %v", err)
 		return
 	}
 
@@ -1275,7 +1275,7 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 
 	meta, err := readModuleMetadata(modulePath)
 	if err != nil {
-		r.errorList.WithFilePath("module.yaml").WithFix(manualFix("make module.yaml parse")).Errorf("%v; the declaration is not written until it parses", err)
+		r.errorList.WithFilePath("module.yaml").Errorf("%v; the declaration is not written until it parses", err)
 		return
 	}
 
