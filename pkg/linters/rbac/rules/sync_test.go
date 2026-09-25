@@ -149,10 +149,10 @@ func putObject(t *testing.T, store *storage.UnstructuredObjectStore, path string
 func writeGenerated(t *testing.T, modulePath string, model *generate.Model) {
 	t.Helper()
 
-	for _, r := range generate.Render(model) {
-		full := filepath.Join(modulePath, r.Path)
+	for _, f := range model.Files {
+		full := filepath.Join(modulePath, f.Path)
 		require.NoError(t, os.MkdirAll(filepath.Dir(full), 0o755))
-		require.NoError(t, os.WriteFile(full, []byte(r.Content), 0o600))
+		require.NoError(t, os.WriteFile(full, []byte(generate.RenderFile(f)), 0o600))
 	}
 }
 

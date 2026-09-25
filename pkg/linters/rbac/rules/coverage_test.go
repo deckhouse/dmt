@@ -190,9 +190,7 @@ resources:
 	// present entry alone byte for byte.
 	assert.Empty(t, runCoverage(t, modulePath).GetFixes())
 
-	added, err := appendStub(rbacyaml.Path(modulePath), "a.io", "alphas")
-	require.NoError(t, err)
-	assert.False(t, added)
+	require.NoError(t, appendStub(rbacyaml.Path(modulePath), "a.io", "alphas"))
 
 	unchanged, err := os.ReadFile(rbacyaml.Path(modulePath))
 	require.NoError(t, err)
@@ -220,9 +218,7 @@ func TestAppendStub_ScalarResources(t *testing.T) {
 		rbacyaml.Filename: "apiVersion: rbac.deckhouse.io/v1alpha1\nresources: null\n",
 	})
 
-	added, err := appendStub(rbacyaml.Path(modulePath), "a.io", "alphas")
-	require.NoError(t, err)
-	assert.True(t, added)
+	require.NoError(t, appendStub(rbacyaml.Path(modulePath), "a.io", "alphas"))
 
 	content, err := os.ReadFile(rbacyaml.Path(modulePath))
 	require.NoError(t, err)

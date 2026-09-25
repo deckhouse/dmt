@@ -960,7 +960,7 @@ func regenerateFix(modulePath string, file generate.File, changes []string) erro
 	// Under --matrix the module is linted once per render variant and every variant collects its
 	// own finding with its own closure. Each records what its render changes, while the store
 	// exists; the closure that runs first writes and logs the union (R36).
-	recordRemovals(fullPath, changes)
+	recordChanges(fullPath, changes)
 
 	return func() error {
 		return fixOnce(fullPath, func() error {
@@ -994,7 +994,7 @@ func regenerateFix(modulePath string, file generate.File, changes []string) erro
 
 			// The declaration is the source: what it no longer names left the file. Say so where a
 			// --fix run without a preceding lint would otherwise remove it in silence.
-			if changes := recordedRemovals(fullPath); len(changes) > 0 {
+			if changes := recordedChanges(fullPath); len(changes) > 0 {
 				// The divergences go both ways: what the render has and the declaration does not
 				// leaves, what the declaration has and the render lacks arrives.
 				added, removed := splitChanges(changes)
@@ -1056,7 +1056,7 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 
 	markLibraryFiles(in.Objects)
 
-	in.Unrendered = unrenderedObjects(modulePath, in.Objects)
+	// The notes on what no render showed are for the written file: the fix reads the templates.
 	result := bootstrap.Build(in)
 	described := len(in.Objects) - len(result.Unmanaged)
 	path := rbacyaml.Path(modulePath)

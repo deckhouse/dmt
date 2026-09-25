@@ -358,7 +358,7 @@ func TestSyncRegression_RightsChangesMissingFromRemovalLog(t *testing.T) {
 			list := runSync(t, modulePath, renderedFrom(t, model, tc.tweak))
 			t.Logf("findings:\n%s", strings.Join(texts(list), "\n"))
 
-			assert.NotEmpty(t, recordedRemovals(fullPath), "the rights change is not among the removals the fix logs")
+			assert.NotEmpty(t, recordedChanges(fullPath), "the rights change is not among the removals the fix logs")
 		})
 	}
 }
