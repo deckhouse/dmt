@@ -414,11 +414,17 @@ func TestLocate_LibraryDocumentsMustAgree(t *testing.T) {
 
 	require.Equal(t, 2, library)
 
-	_, ok := Locate(docs, Object{Kind: "ClusterRole", Name: "d8:m:user"})
-	assert.False(t, ok, "the two includes disagree on the condition")
-
-	agreeing := TemplateDocs("{{ include \"a\" . }}\n---\n{{ include \"b\" . }}\n")
-	d, ok := Locate(agreeing, Object{Kind: "ClusterRole", Name: "d8:m:user"})
+	// Disagreeing, they still say a library renders the object, its condition unknown.
+	d, ok := Locate(docs, Object{Kind: "ClusterRole", Name: "d8:m:user"})
 	require.True(t, ok)
 	assert.True(t, d.Library)
+	assert.Equal(t, "rendered by includes of named templates under different conditions (no condition; `.Values.x`), so its condition is unknown", d.Unmanageable)
+	assert.True(t, strings.HasPrefix(d.When, "TODO: "), d.When)
+
+	agreeing := TemplateDocs("{{ include \"a\" . }}\n---\n{{ include \"b\" . }}\n")
+	d, ok = Locate(agreeing, Object{Kind: "ClusterRole", Name: "d8:m:user"})
+	require.True(t, ok)
+	assert.True(t, d.Library)
+	assert.Empty(t, d.When)
+	assert.Empty(t, d.Unmanageable)
 }

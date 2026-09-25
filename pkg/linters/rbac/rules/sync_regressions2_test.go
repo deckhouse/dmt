@@ -19,17 +19,20 @@ package rules
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/gojuno/minimock/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	rbacv1 "k8s.io/api/rbac/v1"
 
 	"github.com/deckhouse/dmt/internal/mocks"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/bootstrap"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/generate"
+	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbaccontract"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbacyaml"
 )
 
@@ -157,6 +160,49 @@ func TestLocateInTemplate_Subchart(t *testing.T) {
 
 	assert.True(t, o.Located)
 	assert.Equal(t, "rendered by the subchart sub, whose templates and values are its own", o.Unmanageable)
+}
+
+// Objects of includes under different conditions stay the library's: they are not imported as
+// the module's own and their file is not generated. A legacy role sync owns by class is imported
+// with a TODO reason, so the run stays red (review of #480).
+func TestLocateInTemplate_LibraryIncludesUnderDifferentConditions(t *testing.T) {
+	modulePath := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(modulePath, "templates"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(modulePath, "templates", "rbac-for-us.yaml"), []byte(`{{ include "helm_lib_csi_controller_rbac" . }}
+---
+{{- if .Values.m.on }}
+{{ include "helm_lib_other_rbac" . }}
+{{- end }}
+`), 0o600))
+
+	labels := map[string]string{"module": "m"}
+	objects := []bootstrap.Object{
+		{Kind: "ServiceAccount", Name: "csi", Namespace: "d8-m", Path: "templates/rbac-for-us.yaml", Labels: labels},
+		{Kind: "ClusterRole", Name: "d8:m:user", Path: "templates/rbac-for-us.yaml", Labels: labels,
+			Annotations: map[string]string{rbaccontract.AccessLevelAnnotation: "User"},
+			Rules:       []rbacv1.PolicyRule{{APIGroups: []string{"x.io"}, Resources: []string{"things"}, Verbs: []string{"get"}}}},
+	}
+
+	cache := map[string][]bootstrap.Doc{}
+	for i := range objects {
+		locateInTemplate(modulePath, &objects[i], cache)
+
+		assert.True(t, objects[i].Library, "%s is rendered by a library", objects[i].Name)
+		assert.Contains(t, objects[i].Unmanageable, "under different conditions (no condition; `.Values.m.on`)")
+	}
+
+	markLibraryFiles(objects)
+	assert.True(t, objects[0].LibraryFile, "the file is not generatable")
+
+	got := bootstrap.Build(bootstrap.Input{Module: "m", Namespace: "d8-m", Objects: objects, CRDs: map[string]string{"x.io/things": "Namespaced"}})
+
+	unmanaged := strings.Join(got.Unmanaged, "\n")
+	assert.Contains(t, unmanaged, "ServiceAccount/csi (templates/rbac-for-us.yaml): rendered by includes of named templates under different conditions")
+	assert.NotContains(t, strings.Join(got.Notes, "\n"), "was not found in the text of its template")
+	assert.Empty(t, got.Decl.ServiceAccounts, "the library's account is not the module's")
+
+	require.Len(t, got.Decl.Resources, 1, "the legacy role is sync's whatever renders it")
+	assert.Contains(t, got.Decl.Resources[0].Reason, "TODO: ClusterRole d8:m:user renders under `TODO: rendered by includes under different conditions")
 }
 
 // A declaration bootstrap produced that does not parse is a bug of dmt, yet it is written: the

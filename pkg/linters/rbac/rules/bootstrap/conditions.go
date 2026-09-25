@@ -18,6 +18,7 @@ package bootstrap
 
 import (
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"text/template/parse"
@@ -482,9 +483,39 @@ func Locate(docs []Doc, o Object) (Doc, bool) {
 
 	for _, d := range library[1:] {
 		if d.When != library[0].When || d.Unmanageable != library[0].Unmanageable {
-			return Doc{}, false
+			return disagreeingLibrary(library), true
 		}
 	}
 
 	return library[0], true
+}
+
+// disagreeingLibrary is the answer for includes under different conditions: a library renders the
+// object, which of them is unknown. The object stays a library one; one sync owns by class gets a
+// TODO condition, so the run stays red (review of #480).
+func disagreeingLibrary(library []Doc) Doc {
+	var conditions []string
+
+	for _, d := range library {
+		c := "no condition"
+
+		switch {
+		case d.Unmanageable != "":
+			c = d.Unmanageable
+		case d.When != "":
+			c = "`" + d.When + "`"
+		}
+
+		if !slices.Contains(conditions, c) {
+			conditions = append(conditions, c)
+		}
+	}
+
+	list := strings.Join(conditions, "; ")
+
+	return Doc{
+		Library:      true,
+		When:         "TODO: rendered by includes under different conditions (" + list + "); write the one it renders under",
+		Unmanageable: "rendered by includes of named templates under different conditions (" + list + "), so its condition is unknown",
+	}
 }
