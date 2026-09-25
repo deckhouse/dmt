@@ -1188,9 +1188,10 @@ var (
 	// wrapperLineRe matches the lines the declaration writes between objects: its conditions and
 	// their ends. Anything else outside an object is content the lint does not understand.
 	wrapperLineRe = regexp.MustCompile(`^\s*(\{\{-?\s*(if|else|end)\b[^}]*-?\}\}\s*)*$`)
-	// abortingActionRe matches what a condition line may call that the declaration never writes:
-	// an abort of the render or content of its own (a `when` is a Helm expression over the values).
-	abortingActionRe = regexp.MustCompile(`\b(fail|required|include|tpl)\b`)
+	// abortingActionRe matches what a condition line may call that the declaration never writes: an
+	// abort of the render. An include in a condition decides whether the document renders, not
+	// what it holds, and a `when` may call one (include "<chart>.<helper>" .).
+	abortingActionRe = regexp.MustCompile(`\b(fail|required)\b`)
 	// labelsLineRe is the only other template action the generator writes: the module labels, with
 	// no labels of its own or a dict of quoted literals (generate.labelsInclude). Anything else on
 	// that line -- another include, labels from the values -- is not the generator's (review of
