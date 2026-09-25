@@ -577,12 +577,7 @@ func replacedByProduced(object storage.StoreObject, produced []generate.Object, 
 				continue
 			}
 
-			always, conditional := expandModelRules(o.Rules)
-			for t := range conditional {
-				always.add(t)
-			}
-
-			if len(always.minus(got)) == 0 && len(got.minus(always)) == 0 {
+			if grantsExactly(o, got) {
 				return true
 			}
 		}
@@ -634,15 +629,21 @@ func roleRefMatches(producedBinding generate.Object, renderedRef rbacv1.RoleRef,
 			continue
 		}
 
-		always, conditional := expandModelRules(o.Rules)
-		for t := range conditional {
-			always.add(t)
-		}
-
-		return len(always.minus(rendered)) == 0 && len(rendered.minus(always)) == 0
+		return grantsExactly(o, rendered)
 	}
 
 	return false
+}
+
+// grantsExactly reports whether a produced object grants what the rendered rules grant: its rules
+// under a condition count too, since the render being compared may hold them.
+func grantsExactly(o generate.Object, got tupleSet) bool {
+	want, conditional := expandModelRules(o.Rules)
+	for t := range conditional {
+		want.add(t)
+	}
+
+	return len(want.minus(got)) == 0 && len(got.minus(want)) == 0
 }
 
 func subjectSet(list []rbacv1.Subject) string {
@@ -690,7 +691,7 @@ func (r *SyncRule) managedObjects(model *generate.Model) map[string]managedObjec
 
 		switch {
 		case object.Unstructured.GetKind() == "ClusterRole" && annotations[rbaccontract.AccessLevelAnnotation] != "":
-			out[identity] = managedObject{object, generate.ClassLegacy}
+			out[identity] = managedObject{object: object, class: generate.ClassLegacy}
 		case object.Unstructured.GetKind() == "ClusterRole" && labels[rbaccontract.LabelKind] == rbaccontract.KindCapability && labels[rbaccontract.LabelModule] == r.module.GetName() &&
 			isModuleCapabilityName(object.Unstructured.GetName(), r.module.GetName()):
 			// Only the capabilities the declaration can produce: the module's own, in the namespace
@@ -698,10 +699,10 @@ func (r *SyncRule) managedObjects(model *generate.Model) map[string]managedObjec
 			// platform-wide ones named after a lineage rather than the module (user-authz,
 			// multitenancy-manager); the format has no place for them, so they stay hand-written
 			// and are neither generated nor "extra" (D2).
-			out[identity] = managedObject{object, generate.ClassCapability}
+			out[identity] = managedObject{object: object, class: generate.ClassCapability}
 		default:
 			if _, ok := declared[identity]; ok {
-				out[identity] = managedObject{object, generate.ClassDeclared}
+				out[identity] = managedObject{object: object, class: generate.ClassDeclared}
 			}
 		}
 	}
@@ -1017,9 +1018,9 @@ func isModuleCapabilityName(name, module string) bool {
 // creates the file"). From then on rbac.yaml is the source and the templates follow it.
 func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 	modulePath := r.module.GetPath()
-	storage := r.module.GetStorage()
+	store := r.module.GetStorage()
 
-	if len(storage) == 0 {
+	if len(store) == 0 {
 		return
 	}
 
@@ -1034,7 +1035,7 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 
 	docs := map[string][]bootstrap.Doc{}
 
-	for _, object := range storage {
+	for _, object := range store {
 		if o, ok := bootstrapObject(object); ok {
 			locateInTemplate(modulePath, &o, docs)
 			in.Objects = append(in.Objects, o)
@@ -1399,14 +1400,7 @@ func renderedTwin(object storage.StoreObject, produced []generate.Object, render
 				continue
 			}
 
-			got := expandRenderedRules(role.Rules)
-			always, conditional := expandModelRules(o.Rules)
-
-			for t := range conditional {
-				always.add(t)
-			}
-
-			if len(always.minus(got)) == 0 && len(got.minus(always)) == 0 {
+			if grantsExactly(o, expandRenderedRules(role.Rules)) {
 				return o.Identity()
 			}
 		case "ClusterRoleBinding", "RoleBinding":
