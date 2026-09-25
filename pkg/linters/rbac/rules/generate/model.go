@@ -108,30 +108,6 @@ func (o Object) Identity() string {
 	return o.Namespace + "/" + o.Kind + "/" + o.Name
 }
 
-// AggregationLabels returns the (lineage, level) pairs of a capability, sorted by lineage.
-func (o Object) AggregationLabels() []LineageLevel {
-	out := make([]LineageLevel, 0, len(o.Labels))
-
-	for key, value := range o.Labels {
-		if strings.HasPrefix(key, rbaccontract.AggregationLabelPrefix) && strings.HasSuffix(key, rbaccontract.AggregationLabelSuffix) {
-			out = append(out, LineageLevel{
-				Lineage: strings.TrimSuffix(strings.TrimPrefix(key, rbaccontract.AggregationLabelPrefix), rbaccontract.AggregationLabelSuffix),
-				Level:   value,
-			})
-		}
-	}
-
-	sort.Slice(out, func(i, j int) bool { return out[i].Lineage < out[j].Lineage })
-
-	return out
-}
-
-// LineageLevel is one aggregation edge of a capability.
-type LineageLevel struct {
-	Lineage string
-	Level   string
-}
-
 // File is one generated template with its objects in order.
 type File struct {
 	// Path is relative to the module root.
@@ -153,16 +129,6 @@ func (m *Model) File(path string) *File {
 	}
 
 	return nil
-}
-
-// Paths returns the generated paths in order.
-func (m *Model) Paths() []string {
-	out := make([]string, 0, len(m.Files))
-	for _, f := range m.Files {
-		out = append(out, f.Path)
-	}
-
-	return out
 }
 
 // Build derives the object model from the declaration. The declaration must have passed

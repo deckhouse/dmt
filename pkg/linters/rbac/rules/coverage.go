@@ -185,7 +185,7 @@ func appendStubFix(modulePath string, crd crdInfo) errors.AutofixFunc {
 	return func() error {
 		// One stub per CRD per run, however many render variants reported it (R36).
 		return fixOnce(path+"#"+crd.Key(), func() error {
-			if _, err := appendStub(path, crd.Group, crd.Plural); err != nil {
+			if err := appendStub(path, crd.Group, crd.Plural); err != nil {
 				return fmt.Errorf("add a stub for %s to %s: %w", crd.Key(), rbacyaml.Filename, err)
 			}
 
@@ -195,21 +195,21 @@ func appendStubFix(modulePath string, crd crdInfo) errors.AutofixFunc {
 }
 
 // appendStub adds `- group: <group>\n  resource: <resource>\n  noAccess: "TODO"` to the
-// resources of the declaration, keeping the rest of the file -- comments included -- as it is.
-// It reports whether anything was written.
-func appendStub(path, group, resource string) (bool, error) {
+// resources of the declaration, keeping the rest of the file -- comments included -- as it is. An
+// entry already present is left alone.
+func appendStub(path, group, resource string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	var root yaml.Node
 	if err := yaml.Unmarshal(data, &root); err != nil {
-		return false, err
+		return err
 	}
 
 	if root.Kind != yaml.DocumentNode || len(root.Content) != 1 || root.Content[0].Kind != yaml.MappingNode {
-		return false, stderrors.New("the file is not a YAML mapping")
+		return stderrors.New("the file is not a YAML mapping")
 	}
 
 	doc := root.Content[0]
@@ -229,7 +229,7 @@ func appendStub(path, group, resource string) (bool, error) {
 
 	for _, item := range resources.Content {
 		if scalarValue(mappingValue(item, "group")) == group && scalarValue(mappingValue(item, "resource")) == resource {
-			return false, nil
+			return nil
 		}
 	}
 
@@ -249,19 +249,19 @@ func appendStub(path, group, resource string) (bool, error) {
 	encoder.SetIndent(2)
 
 	if err := encoder.Encode(&root); err != nil {
-		return false, err
+		return err
 	}
 
 	if err := encoder.Close(); err != nil {
-		return false, err
+		return err
 	}
 
 	info, err := os.Stat(path)
 	if err != nil {
-		return false, err
+		return err
 	}
 
-	return true, writeFileAtomic(path, buf.Bytes(), info.Mode().Perm())
+	return writeFileAtomic(path, buf.Bytes(), info.Mode().Perm())
 }
 
 // mappingValue returns the value node of key in a mapping node, or nil.
