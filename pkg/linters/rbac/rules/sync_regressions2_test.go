@@ -205,10 +205,9 @@ func TestLocateInTemplate_LibraryIncludesUnderDifferentConditions(t *testing.T) 
 	assert.Contains(t, got.Decl.Resources[0].Reason, "TODO: ClusterRole d8:m:user renders under `TODO: rendered by includes under different conditions")
 }
 
-// A declaration bootstrap produced that does not parse is a bug of dmt, yet it is written: the
-// error names the line, the developer fixes it and goes on. The next lint reads the file, it does
-// not bootstrap again.
-func TestWriteBootstrapped_UnparsableIsWrittenWithTheLine(t *testing.T) {
+// A declaration bootstrap produced that does not parse would be a bug of dmt; the fix writes it and
+// succeeds, and the next lint reports it with the line instead of bootstrapping again.
+func TestWriteBootstrapped_UnparsableIsALintFinding(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
 
@@ -216,20 +215,17 @@ func TestWriteBootstrapped_UnparsableIsWrittenWithTheLine(t *testing.T) {
 	path := rbacyaml.Path(modulePath)
 	require.NoError(t, os.Remove(path))
 
-	broken := []byte("# Written by dmt\n# - a note over\n  two lines that lost its #\napiVersion: rbac.deckhouse.io/v1alpha1\n")
+	broken := []byte("# The module RBAC declaration\n# - a note over\n  two lines that lost its #\napiVersion: rbac.deckhouse.io/v1alpha1\n")
 
-	err := writeBootstrapped(path, broken)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "the written rbac.yaml does not parse")
-	assert.Contains(t, err.Error(), "line 3")
-	assert.Contains(t, err.Error(), "fix or delete the line")
+	require.NoError(t, writeBootstrapped(path, broken))
 
 	written, readErr := os.ReadFile(path)
 	require.NoError(t, readErr)
 	assert.Equal(t, broken, written)
 
 	got := strings.Join(texts(runSync(t, modulePath, renderedFrom(t, syncModelFromFixture(t), nil))), "\n")
-	assert.Contains(t, got, "nothing is compared or generated until the declaration parses")
+	assert.Contains(t, got, "line 3")
+	assert.Contains(t, got, "until the declaration parses")
 	assert.NotContains(t, got, "rbac.yaml is missing")
 }
 

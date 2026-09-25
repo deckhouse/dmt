@@ -1654,7 +1654,7 @@ whole file.
 The fix writes the file and succeeds. Every `TODO` in it and everything the linter refuses in it are
 lint findings of the run that follows `--fix`: a `TODO` in `resources` is reported by `coverage`, one in a
 `when` by the validation of `sync`. A written file that does not parse would be a bug of dmt; it is
-written all the same, and the fix error carries the parse error. Nothing is written into an edition
+written all the same, and the lint that follows reports the line. Nothing is written into an edition
 overlay. Review the file, resolve the TODOs, then run `--fix` again to bring the templates in line with
 it. From then on `rbac.yaml` is the source.
 
