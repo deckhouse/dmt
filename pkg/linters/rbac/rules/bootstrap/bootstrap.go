@@ -216,7 +216,7 @@ func Build(in Input) Result {
 	}
 
 	for _, u := range in.Unrendered {
-		b.note("%s is in the templates but did not render with the linter's values, so this declaration does not hold it -- add it (with its `when`), or lint with --values-file values that render it, before the templates are regenerated", u)
+		b.note("%s is in the templates but did not render with the linter's values, so this declaration does not hold it -- add it (with its `when`), or lint with --values-file values that render it, before --fix rewrites the templates", u)
 	}
 
 	b.templateBlocks()
@@ -339,7 +339,7 @@ func (b *builder) ownedByClass(o Object) bool {
 }
 
 // conditional records a capability or a legacy role under a condition against the resources it
-// grants: resources[] have no `when`, so the regenerated role would render -- and aggregate into
+// grants: resources[] have no `when`, so the rewritten role would render -- and aggregate into
 // user roles -- for every value. The entries get a TODO reason, a decision the run stays red for
 // (review of #479, finding 33).
 func (b *builder) conditional(o Object) {
@@ -368,7 +368,7 @@ func (b *builder) conditional(o Object) {
 
 // conditionalReason puts the conditions of the roles granting a resource in front of its reason.
 func conditionalReason(conditions []string, reason string) string {
-	todo := "TODO: " + strings.Join(conditions, "; ") + "; resources[] have no `when`, so the regenerated role would render for every value -- decide, then write the reason"
+	todo := "TODO: " + strings.Join(conditions, "; ") + "; resources[] have no `when`, so the rewritten role would render for every value -- decide, then write the reason"
 	if reason == "" {
 		return todo
 	}
@@ -384,7 +384,7 @@ func (b *builder) capabilitiesAndLegacy() {
 
 		if level := o.Annotations[rbaccontract.AccessLevelAnnotation]; level != "" {
 			if wildcardGrant(o.Rules) {
-				why := "grants \"*\" verbs or API groups, which the declaration refuses at every level; the regeneration of " + o.Path + " removes it"
+				why := "grants \"*\" verbs or API groups, which the declaration refuses at every level; the fix of " + o.Path + " removes it"
 				if level == "SuperAdmin" {
 					why += " -- user-authz does not aggregate SuperAdmin, so the role grants nothing today"
 				}
@@ -396,7 +396,7 @@ func (b *builder) capabilitiesAndLegacy() {
 			}
 
 			if len(o.Rules) == 0 {
-				b.note("ClusterRole %s (legacy %s) has no rules and grants nothing; the declaration writes no empty legacy role, so the regeneration drops it", o.Name, level)
+				b.note("ClusterRole %s (legacy %s) has no rules and grants nothing; the declaration writes no empty legacy role, so the fix drops it", o.Name, level)
 			}
 
 			b.rename("ClusterRole", o.Name, "d8:user-authz:"+b.in.Module+":"+rbaccontract.LegacyKebab(level))
@@ -599,7 +599,7 @@ func (b *builder) serviceAccounts() {
 			}
 
 			if !maps.Equal(copyLabels(o.Labels), e.Labels) {
-				b.note("%s %s carries labels other than ServiceAccount %s; the account's objects share its labels, so the regeneration writes those", o.Kind, o.Name, sa.Name)
+				b.note("%s %s carries labels other than ServiceAccount %s; the account's objects share its labels, so the fix writes those", o.Kind, o.Name, sa.Name)
 			}
 
 			switch {
@@ -1102,7 +1102,7 @@ func (b *builder) partial(o Object) bool {
 }
 
 // partialGrant records a capability or a legacy role only some render variants rendered against
-// the resources it grants: resources[] have no `when`, and the regenerated role would render for
+// the resources it grants: resources[] have no `when`, and the rewritten role would render for
 // every value, so the entries get a TODO reason the run stays red for (review of #479, finding 41).
 func (b *builder) partialGrant(o Object) {
 	// A condition read from the template is handled by conditional.
@@ -1185,7 +1185,7 @@ func (b *builder) dropped() {
 		}
 
 		if len(lost) > 0 {
-			b.note("%s %s (%s) carries what the format does not describe (%s); the regeneration drops it", o.Kind, o.Name, o.Path, strings.Join(lost, ", "))
+			b.note("%s %s (%s) carries what the format does not describe (%s); the fix drops it", o.Kind, o.Name, o.Path, strings.Join(lost, ", "))
 		}
 	}
 }
@@ -1198,7 +1198,7 @@ func (b *builder) sharedWithDeclared() {
 	for _, kept := range b.partialKept {
 		for _, o := range b.in.Objects {
 			if o.Path == kept.Path && b.isUsed(o) && !b.unmanagedIDs[o.identity()] {
-				b.note("%s %s stays hand-written in %s, which the declaration also writes: move it to the rbac-for-us.yaml of another component directory before `--fix` (the placement rule accepts it in any), or regenerating %s drops it", kept.Kind, kept.Name, kept.Path, kept.Path)
+				b.note("%s %s stays hand-written in %s, which the declaration also writes: move it to the rbac-for-us.yaml of another component directory before `--fix` (the placement rule accepts it in any), or the fix of %s drops it", kept.Kind, kept.Name, kept.Path, kept.Path)
 
 				break
 			}

@@ -18,17 +18,14 @@ package rules
 
 import (
 	"fmt"
-	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"sort"
 	"strings"
 	"sync"
 
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/bootstrap"
-	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/generate"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbaccontract"
 )
 
@@ -39,15 +36,13 @@ import (
 //   - outcomes remembers the result of the first closure that ran for a target, so the others
 //     return it instead of doing the work again, and every copy of the finding ends the run in
 //     the same state;
-//   - foreign accumulates, at lint time, the objects every variant's render placed in a file that
-//     the declaration does not produce, so the refusal to rewrite such a file judges the union
-//     rather than the render of whichever variant happened to run its closure first.
+//   - withheld names the files some variant reported without a fix: the lint found a case only a
+//     change of the templates or the declaration closes, and the fix of another variant must not
+//     rewrite the file under it.
 var fixState = struct {
 	sync.Mutex
-	foreign   map[string]map[string]struct{}
+	withheld  map[string]struct{}
 	removals  map[string]map[string]struct{}
-	blocked   map[string]map[string]struct{}
-	dropped   map[string]string
 	bootstrap map[string]map[string]bootstrap.Object
 	// variants counts the render variants that recorded bootstrap objects, seen how many of them
 	// rendered each object: under --matrix an object seen in fewer renders only under some values.
@@ -56,10 +51,8 @@ var fixState = struct {
 	// in names, per object, the variants that rendered it (review of #479, finding 52).
 	in map[string]map[string]string
 }{
-	foreign:   map[string]map[string]struct{}{},
+	withheld:  map[string]struct{}{},
 	removals:  map[string]map[string]struct{}{},
-	blocked:   map[string]map[string]struct{}{},
-	dropped:   map[string]string{},
 	bootstrap: map[string]map[string]bootstrap.Object{},
 	variants:  map[string]int{},
 	seen:      map[string]map[string]int{},
@@ -91,37 +84,22 @@ func fixOnce(key string, fix func() error) error {
 	return err
 }
 
-// recordForeignObjects adds the objects one render variant placed in the file that the declaration
-// does not produce.
-func recordForeignObjects(file string, objects []string) {
+// withholdFix records that one render variant reported the file without a fix.
+func withholdFix(file string) {
 	fixState.Lock()
 	defer fixState.Unlock()
 
-	known := fixState.foreign[file]
-	if known == nil {
-		known = map[string]struct{}{}
-		fixState.foreign[file] = known
-	}
-
-	for _, o := range objects {
-		known[o] = struct{}{}
-	}
+	fixState.withheld[file] = struct{}{}
 }
 
-// foreignObjectsOf returns, sorted, every object any render variant placed in the file that the
-// declaration does not produce.
-func foreignObjectsOf(file string) []string {
+// fixWithheld reports whether any render variant reported the file without a fix.
+func fixWithheld(file string) bool {
 	fixState.Lock()
 	defer fixState.Unlock()
 
-	out := make([]string, 0, len(fixState.foreign[file]))
-	for o := range fixState.foreign[file] {
-		out = append(out, o)
-	}
+	_, ok := fixState.withheld[file]
 
-	sort.Strings(out)
-
-	return out
+	return ok
 }
 
 // resetFixState forgets everything; tests call it between runs.
@@ -129,10 +107,8 @@ func resetFixState() {
 	fixState.Lock()
 	defer fixState.Unlock()
 
-	fixState.foreign = map[string]map[string]struct{}{}
+	fixState.withheld = map[string]struct{}{}
 	fixState.removals = map[string]map[string]struct{}{}
-	fixState.blocked = map[string]map[string]struct{}{}
-	fixState.dropped = map[string]string{}
 	fixState.bootstrap = map[string]map[string]bootstrap.Object{}
 	fixState.variants = map[string]int{}
 	fixState.seen = map[string]map[string]int{}
@@ -241,26 +217,26 @@ func templateHasGate(modulePath, shortPath string) bool {
 	return templateGated(string(content), "")
 }
 
-// gateActionRe matches a template action that tests the platform version. A mention of the word
-// in a comment or a value does not count.
-var gateActionRe = regexp.MustCompile(`\{\{[^}]*deckhouseVersion`)
+var (
+	// gateActionRe matches a template action that tests the platform version. A mention of the
+	// word in a comment or a value does not count.
+	gateActionRe = regexp.MustCompile(`\{\{[^}]*deckhouseVersion`)
+	// elseActionRe matches the other branch of a condition: a gate renders one model or the other,
+	// a `when` renders its objects or nothing.
+	elseActionRe = regexp.MustCompile(`\{\{-?\s*else\b`)
+)
 
 // templateGated reports whether a template chooses between two role models by platform version:
-// it calls the helper rbacv2-migrate-module.sh writes, or tests deckhouseVersion in an action that
-// the declaration itself did not produce. A `when` on a declared resource may test the version too;
-// that action appears in the produced content as well and is not a gate.
+// it calls the helper rbacv2-migrate-module.sh writes, or tests deckhouseVersion in an action the
+// declaration does not produce and renders something else otherwise. A `when` on a declared
+// resource may test the version too -- today, or before the declaration dropped it -- and has no
+// other branch.
 func templateGated(existing, produced string) bool {
 	if strings.Contains(existing, rbaccontract.GateMarker) {
 		return true
 	}
 
-	// A file with the generator header is the generator's: a deckhouseVersion test in it is a `when`
-	// the declaration once had, not the migration gate, even when the declaration dropped it since.
-	if generated, _ := generate.ParseHeader(existing); generated {
-		return false
-	}
-
-	return gateActionRe.MatchString(existing) && !gateActionRe.MatchString(produced)
+	return gateActionRe.MatchString(existing) && !gateActionRe.MatchString(produced) && elseActionRe.MatchString(existing)
 }
 
 // writeFileAtomic writes content to path through a temporary file in the same directory and a
@@ -328,54 +304,6 @@ func recordedRemovals(file string) []string {
 	sort.Strings(out)
 
 	return out
-}
-
-// recordBlocked adds, for a file one render variant would regenerate, the objects it would write
-// that the render shows in another file.
-func recordBlocked(file string, objects []string) {
-	if len(objects) == 0 {
-		return
-	}
-
-	fixState.Lock()
-	defer fixState.Unlock()
-
-	known := fixState.blocked[file]
-	if known == nil {
-		known = map[string]struct{}{}
-		fixState.blocked[file] = known
-	}
-
-	for _, o := range objects {
-		known[o] = struct{}{}
-	}
-}
-
-// blockedBy returns, sorted, what keeps the file from being regenerated.
-func blockedBy(file string) []string {
-	fixState.Lock()
-	defer fixState.Unlock()
-
-	return slices.Sorted(maps.Keys(fixState.blocked[file]))
-}
-
-// recordDropped marks a template the render skipped in some variant: no variant's fix may rewrite
-// or delete it, since the objects that variant renders there were never seen.
-func recordDropped(file, cause string) {
-	fixState.Lock()
-	defer fixState.Unlock()
-
-	fixState.dropped[file] = cause
-}
-
-// droppedCause returns why a variant skipped the template, if one did.
-func droppedCause(file string) (string, bool) {
-	fixState.Lock()
-	defer fixState.Unlock()
-
-	cause, ok := fixState.dropped[file]
-
-	return cause, ok
 }
 
 func exists(path string) bool {
