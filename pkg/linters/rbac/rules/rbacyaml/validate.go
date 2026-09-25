@@ -28,6 +28,7 @@ import (
 	"text/template/parse"
 
 	"github.com/Masterminds/sprig/v3"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbaccontract"
 )
@@ -397,7 +398,7 @@ func validateServiceAccounts(accounts []ServiceAccount, report reporter) {
 			continue
 		}
 
-		if len(sa.Name) > 253 || !dnsSubdomainRe.MatchString(sa.Name) {
+		if len(validation.IsDNS1123Subdomain(sa.Name)) > 0 {
 			report("%s: a ServiceAccount name is a lowercase DNS subdomain (letters, digits, '-' and '.')", where)
 		}
 
@@ -638,18 +639,14 @@ func Warnings(d *Declaration) []string {
 var (
 	groupNameRe    = regexp.MustCompile(`^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
 	resourceNameRe = regexp.MustCompile(`^(\*|[a-z0-9]([-a-z0-9]*[a-z0-9])?)(/[a-z0-9]([-a-z0-9]*[a-z0-9])?)?$`)
-	dnsSubdomainRe = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
 )
-
-// qualifiedNameRe is a Kubernetes label or annotation key: an optional DNS prefix and a name.
-var qualifiedNameRe = regexp.MustCompile(`^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?[A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?$`)
 
 // validateMetadataKeys checks label or annotation keys: the generator writes them unquoted, and
 // the rbac.deckhouse.io and meta.helm.sh annotations belong to the generator and to Helm.
 func validateMetadataKeys(m map[string]string, where string, annotations bool, report reporter) {
 	for _, k := range slices.Sorted(maps.Keys(m)) {
-		if len(k) > 316 || !qualifiedNameRe.MatchString(k) {
-			report("%s: %q is not a valid key ([prefix/]name, the name up to 63 characters of letters, digits, '-', '_' and '.')", where, k)
+		if errs := validation.IsQualifiedName(k); len(errs) > 0 {
+			report("%s: %q is not a valid key ([prefix/]name, the name up to 63 characters of letters, digits, '-', '_' and '.'): %s", where, k, strings.Join(errs, "; "))
 			continue
 		}
 

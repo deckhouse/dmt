@@ -691,7 +691,7 @@ legacy:
 func TestValidate_AccountMetadataKeys(t *testing.T) {
 	decl := &Declaration{APIVersion: APIVersionV1Alpha1, ServiceAccounts: []ServiceAccount{{
 		Name:            "m",
-		Labels:          map[string]string{"bad key": "x"},
+		Labels:          map[string]string{"bad key": "x", "example.com/" + strings.Repeat("a", 80): "x"},
 		Annotations:     map[string]string{"helm.sh/resource-policy": "keep", "meta.helm.sh/release-name": "m"},
 		RBACAnnotations: map[string]string{"rbac.deckhouse.io/kind": "x", "werf.io/deploy-on": "pre-install"},
 	}}}
@@ -705,6 +705,7 @@ func TestValidate_AccountMetadataKeys(t *testing.T) {
 
 	got := strings.Join(msgs, "\n")
 	assert.Contains(t, got, `serviceAccounts[0] (m).labels: "bad key" is not a valid key`)
+	assert.Contains(t, got, `serviceAccounts[0] (m).labels: "example.com/`+strings.Repeat("a", 80)+`" is not a valid key`, "the name of a key is 63 characters at most")
 	assert.Contains(t, got, `serviceAccounts[0] (m).annotations: "meta.helm.sh/release-name" is set by the generator or by Helm`)
 	assert.Contains(t, got, `serviceAccounts[0] (m).rbacAnnotations: "rbac.deckhouse.io/kind" is set by the generator or by Helm`)
 	assert.NotContains(t, got, "helm.sh/resource-policy")
