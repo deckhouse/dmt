@@ -73,17 +73,17 @@ func (r *CoverageRule) Check(_ context.Context) {
 	errorList := r.errorList.WithFilePath(rbacyaml.Filename)
 
 	decl, err := rbacyaml.Load(modulePath)
-	if err != nil || editionOverlay(modulePath) != "" {
-		// No declaration: nothing to cover (R22). A declaration that does not parse, or that lies
-		// in an edition overlay (D7), is the sync rule's finding; reporting it twice would only
-		// double the noise.
+	if err != nil || decl.APIVersion != rbacyaml.APIVersionV1Alpha1 || editionOverlay(modulePath) != "" {
+		// No declaration: nothing to cover (R22). A declaration that does not parse, of another
+		// version or none (an empty document, a file of the earlier shape), or one that lies in an
+		// edition overlay (D7), is the sync rule's finding; reporting it twice would only double the
+		// noise, and the stub fix has no declaration to add to.
 		return
 	}
 
-	crds, skipped := moduleCRDs(modulePath)
-	for _, err := range skipped {
-		r.errorList.WithFilePath("crds").Warnf("a CRD document is skipped: %v; its resource is judged as external until it parses", err)
-	}
+	// A CRD document that does not parse is the openapi linter's finding; its resource is judged as
+	// external until it parses.
+	crds, _ := moduleCRDs(modulePath)
 
 	entries := make(map[string]rbacyaml.Resource, len(decl.Resources))
 	for _, res := range decl.Resources {

@@ -142,13 +142,14 @@ func (r *SyncRule) Check(_ context.Context) {
 		return
 	}
 
-	// A CRD document that does not parse is reported by coverage; the declaration is judged
-	// against the CRDs that do.
+	// A CRD document that does not parse is reported by the openapi linter; the declaration is
+	// judged against the CRDs that do.
 	crds, _ := moduleCRDs(modulePath)
 
+	// The subsystems of module.yaml decide the aggregation of every system capability, so nothing is
+	// compared or written until it parses; the module linter reports why it does not.
 	meta, err := readModuleMetadata(modulePath)
 	if err != nil {
-		r.errorList.WithFilePath("module.yaml").Errorf("%v; nothing is compared or written until it parses: its subsystems decide the aggregation of every system capability", err)
 		return
 	}
 
@@ -1078,9 +1079,10 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 		return
 	}
 
+	// Without the subsystems of module.yaml the declaration cannot be written; the module linter
+	// reports why it does not parse.
 	meta, err := readModuleMetadata(modulePath)
 	if err != nil {
-		r.errorList.WithFilePath("module.yaml").Errorf("%v; the declaration is not written until it parses", err)
 		return
 	}
 

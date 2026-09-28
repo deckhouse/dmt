@@ -1710,8 +1710,10 @@ condition false for these values -- is not reported for the objects its text hol
 
 Findings are one per template file; the text does not depend on the render variant. A declaration
 that does not parse or validate, one the rule cannot turn into objects (an account named against the
-placement rule), a broken `module.yaml` and a declaration in an edition overlay stop the rule: they are
-lint findings without a fix.
+placement rule) and a declaration in an edition overlay stop the rule: they are lint findings without a
+fix. A `module.yaml` that does not parse stops the rule as well; the `module` linter reports it, as the
+`openapi` linter reports a CRD document that does not parse, which the rules judge as an external
+resource until it does.
 
 **Autofix:** rewrites a file the declaration produces from `rbac.yaml`, and creates a missing one. The
 declaration is the source of truth: a right it no longer names leaves the template, and so does a
