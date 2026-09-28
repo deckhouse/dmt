@@ -22,6 +22,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	rbacv1 "k8s.io/api/rbac/v1"
 
 	"github.com/deckhouse/dmt/internal/set"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/bootstrap"
@@ -63,4 +64,27 @@ func TestFixOnce(t *testing.T) {
 	}
 
 	assert.Equal(t, 1, calls)
+}
+
+// Under --matrix an object rendered with different rules by different variants gives the first
+// declaration the union, marked as varied by a block; a variant that renders no RBAC object still
+// counts, so what the others render is conditional (review of #480).
+func TestRecordBootstrapObjects_VariantsUnite(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	const path = "/module/rbac.yaml"
+
+	get := rbacv1.PolicyRule{APIGroups: []string{"x.io"}, Resources: []string{"things"}, Verbs: []string{"get"}}
+	list := rbacv1.PolicyRule{APIGroups: []string{"x.io"}, Resources: []string{"things"}, Verbs: []string{"list"}}
+
+	recordBootstrapObjects(path, []bootstrap.Object{{Kind: "ClusterRole", Name: "a", Rules: []rbacv1.PolicyRule{get, list}}})
+	recordBootstrapObjects(path, []bootstrap.Object{{Kind: "ClusterRole", Name: "a", Rules: []rbacv1.PolicyRule{get}}})
+	recordBootstrapObjects(path, nil)
+
+	objects := bootstrapObjectsOf(path)
+	require.Len(t, objects, 1)
+	assert.Equal(t, []rbacv1.PolicyRule{get, list}, objects[0].Rules, "the rule only one variant renders is kept")
+	assert.True(t, objects[0].Partial)
+	assert.Equal(t, []string{"ClusterRole//a"}, bootstrapPartialOf(path), "the variant with no RBAC object counts")
 }

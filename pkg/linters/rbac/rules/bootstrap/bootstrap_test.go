@@ -17,6 +17,7 @@ limitations under the License.
 package bootstrap
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -720,4 +721,56 @@ func TestBuild_CapabilityOfItsOwnActionRoundTrips(t *testing.T) {
 	got = Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"storage"}, Objects: objects, CRDs: crds})
 	assert.Contains(t, strings.Join(got.Unmanaged, "\n"),
 		"ClusterRole/d8:namespace-capability:m:download_snapshots (templates/rbacv2/use/download_snapshots.yaml): a capability with an action of its own that aggregates into several levels (admin, viewer); the declaration gives it one")
+
+	for why, labels := range map[string]map[string]string{
+		"a capability with an action of its own that aggregates into no level":                        {},
+		`a capability that aggregates into namespace level "member", which the lineage does not have`: {"rbac.deckhouse.io/aggregate-to-namespace-as": "member"},
+	} {
+		for i := range objects {
+			if objects[i].Name == "d8:namespace-capability:m:download_snapshots" {
+				objects[i].Labels = maps.Clone(labels)
+				objects[i].Labels["rbac.deckhouse.io/kind"] = "capability"
+			}
+		}
+
+		got = Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"storage"}, Objects: objects, CRDs: crds})
+		assert.Contains(t, strings.Join(got.Unmanaged, "\n"), why)
+	}
+}
+
+// prometheusAccess writes get on the named workloads' prometheus-metrics and nothing else: a scrape
+// Role that grants more is not narrowed into it (review of #480).
+func TestBuild_ScrapeRoleThatGrantsMoreIsNotNarrowed(t *testing.T) {
+	scraper := []rbacv1.Subject{{Kind: "User", Name: "d8-monitoring:scraper"}}
+	binding := Object{Kind: "RoleBinding", Name: "access-to-m", Path: "templates/rbac-to-us.yaml", RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "access-to-m"}, Subjects: scraper, Located: true}
+
+	for name, rules := range map[string][]rbacv1.PolicyRule{
+		"every deployment": {{APIGroups: []string{"apps"}, Resources: []string{"deployments/prometheus-metrics"}, Verbs: []string{"get"}}},
+		"more verbs":       {{APIGroups: []string{"apps"}, Resources: []string{"deployments/prometheus-metrics"}, ResourceNames: []string{"m"}, Verbs: []string{"get", "list"}}},
+		"pods":             {{APIGroups: []string{""}, Resources: []string{"pods/prometheus-metrics"}, ResourceNames: []string{"m"}, Verbs: []string{"get"}}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			role := Object{Kind: "Role", Name: "access-to-m", Path: "templates/rbac-to-us.yaml", Rules: rules, Located: true}
+
+			got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{role, binding}})
+			assert.Nil(t, got.Decl.PrometheusAccess)
+		})
+	}
+
+	role := Object{Kind: "Role", Name: "access-to-m", Path: "templates/rbac-to-us.yaml", Located: true,
+		Rules: []rbacv1.PolicyRule{{APIGroups: []string{"apps"}, Resources: []string{"deployments/prometheus-metrics"}, ResourceNames: []string{"m"}, Verbs: []string{"get"}}}}
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{role, binding}})
+	require.NotNil(t, got.Decl.PrometheusAccess)
+	assert.Equal(t, []string{"m"}, got.Decl.PrometheusAccess.Deployments)
+}
+
+// An object is left hand-written once, with one reason, however many passes would name it.
+func TestBuild_UnmanagedOnce(t *testing.T) {
+	objects := []Object{
+		{Kind: "ClusterRoleBinding", Name: "admin", Path: "templates/rbac-for-us.yaml", RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: "cluster-admin"}, Subjects: []rbacv1.Subject{{Kind: "Group", Name: "g"}}},
+		{Kind: "RoleBinding", Name: "reader", Namespace: "kube-system", Path: "templates/rbac-for-us.yaml", RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "reader"}, Subjects: []rbacv1.Subject{{Kind: "Group", Name: "g"}}},
+	}
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: objects})
+	assert.Len(t, got.Unmanaged, 2, "unmanaged: %v", got.Unmanaged)
 }
