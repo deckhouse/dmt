@@ -18,6 +18,7 @@ package rules
 
 import (
 	"context"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,9 +28,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
+	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/deckhouse/dmt/internal/mocks"
+	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/bootstrap"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/generate"
@@ -199,7 +204,204 @@ func TestSync_ModuleLabelsOfACapability(t *testing.T) {
 			return true
 		}))), "\n")
 		assert.Contains(t, got, "ClusterRole/"+view+": label "+agent+" is declared but absent from the render")
+
+		got = strings.Join(texts(runSync(t, modulePath, renderedFrom(t, model, func(o *generate.Object) bool {
+			if o.Name == view {
+				o.Labels = maps.Clone(o.Labels)
+				o.Labels[agent] = "false"
+			}
+
+			return true
+		}))), "\n")
+		assert.Contains(t, got, "ClusterRole/"+view+": label "+agent+` is "false" in the render, the declaration produces "true"`)
 	})
+}
+
+// dropRule makes the named role diverge: the render lacks its last rule, so its file gets a finding
+// and, unless a case keeps it off, the fix.
+func dropRule(name string) func(o *generate.Object) bool {
+	return func(o *generate.Object) bool {
+		if o.Name == name && len(o.Rules) > 0 {
+			o.Rules = o.Rules[:len(o.Rules)-1]
+		}
+
+		return true
+	}
+}
+
+// What a rewrite would drop or widen beyond what sync compares keeps the fix off the file, and the
+// finding names it (review of #480).
+func TestSync_RewriteKeepsWhatItCannotCompare(t *testing.T) {
+	const (
+		view   = "d8:namespace-capability:cert-manager:view"
+		editor = "d8:user-authz:cert-manager:editor"
+		user   = "d8:user-authz:cert-manager:user"
+	)
+
+	t.Run("a condition the declaration does not write", func(t *testing.T) {
+		resetFixState()
+		t.Cleanup(resetFixState)
+
+		modulePath := syncModuleDir(t)
+		model := syncModel(t, modulePath)
+		writeGenerated(t, modulePath, model)
+
+		path := filepath.Join(modulePath, "templates/rbacv2/use/view.yaml")
+		text, err := os.ReadFile(path)
+		require.NoError(t, err)
+
+		hand := "rules:\n{{- if .Values.certManager.secretRead }}\n- apiGroups:\n  - \"\"\n  resources:\n  - secrets\n  verbs:\n  - get\n{{- end }}\n"
+		require.NoError(t, os.WriteFile(path, []byte(strings.Replace(string(text), "rules:\n", hand, 1)), 0o600))
+
+		errorList := runSync(t, modulePath, renderedFrom(t, model, dropRule(view)))
+		assert.Contains(t, strings.Join(texts(errorList), "\n"), "The autofix leaves the file as it is: the template holds {{ if .Values.certManager.secretRead }}, which rbac.yaml does not write")
+		assert.Empty(t, errorList.GetFixes())
+	})
+
+	t.Run("an object excluded from sync", func(t *testing.T) {
+		resetFixState()
+		t.Cleanup(resetFixState)
+
+		modulePath := syncModuleDir(t)
+		model := syncModel(t, modulePath)
+		writeGenerated(t, modulePath, model)
+
+		errorList := runSync(t, modulePath, renderedFrom(t, model, dropRule(user)), pkg.KindRuleExclude{Kind: "ClusterRole", Name: editor})
+		assert.Contains(t, strings.Join(texts(errorList), "\n"), "ClusterRole/"+editor+" is excluded from sync (exclude-rules.sync), and a rewrite would write it from the declaration over what the template holds")
+		assert.Empty(t, errorList.GetFixes())
+	})
+
+	t.Run("an annotation of a capability the format cannot hold", func(t *testing.T) {
+		resetFixState()
+		t.Cleanup(resetFixState)
+
+		modulePath := syncModuleDir(t)
+		model := syncModel(t, modulePath)
+		writeGenerated(t, modulePath, model)
+
+		errorList := runSync(t, modulePath, renderedFrom(t, model, func(o *generate.Object) bool {
+			if o.Name == view {
+				o.Annotations = maps.Clone(o.Annotations)
+				o.Annotations["helm.sh/resource-policy"] = "keep"
+			}
+
+			return true
+		}))
+		got := strings.Join(texts(errorList), "\n")
+		assert.Contains(t, got, "ClusterRole/"+view+": annotation helm.sh/resource-policy is in the render, and rbac.yaml cannot declare it")
+		assert.Contains(t, got, "The autofix leaves the file as it is: ClusterRole/"+view+" carries annotation helm.sh/resource-policy, which rbac.yaml cannot declare and a rewrite would drop")
+		assert.Empty(t, errorList.GetFixes())
+	})
+
+	t.Run("a label of a legacy role", func(t *testing.T) {
+		resetFixState()
+		t.Cleanup(resetFixState)
+
+		modulePath := syncModuleDir(t)
+		model := syncModel(t, modulePath)
+		writeGenerated(t, modulePath, model)
+
+		errorList := runSync(t, modulePath, renderedFrom(t, model, func(o *generate.Object) bool {
+			if o.Name == user {
+				o.Labels = map[string]string{"rbac.authorization.k8s.io/aggregate-to-view": "true"}
+			}
+
+			return true
+		}))
+		assert.Contains(t, strings.Join(texts(errorList), "\n"), "ClusterRole/"+user+" carries label rbac.authorization.k8s.io/aggregate-to-view, which rbac.yaml cannot declare and a rewrite would drop")
+		assert.Empty(t, errorList.GetFixes())
+	})
+
+	t.Run("the secrets of a ServiceAccount", func(t *testing.T) {
+		resetFixState()
+		t.Cleanup(resetFixState)
+
+		modulePath := syncModuleDir(t)
+		model := syncModel(t, modulePath)
+		writeGenerated(t, modulePath, model)
+
+		store := renderedFrom(t, model, func(o *generate.Object) bool {
+			if o.Name == "d8:cert-manager:cainjector" && o.Kind == "ClusterRole" {
+				o.Rules = o.Rules[:len(o.Rules)-1]
+			}
+
+			return o.Kind != "ServiceAccount" || o.Name != "cainjector"
+		})
+
+		sa := &corev1.ServiceAccount{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "ServiceAccount"},
+			ObjectMeta:       metav1.ObjectMeta{Name: "cainjector", Namespace: "d8-cert-manager", Labels: map[string]string{"heritage": "deckhouse", "module": syncModule}},
+			ImagePullSecrets: []corev1.LocalObjectReference{{Name: "registry"}}}
+		content, err := runtime.DefaultUnstructuredConverter.ToUnstructured(sa)
+		require.NoError(t, err)
+		require.NoError(t, store.Put("/module/templates/cainjector/rbac-for-us.yaml", "templates/cainjector/rbac-for-us.yaml", content, []byte("sa")))
+
+		errorList := runSync(t, modulePath, store)
+		assert.Contains(t, strings.Join(texts(errorList), "\n"), "ServiceAccount/cainjector has imagePullSecrets, which rbac.yaml cannot declare and a rewrite would drop")
+		assert.Empty(t, errorList.GetFixes())
+	})
+
+	t.Run("a symbolic link", func(t *testing.T) {
+		resetFixState()
+		t.Cleanup(resetFixState)
+
+		modulePath := syncModuleDir(t)
+		model := syncModel(t, modulePath)
+		writeGenerated(t, modulePath, model)
+
+		path := filepath.Join(modulePath, "templates/rbacv2/use/view.yaml")
+		require.NoError(t, os.Rename(path, path+".target"))
+		require.NoError(t, os.Symlink("view.yaml.target", path))
+
+		errorList := runSync(t, modulePath, renderedFrom(t, model, dropRule(view)))
+		assert.Contains(t, strings.Join(texts(errorList), "\n"), "the template is a symbolic link, and a rewrite would replace the link")
+		assert.Empty(t, errorList.GetFixes())
+	})
+}
+
+// A changed localized text of a capability is a divergence the rewrite restores.
+func TestSync_CapabilityTextsAreCompared(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+
+	errorList := runSync(t, modulePath, renderedFrom(t, model, func(o *generate.Object) bool {
+		if o.Name == "d8:namespace-capability:cert-manager:view" {
+			o.Annotations = maps.Clone(o.Annotations)
+			o.Annotations[rbaccontract.AnnotationTitleEN] = "Edited by hand"
+		}
+
+		return true
+	}))
+	assert.Contains(t, strings.Join(texts(errorList), "\n"), `annotation en.meta.deckhouse.io/title is "Edited by hand" in the render`)
+	assert.NotEmpty(t, errorList.GetFixes())
+}
+
+// A grant newly declared under a condition some other grant already renders under is drift: the
+// condition holds in this render, whatever file shows it.
+func TestSync_ConditionThatHoldsElsewhere(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	before := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, before)
+
+	decl, err := rbacyaml.Load(modulePath)
+	require.NoError(t, err)
+
+	decl.Resources = append(decl.Resources, rbacyaml.Resource{Group: "cert-manager.io", Resource: "issuers/status", When: ".Values.certManager.internal.acmeEnabled",
+		Namespace: map[string][]string{"viewer": {"get"}}})
+
+	raw, err := yaml.Marshal(decl)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(rbacyaml.Path(modulePath), raw, 0o600))
+
+	errorList := runSync(t, modulePath, renderedFrom(t, before, nil))
+	assert.Contains(t, strings.Join(texts(errorList), "\n"), "get cert-manager.io/issuers/status is declared but absent from the render")
+	assert.NotEmpty(t, errorList.GetFixes())
 }
 
 func TestSplitChanges(t *testing.T) {
@@ -371,4 +573,85 @@ func TestSyncRegression_BootstrapNotesObjectsOfSomeVariants(t *testing.T) {
 	assert.True(t, strings.HasPrefix(whens["cainjector"], "TODO: "), whens["cainjector"])
 	assert.Contains(t, whens["cainjector"], "ServiceAccount cainjector")
 	assert.Empty(t, whens["cert-manager"])
+}
+
+// Every file the declaration produces reads back as the declaration's, whatever `when` validation
+// lets through: a brace in a string literal, a field named like an abort of the render (review of
+// #480).
+func TestSync_GeneratedConditionsReadBack(t *testing.T) {
+	for _, when := range []string{`eq .Values.x "}"`, `.Values.x.required`, `and .Values.x.fail (eq .Values.y "a}b")`} {
+		t.Run(when, func(t *testing.T) {
+			decl := &rbacyaml.Declaration{APIVersion: rbacyaml.APIVersionV1Alpha1,
+				Resources: []rbacyaml.Resource{
+					{Group: "x.io", Resource: "things", Scope: "Namespaced", When: when, Namespace: map[string][]string{"viewer": {"get"}}},
+					{Group: "x.io", Resource: "others", Scope: "Namespaced", Namespace: map[string][]string{"viewer": {"get"}}},
+				},
+			}
+			require.Empty(t, rbacyaml.Validate(decl, nil))
+
+			model, err := generate.Build(generate.Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Decl: decl})
+			require.NoError(t, err)
+
+			conditions := map[string]struct{}{}
+
+			for _, file := range model.Files {
+				text := generate.RenderFile(file)
+				for _, doc := range textDocuments(text) {
+					assert.False(t, doc.unreadable, "%s: %s", file.Path, text)
+				}
+
+				maps.Copy(conditions, templateConditions(text))
+			}
+
+			assert.Equal(t, map[string]struct{}{"if " + when: {}}, conditions, "the condition the declaration writes is read back")
+		})
+	}
+}
+
+// The rewrite keeps the file's permissions, and the bootstrap fix writes nothing over a declaration
+// that appeared in the meantime (review of #480).
+func TestSync_FixesKeepWhatIsThere(t *testing.T) {
+	t.Run("permissions", func(t *testing.T) {
+		resetFixState()
+		t.Cleanup(resetFixState)
+
+		modulePath := syncModuleDir(t)
+		model := syncModel(t, modulePath)
+		writeGenerated(t, modulePath, model)
+
+		path := filepath.Join(modulePath, "templates/rbacv2/use/view.yaml")
+		require.NoError(t, os.Chmod(path, 0o640))
+
+		list := runSync(t, modulePath, renderedFrom(t, model, dropRule("d8:namespace-capability:cert-manager:view")))
+		fixes := list.GetFixes()
+		require.Len(t, fixes, 1)
+		fixes[0]()
+
+		info, err := os.Stat(path)
+		require.NoError(t, err)
+		assert.Equal(t, os.FileMode(0o640), info.Mode().Perm())
+	})
+
+	t.Run("a declaration written in the meantime", func(t *testing.T) {
+		resetFixState()
+		t.Cleanup(resetFixState)
+
+		modulePath := syncModuleDir(t)
+		model := syncModel(t, modulePath)
+		writeGenerated(t, modulePath, model)
+		require.NoError(t, os.Remove(rbacyaml.Path(modulePath)))
+
+		list := runSync(t, modulePath, renderedFrom(t, model, nil))
+		fixes := list.GetFixes()
+		require.Len(t, fixes, 1, "the bootstrap fix")
+
+		const mine = "apiVersion: rbac.deckhouse.io/v1alpha1\n# written by hand\n"
+		require.NoError(t, os.WriteFile(rbacyaml.Path(modulePath), []byte(mine), 0o600))
+
+		fixes[0]()
+
+		got, err := os.ReadFile(rbacyaml.Path(modulePath))
+		require.NoError(t, err)
+		assert.Equal(t, mine, string(got))
+	})
 }
