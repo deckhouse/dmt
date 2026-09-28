@@ -85,6 +85,10 @@ func (r *CoverageRule) Check(_ context.Context) {
 	// external until it parses.
 	crds, _ := moduleCRDs(modulePath)
 
+	// The stub is written into the file; a symbolic link would be replaced by a file of its own.
+	info, err := os.Lstat(rbacyaml.Path(modulePath))
+	linked := err == nil && info.Mode()&os.ModeSymlink != 0
+
 	entries := make(map[string]rbacyaml.Resource, len(decl.Resources))
 	for _, res := range decl.Resources {
 		entries[res.Key()] = res
@@ -102,9 +106,15 @@ func (r *CoverageRule) Check(_ context.Context) {
 		}
 
 		if _, ok := entries[crd.Key()]; !ok {
-			errorList.
-				WithObjectID("CustomResourceDefinition/"+crd.Key()).
-				WithFix(appendStubFix(modulePath, crd)).
+			missing := errorList.WithObjectID("CustomResourceDefinition/" + crd.Key())
+			if linked {
+				missing.Errorf("CRD %s (%s) has no entry in %s: decide the user access to it -- namespace, system or legacy levels, or noAccess with the reason; %s is a symbolic link, so the autofix adds no stub",
+					crd.Key(), crd.File, rbacyaml.Filename, rbacyaml.Filename)
+
+				continue
+			}
+
+			missing.WithFix(appendStubFix(modulePath, crd)).
 				Errorf("CRD %s (%s) has no entry in %s: decide the user access to it -- namespace, system or legacy levels, or noAccess with the reason; `%s` adds an undecided stub",
 					crd.Key(), crd.File, rbacyaml.Filename, FixCommand)
 		}
@@ -196,7 +206,8 @@ func appendStubFix(modulePath string, crd crdInfo) errors.AutofixFunc {
 }
 
 // appendStub adds `- group: <group>\n  resource: <resource>\n  noAccess: "TODO"` to the
-// resources of the declaration, keeping the rest of the file -- comments included -- as it is. An
+// resources of the declaration. The file is written back through yaml.v3: its content and comments
+// stay, its layout -- blank lines, indentation, quoting, a leading ---, CRLF -- is the encoder's. An
 // entry already present is left alone.
 func appendStub(path, group, resource string) error {
 	data, err := os.ReadFile(path)

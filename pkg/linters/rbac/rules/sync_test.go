@@ -18,7 +18,6 @@ package rules
 
 import (
 	"context"
-	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
@@ -487,7 +486,13 @@ func TestSync_FixSeesEveryRenderVariant(t *testing.T) {
 		Rules: []generate.Rule{{PolicyRule: rbacyaml.PolicyRule{APIGroups: []string{""}, Resources: []string{"secrets"}, Verbs: []string{"get"}}}},
 	})
 
-	before, err := os.ReadFile(filepath.Join(modulePath, rel))
+	// The text on disk is not what the fix would write, so a fix that ran would show.
+	stalePath := filepath.Join(modulePath, rel)
+	written, err := os.ReadFile(stalePath)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(stalePath, append(written, []byte("# stale\n")...), 0o600))
+
+	before, err := os.ReadFile(stalePath)
 	require.NoError(t, err)
 
 	// Lint both variants first, as the manager does, then apply the fixes: B's closure runs first.
@@ -737,6 +742,9 @@ func TestSync_RenamedObjectsAreNotForeign(t *testing.T) {
 
 	const rel = "templates/rbac-to-us.yaml"
 
+	// The text on disk is not what the fix writes, so a fix that ran shows.
+	appendComment(t, filepath.Join(modulePath, rel))
+
 	// The render still carries the old names a hand-written module gave the metrics access: the
 	// Role and its RoleBinding, with the same rules, roleRef and subjects.
 	store := renderedFrom(t, model, func(o *generate.Object) bool {
@@ -984,8 +992,10 @@ func TestSync_WhenOnDeckhouseVersionIsNotAGate(t *testing.T) {
 
 	require.NotEmpty(t, rel, "a file renders the version test")
 
-	// The file is stale: it lost a rule the declaration names.
+	// The file is stale: it lost a rule the declaration names, and its text is not what the fix
+	// writes, so a fix that ran shows.
 	fullPath := filepath.Join(modulePath, rel)
+	appendComment(t, fullPath)
 	stale := renderedFrom(t, model, func(o *generate.Object) bool {
 		if len(o.Rules) > 1 && strings.Contains(generate.RenderFile(*model.File(rel)), o.Name) {
 			o.Rules = o.Rules[:len(o.Rules)-1]
@@ -1399,26 +1409,6 @@ func TestTemplateTexts_SkipsPartials(t *testing.T) {
 	assert.Equal(t, "ServiceAccount/a", got["templates/rbacv2/use/view.yaml"].docs[0].id)
 }
 
-// snapshotTree maps every file under dir to its content.
-func snapshotTree(t *testing.T, dir string) map[string]string {
-	t.Helper()
-
-	out := map[string]string{}
-
-	require.NoError(t, filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return err
-		}
-
-		data, err := os.ReadFile(path)
-		out[path] = string(data)
-
-		return err
-	}))
-
-	return out
-}
-
 // A declared file the lint cannot read is not written over: what it holds is unknown.
 func TestSync_UnreadableTemplateIsNotRewritten(t *testing.T) {
 	resetFixState()
@@ -1453,16 +1443,18 @@ func TestSync_UnreadableTemplateIsNotRewritten(t *testing.T) {
 
 // assertLintOnly checks a run whose findings are the linter's to report and no fix's to close:
 // --fix changes nothing on disk and no fix fails.
-func assertLintOnly(t *testing.T, errorList *errors.LintRuleErrorsList, modulePath string) {
+func assertLintOnly(t *testing.T, errorList *errors.LintRuleErrorsList, _ string) {
 	t.Helper()
 
 	require.Empty(t, errorList.GetFixes(), "no finding carries a fix")
+}
 
-	before := snapshotTree(t, modulePath)
+// appendComment makes a template's text differ from what the fix writes without changing what it
+// renders: a test that expects a rewrite then sees whether the fix ran.
+func appendComment(t *testing.T, path string) {
+	t.Helper()
 
-	for _, e := range errorList.GetErrors() {
-		assert.NoError(t, e.FixError)
-	}
-
-	assert.Equal(t, before, snapshotTree(t, modulePath))
+	content, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(path, append(content, []byte("# stale\n")...), 0o600))
 }
