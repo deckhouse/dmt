@@ -168,9 +168,16 @@ func (b *builder) note(format string, args ...any) {
 	b.notes = append(b.notes, fmt.Sprintf(format, args...))
 }
 
+// unmanage leaves the object hand-written, once, with the first reason: it is handled, and no later
+// pass names it again.
 func (b *builder) unmanage(o Object, why string) {
+	if b.unmanagedIDs[o.identity()] {
+		return
+	}
+
 	b.unmanagedIDs[o.identity()] = true
 	b.unmanaged = append(b.unmanaged, fmt.Sprintf("%s (%s): %s", o.identity(), o.Path, why))
+	b.mark(o)
 }
 
 func (b *builder) mark(o Object) { b.used[o.identity()] = struct{}{} }
@@ -907,9 +914,18 @@ func (b *builder) prometheus(role, rb Object) bool {
 		return false
 	}
 
+	// prometheusAccess writes `get` on the named workloads' prometheus-metrics and nothing else; a
+	// Role that grants other verbs, other groups or every workload is an access entry, or stays
+	// hand-written, rather than be narrowed.
 	for _, r := range role.Rules {
+		if len(r.NonResourceURLs) > 0 || len(r.ResourceNames) == 0 || !slices.Equal(r.APIGroups, []string{"apps"}) || !slices.Equal(r.Verbs, []string{"get"}) {
+			return false
+		}
+
 		for _, res := range r.Resources {
-			if !strings.HasSuffix(res, "/prometheus-metrics") {
+			switch res {
+			case "deployments/prometheus-metrics", "daemonsets/prometheus-metrics", "statefulsets/prometheus-metrics":
+			default:
 				return false
 			}
 		}

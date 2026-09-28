@@ -523,3 +523,17 @@ func TestBuild_AllRulesUnderWhenLiftTheCondition(t *testing.T) {
 	mixed := capability(t, declWith(".Values.m.a", ""))
 	assert.Empty(t, mixed.When, "an unconditional rule keeps the role unconditional")
 }
+
+// Without a subsystem a system capability would aggregate into no role: none is written, view and
+// edit included (review of #480).
+func TestBuild_NoSubsystemsNoSystemCapabilities(t *testing.T) {
+	decl := &rbacyaml.Declaration{APIVersion: rbacyaml.APIVersionV1Alpha1,
+		Resources: []rbacyaml.Resource{{Group: "x.io", Resource: "things", Scope: "Namespaced", Namespace: map[string][]string{"viewer": {"get"}}}},
+	}
+
+	model, err := Build(Input{Module: "m", Namespace: "d8-m", Decl: decl})
+	require.NoError(t, err)
+	assert.Nil(t, model.File("templates/rbacv2/manage/view.yaml"))
+	assert.Nil(t, model.File("templates/rbacv2/manage/edit.yaml"))
+	assert.NotNil(t, model.File("templates/rbacv2/use/view.yaml"))
+}

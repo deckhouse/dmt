@@ -267,8 +267,8 @@ func (b *builder) subsystems() []string {
 }
 
 // capabilities produces one namespace capability per namespace level or action in use and the
-// system capabilities: view and edit always (every module gets access to its own ModuleConfig), the
-// other levels and actions when a resource names them.
+// system capabilities: view and edit always (every module gets access to its own ModuleConfig) when
+// the module has a subsystem, the other levels and actions when a resource names them.
 func (b *builder) capabilities() {
 	namespaceGrants := map[string][]Rule{}
 	systemGrants := map[string][]Rule{}
@@ -305,6 +305,12 @@ func (b *builder) capabilities() {
 			Annotations: b.texts(rbaccontract.LineageNamespace, action),
 			Rules:       sortRules(rules),
 		})
+	}
+
+	// A system capability aggregates into the module's subsystems; without one it would aggregate
+	// into no role, and the contract refuses that (checkAgainstModule refuses system levels there).
+	if len(b.subsystems()) == 0 {
+		return
 	}
 
 	for _, action := range grantOrder(rbaccontract.SystemLevels, systemGrants) {
