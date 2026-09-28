@@ -20,10 +20,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
+
+	rbacv1 "k8s.io/api/rbac/v1"
 
 	"github.com/deckhouse/dmt/internal/set"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/bootstrap"
@@ -124,10 +128,32 @@ func recordBootstrapObjects(path string, objects []bootstrap.Object) {
 
 	for _, o := range objects {
 		key := o.Kind + "/" + o.Namespace + "/" + o.Name
+
+		// Variants that render an object with different rules -- a value or a block inside it --
+		// give the declaration the union, and the object is written as one a block varies: the
+		// declaration does not know under which values each rule renders.
+		if prev, ok := known[key]; ok && !reflect.DeepEqual(prev.Rules, o.Rules) {
+			o.Rules = unionRules(prev.Rules, o.Rules)
+			o.Partial = true
+		}
+
 		known[key] = o
 		fixState.seen[path][key]++
 		fixState.in[path][key] += fmt.Sprintf("%d,", fixState.variants[path])
 	}
+}
+
+// unionRules returns the rules of a, then those of b that a does not hold.
+func unionRules(a, b []rbacv1.PolicyRule) []rbacv1.PolicyRule {
+	out := slices.Clone(a)
+
+	for _, r := range b {
+		if !slices.ContainsFunc(out, func(have rbacv1.PolicyRule) bool { return reflect.DeepEqual(have, r) }) {
+			out = append(out, r)
+		}
+	}
+
+	return out
 }
 
 // bootstrapObjectsOf returns, sorted by identity, every object any variant rendered.
