@@ -428,3 +428,20 @@ func TestLocate_LibraryDocumentsMustAgree(t *testing.T) {
 	assert.Empty(t, d.When)
 	assert.Empty(t, d.Unmanageable)
 }
+
+// An object written in two branches of one block tells nothing about which rendered: in one
+// document with no --- between the branches, or as a named and a computed name in two (review of
+// #480, AlwxSin 4).
+func TestLocate_BranchesOfOneBlock(t *testing.T) {
+	oneDocument := "---\n{{- if .Values.a }}\nkind: ClusterRole\nmetadata: {name: foo}\nrules: []\n{{- else }}\nkind: ClusterRole\nmetadata: {name: foo}\nrules: [{apiGroups: [\"\"], resources: [pods], verbs: [get]}]\n{{- end }}\n"
+
+	d, ok := Locate(TemplateDocs(oneDocument), Object{Kind: "ClusterRole", Name: "foo"})
+	require.True(t, ok)
+	assert.Empty(t, d.When)
+	assert.Contains(t, d.Unmanageable, "written in several branches of a block")
+
+	named := "{{- if .Values.legacy }}\n---\nkind: ClusterRole\nmetadata:\n  name: d8:foo:x\n{{- else }}\n---\nkind: ClusterRole\nmetadata:\n  name: d8:{{ .Chart.Name }}:x\n{{- end }}\n"
+
+	_, ok = Locate(TemplateDocs(named), Object{Kind: "ClusterRole", Name: "d8:foo:x"})
+	assert.False(t, ok, "the named and the computed document disagree on the condition")
+}
