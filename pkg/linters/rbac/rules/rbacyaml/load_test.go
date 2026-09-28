@@ -606,8 +606,6 @@ func TestValidate_CapabilityActions(t *testing.T) {
 			yaml: grant("download") + "capabilities:\n  namespace.download: {" + texts + "}\n",
 			wantErrs: []string{
 				`capabilities: "namespace.download" is an action of its own and needs the level it aggregates into (level: one of viewer, user, manager, admin, superadmin)`,
-				`capabilities: "namespace.download" is described, but no resource entry grants it`,
-				`resources[0] (x.io/things): namespace level "download" is not valid`,
 			},
 		},
 		"an action of its own without texts": {
@@ -630,11 +628,16 @@ func TestValidate_CapabilityActions(t *testing.T) {
 			yaml:     "resources:\n  - {group: x.io, resource: things, scope: Cluster, system: {download: [get]}}\ncapabilities:\n  system.download: {level: admin, " + texts + "}\n",
 			wantErrs: []string{`capabilities: system.download.level "admin" is not valid; the system levels are viewer, manager, superadmin`},
 		},
+		"view as a key of a resource": {
+			yaml:     grant("view"),
+			wantErrs: []string{`resources[0] (x.io/things): namespace level "view" is not valid; the capability namespace.view is granted by the level "viewer"`},
+		},
 		"labels dmt writes, and a bad value": {
-			yaml: grant("viewer") + "capabilities:\n  namespace.view: {labels: {rbac.deckhouse.io/aggregate-to-x-as: member, module: other, x.deckhouse.io/agent: \"not ok\"}}\n",
+			yaml: grant("viewer") + "capabilities:\n  namespace.view: {labels: {rbac.deckhouse.io/aggregate-to-x-as: member, module: other, heritage: other, x.deckhouse.io/agent: \"not ok\"}}\n",
 			wantErrs: []string{
 				`capabilities: namespace.view.labels: "rbac.deckhouse.io/aggregate-to-x-as" is set by dmt, not by the declaration`,
 				`capabilities: namespace.view.labels: "module" is set by dmt, not by the declaration`,
+				`capabilities: namespace.view.labels: "heritage" is set by dmt, not by the declaration`,
 				`capabilities: namespace.view.labels: "x.deckhouse.io/agent": "not ok" is not a valid label value`,
 			},
 		},
@@ -657,6 +660,58 @@ func TestValidate_CapabilityActions(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A component path, the name of an access entry or of an extra role, and a `when` are held to what the
+// rewrite writes and the lint reads back (review of #480).
+func TestValidate_NamesPathsAndConditions(t *testing.T) {
+	for name, tc := range map[string]struct {
+		yaml    string
+		wantErr string
+	}{
+		"double slash in a path": {
+			yaml:    "access:\n  - {name: x, path: a//b, subjects: [{kind: Group, name: g}], namespaceRules: [{apiGroups: [a], resources: [b], verbs: [get]}]}\n",
+			wantErr: `access[0] (x): path must be a directory under templates/ of lowercase names joined by single slashes (a or a/b), got "a//b"`,
+		},
+		"dot segment in a path": {
+			yaml:    "serviceAccounts:\n  - {name: a, path: ./a}\n",
+			wantErr: `path must be a directory under templates/ of lowercase names joined by single slashes (a or a/b), got "./a"`,
+		},
+		"access name with a space": {
+			yaml:    "access:\n  - {name: a b, subjects: [{kind: Group, name: g}], clusterRules: [{apiGroups: [a], resources: [b], verbs: [get]}]}\n",
+			wantErr: `access[0] (a b): "a b" is not a valid role name`,
+		},
+		"access name with a colon is a role name": {
+			yaml:    "access:\n  - {name: a:b, subjects: [{kind: Group, name: g}], clusterRules: [{apiGroups: [a], resources: [b], verbs: [get]}]}\n  - {name: x/y, subjects: [{kind: Group, name: g}], clusterRules: [{apiGroups: [a], resources: [b], verbs: [get]}]}\n",
+			wantErr: `access[1] (x/y): "x/y" is not a valid role name`,
+		},
+		"extra role name with a slash": {
+			yaml:    "serviceAccounts:\n  - {name: a, extraClusterRoles: [{name: x/y, rules: [{apiGroups: [a], resources: [b], verbs: [get]}]}]}\n",
+			wantErr: `serviceAccounts[0] (a).extraClusterRoles[0]: "x/y" is not a valid role name`,
+		},
+		"when over two lines": {
+			yaml:    "resources:\n  - group: x.io\n    resource: things\n    scope: Namespaced\n    when: |\n      .Values.a\n    namespace: {viewer: [get]}\n",
+			wantErr: `spans several lines; write the condition on one line`,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			decl, err := Parse([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\n" + tc.yaml))
+			require.NoError(t, err)
+
+			errs := Validate(decl, nil)
+			require.Len(t, errs, 1, "errors: %v", errs)
+			assert.Contains(t, errs[0].Error(), tc.wantErr)
+		})
+	}
+}
+
+// A trailing --- holds no document; a second document is refused.
+func TestParse_TrailingSeparator(t *testing.T) {
+	_, err := Parse([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\n---\n"))
+	require.NoError(t, err)
+
+	_, err = Parse([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\n---\nresources: []\n"))
+	require.ErrorContains(t, err, "the file must hold a single YAML document")
 }
 
 func TestLoad(t *testing.T) {

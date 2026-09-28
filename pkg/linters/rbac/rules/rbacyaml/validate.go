@@ -19,6 +19,7 @@ package rbacyaml
 import (
 	"fmt"
 	"maps"
+	"path"
 	"reflect"
 	"regexp"
 	"slices"
@@ -28,6 +29,7 @@ import (
 	"text/template/parse"
 
 	"github.com/Masterminds/sprig/v3"
+	apipath "k8s.io/apimachinery/pkg/api/validation/path"
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbaccontract"
@@ -57,6 +59,12 @@ func validateWhen(when, where string, report reporter) {
 	// action and put the rest of the value into the file as template text of its own.
 	if strings.Contains(when, "{{") || strings.Contains(when, "}}") {
 		report("%s: when %q holds a template delimiter; write the condition only, without {{ and }}", where, when)
+		return
+	}
+
+	// The condition is written on one line, the one the lint reads the template's conditions from.
+	if strings.ContainsAny(when, "\r\n") {
+		report("%s: when %q spans several lines; write the condition on one line", where, when)
 		return
 	}
 
@@ -330,8 +338,20 @@ func validateLevels(d *Declaration, levels map[string][]string, lineage string, 
 				action = rbaccontract.CapabilityAction(level)
 			}
 		case d != nil && d.Capabilities[lineage+"."+level].Level != "":
+		case d != nil && level != rbaccontract.LevelOfAction(level):
+			// view and edit are the capabilities of viewer and manager; a resource grants them by the level.
+			report("%s: %s level %q is not valid; the capability %s.%s is granted by the level %q", where, lineage, level, lineage, level, rbaccontract.LevelOfAction(level))
+			continue
 		case d != nil:
+			if _, described := d.Capabilities[lineage+"."+level]; described {
+				// The entry is there without a level: validateCapabilities names what it lacks.
+				usedCapabilities[lineage+"."+level] = struct{}{}
+
+				continue
+			}
+
 			report("%s: %s level %q is not valid; the %s levels are %s, or the action of a capability that capabilities gives a level (%s.%s: {level: ...})", where, lineage, level, lineage, strings.Join(allowed, ", "), lineage, level)
+
 			continue
 		default:
 			report("%s: %s level %q is not valid; the %s levels are %s", where, lineage, level, lineage, strings.Join(allowed, ", "))
@@ -450,6 +470,32 @@ func validateCapabilityLabels(labels map[string]string, where string, report rep
 	}
 }
 
+// validateComponentPath holds a component directory to what the placement rule and the render agree
+// on: a clean relative path under templates/ of lowercase DNS labels. `a//b`, `./a` or `a/../b`
+// would name a file the render never reports, so the file would never match its declaration.
+func validateComponentPath(dir, where string, report reporter) {
+	if dir == "" {
+		return
+	}
+
+	valid := path.Clean(dir) == dir && !strings.HasPrefix(dir, "/")
+	for _, segment := range strings.Split(dir, "/") {
+		valid = valid && len(validation.IsDNS1123Label(segment)) == 0
+	}
+
+	if !valid {
+		report("%s: path must be a directory under templates/ of lowercase names joined by single slashes (a or a/b), got %q", where, dir)
+	}
+}
+
+// validateRoleName holds a role name the declaration writes to what Kubernetes accepts and the linter
+// reads back: no '/', no '%', no whitespace.
+func validateRoleName(name, where string, report reporter) {
+	if errs := apipath.IsValidPathSegmentName(name); len(errs) > 0 || strings.ContainsAny(name, " \t\n") {
+		report("%s: %q is not a valid role name (no '/', '%%' or whitespace)", where, name)
+	}
+}
+
 func validateServiceAccounts(accounts []ServiceAccount, report reporter) {
 	names := make(map[string]struct{}, len(accounts))
 
@@ -477,9 +523,7 @@ func validateServiceAccounts(accounts []ServiceAccount, report reporter) {
 		validateMetadataKeys(sa.Annotations, where+".annotations", true, report)
 		validateMetadataKeys(sa.RBACAnnotations, where+".rbacAnnotations", true, report)
 
-		if strings.HasPrefix(sa.Path, "/") || strings.HasSuffix(sa.Path, "/") || strings.Contains(sa.Path, "..") {
-			report("%s: path must be a directory under templates/ without leading or trailing slashes, got %q", where, sa.Path)
-		}
+		validateComponentPath(sa.Path, where, report)
 
 		validatePolicyRules(sa.ClusterRules, where+".clusterRules", report)
 		validatePolicyRules(sa.NamespaceRules, where+".namespaceRules", report)
@@ -493,6 +537,8 @@ func validateServiceAccounts(accounts []ServiceAccount, report reporter) {
 				report("%s: name is required", ewhere)
 				continue
 			}
+
+			validateRoleName(extra.Name, ewhere, report)
 
 			if _, dup := extraNames[extra.Name]; dup {
 				report("%s: duplicate name %q", ewhere, extra.Name)
@@ -532,6 +578,9 @@ func validateAccess(access []Access, report reporter) {
 			continue
 		}
 
+		// The name is part of the role and binding names, d8:<module>:<name> and access-to-<module>-<name>.
+		validateRoleName(a.Name, where, report)
+
 		if _, dup := names[a.Name]; dup {
 			report("%s: duplicate name", where)
 		}
@@ -546,9 +595,7 @@ func validateAccess(access []Access, report reporter) {
 		validateMetadataKeys(a.Labels, where+".labels", false, report)
 		validateMetadataKeys(a.Annotations, where+".annotations", true, report)
 
-		if strings.HasPrefix(a.Path, "/") || strings.HasSuffix(a.Path, "/") || strings.Contains(a.Path, "..") {
-			report("%s: path must be a directory under templates/ without leading or trailing slashes, got %q", where, a.Path)
-		}
+		validateComponentPath(a.Path, where, report)
 
 		seenSubjects := make(map[string]struct{}, len(a.Subjects))
 
