@@ -140,8 +140,10 @@ func niladic(name string) bool {
 // resource is not in it is external, and its scope has to be declared. Every problem is
 // returned; none is fixed, because a declaration error is a decision the author has to make.
 //
-// The messages are stable: the sync rule reports them verbatim and the coverage rule and the
-// generator refuse to run on a declaration with any of them.
+// The messages are stable: the sync rule reports them verbatim and neither compares nor writes
+// anything while there is one. The coverage rule judges the entries of any declaration that parses
+// -- its stub only adds an entry -- so that the CRDs still owed a decision are named while, say, a
+// scope bootstrap left undecided is.
 func Validate(d *Declaration, crds CRDScopes) []error {
 	var errs []error
 
@@ -194,7 +196,16 @@ func Validate(d *Declaration, crds CRDScopes) []error {
 		}
 
 		validateWhen(d.PrometheusAccess.When, "prometheusAccess", report)
-		validateMetadataKeys(d.PrometheusAccess.Labels, "prometheusAccess.labels", false, report)
+		validateObjectLabels(d.PrometheusAccess.Labels, "prometheusAccess.labels", report)
+
+		for kind, names := range map[string][]string{"deployments": d.PrometheusAccess.Deployments, "daemonsets": d.PrometheusAccess.DaemonSets, "statefulsets": d.PrometheusAccess.StatefulSets} {
+			for j, name := range names {
+				if len(validation.IsDNS1123Subdomain(name)) > 0 {
+					report("prometheusAccess.%s[%d]: %q is not a workload name (a lowercase DNS subdomain)", kind, j, name)
+				}
+			}
+		}
+
 		validateMetadataKeys(d.PrometheusAccess.Annotations, "prometheusAccess.annotations", true, report)
 	}
 
@@ -470,6 +481,23 @@ func validateCapabilityLabels(labels map[string]string, where string, report rep
 	}
 }
 
+// validateObjectLabels checks the labels the declaration puts on the objects of an account, an access
+// entry or the scrape access: valid keys and values, and not heritage or module, which
+// helm_lib_module_labels writes.
+func validateObjectLabels(labels map[string]string, where string, report reporter) {
+	validateMetadataKeys(labels, where, false, report)
+
+	for _, k := range slices.Sorted(maps.Keys(labels)) {
+		if k == rbaccontract.LabelHeritage || k == rbaccontract.LabelModule {
+			report("%s: %q is set by helm_lib_module_labels, not by the declaration", where, k)
+		}
+
+		if errs := validation.IsValidLabelValue(labels[k]); len(errs) > 0 {
+			report("%s: %q: %q is not a valid label value: %s", where, k, labels[k], strings.Join(errs, "; "))
+		}
+	}
+}
+
 // validateComponentPath holds a component directory to what the placement rule and the render agree
 // on: a clean relative path under templates/ of lowercase DNS labels. `a//b`, `./a` or `a/../b`
 // would name a file the render never reports, so the file would never match its declaration.
@@ -519,7 +547,7 @@ func validateServiceAccounts(accounts []ServiceAccount, report reporter) {
 
 		validateWhen(sa.When, where, report)
 
-		validateMetadataKeys(sa.Labels, where+".labels", false, report)
+		validateObjectLabels(sa.Labels, where+".labels", report)
 		validateMetadataKeys(sa.Annotations, where+".annotations", true, report)
 		validateMetadataKeys(sa.RBACAnnotations, where+".rbacAnnotations", true, report)
 
@@ -556,13 +584,23 @@ func validateServiceAccounts(accounts []ServiceAccount, report reporter) {
 		for j, ref := range sa.BindRoles {
 			if ref.Namespace == "" || ref.Name == "" {
 				report("%s.bindRoles[%d]: namespace and name are required", where, j)
+				continue
 			}
+
+			if len(validation.IsDNS1123Label(ref.Namespace)) > 0 {
+				report("%s.bindRoles[%d]: %q is not a namespace name (a lowercase DNS label)", where, j, ref.Namespace)
+			}
+
+			validateRoleName(ref.Name, fmt.Sprintf("%s.bindRoles[%d]", where, j), report)
 		}
 
 		for j, name := range sa.BindClusterRoles {
 			if name == "" {
 				report("%s.bindClusterRoles[%d]: empty name", where, j)
+				continue
 			}
+
+			validateRoleName(name, fmt.Sprintf("%s.bindClusterRoles[%d]", where, j), report)
 		}
 	}
 }
@@ -592,7 +630,7 @@ func validateAccess(access []Access, report reporter) {
 		}
 
 		validateWhen(a.When, where, report)
-		validateMetadataKeys(a.Labels, where+".labels", false, report)
+		validateObjectLabels(a.Labels, where+".labels", report)
 		validateMetadataKeys(a.Annotations, where+".annotations", true, report)
 
 		validateComponentPath(a.Path, where, report)
@@ -615,6 +653,12 @@ func validateAccess(access []Access, report reporter) {
 			case "ServiceAccount":
 				if s.Namespace == "" {
 					report("%s.subjects[%d]: a ServiceAccount subject requires namespace", where, j)
+				} else if len(validation.IsDNS1123Label(s.Namespace)) > 0 {
+					report("%s.subjects[%d]: %q is not a namespace name (a lowercase DNS label)", where, j, s.Namespace)
+				}
+
+				if s.Name != "" && len(validation.IsDNS1123Subdomain(s.Name)) > 0 {
+					report("%s.subjects[%d]: %q is not a ServiceAccount name (a lowercase DNS subdomain)", where, j, s.Name)
 				}
 			default:
 				report("%s.subjects[%d]: kind must be User, Group or ServiceAccount, got %q", where, j, s.Kind)
