@@ -19,6 +19,8 @@ package rules
 import (
 	"context"
 	"maps"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -290,4 +292,39 @@ func TestContract_DuplicateMarkerAndBuiltInScope(t *testing.T) {
 	joined := strings.Join(got, "\n")
 	assert.Contains(t, joined, `capability marker "namespace-capability.cert-manager.view" is also carried by d8:namespace-capability:cert-manager:view`)
 	assert.Contains(t, joined, "grants /nodes, a cluster-scoped resource, in a namespace capability")
+}
+
+// A module may ship a subsystem of its own, declared in its module.yaml (virtualization): its
+// subsystem roles and the capabilities that aggregate into it pass the contract, and a module that
+// does not declare it still gets "unknown" (review of #480).
+func TestContract_SubsystemOfTheModule(t *testing.T) {
+	role := clusterRole("d8:subsystem:virtualization:manager", map[string]string{"module": "cert-manager",
+		"rbac.deckhouse.io/kind":                           "role",
+		"rbac.deckhouse.io/scope":                          "subsystem",
+		"rbac.deckhouse.io/subsystem":                      "virtualization",
+		"rbac.deckhouse.io/use-role":                       "admin",
+		"rbac.deckhouse.io/aggregate-to-virtualization-as": "superadmin",
+		"rbac.deckhouse.io/aggregate-to-system-as":         "manager",
+	}, i18n, "aggregationRule:\n  clusterRoleSelectors:\n  - matchLabels:\n      rbac.deckhouse.io/aggregate-to-virtualization-as: manager\n")
+
+	capability := clusterRole("d8:system-capability:cert-manager:proxy_nodes", map[string]string{"module": "cert-manager",
+		"rbac.deckhouse.io/kind":                           "capability",
+		"rbac.deckhouse.io/scope":                          "system",
+		"rbac.deckhouse.io/capability":                     "system-capability.cert-manager.proxy_nodes",
+		"rbac.deckhouse.io/aggregate-to-virtualization-as": "manager",
+	}, i18n, "rules:\n- apiGroups: [\"\"]\n  resources: [nodes/proxy]\n  verbs: [get]\n")
+
+	objects := []rendered{
+		{"templates/rbacv2/manage/roles/manager.yaml", role},
+		{"templates/rbacv2/manage/proxy_nodes.yaml", capability},
+	}
+
+	declared := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(declared, "module.yaml"), []byte("name: cert-manager\nsubsystems: [virtualization]\n"), 0o600))
+	assert.Empty(t, runContract(t, declared, objects...))
+
+	got := strings.Join(runContract(t, t.TempDir(), objects...), "\n")
+	assert.Contains(t, got, `role name "d8:subsystem:virtualization:manager" references unknown subsystem "virtualization"`)
+	assert.Contains(t, got, `aggregation label "rbac.deckhouse.io/aggregate-to-virtualization-as" targets unknown lineage "virtualization"`)
+	assert.Contains(t, got, `aggregation selector targets unknown lineage "virtualization"`)
 }
