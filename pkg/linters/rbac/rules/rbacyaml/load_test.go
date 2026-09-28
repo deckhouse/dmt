@@ -689,6 +689,34 @@ func TestValidate_NamesPathsAndConditions(t *testing.T) {
 			yaml:    "serviceAccounts:\n  - {name: a, extraClusterRoles: [{name: x/y, rules: [{apiGroups: [a], resources: [b], verbs: [get]}]}]}\n",
 			wantErr: `serviceAccounts[0] (a).extraClusterRoles[0]: "x/y" is not a valid role name`,
 		},
+		"a label value with a space": {
+			yaml:    "serviceAccounts:\n  - {name: a, labels: {app: \"has space\"}}\n",
+			wantErr: `serviceAccounts[0] (a).labels: "app": "has space" is not a valid label value`,
+		},
+		"heritage on an access entry": {
+			yaml:    "access:\n  - {name: x, labels: {heritage: foo}, subjects: [{kind: Group, name: g}], clusterRules: [{apiGroups: [a], resources: [b], verbs: [get]}]}\n",
+			wantErr: `access[0] (x).labels: "heritage" is set by helm_lib_module_labels, not by the declaration`,
+		},
+		"module on the scrape access": {
+			yaml:    "prometheusAccess:\n  deployments: [a]\n  labels: {module: bar}\n",
+			wantErr: `prometheusAccess.labels: "module" is set by helm_lib_module_labels, not by the declaration`,
+		},
+		"a bound cluster role with a slash": {
+			yaml:    "serviceAccounts:\n  - {name: a, bindClusterRoles: [a/b]}\n",
+			wantErr: `serviceAccounts[0] (a).bindClusterRoles[0]: "a/b" is not a valid role name`,
+		},
+		"a bound role in a bad namespace": {
+			yaml:    "serviceAccounts:\n  - {name: a, bindRoles: [{namespace: Bad NS, name: r}]}\n",
+			wantErr: `serviceAccounts[0] (a).bindRoles[0]: "Bad NS" is not a namespace name`,
+		},
+		"a ServiceAccount subject with a bad name": {
+			yaml:    "access:\n  - {name: x, subjects: [{kind: ServiceAccount, name: Bad_Name, namespace: ns}], clusterRules: [{apiGroups: [a], resources: [b], verbs: [get]}]}\n",
+			wantErr: `access[0] (x).subjects[0]: "Bad_Name" is not a ServiceAccount name`,
+		},
+		"an empty workload name": {
+			yaml:    "prometheusAccess:\n  deployments: [\"\"]\n",
+			wantErr: `prometheusAccess.deployments[0]: "" is not a workload name`,
+		},
 		"when over two lines": {
 			yaml:    "resources:\n  - group: x.io\n    resource: things\n    scope: Namespaced\n    when: |\n      .Values.a\n    namespace: {viewer: [get]}\n",
 			wantErr: `spans several lines; write the condition on one line`,
