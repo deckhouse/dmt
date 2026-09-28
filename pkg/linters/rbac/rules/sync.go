@@ -262,6 +262,39 @@ func (r *SyncRule) compareRender(run *syncRun) map[string][]string {
 		divergences[file.Path] = append(divergences[file.Path], compareFile(r.enabledObjects(run.withoutUnrendered(file)), run.actual, r.module.GetName(), holds)...)
 	}
 
+	// A condition the declaration puts an object or a rule under that the template does not hold
+	// is drift the render cannot show: what it gates renders for every value. The text is the same
+	// in every variant, so every variant reports it, and the rewrite writes the condition.
+	for _, file := range run.model.Files {
+		text := run.templates[file.Path]
+		if text.err != nil || text.content == "" || templateGated(text.content, generate.RenderFile(file)) {
+			continue
+		}
+
+		held := conditionsByDocument(text.content)
+
+		for id, want := range conditionsByDocument(generate.RenderFile(file)) {
+			have, inText := held[id]
+			if !inText || !r.Enabled(kindOfIdentity(id), nameOfIdentity(id)) {
+				continue
+			}
+
+			for _, cond := range slices.Sorted(maps.Keys(want)) {
+				if _, ok := have[cond]; !ok {
+					divergences[file.Path] = append(divergences[file.Path], fmt.Sprintf("%s: the declaration writes {{ %s }} around it or its rules, which the template does not hold, so what it gates renders for every value", id, cond))
+				}
+			}
+
+			// The other way the render of some values cannot show it either: the template gates what
+			// the declaration does not. unfixable names the case, so the file keeps its text.
+			for _, cond := range slices.Sorted(maps.Keys(have)) {
+				if _, ok := want[cond]; !ok {
+					divergences[file.Path] = append(divergences[file.Path], fmt.Sprintf("%s: the template holds {{ %s }} around it or its rules, which the declaration does not write", id, cond))
+				}
+			}
+		}
+	}
+
 	divergences = r.replacedCopies(run, divergences)
 
 	// A produced object that renders from another template than the one the declaration puts it
@@ -447,6 +480,8 @@ func (r *SyncRule) unfixable(run *syncRun, file generate.File) []string {
 
 	// The render is judged too: an object that renders from the file and that the text did not show
 	// -- a document the reading above missed -- must not vanish with the rewrite either.
+	legacyKind := ""
+
 	for id, object := range fromFile {
 		if _, ok := produced[id]; ok {
 			continue
@@ -464,6 +499,12 @@ func (r *SyncRule) unfixable(run *syncRun, file generate.File) []string {
 
 		// The model before 1.78: rewriting the file would serve the new model only.
 		if level := object.Unstructured.GetLabels()[rbaccontract.LabelKind]; kind == "ClusterRole" && rbaccontract.IsLegacyKind(level) {
+			// The kind named is the smallest one the file renders: map order must not pick it.
+			if legacyKind != "" && legacyKind < level {
+				continue
+			}
+
+			legacyKind = level
 			misplaced["legacy scheme"] = fmt.Sprintf("the template renders the legacy RBACv2 scheme (%s: %s, the manage/use model before DKP 1.78) where the declaration produces the 1.78 model; migrate the module with rbacv2-migrate-module.sh to serve both, or delete the file and run `%s` to serve the new one only",
 				rbaccontract.LabelKind, level, FixCommand)
 
@@ -539,6 +580,91 @@ func (r *SyncRule) heldObjects(run *syncRun, file generate.File) []string {
 	}
 
 	return out
+}
+
+// conditionsByDocument returns, per object the text holds (by identity), the conditions it renders
+// under: the blocks open where its document starts and the blocks opened and closed inside it -- a
+// rule under its own condition. A block opened in a document and left open belongs to the documents
+// after it.
+func conditionsByDocument(text string) map[string]map[string]struct{} {
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	out := map[string]map[string]struct{}{}
+
+	var stack []string
+
+	flush := func(doc string, conds map[string]struct{}) {
+		for _, d := range textDocuments(doc) {
+			if !d.unreadable {
+				out[d.id] = conds
+			}
+		}
+	}
+
+	var (
+		doc   strings.Builder
+		conds = map[string]struct{}{}
+		// inner are the blocks opened inside the current document, by stack depth.
+		inner = map[int]string{}
+	)
+
+	for _, line := range strings.Split(text, "\n") {
+		if bootstrap.DocSeparatorRe.MatchString(line) {
+			flush(doc.String(), conds)
+			doc.Reset()
+
+			conds = map[string]struct{}{}
+
+			for _, c := range stack {
+				if c != "" {
+					conds[c] = struct{}{}
+				}
+			}
+
+			inner = map[int]string{}
+
+			continue
+		}
+
+		doc.WriteString(line + "\n")
+
+		for _, m := range blockActionRe.FindAllStringSubmatch(line, -1) {
+			switch action := strings.Join(strings.Fields(m[1]), " "); {
+			case strings.HasPrefix(action, "if "):
+				stack = append(stack, action)
+				inner[len(stack)] = action
+			case action != "end" && !strings.HasPrefix(action, "else"):
+				// range, with, define, block: closed by an end, a condition of none.
+				stack = append(stack, "")
+			case strings.HasPrefix(action, "else"):
+				if len(stack) > 0 {
+					stack[len(stack)-1] = action
+					inner[len(stack)] = action
+				}
+			case action == "end" && len(stack) > 0:
+				if c, ok := inner[len(stack)]; ok {
+					conds[c] = struct{}{}
+
+					delete(inner, len(stack))
+				}
+
+				stack = stack[:len(stack)-1]
+			}
+		}
+	}
+
+	flush(doc.String(), conds)
+
+	return out
+}
+
+func kindOfIdentity(id string) string {
+	parts := strings.Split(id, "/")
+	return parts[len(parts)-2]
+}
+
+func nameOfIdentity(id string) string {
+	parts := strings.Split(id, "/")
+	return parts[len(parts)-1]
 }
 
 // templateConditions returns the conditions of a template text, `if <expr>` and `else`, each with its
@@ -644,8 +770,33 @@ func isRBACKind(kind string) bool {
 	return rbacKinds[kind]
 }
 
-// replacedByProduced reports whether a rendered object has a produced counterpart of the same kind
-// and content under another name.
+// carriesOver reports whether a produced object keeps the metadata of a rendered one it would
+// replace: every label and annotation outside the role model's own -- helm_lib's, Helm's, the
+// rbac.deckhouse.io/* labels and the localized texts a migration rewrites by design -- with the
+// same value. An rbac.authorization.k8s.io aggregation label or helm.sh/resource-policy on the old
+// object would otherwise leave with the rename, unreported.
+func carriesOver(object storage.StoreObject, o generate.Object) bool {
+	for k, v := range object.Unstructured.GetLabels() {
+		if !moduleLabels[k] && !strings.HasPrefix(k, "rbac.deckhouse.io/") && o.Labels[k] != v {
+			return false
+		}
+	}
+
+	for k, v := range object.Unstructured.GetAnnotations() {
+		if strings.HasPrefix(k, "meta.helm.sh/") || strings.HasPrefix(k, "rbac.deckhouse.io/") || slices.Contains(rbaccontract.I18nAnnotations, k) {
+			continue
+		}
+
+		if o.Annotations[k] != v {
+			return false
+		}
+	}
+
+	return true
+}
+
+// replacedByProduced reports whether a rendered object has a produced counterpart of the same kind,
+// content and metadata under another name.
 func replacedByProduced(object storage.StoreObject, produced []generate.Object, renderedRoles map[string]tupleSet, rendered map[string]struct{}) bool {
 	content := object.Unstructured.UnstructuredContent()
 
@@ -659,7 +810,7 @@ func replacedByProduced(object storage.StoreObject, produced []generate.Object, 
 		got := subjectSet(binding.Subjects)
 
 		for _, o := range produced {
-			if o.Kind != object.Unstructured.GetKind() || o.Namespace != object.Unstructured.GetNamespace() || o.RoleRefKind != binding.RoleRef.Kind {
+			if o.Kind != object.Unstructured.GetKind() || o.Namespace != object.Unstructured.GetNamespace() || o.RoleRefKind != binding.RoleRef.Kind || !carriesOver(object, o) {
 				continue
 			}
 
@@ -681,8 +832,13 @@ func replacedByProduced(object storage.StoreObject, produced []generate.Object, 
 
 		got := expandRenderedRules(role.Rules)
 
+		// An aggregationRule collects rights the counterpart does not name.
+		if role.AggregationRule != nil {
+			return false
+		}
+
 		for _, o := range produced {
-			if o.Kind != object.Unstructured.GetKind() || o.Namespace != object.Unstructured.GetNamespace() {
+			if o.Kind != object.Unstructured.GetKind() || o.Namespace != object.Unstructured.GetNamespace() || !carriesOver(object, o) {
 				continue
 			}
 
@@ -1346,6 +1502,9 @@ var (
 	abortingActionRe = regexp.MustCompile(`(^|[^.\w])(fail|required)\b`)
 	// conditionActionRe matches the condition actions of a template, a string literal inside them
 	// included: {{- if <expr> }}, {{ else }}, {{ else if <expr> }}.
+	// blockActionRe matches the block actions that open, switch or close a block: if and else, the
+	// blocks without a condition of their own (range, with, define, block), and end.
+	blockActionRe     = regexp.MustCompile(`\{\{-?\s*((?:if|else|range|with|define|block)\b(?:[^}"]|"(?:[^"\\]|\\.)*")*?|end)\s*-?\}\}`)
 	conditionActionRe = regexp.MustCompile(`\{\{-?\s*((?:if|else)\b(?:[^}"]|"(?:[^"\\]|\\.)*")*?)\s*-?\}\}`)
 	// labelsLineRe is the only other template action the generator writes: the module labels, with
 	// no labels of its own or a dict of quoted literals (generate.labelsInclude). Anything else on
