@@ -1,6 +1,6 @@
 description: >
   A CRD of the module (in a nested crds/ directory) without an entry in rbac.yaml is a coverage
-  error that names the autofix command.
+  finding (a warning while the rule is at its default level) that names the autofix command.
 module: module
 expect:
   - linter: rbac

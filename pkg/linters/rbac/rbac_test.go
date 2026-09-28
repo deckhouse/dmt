@@ -31,20 +31,33 @@ import (
 // A rule at the ignored level is not run: --fix would otherwise rewrite files on behalf of findings
 // nobody sees.
 func TestRules_IgnoredRuleIsNotRun(t *testing.T) {
-	m := mocks.NewModuleMock(minimock.NewController(t))
-	m.GetNameMock.Return("m")
+	for _, ignored := range []string{rules.ContractRuleName, rules.CoverageRuleName, rules.SyncRuleName} {
+		t.Run(ignored, func(t *testing.T) {
+			m := mocks.NewModuleMock(minimock.NewController(t))
+			m.GetNameMock.Return("m")
 
-	cfg := &pkg.RBACLinterConfig{}
-	cfg.Rules.SyncRule.SetLevel("ignored", "warn")
-	cfg.Rules.CoverageRule.SetLevel("", "warn")
-	cfg.Rules.ContractRule.SetLevel("error", "warn")
+			cfg := &pkg.RBACLinterConfig{}
+			for name, rule := range map[string]*pkg.RuleConfig{
+				rules.ContractRuleName: &cfg.Rules.ContractRule,
+				rules.CoverageRuleName: &cfg.Rules.CoverageRule,
+				rules.SyncRuleName:     &cfg.Rules.SyncRule,
+			} {
+				level := "warn"
+				if name == ignored {
+					level = "ignored"
+				}
 
-	names := map[string]bool{}
-	for _, rule := range New(cfg, nil, m, errors.NewLintRuleErrorsList()).rules() {
-		names[rule.GetName()] = true
+				rule.SetLevel(level, "warn")
+			}
+
+			names := map[string]bool{}
+			for _, rule := range New(cfg, nil, m, errors.NewLintRuleErrorsList()).rules() {
+				names[rule.GetName()] = true
+			}
+
+			for _, name := range []string{rules.ContractRuleName, rules.CoverageRuleName, rules.SyncRuleName} {
+				assert.Equal(t, name != ignored, names[name], name)
+			}
+		})
 	}
-
-	assert.False(t, names[rules.SyncRuleName], "sync is ignored")
-	assert.True(t, names[rules.CoverageRuleName])
-	assert.True(t, names[rules.ContractRuleName])
 }

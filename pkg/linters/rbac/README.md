@@ -16,7 +16,7 @@ Proper RBAC configuration is critical for Kubernetes security, ensuring least-pr
 | [wildcards](#wildcards) | Validates Roles/ClusterRoles don't use wildcard permissions | ✅ | enabled |
 | [contract](#contract) | Holds the module's RBACv2 roles and capabilities to the platform's label and naming contract | ✅ | enabled |
 | [coverage](#coverage) | Requires a decision in `rbac.yaml` on the user access to every CRD the module ships | ✅ | enabled when `rbac.yaml` exists |
-| [sync](#sync) | Compares the rendered RBAC objects with `rbac.yaml` in both directions; `--fix` rewrites the templates from `rbac.yaml`, and writes the first `rbac.yaml` from the render of a module that has none | ✅ | always on |
+| [sync](#sync) | Compares the rendered RBAC objects with `rbac.yaml` in both directions; `--fix` rewrites the templates from `rbac.yaml`, and writes the first `rbac.yaml` from the render of a module that has none | ✅ | enabled; silent for a module that renders no RBAC object and has no `rbac.yaml` |
 
 "Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
@@ -1503,15 +1503,15 @@ What the declaration produces (level `viewer` -> capability `view`, `manager` ->
 | Section | File | Objects |
 |---|---|---|
 | `resources[].namespace.<level or action>` | `templates/rbacv2/use/<action>.yaml` | ClusterRole `d8:namespace-capability:<module>:<action>` |
-| `resources[].system.<level or action>` | `templates/rbacv2/manage/<action>.yaml` | ClusterRole `d8:system-capability:<module>:<action>`; `view` and `edit` are always produced, with the rule on the module's own ModuleConfig |
+| `resources[].system.<level or action>` | `templates/rbacv2/manage/<action>.yaml` | ClusterRole `d8:system-capability:<module>:<action>`; `view` and `edit` are always produced for a module with a subsystem, with the rule on the module's own ModuleConfig -- without one a system capability would aggregate into no role |
 | `resources[].legacy.<Level>` | `templates/user-authz-cluster-roles.yaml` | ClusterRole `d8:user-authz:<module>:<kebab-level>` with the `user-authz.deckhouse.io/access-level` annotation |
 | `serviceAccounts[]` | `templates/[<path>/]rbac-for-us.yaml` | ServiceAccount, ClusterRole/ClusterRoleBinding `d8:<module>:<name>`, Role/RoleBinding `<name>`, the extra bindings |
 | `access[]` with `clusterRules` | `templates/rbac-for-us.yaml` | ClusterRole/ClusterRoleBinding `d8:<module>:<name>` |
 | `prometheusAccess`, `access[]` with `namespaceRules` | `templates/[<path>/]rbac-to-us.yaml` | Role/RoleBinding `access-to-<module>[-<name>]`; with `path` `access-to-<path, / as ->-<name>`, as the placement rule wants |
 
-Every object gets the `rbac.deckhouse.io/namespace` label of the module namespace unless that namespace is
-`default`: user-authz projects the module's use roles by it, and `kube-system` is a module namespace as
-any `d8-*` one.
+A system capability gets the `rbac.deckhouse.io/namespace` label of the module namespace unless that
+namespace is `default`: user-authz projects the module's use roles into it by the label, and
+`kube-system` is a module namespace as any `d8-*` one.
 
 The developer's loop is: edit `rbac.yaml` -> `dmt lint --linter rbac --fix` -> `dmt lint`. `--fix` does not
 re-lint: the second `dmt lint` shows the state after the fixes.
@@ -1603,7 +1603,9 @@ Runs only when the module has an `rbac.yaml`. Reads the CRDs under `crds/` at an
 ```
 
 -- and the fix succeeds. The stub is not a decision: the lint that follows `--fix` reports it as
-finding 2. Existing entries and comments are left as they are; a second `--fix` changes nothing.
+finding 2. Existing entries and comments stay; the file is written back through the YAML encoder, which
+chooses its own blank lines, indentation and quoting. A second `--fix` changes nothing, and a symbolic
+link gets no stub (the write would replace the link).
 The rule does not create `rbac.yaml`: a module without the file is a `sync` finding, and `--fix` of
 that rule writes the first declaration from the render (see [sync](#sync)).
 
@@ -1662,7 +1664,11 @@ them. A legacy role or a capability under a condition gets a `TODO` reason: `res
 condition false for these values is in no render: a note on top of the written file names it -- a
 document with a computed name as the kind and the pattern of its name -- so it is not left out in
 silence. A block inside an object -- a rule under its own `{{ if }}` -- is noted. The Prometheus
-scrape binding keeps its gate as `prometheusAccess.when`. A note names the labels and annotations of a
+scrape binding keeps its gate as `prometheusAccess.when`; a scrape Role becomes `prometheusAccess` only
+when it grants exactly what that writes -- `get` on `apps` `deployments|daemonsets|statefulsets/prometheus-metrics`
+of named workloads -- and is an `access` entry or stays hand-written otherwise, rather than be narrowed. Under
+`--matrix` an object the variants render with different rules gets the union and a note, as one a block
+varies. A note names the labels and annotations of a
 legacy role, and the annotations of a capability, the fix would drop; the labels of a capability go into its
 `capabilities` entry, with the level a capability with an action of its own aggregates into. Under `--matrix` an object only some variants
 rendered whose condition the text did not give stays hand-written where the declaration has no `when`
@@ -1693,13 +1699,14 @@ controller ClusterRoles with arbitrary names, objects with Helm-computed names).
 
 **What it checks:**
 
-1. Every declared object is in the render (unless it is under a `when` that is false in this render: when another object of the file under the same `when` rendered, the condition holds, and an absent one is a divergence), and every rule of it: rules are compared as `(apiGroup, resource, resourceName, verb)` tuples, in both directions. A rule under `when` that did not render is not a divergence; a rule without `when` hidden behind a hand-written `{{ if }}` is.
+1. Every declared object is in the render, and every rule of it: rules are compared as `(apiGroup, resource, resourceName, verb)` tuples, in both directions. An object or a rule under a `when` is excused while the condition is false in this render; when anything the declaration writes under the same `when` renders, in any file, the condition holds, and an absent one is a divergence -- a grant newly declared under a condition that already holds is written by `--fix`. A rule without `when` hidden behind a hand-written `{{ if }}` is a divergence.
 2. The labels and annotations of an object written from `serviceAccounts`, `access` or `prometheusAccess` match the declaration's (`labels`, `annotations`, `rbacAnnotations`): a `helm.sh/resource-policy: keep` or an aggregation label the declaration does not carry would be lost by the next `--fix`. `heritage` and `module` (written by `helm_lib_module_labels`), Helm's `meta.helm.sh/*` and dmt's `rbac.deckhouse.io/*` annotations are not compared. A ServiceAccount subject without a namespace is read in the namespace of its RoleBinding, as Kubernetes does.
-3. A capability's aggregation edges (`aggregate-to-<lineage>-as`) match in both directions: rules may agree while a lineage is lost. Its `rbac.deckhouse.io/capability` marker, `module` and `rbac.deckhouse.io/namespace` labels are what `--fix` writes, and so are its labels of the module (`capabilities.<key>.labels`): every other label but `heritage` is compared, since a role of the module outside the role model that selects the capability by it loses the capability when a rewrite drops the label.
-4. A binding's `roleRef` and subjects match.
-5. Every rendered legacy role and module capability is produced by the declaration.
-6. A file the declaration produces that does not exist while an object it holds is absent from the render is a divergence, whether or not the object is under `when`: the render cannot tell a false condition from a template nobody wrote, the file system can.
-7. An object the declaration produces that renders from another template than the one the declaration puts it in is a divergence of both files.
+3. A capability's aggregation edges (`aggregate-to-<lineage>-as`) match in both directions: rules may agree while a lineage is lost. Its `rbac.deckhouse.io/capability` marker, `module` and `rbac.deckhouse.io/namespace` labels are what `--fix` writes, and so are its labels of the module (`capabilities.<key>.labels`), since a role of the module outside the role model that selects the capability by one loses the capability when a rewrite drops the label, and its four localized texts.
+4. A label or an annotation of a legacy role or a capability that the format has no field for -- a label on a legacy role, `helm.sh/resource-policy` on a capability, another `rbac.deckhouse.io/*` label -- is a divergence, and the file gets no fix while it is there: the rewrite would drop it.
+5. A binding's `roleRef` and subjects match.
+6. Every rendered legacy role and module capability is produced by the declaration.
+7. A file the declaration produces that does not exist while an object it holds is absent from the render is a divergence, whether or not the object is under `when`: the render cannot tell a false condition from a template nobody wrote, the file system can.
+8. An object the declaration produces that renders from another template than the one the declaration puts it in is a divergence of both files.
 
 The render is judged, not the text: a file whose text differs from what the fix would write while its
 render agrees is not a divergence, and a rule under a `when` false for these values is checked where it
@@ -1707,7 +1714,7 @@ renders (`--matrix`, `--values-file`). A template nothing rendered from -- the r
 the `manager` warning "failed to render and was skipped" says so, or every object in it is under a
 condition false for these values -- is not reported for the objects its text holds.
 
-Findings are one per template file; the text does not depend on the render variant. A declaration
+Findings are one per template file. A declaration
 that does not parse or validate, one the rule cannot turn into objects (an account named against the
 placement rule) and a declaration in an edition overlay stop the rule: they are lint findings without a
 fix. A `module.yaml` that does not parse stops the rule as well; the `module` linter reports it, as the
@@ -1728,7 +1735,11 @@ finding names the case and what closes it -- when the file holds:
 - an object the declaration puts in another file, or one this file should hold that renders from, or is written in, another template: the fix does not move objects between files, and writing it here would render it twice. Move it;
 - a document the linter cannot read: an include, a `range`, a computed name, a `fail` or `required` guard -- anything the declaration does not write;
 - both role models behind the version gate (`rbacv2_new_scheme`, or a `deckhouseVersion` test with an `else` branch that the declaration does not produce): a rewrite would drop the legacy branch;
-- the legacy RBACv2 scheme only: a rewrite would serve the new model only, so the finding carries no fix (migrate with `rbacv2-migrate-module.sh`, or delete the file and run `--fix`).
+- the legacy RBACv2 scheme only: a rewrite would serve the new model only, so the finding carries no fix (migrate with `rbacv2-migrate-module.sh`, or delete the file and run `--fix`);
+- a condition (`{{ if }}`, `{{ else }}`) the declaration does not write: what it gates may not be in this render, and the rewrite would drop it or grant it unconditionally. Declare it as `when`, or, when the declaration dropped the `when` on purpose, delete it from the template -- the rewrite cannot tell the two apart;
+- an object `exclude-rules.sync` keeps out of the comparison, which the declaration produces: the rewrite would write it from the declaration over what the template holds;
+- a label or an annotation of a legacy role or a capability the format has no field for, and the `imagePullSecrets` or `secrets` of a ServiceAccount: the rewrite would drop them;
+- a template that is a symbolic link: the rewrite would replace the link with a file.
 
 The text is the same in every render variant, so every variant reaches the same answer; under
 `--matrix` a variant whose render shows such a case keeps the fix of every other variant off the file.
