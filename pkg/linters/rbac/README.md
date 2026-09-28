@@ -1410,11 +1410,29 @@ resources:
     namespace:
       viewer: [get, list, watch]
 
-# Localized texts of capabilities outside the view/edit convention (their texts come from the platform).
+  # A capability with an action of its own: the key is the action, and capabilities gives it the
+  # level it aggregates into (here d8:namespace-capability:cert-manager:renew_certificates, into
+  # the namespace admin level).
+  - group: cert-manager.io
+    resource: certificates/status
+    namespace:
+      renew_certificates: [update, patch]
+
+# Capabilities beyond what a level says, keyed <lineage>.<action>: the localized texts of every
+# capability outside the view/edit convention (theirs come from the platform), the level of an action
+# of its own, and labels of the module -- a label a role of the module outside the role model
+# aggregates by (rbac.deckhouse.io/ is dmt's).
 capabilities:
   namespace.admin:
     title: {en: "Module cert-manager: admin", ru: "Модуль cert-manager: администрирование"}
     description: {en: "Manage cert-manager Issuers in a namespace.", ru: "Управление Issuer модуля cert-manager в пространстве имён."}
+  namespace.renew_certificates:
+    level: admin
+    labels: {cert-manager.deckhouse.io/aggregate-to-renewer: "true"}
+    title: {en: "Module cert-manager: renew certificates", ru: "Модуль cert-manager: перевыпуск сертификатов"}
+    description: {en: "Renew cert-manager Certificates in a namespace.", ru: "Перевыпуск Certificate модуля cert-manager в пространстве имён."}
+  namespace.view:
+    labels: {cert-manager.deckhouse.io/aggregate-to-renewer: "true"}   # view and edit take labels only
 
 # ServiceAccount rights -> templates/[<path>/]rbac-for-us.yaml. Only declared accounts are managed.
 # automountServiceAccountToken defaults to false; extraClusterRoles are further ClusterRoles in the
@@ -1474,16 +1492,18 @@ Format rules the loader enforces:
 - `namespace` levels are allowed only for `Namespaced` resources; a `Namespaced` resource at a `system` level needs a `reason`.
 - `scope` is required for a resource the module ships no CRD for, and must agree with the CRD when the module ships one, or with Kubernetes for a built-in resource (`nodes` is `Cluster`). `resource: "*"` and `resource: "*/<subresource>"` are allowed only for a group without CRDs in the module and need a `reason`. A resource is a lowercase plural without dots.
 - `noAccess` is a non-empty reason and excludes the levels. `noAccess: "TODO"` is the stub the coverage autofix writes; it is not a decision. Any `noAccess`, `reason` or `scope` value that starts with `TODO` is an open decision, a lint finding with nothing to fix: `coverage` reports `noAccess` and `reason`, the validation of `sync` reports `scope` (nothing is compared or written until the scope is decided).
-- A capability outside the view/edit convention (`admin`, `user`, `superadmin`) needs `capabilities.<lineage>.<level>` texts in both languages; texts for a level no entry grants are an error (a typo in the key, or a removed entry).
+- A key of `namespace` or `system` is a level of the lineage or the action of a capability that `capabilities.<lineage>.<action>` gives a `level`. An action of its own is lowercase letters, digits and `_` starting with a letter (`access_terminal`), and never `viewer` or `manager`; the capability of a level takes no `level`.
+- A capability outside the view/edit convention (`admin`, `user`, `superadmin`, an action of its own) needs `capabilities.<lineage>.<action>` texts in both languages; an entry for a capability no resource entry grants is an error (a typo in the key, or a removed entry). `system.view` and `system.edit` are always produced and may carry labels without a grant.
+- `capabilities.<key>.labels` are labels of the module: valid keys and values, none under `rbac.deckhouse.io/`, and not `heritage` or `module`. A label in the render that the declaration does not carry is a divergence: the rewrite writes the declared labels only.
 - A ServiceAccount name is a DNS subdomain; label and annotation keys are qualified names, and `rbac.deckhouse.io/*` and `meta.helm.sh/*` annotations are not the declaration's. A rule holds no empty verb, resource, resource name or URL.
 - Messages name a resource entry by its index in the file as written (`resources[3]`), although the entries are compared in sorted order.
 
-What the declaration produces (level `viewer` -> capability `view`, `manager` -> `edit`, the rest as they are):
+What the declaration produces (level `viewer` -> capability `view`, `manager` -> `edit`, the rest as they are; an action of its own names its capability and aggregates into the level `capabilities` gives it):
 
 | Section | File | Objects |
 |---|---|---|
-| `resources[].namespace.<level>` | `templates/rbacv2/use/<action>.yaml` | ClusterRole `d8:namespace-capability:<module>:<action>` |
-| `resources[].system.<level>` | `templates/rbacv2/manage/<action>.yaml` | ClusterRole `d8:system-capability:<module>:<action>`; `view` and `edit` are always produced, with the rule on the module's own ModuleConfig |
+| `resources[].namespace.<level or action>` | `templates/rbacv2/use/<action>.yaml` | ClusterRole `d8:namespace-capability:<module>:<action>` |
+| `resources[].system.<level or action>` | `templates/rbacv2/manage/<action>.yaml` | ClusterRole `d8:system-capability:<module>:<action>`; `view` and `edit` are always produced, with the rule on the module's own ModuleConfig |
 | `resources[].legacy.<Level>` | `templates/user-authz-cluster-roles.yaml` | ClusterRole `d8:user-authz:<module>:<kebab-level>` with the `user-authz.deckhouse.io/access-level` annotation |
 | `serviceAccounts[]` | `templates/[<path>/]rbac-for-us.yaml` | ServiceAccount, ClusterRole/ClusterRoleBinding `d8:<module>:<name>`, Role/RoleBinding `<name>`, the extra bindings |
 | `access[]` with `clusterRules` | `templates/rbac-for-us.yaml` | ClusterRole/ClusterRoleBinding `d8:<module>:<name>` |

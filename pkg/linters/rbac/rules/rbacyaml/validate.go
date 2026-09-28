@@ -173,7 +173,7 @@ func Validate(d *Declaration, crds CRDScopes) []error {
 
 		seen[r.Key()] = struct{}{}
 
-		validateResource(r, where, crds, usedCapabilities, report)
+		validateResource(d, r, where, crds, usedCapabilities, report)
 	}
 
 	validateCapabilities(d.Capabilities, usedCapabilities, report)
@@ -198,7 +198,7 @@ func Validate(d *Declaration, crds CRDScopes) []error {
 
 type reporter func(format string, args ...any)
 
-func validateResource(r *Resource, where string, crds CRDScopes, usedCapabilities map[string]struct{}, report reporter) {
+func validateResource(d *Declaration, r *Resource, where string, crds CRDScopes, usedCapabilities map[string]struct{}, report reporter) {
 	if r.Resource == "" {
 		report("%s: resource is required", where)
 		return
@@ -251,9 +251,9 @@ func validateResource(r *Resource, where string, crds CRDScopes, usedCapabilitie
 		report("%s: a namespaced resource granted at a system level is granted across the whole cluster; confirm it with reason: \"<why>\"", where)
 	}
 
-	validateLevels(r.Namespace, rbaccontract.LineageNamespace, rbaccontract.NamespaceLevels, where, usedCapabilities, report)
-	validateLevels(r.System, rbaccontract.LineageSystem, rbaccontract.SystemLevels, where, usedCapabilities, report)
-	validateLevels(r.Legacy, "legacy", rbaccontract.LegacyLevels, where, nil, report)
+	validateLevels(d, r.Namespace, rbaccontract.LineageNamespace, rbaccontract.NamespaceLevels, where, usedCapabilities, report)
+	validateLevels(d, r.System, rbaccontract.LineageSystem, rbaccontract.SystemLevels, where, usedCapabilities, report)
+	validateLevels(nil, r.Legacy, "legacy", rbaccontract.LegacyLevels, where, nil, report)
 }
 
 // resolveScope returns the effective scope of the entry: the declared one, checked against the
@@ -318,9 +318,22 @@ func (c CRDScopes) groupKnown(group string) bool {
 	return false
 }
 
-func validateLevels(levels map[string][]string, lineage string, allowed []string, where string, usedCapabilities map[string]struct{}, report reporter) {
+// validateLevels checks the levels of one role model; d resolves the RBACv2 ones, where a key may
+// also be the action of a capability the declaration gives a level (nil for the legacy model).
+func validateLevels(d *Declaration, levels map[string][]string, lineage string, allowed []string, where string, usedCapabilities map[string]struct{}, report reporter) {
 	for level, verbs := range levels {
-		if !slices.Contains(allowed, level) {
+		action := level
+
+		switch {
+		case slices.Contains(allowed, level):
+			if d != nil {
+				action = rbaccontract.CapabilityAction(level)
+			}
+		case d != nil && d.Capabilities[lineage+"."+level].Level != "":
+		case d != nil:
+			report("%s: %s level %q is not valid; the %s levels are %s, or the action of a capability that capabilities gives a level (%s.%s: {level: ...})", where, lineage, level, lineage, strings.Join(allowed, ", "), lineage, level)
+			continue
+		default:
 			report("%s: %s level %q is not valid; the %s levels are %s", where, lineage, level, lineage, strings.Join(allowed, ", "))
 			continue
 		}
@@ -345,35 +358,64 @@ func validateLevels(levels map[string][]string, lineage string, allowed []string
 		}
 
 		if usedCapabilities != nil {
-			usedCapabilities[lineage+"."+rbaccontract.CapabilityAction(level)] = struct{}{}
+			usedCapabilities[lineage+"."+action] = struct{}{}
 		}
 	}
 }
 
 // validateCapabilities requires localized texts for every capability outside the platform
-// convention (anything but view/edit) and rejects malformed entries.
-func validateCapabilities(texts map[string]CapabilityText, used map[string]struct{}, report reporter) {
-	for _, key := range slices.Sorted(maps.Keys(texts)) {
-		text := texts[key]
+// convention (anything but view/edit), a level for every action of its own, and rejects malformed
+// entries.
+func validateCapabilities(capabilities map[string]Capability, used map[string]struct{}, report reporter) {
+	for _, key := range slices.Sorted(maps.Keys(capabilities)) {
+		c := capabilities[key]
 
 		lineage, action, ok := strings.Cut(key, ".")
 		if !ok || (lineage != rbaccontract.LineageNamespace && lineage != rbaccontract.LineageSystem) {
-			report("capabilities: key %q must be \"namespace.<level>\" or \"system.<level>\"", key)
+			report("capabilities: key %q must be \"namespace.<action>\" or \"system.<action>\"", key)
 			continue
 		}
 
-		if rbaccontract.IsConventionalAction(action) {
+		levels := rbaccontract.LevelsOf(lineage)
+		levelAction := slices.ContainsFunc(levels, func(level string) bool { return rbaccontract.CapabilityAction(level) == action })
+
+		switch {
+		case levelAction && c.Level != "":
+			report("capabilities: %q is the capability of %s level %q; level is only for an action of its own", key, lineage, rbaccontract.LevelOfAction(action))
+		case levelAction:
+		case slices.Contains(levels, action):
+			// viewer and manager grant view and edit; as a key of a resource entry they are levels.
+			report("capabilities: %q: %q is a level, whose capability is %s.%s", key, action, lineage, rbaccontract.CapabilityAction(action))
+			continue
+		case !actionRe.MatchString(action):
+			report("capabilities: %q: the action must be lowercase letters, digits and '_', starting with a letter (as in access_terminal)", key)
+		case c.Level == "":
+			report("capabilities: %q is an action of its own and needs the level it aggregates into (level: one of %s)", key, strings.Join(levels, ", "))
+		case !slices.Contains(levels, c.Level):
+			report("capabilities: %s.level %q is not valid; the %s levels are %s", key, c.Level, lineage, strings.Join(levels, ", "))
+		}
+
+		validateCapabilityLabels(c.Labels, "capabilities: "+key+".labels", report)
+
+		if rbaccontract.IsConventionalAction(action) && c.HasTexts() {
 			report("capabilities: %q needs no texts: view and edit capabilities take the platform's conventional texts", key)
-		} else if _, isUsed := used[key]; !isUsed {
-			// A text for a level nobody grants -- a typo in the key, or an entry that was removed --
-			// produces nothing, and the level it was meant for is left without texts.
-			report("capabilities: %q has texts, but no resource entry grants %s level %q; check the key, or drop the texts", key, lineage, action)
+			continue
+		}
+
+		if _, isUsed := used[key]; !isUsed && (lineage != rbaccontract.LineageSystem || !rbaccontract.IsConventionalAction(action)) {
+			// An entry for a capability nobody grants -- a typo in the key, or an entry that was
+			// removed -- produces nothing, and the capability it was meant for is left without it.
+			report("capabilities: %q is described, but no resource entry grants it; check the key, or drop the entry", key)
+		}
+
+		if rbaccontract.IsConventionalAction(action) {
+			continue
 		}
 
 		for _, field := range []struct {
 			name  string
 			value LocalizedText
-		}{{"title", text.Title}, {"description", text.Description}} {
+		}{{"title", c.Title}, {"description", c.Description}} {
 			if field.value.EN == "" || field.value.RU == "" {
 				report("capabilities: %s.%s requires both en and ru", key, field.name)
 			}
@@ -386,8 +428,24 @@ func validateCapabilities(texts map[string]CapabilityText, used map[string]struc
 			continue
 		}
 
-		if _, ok := texts[key]; !ok {
+		if c, ok := capabilities[key]; !ok || !c.HasTexts() {
 			report("capabilities: %q is used by a resource entry but has no title and description; a capability outside the view/edit convention needs localized texts", key)
+		}
+	}
+}
+
+// validateCapabilityLabels checks the labels of the module on a capability: valid keys and values,
+// and none of the labels dmt writes itself.
+func validateCapabilityLabels(labels map[string]string, where string, report reporter) {
+	validateMetadataKeys(labels, where, false, report)
+
+	for _, k := range slices.Sorted(maps.Keys(labels)) {
+		if strings.HasPrefix(k, "rbac.deckhouse.io/") || k == rbaccontract.LabelHeritage || k == rbaccontract.LabelModule {
+			report("%s: %q is set by dmt, not by the declaration", where, k)
+		}
+
+		if errs := validation.IsValidLabelValue(labels[k]); len(errs) > 0 {
+			report("%s: %q: %q is not a valid label value: %s", where, k, labels[k], strings.Join(errs, "; "))
 		}
 	}
 }
@@ -642,6 +700,7 @@ func Warnings(d *Declaration) []string {
 }
 
 var (
+	actionRe       = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 	groupNameRe    = regexp.MustCompile(`^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
 	resourceNameRe = regexp.MustCompile(`^(\*|[a-z0-9]([-a-z0-9]*[a-z0-9])?)(/[a-z0-9]([-a-z0-9]*[a-z0-9])?)?$`)
 )

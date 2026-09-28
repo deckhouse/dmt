@@ -26,6 +26,7 @@ import (
 	"github.com/gojuno/minimock/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v3"
 	rbacv1 "k8s.io/api/rbac/v1"
 
 	"github.com/deckhouse/dmt/internal/mocks"
@@ -140,6 +141,65 @@ func TestSyncRegression_LabelsAndSubjectNamespace(t *testing.T) {
 	assert.NotContains(t, got, "label heritage")
 	assert.NotContains(t, got, "label module")
 	assert.NotContains(t, got, "RoleBinding/cainjector: subject")
+}
+
+// A label of the module on a capability -- one a role of the module outside the role model selects
+// -- is compared like the labels of the role model: the rewrite writes the declared ones only, and a
+// dropped selector label is a lost right.
+func TestSync_ModuleLabelsOfACapability(t *testing.T) {
+	const (
+		view  = "d8:namespace-capability:cert-manager:view"
+		agent = "cert-manager.deckhouse.io/aggregate-to-agent"
+	)
+
+	t.Run("undeclared", func(t *testing.T) {
+		resetFixState()
+		t.Cleanup(resetFixState)
+
+		modulePath := syncModuleDir(t)
+		model := syncModel(t, modulePath)
+		writeGenerated(t, modulePath, model)
+
+		got := strings.Join(texts(runSync(t, modulePath, renderedFrom(t, model, func(o *generate.Object) bool {
+			if o.Name == view {
+				o.Labels[agent] = "true"
+			}
+
+			return true
+		}))), "\n")
+		assert.Contains(t, got, "ClusterRole/"+view+": label "+agent+" is in the render but not declared")
+	})
+
+	t.Run("declared", func(t *testing.T) {
+		resetFixState()
+		t.Cleanup(resetFixState)
+
+		modulePath := syncModuleDir(t)
+
+		decl, err := rbacyaml.Load(modulePath)
+		require.NoError(t, err)
+
+		decl.Capabilities["namespace.view"] = rbacyaml.Capability{Labels: map[string]string{agent: "true"}}
+
+		raw, err := yaml.Marshal(decl)
+		require.NoError(t, err)
+		require.NotContains(t, string(raw), "title: {}", "a labels-only entry is written without texts")
+		require.NoError(t, os.WriteFile(rbacyaml.Path(modulePath), raw, 0o600))
+
+		model := syncModel(t, modulePath)
+		writeGenerated(t, modulePath, model)
+
+		assert.Empty(t, texts(runSync(t, modulePath, renderedFrom(t, model, nil))))
+
+		got := strings.Join(texts(runSync(t, modulePath, renderedFrom(t, model, func(o *generate.Object) bool {
+			if o.Name == view {
+				delete(o.Labels, agent)
+			}
+
+			return true
+		}))), "\n")
+		assert.Contains(t, got, "ClusterRole/"+view+": label "+agent+" is declared but absent from the render")
+	})
 }
 
 func TestSplitChanges(t *testing.T) {
