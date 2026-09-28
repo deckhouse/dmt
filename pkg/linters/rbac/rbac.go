@@ -70,15 +70,34 @@ func (l *Rbac) rules() []pkg.Rule {
 		return errorList.WithMaxLevel(rule.GetLevel())
 	}
 
-	return []pkg.Rule{
+	out := []pkg.Rule{
 		rules.NewUserAuthZRule(m, errorList),
 		rules.NewBindingSubjectRule(l.cfg.ExcludeRules.BindingSubject.Get(), m, errorList),
 		rules.NewPlacementRule(l.cfg.ExcludeRules.Placement.Get(), m, errorList),
 		rules.NewWildcardsRule(l.cfg.ExcludeRules.Wildcards.Get(), m, errorList),
-		rules.NewContractRule(l.cfg.ExcludeRules.Contract.Get(), m, level(l.cfg.Rules.ContractRule)),
-		rules.NewCoverageRule(l.cfg.ExcludeRules.Coverage.Get(), m, level(l.cfg.Rules.CoverageRule)),
-		rules.NewSyncRule(l.cfg.ExcludeRules.Sync.Get(), m, level(l.cfg.Rules.SyncRule)),
 	}
+
+	// A rule at the ignored level is not run: its findings are shown to nobody, and --fix runs the
+	// autofix of every finding it collects, so an ignored coverage or sync would still rewrite files.
+	if !ignored(l.cfg.Rules.ContractRule) {
+		out = append(out, rules.NewContractRule(l.cfg.ExcludeRules.Contract.Get(), m, level(l.cfg.Rules.ContractRule)))
+	}
+
+	if !ignored(l.cfg.Rules.CoverageRule) {
+		out = append(out, rules.NewCoverageRule(l.cfg.ExcludeRules.Coverage.Get(), m, level(l.cfg.Rules.CoverageRule)))
+	}
+
+	if !ignored(l.cfg.Rules.SyncRule) {
+		out = append(out, rules.NewSyncRule(l.cfg.ExcludeRules.Sync.Get(), m, level(l.cfg.Rules.SyncRule)))
+	}
+
+	return out
+}
+
+func ignored(rule pkg.RuleConfig) bool {
+	level := rule.GetLevel()
+
+	return level != nil && *level == pkg.Ignored
 }
 
 func (l *Rbac) GetName() string {
