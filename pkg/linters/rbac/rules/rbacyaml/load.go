@@ -64,12 +64,23 @@ func Parse(data []byte) (*Declaration, error) {
 		return nil, fmt.Errorf("parse %s: %w", Filename, err)
 	}
 
-	// A second document in the file would be silently ignored otherwise.
-	switch err := decoder.Decode(new(Declaration)); {
-	case err == nil:
-		return nil, fmt.Errorf("parse %s: the file must hold a single YAML document", Filename)
-	case !errors.Is(err, io.EOF):
-		return nil, fmt.Errorf("parse %s: %w", Filename, err)
+	// A second document in the file would be silently ignored otherwise; an empty one after it (a
+	// trailing ---) holds nothing.
+	for {
+		var next yaml.Node
+
+		err := decoder.Decode(&next)
+		if errors.Is(err, io.EOF) {
+			break
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("parse %s: %w", Filename, err)
+		}
+
+		if len(next.Content) > 0 && (next.Content[0].Kind != yaml.ScalarNode || next.Content[0].Tag != "!!null") {
+			return nil, fmt.Errorf("parse %s: the file must hold a single YAML document", Filename)
+		}
 	}
 
 	for i := range decl.Resources {
