@@ -1,6 +1,6 @@
 description: >
-  An undecided stub is an error the autofix cannot close, and a resource of a known group that no
-  CRD spells is a warning about a likely misspelling.
+  An undecided stub is a finding the autofix cannot close (a warning at the rule's default level),
+  and a resource of a known group that no CRD spells is a warning about a likely misspelling.
 module: module
 expect:
   - linter: rbac
