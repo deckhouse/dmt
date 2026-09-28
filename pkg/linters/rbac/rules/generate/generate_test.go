@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 	sigsyaml "sigs.k8s.io/yaml"
 
+	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbaccontract"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbacyaml"
 )
 
@@ -309,11 +310,11 @@ func TestBuild_RefusesWhatTheModuleCannotCarry(t *testing.T) {
 	})
 
 	t.Run("a capability marker longer than a label value", func(t *testing.T) {
-		// The levels are a fixed set, so only the module name can push the marker
+		// With the levels alone, only the module name can push the marker
 		// namespace-capability.<module>.superadmin past 63 characters: at 32 characters it does.
 		decl := &rbacyaml.Declaration{APIVersion: rbacyaml.APIVersionV1Alpha1,
 			Resources:    []rbacyaml.Resource{{Group: "x.io", Resource: "things", Scope: "Namespaced", Namespace: map[string][]string{"superadmin": {"get"}}}},
-			Capabilities: map[string]rbacyaml.CapabilityText{"namespace.superadmin": {Title: rbacyaml.LocalizedText{EN: "t", RU: "т"}, Description: rbacyaml.LocalizedText{EN: "d", RU: "д"}}},
+			Capabilities: map[string]rbacyaml.Capability{"namespace.superadmin": {Title: rbacyaml.LocalizedText{EN: "t", RU: "т"}, Description: rbacyaml.LocalizedText{EN: "d", RU: "д"}}},
 		}
 		_, err := Build(Input{Module: "a-module-name-of-thirty-two-char", Namespace: "d8-m", Decl: decl})
 		require.Error(t, err)
@@ -322,6 +323,55 @@ func TestBuild_RefusesWhatTheModuleCannotCarry(t *testing.T) {
 		_, err = Build(Input{Module: "a-module-name-of-thirtyone-char", Namespace: "d8-m", Decl: decl})
 		require.NoError(t, err)
 	})
+}
+
+// A capability with an action of its own is named after it and aggregates into the level the
+// declaration gives it; the labels of the module go on it beside those of the role model.
+func TestBuild_CapabilityOfItsOwnAction(t *testing.T) {
+	const agent = "m.deckhouse.io/aggregate-to-agent"
+
+	decl := &rbacyaml.Declaration{APIVersion: rbacyaml.APIVersionV1Alpha1,
+		Resources: []rbacyaml.Resource{
+			{Group: "x.io", Resource: "snapshots", Scope: "Namespaced", Namespace: map[string][]string{"viewer": {"get"}, "download_snapshots": {"create"}}},
+			{Group: "x.io", Resource: "volumes", Scope: "Cluster", System: map[string][]string{"transfer": {"update"}}},
+		},
+		Capabilities: map[string]rbacyaml.Capability{
+			"namespace.download_snapshots": {Level: "admin", Labels: map[string]string{agent: "true"},
+				Title: rbacyaml.LocalizedText{EN: "t", RU: "т"}, Description: rbacyaml.LocalizedText{EN: "d", RU: "д"}},
+			"namespace.view": {Labels: map[string]string{agent: "true"}},
+			"system.transfer": {Level: "manager",
+				Title: rbacyaml.LocalizedText{EN: "t2", RU: "т2"}, Description: rbacyaml.LocalizedText{EN: "d2", RU: "д2"}},
+		},
+	}
+	require.Empty(t, rbacyaml.Validate(decl, nil))
+
+	model, err := Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"storage"}, Decl: decl})
+	require.NoError(t, err)
+
+	own := model.File("templates/rbacv2/use/download_snapshots.yaml")
+	require.NotNil(t, own)
+	require.Len(t, own.Objects, 1)
+	assert.Equal(t, "d8:namespace-capability:m:download_snapshots", own.Objects[0].Name)
+	assert.Equal(t, map[string]string{
+		rbaccontract.LabelKind:                        rbaccontract.KindCapability,
+		rbaccontract.LabelScope:                       rbaccontract.LineageNamespace,
+		rbaccontract.LabelCapability:                  "namespace-capability.m.download_snapshots",
+		"rbac.deckhouse.io/aggregate-to-namespace-as": "admin",
+		agent: "true",
+	}, own.Objects[0].Labels)
+	assert.Equal(t, "t", own.Objects[0].Annotations[rbaccontract.AnnotationTitleEN])
+	assert.Contains(t, RenderFile(*own), `"`+agent+`" "true"`, "the label of the module is written with the others")
+
+	view := model.File("templates/rbacv2/use/view.yaml")
+	require.NotNil(t, view)
+	assert.Equal(t, "true", view.Objects[0].Labels[agent])
+	assert.Equal(t, "viewer", view.Objects[0].Labels["rbac.deckhouse.io/aggregate-to-namespace-as"])
+
+	transfer := model.File("templates/rbacv2/manage/transfer.yaml")
+	require.NotNil(t, transfer)
+	assert.Equal(t, "d8:system-capability:m:transfer", transfer.Objects[0].Name)
+	assert.Equal(t, "manager", transfer.Objects[0].Labels["rbac.deckhouse.io/aggregate-to-storage-as"])
+	assert.NotContains(t, transfer.Objects[0].Labels, agent)
 }
 
 func TestYAMLScalar(t *testing.T) {

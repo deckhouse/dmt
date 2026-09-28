@@ -946,6 +946,27 @@ func compareCapabilityLabels(expected generate.Object, actual storage.StoreObjec
 		out = append(out, fmt.Sprintf("%s: label %s is %q in the render, expected %q", id, rbaccontract.LabelModule, labels[rbaccontract.LabelModule], module))
 	}
 
+	// The other labels are the module's (a role of the module outside the role model selects them)
+	// or nobody's; the rewrite writes the declared ones only, and a dropped selector label is a
+	// lost right.
+	own := func(key string) bool {
+		return !strings.HasPrefix(key, "rbac.deckhouse.io/") && !moduleLabels[key]
+	}
+
+	for _, k := range slices.Sorted(maps.Keys(labels)) {
+		if want, ok := expected.Labels[k]; own(k) && !ok {
+			out = append(out, fmt.Sprintf("%s: label %s is in the render but not declared", id, k))
+		} else if own(k) && want != labels[k] {
+			out = append(out, fmt.Sprintf("%s: label %s is %q in the render, the declaration produces %q", id, k, labels[k], want))
+		}
+	}
+
+	for _, k := range slices.Sorted(maps.Keys(expected.Labels)) {
+		if _, ok := labels[k]; own(k) && !ok {
+			out = append(out, fmt.Sprintf("%s: label %s is declared but absent from the render", id, k))
+		}
+	}
+
 	if aggregation != nil {
 		out = append(out, fmt.Sprintf("%s: a capability carries rules and is aggregated by roles; it must not define aggregationRule", id))
 	}

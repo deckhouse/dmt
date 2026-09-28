@@ -683,3 +683,41 @@ func TestBuild_AccountObjectsInOtherVariants(t *testing.T) {
 	assert.Contains(t, when, "ClusterRoleBinding d8:m:autoscaler:plain")
 	assert.Contains(t, when, "ClusterRoleBinding d8:m:autoscaler:mcm")
 }
+
+// A capability with an action of its own comes back under its action, with the level it aggregates
+// into and the labels of the module; one whose level the declaration cannot say stays hand-written.
+func TestBuild_CapabilityOfItsOwnActionRoundTrips(t *testing.T) {
+	const agent = "m.deckhouse.io/aggregate-to-agent"
+
+	want := &rbacyaml.Declaration{APIVersion: rbacyaml.APIVersionV1Alpha1,
+		Resources: []rbacyaml.Resource{
+			{Group: "x.io", Resource: "snapshots", Namespace: map[string][]string{"viewer": {"get"}, "download_snapshots": {"create"}}},
+		},
+		Capabilities: map[string]rbacyaml.Capability{
+			"namespace.download_snapshots": {Level: "admin", Labels: map[string]string{agent: "true"},
+				Title: rbacyaml.LocalizedText{EN: "t", RU: "т"}, Description: rbacyaml.LocalizedText{EN: "d", RU: "д"}},
+			"namespace.view": {Labels: map[string]string{agent: "true"}},
+		},
+	}
+	crds := map[string]string{"x.io/snapshots": "Namespaced"}
+
+	model, err := generate.Build(generate.Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"storage"}, Decl: want})
+	require.NoError(t, err)
+
+	objects := objectsOf(model, "m", "d8-m")
+	got := Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"storage"}, Objects: objects, CRDs: crds})
+	require.Empty(t, got.Unmanaged)
+	assert.Equal(t, want.Capabilities, got.Decl.Capabilities)
+	require.Len(t, got.Decl.Resources, 1)
+	assert.Equal(t, want.Resources[0].Namespace, got.Decl.Resources[0].Namespace)
+
+	for i := range objects {
+		if objects[i].Name == "d8:namespace-capability:m:download_snapshots" {
+			objects[i].Labels["rbac.deckhouse.io/aggregate-to-kubernetes-as"] = "viewer"
+		}
+	}
+
+	got = Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"storage"}, Objects: objects, CRDs: crds})
+	assert.Contains(t, strings.Join(got.Unmanaged, "\n"),
+		"ClusterRole/d8:namespace-capability:m:download_snapshots (templates/rbacv2/use/download_snapshots.yaml): a capability with an action of its own that aggregates into several levels (admin, viewer); the declaration gives it one")
+}

@@ -141,7 +141,7 @@ type builder struct {
 	// left out of the levels and named in a note. Keyed by resource only for the note; the verbs of
 	// one level never widen another's.
 	restricted map[[2]string][]string
-	texts      map[string]rbacyaml.CapabilityText
+	texts      map[string]rbacyaml.Capability
 	lineages   map[string]struct{}
 	used       map[string]struct{}
 	notes      []string
@@ -208,7 +208,7 @@ func Build(in Input) Result {
 		return in.Objects[i].identity() < in.Objects[j].identity()
 	})
 
-	b := &builder{in: in, unmanagedIDs: map[string]bool{}, account: map[string]bool{}, partialIDs: map[string]bool{}, conditionalKeys: map[[2]string][]string{}, res: map[[2]string]*resourceAcc{}, restricted: map[[2]string][]string{}, texts: map[string]rbacyaml.CapabilityText{}, lineages: map[string]struct{}{}, used: map[string]struct{}{},
+	b := &builder{in: in, unmanagedIDs: map[string]bool{}, account: map[string]bool{}, partialIDs: map[string]bool{}, conditionalKeys: map[[2]string][]string{}, res: map[[2]string]*resourceAcc{}, restricted: map[[2]string][]string{}, texts: map[string]rbacyaml.Capability{}, lineages: map[string]struct{}{}, used: map[string]struct{}{},
 		decl: &rbacyaml.Declaration{APIVersion: rbacyaml.APIVersionV1Alpha1}}
 
 	for _, p := range in.Partial {
@@ -421,6 +421,22 @@ func (b *builder) capabilitiesAndLegacy() {
 			lineage, action := m[1], m[3]
 			level := rbaccontract.LevelOfAction(action)
 
+			// A capability with an action of its own is granted under its action; the level it
+			// aggregates into goes into its capabilities entry.
+			var entry rbacyaml.Capability
+
+			if !slices.Contains(rbaccontract.LevelsOf(lineage), level) {
+				aggregated, why := aggregatedLevel(o.Labels, lineage)
+				if why != "" {
+					b.unmanage(o, why)
+					b.mark(o)
+
+					continue
+				}
+
+				entry.Level, level = aggregated, action
+			}
+
 			if wildcardGrant(o.Rules) {
 				b.unmanage(o, "grants \"*\" verbs or API groups, which the declaration refuses at every level; list them in the template before the declaration can describe it")
 				b.mark(o)
@@ -441,11 +457,15 @@ func (b *builder) capabilitiesAndLegacy() {
 				}
 			}
 
+			entry.Labels = moduleOwnLabels(o.Labels)
+
 			if !rbaccontract.IsConventionalAction(action) {
-				b.texts[lineage+"."+action] = rbacyaml.CapabilityText{
-					Title:       rbacyaml.LocalizedText{EN: o.Annotations[rbaccontract.AnnotationTitleEN], RU: o.Annotations[rbaccontract.AnnotationTitleRU]},
-					Description: rbacyaml.LocalizedText{EN: o.Annotations[rbaccontract.AnnotationDescriptionEN], RU: o.Annotations[rbaccontract.AnnotationDescriptionRU]},
-				}
+				entry.Title = rbacyaml.LocalizedText{EN: o.Annotations[rbaccontract.AnnotationTitleEN], RU: o.Annotations[rbaccontract.AnnotationTitleRU]}
+				entry.Description = rbacyaml.LocalizedText{EN: o.Annotations[rbaccontract.AnnotationDescriptionEN], RU: o.Annotations[rbaccontract.AnnotationDescriptionRU]}
+			}
+
+			if entry.Level != "" || len(entry.Labels) > 0 || entry.HasTexts() {
+				b.texts[lineage+"."+action] = entry
 			}
 		case rbaccontract.KindRole:
 			b.unmanage(o, "a role of the role model")
@@ -455,6 +475,53 @@ func (b *builder) capabilitiesAndLegacy() {
 			b.mark(o)
 		}
 	}
+}
+
+// aggregatedLevel returns the one level a capability with an action of its own aggregates into, or
+// why the declaration cannot say it: no level, several, or one the lineage does not have.
+func aggregatedLevel(labels map[string]string, lineage string) (string, string) {
+	levels := map[string]struct{}{}
+
+	for key, value := range labels {
+		if strings.HasPrefix(key, rbaccontract.AggregationLabelPrefix) && strings.HasSuffix(key, rbaccontract.AggregationLabelSuffix) {
+			levels[value] = struct{}{}
+		}
+	}
+
+	switch {
+	case len(levels) == 0:
+		return "", "a capability with an action of its own that aggregates into no level"
+	case len(levels) > 1:
+		return "", fmt.Sprintf("a capability with an action of its own that aggregates into several levels (%s); the declaration gives it one", strings.Join(slices.Sorted(maps.Keys(levels)), ", "))
+	}
+
+	level := slices.Collect(maps.Keys(levels))[0]
+
+	if !slices.Contains(rbaccontract.LevelsOf(lineage), level) {
+		return "", fmt.Sprintf("a capability that aggregates into %s level %q, which the lineage does not have", lineage, level)
+	}
+
+	return level, ""
+}
+
+// moduleOwnLabels returns the labels of a capability that neither the role model nor
+// helm_lib_module_labels writes: labels of the module, which its capabilities entry carries.
+func moduleOwnLabels(labels map[string]string) map[string]string {
+	var out map[string]string
+
+	for key, value := range labels {
+		if strings.HasPrefix(key, "rbac.deckhouse.io/") || key == rbaccontract.LabelHeritage || key == rbaccontract.LabelModule {
+			continue
+		}
+
+		if out == nil {
+			out = map[string]string{}
+		}
+
+		out[key] = value
+	}
+
+	return out
 }
 
 func (b *builder) byKind(kind string) []Object {
@@ -1161,15 +1228,18 @@ func (b *builder) dropped() {
 		}
 
 		// Accounts, access entries and the scrape access carry their labels and annotations; a
-		// legacy role or a capability carries only the generator's.
+		// capability carries the generator's and its capabilities entry's labels, a legacy role
+		// only the generator's.
 		if !b.ownedByClass(o) {
 			continue
 		}
 
 		var lost []string
 
+		capability := o.Labels[rbaccontract.LabelKind] == rbaccontract.KindCapability
+
 		for _, k := range slices.Sorted(maps.Keys(o.Labels)) {
-			if k == rbaccontract.LabelHeritage || k == rbaccontract.LabelModule || strings.HasPrefix(k, "rbac.deckhouse.io/") || (k == "app" && b.account[id]) {
+			if capability || k == rbaccontract.LabelHeritage || k == rbaccontract.LabelModule || strings.HasPrefix(k, "rbac.deckhouse.io/") || (k == "app" && b.account[id]) {
 				continue
 			}
 
