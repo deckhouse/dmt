@@ -145,6 +145,13 @@ func niladic(name string) bool {
 // -- its stub only adds an entry -- so that the CRDs still owed a decision are named while, say, a
 // scope bootstrap left undecided is.
 func Validate(d *Declaration, crds CRDScopes) []error {
+	return ValidateFor(d, crds, nil)
+}
+
+// ValidateFor is Validate for a module whose module.yaml declares the given subsystems: one of
+// them that is not the platform's is the module's own (virtualization), and the declaration may
+// aggregate into it.
+func ValidateFor(d *Declaration, crds CRDScopes, moduleSubsystems []string) []error {
 	var errs []error
 
 	report := func(format string, args ...any) {
@@ -158,8 +165,8 @@ func Validate(d *Declaration, crds CRDScopes) []error {
 	validateNoTemplateText(reflect.ValueOf(d).Elem(), "", report)
 
 	for _, s := range d.Subsystems {
-		if !rbaccontract.IsSubsystem(s) {
-			report("subsystems: %q is not a subsystem of the role model (%s)", s, strings.Join(rbaccontract.Subsystems, ", "))
+		if !rbaccontract.IsSubsystem(s) && !slices.Contains(moduleSubsystems, s) {
+			report("subsystems: %q is not a subsystem of the role model (%s) nor one module.yaml declares for the module", s, strings.Join(rbaccontract.Subsystems, ", "))
 		}
 	}
 

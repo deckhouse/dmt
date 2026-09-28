@@ -104,6 +104,7 @@ func NewContractRule(excludeRules []pkg.KindRuleExclude, m pkg.Module, errorList
 
 func (r *ContractRule) Check(_ context.Context) {
 	scopes := r.resourceScopes()
+	own := ownSubsystems(r.module.GetPath())
 
 	// Sorted for a deterministic order of findings across runs and render variants.
 	objects := make([]storage.StoreObject, 0)
@@ -164,8 +165,43 @@ func (r *ContractRule) Check(_ context.Context) {
 			continue
 		}
 
-		checkContract(role, r.module.GetName(), scopes, errorList)
+		checkContract(role, r.module.GetName(), own, scopes, errorList)
 	}
+}
+
+// ownSubsystems are the subsystems the module's module.yaml declares beyond the platform's: a module
+// may ship a subsystem of its own (virtualization), with its d8:subsystem:<name>:<level> roles and
+// the capabilities that aggregate into it. A module.yaml that does not parse is the module linter's
+// finding, and gives none.
+func ownSubsystems(modulePath string) map[string]bool {
+	own := map[string]bool{}
+
+	meta, err := readModuleMetadata(modulePath)
+	if err != nil {
+		return own
+	}
+
+	for _, s := range meta.Subsystems {
+		if !rbaccontract.IsSubsystem(s) {
+			own[s] = true
+		}
+	}
+
+	return own
+}
+
+// lineageLevels returns the levels of a lineage: one of the role model's, or a subsystem of the
+// module's own, which has the levels of every subsystem. Nil for a lineage neither knows.
+func lineageLevels(lineage string, own map[string]bool) []string {
+	if levels := rbaccontract.LevelsOf(lineage); levels != nil {
+		return levels
+	}
+
+	if own[lineage] {
+		return rbaccontract.SystemLevels
+	}
+
+	return nil
 }
 
 // resourceScopes collects what this run knows about resource scopes: the module's CRDs and the
@@ -194,7 +230,7 @@ func (r *ContractRule) resourceScopes() rbacyaml.CRDScopes {
 
 // checkContract applies the contract to one rendered ClusterRole. The checks and their messages
 // follow the platform test so that both give the same verdict on a module.
-func checkContract(role *rbacv1.ClusterRole, module string, scopes rbacyaml.CRDScopes, errorList *errors.LintRuleErrorsList) {
+func checkContract(role *rbacv1.ClusterRole, module string, own map[string]bool, scopes rbacyaml.CRDScopes, errorList *errors.LintRuleErrorsList) {
 	name := role.Name
 	labels := role.Labels
 	annotations := role.Annotations
@@ -234,7 +270,7 @@ func checkContract(role *rbacv1.ClusterRole, module string, scopes rbacyaml.CRDS
 
 	switch kind {
 	case rbaccontract.KindRole:
-		checkRole(role, scope, errorList)
+		checkRole(role, scope, own, errorList)
 	case rbaccontract.KindCapability:
 		checkCapability(role, scope, scopes, errorList)
 	}
@@ -248,7 +284,7 @@ func checkContract(role *rbacv1.ClusterRole, module string, scopes rbacyaml.CRDS
 
 		lineage, level := m[1], labels[key]
 
-		levels := rbaccontract.LevelsOf(lineage)
+		levels := lineageLevels(lineage, own)
 		if levels == nil {
 			errorList.Errorf("aggregation label %q targets unknown lineage %q", key, lineage)
 			continue
@@ -266,7 +302,7 @@ func checkContract(role *rbacv1.ClusterRole, module string, scopes rbacyaml.CRDS
 	}
 }
 
-func checkRole(role *rbacv1.ClusterRole, scope string, errorList *errors.LintRuleErrorsList) {
+func checkRole(role *rbacv1.ClusterRole, scope string, own map[string]bool, errorList *errors.LintRuleErrorsList) {
 	name, labels := role.Name, role.Labels
 
 	re := roleNameRe[scope]
@@ -289,8 +325,8 @@ func checkRole(role *rbacv1.ClusterRole, scope string, errorList *errors.LintRul
 	}
 
 	if scope == "subsystem" {
-		if !rbaccontract.IsSubsystem(m[1]) {
-			errorList.Errorf("role name %q references unknown subsystem %q", name, m[1])
+		if !rbaccontract.IsSubsystem(m[1]) && !own[m[1]] {
+			errorList.Errorf("role name %q references unknown subsystem %q; a subsystem of the module's own is declared in module.yaml subsystems", name, m[1])
 		}
 
 		if got := labels["rbac.deckhouse.io/subsystem"]; got != m[1] {
@@ -323,7 +359,7 @@ func checkRole(role *rbacv1.ClusterRole, scope string, errorList *errors.LintRul
 				continue
 			}
 
-			levels := rbaccontract.LevelsOf(m[1])
+			levels := lineageLevels(m[1], own)
 			if levels == nil {
 				errorList.Errorf("role %q aggregation selector targets unknown lineage %q", name, m[1])
 			} else if !slices.Contains(levels, value) {

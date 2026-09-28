@@ -156,7 +156,7 @@ func (r *SyncRule) Check(_ context.Context) {
 		return
 	}
 
-	if errs := rbacyaml.Validate(decl, crdScopes(crds)); len(errs) > 0 {
+	if errs := rbacyaml.ValidateFor(decl, crdScopes(crds), meta.Subsystems); len(errs) > 0 {
 		for _, e := range errs {
 			declList.Errorf("%v; nothing is compared or written until the declaration is valid", e)
 		}

@@ -742,6 +742,18 @@ func TestParse_TrailingSeparator(t *testing.T) {
 	require.ErrorContains(t, err, "the file must hold a single YAML document")
 }
 
+// The subsystems of rbac.yaml are the platform's or the module's own, from its module.yaml.
+func TestValidateFor_SubsystemOfTheModule(t *testing.T) {
+	decl, err := Parse([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\nsubsystems: [virtualization]\n"))
+	require.NoError(t, err)
+
+	assert.Empty(t, ValidateFor(decl, nil, []string{"virtualization"}))
+
+	errs := Validate(decl, nil)
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Error(), `subsystems: "virtualization" is not a subsystem of the role model`)
+}
+
 func TestLoad(t *testing.T) {
 	modulePath := t.TempDir()
 
