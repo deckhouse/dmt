@@ -1664,7 +1664,8 @@ condition false for these values is in no render: a note on top of the written f
 document with a computed name as the kind and the pattern of its name -- so it is not left out in
 silence. A block inside an object -- a rule under its own `{{ if }}` -- is noted. The Prometheus
 scrape binding keeps its gate as `prometheusAccess.when`. A note names the labels and annotations of a
-legacy role or a capability the fix would drop. Under `--matrix` an object only some variants
+legacy role, and the annotations of a capability, the fix would drop; the labels of a capability go into its
+`capabilities` entry, with the level a capability with an action of its own aggregates into. Under `--matrix` an object only some variants
 rendered whose condition the text did not give stays hand-written where the declaration has no `when`
 for it (access entries, the scrape access), an account with such objects gets a `TODO` `when`, and a
 legacy role or a capability a `TODO` reason on the resources it grants. An object of the module in a
@@ -1695,7 +1696,7 @@ controller ClusterRoles with arbitrary names, objects with Helm-computed names).
 
 1. Every declared object is in the render (unless it is under a `when` that is false in this render: when another object of the file under the same `when` rendered, the condition holds, and an absent one is a divergence), and every rule of it: rules are compared as `(apiGroup, resource, resourceName, verb)` tuples, in both directions. A rule under `when` that did not render is not a divergence; a rule without `when` hidden behind a hand-written `{{ if }}` is.
 2. The labels and annotations of an object written from `serviceAccounts`, `access` or `prometheusAccess` match the declaration's (`labels`, `annotations`, `rbacAnnotations`): a `helm.sh/resource-policy: keep` or an aggregation label the declaration does not carry would be lost by the next `--fix`. `heritage` and `module` (written by `helm_lib_module_labels`), Helm's `meta.helm.sh/*` and dmt's `rbac.deckhouse.io/*` annotations are not compared. A ServiceAccount subject without a namespace is read in the namespace of its RoleBinding, as Kubernetes does.
-3. A capability's aggregation edges (`aggregate-to-<lineage>-as`) match in both directions: rules may agree while a lineage is lost. Its `rbac.deckhouse.io/capability` marker, `module` and `rbac.deckhouse.io/namespace` labels are what `--fix` writes.
+3. A capability's aggregation edges (`aggregate-to-<lineage>-as`) match in both directions: rules may agree while a lineage is lost. Its `rbac.deckhouse.io/capability` marker, `module` and `rbac.deckhouse.io/namespace` labels are what `--fix` writes, and so are its labels of the module (`capabilities.<key>.labels`): every other label but `heritage` is compared, since a role of the module outside the role model that selects the capability by it loses the capability when a rewrite drops the label.
 4. A binding's `roleRef` and subjects match.
 5. Every rendered legacy role and module capability is produced by the declaration.
 6. A file the declaration produces that does not exist while an object it holds is absent from the render is a divergence, whether or not the object is under `when`: the render cannot tell a false condition from a template nobody wrote, the file system can.
