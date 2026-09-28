@@ -21,7 +21,12 @@ limitations under the License.
 // rbac.deckhouse.io/v1alpha1.
 package rbacyaml
 
-import "strings"
+import (
+	"slices"
+	"strings"
+
+	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbaccontract"
+)
 
 // Filename is the declaration's name in the module root.
 const Filename = "rbac.yaml"
@@ -55,9 +60,10 @@ type Declaration struct {
 
 	Resources []Resource `yaml:"resources,omitempty"`
 
-	// Capabilities holds the localized texts of capabilities outside the platform convention,
-	// keyed "<lineage>.<level>" (for example "namespace.admin"). view/edit need no entry.
-	Capabilities map[string]CapabilityText `yaml:"capabilities,omitempty"`
+	// Capabilities describes capabilities beyond what a level alone says, keyed "<lineage>.<action>"
+	// (for example "namespace.admin"): the localized texts of every capability outside the view/edit
+	// convention, the level of a capability with an action of its own, and labels of the module.
+	Capabilities map[string]Capability `yaml:"capabilities,omitempty"`
 
 	ServiceAccounts []ServiceAccount `yaml:"serviceAccounts,omitempty"`
 
@@ -96,10 +102,11 @@ type Resource struct {
 	// excludes Namespace, System and Legacy. NoAccessTODO is the undecided stub.
 	NoAccess string `yaml:"noAccess,omitempty"`
 
-	// Namespace maps RBACv2 namespace-lineage levels to verbs. Allowed for Namespaced
-	// resources only.
+	// Namespace maps RBACv2 namespace-lineage levels to verbs, or the action of a capability that
+	// Capabilities gives a level. Allowed for Namespaced resources only.
 	Namespace map[string][]string `yaml:"namespace,omitempty"`
-	// System maps RBACv2 system-lineage levels to verbs. Allowed for both scopes.
+	// System maps RBACv2 system-lineage levels to verbs, or the action of a capability that
+	// Capabilities gives a level. Allowed for both scopes.
 	System map[string][]string `yaml:"system,omitempty"`
 	// Legacy maps user-authz v1 access levels to verbs. It is never derived from the RBACv2
 	// levels; an absent Legacy means no legacy rights.
@@ -122,10 +129,39 @@ func (r Resource) HasLevels() bool {
 // Key returns "group/resource", the identity of the entry.
 func (r Resource) Key() string { return r.Group + "/" + r.Resource }
 
-// CapabilityText is the localized title and description of a capability.
-type CapabilityText struct {
-	Title       LocalizedText `yaml:"title"`
-	Description LocalizedText `yaml:"description"`
+// Capability is one entry of Capabilities. A capability named after a level takes the action of
+// that level (viewer -> view, manager -> edit, the rest as they are); a capability with an action
+// of its own (download_snapshots, access_terminal) names the level it aggregates into, and a
+// resource entry grants it under its action instead of a level.
+type Capability struct {
+	// Level is the level of the lineage the capability aggregates into; required for an action of
+	// its own, not allowed for the action of a level.
+	Level string `yaml:"level,omitempty"`
+
+	// Labels go on the capability beside the ones of the role model: a label of the module that a
+	// role of the module selects, outside the role model (rbac.deckhouse.io/ is dmt's).
+	Labels map[string]string `yaml:"labels,omitempty"`
+
+	// Title and Description are required for every capability but view and edit, which take the
+	// platform's conventional texts.
+	Title       LocalizedText `yaml:"title,omitempty"`
+	Description LocalizedText `yaml:"description,omitempty"`
+}
+
+// HasTexts reports whether the entry sets a title or a description.
+func (c Capability) HasTexts() bool {
+	return c.Title != LocalizedText{} || c.Description != LocalizedText{}
+}
+
+// ActionOf resolves a key of a resource entry's Namespace or System map to the action of the
+// capability it grants: a level grants the capability of that level's action, any other key is the
+// action of a capability Capabilities gives a level.
+func ActionOf(lineage, key string) string {
+	if slices.Contains(rbaccontract.LevelsOf(lineage), key) {
+		return rbaccontract.CapabilityAction(key)
+	}
+
+	return key
 }
 
 // LocalizedText is an en/ru pair; both are required.

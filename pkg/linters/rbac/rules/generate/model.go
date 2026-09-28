@@ -165,7 +165,7 @@ func Build(in Input) (*Model, error) {
 
 	sort.Slice(model.Files, func(i, j int) bool { return model.Files[i].Path < model.Files[j].Path })
 
-	// A marker past 63 characters fails the contract; only a long module name can cause it.
+	// A marker past 63 characters fails the contract: a long module name, or a long action of its own.
 	// Helm refuses two objects of one name in a release, whichever templates they come from: a
 	// ServiceAccount and an access entry of the same name, an extra role with an absolute name
 	// equal to another account's role.
@@ -188,7 +188,7 @@ func Build(in Input) (*Model, error) {
 	for _, f := range model.Files {
 		for _, o := range f.Objects {
 			if marker := o.Labels[rbaccontract.LabelCapability]; len(marker) > 63 {
-				return nil, fmt.Errorf("capability marker %q is %d characters, a label value holds 63: the module name and the level name together are too long for %s", marker, len(marker), o.Name)
+				return nil, fmt.Errorf("capability marker %q is %d characters, a label value holds 63: the module name and the action together are too long for %s", marker, len(marker), o.Name)
 			}
 		}
 	}
@@ -266,48 +266,50 @@ func (b *builder) subsystems() []string {
 	return out
 }
 
-// capabilities produces one namespace capability per namespace level in use and the system
-// capabilities: view and edit always (every module gets access to its own ModuleConfig), the
-// other levels when a resource names them.
+// capabilities produces one namespace capability per namespace level or action in use and the
+// system capabilities: view and edit always (every module gets access to its own ModuleConfig), the
+// other levels and actions when a resource names them.
 func (b *builder) capabilities() {
-	namespaceLevels := map[string][]Rule{}
-	systemLevels := map[string][]Rule{}
+	namespaceGrants := map[string][]Rule{}
+	systemGrants := map[string][]Rule{}
 
 	for _, res := range b.in.Decl.Resources {
-		for level, verbs := range res.Namespace {
-			namespaceLevels[level] = append(namespaceLevels[level], resourceRule(res, verbs))
+		for key, verbs := range res.Namespace {
+			action := rbacyaml.ActionOf(rbaccontract.LineageNamespace, key)
+			namespaceGrants[action] = append(namespaceGrants[action], resourceRule(res, verbs))
 		}
 
-		for level, verbs := range res.System {
-			systemLevels[level] = append(systemLevels[level], resourceRule(res, verbs))
+		for key, verbs := range res.System {
+			action := rbacyaml.ActionOf(rbaccontract.LineageSystem, key)
+			systemGrants[action] = append(systemGrants[action], resourceRule(res, verbs))
 		}
 	}
 
-	for _, level := range rbaccontract.NamespaceLevels {
-		rules, ok := namespaceLevels[level]
+	for _, action := range grantOrder(rbaccontract.NamespaceLevels, namespaceGrants) {
+		rules, ok := namespaceGrants[action]
 		if !ok {
 			continue
 		}
 
-		action := rbaccontract.CapabilityAction(level)
+		level := b.level(rbaccontract.LineageNamespace, action)
 		b.add("templates/rbacv2/use/"+action+".yaml", Object{
 			Kind:  "ClusterRole",
 			Name:  rbaccontract.NamespaceCapabilityPrefix + b.in.Module + ":" + action,
 			Class: ClassCapability,
-			Labels: map[string]string{
+			Labels: b.withModuleLabels(rbaccontract.LineageNamespace, action, map[string]string{
 				rbaccontract.LabelKind:       rbaccontract.KindCapability,
 				rbaccontract.LabelScope:      rbaccontract.LineageNamespace,
 				rbaccontract.LabelCapability: rbaccontract.LineageNamespace + "-capability." + b.in.Module + "." + action,
 				rbaccontract.AggregationLabelPrefix + rbaccontract.LineageNamespace + rbaccontract.AggregationLabelSuffix: level,
-			},
+			}),
 			Annotations: b.texts(rbaccontract.LineageNamespace, action),
 			Rules:       sortRules(rules),
 		})
 	}
 
-	for _, level := range rbaccontract.SystemLevels {
-		action := rbaccontract.CapabilityAction(level)
-		rules := systemLevels[level]
+	for _, action := range grantOrder(rbaccontract.SystemLevels, systemGrants) {
+		level := b.level(rbaccontract.LineageSystem, action)
+		rules := systemGrants[action]
 
 		switch action {
 		case "view":
@@ -341,11 +343,50 @@ func (b *builder) capabilities() {
 			Kind:        "ClusterRole",
 			Name:        rbaccontract.SystemCapabilityPrefix + b.in.Module + ":" + action,
 			Class:       ClassCapability,
-			Labels:      labels,
+			Labels:      b.withModuleLabels(rbaccontract.LineageSystem, action, labels),
 			Annotations: b.texts(rbaccontract.LineageSystem, action),
 			Rules:       sortRules(rules),
 		})
 	}
+}
+
+// grantOrder returns the actions of the levels in the ladder's order, then the actions of their own
+// in granted, sorted.
+func grantOrder(levels []string, granted map[string][]Rule) []string {
+	out := make([]string, 0, len(levels)+len(granted))
+	for _, level := range levels {
+		out = append(out, rbaccontract.CapabilityAction(level))
+	}
+
+	own := make([]string, 0, len(granted))
+
+	for action := range granted {
+		if !slices.Contains(out, action) {
+			own = append(own, action)
+		}
+	}
+
+	sort.Strings(own)
+
+	return append(out, own...)
+}
+
+// level returns the level a capability aggregates into: the one its action is named after, or the
+// one the declaration gives an action of its own.
+func (b *builder) level(lineage, action string) string {
+	if c, ok := b.in.Decl.Capabilities[lineage+"."+action]; ok && c.Level != "" {
+		return c.Level
+	}
+
+	return rbaccontract.LevelOfAction(action)
+}
+
+// withModuleLabels adds the labels the declaration gives the capability; Validate made sure none
+// of them is one the role model writes.
+func (b *builder) withModuleLabels(lineage, action string, labels map[string]string) map[string]string {
+	maps.Copy(labels, b.in.Decl.Capabilities[lineage+"."+action].Labels)
+
+	return labels
 }
 
 // texts returns the four localized annotations of a capability: the platform convention for

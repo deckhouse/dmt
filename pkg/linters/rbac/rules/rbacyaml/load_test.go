@@ -522,7 +522,7 @@ func TestValidate_TopLevel(t *testing.T) {
 		},
 		"capabilities: bad key": {
 			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\ncapabilities:\n  project.admin: {title: {en: a, ru: b}, description: {en: c, ru: d}}\n",
-			wantErr: `key "project.admin" must be "namespace.<level>" or "system.<level>"`,
+			wantErr: `key "project.admin" must be "namespace.<action>" or "system.<action>"`,
 		},
 		"access: both rule kinds": {
 			yaml: "apiVersion: rbac.deckhouse.io/v1alpha1\naccess:\n  - name: x\n    subjects: [{kind: Group, name: g}]\n" +
@@ -567,6 +567,94 @@ func TestValidate_TopLevel(t *testing.T) {
 			errs := Validate(decl, nil)
 			require.Len(t, errs, 1, "exactly one error expected, got: %v", errs)
 			assert.Contains(t, errs[0].Error(), tc.wantErr)
+		})
+	}
+}
+
+// A capability with an action of its own names the level it aggregates into, and any capability
+// may carry labels of the module (ADR author, 2026-09-28: arbitrary actions are allowed, and a role
+// of the module outside the role model aggregates capabilities by a label of the module).
+func TestValidate_CapabilityActions(t *testing.T) {
+	const texts = "title: {en: a, ru: b}, description: {en: c, ru: d}"
+
+	grant := func(key string) string {
+		return "resources:\n  - {group: x.io, resource: things, scope: Namespaced, namespace: {" + key + ": [get]}}\n"
+	}
+
+	for name, tc := range map[string]struct {
+		yaml     string
+		wantErrs []string
+	}{
+		"an action of its own with a level and labels": {
+			yaml: grant("download") + "capabilities:\n  namespace.download: {level: viewer, labels: {x.deckhouse.io/agent: \"true\"}, " + texts + "}\n",
+		},
+		"view with labels only": {
+			yaml: grant("viewer") + "capabilities:\n  namespace.view: {labels: {x.deckhouse.io/agent: \"true\"}}\n",
+		},
+		"system view with labels, always produced": {
+			yaml: "capabilities:\n  system.view: {labels: {x.deckhouse.io/agent: \"true\"}}\n",
+		},
+		"namespace view with labels nobody grants": {
+			yaml:     "capabilities:\n  namespace.view: {labels: {x.deckhouse.io/agent: \"true\"}}\n",
+			wantErrs: []string{`capabilities: "namespace.view" is described, but no resource entry grants it`},
+		},
+		"a key that is neither a level nor a declared action": {
+			yaml:     grant("download"),
+			wantErrs: []string{`resources[0] (x.io/things): namespace level "download" is not valid; the namespace levels are viewer, user, manager, admin, superadmin, or the action of a capability that capabilities gives a level (namespace.download: {level: ...})`},
+		},
+		"an action of its own without a level": {
+			yaml: grant("download") + "capabilities:\n  namespace.download: {" + texts + "}\n",
+			wantErrs: []string{
+				`capabilities: "namespace.download" is an action of its own and needs the level it aggregates into (level: one of viewer, user, manager, admin, superadmin)`,
+				`capabilities: "namespace.download" is described, but no resource entry grants it`,
+				`resources[0] (x.io/things): namespace level "download" is not valid`,
+			},
+		},
+		"an action of its own without texts": {
+			yaml:     grant("download") + "capabilities:\n  namespace.download: {level: viewer}\n",
+			wantErrs: []string{"namespace.download.title requires both en and ru", "namespace.download.description requires both en and ru", `"namespace.download" is used by a resource entry but has no title and description`},
+		},
+		"a level for the capability of a level": {
+			yaml:     grant("admin") + "capabilities:\n  namespace.admin: {level: admin, " + texts + "}\n",
+			wantErrs: []string{`capabilities: "namespace.admin" is the capability of namespace level "admin"; level is only for an action of its own`},
+		},
+		"a level name as an action": {
+			yaml:     grant("viewer") + "capabilities:\n  namespace.viewer: {level: viewer, " + texts + "}\n",
+			wantErrs: []string{`capabilities: "namespace.viewer": "viewer" is a level, whose capability is namespace.view`},
+		},
+		"an action that is not snake case": {
+			yaml:     "capabilities:\n  namespace.Download: {level: viewer, " + texts + "}\n",
+			wantErrs: []string{`capabilities: "namespace.Download": the action must be lowercase letters`, `capabilities: "namespace.Download" is described, but no resource entry grants it`},
+		},
+		"a level the lineage does not have": {
+			yaml:     "resources:\n  - {group: x.io, resource: things, scope: Cluster, system: {download: [get]}}\ncapabilities:\n  system.download: {level: admin, " + texts + "}\n",
+			wantErrs: []string{`capabilities: system.download.level "admin" is not valid; the system levels are viewer, manager, superadmin`},
+		},
+		"labels dmt writes, and a bad value": {
+			yaml: grant("viewer") + "capabilities:\n  namespace.view: {labels: {rbac.deckhouse.io/aggregate-to-x-as: member, module: other, x.deckhouse.io/agent: \"not ok\"}}\n",
+			wantErrs: []string{
+				`capabilities: namespace.view.labels: "rbac.deckhouse.io/aggregate-to-x-as" is set by dmt, not by the declaration`,
+				`capabilities: namespace.view.labels: "module" is set by dmt, not by the declaration`,
+				`capabilities: namespace.view.labels: "x.deckhouse.io/agent": "not ok" is not a valid label value`,
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			decl, err := Parse([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\n" + tc.yaml))
+			require.NoError(t, err)
+
+			errs := Validate(decl, nil)
+
+			got := make([]string, 0, len(errs))
+			for _, e := range errs {
+				got = append(got, e.Error())
+			}
+
+			require.Len(t, got, len(tc.wantErrs), "errors: %v", got)
+
+			for _, want := range tc.wantErrs {
+				assert.Contains(t, strings.Join(got, "\n"), want)
+			}
 		})
 	}
 }
@@ -738,7 +826,7 @@ serviceAccounts:
 	}
 
 	got := strings.Join(msgs, "\n")
-	assert.Contains(t, got, `capabilities: "namespace.approve" has texts, but no resource entry grants namespace level "approve"`)
+	assert.Contains(t, got, `capabilities: "namespace.approve" is described, but no resource entry grants it`)
 	assert.Contains(t, got, `resources[1] (a.io/things): namespace.viewer: "bogus" is not a verb`, "the index of the file, not of the sorted list")
 	assert.NotContains(t, got, "resources[0] (a.io/things)")
 	assert.Contains(t, got, `serviceAccounts[0] (Bad_Name): a ServiceAccount name is a lowercase DNS subdomain`)
