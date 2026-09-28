@@ -29,26 +29,12 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/deckhouse/dmt/pkg"
-	"github.com/deckhouse/dmt/pkg/errors"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/bootstrap"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/generate"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbacyaml"
 )
 
-func probeFixMessages(list *errors.LintRuleErrorsList) string {
-	var out []string
-
-	for _, e := range list.GetErrors() {
-		if e.FixError != nil {
-			out = append(out, e.FixError.Error())
-		}
-	}
-
-	return strings.Join(out, "\n")
-}
-
-// P1: a hand-added object under the file's false condition that textDocuments cannot see is
-// dropped by the regeneration (no declaration change needed: the text edit is the divergence).
+// P1: a hand-added object that textDocuments cannot see keeps the fix off a file that diverges.
 func TestSyncRegression_TextDocumentsBlindSpots(t *testing.T) {
 	const rel = "templates/cainjector/rbac-for-us.yaml"
 
@@ -94,17 +80,14 @@ func TestSyncRegression_TextDocumentsBlindSpots(t *testing.T) {
 			require.NoError(t, err)
 			require.NoError(t, os.WriteFile(fullPath, []byte(mutate(string(content))), 0o600))
 
-			// Default values: the cainjector block does not render.
-			store := renderedFrom(t, model, func(o *generate.Object) bool { return o.When == "" })
-
-			list := runSync(t, modulePath, store)
-			for _, fix := range list.GetFixes() {
-				fix()
-			}
+			// The account renders and diverges, so the file would get the fix if nothing kept it off.
+			list := runSync(t, modulePath, renderedFrom(t, model, dropRule("d8:cert-manager:cainjector")))
+			assert.Contains(t, strings.Join(texts(list), "\n"), "The autofix leaves the file as it is")
+			assert.Empty(t, list.GetFixes(), "the hand-added object must survive --fix")
 
 			after, err := os.ReadFile(fullPath)
 			require.NoError(t, err)
-			assert.Contains(t, string(after), "cainjector-extra", "the hand-added object must survive --fix; fix errors: %s", probeFixMessages(list))
+			assert.Contains(t, string(after), "cainjector-extra")
 		})
 	}
 }
@@ -146,8 +129,7 @@ func TestSyncRegression_DroppedCapabilityFileIsALintFinding(t *testing.T) {
 	assertLintOnly(t, list, modulePath)
 }
 
-// P7: a `when` on deckhouseVersion that the declaration drops turns the generated file into a
-// "gated" one: the fix refuses with a false reason.
+// P7: a `when` on deckhouseVersion that the declaration drops is not taken for the version gate.
 func TestSyncRegression_DroppedVersionWhenLooksLikeAGate(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
@@ -171,14 +153,15 @@ func TestSyncRegression_DroppedVersionWhenLooksLikeAGate(t *testing.T) {
 
 	model := syncModel(t, modulePath)
 
-	list := runSync(t, modulePath, renderedFrom(t, model, nil))
-	for _, fix := range list.GetFixes() {
-		fix()
-	}
+	// The file diverges, so it would get the fix if nothing kept it off.
+	list := runSync(t, modulePath, renderedFrom(t, model, dropRule("d8:namespace-capability:cert-manager:view")))
+	joined := strings.Join(texts(list), "\n")
 
-	msgs := probeFixMessages(list)
-	t.Logf("fix errors:\n%s", msgs)
-	assert.NotContains(t, msgs, "renders one of two role models", "the file never had a gate")
+	// A condition the declaration no longer writes is not the version gate; the fix cannot tell it
+	// from one written by hand, so the finding names it and carries no fix.
+	assert.NotContains(t, joined, "both role models behind the version gate", "the file never had a gate")
+	assert.Contains(t, joined, `the template holds {{ if semverCompare ">= 1.80" .Values.global.deckhouseVersion }}, which rbac.yaml does not write`)
+	assert.Empty(t, list.GetFixes())
 }
 
 // P8: a legacy role excluded from sync (exclude-rules.sync) is not dropped by a rewrite without a
@@ -205,18 +188,13 @@ func TestSyncRegression_ExcludedLegacyRoleIsKept(t *testing.T) {
 	doc := "---\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: d8:user-authz:cert-manager:kept-by-hand\n  annotations:\n    user-authz.deckhouse.io/access-level: \"User\"\nrules:\n- apiGroups: [\"\"]\n  resources: [pods]\n  verbs: [get]\n"
 	require.NoError(t, os.WriteFile(fullPath, append(content, []byte(doc)...), 0o600))
 
-	store := renderedFrom(t, model, nil)
+	// Another role of the file diverges, so the file would get the fix if nothing kept it off.
+	store := renderedFrom(t, model, dropRule("d8:user-authz:cert-manager:user"))
 	putObject(t, store, rel, extra)
 
 	list := runSync(t, modulePath, store, pkg.KindRuleExclude{Kind: "ClusterRole", Name: extra.Name})
-	joined := strings.Join(texts(list), "\n")
-	t.Logf("findings:\n%s", joined)
-
-	for _, fix := range list.GetFixes() {
-		fix()
-	}
-
-	t.Logf("fix errors:\n%s", probeFixMessages(list))
+	assert.Contains(t, strings.Join(texts(list), "\n"), "ClusterRole/"+extra.Name+", which rbac.yaml does not produce")
+	assert.Empty(t, list.GetFixes())
 
 	after, err := os.ReadFile(fullPath)
 	require.NoError(t, err)
@@ -229,11 +207,11 @@ func TestSyncRegression_RightsChangesMissingFromRemovalLog(t *testing.T) {
 	for name, tc := range map[string]struct {
 		rel   string
 		tweak func(o *generate.Object) bool
-		after func(store map[string]any)
-		name  string
+		want  string
 	}{
 		"automount token taken away": {
-			rel: "templates/cainjector/rbac-for-us.yaml",
+			rel:  "templates/cainjector/rbac-for-us.yaml",
+			want: "automountServiceAccountToken is true in the render",
 			tweak: func(o *generate.Object) bool {
 				if o.Kind == "ServiceAccount" && o.Name == "cainjector" {
 					yes := true
@@ -244,7 +222,8 @@ func TestSyncRegression_RightsChangesMissingFromRemovalLog(t *testing.T) {
 			},
 		},
 		"legacy access level lowered": {
-			rel: "templates/user-authz-cluster-roles.yaml",
+			rel:  "templates/user-authz-cluster-roles.yaml",
+			want: "the user-authz.deckhouse.io/access-level annotation is",
 			tweak: func(o *generate.Object) bool {
 				if o.Name == "d8:user-authz:cert-manager:user" {
 					o.Annotations = map[string]string{"user-authz.deckhouse.io/access-level": "Admin"}
@@ -254,7 +233,8 @@ func TestSyncRegression_RightsChangesMissingFromRemovalLog(t *testing.T) {
 			},
 		},
 		"binding repointed": {
-			rel: "templates/rbac-for-us.yaml",
+			rel:  "templates/rbac-for-us.yaml",
+			want: "ClusterRoleBinding/d8:cert-manager:admin-kubeconfig binds",
 			tweak: func(o *generate.Object) bool {
 				if o.Kind == "ClusterRoleBinding" && o.Name == "d8:cert-manager:admin-kubeconfig" {
 					o.RoleRefName = "cluster-admin"
@@ -278,7 +258,7 @@ func TestSyncRegression_RightsChangesMissingFromRemovalLog(t *testing.T) {
 			require.Len(t, list.GetFixes(), 1, "findings: %s", strings.Join(texts(list), "\n"))
 
 			_, removed := splitChanges(recordedChanges(fullPath))
-			assert.NotEmpty(t, removed, "the rights change is among the removals the fix logs")
+			assert.Contains(t, strings.Join(removed, "\n"), tc.want, "the rights change is among the removals the fix logs")
 		})
 	}
 }
@@ -429,7 +409,7 @@ func TestSyncRegression_IncludeInsideTheDocument(t *testing.T) {
 		assert.NoError(t, err, "a file holding a hand-added include must not be deleted")
 	})
 
-	t.Run("nothing changed: the include is not dropped", func(t *testing.T) {
+	t.Run("a divergence: the include is not dropped", func(t *testing.T) {
 		resetFixState()
 		t.Cleanup(resetFixState)
 
@@ -438,10 +418,8 @@ func TestSyncRegression_IncludeInsideTheDocument(t *testing.T) {
 		writeGenerated(t, modulePath, model)
 		patched := inject(t, modulePath)
 
-		list := runSync(t, modulePath, renderedFrom(t, model, nil))
-		for _, fix := range list.GetFixes() {
-			fix()
-		}
+		list := runSync(t, modulePath, renderedFrom(t, model, dropRule("d8:cert-manager:cainjector")))
+		assert.Empty(t, list.GetFixes(), "the file holds an include, so it gets no fix")
 
 		got, err := os.ReadFile(filepath.Join(modulePath, rel))
 		require.NoError(t, err)
@@ -484,10 +462,8 @@ func TestSyncRegression_IncludeOnTheLabelsLine(t *testing.T) {
 	require.NotEqual(t, string(content), patched)
 	require.NoError(t, os.WriteFile(fullPath, []byte(patched), 0o600))
 
-	list := runSync(t, modulePath, renderedFrom(t, model, nil))
-	for _, fix := range list.GetFixes() {
-		fix()
-	}
+	list := runSync(t, modulePath, renderedFrom(t, model, dropRule("d8:cert-manager:cainjector")))
+	assert.Empty(t, list.GetFixes(), "the labels line holds an include the declaration does not write, so the file gets no fix")
 
 	got, err := os.ReadFile(fullPath)
 	require.NoError(t, err)
