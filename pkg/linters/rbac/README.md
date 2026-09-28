@@ -1563,9 +1563,8 @@ global:
       rules:
         contract: {impact: error}  # the level of this rule alone; unset it starts at warn, and the four original rules keep the linter level
 
-# module .dmtlint.yaml -- global: is read from the root only; a module file that sets
-# global.linters-settings.rbac is refused rather than ignored. Linting one module directory
-# (dmt lint modules/<m>) makes its own .dmtlint.yaml the root, as for every dmt setting.
+# module .dmtlint.yaml -- global: is read from the root only, as for every dmt setting. Linting one
+# module directory (dmt lint modules/<m>) makes its own .dmtlint.yaml the root.
 linters-settings:
   rbac:
     exclude-rules:
@@ -1766,8 +1765,7 @@ to every tree. A tree raises them to `error` in its root `.dmtlint.yaml`
 (`global.linters-settings.rbac.rules.<rule>.impact`) once its modules are clean. Per-rule levels are
 read from the root only, as for every dmt linter, and a module cannot lower them. A rule the root
 leaves unset falls back to the linter's `impact` below `warn`: `impact: ignored` on `rbac` in a module's
-`.dmtlint.yaml` silences it there. A level other than `ignored`, `warn`, `error` or `critical` is a
-configuration error.
+`.dmtlint.yaml` silences it there. A level dmt does not know is read as `error`, as for every linter.
 
 **Limits worth knowing:**
 
@@ -1780,8 +1778,7 @@ configuration error.
 - Built-in Kubernetes resources (`""`/configmaps, `apps`/deployments, `rbac.authorization.k8s.io`/clusterroles, ...) need no `scope`: the validator knows them. Anything else without a CRD in the module declares its scope.
 - An `rbac.yaml` of the earlier, never consumed shape (no `apiVersion`) is named for what it is: delete it and run `--fix` to write the declaration from the render.
 - Under `--matrix` the first declaration is written from the union of every variant's render; objects rendered only under values other than the defaults are still invisible to a default run, so lint with `--values-file` before the first `--fix` of the templates if the module has such templates.
-- `impact: ignored` on a rule switches its autofix off with it: `--fix` never rewrites files on behalf of findings nobody sees.
+- A rule at `impact: ignored` is not run, so `--fix` never rewrites files on behalf of findings nobody sees.
 - A `when` condition must parse as a Helm expression (sprig and Helm functions are known); whether it holds under the linter's value stubs is decided by the render -- a condition that breaks the render is reported by the `helm-render` rule, and the module is not linted further.
 - `dmt lint remote` does not run these rules: a published image carries no chart to render.
-- The keys of the `rbac` configuration blocks are checked down to a rule's `impact` and the `kind`/`name` of an exclusion entry: every unknown key is reported in one error, not dropped in silence.
 
