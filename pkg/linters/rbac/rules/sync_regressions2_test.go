@@ -21,6 +21,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -654,4 +655,143 @@ func TestSync_FixesKeepWhatIsThere(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, mine, string(got))
 	})
+}
+
+// Conditions are compared per object, both ways, from the text: the same in every render variant
+// (review of #480, AlwxSin 1 and 3).
+func TestSync_ConditionsOfEveryObject(t *testing.T) {
+	const acme = ".Values.certManager.internal.acmeEnabled"
+
+	t.Run("the declaration's condition missing from the template is written", func(t *testing.T) {
+		resetFixState()
+		t.Cleanup(resetFixState)
+
+		modulePath := syncModuleDir(t)
+		model := syncModel(t, modulePath)
+		writeGenerated(t, modulePath, model)
+
+		const rel = "templates/rbacv2/use/view.yaml"
+
+		path := filepath.Join(modulePath, rel)
+		text, err := os.ReadFile(path)
+		require.NoError(t, err)
+
+		unconditional := strings.Replace(strings.Replace(string(text), "{{- if "+acme+" }}\n", "", 1), "{{- end }}\n", "", 1)
+		require.NotEqual(t, string(text), unconditional)
+		require.NoError(t, os.WriteFile(path, []byte(unconditional), 0o600))
+
+		errorList := runSync(t, modulePath, renderedFrom(t, model, nil))
+		assert.Contains(t, strings.Join(texts(errorList), "\n"), "ClusterRole/d8:namespace-capability:cert-manager:view: the declaration writes {{ if "+acme+" }} around it or its rules, which the template does not hold")
+
+		fixes := errorList.GetFixes()
+		require.Len(t, fixes, 1)
+		fixes[0]()
+
+		written, err := os.ReadFile(path)
+		require.NoError(t, err)
+		assert.Equal(t, generate.RenderFile(*model.File(rel)), string(written))
+	})
+
+	t.Run("a condition around a whole file that renders nothing is a finding", func(t *testing.T) {
+		resetFixState()
+		t.Cleanup(resetFixState)
+
+		modulePath := syncModuleDir(t)
+		model := syncModel(t, modulePath)
+		writeGenerated(t, modulePath, model)
+
+		const rel = "templates/rbac-to-us.yaml"
+
+		path := filepath.Join(modulePath, rel)
+		text, err := os.ReadFile(path)
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(path, []byte("{{- if .Values.foo }}\n"+string(text)+"{{- end }}\n"), 0o600))
+
+		// foo is false: nothing renders from the file.
+		errorList := runSync(t, modulePath, renderedFrom(t, model, func(o *generate.Object) bool {
+			return model.File(rel) == nil || !slices.ContainsFunc(model.File(rel).Objects, func(x generate.Object) bool { return x.Identity() == o.Identity() })
+		}))
+		got := strings.Join(texts(errorList), "\n")
+		assert.Contains(t, got, "the template holds {{ if .Values.foo }} around it or its rules, which the declaration does not write")
+		assert.Contains(t, got, "The autofix leaves the file as it is")
+		assert.Empty(t, errorList.GetFixes())
+	})
+}
+
+// An object under an old name is a rename only when its metadata comes along: an aggregation label
+// or helm.sh/resource-policy would leave with it (review of #480, AlwxSin 2).
+func TestSync_RenameCarriesMetadata(t *testing.T) {
+	for name, tweak := range map[string]func(o *generate.Object){
+		"aggregation label": func(o *generate.Object) {
+			o.Labels = map[string]string{"rbac.authorization.k8s.io/aggregate-to-admin": "true"}
+		},
+		"resource policy": func(o *generate.Object) {
+			o.Annotations = map[string]string{"helm.sh/resource-policy": "keep"}
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			resetFixState()
+			t.Cleanup(resetFixState)
+
+			modulePath := syncModuleDir(t)
+			model := syncModel(t, modulePath)
+			writeGenerated(t, modulePath, model)
+
+			const old = "access-to-cert-manager-prometheus-metrics"
+
+			store := renderedFrom(t, model, func(o *generate.Object) bool {
+				if o.Name == "access-to-cert-manager" && (o.Kind == "Role" || o.Kind == "RoleBinding") {
+					o.Name = old
+
+					if o.Kind == "RoleBinding" {
+						o.RoleRefName = old
+					} else {
+						tweak(o)
+					}
+				}
+
+				return true
+			})
+
+			errorList := runSync(t, modulePath, store)
+			assert.Contains(t, strings.Join(texts(errorList), "\n"), "Role/"+old+", which rbac.yaml does not produce")
+			assert.Empty(t, errorList.GetFixes())
+		})
+	}
+}
+
+// A file that renders legacy objects of both kinds names the same one in every run: map order does
+// not pick it (review of #480, AlwxSin 7).
+func TestSync_LegacySchemeMessageIsStable(t *testing.T) {
+	const rel = "templates/rbacv2/use/view.yaml"
+
+	seen := map[string]bool{}
+
+	for range 20 {
+		resetFixState()
+
+		modulePath := syncModuleDir(t)
+		model := syncModel(t, modulePath)
+		writeGenerated(t, modulePath, model)
+
+		store := renderedFrom(t, model, dropRule("d8:namespace-capability:cert-manager:view"))
+		for _, kind := range []string{"use", "manage"} {
+			putObject(t, store, rel, generate.Object{Kind: "ClusterRole", Name: "d8:" + kind + ":capability:module:cert-manager:x",
+				Labels: map[string]string{rbaccontract.LabelKind: kind},
+				Rules:  []generate.Rule{{PolicyRule: rbacyaml.PolicyRule{APIGroups: []string{"x.io"}, Resources: []string{"things"}, Verbs: []string{"get"}}}}})
+		}
+
+		for _, text := range texts(runSync(t, modulePath, store)) {
+			if strings.Contains(text, "legacy RBACv2 scheme") {
+				seen[text] = true
+			}
+		}
+	}
+
+	t.Cleanup(resetFixState)
+	require.Len(t, seen, 1, "one text in every run: %v", seen)
+
+	for text := range seen {
+		assert.Contains(t, text, "rbac.deckhouse.io/kind: manage")
+	}
 }
