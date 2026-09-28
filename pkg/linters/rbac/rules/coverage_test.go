@@ -306,8 +306,8 @@ resources:
 	assert.Contains(t, got[0], "warn: gone.io/relics is denied access but the module ships no CRD for it and the entry names no scope")
 }
 
-// One CRD document that does not parse is skipped with a warning; the other CRDs are still
-// covered (review of #479, finding 13i).
+// One CRD document that does not parse is skipped -- the openapi linter reports it -- and the other
+// CRDs are still covered.
 func TestCoverage_BadCRDDocumentIsSkipped(t *testing.T) {
 	modulePath := writeModule(t, map[string]string{
 		"crds/a.yaml":     crdYAML("a.io", "alphas", "Namespaced") + "---\n{{ if .Values.x }}: [\n",
@@ -315,9 +315,26 @@ func TestCoverage_BadCRDDocumentIsSkipped(t *testing.T) {
 	})
 
 	got := texts(runCoverage(t, modulePath))
-	joined := strings.Join(got, "\n")
-	assert.Contains(t, joined, "warn: a CRD document is skipped: parse crds/a.yaml")
-	assert.Contains(t, joined, "a.io/alphas", "the CRD that parses is still judged")
+	require.Len(t, got, 1, "got: %v", got)
+	assert.Contains(t, got[0], "a.io/alphas", "the CRD that parses is still judged")
+}
+
+// An rbac.yaml that holds no declaration -- an empty document, or one of the earlier shape without
+// apiVersion -- is the sync rule's finding: coverage reports nothing, so no stub fix is attached to a
+// file it could not add to.
+func TestCoverage_NoDeclarationInTheFile(t *testing.T) {
+	for name, content := range map[string]string{"null": "null\n", "separator": "---\n", "earlier shape": "resources: []\n"} {
+		t.Run(name, func(t *testing.T) {
+			modulePath := writeModule(t, map[string]string{
+				"crds/a.yaml":     crdYAML("a.io", "alphas", "Namespaced"),
+				rbacyaml.Filename: content,
+			})
+
+			errorList := runCoverage(t, modulePath)
+			assert.Empty(t, texts(errorList))
+			assert.Empty(t, errorList.GetFixes())
+		})
+	}
 }
 
 // A value that starts with TODO is an open decision whatever field holds it: the scope and reason

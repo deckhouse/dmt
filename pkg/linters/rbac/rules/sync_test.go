@@ -1230,22 +1230,24 @@ func TestSync_TemplateNothingRenderedFromIsNotReported(t *testing.T) {
 	assert.Contains(t, strings.Join(texts(runSync(t, modulePath, store)), "\n"), "is declared but absent from the render")
 }
 
-// A module.yaml that does not parse stops the rule instead of generating without subsystems
-// (review of #479, finding 13k).
+// A module.yaml that does not parse stops the rule instead of rewriting without subsystems; the
+// module linter reports it, and --fix leaves the module alone.
 func TestSync_BrokenModuleYAMLStops(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
 
 	modulePath := syncModuleDir(t)
 	model := syncModel(t, modulePath)
-	require.NoError(t, os.WriteFile(filepath.Join(modulePath, "module.yaml"), []byte("name: [broken\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(modulePath, "module.yaml"), []byte("subsystems: security\n"), 0o600))
 
-	errorList := runSync(t, modulePath, renderedFrom(t, model, nil))
-	got := texts(errorList)
-	require.Len(t, got, 1, "got: %v", got)
-	assert.Contains(t, got[0], "parse module.yaml")
+	errorList := runSync(t, modulePath, renderedFrom(t, model, func(o *generate.Object) bool {
+		if o.Name == "d8:namespace-capability:cert-manager:view" {
+			o.Rules = o.Rules[:len(o.Rules)-1]
+		}
 
-	// A broken module.yaml is a lint finding: no fix is attached, and --fix leaves the module alone.
+		return true
+	}))
+	assert.Empty(t, texts(errorList), "a divergence is not judged while module.yaml does not parse")
 	assert.Empty(t, errorList.GetFixes())
 }
 
