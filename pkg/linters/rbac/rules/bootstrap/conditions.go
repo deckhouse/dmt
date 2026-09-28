@@ -261,6 +261,21 @@ func (r *reader) doc(text string, docStart, docEnd int) (Doc, bool) {
 	d.When, d.Unmanageable = conditionOf(at.stack)
 	d.Name, d.Namespace, d.NameTemplate = metadataOf(body)
 
+	// An object written in several branches of a block with no --- between them: the first kind
+	// line is not necessarily the one that rendered (review of #480).
+	for _, m := range docKindRe.FindAllStringSubmatchIndex(body, -1) {
+		other, ok := r.textAt(docStart + m[0])
+		if !ok || docStart+m[0] == kindAt {
+			continue
+		}
+
+		if when, why := conditionOf(other.stack); when != d.When || why != d.Unmanageable {
+			d.When, d.Unmanageable = "", "written in several branches of a block ({{ if }} / {{ else }}) inside one document, so which one rendered is not known -- put --- between the branches"
+
+			break
+		}
+	}
+
 	if d.NameTemplate != "" {
 		d.NamePattern = namePattern(d.NameTemplate)
 	}
@@ -454,19 +469,17 @@ func Locate(docs []Doc, o Object) (Doc, bool) {
 		}
 	}
 
-	for _, set := range [][]Doc{byName, templated} {
-		if len(set) == 0 {
-			continue
-		}
-
-		// Several candidates are one answer only when their blocks agree.
-		for _, d := range set[1:] {
-			if d.When != set[0].When || d.Unmanageable != set[0].Unmanageable {
+	// Several candidates are one answer only when their blocks agree: a document that names the
+	// object and one whose computed name could be it, in two branches of one block, are two answers
+	// (review of #480).
+	if candidates := slices.Concat(byName, templated); len(candidates) > 0 {
+		for _, d := range candidates[1:] {
+			if d.When != candidates[0].When || d.Unmanageable != candidates[0].Unmanageable {
 				return Doc{}, false
 			}
 		}
 
-		return set[0], true
+		return candidates[0], true
 	}
 
 	// The library documents are one answer only when their blocks agree too: an include under a
