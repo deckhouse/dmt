@@ -156,7 +156,9 @@ func (r *SyncRule) Check(_ context.Context) {
 		return
 	}
 
-	if errs := rbacyaml.ValidateFor(decl, crdScopes(crds), meta.Subsystems); len(errs) > 0 {
+	subsystems := knownSubsystems(r.module, meta.Subsystems)
+
+	if errs := rbacyaml.ValidateFor(decl, crdScopes(crds), subsystems); len(errs) > 0 {
 		for _, e := range errs {
 			declList.Errorf("%v; nothing is compared or written until the declaration is valid", e)
 		}
@@ -171,7 +173,7 @@ func (r *SyncRule) Check(_ context.Context) {
 	model, err := generate.Build(generate.Input{
 		Module:     r.module.GetName(),
 		Namespace:  r.module.GetNamespace(),
-		Subsystems: meta.Subsystems,
+		Subsystems: subsystems,
 		Decl:       decl,
 	})
 	if err != nil {
@@ -1372,7 +1374,7 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 	}
 
 	crds, _ := moduleCRDs(modulePath)
-	in := bootstrap.Input{Module: r.module.GetName(), Namespace: r.module.GetNamespace(), Subsystems: meta.Subsystems, CRDs: crdScopes(crds)}
+	in := bootstrap.Input{Module: r.module.GetName(), Namespace: r.module.GetNamespace(), Subsystems: knownSubsystems(r.module, meta.Subsystems), CRDs: crdScopes(crds)}
 
 	docs := map[string][]bootstrap.Doc{}
 

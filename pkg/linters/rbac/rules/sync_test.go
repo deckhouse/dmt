@@ -1279,6 +1279,26 @@ func TestSync_InvalidDeclarationIsALintFinding(t *testing.T) {
 	assert.Empty(t, errorList.GetFixes())
 }
 
+// A module.yaml subsystem the platform does not ship and the module renders no role for is no
+// subsystem of the module's own: a declaration naming it is refused, and nothing is generated from
+// it (review of #480, finding 9).
+func TestSync_UnrenderedModuleSubsystemIsRefused(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+
+	require.NoError(t, os.WriteFile(filepath.Join(modulePath, "module.yaml"), []byte("name: cert-manager\nnamespace: d8-cert-manager\nsubsystems: [security, infra]\n"), 0o600))
+	decl, err := os.ReadFile(filepath.Join(modulePath, "rbac.yaml"))
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(modulePath, "rbac.yaml"), append(decl, []byte("subsystems: [infra]\n")...), 0o600))
+
+	errorList := runSync(t, modulePath, renderedFrom(t, model, nil))
+	assert.Contains(t, strings.Join(texts(errorList), "\n"), `subsystems: "infra" is not a subsystem of the role model`)
+	assert.Empty(t, errorList.GetFixes())
+}
+
 // A template the declaration no longer produces and nothing rendered from is neither reported nor
 // deleted: the autofix deletes no file (review of #479, finding 16).
 func TestSync_UnrenderedTemplateNoLongerProducedIsKept(t *testing.T) {
