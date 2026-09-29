@@ -1,0 +1,12 @@
+description: >
+  A module with RBAC templates and no rbac.yaml: sync reports the declaration missing and --fix
+  writes it from the rendered objects, so an existing module enters the declaration with a file a
+  person can read and then correct; coverage and the comparison start on the next run.
+kind: fix
+module: module
+expectPass:
+  - linter: manager
+  - linter: rbac
+    rule: sync
+  - linter: rbac
+    rule: coverage

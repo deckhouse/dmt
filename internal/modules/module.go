@@ -229,8 +229,33 @@ func mapRuleSettings(linterSettings *pkg.LintersSettings, configSettings *config
 	// OpenAPI rules (uses global rule config + local fallback)
 	mapOpenAPIRules(linterSettings, configSettings, globalConfig)
 
+	// RBAC declaration rules (uses global rule config + local fallback); the four original rbac
+	// rules keep the linter level (see mapSimpleLinterRules)
+	mapRBACRules(linterSettings, configSettings, globalConfig)
+
 	// Other linter rules (use local linter-level impact)
 	mapSimpleLinterRules(linterSettings, configSettings)
+}
+
+// mapRBACRules configures the per-rule levels of the rbac rules added for the module RBAC
+// declaration. As for every dmt linter, a per-rule level is read from the root configuration only
+// and wins over the linter's impact; a rule the root leaves unset falls back to the linter's impact
+// -- the module's, if it sets one -- but never above warn, the level these rules start at.
+func mapRBACRules(linterSettings *pkg.LintersSettings, configSettings *config.LintersSettings, globalConfig *global.Linters) {
+	// The declaration rules are new to every tree: a module without rbac.yaml sees only contract,
+	// and the platform tree still carries six dead rbac.yaml files of an older shape and rules the
+	// contract flags. They therefore start at warn wherever nothing sets them -- like the style
+	// rules of the documentation linter -- and are raised to error per tree in its root
+	// .dmtlint.yaml once its modules are clean. The linter-level impact is intentionally not the
+	// fallback: impact: error on rbac means the four original rules, as it always did.
+	fallback := pkg.Warn.String()
+	if impact := configSettings.Rbac.Impact; impact != "" && pkg.ParseStringToLevel(impact) < pkg.Warn {
+		fallback = impact
+	}
+
+	linterSettings.RBAC.Rules.CoverageRule.SetLevel(globalConfig.Rbac.Rules.CoverageRule.Impact, fallback)
+	linterSettings.RBAC.Rules.SyncRule.SetLevel(globalConfig.Rbac.Rules.SyncRule.Impact, fallback)
+	linterSettings.RBAC.Rules.ContractRule.SetLevel(globalConfig.Rbac.Rules.ContractRule.Impact, fallback)
 }
 
 // mapContainerRules configures Container linter rules
@@ -582,6 +607,9 @@ func mapRBACExclusions(linterSettings *pkg.LintersSettings, configSettings *conf
 	excludes.BindingSubject = pkg.StringRuleExcludeList(configExcludes.BindingSubject)
 	excludes.Placement = configExcludes.Placement.Get()
 	excludes.Wildcards = configExcludes.Wildcards.Get()
+	excludes.Coverage = pkg.StringRuleExcludeList(configExcludes.Coverage)
+	excludes.Contract = configExcludes.Contract.Get()
+	excludes.Sync = configExcludes.Sync.Get()
 }
 
 // mapHooksSettings maps Hooks linter settings

@@ -1,0 +1,4 @@
+name: cert-manager
+namespace: d8-cert-manager
+subsystems:
+  - security

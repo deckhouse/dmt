@@ -107,6 +107,20 @@ go test ./test/e2e/ -run 'TestE2E/<linter>/<your-case>' -v
 | `no-cyrillic/skip-russian-files` | no-cyrillic linter skips Russian localized files (`*.ru.yml`, `*.ru.yaml`, `*.ru.json`, `doc-ru-*.yml`) while still reporting a regular Cyrillic template |
 | `no-cyrillic/skip-filenames-extensions` | no-cyrillic linter skips every filename/path pattern (`doc-ru-*`, `*.ru.{yaml,yml,json,md,html}`, `*_RU.md`, `docs/site/_*`, `docs/documentation/_*`, `tools/spelling/*`, `openapi/conversions/*`, `module.yaml`, `i18n/*`, `ru.*`) and non-scanned extensions (`.txt`), reporting only one genuine Cyrillic template |
 | `rbac/wildcards` | rbac linter (wildcards in a Role) |
+| `rbac/contract-clean` | rbac linter `contract` (well-formed RBACv2 namespace and system capabilities pass; no rbac.yaml needed) |
+| `rbac/contract-violations` | rbac linter `contract` (missing ru texts, missing capability marker, role with its own rules) |
+| `rbac/contract-cluster-scoped-in-namespace-capability` | rbac linter `contract` (warning: cluster-scoped resource, scope read from a nested `crds/`, inside a namespace capability) |
+| `rbac/coverage-missing-entry` | rbac linter `coverage` (CRD without an entry in rbac.yaml) |
+| `rbac/coverage-fix-keeps-finding` | rbac linter `coverage` with `--fix` (a stub is written and the finding stays -- a stub is not a decision) |
+| `rbac/coverage-todo` | rbac linter `coverage` (undecided `noAccess: "TODO"` stub; misspelled resource of a known group is a warning) |
+| `rbac/coverage-without-rbac-yaml` | rbac linter `coverage` stays silent on a module without rbac.yaml |
+| `rbac/sync-clean` | rbac linter `sync` (templates generated from rbac.yaml render exactly the declaration; the generated files also pass placement, contract and coverage; renders `helm_lib_module_labels` from the vendored `deckhouse_lib_helm` chart) |
+| `rbac/sync-hand-edited` | rbac linter `sync` (a rule added by hand to a generated capability, and a legacy role the declaration does not produce -- one finding per template) |
+| `rbac/sync-fix-regenerates` | rbac linter `sync` with `--fix` (a missing generated capability file is written from rbac.yaml and the finding is resolved) |
+| `rbac/bootstrap-writes-declaration` | rbac linter `sync` with `--fix` on a module without rbac.yaml (the first declaration is written from the render) |
+| `rbac/scheme-legacy-only` | rbac linter `contract` on a module with the pre-1.78 use/manage scheme only (one finding naming the migration script) |
+| `rbac/scheme-legacy-with-declaration` | rbac linters `contract` and `sync` on a module that has rbac.yaml and still renders the legacy scheme (the legacy files are named) |
+| `rbac/scheme-dual` | rbac linters on a module whose templates carry both schemes behind the version gate of `rbacv2-migrate-module.sh` (silent; the gated files are not regenerated) |
 | `hooks/ingress` | hooks linter (Ingress without copy_custom_certificate hook) |
 | `openapi/bilingual` | openapi linter (missing doc-ru- translation, missing CRD module label) |
 | `images/werf` | images linter (werf fromImage not under base/) |

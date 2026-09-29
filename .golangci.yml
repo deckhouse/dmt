@@ -10,6 +10,7 @@ linters:
     - ineffassign
     - misspell
     - musttag
+    - nolintlint
     - nonamedreturns
     - prealloc
     - revive
@@ -22,6 +23,12 @@ linters:
     - whitespace
     - wsl_v5
   settings:
+    nolintlint:
+      # Whether a directive is still needed depends on the golangci-lint version (CI and
+      # developers differ); what every directive must have is a named linter and a reason.
+      allow-unused: true
+      require-explanation: true
+      require-specific: true
     depguard:
       rules:
         logger:

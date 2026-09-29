@@ -1,0 +1,15 @@
+description: >
+  Templates generated from rbac.yaml render exactly what the declaration says: the sync rule has
+  nothing to report, and the generated files pass the placement, contract and wildcards rules.
+module: module
+expectPass:
+  # the module must render: a render failure would otherwise pass every expectPass trivially
+  - linter: manager
+  - linter: rbac
+    rule: sync
+  - linter: rbac
+    rule: placement
+  - linter: rbac
+    rule: contract
+  - linter: rbac
+    rule: coverage

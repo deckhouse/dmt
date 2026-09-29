@@ -1,0 +1,10 @@
+apiVersion: rbac.deckhouse.io/v1alpha1
+resources:
+  - group: e2e.deckhouse.io
+    resource: widgets
+    noAccess: "TODO"
+  - group: e2e.deckhouse.io
+    resource: widgts
+    scope: Namespaced
+    namespace:
+      viewer: [get]
