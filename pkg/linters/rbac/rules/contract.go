@@ -104,7 +104,13 @@ func NewContractRule(excludeRules []pkg.KindRuleExclude, m pkg.Module, errorList
 
 func (r *ContractRule) Check(_ context.Context) {
 	scopes := r.resourceScopes()
-	own := ownSubsystems(r.module.GetPath())
+	own, unrendered := ownSubsystems(r.module)
+
+	for _, s := range unrendered {
+		r.errorList.WithFilePath("module.yaml").
+			Errorf("module.yaml subsystems: %q is not a subsystem of the role model (%s), and the module renders no d8:subsystem:%s:<level> role for it; a subsystem of the module's own needs its roles",
+				s, strings.Join(rbaccontract.Subsystems, ", "), s)
+	}
 
 	// Sorted for a deterministic order of findings across runs and render variants.
 	objects := make([]storage.StoreObject, 0)
@@ -169,25 +175,74 @@ func (r *ContractRule) Check(_ context.Context) {
 	}
 }
 
-// ownSubsystems are the subsystems the module's module.yaml declares beyond the platform's: a module
-// may ship a subsystem of its own (virtualization), with its d8:subsystem:<name>:<level> roles and
-// the capabilities that aggregate into it. A module.yaml that does not parse is the module linter's
-// finding, and gives none.
-func ownSubsystems(modulePath string) map[string]bool {
-	own := map[string]bool{}
-
-	meta, err := readModuleMetadata(modulePath)
+// ownSubsystems are the subsystems of the module's own: a module may ship one (virtualization), with
+// its d8:subsystem:<name>:<level> roles and the capabilities that aggregate into it. unrendered are
+// the other subsystems module.yaml declares beyond the platform's -- a typo, or a subsystem with no
+// role to aggregate into. A module.yaml that does not parse is the module linter's finding, and
+// gives none.
+func ownSubsystems(m pkg.Module) (map[string]bool, []string) {
+	meta, err := readModuleMetadata(m.GetPath())
 	if err != nil {
-		return own
+		return map[string]bool{}, nil
 	}
 
-	for _, s := range meta.Subsystems {
-		if !rbaccontract.IsSubsystem(s) {
+	return splitSubsystems(meta.Subsystems, renderedSubsystems(m))
+}
+
+// splitSubsystems sorts the non-platform subsystems of module.yaml into those the render backs with
+// roles (own) and the rest (unrendered, sorted and without duplicates).
+func splitSubsystems(declared []string, rendered map[string]bool) (map[string]bool, []string) {
+	own := map[string]bool{}
+
+	var unrendered []string
+
+	for _, s := range declared {
+		switch {
+		case rbaccontract.IsSubsystem(s):
+		case rendered[s]:
 			own[s] = true
+		default:
+			unrendered = append(unrendered, s)
 		}
 	}
 
-	return own
+	slices.Sort(unrendered)
+
+	return own, slices.Compact(unrendered)
+}
+
+// renderedSubsystems are the subsystems the module renders a d8:subsystem:<name>:<level> ClusterRole
+// for, labelled as the module's own.
+func renderedSubsystems(m pkg.Module) map[string]bool {
+	rendered := map[string]bool{}
+
+	for _, object := range m.GetStorage() {
+		if object.Unstructured.GetKind() != "ClusterRole" || object.Unstructured.GetLabels()[rbaccontract.LabelModule] != m.GetName() {
+			continue
+		}
+
+		if match := roleNameRe["subsystem"].FindStringSubmatch(object.Unstructured.GetName()); match != nil {
+			rendered[match[1]] = true
+		}
+	}
+
+	return rendered
+}
+
+// knownSubsystems keeps the module.yaml subsystems the role model or the module's render backs, in
+// module.yaml order: the list the declaration is validated against and the objects are derived from.
+// An unrendered one is reported by the contract rule and must not reach a generated label.
+func knownSubsystems(m pkg.Module, declared []string) []string {
+	own, _ := splitSubsystems(declared, renderedSubsystems(m))
+
+	known := make([]string, 0, len(declared))
+	for _, s := range declared {
+		if rbaccontract.IsSubsystem(s) || own[s] {
+			known = append(known, s)
+		}
+	}
+
+	return known
 }
 
 // lineageLevels returns the levels of a lineage: one of the role model's, or a subsystem of the
