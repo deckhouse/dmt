@@ -328,3 +328,31 @@ func TestContract_SubsystemOfTheModule(t *testing.T) {
 	assert.Contains(t, got, `aggregation label "rbac.deckhouse.io/aggregate-to-virtualization-as" targets unknown lineage "virtualization"`)
 	assert.Contains(t, got, `aggregation selector targets unknown lineage "virtualization"`)
 }
+
+// A subsystem module.yaml names beyond the platform's is the module's own only when the module
+// renders its roles: a typo there must not silence the contract (review of #480, finding 9).
+func TestContract_UnrenderedModuleSubsystem(t *testing.T) {
+	capability := clusterRole("d8:system-capability:cert-manager:proxy_nodes", map[string]string{"module": "cert-manager",
+		"rbac.deckhouse.io/kind":                  "capability",
+		"rbac.deckhouse.io/scope":                 "system",
+		"rbac.deckhouse.io/capability":            "system-capability.cert-manager.proxy_nodes",
+		"rbac.deckhouse.io/aggregate-to-infra-as": "manager",
+	}, i18n, "rules:\n- apiGroups: [\"\"]\n  resources: [nodes/proxy]\n  verbs: [get]\n")
+
+	declared := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(declared, "module.yaml"), []byte("name: cert-manager\nsubsystems: [security, infra, infra]\n"), 0o600))
+
+	got := runContract(t, declared, rendered{"templates/rbacv2/manage/proxy_nodes.yaml", capability})
+	assert.Contains(t, strings.Join(got, "\n"), `aggregation label "rbac.deckhouse.io/aggregate-to-infra-as" targets unknown lineage "infra"`)
+	assert.Contains(t, strings.Join(got, "\n"), `module.yaml subsystems: "infra" is not a subsystem of the role model`)
+
+	var reported int
+
+	for _, text := range got {
+		if strings.Contains(text, `module.yaml subsystems: "infra"`) {
+			reported++
+		}
+	}
+
+	assert.Equal(t, 1, reported, "a subsystem listed twice is reported once")
+}
