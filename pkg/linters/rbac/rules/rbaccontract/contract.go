@@ -269,15 +269,11 @@ func IsLegacyKind(kind string) bool {
 
 // DeckhouseNamespaces are the namespaces the placement rule treats as the platform's own: there an
 // account of templates/<dir>/ may carry the module name in front of the directory.
+//
+// TODO: remove the entries after d8-system once the RBAC object names are fixed.
 var DeckhouseNamespaces = []string{"d8-monitoring", "d8-system", "d8-admission-policy-engine", "d8-operator-trivy", "d8-log-shipper", "d8-local-path-provisioner"}
 
 // IsDeckhouseNamespace reports whether the namespace is one of DeckhouseNamespaces.
 func IsDeckhouseNamespace(ns string) bool {
-	for _, n := range DeckhouseNamespaces {
-		if n == ns {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(DeckhouseNamespaces, ns)
 }
