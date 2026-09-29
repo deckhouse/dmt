@@ -66,8 +66,6 @@ const (
 	RBACv2Path                  = "templates/rbac"
 )
 
-// TODO: remove entries after 'd8-system' after fixing RBAC objects names
-
 func isSystemNamespace(actual string) bool {
 	return actual == metav1.NamespaceDefault || actual == metav1.NamespaceSystem
 }

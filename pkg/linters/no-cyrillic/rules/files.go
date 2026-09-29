@@ -131,7 +131,7 @@ func (r *FilesRule) checkFile(fileName string) {
 		return
 	}
 
-	if isYAMLTemplate(fileName) {
+	if isYAMLFile(fileName) {
 		lines = r.withoutLocalizedAnnotations(lines)
 	}
 
@@ -185,10 +185,10 @@ func (r *FilesRule) withoutLocalizedAnnotations(lines []string) []string {
 	return out
 }
 
-// isYAMLTemplate reports whether the file is one the localized annotations can live in.
-func isYAMLTemplate(fileName string) bool {
+// isYAMLFile reports whether the file is one the localized annotations can live in.
+func isYAMLFile(fileName string) bool {
 	switch filepath.Ext(fileName) {
-	case ".yaml", ".yml", ".tpl":
+	case ".yaml", ".yml":
 		return true
 	}
 
