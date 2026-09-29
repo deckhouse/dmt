@@ -586,8 +586,11 @@ func (r *SyncRule) heldObjects(run *syncRun, file generate.File) []string {
 
 // conditionsByDocument returns, per object the text holds (by identity), the conditions it renders
 // under: the blocks open where its document starts and the blocks opened and closed inside it -- a
-// rule under its own condition. A block opened in a document and left open belongs to the documents
-// after it.
+// rule under its own condition. A block opened in a document and still open at the next separator
+// belongs to the documents after it, and to its own document too when document content follows the
+// opening line: the object there is under it as well. A block opened after the document's last
+// content line -- the generator's {{- if X }} right before the next --- -- is the next object's
+// only (review of #480, finding 10).
 func conditionsByDocument(text string) map[string]map[string]struct{} {
 	text = strings.ReplaceAll(text, "\r\n", "\n")
 	out := map[string]map[string]struct{}{}
@@ -605,12 +608,25 @@ func conditionsByDocument(text string) map[string]map[string]struct{} {
 	var (
 		doc   strings.Builder
 		conds = map[string]struct{}{}
-		// inner are the blocks opened inside the current document, by stack depth.
-		inner = map[int]string{}
+		// inner are the blocks opened inside the current document, by stack depth; followed marks
+		// the depths whose block has document content after its opening line.
+		inner    = map[int]string{}
+		followed = map[int]bool{}
 	)
+
+	// openInDocument adds to the document's conditions the blocks opened in it and still open that
+	// its content follows.
+	openInDocument := func() {
+		for depth, c := range inner {
+			if followed[depth] {
+				conds[c] = struct{}{}
+			}
+		}
+	}
 
 	for _, line := range strings.Split(text, "\n") {
 		if bootstrap.DocSeparatorRe.MatchString(line) {
+			openInDocument()
 			flush(doc.String(), conds)
 			doc.Reset()
 
@@ -623,6 +639,7 @@ func conditionsByDocument(text string) map[string]map[string]struct{} {
 			}
 
 			inner = map[int]string{}
+			followed = map[int]bool{}
 
 			continue
 		}
@@ -634,6 +651,7 @@ func conditionsByDocument(text string) map[string]map[string]struct{} {
 			case strings.HasPrefix(action, "if "):
 				stack = append(stack, action)
 				inner[len(stack)] = action
+				followed[len(stack)] = false
 			case action != "end" && !strings.HasPrefix(action, "else"):
 				// range, with, define, block: closed by an end, a condition of none.
 				stack = append(stack, "")
@@ -641,19 +659,28 @@ func conditionsByDocument(text string) map[string]map[string]struct{} {
 				if len(stack) > 0 {
 					stack[len(stack)-1] = action
 					inner[len(stack)] = action
+					followed[len(stack)] = false
 				}
 			case action == "end" && len(stack) > 0:
 				if c, ok := inner[len(stack)]; ok {
 					conds[c] = struct{}{}
 
 					delete(inner, len(stack))
+					delete(followed, len(stack))
 				}
 
 				stack = stack[:len(stack)-1]
 			}
 		}
+
+		if trimmed := strings.TrimSpace(line); trimmed != "" && !strings.HasPrefix(trimmed, "#") && !wrapperLineRe.MatchString(line) {
+			for depth := range inner {
+				followed[depth] = true
+			}
+		}
 	}
 
+	openInDocument()
 	flush(doc.String(), conds)
 
 	return out
