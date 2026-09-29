@@ -1417,6 +1417,85 @@ func TestSync_ObjectHeldByAnotherTemplateIsNotWrittenTwice(t *testing.T) {
 }
 
 // The text of every template is read, partials aside: they render no objects.
+func TestConditionsByDocument(t *testing.T) {
+	const (
+		one = "kind: ClusterRole\nmetadata:\n  name: one\n"
+		two = "kind: ClusterRole\nmetadata:\n  name: two\n"
+	)
+
+	ifA := map[string]struct{}{"if .Values.a": {}}
+
+	for _, tc := range []struct {
+		name     string
+		text     string
+		expected map[string]map[string]struct{}
+	}{
+		{
+			name:     "a block opened inside a document and open across the separator",
+			text:     "---\n{{- if .Values.a }}\n" + one + "---\n" + two + "{{- end }}\n",
+			expected: map[string]map[string]struct{}{"ClusterRole/one": ifA, "ClusterRole/two": ifA},
+		},
+		{
+			name:     "the same without a leading separator",
+			text:     "{{- if .Values.a }}\n" + one + "---\n" + two + "{{- end }}\n",
+			expected: map[string]map[string]struct{}{"ClusterRole/one": ifA, "ClusterRole/two": ifA},
+		},
+		{
+			name:     "the generator's block opened right before the next separator",
+			text:     "---\n" + one + "{{- if .Values.a }}\n---\n" + two + "{{- end }}\n",
+			expected: map[string]map[string]struct{}{"ClusterRole/one": {}, "ClusterRole/two": ifA},
+		},
+		{
+			name:     "a block opened mid-object and closed in the next document",
+			text:     "---\n" + one + "{{- if .Values.a }}\nrules: []\n---\n" + two + "{{- end }}\n",
+			expected: map[string]map[string]struct{}{"ClusterRole/one": ifA, "ClusterRole/two": ifA},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.expected, conditionsByDocument(tc.text))
+		})
+	}
+}
+
+// Every file the generator writes reads back with the conditions of each of its objects -- its own
+// and those of its rules -- and no other: the layouts conditionsByDocument has to tell apart come
+// from generate.RenderFile.
+func TestConditionsByDocument_GeneratedFiles(t *testing.T) {
+	model := syncModel(t, syncModuleDir(t))
+
+	for _, f := range model.Files {
+		got := conditionsByDocument(generate.RenderFile(f))
+
+		for _, o := range f.Objects {
+			id := o.Kind + "/" + o.Name
+			if o.Namespace != "" {
+				id = o.Namespace + "/" + id
+			}
+
+			expected := map[string]struct{}{}
+
+			for _, when := range append([]string{o.When}, ruleConditions(o)...) {
+				if when != "" {
+					expected["if "+strings.Join(strings.Fields(when), " ")] = struct{}{}
+				}
+			}
+
+			assert.Equal(t, expected, got[id], "%s in %s", id, f.Path)
+		}
+	}
+}
+
+func ruleConditions(o generate.Object) []string {
+	out := make([]string, 0, len(o.Rules))
+	for _, r := range o.Rules {
+		out = append(out, r.When)
+	}
+
+	return out
+}
+
 func TestTemplateTexts_SkipsPartials(t *testing.T) {
 	modulePath := t.TempDir()
 	dir := filepath.Join(modulePath, "templates", "rbacv2", "use")
