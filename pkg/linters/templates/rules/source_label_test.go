@@ -22,7 +22,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/tidwall/gjson"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
+	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
@@ -35,13 +37,23 @@ func TestCheckExprWithSourceLabel(t *testing.T) {
 		expectedErrors int
 	}{
 		{
-			name:           "metric with source=deckhouse has no errors",
-			expr:           `kube_pod_info{source="deckhouse"}`,
+			name:           "metric with d8_source=dkp has no errors",
+			expr:           `kube_pod_info{d8_source="dkp"}`,
 			expectedErrors: 0,
 		},
 		{
 			name:           "metric without source selector produces error",
 			expr:           `kube_pod_info`,
+			expectedErrors: 1,
+		},
+		{
+			name:           "legacy source=deckhouse selector is not accepted",
+			expr:           `kube_pod_info{source="deckhouse"}`,
+			expectedErrors: 1,
+		},
+		{
+			name:           "d8_source with another value is not accepted",
+			expr:           `kube_pod_info{d8_source="user"}`,
 			expectedErrors: 1,
 		},
 		{
@@ -52,7 +64,7 @@ func TestCheckExprWithSourceLabel(t *testing.T) {
 		},
 		{
 			name:           "binary expr - one metric with source, one without",
-			expr:           `a{source="deckhouse"} * on() b`,
+			expr:           `a{d8_source="dkp"} * on() b`,
 			expectedErrors: 1,
 		},
 		{
@@ -97,7 +109,7 @@ func TestCheckExprWithSourceLabel(t *testing.T) {
 		},
 		{
 			name:           "ALERTS in complex expr does not produce error",
-			expr:           `ALERTS{alertname="KubeQuotaExceeded"} == 1 and on(namespace) kube_pod_info{source="deckhouse"}`,
+			expr:           `ALERTS{alertname="KubeQuotaExceeded"} == 1 and on(namespace) kube_pod_info{d8_source="dkp"}`,
 			expectedErrors: 0,
 		},
 		{
@@ -127,7 +139,7 @@ func TestCheckExprWithSourceLabel(t *testing.T) {
 		},
 		{
 			name:           "exact __name__ matcher with source is ok",
-			expr:           `{__name__="kube_pod_info", source="deckhouse"}`,
+			expr:           `{__name__="kube_pod_info", d8_source="dkp"}`,
 			expectedErrors: 0,
 		},
 		{
@@ -141,13 +153,13 @@ func TestCheckExprWithSourceLabel(t *testing.T) {
 			expectedErrors: 0,
 		},
 		{
-			name:           "expression with $source variable is accepted",
-			expr:           `m{source="$source"}`,
+			name:           "expression with $d8_source variable is accepted",
+			expr:           `m{d8_source="$d8_source"}`,
 			expectedErrors: 0,
 		},
 		{
-			name:           "expression with ${source} variable is accepted",
-			expr:           `m{source="${source}"}`,
+			name:           "expression with ${d8_source} variable is accepted",
+			expr:           `m{d8_source="${d8_source}"}`,
 			expectedErrors: 0,
 		},
 	}
@@ -354,8 +366,8 @@ func TestSanitizeGrafanaExpr(t *testing.T) {
 	}{
 		{
 			name:     "replaces $__rate_interval with 5m",
-			input:    `rate(m{source="deckhouse"}[$__rate_interval])`,
-			expected: `rate(m{source="deckhouse"}[5m])`,
+			input:    `rate(m{d8_source="dkp"}[$__rate_interval])`,
+			expected: `rate(m{d8_source="dkp"}[5m])`,
 		},
 		{
 			name:     "replaces $namespace with __placeholder__",
@@ -368,9 +380,9 @@ func TestSanitizeGrafanaExpr(t *testing.T) {
 			expected: `m{var="__placeholder__"}`,
 		},
 		{
-			name:     "does not replace $source",
-			input:    `m{source="$source"}`,
-			expected: `m{source="$source"}`,
+			name:     "does not replace $d8_source",
+			input:    `m{d8_source="$d8_source"}`,
+			expected: `m{d8_source="$d8_source"}`,
 		},
 		{
 			name:     "replaces $__range with 5m",
@@ -378,14 +390,14 @@ func TestSanitizeGrafanaExpr(t *testing.T) {
 			expected: `increase(m[5m])`,
 		},
 		{
-			name:     "does not replace ${source}",
-			input:    `m{source="${source}"}`,
-			expected: `m{source="${source}"}`,
+			name:     "does not replace ${d8_source}",
+			input:    `m{d8_source="${d8_source}"}`,
+			expected: `m{d8_source="${d8_source}"}`,
 		},
 		{
-			name:     "does not replace ${source:json}",
-			input:    `m{source="${source:json}"}`,
-			expected: `m{source="${source:json}"}`,
+			name:     "does not replace ${d8_source:json}",
+			input:    `m{d8_source="${d8_source:json}"}`,
+			expected: `m{d8_source="${d8_source:json}"}`,
 		},
 		{
 			name:     "replaces ${other_var} with __placeholder__",
@@ -400,4 +412,36 @@ func TestSanitizeGrafanaExpr(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestRecordingRuleNames(t *testing.T) {
+	rule := func(kind string, spec map[string]any) storage.StoreObject {
+		return storage.StoreObject{Unstructured: unstructured.Unstructured{Object: map[string]any{
+			"apiVersion": "monitoring.coreos.com/v1",
+			"kind":       kind,
+			"spec":       spec,
+		}}}
+	}
+
+	spec := map[string]any{
+		"groups": []any{
+			map[string]any{
+				"name": "g1",
+				"rules": []any{
+					map[string]any{"record": "d8:first:sum", "expr": "sum(a)"},
+					map[string]any{"alert": "SomeAlert", "expr": "b > 0"},
+				},
+			},
+			map[string]any{
+				"name": "g2",
+				"rules": []any{
+					map[string]any{"record": "d8:second:max", "expr": "max(c)"},
+				},
+			},
+		},
+	}
+
+	assert.ElementsMatch(t, []string{"d8:first:sum", "d8:second:max"}, recordingRuleNames(rule("PrometheusRule", spec)))
+	assert.Empty(t, recordingRuleNames(rule("ConfigMap", spec)), "only PrometheusRule objects are read")
+	assert.Empty(t, recordingRuleNames(rule("PrometheusRule", map[string]any{})), "an object without groups records nothing")
 }

@@ -18,7 +18,7 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [httproute-rules](#httproute-rules) | Validates that every Ingress has a companion HTTPRoute backed by a ListenerSet | ✅ | enabled |
 | [prometheus-rules](#prometheus-rules) | Validates Prometheus rules with promtool and proper templates | ✅ | enabled |
 | [grafana-dashboards](#grafana-dashboards) | Validates Grafana dashboard templates | ✅ | enabled |
-| [source-label](#source-label) | Requires `source="deckhouse"` selector on metrics in Prometheus rules and Grafana dashboards | ✅ | enabled |
+| [source-label](#source-label) | Requires `d8_source="dkp"` selector on metrics in Prometheus rules and Grafana dashboards | ✅ | enabled |
 | [cluster-domain](#cluster-domain) | Validates cluster domain configuration is dynamic | ❌ | enabled |
 | [registry](#registry) | Validates registry secret configuration | ❌ | enabled |
 | [werf](#werf) | Validates image names in `werf.yaml` do not contain underscores | ❌ | enabled |
@@ -1508,21 +1508,21 @@ linters-settings:
 
 ### source-label
 
-**Purpose:** Ensures every Deckhouse-owned metric referenced in PromQL expressions (in PrometheusRule objects and Grafana dashboards) is selected with an explicit `source="deckhouse"` label matcher, isolating our metrics from foreign metrics that share the same name.
+**Purpose:** Ensures every Deckhouse-owned metric referenced in PromQL expressions (in PrometheusRule objects and Grafana dashboards) is selected with an explicit `d8_source="dkp"` label matcher, isolating our metrics from foreign metrics that share the same name.
 
 **Description:**
 
-The rule parses the PromQL expressions of alerting/recording rules and dashboard panel/template queries, and for every vector selector over a Deckhouse metric it requires a `source="deckhouse"` matcher (or a `source=$...` Grafana/templating variable that resolves to it).
+The rule parses the PromQL expressions of alerting/recording rules and dashboard panel/template queries, and for every vector selector over a Deckhouse metric it requires a `d8_source="dkp"` matcher (or a `d8_source=$...` Grafana/templating variable that resolves to it).
 
 **Why it matters:**
 
-User can ran their own exporter that exposed a metric with the **same name** as one of ours. Because both time series shared the metric name, the metric was effectively duplicated, the rule expression returned ambiguous data, and it failed to evaluate. Pinning `source="deckhouse"` separates our metrics from foreign ones with colliding names, so a query only matches our own time series and evaluates reliably.
+User can ran their own exporter that exposed a metric with the **same name** as one of ours. Because both time series shared the metric name, the metric was effectively duplicated, the rule expression returned ambiguous data, and it failed to evaluate. Pinning `d8_source="dkp"` separates our metrics from foreign ones with colliding names, so a query only matches our own time series and evaluates reliably.
 
 **What it checks:**
 
 1. `PrometheusRule` objects — the `expr` of every alerting and recording rule
 2. Grafana dashboards under `monitoring/grafana-dashboards` — `expr` of panel targets and `query`/`definition` of query template variables (only Prometheus datasources)
-3. Each Deckhouse metric selector contains `source="deckhouse"` (or `source=$<var>`)
+3. Each Deckhouse metric selector contains `d8_source="dkp"` (or `d8_source=$<var>`)
 
 **Exemptions (no source selector required):**
 
@@ -1545,14 +1545,14 @@ User can ran their own exporter that exposed a metric with the **same name** as 
 
 **Error:**
 ```
-Error: metric 'up' in rule 'TestAlertMissingSource' (group 'e2e.source-label') must have source="deckhouse" selector
+Error: metric 'up' in rule 'TestAlertMissingSource' (group 'e2e.source-label') must have d8_source="dkp" selector
 ```
 
 ✅ **Correct** - Metric with source selector:
 
 ```yaml
 - alert: TestAlertWithSource
-  expr: up{job="node-exporter", source="deckhouse"} == 0
+  expr: up{job="node-exporter", d8_source="dkp"} == 0
   for: 5m
   labels:
     severity_level: "5"
@@ -1564,7 +1564,7 @@ Error: metric 'up' in rule 'TestAlertMissingSource' (group 'e2e.source-label') m
 {
   "title": "Requests",
   "targets": [
-    { "expr": "rate(my_module_requests_total{source=\"deckhouse\"}[$__rate_interval])" }
+    { "expr": "rate(my_module_requests_total{d8_source=\"dkp\"}[$__rate_interval])" }
   ]
 }
 ```
@@ -2333,7 +2333,7 @@ linters-settings:
     prometheus-rules:
       disable: true
     
-    # Allow specific (foreign) metrics without a source="deckhouse" selector
+    # Allow specific (foreign) metrics without a d8_source="dkp" selector
     source-label:
       allowed-metrics:
         - "rabbitmq_*"

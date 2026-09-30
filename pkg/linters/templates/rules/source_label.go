@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -26,6 +27,7 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/tidwall/gjson"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
@@ -36,12 +38,17 @@ import (
 
 const (
 	SourceLabelRuleName = "source-label"
+
+	// sourceLabelName and sourceLabelValue are the label every Deckhouse monitor
+	// attaches to the series it scrapes, and the selector system expressions must use.
+	sourceLabelName  = "d8_source"
+	sourceLabelValue = "dkp"
 )
 
 // prometheusSyntheticMetrics contains Prometheus built-in metrics that are generated
-// internally by the engine and never receive scrape-time labels like source="deckhouse".
+// internally by the engine and never receive scrape-time labels like d8_source="dkp".
 // This set is intentionally separate from allowedMetrics (per-module config) and
-// recordingRuleNames (computed at runtime) because these metrics are universally
+// recordingRuleNames (collected from the module) because these metrics are universally
 // synthetic regardless of module or deployment.
 var prometheusSyntheticMetrics = map[string]struct{}{
 	"ALERTS":           {},
@@ -50,7 +57,7 @@ var prometheusSyntheticMetrics = map[string]struct{}{
 
 // SourceLabelRule enforces that every Deckhouse-owned metric referenced in
 // PromQL expressions (PrometheusRule objects and Grafana dashboards) is selected
-// with an explicit source="deckhouse" label matcher.
+// with an explicit d8_source="dkp" label matcher.
 //
 // The following metrics are exempt from the check:
 //   - metrics produced by recording rules within the module (recordingRuleNames),
@@ -61,9 +68,14 @@ var prometheusSyntheticMetrics = map[string]struct{}{
 //     scrape-time labels.
 type SourceLabelRule struct {
 	pkg.RuleMeta
+
+	module             pkg.Module
+	errorList          *errors.LintRuleErrorsList
 	recordingRuleNames map[string]struct{}
 	allowedMetrics     []*regexp.Regexp
 }
+
+var _ pkg.Rule = (*SourceLabelRule)(nil)
 
 // globToRegexp converts a simple glob pattern (supporting * and ?) to a regexp.
 // Plain strings without wildcards are compiled as ^exact_name$, behaving like exact match.
@@ -88,23 +100,16 @@ func globToRegexp(pattern string) (*regexp.Regexp, error) {
 }
 
 // NewSourceLabelRule builds the rule from the templates linter config. The
-// allowed-metrics patterns (globs supporting * and ?) are compiled into regexps,
-// and the runtime-collected recording rule names are stored so that metrics they
-// produce are not required to carry a source selector.
-func NewSourceLabelRule(cfg *pkg.TemplatesLinterConfig) *SourceLabelRule {
+// allowed-metrics patterns (globs supporting * and ?) are compiled into regexps.
+// Recording rule names are collected from the module's own objects in Check.
+func NewSourceLabelRule(cfg *pkg.TemplatesLinterConfig, m pkg.Module, errorList *errors.LintRuleErrorsList) *SourceLabelRule {
 	var allowedMetrics []*regexp.Regexp
 
-	recordNames := make(map[string]struct{})
-
 	if cfg != nil {
-		for _, m := range cfg.SourceLabelSettings.AllowedMetrics {
-			if re, err := globToRegexp(m); err == nil {
+		for _, pattern := range cfg.SourceLabelSettings.AllowedMetrics {
+			if re, err := globToRegexp(pattern); err == nil {
 				allowedMetrics = append(allowedMetrics, re)
 			}
-		}
-
-		if cfg.SourceLabelSettings.RecordingRuleNames != nil {
-			recordNames = cfg.SourceLabelSettings.RecordingRuleNames
 		}
 	}
 
@@ -112,14 +117,67 @@ func NewSourceLabelRule(cfg *pkg.TemplatesLinterConfig) *SourceLabelRule {
 		RuleMeta: pkg.RuleMeta{
 			Name: SourceLabelRuleName,
 		},
-		recordingRuleNames: recordNames,
+		module:             m,
+		errorList:          errorList.WithRule(SourceLabelRuleName),
+		recordingRuleNames: make(map[string]struct{}),
 		allowedMetrics:     allowedMetrics,
 	}
 }
 
+// Check lints the rendered PrometheusRule objects and the Grafana dashboards of
+// the module. Metrics recorded by the module itself are collected first, so that
+// expressions reading them are not required to carry the selector.
+func (r *SourceLabelRule) Check(_ context.Context) {
+	objects := r.module.GetStorage()
+
+	for _, object := range objects {
+		for _, name := range recordingRuleNames(object) {
+			r.recordingRuleNames[name] = struct{}{}
+		}
+	}
+
+	for _, object := range objects {
+		r.SourceLabelCheck(r.module, object, r.errorList)
+	}
+
+	r.SourceLabelCheckDashboards(r.module, r.errorList)
+}
+
+// recordingRuleNames returns the metric names recorded by a PrometheusRule object.
+func recordingRuleNames(object storage.StoreObject) []string {
+	if object.Unstructured.GetKind() != "PrometheusRule" {
+		return nil
+	}
+
+	groups, _, _ := unstructured.NestedSlice(object.Unstructured.Object, "spec", "groups")
+
+	var names []string
+
+	for _, ig := range groups {
+		group, ok := ig.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		rules, _, _ := unstructured.NestedSlice(group, "rules")
+		for _, ir := range rules {
+			rule, ok := ir.(map[string]any)
+			if !ok {
+				continue
+			}
+
+			if record, ok := rule["record"].(string); ok && record != "" {
+				names = append(names, record)
+			}
+		}
+	}
+
+	return names
+}
+
 // SourceLabelCheck inspects a single PrometheusRule object and verifies that the
 // PromQL expressions of all its alerting and recording rules select Deckhouse
-// metrics with a source="deckhouse" matcher. Non-PrometheusRule objects are
+// metrics with a d8_source="dkp" matcher. Non-PrometheusRule objects are
 // ignored.
 func (r *SourceLabelRule) SourceLabelCheck(m pkg.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithFilePath(m.GetPath()).WithRule(r.GetName())
@@ -180,10 +238,10 @@ func (r *SourceLabelRule) SourceLabelCheck(m pkg.Module, object storage.StoreObj
 }
 
 // checkExpr parses a PromQL expression and reports every vector selector over a
-// Deckhouse metric that lacks a source="deckhouse" matcher. Exempt metrics
+// Deckhouse metric that lacks a d8_source="dkp" matcher. Exempt metrics
 // (recording rule outputs, allowed-metrics, synthetic metrics and placeholder
 // names produced by Grafana variable sanitization) are skipped.
-func (r *SourceLabelRule) checkExpr(expr, context, filePath string, errorList *errors.LintRuleErrorsList) {
+func (r *SourceLabelRule) checkExpr(expr, location, filePath string, errorList *errors.LintRuleErrorsList) {
 	ast, err := parser.ParseExpr(expr)
 	if err != nil {
 		return
@@ -224,8 +282,8 @@ func (r *SourceLabelRule) checkExpr(expr, context, filePath string, errorList *e
 		hasSourceLabel := false
 
 		for _, m := range vs.LabelMatchers {
-			if m.Name == "source" && m.Type == labels.MatchEqual &&
-				(m.Value == "deckhouse" || strings.HasPrefix(m.Value, "$")) {
+			if m.Name == sourceLabelName && m.Type == labels.MatchEqual &&
+				(m.Value == sourceLabelValue || strings.HasPrefix(m.Value, "$")) {
 				hasSourceLabel = true
 				break
 			}
@@ -233,8 +291,8 @@ func (r *SourceLabelRule) checkExpr(expr, context, filePath string, errorList *e
 
 		if !hasSourceLabel {
 			errorList.WithFilePath(filePath).
-				Errorf("metric '%s' in %s must have source=\"deckhouse\" selector",
-					metricName, context)
+				Errorf("metric '%s' in %s must have %s=\"%s\" selector",
+					metricName, location, sourceLabelName, sourceLabelValue)
 		}
 
 		return nil
@@ -261,13 +319,13 @@ var (
 // plain PromQL by replacing Grafana variables with neutral placeholders:
 // built-in variables (e.g. $__rate_interval) become a dummy duration, while
 // other variables become "__placeholder__" so they are ignored by checkExpr.
-// The "source" variable is preserved so a source=$source matcher still counts
-// as an explicit source selector.
+// The d8_source variable is preserved so a d8_source=$d8_source matcher still
+// counts as an explicit selector.
 func sanitizeGrafanaExpr(expr string) string {
 	result := grafanaBuiltinVarRe.ReplaceAllString(expr, "5m")
 	result = grafanaVarBracesRe.ReplaceAllStringFunc(result, func(match string) string {
 		sub := grafanaVarBracesRe.FindStringSubmatch(match)
-		if len(sub) > 1 && sub[1] == "source" {
+		if len(sub) > 1 && sub[1] == sourceLabelName {
 			return match
 		}
 
@@ -275,7 +333,7 @@ func sanitizeGrafanaExpr(expr string) string {
 	})
 	result = grafanaVarSimpleRe.ReplaceAllStringFunc(result, func(match string) string {
 		name := match[1:]
-		if name == "source" {
+		if name == sourceLabelName {
 			return match
 		}
 
@@ -288,7 +346,7 @@ func sanitizeGrafanaExpr(expr string) string {
 // SourceLabelCheckDashboards walks every Grafana dashboard file under
 // monitoring/grafana-dashboards and verifies that the PromQL queries in their
 // panels and template variables select Deckhouse metrics with a
-// source="deckhouse" matcher.
+// d8_source="dkp" matcher.
 func (r *SourceLabelRule) SourceLabelCheckDashboards(m pkg.Module, errorList *errors.LintRuleErrorsList) {
 	errorList = errorList.WithRule(r.GetName())
 
