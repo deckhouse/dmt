@@ -102,6 +102,7 @@ func (l *Templates) rules() []pkg.Rule {
 		rules.NewWerfRule(m, errorList),
 		rules.NewRegistryRule(m, level(cfg.Rules.RegistryRule)),
 		rules.NewWebhookConfigurationRule(cfg.ExcludeRules.WebhookConfiguration.Get(), m, level(cfg.Rules.WebhookConfigurationRule)),
+		rules.NewAlertGroupingAnnotationsRule(cfg.ExcludeRules.AlertGroupingAnnotations.Get(), m, level(cfg.Rules.AlertGroupingAnnotationsRule)),
 		rules.NewEnabledModulesRule(
 			cfg.ExcludeRules.EnabledModules.Files.Get(),
 			cfg.ExcludeRules.EnabledModules.Directories.Get(),

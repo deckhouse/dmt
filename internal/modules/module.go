@@ -415,6 +415,9 @@ func mapTemplatesRules(linterSettings *pkg.LintersSettings, configSettings *conf
 
 	rules.MountPointsRule.SetLevel(globalRules.MountPointsRule.Impact, fallbackImpact)
 	rules.WebhookConfigurationRule.SetLevel(globalRules.WebhookConfigurationRule.Impact, fallbackImpact)
+	// Defaults to warn: deckhouse main still carries a handful of self-grouping alerts,
+	// and an error-level default would turn DMT Lint Verify red before they are fixed.
+	rules.AlertGroupingAnnotationsRule.SetLevel(globalRules.AlertGroupingAnnotationsRule.Impact, pkg.Warn.String())
 	rules.HelmRenderRule.SetLevel(globalRules.HelmRenderRule.Impact, fallbackImpact)
 	rules.OpenAPIValuesQuoteRule.SetLevel(globalRules.OpenAPIValuesQuoteRule.Impact, fallbackImpact)
 	rules.SchemaValidationRule.SetLevel(globalRules.SchemaValidationRule.Impact, fallbackImpact)
@@ -555,6 +558,7 @@ func mapTemplatesExclusionsAndSettings(linterSettings *pkg.LintersSettings, conf
 	excludes.EnabledModules.Files = pkg.StringRuleExcludeList(configExcludes.EnabledModules.Files)
 	excludes.EnabledModules.Directories = pkg.DirectoryRuleExcludeList(configExcludes.EnabledModules.Directories)
 	excludes.WebhookConfiguration = configExcludes.WebhookConfiguration.Get()
+	excludes.AlertGroupingAnnotations = pkg.StringRuleExcludeList(configExcludes.AlertGroupingAnnotations)
 	excludes.MountPoints = pkg.StringRuleExcludeList(configExcludes.MountPoints)
 	excludes.OpenAPIValuesQuote = pkg.StringRuleExcludeList(configExcludes.OpenAPIValuesQuote)
 	excludes.SchemaValidation = configExcludes.SchemaValidation.Get()

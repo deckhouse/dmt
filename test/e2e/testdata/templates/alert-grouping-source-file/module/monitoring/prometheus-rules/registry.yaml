@@ -1,0 +1,16 @@
+- name: d8.registry
+  rules:
+    - alert: D8RegistryDrainStuck
+      expr: vector(1)
+      annotations:
+        plk_protocol_version: "1"
+        plk_create_group_if_not_exists__d8_registry_drain_stuck: "D8RegistryDrainStuck,tier=cluster,prometheus=deckhouse"
+        plk_grouped_by__d8_registry_drain_stuck: "D8RegistryDrainStuck,tier=cluster,prometheus=deckhouse"
+        summary: The registry module cannot finish leaving the pull path.
+    - alert: D8RegistryConfigInvalid
+      expr: vector(1)
+      annotations:
+        plk_protocol_version: "1"
+        plk_create_group_if_not_exists__d8_registry_alerts: "D8RegistryAlerts,tier=cluster,prometheus=deckhouse"
+        plk_grouped_by__d8_registry_alerts: "D8RegistryAlerts,tier=cluster,prometheus=deckhouse"
+        summary: The registry configuration was rejected.

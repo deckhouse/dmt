@@ -128,6 +128,7 @@ var staticRules = map[string]set.Set{
 		rbacrules.WildcardsRuleName,
 	),
 	templates.ID: set.New(
+		templatesrules.AlertGroupingAnnotationsRuleName,
 		templatesrules.CRDEnabledModulesRuleName,
 		templatesrules.ClusterDomainRuleName,
 		templatesrules.DeprecatedHTTPRouteAnnotationsRuleName,
