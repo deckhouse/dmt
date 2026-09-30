@@ -127,6 +127,11 @@ func NewSourceLabelRule(cfg *pkg.TemplatesLinterConfig, m pkg.Module, errorList 
 // Check lints the rendered PrometheusRule objects and the Grafana dashboards of
 // the module. Metrics recorded by the module itself are collected first, so that
 // expressions reading them are not required to carry the selector.
+//
+// Recording rules are read from both the rendered objects and the files under
+// monitoring/prometheus-rules: a module may render its rules only under a
+// condition the default values do not meet, while its dashboards, which are read
+// from the source tree, still query the metrics those rules record.
 func (r *SourceLabelRule) Check(_ context.Context) {
 	objects := r.module.GetStorage()
 
@@ -136,11 +141,37 @@ func (r *SourceLabelRule) Check(_ context.Context) {
 		}
 	}
 
+	for _, name := range recordingRuleNamesFromFiles(filepath.Join(r.module.GetPath(), "monitoring", "prometheus-rules")) {
+		r.recordingRuleNames[name] = struct{}{}
+	}
+
 	for _, object := range objects {
 		r.SourceLabelCheck(r.module, object, r.errorList)
 	}
 
 	r.SourceLabelCheckDashboards(r.module, r.errorList)
+}
+
+var recordLineRe = regexp.MustCompile(`(?m)^\s*(?:-\s+)?record:\s*["']?([a-zA-Z_:][a-zA-Z0-9_:]*)["']?\s*$`)
+
+// recordingRuleNamesFromFiles returns the metric names recorded in the rule files
+// under dir. The files may be Helm templates, so they are scanned line by line
+// rather than parsed as YAML.
+func recordingRuleNamesFromFiles(dir string) []string {
+	var names []string
+
+	for _, file := range fsutils.GetFiles(dir, true, fsutils.FilterFileByExtensions(".yaml", ".yml", ".tpl")) {
+		content, err := os.ReadFile(file)
+		if err != nil {
+			continue
+		}
+
+		for _, match := range recordLineRe.FindAllSubmatch(content, -1) {
+			names = append(names, string(match[1]))
+		}
+	}
+
+	return names
 }
 
 // recordingRuleNames returns the metric names recorded by a PrometheusRule object.

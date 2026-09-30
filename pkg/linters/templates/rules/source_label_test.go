@@ -17,6 +17,8 @@ limitations under the License.
 package rules
 
 import (
+	"os"
+	"path/filepath"
 	"regexp"
 	"testing"
 
@@ -444,4 +446,29 @@ func TestRecordingRuleNames(t *testing.T) {
 	assert.ElementsMatch(t, []string{"d8:first:sum", "d8:second:max"}, recordingRuleNames(rule("PrometheusRule", spec)))
 	assert.Empty(t, recordingRuleNames(rule("ConfigMap", spec)), "only PrometheusRule objects are read")
 	assert.Empty(t, recordingRuleNames(rule("PrometheusRule", map[string]any{})), "an object without groups records nothing")
+}
+
+func TestRecordingRuleNamesFromFiles(t *testing.T) {
+	dir := t.TempDir()
+
+	rules := `- name: g
+  rules:
+  - record: d8:plain:sum
+    expr: sum(a)
+  - record: "d8:quoted:max"
+    expr: max(b)
+  - alert: NotARecord
+    expr: c > 0
+{{- if .Values.x }}
+  - record: d8:templated:count
+    expr: count(d)
+{{- end }}
+`
+	assert.NoError(t, os.WriteFile(filepath.Join(dir, "rules.tpl"), []byte(rules), 0o600))
+	assert.NoError(t, os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("record: d8:ignored\n"), 0o600))
+
+	assert.ElementsMatch(t,
+		[]string{"d8:plain:sum", "d8:quoted:max", "d8:templated:count"},
+		recordingRuleNamesFromFiles(dir))
+	assert.Empty(t, recordingRuleNamesFromFiles(filepath.Join(dir, "missing")))
 }
