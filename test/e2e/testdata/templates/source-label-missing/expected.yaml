@@ -1,0 +1,9 @@
+description: >
+  A PrometheusRule with a metric missing source="deckhouse" selector must be
+  flagged by the source-label rule.
+module: module
+expect:
+  - linter: templates
+    rule: source-label
+    level: error
+    textContains: "metric 'up' in rule 'TestAlertMissingSource' (group 'e2e.source-label') must have source=\"deckhouse\" selector"

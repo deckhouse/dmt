@@ -152,6 +152,7 @@ var staticRules = map[string]set.Set{
 		templatesrules.RegistryRuleName,
 		templatesrules.SchemaValidationRuleName,
 		templatesrules.ServicePortRuleName,
+		templatesrules.SourceLabelRuleName,
 		templatesrules.VPARuleName,
 		templatesrules.WebhookConfigurationRuleName,
 		templatesrules.WerfRuleName,

@@ -228,9 +228,14 @@ type TemplatesSettings struct {
 	ExcludeRules      TemplatesExcludeRules        `mapstructure:"exclude-rules"`
 	GrafanaDashboards GrafanaDashboardsExcludeList `mapstructure:"grafana-dashboards"`
 	PrometheusRules   PrometheusRulesExcludeList   `mapstructure:"prometheus-rules"`
+	SourceLabel       SourceLabelSettings          `mapstructure:"source-label"`
 	Rules             TemplatesLinterRules         `mapstructure:"rules"`
 
 	Impact string `mapstructure:"impact"`
+}
+
+type SourceLabelSettings struct {
+	AllowedMetrics []string `mapstructure:"allowed-metrics"`
 }
 
 type TemplatesLinterRules struct {
@@ -257,6 +262,7 @@ type TemplatesLinterRules struct {
 	HTTPSCertificateReuseRule          RuleConfig `mapstructure:"https-certificate-reuse"`
 	ListenerSetRedirectRule            RuleConfig `mapstructure:"listenerset-redirect"`
 	HTTPRouteRedirectRule              RuleConfig `mapstructure:"httproute-redirect"`
+	SourceLabelRule                    RuleConfig `mapstructure:"source-label"`
 }
 
 type TemplatesExcludeRules struct {
