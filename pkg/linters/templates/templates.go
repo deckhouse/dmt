@@ -129,6 +129,7 @@ func (l *Templates) rules() []pkg.Rule {
 			m, level(cfg.Rules.HTTPSCertificateReuseRule)),
 		rules.NewListenerSetRedirectRule(cfg.ExcludeRules.ListenerSetRedirect.Get(), m, level(cfg.Rules.ListenerSetRedirectRule)),
 		rules.NewHTTPRouteRedirectRule(cfg.ExcludeRules.HTTPRouteRedirect.Get(), m, level(cfg.Rules.HTTPRouteRedirectRule)),
+		rules.NewMonitorSourceLabelRule(cfg.ExcludeRules.MonitorSourceLabel.Get(), m, level(cfg.Rules.MonitorSourceLabelRule)),
 	)
 }
 

@@ -1,0 +1,9 @@
+description: >
+  A PodMonitor whose endpoint sets d8_source="dkp" with a relabeling, and a
+  recording rule labeled d8_source: dkp, satisfy the monitor-source-label rule.
+  The sibling templates/monitor-source-label-missing proves the rule fires on
+  the same objects without the label, so this expectAbsent is a live guard.
+module: module
+expectAbsent:
+  - linter: templates
+    rule: monitor-source-label

@@ -18,6 +18,7 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [httproute-rules](#httproute-rules) | Validates that every Ingress has a companion HTTPRoute backed by a ListenerSet | ✅ | enabled |
 | [prometheus-rules](#prometheus-rules) | Validates Prometheus rules with promtool and proper templates | ✅ | enabled |
 | [grafana-dashboards](#grafana-dashboards) | Validates Grafana dashboard templates | ✅ | enabled |
+| [monitor-source-label](#monitor-source-label) | Requires every PodMonitor/ServiceMonitor/ScrapeConfig/Probe and recording rule to label collected series with `d8_source="dkp"` | ✅ | enabled |
 | [cluster-domain](#cluster-domain) | Validates cluster domain configuration is dynamic | ❌ | enabled |
 | [registry](#registry) | Validates registry secret configuration | ❌ | enabled |
 | [werf](#werf) | Validates image names in `werf.yaml` do not contain underscores | ❌ | enabled |
@@ -3577,4 +3578,89 @@ linters-settings:
       httproute-redirect:
         - name: istio                 # ListenerSet name (optional; omit to match any)
           section: istio-redirect     # redirect section intentionally left without a redirecting HTTPRoute
+```
+
+---
+
+### monitor-source-label
+
+**Purpose:** Ensures every series a module collects is labeled `d8_source="dkp"` at the point where it enters Prometheus, so that system rules and dashboards can select Deckhouse metrics apart from same-named metrics exported by users.
+
+**Description:**
+
+The rule inspects the rendered prometheus-operator objects of the module (`monitoring.coreos.com` API group) and checks where series get their labels. It does **not** look at PromQL expressions.
+
+**What it checks:**
+
+1. `PodMonitor` — every entry of `spec.podMetricsEndpoints` has the relabeling in its `relabelings`
+2. `ServiceMonitor` — every entry of `spec.endpoints` has the relabeling in its `relabelings`
+3. `ScrapeConfig` — `spec.relabelings` has the relabeling
+4. `Probe` — `spec.targets.staticConfig.relabelingConfigs` and `spec.targets.ingress.relabelingConfigs` (whichever target is set) have the relabeling
+5. `PrometheusRule` — every recording rule sets `labels.d8_source: dkp`
+
+The relabeling is `targetLabel: d8_source` with `replacement: dkp` and the default `replace` action. Each endpoint is a scrape of its own, so a monitor with one labeled endpoint and one unlabeled endpoint is still reported.
+
+**Why it matters:**
+
+A user can run an exporter that exposes a metric with the same name as one of ours. Without a label that only Deckhouse scrapes set, system alerts and dashboards read both series, return ambiguous data and fail to evaluate. The label is set at scrape time, so a monitor that forgets it leaves every series it collects unselectable.
+
+**Examples:**
+
+❌ **Incorrect** - Endpoint without the relabeling:
+
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+spec:
+  podMetricsEndpoints:
+  - port: https-metrics
+    relabelings:
+    - targetLabel: tier
+      replacement: cluster
+```
+
+**Error:**
+```
+Error: spec.podMetricsEndpoints[0] (port https-metrics) must set a relabeling with targetLabel: d8_source and replacement: dkp in its relabelings
+```
+
+✅ **Correct:**
+
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+spec:
+  podMetricsEndpoints:
+  - port: https-metrics
+    relabelings:
+    - targetLabel: tier
+      replacement: cluster
+    - targetLabel: d8_source
+      replacement: dkp
+```
+
+✅ **Correct** - Recording rule:
+
+```yaml
+- record: d8:my_module_requests:rate5m
+  expr: sum(rate(my_module_requests_total{d8_source="dkp"}[5m]))
+  labels:
+    d8_source: dkp
+```
+
+**Configuration:**
+
+Exclude an object that intentionally collects foreign series by its kind and name:
+
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  templates:
+    exclude-rules:
+      monitor-source-label:
+        - kind: PodMonitor
+          name: third-party-exporter
+    rules:
+      monitor-source-label:
+        impact: warning
 ```

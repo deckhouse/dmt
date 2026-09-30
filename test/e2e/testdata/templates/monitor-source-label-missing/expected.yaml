@@ -1,0 +1,15 @@
+description: >
+  A PodMonitor endpoint without a relabeling that sets d8_source="dkp", and a
+  recording rule without the d8_source: dkp label, collect series that system
+  rules cannot tell apart from same-named user metrics, and must both be flagged
+  by the monitor-source-label rule.
+module: module
+expect:
+  - linter: templates
+    rule: monitor-source-label
+    level: error
+    textContains: "spec.podMetricsEndpoints[0] (port https-metrics) must set a relabeling with targetLabel: d8_source and replacement: dkp in its relabelings"
+  - linter: templates
+    rule: monitor-source-label
+    level: error
+    textContains: "recording rule 'e2e:up:sum' (group 'e2e.monitor-source-label-missing') must set label d8_source: dkp"
