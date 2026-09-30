@@ -1,0 +1,29 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: e2e-monitor-source-label-missing
+  namespace: d8-monitoring
+spec:
+  jobLabel: app
+  selector:
+    matchLabels:
+      app: e2e
+  podMetricsEndpoints:
+  - port: https-metrics
+    relabelings:
+    - targetLabel: tier
+      replacement: cluster
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: e2e-monitor-source-label-missing
+  namespace: d8-monitoring
+spec:
+  groups:
+  - name: e2e.monitor-source-label-missing
+    rules:
+    - record: e2e:up:sum
+      expr: sum(up)
+
