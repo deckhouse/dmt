@@ -1,0 +1,5 @@
+description: >
+  A Grafana dashboard with a metric listed in allowed-metrics should not produce
+  source-label errors.
+module: module
+expect: []
