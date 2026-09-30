@@ -17,10 +17,13 @@ limitations under the License.
 package rules
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gojuno/minimock/v3"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/deckhouse/dmt/internal/mocks"
@@ -87,15 +90,39 @@ func runAlertGroupingRule(
 ) *errors.LintRuleErrorsList {
 	t.Helper()
 
+	// An empty module path keeps the source-file half of the rule a no-op, so these
+	// cases exercise the rendered-object half alone.
+	return runAlertGroupingRuleAt(t, t.TempDir(), store, excludes)
+}
+
+func runAlertGroupingRuleAt(
+	t *testing.T,
+	modulePath string,
+	store map[storage.ResourceIndex]storage.StoreObject,
+	excludes []pkg.StringRuleExclude,
+) *errors.LintRuleErrorsList {
+	t.Helper()
+
 	mc := minimock.NewController(t)
 
 	mod := mocks.NewModuleMock(mc)
 	mod.GetStorageMock.Return(store)
+	mod.GetPathMock.Return(modulePath)
 
 	errorList := errors.NewLintRuleErrorsList()
 	NewAlertGroupingAnnotationsRule(excludes, mod, errorList).Check(t.Context())
 
 	return errorList
+}
+
+// writeRuleFile drops a prometheus rules file into a module tree, in the same
+// monitoring/prometheus-rules layout deckhouse modules use.
+func writeRuleFile(t *testing.T, modulePath, name, content string) {
+	t.Helper()
+
+	dir := filepath.Join(modulePath, "monitoring", "prometheus-rules")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600))
 }
 
 func TestAlertGroupingAnnotations_GroupEqualsAlertName(t *testing.T) {
@@ -291,4 +318,129 @@ func TestAlertGroupingAnnotations_ExcludedAlertDoesNotHideOthers(t *testing.T) {
 	assert.True(t, errorList.ContainsErrors())
 	assert.Len(t, errorList.GetErrors(), 1)
 	assert.Contains(t, errorList.GetErrors()[0].Text, "D8RegistryNodeForeignRegistryConfig")
+}
+
+// --- source-file scanning -------------------------------------------------
+//
+// These matter most: on a full deckhouse lint no PrometheusRule object is rendered
+// at all (rendering is gated behind "operator-prometheus-crd" in global.enabledModules),
+// so the rule has to read the files to catch anything.
+
+const selfGroupingRuleFile = `- name: d8.registry
+  rules:
+    - alert: D8RegistryDrainStuck
+      expr: vector(1)
+      annotations:
+        plk_protocol_version: "1"
+        plk_create_group_if_not_exists__d8_registry_drain_stuck: "D8RegistryDrainStuck,tier=cluster"
+        plk_grouped_by__d8_registry_drain_stuck: "D8RegistryDrainStuck,tier=cluster"
+        summary: The registry module cannot finish leaving the pull path.
+`
+
+func TestAlertGroupingAnnotations_SourceFile_Collision(t *testing.T) {
+	modulePath := t.TempDir()
+	writeRuleFile(t, modulePath, "drain.yaml", selfGroupingRuleFile)
+
+	errorList := runAlertGroupingRuleAt(t, modulePath, nil, nil)
+
+	assert.True(t, errorList.ContainsErrors())
+	assert.Len(t, errorList.GetErrors(), 2)
+	assert.Contains(t, errorList.GetErrors()[0].Text, "D8RegistryDrainStuck")
+}
+
+func TestAlertGroupingAnnotations_SourceFile_ReportsLineNumbers(t *testing.T) {
+	modulePath := t.TempDir()
+	writeRuleFile(t, modulePath, "drain.yaml", selfGroupingRuleFile)
+
+	errorList := runAlertGroupingRuleAt(t, modulePath, nil, nil)
+
+	lines := make([]int, 0, 2)
+	for _, e := range errorList.GetErrors() {
+		lines = append(lines, e.LineNumber)
+	}
+
+	assert.ElementsMatch(t, []int{7, 8}, lines)
+}
+
+func TestAlertGroupingAnnotations_SourceFile_DistinctGroup(t *testing.T) {
+	modulePath := t.TempDir()
+	writeRuleFile(t, modulePath, "drain.yaml", `- name: d8.registry
+  rules:
+    - alert: D8RegistryDrainStuck
+      expr: vector(1)
+      annotations:
+        plk_create_group_if_not_exists__d8_registry_alerts: "D8RegistryAlerts,tier=cluster"
+        plk_grouped_by__d8_registry_alerts: "D8RegistryAlerts,tier=cluster"
+`)
+
+	errorList := runAlertGroupingRuleAt(t, modulePath, nil, nil)
+
+	assert.False(t, errorList.ContainsErrors())
+}
+
+func TestAlertGroupingAnnotations_SourceFile_WholeManifestShape(t *testing.T) {
+	// A file holding a full PrometheusRule manifest rather than a bare group list.
+	modulePath := t.TempDir()
+	writeRuleFile(t, modulePath, "rules.yaml", `apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: registry
+spec:
+  groups:
+    - name: d8.registry
+      rules:
+        - alert: D8RegistryDrainStuck
+          expr: vector(1)
+          annotations:
+            plk_grouped_by__d8_registry_drain_stuck: "D8RegistryDrainStuck,tier=cluster"
+`)
+
+	errorList := runAlertGroupingRuleAt(t, modulePath, nil, nil)
+
+	assert.True(t, errorList.ContainsErrors())
+	assert.Len(t, errorList.GetErrors(), 1)
+}
+
+func TestAlertGroupingAnnotations_SourceFile_UnparsableFileIgnored(t *testing.T) {
+	// Broken YAML is the promtool check's finding, not this rule's.
+	modulePath := t.TempDir()
+	writeRuleFile(t, modulePath, "broken.yaml", "- name: d8.registry\n  rules: [oops\n")
+
+	errorList := runAlertGroupingRuleAt(t, modulePath, nil, nil)
+
+	assert.False(t, errorList.ContainsErrors())
+}
+
+func TestAlertGroupingAnnotations_SourceFile_NoRulesDirectory(t *testing.T) {
+	errorList := runAlertGroupingRuleAt(t, t.TempDir(), nil, nil)
+
+	assert.False(t, errorList.ContainsErrors())
+}
+
+func TestAlertGroupingAnnotations_SourceFile_ExcludedAlert(t *testing.T) {
+	modulePath := t.TempDir()
+	writeRuleFile(t, modulePath, "drain.yaml", selfGroupingRuleFile)
+
+	excludes := pkg.StringRuleExcludeList{"D8RegistryDrainStuck"}.Get()
+	errorList := runAlertGroupingRuleAt(t, modulePath, nil, excludes)
+
+	assert.False(t, errorList.ContainsErrors())
+}
+
+func TestAlertGroupingAnnotations_FileAndObjectReportedOnce(t *testing.T) {
+	// The same alert reaching the rule through both halves must not be reported twice.
+	modulePath := t.TempDir()
+	writeRuleFile(t, modulePath, "drain.yaml", selfGroupingRuleFile)
+
+	store := makePrometheusRuleStorage(alertRule{
+		name: "D8RegistryDrainStuck",
+		annotations: map[string]string{
+			"plk_create_group_if_not_exists__d8_registry_drain_stuck": "D8RegistryDrainStuck,tier=cluster",
+			"plk_grouped_by__d8_registry_drain_stuck":                 "D8RegistryDrainStuck,tier=cluster",
+		},
+	})
+
+	errorList := runAlertGroupingRuleAt(t, modulePath, store, nil)
+
+	assert.Len(t, errorList.GetErrors(), 2)
 }

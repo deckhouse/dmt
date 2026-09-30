@@ -1411,10 +1411,14 @@ The alert is then dropped rather than delivered, and the rejection is reported a
 
 **What it checks:**
 
-1. Every alerting rule (a rule with an `alert` field) of every `PrometheusRule` object
+1. Every alerting rule (a rule with an `alert` field) found in the module's `monitoring/prometheus-rules` files, and in any rendered `PrometheusRule` object
 2. For each annotation whose key starts with `plk_create_group_if_not_exists__` or `plk_grouped_by__`, the group name — the value up to the first comma, trimmed — must differ from the alert's name
 3. Recording rules are skipped: they have no `alert` field and are never grouped
 4. Group names are compared exactly; a differently-cased name is a genuinely different trigger and is not reported
+
+Both annotations of a broken pair are reported, so a partial fix does not leave one behind unnoticed, and a finding carries the annotation's line number.
+
+The rule reads the source files rather than relying on rendered objects alone, because `helm_lib_prometheus_rules` only emits `PrometheusRule` objects when `global.enabledModules` contains `operator-prometheus-crd`. On a full deckhouse lint that is not the case, no such object exists, and an object-only check would pass while the broken annotations sit in the files. A rule file that does not parse is skipped — that is the promtool check's finding, not this one's. Findings are deduplicated on the alert and annotation, so an alert reached through both paths is reported once.
 
 **Why it matters:**
 
