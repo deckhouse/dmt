@@ -150,6 +150,21 @@ func IsSubsystem(name string) bool {
 	return slices.Contains(Subsystems, name)
 }
 
+// ReplacementOf returns the subsystem of the role model that took over a subsystem of the legacy
+// scheme the role model no longer has: deckhouse, infrastructure and kubernetes went into cluster,
+// and networking is network. It reports false for any other name, including observability,
+// security and storage, which kept their names.
+func ReplacementOf(name string) (string, bool) {
+	switch name {
+	case "deckhouse", "infrastructure", "kubernetes":
+		return "cluster", true
+	case "networking":
+		return "network", true
+	}
+
+	return "", false
+}
+
 // CapabilityAction maps a level to the action suffix of the capability it produces:
 // viewer -> view, manager -> edit, the rest as they are (ADR "Что генерируется"; the live
 // convention is use/admin.yaml with marker namespace-capability.cert-manager.admin).
