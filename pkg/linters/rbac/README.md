@@ -1361,8 +1361,9 @@ apiVersion: rbac.deckhouse.io/v1alpha1
 
 # Lineages the system capabilities aggregate into. Defaults to `subsystems` of module.yaml; required
 # when the module aggregates into more subsystems than module.yaml declares. A subsystem is one of the
-# seven the platform ships or one of the module's own that module.yaml declares.
-subsystems: [networking, kubernetes]
+# platform's (iam, security, cluster, delivery, network, storage, observability, managed-service) or one
+# of the module's own that module.yaml declares.
+subsystems: [network, cluster]
 
 resources:
   # A resource the module ships a CRD for: group and resource are enough, the scope comes from the CRD.
@@ -1540,7 +1541,7 @@ Works on the rendered ClusterRoles from `templates/rbacv2/` (the compatibility a
 2. `rbac.deckhouse.io/kind` is `role` or `capability`; `rbac.deckhouse.io/scope` is `system`, `subsystem`, `namespace` or `project`.
 3. A role: its name matches the pattern of its scope, it defines no `rules`, its `aggregationRule` selects only by `aggregate-to-<lineage>-as` labels with a known lineage and a level of that lineage; system/subsystem roles carry `rbac.deckhouse.io/use-role` with a valid level.
 4. A capability: its name starts with the prefix of its scope, it defines `rules` and no `aggregationRule`, carries at least one `aggregate-to-<lineage>-as` label and a valid `rbac.deckhouse.io/capability` marker (a label value, at most 63 characters).
-5. Aggregation labels target a known lineage (`system`, `namespace`, `project`, one of the seven subsystems the platform ships, or a subsystem of the module's own that its `module.yaml` declares and its render holds `d8:subsystem:<name>:<level>` roles for, as `virtualization`) with a level that lineage has. A module's own subsystem has the levels of every subsystem, and its roles pass the same checks as the platform's; another module's own subsystem is unknown. A `module.yaml` subsystem that is neither the platform's nor backed by such a role is a finding of its own, so a typo there does not silence the check, and `sync` refuses a declaration that names it.
+5. Aggregation labels target a known lineage (`system`, `namespace`, `project`, a subsystem the platform ships, or a subsystem of the module's own that its `module.yaml` declares and its render holds `d8:subsystem:<name>:<level>` roles for, as `virtualization`) with a level that lineage has. The platform ships `iam`, `security`, `cluster`, `delivery`, `network`, `storage`, `observability` and `managed-service`. The `deckhouse`, `infrastructure` and `kubernetes` subsystems of the scheme before DKP 1.78 are in `cluster` and its `networking` is `network`, so an aggregation into one of them is to an unknown lineage. A module's own subsystem has the levels of every subsystem, and its roles pass the same checks as the platform's; another module's own subsystem is unknown. A `module.yaml` subsystem that is neither the platform's nor backed by such a role is a finding of its own, so a typo there does not silence the check, and `sync` refuses a declaration that names it.
 6. `rbac.deckhouse.io/delegatable` appears only on namespace/project roles.
 7. An object of the RBACv2 scheme before DKP 1.78 (`rbac.deckhouse.io/kind: use` or `manage`, names `d8:use:capability:module:<m>:*` / `d8:manage:permission:module:<m>:*`) gets one finding -- migrate with `rbacv2-migrate-module.sh` from `modules/140-user-authz/docs/internal/` of the deckhouse repository, or describe the module in `rbac.yaml` and run `--fix` -- instead of failing every check above. A legacy object rendered from a template that carries the script's version gate (`include "<module>.rbacv2_new_scheme"`) is not reported: the module serves both models on purpose.
 8. **Warning:** a cluster-scoped resource inside a namespace capability. Such a capability is bound through a RoleBinding, where the rule grants nothing. The scope comes from the module's CRDs or from its `rbac.yaml`; a resource the run knows nothing about is not judged.
