@@ -175,7 +175,7 @@ func (r *ContractRule) Check(_ context.Context) {
 	}
 }
 
-// ownSubsystems are the subsystems of the module's own: a module may ship one (virtualization), with
+// ownSubsystems are the subsystems of the module's own: a module may ship one, with
 // its d8:subsystem:<name>:<level> roles and the capabilities that aggregate into it. unrendered are
 // the other subsystems module.yaml declares beyond the platform's -- a typo, or a subsystem with no
 // role to aggregate into. A module.yaml that does not parse is the module linter's finding, and

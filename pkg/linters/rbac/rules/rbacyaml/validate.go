@@ -149,8 +149,7 @@ func Validate(d *Declaration, crds CRDScopes) []error {
 }
 
 // ValidateFor is Validate for a module whose module.yaml declares the given subsystems: one of
-// them that is not the platform's is the module's own (virtualization), and the declaration may
-// aggregate into it.
+// them that is not the platform's is the module's own, and the declaration may aggregate into it.
 func ValidateFor(d *Declaration, crds CRDScopes, moduleSubsystems []string) []error {
 	var errs []error
 

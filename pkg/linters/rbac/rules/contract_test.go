@@ -294,9 +294,9 @@ func TestContract_DuplicateMarkerAndBuiltInScope(t *testing.T) {
 	assert.Contains(t, joined, "grants /nodes, a cluster-scoped resource, in a namespace capability")
 }
 
-// A module may ship a subsystem of its own, declared in its module.yaml (virtualization): its
-// subsystem roles and the capabilities that aggregate into it pass the contract, and a module that
-// does not declare it still gets "unknown" (review of #480).
+// A module may ship a subsystem of its own, declared in its module.yaml: its subsystem roles and
+// the capabilities that aggregate into it pass the contract, and a module that does not declare it
+// still gets "unknown" (review of #480).
 func TestContract_SubsystemOfTheModule(t *testing.T) {
 	role := clusterRole("d8:subsystem:virtualization:manager", map[string]string{"module": "cert-manager",
 		"rbac.deckhouse.io/kind":                           "role",
