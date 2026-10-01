@@ -154,7 +154,7 @@ func TestBuild_CertManagerModel(t *testing.T) {
 
 func TestBuild_SubsystemsOverrideAndNamespaceLabel(t *testing.T) {
 	in := certManagerInput(t)
-	in.Decl.Subsystems = []string{"networking", "kubernetes"}
+	in.Decl.Subsystems = []string{"network", "managed-service"}
 	in.Namespace = "default"
 	// Accounts of component directories cannot live in default (README, limits).
 	in.Decl.ServiceAccounts = nil
@@ -164,7 +164,7 @@ func TestBuild_SubsystemsOverrideAndNamespaceLabel(t *testing.T) {
 	require.NoError(t, err)
 
 	edit := model.File("templates/rbacv2/manage/edit.yaml").Objects[0]
-	assert.Equal(t, []LineageLevel{{Lineage: "kubernetes", Level: "manager"}, {Lineage: "networking", Level: "manager"}}, edit.AggregationLabels())
+	assert.Equal(t, []LineageLevel{{Lineage: "managed-service", Level: "manager"}, {Lineage: "network", Level: "manager"}}, edit.AggregationLabels())
 	_, hasNamespaceLabel := edit.Labels["rbac.deckhouse.io/namespace"]
 	assert.False(t, hasNamespaceLabel, "the namespace label is set only for a d8- namespace")
 	assert.Equal(t, []string{"create", "delete", "patch", "update"}, edit.Rules[len(edit.Rules)-1].Verbs, "the edit ModuleConfig rule has no read verbs")

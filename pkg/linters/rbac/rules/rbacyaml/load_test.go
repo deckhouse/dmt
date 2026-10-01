@@ -502,8 +502,12 @@ func TestValidate_TopLevel(t *testing.T) {
 			wantErr: `apiVersion must be "rbac.deckhouse.io/v1alpha1", got ""`,
 		},
 		"subsystems: not a subsystem": {
-			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\nsubsystems: [networking, billing]\n",
+			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\nsubsystems: [network, billing]\n",
 			wantErr: `subsystems: "billing" is not a subsystem of the role model`,
+		},
+		"subsystems: a subsystem of the legacy scheme": {
+			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\nsubsystems: [cluster, kubernetes]\n",
+			wantErr: `subsystems: "kubernetes" is not a subsystem of the role model (iam, security, cluster, delivery, network, storage, observability, managed-service)`,
 		},
 		"duplicate resource entry": {
 			yaml: "apiVersion: rbac.deckhouse.io/v1alpha1\nresources:\n" +
