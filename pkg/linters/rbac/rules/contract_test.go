@@ -357,7 +357,7 @@ func TestContract_UnrenderedModuleSubsystem(t *testing.T) {
 	assert.Equal(t, 1, reported, "a subsystem listed twice is reported once")
 }
 
-// The subsystems are the eight of DKP: a capability aggregates into cluster or managed-service, and a
+// The subsystems are the eight of DKP: a capability aggregates into cluster or managed-services, and a
 // module still on a subsystem of the legacy scheme hears that it is gone.
 func TestContract_SubsystemsOfTheRoleModel(t *testing.T) {
 	capability := func(lineages ...string) string {
@@ -374,12 +374,12 @@ func TestContract_SubsystemsOfTheRoleModel(t *testing.T) {
 			"rules:\n- apiGroups: [cert-manager.io]\n  resources: [clusterissuers]\n  verbs: [get, list, watch]\n")
 	}
 
-	current := writeModule(t, map[string]string{"module.yaml": "name: cert-manager\nsubsystems: [cluster, managed-service]\n"})
-	assert.Empty(t, runContract(t, current, rendered{"templates/rbacv2/manage/view.yaml", capability("cluster", "managed-service")}))
+	current := writeModule(t, map[string]string{"module.yaml": "name: cert-manager\nsubsystems: [cluster, managed-services]\n"})
+	assert.Empty(t, runContract(t, current, rendered{"templates/rbacv2/manage/view.yaml", capability("cluster", "managed-services")}))
 
 	legacy := writeModule(t, map[string]string{"module.yaml": "name: cert-manager\nsubsystems: [kubernetes]\n"})
 	got := strings.Join(runContract(t, legacy, rendered{"templates/rbacv2/manage/view.yaml", capability("kubernetes")}), "\n")
-	assert.Contains(t, got, `module.yaml subsystems: "kubernetes" is a subsystem of the legacy scheme, which the role model replaced with "cluster"; declare the module's subsystem of the role model (iam, security, cluster, delivery, network, storage, observability, managed-service)`)
+	assert.Contains(t, got, `module.yaml subsystems: "kubernetes" is a subsystem of the legacy scheme, which the role model replaced with "cluster"; declare the module's subsystem of the role model (iam, security, cluster, delivery, network, storage, observability, managed-services)`)
 	assert.Contains(t, got, `aggregation label "rbac.deckhouse.io/aggregate-to-kubernetes-as" targets unknown lineage "kubernetes"; the role model replaced it with "cluster"`)
 }
 

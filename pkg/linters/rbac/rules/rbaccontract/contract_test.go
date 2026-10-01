@@ -42,7 +42,7 @@ func TestLevelsOf(t *testing.T) {
 	assert.Equal(t, NamespaceLevels, LevelsOf(LineageProject))
 	assert.Equal(t, SystemLevels, LevelsOf(LineageSystem))
 	assert.Equal(t, SystemLevels, LevelsOf("network"), "a subsystem carries the system levels")
-	assert.Equal(t, SystemLevels, LevelsOf("managed-service"), "a subsystem id may hold a dash")
+	assert.Equal(t, SystemLevels, LevelsOf("managed-services"), "a subsystem id may hold a dash")
 	assert.Nil(t, LevelsOf("networking"), "a subsystem of the legacy scheme is no lineage")
 	assert.Nil(t, LevelsOf("tenant"))
 
@@ -57,11 +57,11 @@ func swapFirstTwo(levels []string) { levels[0], levels[1] = levels[1], levels[0]
 
 // The subsystems are the eight of DKP; those of the legacy scheme went into cluster and network.
 func TestIsSubsystem(t *testing.T) {
-	for _, name := range []string{"iam", "security", "cluster", "delivery", "network", "storage", "observability", "managed-service"} {
+	for _, name := range []string{"iam", "security", "cluster", "delivery", "network", "storage", "observability", "managed-services"} {
 		assert.True(t, IsSubsystem(name), name)
 	}
 
-	for _, name := range []string{"deckhouse", "infrastructure", "kubernetes", "networking", "managed-services", "tenant"} {
+	for _, name := range []string{"deckhouse", "infrastructure", "kubernetes", "networking", "managed-service", "tenant"} {
 		assert.False(t, IsSubsystem(name), name)
 	}
 }

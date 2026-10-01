@@ -92,7 +92,7 @@ var Subsystems = []string{
 	"network",
 	"storage",
 	"observability",
-	"managed-service",
+	"managed-services",
 }
 
 // Levels a capability may aggregate to, per lineage. The namespace lineage carries the full
