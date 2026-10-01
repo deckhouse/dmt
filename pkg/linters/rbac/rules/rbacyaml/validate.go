@@ -164,6 +164,11 @@ func ValidateFor(d *Declaration, crds CRDScopes, moduleSubsystems []string) []er
 	validateNoTemplateText(reflect.ValueOf(d).Elem(), "", report)
 
 	for _, s := range d.Subsystems {
+		if replacement, ok := rbaccontract.ReplacementOf(s); ok {
+			report("subsystems: %q is a subsystem of the legacy scheme, which the role model replaced with %q", s, replacement)
+			continue
+		}
+
 		if !rbaccontract.IsSubsystem(s) && !slices.Contains(moduleSubsystems, s) {
 			report("subsystems: %q is not a subsystem of the role model (%s) nor one module.yaml declares for the module", s, strings.Join(rbaccontract.Subsystems, ", "))
 		}
