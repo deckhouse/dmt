@@ -18,6 +18,7 @@ package rules
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"regexp"
 	"slices"
@@ -107,6 +108,14 @@ func (r *ContractRule) Check(_ context.Context) {
 	own, unrendered := ownSubsystems(r.module)
 
 	for _, s := range unrendered {
+		if replacement, ok := rbaccontract.ReplacementOf(s); ok {
+			r.errorList.WithFilePath("module.yaml").
+				Errorf("module.yaml subsystems: %q is a subsystem of the legacy scheme, which the role model replaced with %q; declare the module's subsystem of the role model (%s)",
+					s, replacement, strings.Join(rbaccontract.Subsystems, ", "))
+
+			continue
+		}
+
 		r.errorList.WithFilePath("module.yaml").
 			Errorf("module.yaml subsystems: %q is not a subsystem of the role model (%s), and the module renders no d8:subsystem:%s:<level> role for it; a subsystem of the module's own needs its roles",
 				s, strings.Join(rbaccontract.Subsystems, ", "), s)
@@ -190,16 +199,20 @@ func ownSubsystems(m pkg.Module) (map[string]bool, []string) {
 }
 
 // splitSubsystems sorts the non-platform subsystems of module.yaml into those the render backs with
-// roles (own) and the rest (unrendered, sorted and without duplicates).
+// roles (own) and the rest (unrendered, sorted and without duplicates). A subsystem of the legacy
+// scheme is never the module's own, even when the render holds a role for it: the role model
+// replaced it with one of its own subsystems.
 func splitSubsystems(declared []string, rendered map[string]bool) (map[string]bool, []string) {
 	own := map[string]bool{}
 
 	var unrendered []string
 
 	for _, s := range declared {
+		_, legacy := rbaccontract.ReplacementOf(s)
+
 		switch {
 		case rbaccontract.IsSubsystem(s):
-		case rendered[s]:
+		case rendered[s] && !legacy:
 			own[s] = true
 		default:
 			unrendered = append(unrendered, s)
@@ -243,6 +256,16 @@ func knownSubsystems(m pkg.Module, declared []string) []string {
 	}
 
 	return known
+}
+
+// replacedBy names the subsystem of the role model that replaced a lineage of the legacy scheme, as
+// the tail of a finding; empty for any other lineage.
+func replacedBy(lineage string) string {
+	if replacement, ok := rbaccontract.ReplacementOf(lineage); ok {
+		return fmt.Sprintf("; the role model replaced it with %q", replacement)
+	}
+
+	return ""
 }
 
 // lineageLevels returns the levels of a lineage: one of the role model's, or a subsystem of the
@@ -341,7 +364,7 @@ func checkContract(role *rbacv1.ClusterRole, module string, own map[string]bool,
 
 		levels := lineageLevels(lineage, own)
 		if levels == nil {
-			errorList.Errorf("aggregation label %q targets unknown lineage %q", key, lineage)
+			errorList.Errorf("aggregation label %q targets unknown lineage %q%s", key, lineage, replacedBy(lineage))
 			continue
 		}
 
@@ -416,7 +439,7 @@ func checkRole(role *rbacv1.ClusterRole, scope string, own map[string]bool, erro
 
 			levels := lineageLevels(m[1], own)
 			if levels == nil {
-				errorList.Errorf("role %q aggregation selector targets unknown lineage %q", name, m[1])
+				errorList.Errorf("role %q aggregation selector targets unknown lineage %q%s", name, m[1], replacedBy(m[1]))
 			} else if !slices.Contains(levels, value) {
 				errorList.Errorf("role %q aggregation selector has invalid level %q", name, value)
 			}

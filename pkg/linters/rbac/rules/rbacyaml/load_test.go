@@ -507,7 +507,7 @@ func TestValidate_TopLevel(t *testing.T) {
 		},
 		"subsystems: a subsystem of the legacy scheme": {
 			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\nsubsystems: [cluster, kubernetes]\n",
-			wantErr: `subsystems: "kubernetes" is not a subsystem of the role model (iam, security, cluster, delivery, network, storage, observability, managed-service)`,
+			wantErr: `subsystems: "kubernetes" is a subsystem of the legacy scheme, which the role model replaced with "cluster"`,
 		},
 		"duplicate resource entry": {
 			yaml: "apiVersion: rbac.deckhouse.io/v1alpha1\nresources:\n" +

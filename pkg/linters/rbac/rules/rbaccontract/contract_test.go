@@ -17,6 +17,7 @@ limitations under the License.
 package rbaccontract
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -62,6 +63,20 @@ func TestIsSubsystem(t *testing.T) {
 
 	for _, name := range []string{"deckhouse", "infrastructure", "kubernetes", "networking", "managed-services", "tenant"} {
 		assert.False(t, IsSubsystem(name), name)
+	}
+}
+
+func TestReplacementOf(t *testing.T) {
+	for legacy, want := range map[string]string{"deckhouse": "cluster", "infrastructure": "cluster", "kubernetes": "cluster", "networking": "network"} {
+		got, ok := ReplacementOf(legacy)
+		assert.True(t, ok, legacy)
+		assert.Equal(t, want, got, legacy)
+		assert.True(t, IsSubsystem(got), "the replacement of %s is a subsystem of the role model", legacy)
+	}
+
+	for _, name := range append(slices.Clone(Subsystems), "virtualization", "") {
+		_, ok := ReplacementOf(name)
+		assert.False(t, ok, name)
 	}
 }
 
