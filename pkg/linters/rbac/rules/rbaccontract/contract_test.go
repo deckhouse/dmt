@@ -17,6 +17,7 @@ limitations under the License.
 package rbaccontract
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -40,7 +41,9 @@ func TestLevelsOf(t *testing.T) {
 	assert.Equal(t, NamespaceLevels, LevelsOf(LineageNamespace))
 	assert.Equal(t, NamespaceLevels, LevelsOf(LineageProject))
 	assert.Equal(t, SystemLevels, LevelsOf(LineageSystem))
-	assert.Equal(t, SystemLevels, LevelsOf("networking"), "a subsystem carries the system levels")
+	assert.Equal(t, SystemLevels, LevelsOf("network"), "a subsystem carries the system levels")
+	assert.Equal(t, SystemLevels, LevelsOf("managed-services"), "a subsystem id may hold a dash")
+	assert.Nil(t, LevelsOf("networking"), "a subsystem of the legacy scheme is no lineage")
 	assert.Nil(t, LevelsOf("tenant"))
 
 	// The lineages are separate slices: reordering one must not reorder another.
@@ -51,6 +54,31 @@ func TestLevelsOf(t *testing.T) {
 }
 
 func swapFirstTwo(levels []string) { levels[0], levels[1] = levels[1], levels[0] }
+
+// The subsystems are the eight of DKP; those of the legacy scheme went into cluster and network.
+func TestIsSubsystem(t *testing.T) {
+	for _, name := range []string{"iam", "security", "cluster", "delivery", "network", "storage", "observability", "managed-services"} {
+		assert.True(t, IsSubsystem(name), name)
+	}
+
+	for _, name := range []string{"deckhouse", "infrastructure", "kubernetes", "networking", "managed-service", "tenant"} {
+		assert.False(t, IsSubsystem(name), name)
+	}
+}
+
+func TestReplacementOf(t *testing.T) {
+	for legacy, want := range map[string]string{"deckhouse": "cluster", "infrastructure": "cluster", "kubernetes": "cluster", "networking": "network"} {
+		got, ok := ReplacementOf(legacy)
+		assert.True(t, ok, legacy)
+		assert.Equal(t, want, got, legacy)
+		assert.True(t, IsSubsystem(got), "the replacement of %s is a subsystem of the role model", legacy)
+	}
+
+	for _, name := range append(slices.Clone(Subsystems), "virtualization", "") {
+		_, ok := ReplacementOf(name)
+		assert.False(t, ok, name)
+	}
+}
 
 func TestCapabilityActionRoundTrip(t *testing.T) {
 	for _, level := range NamespaceLevels {
@@ -74,6 +102,4 @@ func TestVerbsAndKinds(t *testing.T) {
 	assert.True(t, IsLegacyKind(KindLegacyUse))
 	assert.True(t, IsLegacyKind(KindLegacyManage))
 	assert.False(t, IsLegacyKind(KindCapability))
-	assert.True(t, IsSubsystem("security"))
-	assert.False(t, IsSubsystem("tenant"))
 }

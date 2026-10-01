@@ -19,6 +19,8 @@ package rules
 import (
 	"context"
 	"maps"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -101,18 +103,18 @@ var (
 		"rbac.deckhouse.io/aggregate-to-namespace-as": "viewer",
 	}, i18n, "rules:\n- apiGroups: [cert-manager.io]\n  resources: [certificates]\n  verbs: [get, list, watch]\n")
 
-	validRole = clusterRole("d8:subsystem:networking:viewer", map[string]string{"module": "cert-manager",
+	validRole = clusterRole("d8:subsystem:network:viewer", map[string]string{"module": "cert-manager",
 		"rbac.deckhouse.io/kind":      "role",
 		"rbac.deckhouse.io/scope":     "subsystem",
-		"rbac.deckhouse.io/subsystem": "networking",
+		"rbac.deckhouse.io/subsystem": "network",
 		"rbac.deckhouse.io/use-role":  "viewer",
-	}, i18n, "aggregationRule:\n  clusterRoleSelectors:\n  - matchLabels:\n      rbac.deckhouse.io/aggregate-to-networking-as: viewer\n")
+	}, i18n, "aggregationRule:\n  clusterRoleSelectors:\n  - matchLabels:\n      rbac.deckhouse.io/aggregate-to-network-as: viewer\n")
 )
 
 func TestContract_CleanObjectsAndOutOfScopeFiles(t *testing.T) {
 	got := runContract(t, t.TempDir(),
 		rendered{"templates/rbacv2/use/view.yaml", validCapability},
-		rendered{"templates/rbacv2/global/subsystem/roles/networking/viewer.yaml", validRole},
+		rendered{"templates/rbacv2/global/subsystem/roles/network/viewer.yaml", validRole},
 		// the compatibility aliases keep the old names on purpose and are outside the contract
 		rendered{"templates/rbacv2-compat/aliases.yaml", clusterRole("d8:manage:networking:viewer", map[string]string{"module": "cert-manager", "rbac.deckhouse.io/kind": "role"}, "", "")},
 		// a controller ClusterRole elsewhere is none of the contract's business
@@ -290,4 +292,126 @@ func TestContract_DuplicateMarkerAndBuiltInScope(t *testing.T) {
 	joined := strings.Join(got, "\n")
 	assert.Contains(t, joined, `capability marker "namespace-capability.cert-manager.view" is also carried by d8:namespace-capability:cert-manager:view`)
 	assert.Contains(t, joined, "grants /nodes, a cluster-scoped resource, in a namespace capability")
+}
+
+// A module may ship a subsystem of its own, declared in its module.yaml: its subsystem roles and
+// the capabilities that aggregate into it pass the contract, and a module that does not declare it
+// still gets "unknown" (review of #480).
+func TestContract_SubsystemOfTheModule(t *testing.T) {
+	role := clusterRole("d8:subsystem:virtualization:manager", map[string]string{"module": "cert-manager",
+		"rbac.deckhouse.io/kind":                           "role",
+		"rbac.deckhouse.io/scope":                          "subsystem",
+		"rbac.deckhouse.io/subsystem":                      "virtualization",
+		"rbac.deckhouse.io/use-role":                       "admin",
+		"rbac.deckhouse.io/aggregate-to-virtualization-as": "superadmin",
+		"rbac.deckhouse.io/aggregate-to-system-as":         "manager",
+	}, i18n, "aggregationRule:\n  clusterRoleSelectors:\n  - matchLabels:\n      rbac.deckhouse.io/aggregate-to-virtualization-as: manager\n")
+
+	capability := clusterRole("d8:system-capability:cert-manager:proxy_nodes", map[string]string{"module": "cert-manager",
+		"rbac.deckhouse.io/kind":                           "capability",
+		"rbac.deckhouse.io/scope":                          "system",
+		"rbac.deckhouse.io/capability":                     "system-capability.cert-manager.proxy_nodes",
+		"rbac.deckhouse.io/aggregate-to-virtualization-as": "manager",
+	}, i18n, "rules:\n- apiGroups: [\"\"]\n  resources: [nodes/proxy]\n  verbs: [get]\n")
+
+	objects := []rendered{
+		{"templates/rbacv2/manage/roles/manager.yaml", role},
+		{"templates/rbacv2/manage/proxy_nodes.yaml", capability},
+	}
+
+	declared := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(declared, "module.yaml"), []byte("name: cert-manager\nsubsystems: [virtualization]\n"), 0o600))
+	assert.Empty(t, runContract(t, declared, objects...))
+
+	got := strings.Join(runContract(t, t.TempDir(), objects...), "\n")
+	assert.Contains(t, got, `role name "d8:subsystem:virtualization:manager" references unknown subsystem "virtualization"`)
+	assert.Contains(t, got, `aggregation label "rbac.deckhouse.io/aggregate-to-virtualization-as" targets unknown lineage "virtualization"`)
+	assert.Contains(t, got, `aggregation selector targets unknown lineage "virtualization"`)
+}
+
+// A subsystem module.yaml names beyond the platform's is the module's own only when the module
+// renders its roles: a typo there must not silence the contract (review of #480, finding 9).
+func TestContract_UnrenderedModuleSubsystem(t *testing.T) {
+	capability := clusterRole("d8:system-capability:cert-manager:proxy_nodes", map[string]string{"module": "cert-manager",
+		"rbac.deckhouse.io/kind":                  "capability",
+		"rbac.deckhouse.io/scope":                 "system",
+		"rbac.deckhouse.io/capability":            "system-capability.cert-manager.proxy_nodes",
+		"rbac.deckhouse.io/aggregate-to-infra-as": "manager",
+	}, i18n, "rules:\n- apiGroups: [\"\"]\n  resources: [nodes/proxy]\n  verbs: [get]\n")
+
+	declared := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(declared, "module.yaml"), []byte("name: cert-manager\nsubsystems: [security, infra, infra]\n"), 0o600))
+
+	got := runContract(t, declared, rendered{"templates/rbacv2/manage/proxy_nodes.yaml", capability})
+	assert.Contains(t, strings.Join(got, "\n"), `aggregation label "rbac.deckhouse.io/aggregate-to-infra-as" targets unknown lineage "infra"`)
+	assert.Contains(t, strings.Join(got, "\n"), `module.yaml subsystems: "infra" is not a subsystem of the role model`)
+
+	var reported int
+
+	for _, text := range got {
+		if strings.Contains(text, `module.yaml subsystems: "infra"`) {
+			reported++
+		}
+	}
+
+	assert.Equal(t, 1, reported, "a subsystem listed twice is reported once")
+}
+
+// The subsystems are the eight of DKP: a capability aggregates into cluster or managed-services, and a
+// module still on a subsystem of the legacy scheme hears that it is gone.
+func TestContract_SubsystemsOfTheRoleModel(t *testing.T) {
+	capability := func(lineages ...string) string {
+		labels := map[string]string{"module": "cert-manager",
+			"rbac.deckhouse.io/kind":       "capability",
+			"rbac.deckhouse.io/scope":      "system",
+			"rbac.deckhouse.io/capability": "system-capability.cert-manager.view",
+		}
+		for _, lineage := range lineages {
+			labels["rbac.deckhouse.io/aggregate-to-"+lineage+"-as"] = "viewer"
+		}
+
+		return clusterRole("d8:system-capability:cert-manager:view", labels, i18n,
+			"rules:\n- apiGroups: [cert-manager.io]\n  resources: [clusterissuers]\n  verbs: [get, list, watch]\n")
+	}
+
+	current := writeModule(t, map[string]string{"module.yaml": "name: cert-manager\nsubsystems: [cluster, managed-services]\n"})
+	assert.Empty(t, runContract(t, current, rendered{"templates/rbacv2/manage/view.yaml", capability("cluster", "managed-services")}))
+
+	legacy := writeModule(t, map[string]string{"module.yaml": "name: cert-manager\nsubsystems: [kubernetes]\n"})
+	got := strings.Join(runContract(t, legacy, rendered{"templates/rbacv2/manage/view.yaml", capability("kubernetes")}), "\n")
+	assert.Contains(t, got, `module.yaml subsystems: "kubernetes" is a subsystem of the legacy scheme, which the role model replaced with "cluster"; declare the module's subsystem of the role model (iam, security, cluster, delivery, network, storage, observability, managed-services)`)
+	assert.Contains(t, got, `aggregation label "rbac.deckhouse.io/aggregate-to-kubernetes-as" targets unknown lineage "kubernetes"; the role model replaced it with "cluster"`)
+}
+
+// A subsystem of the legacy scheme is not the module's own even when the module renders roles for it:
+// a module that kept shipping d8:subsystem:networking:<level> after the role model renamed networking
+// to network is told so, and its roles and capabilities are refused.
+func TestContract_LegacySubsystemBackedByARole(t *testing.T) {
+	role := clusterRole("d8:subsystem:networking:manager", map[string]string{"module": "cert-manager",
+		"rbac.deckhouse.io/kind":                       "role",
+		"rbac.deckhouse.io/scope":                      "subsystem",
+		"rbac.deckhouse.io/subsystem":                  "networking",
+		"rbac.deckhouse.io/use-role":                   "admin",
+		"rbac.deckhouse.io/aggregate-to-networking-as": "superadmin",
+		"rbac.deckhouse.io/aggregate-to-system-as":     "manager",
+	}, i18n, "aggregationRule:\n  clusterRoleSelectors:\n  - matchLabels:\n      rbac.deckhouse.io/aggregate-to-networking-as: manager\n")
+
+	capability := clusterRole("d8:system-capability:cert-manager:view", map[string]string{"module": "cert-manager",
+		"rbac.deckhouse.io/kind":                       "capability",
+		"rbac.deckhouse.io/scope":                      "system",
+		"rbac.deckhouse.io/capability":                 "system-capability.cert-manager.view",
+		"rbac.deckhouse.io/aggregate-to-networking-as": "viewer",
+	}, i18n, "rules:\n- apiGroups: [cert-manager.io]\n  resources: [clusterissuers]\n  verbs: [get, list, watch]\n")
+
+	declared := writeModule(t, map[string]string{"module.yaml": "name: cert-manager\nsubsystems: [networking]\n"})
+	got := strings.Join(runContract(t, declared,
+		rendered{"templates/rbacv2/manage/roles/manager.yaml", role},
+		rendered{"templates/rbacv2/manage/view.yaml", capability},
+	), "\n")
+
+	assert.Contains(t, got, `module.yaml subsystems: "networking" is a subsystem of the legacy scheme, which the role model replaced with "network"`)
+	assert.Contains(t, got, `role name "d8:subsystem:networking:manager" references unknown subsystem "networking"`)
+	assert.Contains(t, got, `aggregation label "rbac.deckhouse.io/aggregate-to-networking-as" targets unknown lineage "networking"; the role model replaced it with "network"`)
+	assert.Contains(t, got, `aggregation selector targets unknown lineage "networking"; the role model replaced it with "network"`)
+	assert.NotContains(t, got, "renders no d8:subsystem:networking:<level> role")
 }

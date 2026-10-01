@@ -150,11 +150,12 @@ func expandRenderedRules(rules []rbacv1.PolicyRule) tupleSet {
 
 // expandModelRules splits the generated rules of an object into the tuples rendered always and the
 // tuples rendered only under a condition.
-func expandModelRules(rules []generate.Rule) (tupleSet, tupleSet) {
+func expandModelRules(rules []generate.Rule, holds map[string]bool) (tupleSet, tupleSet) {
 	always, conditional := tupleSet{}, tupleSet{}
 
 	for _, r := range rules {
-		if r.When != "" {
+		// A rule under a condition the render shows to hold must be there as much as one without.
+		if r.When != "" && !holds[r.When] {
 			expandPolicyRule(r.PolicyRule, conditional)
 		} else {
 			expandPolicyRule(r.PolicyRule, always)
