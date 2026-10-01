@@ -82,15 +82,17 @@ const (
 )
 
 // Subsystems are the lineages of the subsystem roles d8:subsystem:<name>:<level>
-// (modules/140-user-authz/templates/rbacv2/global/subsystem/roles/<name>/).
+// (modules/140-user-authz/templates/rbacv2/global/subsystem/roles/<name>/). The legacy scheme's
+// deckhouse, infrastructure and kubernetes are cluster in this list, and its networking is network.
 var Subsystems = []string{
-	"deckhouse",
-	"infrastructure",
-	"kubernetes",
-	"networking",
-	"observability",
+	"iam",
 	"security",
+	"cluster",
+	"delivery",
+	"network",
 	"storage",
+	"observability",
+	"managed-service",
 }
 
 // Levels a capability may aggregate to, per lineage. The namespace lineage carries the full
@@ -143,7 +145,7 @@ func LevelsOf(lineage string) []string {
 	return nil
 }
 
-// IsSubsystem reports whether the name is one of the seven subsystems.
+// IsSubsystem reports whether the name is one of the subsystems the platform ships.
 func IsSubsystem(name string) bool {
 	return slices.Contains(Subsystems, name)
 }
