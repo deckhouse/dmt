@@ -1,0 +1,14 @@
+description: >
+  An alert that links to the public documentation site instead of the
+  in-cluster documentation must be flagged by the documentation-links rule at
+  the warn level, with a hint to rename the plain .yaml rules file to .tpl.
+module: module
+expect:
+  - linter: templates
+    rule: documentation-links
+    level: warn
+    textContains: "https://deckhouse.io/modules/e2e/faq.html#anchor"
+  - linter: templates
+    rule: documentation-links
+    level: warn
+    textContains: "rename it to .tpl"

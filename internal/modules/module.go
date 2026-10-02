@@ -419,6 +419,12 @@ func mapTemplatesRules(linterSettings *pkg.LintersSettings, configSettings *conf
 	rules.OpenAPIValuesQuoteRule.SetLevel(globalRules.OpenAPIValuesQuoteRule.Impact, fallbackImpact)
 	rules.SchemaValidationRule.SetLevel(globalRules.SchemaValidationRule.Impact, fallbackImpact)
 	rules.DeprecatedHTTPRouteAnnotationsRule.SetLevel(globalRules.DeprecatedHTTPRouteAnnotationsRule.Impact, fallbackImpact)
+
+	// documentation-links defaults to warn: existing modules still link to the
+	// public site, and the links work everywhere except closed environments.
+	// A per-rule impact in config still overrides this default.
+	rules.DocumentationLinksRule.SetLevel(globalRules.DocumentationLinksRule.Impact, pkg.Warn.String())
+
 	rules.IngressEnablementRule.SetLevel(globalRules.IngressEnablementRule.Impact, fallbackImpact)
 	rules.GatewayEnablementRule.SetLevel(globalRules.GatewayEnablementRule.Impact, fallbackImpact)
 	rules.HTTPSCertificateReuseRule.SetLevel(globalRules.HTTPSCertificateReuseRule.Impact, fallbackImpact)
@@ -560,6 +566,8 @@ func mapTemplatesExclusionsAndSettings(linterSettings *pkg.LintersSettings, conf
 	excludes.SchemaValidation = configExcludes.SchemaValidation.Get()
 	excludes.DeprecatedHTTPRouteAnnotations.Files = pkg.StringRuleExcludeList(configExcludes.DeprecatedHTTPRouteAnnotations.Files)
 	excludes.DeprecatedHTTPRouteAnnotations.Directories = pkg.DirectoryRuleExcludeList(configExcludes.DeprecatedHTTPRouteAnnotations.Directories)
+	excludes.DocumentationLinks.Files = pkg.StringRuleExcludeList(configExcludes.DocumentationLinks.Files)
+	excludes.DocumentationLinks.Directories = pkg.DirectoryRuleExcludeList(configExcludes.DocumentationLinks.Directories)
 	excludes.IngressEnablement.Files = pkg.StringRuleExcludeList(configExcludes.IngressEnablement.Files)
 	excludes.IngressEnablement.Directories = pkg.DirectoryRuleExcludeList(configExcludes.IngressEnablement.Directories)
 	excludes.GatewayEnablement.Files = pkg.StringRuleExcludeList(configExcludes.GatewayEnablement.Files)

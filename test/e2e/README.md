@@ -140,6 +140,8 @@ go test ./test/e2e/ -run 'TestE2E/<linter>/<your-case>' -v
 | `templates/cluster-domain` | `cluster-domain` (hardcoded `cluster.local`) |
 | `templates/registry` | `registry` (global dockercfg without module override) |
 | `templates/enabled-modules` | `enabled-modules` (deprecated `.Values.global.enabledModules | has`) |
+| `templates/documentation-links` | `documentation-links` (warn: alert links to the public documentation site) |
+| `templates/documentation-links-excluded` | `documentation-links` exclusion via `.dmtlint.yaml` `exclude-rules.documentation-links.files` |
 
 ### manager (module creation)
 
