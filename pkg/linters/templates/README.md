@@ -1430,7 +1430,7 @@ A self-grouping alert does not degrade gracefully. It is not delivered late or i
 
 **Default level:**
 
-This rule reports at `warn` by default, because existing modules still carry self-grouping alerts. Raise it with `impact: error` once your modules are clean.
+This rule reports at `warn` by default. Most of what it checks is an exact comparison with no room for a false positive, but not all of it: a templated name is matched by pattern, and an alert behind a conditional is read whether or not it renders, so a finding can name a collision that never happens. A rule carries one impact, and it has to cover the inferred half. Raise it with `impact: error` where the modules use no templated alert names.
 
 **Examples:**
 
