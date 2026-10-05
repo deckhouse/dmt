@@ -71,6 +71,10 @@ func runContract(t *testing.T, modulePath string, objects ...rendered) []string 
 	return texts(errorList)
 }
 
+// notUse is the expression every selector of a system or subsystem role carries: it leaves out the
+// use capabilities of the scheme before DKP 1.78.
+const notUse = "    matchExpressions:\n    - {key: rbac.deckhouse.io/kind, operator: NotIn, values: [use]}\n"
+
 const i18n = `
     en.meta.deckhouse.io/title: "t"
     ru.meta.deckhouse.io/title: "т"
@@ -108,7 +112,7 @@ var (
 		"rbac.deckhouse.io/scope":     "subsystem",
 		"rbac.deckhouse.io/subsystem": "network",
 		"rbac.deckhouse.io/use-role":  "viewer",
-	}, i18n, "aggregationRule:\n  clusterRoleSelectors:\n  - matchLabels:\n      rbac.deckhouse.io/aggregate-to-network-as: viewer\n")
+	}, i18n, "aggregationRule:\n  clusterRoleSelectors:\n  - matchLabels:\n      rbac.deckhouse.io/aggregate-to-network-as: viewer\n"+notUse)
 )
 
 func TestContract_CleanObjectsAndOutOfScopeFiles(t *testing.T) {
@@ -172,7 +176,7 @@ func TestContract_Findings(t *testing.T) {
 		"delegatable on a system role, use-role missing": {
 			object: clusterRole("d8:system:viewer", map[string]string{"module": "cert-manager",
 				"rbac.deckhouse.io/kind": "role", "rbac.deckhouse.io/scope": "system", "rbac.deckhouse.io/delegatable": "true",
-			}, i18n, "aggregationRule:\n  clusterRoleSelectors:\n  - matchLabels:\n      rbac.deckhouse.io/aggregate-to-system-as: viewer\n"),
+			}, i18n, "aggregationRule:\n  clusterRoleSelectors:\n  - matchLabels:\n      rbac.deckhouse.io/aggregate-to-system-as: viewer\n"+notUse),
 			wantErrs: []string{
 				`error: label rbac.deckhouse.io/use-role must carry a valid level, got ""`,
 				"error: label rbac.deckhouse.io/delegatable is only allowed on namespace/project roles",
@@ -190,7 +194,7 @@ func TestContract_Findings(t *testing.T) {
 		"R29: a system role named with a namespace level": {
 			object: clusterRole("d8:system:admin", map[string]string{"module": "cert-manager",
 				"rbac.deckhouse.io/kind": "role", "rbac.deckhouse.io/scope": "system", "rbac.deckhouse.io/use-role": "admin",
-			}, i18n, "aggregationRule:\n  clusterRoleSelectors:\n  - matchLabels:\n      rbac.deckhouse.io/aggregate-to-system-as: admin\n"),
+			}, i18n, "aggregationRule:\n  clusterRoleSelectors:\n  - matchLabels:\n      rbac.deckhouse.io/aggregate-to-system-as: admin\n"+notUse),
 			wantErrs: []string{
 				`error: role name "d8:system:admin" has invalid level "admin"; the system lineage has viewer, manager, superadmin`,
 				`error: role "d8:system:admin" aggregation selector has invalid level "admin"`,
@@ -227,6 +231,69 @@ func TestContract_Findings(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			got := runContract(t, t.TempDir(), rendered{"templates/rbacv2/x.yaml", tc.object})
 			assert.ElementsMatch(t, tc.wantErrs, got)
+		})
+	}
+}
+
+// A system or subsystem role is bound cluster-wide, so each of its selectors leaves out the use
+// capabilities of the scheme before DKP 1.78 with a NotIn expression, as the platform test requires; a
+// namespace role is bound in a namespace and is not held to it.
+func TestContract_SystemAndSubsystemRolesLeaveOutUse(t *testing.T) {
+	role := func(name, scope, lineage, expressions string) string {
+		labels := map[string]string{"module": "cert-manager", "rbac.deckhouse.io/kind": "role", "rbac.deckhouse.io/scope": scope}
+		if scope != "namespace" {
+			labels["rbac.deckhouse.io/use-role"] = "viewer"
+		}
+
+		if scope == "subsystem" {
+			labels["rbac.deckhouse.io/subsystem"] = lineage
+		}
+
+		return clusterRole(name, labels, i18n,
+			"aggregationRule:\n  clusterRoleSelectors:\n  - matchLabels:\n      rbac.deckhouse.io/aggregate-to-"+lineage+"-as: viewer\n"+expressions)
+	}
+
+	for name, tc := range map[string]struct {
+		object  string
+		wantErr string
+	}{
+		"subsystem role without the expression": {
+			object:  role("d8:subsystem:network:viewer", "subsystem", "network", ""),
+			wantErr: `error: role "d8:subsystem:network:viewer" aggregation selector must leave out rbac.deckhouse.io/kind "use" with a NotIn expression`,
+		},
+		"subsystem role leaving out use": {
+			object: role("d8:subsystem:network:viewer", "subsystem", "network", notUse),
+		},
+		"subsystem role leaving out role and use": {
+			object: role("d8:subsystem:network:viewer", "subsystem", "network",
+				"    matchExpressions:\n    - {key: rbac.deckhouse.io/kind, operator: NotIn, values: [role, use]}\n"),
+		},
+		"subsystem role leaving out another kind": {
+			object: role("d8:subsystem:network:viewer", "subsystem", "network",
+				"    matchExpressions:\n    - {key: rbac.deckhouse.io/kind, operator: NotIn, values: [role]}\n"),
+			wantErr: `error: role "d8:subsystem:network:viewer" aggregation selector must leave out rbac.deckhouse.io/kind "use" with a NotIn expression`,
+		},
+		"subsystem role selecting use": {
+			object: role("d8:subsystem:network:viewer", "subsystem", "network",
+				"    matchExpressions:\n    - {key: rbac.deckhouse.io/kind, operator: In, values: [use]}\n"),
+			wantErr: `error: role "d8:subsystem:network:viewer" aggregation selector must leave out rbac.deckhouse.io/kind "use" with a NotIn expression`,
+		},
+		"system role without the expression": {
+			object:  role("d8:system:viewer", "system", "system", ""),
+			wantErr: `error: role "d8:system:viewer" aggregation selector must leave out rbac.deckhouse.io/kind "use" with a NotIn expression`,
+		},
+		"namespace role without the expression": {
+			object: role("d8:namespace:viewer", "namespace", "namespace", ""),
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := runContract(t, t.TempDir(), rendered{"templates/rbacv2/roles/viewer.yaml", tc.object})
+			if tc.wantErr == "" {
+				assert.Empty(t, got)
+				return
+			}
+
+			assert.Equal(t, []string{tc.wantErr}, got)
 		})
 	}
 }
@@ -305,7 +372,7 @@ func TestContract_SubsystemOfTheModule(t *testing.T) {
 		"rbac.deckhouse.io/use-role":                       "admin",
 		"rbac.deckhouse.io/aggregate-to-virtualization-as": "superadmin",
 		"rbac.deckhouse.io/aggregate-to-system-as":         "manager",
-	}, i18n, "aggregationRule:\n  clusterRoleSelectors:\n  - matchLabels:\n      rbac.deckhouse.io/aggregate-to-virtualization-as: manager\n")
+	}, i18n, "aggregationRule:\n  clusterRoleSelectors:\n  - matchLabels:\n      rbac.deckhouse.io/aggregate-to-virtualization-as: manager\n"+notUse)
 
 	capability := clusterRole("d8:system-capability:cert-manager:proxy_nodes", map[string]string{"module": "cert-manager",
 		"rbac.deckhouse.io/kind":                           "capability",
@@ -394,7 +461,7 @@ func TestContract_LegacySubsystemBackedByARole(t *testing.T) {
 		"rbac.deckhouse.io/use-role":                   "admin",
 		"rbac.deckhouse.io/aggregate-to-networking-as": "superadmin",
 		"rbac.deckhouse.io/aggregate-to-system-as":     "manager",
-	}, i18n, "aggregationRule:\n  clusterRoleSelectors:\n  - matchLabels:\n      rbac.deckhouse.io/aggregate-to-networking-as: manager\n")
+	}, i18n, "aggregationRule:\n  clusterRoleSelectors:\n  - matchLabels:\n      rbac.deckhouse.io/aggregate-to-networking-as: manager\n"+notUse)
 
 	capability := clusterRole("d8:system-capability:cert-manager:view", map[string]string{"module": "cert-manager",
 		"rbac.deckhouse.io/kind":                       "capability",
