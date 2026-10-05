@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	rbacv1 "k8s.io/api/rbac/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation"
 
@@ -444,7 +445,26 @@ func checkRole(role *rbacv1.ClusterRole, scope string, own map[string]bool, erro
 				errorList.Errorf("role %q aggregation selector has invalid level %q", name, value)
 			}
 		}
+
+		// A use capability of the scheme before DKP 1.78 gives rules in a namespace. A system or
+		// subsystem role is bound cluster-wide, so a selector of it that took such a capability by its
+		// aggregation label would give these rules in every namespace.
+		if (scope == "system" || scope == "subsystem") && !excludesKind(selector, rbaccontract.KindLegacyUse) {
+			errorList.Errorf("role %q aggregation selector must leave out %s %q with a NotIn expression", name, rbaccontract.LabelKind, rbaccontract.KindLegacyUse)
+		}
 	}
+}
+
+// excludesKind reports whether a selector leaves out the objects of the given rbac.deckhouse.io/kind
+// with a NotIn expression.
+func excludesKind(selector metav1.LabelSelector, kind string) bool {
+	for _, expression := range selector.MatchExpressions {
+		if expression.Key == rbaccontract.LabelKind && expression.Operator == metav1.LabelSelectorOpNotIn && slices.Contains(expression.Values, kind) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func checkCapability(role *rbacv1.ClusterRole, scope string, scopes rbacyaml.CRDScopes, errorList *errors.LintRuleErrorsList) {
