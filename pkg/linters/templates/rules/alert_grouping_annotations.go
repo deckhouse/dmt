@@ -17,10 +17,13 @@ limitations under the License.
 package rules
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -118,8 +121,11 @@ func (r *AlertGroupingAnnotationsRule) checkSourceFiles(seen map[collisionKey]st
 			return nil //nolint:nilerr // an unreadable entry is not this rule's concern
 		}
 
+		// .tpl is not an afterthought: helm_lib globs "**.{yaml,tpl}" out of this
+		// directory, and modules ship 26 template rule files, 15 of them carrying
+		// grouping annotations.
 		switch strings.ToLower(filepath.Ext(path)) {
-		case ".yaml", ".yml":
+		case ".yaml", ".yml", ".tpl":
 			r.checkRuleFile(path, seen)
 		}
 
@@ -135,7 +141,12 @@ func (r *AlertGroupingAnnotationsRule) checkRuleFile(path string, seen map[colli
 
 	var doc yaml.Node
 	if err := yaml.Unmarshal(content, &doc); err != nil || len(doc.Content) == 0 {
-		// A file that does not parse is the promtool check's finding, not this rule's.
+		// Rule files may be Go templates, and most of those are not valid YAML on
+		// their own, so the structured walk is not available for them. Falling back
+		// to a line scan keeps them covered instead of silently skipping 16 of the
+		// 26 template files deckhouse modules ship.
+		r.checkRuleFileLines(content, path, seen)
+
 		return
 	}
 
@@ -292,6 +303,59 @@ func (r *AlertGroupingAnnotationsRule) report(
 			"instead of being delivered. Name the group differently from the alert, e.g. %q",
 		alertName, annotation, alertName, alertName+"Group",
 	)
+}
+
+// alertLineRe and groupingAnnotationLineRe drive the line-scan fallback. They are
+// deliberately strict about the shape of the line so that prose mentioning an alert
+// name in a description cannot be mistaken for a declaration.
+var (
+	alertLineRe              = regexp.MustCompile(`^\s*-\s*alert:\s*(\S+)\s*$`)
+	groupingAnnotationLineRe = regexp.MustCompile(
+		`^\s*(plk_(?:create_group_if_not_exists|grouped_by)__[^:\s]+):\s*(.+?)\s*$`)
+)
+
+// checkRuleFileLines attributes each grouping annotation to the nearest preceding
+// "- alert:" line. That is weaker than the YAML walk — it cannot see nesting — but a
+// template file keeps its annotations directly under their alert, and the alternative
+// for these files is no check at all.
+func (r *AlertGroupingAnnotationsRule) checkRuleFileLines(
+	content []byte,
+	path string,
+	seen map[collisionKey]struct{},
+) {
+	var alertName string
+
+	scanner := bufio.NewScanner(bytes.NewReader(content))
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+
+	for line := 1; scanner.Scan(); line++ {
+		text := scanner.Text()
+
+		if match := alertLineRe.FindStringSubmatch(text); match != nil {
+			alertName = strings.Trim(match[1], `"'`)
+
+			continue
+		}
+
+		if alertName == "" {
+			continue
+		}
+
+		match := groupingAnnotationLineRe.FindStringSubmatch(text)
+		if match == nil {
+			continue
+		}
+
+		if groupNameFromAnnotation(strings.Trim(match[2], `"'`)) != alertName {
+			continue
+		}
+
+		if !r.Enabled(alertName) {
+			continue
+		}
+
+		r.report(alertName, match[1], path, "", line, seen)
+	}
 }
 
 func mappingValue(node *yaml.Node, key string) *yaml.Node {

@@ -24,6 +24,7 @@ import (
 	"github.com/gojuno/minimock/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/deckhouse/dmt/internal/mocks"
@@ -401,10 +402,77 @@ spec:
 	assert.Len(t, errorList.GetErrors(), 1)
 }
 
-func TestAlertGroupingAnnotations_SourceFile_UnparsableFileIgnored(t *testing.T) {
-	// Broken YAML is the promtool check's finding, not this rule's.
+func TestAlertGroupingAnnotations_SourceFile_UnparsableFileWithoutAlertsIsQuiet(t *testing.T) {
+	// Broken YAML falls through to the line scan, which finds no alert declaration
+	// here and so reports nothing. Complaining about the syntax is promtool's job.
 	modulePath := t.TempDir()
 	writeRuleFile(t, modulePath, "broken.yaml", "- name: d8.registry\n  rules: [oops\n")
+
+	errorList := runAlertGroupingRuleAt(t, modulePath, nil, nil)
+
+	assert.False(t, errorList.ContainsErrors())
+}
+
+// --- template rule files --------------------------------------------------
+//
+// helm_lib globs "**.{yaml,tpl}", and most .tpl rule files are not valid YAML on
+// their own, so these go through the line-scan fallback rather than the YAML walk.
+
+const templateRuleFile = `{{- if .Values.global.enabledModules }}
+- name: d8.registry
+  rules:
+    - alert: D8RegistryDrainStuck
+      expr: vector(1)
+      annotations:
+        plk_grouped_by__d8_registry_drain_stuck: "D8RegistryDrainStuck,tier=cluster"
+        summary: {{ $labels.node }} is stuck
+{{- end }}
+`
+
+func TestAlertGroupingAnnotations_TemplateFile_CollisionFound(t *testing.T) {
+	modulePath := t.TempDir()
+	writeRuleFile(t, modulePath, "drain.tpl", templateRuleFile)
+
+	// Guard the premise: this content really is not parsable as YAML, so the test
+	// exercises the fallback and not the structured walk.
+	var probe yaml.Node
+	require.Error(t, yaml.Unmarshal([]byte(templateRuleFile), &probe))
+
+	errorList := runAlertGroupingRuleAt(t, modulePath, nil, nil)
+
+	assert.True(t, errorList.ContainsErrors())
+	assert.Len(t, errorList.GetErrors(), 1)
+	assert.Equal(t, 7, errorList.GetErrors()[0].LineNumber)
+}
+
+func TestAlertGroupingAnnotations_TemplateFile_DistinctGroup(t *testing.T) {
+	modulePath := t.TempDir()
+	writeRuleFile(t, modulePath, "drain.tpl", `{{- if true }}
+- name: d8.registry
+  rules:
+    - alert: D8RegistryDrainStuck
+      annotations:
+        plk_grouped_by__d8_registry_alerts: "D8RegistryAlerts,tier=cluster"
+{{- end }}
+`)
+
+	errorList := runAlertGroupingRuleAt(t, modulePath, nil, nil)
+
+	assert.False(t, errorList.ContainsErrors())
+}
+
+func TestAlertGroupingAnnotations_TemplateFile_AlertNameInProseIgnored(t *testing.T) {
+	// A description mentioning the alert name must not be read as a declaration.
+	modulePath := t.TempDir()
+	writeRuleFile(t, modulePath, "drain.tpl", `{{- if true }}
+- name: d8.registry
+  rules:
+    - alert: D8RegistryOther
+      annotations:
+        description: see alert: D8RegistryDrainStuck for details
+        plk_grouped_by__d8_registry_alerts: "D8RegistryAlerts,tier=cluster"
+{{- end }}
+`)
 
 	errorList := runAlertGroupingRuleAt(t, modulePath, nil, nil)
 

@@ -1418,6 +1418,8 @@ The alert is then dropped rather than delivered, and the rejection is reported a
 
 Both annotations of a broken pair are reported, so a partial fix does not leave one behind unnoticed, and a finding carries the annotation's line number.
 
+Rule files are read as `*.yaml`, `*.yml` and `*.tpl`, matching the `**.{yaml,tpl}` glob `helm_lib_prometheus_rules` uses. Template files are frequently not valid YAML on their own; for those the rule falls back to a line scan that attributes each grouping annotation to the nearest preceding `- alert:` line.
+
 The rule reads the source files rather than relying on rendered objects alone, because `helm_lib_prometheus_rules` only emits `PrometheusRule` objects when `global.enabledModules` contains `operator-prometheus-crd`. On a full deckhouse lint that is not the case, no such object exists, and an object-only check would pass while the broken annotations sit in the files. A rule file that does not parse is skipped — that is the promtool check's finding, not this one's. Findings are deduplicated on the alert and annotation, so an alert reached through both paths is reported once.
 
 **Why it matters:**
