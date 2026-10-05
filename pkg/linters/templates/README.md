@@ -1454,16 +1454,27 @@ This rule reports at `warn` by default, because existing modules still carry sel
 
 **Configuration:**
 
+The severity lives in the `global` section, which is where per-rule `impact` is read from; a module's own `linters-settings` carries the exclusions. Both can sit in the same `.dmtlint.yaml`:
+
 ```yaml
+# raise the rule from its warn default once your modules are clean
+global:
+  linters-settings:
+    templates:
+      rules:
+        alert-grouping-annotations:
+          impact: error
+
+# silence individual alerts by name
 linters-settings:
   templates:
-    rules:
-      alert-grouping-annotations:
-        impact: error
     exclude-rules:
       alert-grouping-annotations:
         - D8RegistryDrainStuck
+        - D8RegistryConfigInvalid
 ```
+
+Because the default is pinned to `warn` rather than to the linter's impact, raising `templates.impact` alone does not raise this rule — set its own `impact` as above.
 
 ### grafana-dashboards
 

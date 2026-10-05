@@ -1,0 +1,11 @@
+description: >
+  The documented config works end to end: impact raises the rule to error, and the
+  exclude list silences one alert by name without hiding the other. Both alerts group
+  into themselves; only D8RegistryConfigInvalid must be reported.
+module: module
+expect:
+  - linter: templates
+    rule: alert-grouping-annotations
+    level: error
+    textContains: "\"D8RegistryConfigInvalid\" is grouped into itself"
+    count: 1

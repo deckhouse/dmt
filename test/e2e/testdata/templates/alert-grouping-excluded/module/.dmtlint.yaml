@@ -1,0 +1,11 @@
+global:
+  linters-settings:
+    templates:
+      rules:
+        alert-grouping-annotations:
+          impact: error
+linters-settings:
+  templates:
+    exclude-rules:
+      alert-grouping-annotations:
+        - D8RegistryDrainStuck
