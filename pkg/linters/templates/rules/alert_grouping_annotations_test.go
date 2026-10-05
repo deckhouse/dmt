@@ -33,8 +33,7 @@ import (
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
-// promRuleObjectName names the generated PrometheusRule object; the rule reports it
-// as the object ID, and no test depends on the particular value.
+// promRuleObjectName is the generated object's name; no test depends on its value.
 const promRuleObjectName = "registry"
 
 // alertRule describes one alerting rule to put into the generated PrometheusRule.
@@ -91,8 +90,8 @@ func runAlertGroupingRule(
 ) *errors.LintRuleErrorsList {
 	t.Helper()
 
-	// An empty module path keeps the source-file half of the rule a no-op, so these
-	// cases exercise the rendered-object half alone.
+	// An empty module path makes the source-file half a no-op, so these cases
+	// exercise the rendered-object half alone.
 	return runAlertGroupingRuleAt(t, t.TempDir(), store, excludes)
 }
 
@@ -116,8 +115,7 @@ func runAlertGroupingRuleAt(
 	return errorList
 }
 
-// writeRuleFile drops a prometheus rules file into a module tree, in the same
-// monitoring/prometheus-rules layout deckhouse modules use.
+// writeRuleFile drops a rules file into a module's monitoring/prometheus-rules.
 func writeRuleFile(t *testing.T, modulePath, name, content string) {
 	t.Helper()
 
@@ -138,7 +136,7 @@ func TestAlertGroupingAnnotations_GroupEqualsAlertName(t *testing.T) {
 	errorList := runAlertGroupingRule(t, store, nil)
 
 	assert.True(t, errorList.ContainsErrors())
-	// Both annotations are reported, so neither is silently left behind after a fix.
+	// Both annotations are reported, so a partial fix leaves nothing behind.
 	assert.Len(t, errorList.GetErrors(), 2)
 	assert.Contains(t, errorList.GetErrors()[0].Text, "D8RegistryDrainStuck")
 }
@@ -235,8 +233,7 @@ func TestAlertGroupingAnnotations_EmptyAnnotationValue(t *testing.T) {
 }
 
 func TestAlertGroupingAnnotations_DifferentCaseIsADifferentTrigger(t *testing.T) {
-	// Trigger names are matched exactly, so a differently-cased group name is a
-	// genuinely different group and must not be reported.
+	// Trigger names match exactly, so a differently-cased group is a different group.
 	store := makePrometheusRuleStorage(alertRule{
 		name: "D8RegistryDrainStuck",
 		annotations: map[string]string{
@@ -323,9 +320,8 @@ func TestAlertGroupingAnnotations_ExcludedAlertDoesNotHideOthers(t *testing.T) {
 
 // --- source-file scanning -------------------------------------------------
 //
-// These matter most: on a full deckhouse lint no PrometheusRule object is rendered
-// at all (rendering is gated behind "operator-prometheus-crd" in global.enabledModules),
-// so the rule has to read the files to catch anything.
+// These matter most: a full deckhouse lint renders no PrometheusRule object at all,
+// so reading the files is the only way the rule catches anything.
 
 const selfGroupingRuleFile = `- name: d8.registry
   rules:
@@ -403,8 +399,8 @@ spec:
 }
 
 func TestAlertGroupingAnnotations_SourceFile_UnparsableFileWithoutAlertsIsQuiet(t *testing.T) {
-	// Broken YAML falls through to the line scan, which finds no alert declaration
-	// here and so reports nothing. Complaining about the syntax is promtool's job.
+	// Broken YAML falls through to the line scan, which finds no alert here.
+	// Complaining about the syntax is promtool's job.
 	modulePath := t.TempDir()
 	writeRuleFile(t, modulePath, "broken.yaml", "- name: d8.registry\n  rules: [oops\n")
 
@@ -415,8 +411,8 @@ func TestAlertGroupingAnnotations_SourceFile_UnparsableFileWithoutAlertsIsQuiet(
 
 // --- template rule files --------------------------------------------------
 //
-// helm_lib globs "**.{yaml,tpl}", and most .tpl rule files are not valid YAML on
-// their own, so these go through the line-scan fallback rather than the YAML walk.
+// helm_lib globs "**.{yaml,tpl}", and most .tpl files are not valid YAML on their
+// own, so these exercise the line-scan fallback rather than the YAML walk.
 
 const templateRuleFile = `{{- if .Values.global.enabledModules }}
 - name: d8.registry
@@ -433,8 +429,7 @@ func TestAlertGroupingAnnotations_TemplateFile_CollisionFound(t *testing.T) {
 	modulePath := t.TempDir()
 	writeRuleFile(t, modulePath, "drain.tpl", templateRuleFile)
 
-	// Guard the premise: this content really is not parsable as YAML, so the test
-	// exercises the fallback and not the structured walk.
+	// Guard the premise: this really is not parsable, so the fallback is what runs.
 	var probe yaml.Node
 	require.Error(t, yaml.Unmarshal([]byte(templateRuleFile), &probe))
 
@@ -514,8 +509,7 @@ func TestAlertGroupingAnnotations_FileAndObjectReportedOnce(t *testing.T) {
 }
 
 func TestAlertGroupingAnnotations_TemplateFile_TemplatedNameNotAttributedToPreviousAlert(t *testing.T) {
-	// A templated alert name must not leave the previous alert's name in hand: the
-	// annotations below belong to the templated alert, not to D8RegistryDrainStuck.
+	// The annotations below belong to the templated alert, not to the one above it.
 	modulePath := t.TempDir()
 	writeRuleFile(t, modulePath, "mixed.tpl", `{{- if true }}
 - name: d8.registry
@@ -535,8 +529,7 @@ func TestAlertGroupingAnnotations_TemplateFile_TemplatedNameNotAttributedToPrevi
 }
 
 func TestAlertGroupingAnnotations_TemplateFile_TemplatedNameCollision(t *testing.T) {
-	// When a templated name really does group into itself, the texts are identical
-	// and the collision is still caught.
+	// A templated name grouping into itself: identical texts, still caught.
 	modulePath := t.TempDir()
 	writeRuleFile(t, modulePath, "templated.tpl", `{{- if true }}
 - name: d8.images
@@ -553,7 +546,7 @@ func TestAlertGroupingAnnotations_TemplateFile_TemplatedNameCollision(t *testing
 	assert.Len(t, errorList.GetErrors(), 1)
 }
 
-// --- имена, собираемые шаблоном -------------------------------------------
+// --- templated names ------------------------------------------------------
 
 func TestNamesMayCollide(t *testing.T) {
 	cases := []struct {
@@ -644,8 +637,8 @@ func TestNamesMayCollide(t *testing.T) {
 }
 
 func TestAlertGroupingAnnotations_TemplateFile_CollisionOnlyAfterSubstitution(t *testing.T) {
-	// The group names one concrete expansion of the templated alert, so at render
-	// time that alert groups into itself. Reading the file literally would miss it.
+	// The group names one expansion of the templated alert, so at render time that
+	// alert groups into itself. A literal reading would miss it.
 	modulePath := t.TempDir()
 	writeRuleFile(t, modulePath, "images.tpl", `{{- define "by-kind" }}
 - alert: {{ $controllerKind }}ImageAbsent

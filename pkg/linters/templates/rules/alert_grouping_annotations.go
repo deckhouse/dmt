@@ -36,9 +36,8 @@ import (
 const (
 	AlertGroupingAnnotationsRuleName = "alert-grouping-annotations"
 
-	// Grouping annotations read by the alerts processing system. The part after the
-	// prefix is an arbitrary suffix tying a "create group" annotation to its
-	// "grouped by" counterpart; the group name itself lives in the annotation value.
+	// The suffix after the prefix only ties a "create group" annotation to its
+	// "grouped by" counterpart; the group name is the annotation value.
 	AnnotationCreateGroupPrefix = "plk_create_group_if_not_exists__"
 	AnnotationGroupedByPrefix   = "plk_grouped_by__"
 
@@ -69,18 +68,15 @@ type AlertGroupingAnnotationsRule struct {
 
 var _ pkg.Rule = (*AlertGroupingAnnotationsRule)(nil)
 
-// collisionKey identifies one reported collision, so that an alert found both in
-// its source file and in a rendered object is reported once.
+// collisionKey dedupes a collision seen both in a source file and in a rendered object.
 type collisionKey struct {
 	alert      string
 	annotation string
 }
 
-// groupNameFromAnnotation extracts the group name from a grouping annotation value.
-//
-// The value is a comma-separated list whose first element is the name of the group
-// to group into, the rest being label matchers, e.g.
-// "D8RegistryGroup,tier=cluster,prometheus=deckhouse".
+// groupNameFromAnnotation takes the group name out of a value like
+// "D8RegistryGroup,tier=cluster": the first comma-separated element, the rest being
+// label matchers.
 func groupNameFromAnnotation(value string) string {
 	name, _, _ := strings.Cut(value, ",")
 
@@ -90,19 +86,15 @@ func groupNameFromAnnotation(value string) string {
 // namesMayCollide reports whether an alert name and a group name can denote the same
 // trigger.
 //
-// Rule files are read as written, so a name built by a template is seen as its source
-// text. Comparing that text literally would miss the collision that only appears after
-// substitution: "- alert: {{ $controllerKind }}ImageAbsent" rendered for the Deployment
-// kind is the alert "DeploymentImageAbsent", and a group named "DeploymentImageAbsent"
-// collides with it. So when exactly one side is templated, the templated one is turned
-// into a pattern and matched against the other.
+// Files are read as written, so a templated name is seen as its source text, and a
+// literal comparison would miss the collision that only appears after substitution:
+// "{{ $controllerKind }}ImageAbsent" is the alert "DeploymentImageAbsent" once
+// rendered for that kind. When exactly one side is templated it becomes a pattern
+// matched against the other; otherwise the texts are compared, since both sides
+// render in the same context.
 //
-// When both sides are templated they are rendered in the same context, so identical
-// text means one trigger and different text means two; and when neither is, this is a
-// plain comparison.
-//
-// templateActionRe is the one declared for the openapi-values-quote rule: same package,
-// same job, and it already accounts for the `{{-` / `-}}` trim markers.
+// templateActionRe comes from the openapi-values-quote rule in this package and
+// already handles the `{{-` / `-}}` trim markers.
 func namesMayCollide(alertName, groupName string) bool {
 	alertTemplated := templateActionRe.MatchString(alertName)
 	groupTemplated := templateActionRe.MatchString(groupName)
@@ -116,9 +108,8 @@ func namesMayCollide(alertName, groupName string) bool {
 		pattern, literal = groupName, alertName
 	}
 
-	// A name made only of template actions says nothing about what it renders to —
-	// its pattern would be "^.+$" and match every group there is. Treat it as no
-	// evidence rather than as a collision with everything.
+	// A name of nothing but actions says nothing about what it renders to: its
+	// pattern "^.+$" would match every group. Treat that as no evidence.
 	if strings.TrimSpace(templateActionRe.ReplaceAllString(pattern, "")) == "" {
 		return false
 	}
@@ -146,8 +137,8 @@ func templateNamePattern(name string) *regexp.Regexp {
 
 	re, err := regexp.Compile(b.String())
 	if err != nil {
-		// Every literal segment is quoted, so this cannot happen; refuse to match
-		// rather than report a collision on a pattern that was not understood.
+		// Unreachable, every literal segment is quoted. Refuse to match rather
+		// than report on a pattern that was not understood.
 		return regexp.MustCompile(`\A\z(?:x)`)
 	}
 
@@ -162,10 +153,9 @@ func isGroupingAnnotation(key string) bool {
 func (r *AlertGroupingAnnotationsRule) Check(_ context.Context) {
 	seen := make(map[collisionKey]struct{})
 
-	// The source files are checked first, and they are the load-bearing half: rendering
-	// a module's PrometheusRule objects is gated behind "operator-prometheus-crd" being
-	// in global.enabledModules, so on a full deckhouse lint no such object exists and an
-	// object-only check would silently pass. The files are always on disk.
+	// Files first, and they are the load-bearing half: PrometheusRule objects render
+	// only when global.enabledModules has "operator-prometheus-crd", which a full
+	// deckhouse lint does not set, so an object-only check would silently pass.
 	r.checkSourceFiles(seen)
 	r.checkRenderedObjects(seen)
 }
@@ -188,9 +178,7 @@ func (r *AlertGroupingAnnotationsRule) checkSourceFiles(seen map[collisionKey]st
 			return nil //nolint:nilerr // an unreadable entry is not this rule's concern
 		}
 
-		// .tpl is not an afterthought: helm_lib globs "**.{yaml,tpl}" out of this
-		// directory, and modules ship 26 template rule files, 15 of them carrying
-		// grouping annotations.
+		// helm_lib globs "**.{yaml,tpl}" here, so template files carry rules too.
 		switch strings.ToLower(filepath.Ext(path)) {
 		case ".yaml", ".yml", ".tpl":
 			r.checkRuleFile(path, seen)
@@ -208,10 +196,8 @@ func (r *AlertGroupingAnnotationsRule) checkRuleFile(path string, seen map[colli
 
 	var doc yaml.Node
 	if err := yaml.Unmarshal(content, &doc); err != nil || len(doc.Content) == 0 {
-		// Rule files may be Go templates, and most of those are not valid YAML on
-		// their own, so the structured walk is not available for them. Falling back
-		// to a line scan keeps them covered instead of silently skipping 16 of the
-		// 26 template files deckhouse modules ship.
+		// Template files are usually not valid YAML on their own, which rules out
+		// the structured walk; a line scan keeps them covered rather than skipped.
 		r.checkRuleFileLines(content, path, seen)
 
 		return
@@ -224,9 +210,9 @@ func (r *AlertGroupingAnnotationsRule) checkRuleFile(path string, seen map[colli
 	}
 }
 
-// groupNodes returns the rule groups of a parsed file, accepting the three shapes a
-// module may ship: a bare list of groups (what deckhouse modules use), a mapping with
-// a "groups" key, and a whole PrometheusRule manifest with "spec.groups".
+// groupNodes returns a file's rule groups, accepting all three shapes a module may
+// ship: a bare list of groups (the one modules actually use), a "groups" mapping, and
+// a whole PrometheusRule manifest.
 func groupNodes(root *yaml.Node) []*yaml.Node {
 	if root == nil {
 		return nil
@@ -278,8 +264,8 @@ func (r *AlertGroupingAnnotationsRule) checkAlertNode(
 	}
 }
 
-// checkRenderedObjects covers PrometheusRule objects that do not come from
-// monitoring/prometheus-rules, for modules that build them some other way.
+// checkRenderedObjects covers modules that build PrometheusRule objects some way
+// other than from monitoring/prometheus-rules.
 func (r *AlertGroupingAnnotationsRule) checkRenderedObjects(seen map[collisionKey]struct{}) {
 	for _, object := range r.module.GetStorage() {
 		if object.Unstructured.GetKind() != "PrometheusRule" {
@@ -372,26 +358,21 @@ func (r *AlertGroupingAnnotationsRule) report(
 	)
 }
 
-// alertLineRe and groupingAnnotationLineRe drive the line-scan fallback. They are
-// anchored at both ends so that prose mentioning an alert name in a description
-// cannot be mistaken for a declaration.
+// alertLineRe and groupingAnnotationLineRe drive the line scan. Both are anchored so
+// that an alert name quoted in a description is not read as a declaration.
 //
-// The name is captured as the whole rest of the line rather than one token, because
-// template files build names out of values — "- alert: {{ $controllerKind }}ImageAbsent"
-// is real. Matching a single token would fail on those lines and leave the previous
-// alert's name in hand, quietly attributing the annotations that follow to the wrong
-// alert. Keeping the raw text also keeps the comparison meaningful: a templated name
-// and a templated group name collide exactly when their text is identical.
+// The name is the whole rest of the line, not one token: template files build names
+// out of values, and matching one token would fail on those lines and leave the
+// previous alert's name in hand, attributing what follows to the wrong alert.
 var (
 	alertLineRe              = regexp.MustCompile(`^\s*-\s*alert:\s*(.+?)\s*$`)
 	groupingAnnotationLineRe = regexp.MustCompile(
 		`^\s*(plk_(?:create_group_if_not_exists|grouped_by)__[^:\s]+):\s*(.+?)\s*$`)
 )
 
-// checkRuleFileLines attributes each grouping annotation to the nearest preceding
-// "- alert:" line. That is weaker than the YAML walk — it cannot see nesting — but a
-// template file keeps its annotations directly under their alert, and the alternative
-// for these files is no check at all.
+// checkRuleFileLines ties each grouping annotation to the nearest preceding
+// "- alert:" line. Weaker than the YAML walk, which sees nesting, but for these files
+// the alternative is no check at all.
 func (r *AlertGroupingAnnotationsRule) checkRuleFileLines(
 	content []byte,
 	path string,
