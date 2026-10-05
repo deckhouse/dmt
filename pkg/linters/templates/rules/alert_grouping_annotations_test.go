@@ -552,3 +552,98 @@ func TestAlertGroupingAnnotations_TemplateFile_TemplatedNameCollision(t *testing
 	assert.True(t, errorList.ContainsErrors())
 	assert.Len(t, errorList.GetErrors(), 1)
 }
+
+// --- имена, собираемые шаблоном -------------------------------------------
+
+func TestNamesMayCollide(t *testing.T) {
+	cases := []struct {
+		name   string
+		alert  string
+		group  string
+		expect bool
+	}{
+		{
+			name:   "plain names, equal",
+			alert:  "D8RegistryDrainStuck",
+			group:  "D8RegistryDrainStuck",
+			expect: true,
+		},
+		{
+			name:   "plain names, different",
+			alert:  "D8RegistryDrainStuck",
+			group:  "D8RegistryAlerts",
+			expect: false,
+		},
+		{
+			name:   "templated alert, group is what it renders to",
+			alert:  "{{ $controllerKind }}ImageAbsent",
+			group:  "DeploymentImageAbsent",
+			expect: true,
+		},
+		{
+			name:   "templated alert, unrelated group — the real extended-monitoring case",
+			alert:  "{{ $controllerKind }}ImageAbsent",
+			group:  "UnavailableImagesInNamespace",
+			expect: false,
+		},
+		{
+			name:   "templated alert, group shares only the prefix",
+			alert:  "{{ $controllerKind }}ImageAbsent",
+			group:  "ImageAbsentSomethingElse",
+			expect: false,
+		},
+		{
+			name:   "templated group, literal alert",
+			alert:  "DeploymentImageAbsent",
+			group:  "{{ $controllerKind }}ImageAbsent",
+			expect: true,
+		},
+		{
+			name:   "both templated and identical — same context, same trigger",
+			alert:  "{{ $controllerKind }}ImageAbsent",
+			group:  "{{ $controllerKind }}ImageAbsent",
+			expect: true,
+		},
+		{
+			name:   "both templated and different",
+			alert:  "{{ $controllerKind }}ImageAbsent",
+			group:  "{{ $controllerKind }}Group",
+			expect: false,
+		},
+		{
+			name:   "trim markers are handled",
+			alert:  "{{- $controllerKind -}}ImageAbsent",
+			group:  "DaemonSetImageAbsent",
+			expect: true,
+		},
+		{
+			name:   "the action must stand for at least one character",
+			alert:  "{{ $controllerKind }}ImageAbsent",
+			group:  "ImageAbsent",
+			expect: false,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.expect, namesMayCollide(c.alert, c.group))
+		})
+	}
+}
+
+func TestAlertGroupingAnnotations_TemplateFile_CollisionOnlyAfterSubstitution(t *testing.T) {
+	// The group names one concrete expansion of the templated alert, so at render
+	// time that alert groups into itself. Reading the file literally would miss it.
+	modulePath := t.TempDir()
+	writeRuleFile(t, modulePath, "images.tpl", `{{- define "by-kind" }}
+- alert: {{ $controllerKind }}ImageAbsent
+  annotations:
+    plk_grouped_by__images: "DeploymentImageAbsent,tier=cluster"
+{{- end }}
+`)
+
+	errorList := runAlertGroupingRuleAt(t, modulePath, nil, nil)
+
+	assert.True(t, errorList.ContainsErrors())
+	assert.Len(t, errorList.GetErrors(), 1)
+}

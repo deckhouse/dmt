@@ -1420,6 +1420,8 @@ Both annotations of a broken pair are reported, so a partial fix does not leave 
 
 Rule files are read as `*.yaml`, `*.yml` and `*.tpl`, matching the `**.{yaml,tpl}` glob `helm_lib_prometheus_rules` uses. Template files are frequently not valid YAML on their own; for those the rule falls back to a line scan that attributes each grouping annotation to the nearest preceding `- alert:` line.
 
+Names built by a template are compared with substitution in mind. `- alert: {{ $controllerKind }}ImageAbsent` is the alert `DeploymentImageAbsent` once rendered for that kind, so a group named `DeploymentImageAbsent` collides with it and is reported, while an unrelated group such as `UnavailableImagesInNamespace` is not. When both the alert and the group are templated they render in the same context, so they are compared as plain text.
+
 The rule reads the source files rather than relying on rendered objects alone, because `helm_lib_prometheus_rules` only emits `PrometheusRule` objects when `global.enabledModules` contains `operator-prometheus-crd`. On a full deckhouse lint that is not the case, no such object exists, and an object-only check would pass while the broken annotations sit in the files. A rule file that does not parse is skipped — that is the promtool check's finding, not this one's. Findings are deduplicated on the alert and annotation, so an alert reached through both paths is reported once.
 
 **Why it matters:**

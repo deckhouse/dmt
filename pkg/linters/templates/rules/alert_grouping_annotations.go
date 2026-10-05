@@ -87,6 +87,66 @@ func groupNameFromAnnotation(value string) string {
 	return strings.TrimSpace(name)
 }
 
+// namesMayCollide reports whether an alert name and a group name can denote the same
+// trigger.
+//
+// Rule files are read as written, so a name built by a template is seen as its source
+// text. Comparing that text literally would miss the collision that only appears after
+// substitution: "- alert: {{ $controllerKind }}ImageAbsent" rendered for the Deployment
+// kind is the alert "DeploymentImageAbsent", and a group named "DeploymentImageAbsent"
+// collides with it. So when exactly one side is templated, the templated one is turned
+// into a pattern and matched against the other.
+//
+// When both sides are templated they are rendered in the same context, so identical
+// text means one trigger and different text means two; and when neither is, this is a
+// plain comparison.
+//
+// templateActionRe is the one declared for the openapi-values-quote rule: same package,
+// same job, and it already accounts for the `{{-` / `-}}` trim markers.
+func namesMayCollide(alertName, groupName string) bool {
+	alertTemplated := templateActionRe.MatchString(alertName)
+	groupTemplated := templateActionRe.MatchString(groupName)
+
+	if alertTemplated == groupTemplated {
+		return alertName == groupName
+	}
+
+	pattern, literal := alertName, groupName
+	if groupTemplated {
+		pattern, literal = groupName, alertName
+	}
+
+	return templateNamePattern(pattern).MatchString(literal)
+}
+
+// templateNamePattern turns a templated name into an anchored pattern, with every
+// template action standing for the one or more characters it will render to.
+func templateNamePattern(name string) *regexp.Regexp {
+	var b strings.Builder
+
+	b.WriteString("^")
+
+	last := 0
+	for _, loc := range templateActionRe.FindAllStringIndex(name, -1) {
+		b.WriteString(regexp.QuoteMeta(name[last:loc[0]]))
+		b.WriteString(".+")
+
+		last = loc[1]
+	}
+
+	b.WriteString(regexp.QuoteMeta(name[last:]))
+	b.WriteString("$")
+
+	re, err := regexp.Compile(b.String())
+	if err != nil {
+		// Every literal segment is quoted, so this cannot happen; refuse to match
+		// rather than report a collision on a pattern that was not understood.
+		return regexp.MustCompile(`\A\z(?:x)`)
+	}
+
+	return re
+}
+
 func isGroupingAnnotation(key string) bool {
 	return strings.HasPrefix(key, AnnotationCreateGroupPrefix) ||
 		strings.HasPrefix(key, AnnotationGroupedByPrefix)
@@ -203,7 +263,7 @@ func (r *AlertGroupingAnnotationsRule) checkAlertNode(
 			continue
 		}
 
-		if groupNameFromAnnotation(value.Value) != alertName {
+		if !namesMayCollide(alertName, groupNameFromAnnotation(value.Value)) {
 			continue
 		}
 
@@ -266,7 +326,7 @@ func (r *AlertGroupingAnnotationsRule) checkRenderedGroup(
 		}
 
 		for key, value := range annotations {
-			if !isGroupingAnnotation(key) || groupNameFromAnnotation(value) != alertName {
+			if !isGroupingAnnotation(key) || !namesMayCollide(alertName, groupNameFromAnnotation(value)) {
 				continue
 			}
 
@@ -353,7 +413,7 @@ func (r *AlertGroupingAnnotationsRule) checkRuleFileLines(
 			continue
 		}
 
-		if groupNameFromAnnotation(strings.Trim(match[2], `"'`)) != alertName {
+		if !namesMayCollide(alertName, groupNameFromAnnotation(strings.Trim(match[2], `"'`))) {
 			continue
 		}
 
