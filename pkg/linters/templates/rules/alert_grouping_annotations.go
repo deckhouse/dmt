@@ -116,6 +116,13 @@ func namesMayCollide(alertName, groupName string) bool {
 		pattern, literal = groupName, alertName
 	}
 
+	// A name made only of template actions says nothing about what it renders to —
+	// its pattern would be "^.+$" and match every group there is. Treat it as no
+	// evidence rather than as a collision with everything.
+	if strings.TrimSpace(templateActionRe.ReplaceAllString(pattern, "")) == "" {
+		return false
+	}
+
 	return templateNamePattern(pattern).MatchString(literal)
 }
 

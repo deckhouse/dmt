@@ -622,6 +622,18 @@ func TestNamesMayCollide(t *testing.T) {
 			group:  "ImageAbsent",
 			expect: false,
 		},
+		{
+			name:   "a name made only of actions matches nothing, not everything",
+			alert:  "{{ $alertName }}",
+			group:  "D8RegistryAlerts",
+			expect: false,
+		},
+		{
+			name:   "same, with the templated side being the group",
+			alert:  "D8RegistryDrainStuck",
+			group:  "{{ $groupName }}",
+			expect: false,
+		},
 	}
 
 	for _, c := range cases {
