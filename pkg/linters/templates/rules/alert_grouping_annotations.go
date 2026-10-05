@@ -306,10 +306,17 @@ func (r *AlertGroupingAnnotationsRule) report(
 }
 
 // alertLineRe and groupingAnnotationLineRe drive the line-scan fallback. They are
-// deliberately strict about the shape of the line so that prose mentioning an alert
-// name in a description cannot be mistaken for a declaration.
+// anchored at both ends so that prose mentioning an alert name in a description
+// cannot be mistaken for a declaration.
+//
+// The name is captured as the whole rest of the line rather than one token, because
+// template files build names out of values — "- alert: {{ $controllerKind }}ImageAbsent"
+// is real. Matching a single token would fail on those lines and leave the previous
+// alert's name in hand, quietly attributing the annotations that follow to the wrong
+// alert. Keeping the raw text also keeps the comparison meaningful: a templated name
+// and a templated group name collide exactly when their text is identical.
 var (
-	alertLineRe              = regexp.MustCompile(`^\s*-\s*alert:\s*(\S+)\s*$`)
+	alertLineRe              = regexp.MustCompile(`^\s*-\s*alert:\s*(.+?)\s*$`)
 	groupingAnnotationLineRe = regexp.MustCompile(
 		`^\s*(plk_(?:create_group_if_not_exists|grouped_by)__[^:\s]+):\s*(.+?)\s*$`)
 )

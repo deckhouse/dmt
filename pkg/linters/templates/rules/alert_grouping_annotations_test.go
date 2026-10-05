@@ -512,3 +512,43 @@ func TestAlertGroupingAnnotations_FileAndObjectReportedOnce(t *testing.T) {
 
 	assert.Len(t, errorList.GetErrors(), 2)
 }
+
+func TestAlertGroupingAnnotations_TemplateFile_TemplatedNameNotAttributedToPreviousAlert(t *testing.T) {
+	// A templated alert name must not leave the previous alert's name in hand: the
+	// annotations below belong to the templated alert, not to D8RegistryDrainStuck.
+	modulePath := t.TempDir()
+	writeRuleFile(t, modulePath, "mixed.tpl", `{{- if true }}
+- name: d8.registry
+  rules:
+    - alert: D8RegistryDrainStuck
+      annotations:
+        plk_grouped_by__d8_registry_alerts: "D8RegistryAlerts,tier=cluster"
+    - alert: {{ $controllerKind }}ImageAbsent
+      annotations:
+        plk_grouped_by__drain: "D8RegistryDrainStuck,tier=cluster"
+{{- end }}
+`)
+
+	errorList := runAlertGroupingRuleAt(t, modulePath, nil, nil)
+
+	assert.False(t, errorList.ContainsErrors())
+}
+
+func TestAlertGroupingAnnotations_TemplateFile_TemplatedNameCollision(t *testing.T) {
+	// When a templated name really does group into itself, the texts are identical
+	// and the collision is still caught.
+	modulePath := t.TempDir()
+	writeRuleFile(t, modulePath, "templated.tpl", `{{- if true }}
+- name: d8.images
+  rules:
+    - alert: {{ $controllerKind }}ImageAbsent
+      annotations:
+        plk_grouped_by__images: "{{ $controllerKind }}ImageAbsent,tier=cluster"
+{{- end }}
+`)
+
+	errorList := runAlertGroupingRuleAt(t, modulePath, nil, nil)
+
+	assert.True(t, errorList.ContainsErrors())
+	assert.Len(t, errorList.GetErrors(), 1)
+}
