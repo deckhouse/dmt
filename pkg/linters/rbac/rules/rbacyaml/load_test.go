@@ -501,13 +501,13 @@ func TestValidate_TopLevel(t *testing.T) {
 			yaml:    "resources: []\n",
 			wantErr: `apiVersion must be "rbac.deckhouse.io/v1alpha1", got ""`,
 		},
-		"subsystems: not a subsystem": {
+		"subsystems: the key is no longer read": {
 			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\nsubsystems: [network, billing]\n",
-			wantErr: `subsystems: "billing" is not a subsystem of the role model`,
+			wantErr: "subsystems: rbac.yaml no longer sets the subsystems; the system capabilities aggregate into the subsystems of module.yaml, which testing/rbacv2 in deckhouse holds equal to the lineages they carry; declare billing, network in module.yaml subsystems and remove subsystems from rbac.yaml",
 		},
-		"subsystems: a subsystem of the legacy scheme": {
+		"subsystems: a subsystem of the legacy scheme is named by its replacement": {
 			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\nsubsystems: [cluster, kubernetes]\n",
-			wantErr: `subsystems: "kubernetes" is a subsystem of the legacy scheme, which the role model replaced with "cluster"`,
+			wantErr: "declare cluster in module.yaml subsystems and remove subsystems from rbac.yaml",
 		},
 		"duplicate resource entry": {
 			yaml: "apiVersion: rbac.deckhouse.io/v1alpha1\nresources:\n" +
@@ -746,16 +746,40 @@ func TestParse_TrailingSeparator(t *testing.T) {
 	require.ErrorContains(t, err, "the file must hold a single YAML document")
 }
 
-// The subsystems of rbac.yaml are the platform's or the module's own, from its module.yaml.
-func TestValidateFor_SubsystemOfTheModule(t *testing.T) {
-	decl, err := Parse([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\nsubsystems: [virtualization]\n"))
+// rbac.yaml sets no subsystems: the key still parses, and a declaration that carries it is told to
+// declare in module.yaml what module.yaml lacks, and to drop the key (review of #480, finding 13).
+func TestValidateFor_SubsystemsAreModuleYAMLs(t *testing.T) {
+	decl, err := Parse([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\nsubsystems: [virtualization, security, networking]\n"))
 	require.NoError(t, err)
+	assert.Equal(t, []string{"networking", "security", "virtualization"}, decl.Subsystems, "the key still parses")
 
-	assert.Empty(t, ValidateFor(decl, nil, []string{"virtualization"}))
+	for name, tc := range map[string]struct {
+		moduleSubsystems []string
+		want             string
+	}{
+		"module.yaml declares none": {
+			want: "declare network, security, virtualization in module.yaml subsystems and remove subsystems from rbac.yaml",
+		},
+		"module.yaml lacks one": {
+			moduleSubsystems: []string{"security", "network"},
+			want:             "declare virtualization in module.yaml subsystems and remove subsystems from rbac.yaml",
+		},
+		"module.yaml declares them all": {
+			moduleSubsystems: []string{"network", "virtualization", "security"},
+			want:             "module.yaml declares every one of them already: remove subsystems from rbac.yaml",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			errs := ValidateFor(decl, nil, tc.moduleSubsystems)
+			require.Len(t, errs, 1, "got: %v", errs)
+			assert.Contains(t, errs[0].Error(), "subsystems: rbac.yaml no longer sets the subsystems; the system capabilities aggregate into the subsystems of module.yaml")
+			assert.Contains(t, errs[0].Error(), tc.want)
+		})
+	}
 
-	errs := Validate(decl, nil)
-	require.Len(t, errs, 1)
-	assert.Contains(t, errs[0].Error(), `subsystems: "virtualization" is not a subsystem of the role model`)
+	empty, err := Parse([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\nsubsystems: []\n"))
+	require.NoError(t, err)
+	assert.Empty(t, ValidateFor(empty, nil, nil), "an empty list sets nothing")
 }
 
 func TestLoad(t *testing.T) {

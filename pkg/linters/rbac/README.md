@@ -1359,11 +1359,9 @@ module's ServiceAccounts, and the access other components get to the module. The
 # modules/<module>/rbac.yaml
 apiVersion: rbac.deckhouse.io/v1alpha1
 
-# Lineages the system capabilities aggregate into. Defaults to `subsystems` of module.yaml; required
-# when the module aggregates into more subsystems than module.yaml declares. A subsystem is one of the
-# platform's (iam, security, cluster, delivery, network, storage, observability, managed-services) or one
-# of the module's own that module.yaml declares.
-subsystems: [network, cluster]
+# No subsystems here: the system capabilities aggregate into the `subsystems` of module.yaml, which
+# testing/rbacv2 in deckhouse holds equal to the lineages they carry. A `subsystems:` key an earlier dmt
+# wrote still parses and is a finding of sync that names what to declare in module.yaml.
 
 resources:
   # A resource the module ships a CRD for: group and resource are enough, the scope comes from the CRD.
@@ -1505,7 +1503,7 @@ What the declaration produces (level `viewer` -> capability `view`, `manager` ->
 | Section | File | Objects |
 |---|---|---|
 | `resources[].namespace.<level or action>` | `templates/rbacv2/use/<action>.yaml` | ClusterRole `d8:namespace-capability:<module>:<action>` |
-| `resources[].system.<level or action>` | `templates/rbacv2/manage/<action>.yaml` | ClusterRole `d8:system-capability:<module>:<action>`; `view` and `edit` are always produced for a module with a subsystem, with the rule on the module's own ModuleConfig -- without one a system capability would aggregate into no role |
+| `resources[].system.<level or action>` | `templates/rbacv2/manage/<action>.yaml` | ClusterRole `d8:system-capability:<module>:<action>`; aggregates into every subsystem module.yaml declares; `view` and `edit` are always produced for a module with a subsystem in module.yaml, with the rule on the module's own ModuleConfig -- without one a system capability would aggregate into no role |
 | `resources[].legacy.<Level>` | `templates/user-authz-cluster-roles.yaml` | ClusterRole `d8:user-authz:<module>:<kebab-level>` with the `user-authz.deckhouse.io/access-level` annotation |
 | `serviceAccounts[]` | `templates/[<path>/]rbac-for-us.yaml` | ServiceAccount, ClusterRole/ClusterRoleBinding `d8:<module>:<name>`, Role/RoleBinding `<name>`, the extra bindings |
 | `access[]` with `clusterRules` | `templates/rbac-for-us.yaml` | ClusterRole/ClusterRoleBinding `d8:<module>:<name>` |
@@ -1542,10 +1540,11 @@ Works on the rendered ClusterRoles from `templates/rbacv2/` (the compatibility a
 3. A role: its name matches the pattern of its scope, it defines no `rules`, its `aggregationRule` selects only by `aggregate-to-<lineage>-as` labels with a known lineage and a level of that lineage; system/subsystem roles carry `rbac.deckhouse.io/use-role` with a valid level, and every selector of theirs leaves out `rbac.deckhouse.io/kind: use` with a `NotIn` expression: a use capability of the scheme before DKP 1.78 gives rules in a namespace, and a role bound cluster-wide that took it by its aggregation label would give them in every namespace.
 4. A capability: its name starts with the prefix of its scope, it defines `rules` and no `aggregationRule`, carries at least one `aggregate-to-<lineage>-as` label and a valid `rbac.deckhouse.io/capability` marker (a label value, at most 63 characters).
 5. Aggregation labels target a known lineage (`system`, `namespace`, `project`, a subsystem the platform ships, or a subsystem of the module's own that its `module.yaml` declares and its render holds `d8:subsystem:<name>:<level>` roles for) with a level that lineage has. The platform ships `iam`, `security`, `cluster`, `delivery`, `network`, `storage`, `observability` and `managed-services`. The `deckhouse`, `infrastructure` and `kubernetes` subsystems of the scheme before DKP 1.78 are in `cluster` and its `networking` is `network`, so an aggregation into one of them is to an unknown lineage. A module's own subsystem has the levels of every subsystem, and its roles pass the same checks as the platform's; another module's own subsystem is unknown.
-   A `module.yaml` subsystem that is neither the platform's nor backed by such a role is a finding of its own, so a typo there does not silence the check, and `sync` refuses a declaration that names it. One of the four legacy ids is such a finding even when the render holds a `d8:subsystem:<name>:<level>` role for it, and that finding and the unknown-lineage one name the subsystem of the role model that replaced it.
-6. `rbac.deckhouse.io/delegatable` appears only on namespace/project roles.
-7. An object of the RBACv2 scheme before DKP 1.78 (`rbac.deckhouse.io/kind: use` or `manage`, names `d8:use:capability:module:<m>:*` / `d8:manage:permission:module:<m>:*`) gets one finding -- migrate with `rbacv2-migrate-module.sh` from `modules/140-user-authz/docs/internal/` of the deckhouse repository, or describe the module in `rbac.yaml` and run `--fix` -- instead of failing every check above. A legacy object rendered from a template that carries the script's version gate (`include "<module>.rbacv2_new_scheme"`) is not reported: the module serves both models on purpose.
-8. **Warning:** a cluster-scoped resource inside a namespace capability. Such a capability is bound through a RoleBinding, where the rule grants nothing. The scope comes from the module's CRDs or from its `rbac.yaml`; a resource the run knows nothing about is not judged.
+   A `module.yaml` subsystem that is neither the platform's nor backed by such a role is a finding of its own, so a typo there does not silence the check, and the system capabilities `sync` generates do not aggregate into it. One of the four legacy ids is such a finding even when the render holds a `d8:subsystem:<name>:<level>` role for it, and that finding and the unknown-lineage one name the subsystem of the role model that replaced it.
+6. The `subsystems` of `module.yaml` are exactly the lineages the module's system capabilities (`rbac.deckhouse.io/kind: capability`, `rbac.deckhouse.io/scope: system`) carry in their `aggregate-to-<lineage>-as` labels, the `system` lineage left out -- the check of `TestRBACv2ModuleSubsystemsValidation` in `testing/rbacv2`: the documentation and the console read `module.yaml`, the aggregation controller reads the labels. A lineage `module.yaml` does not declare is reported with "declare it in `module.yaml` subsystems"; a subsystem no system capability aggregates into, with "aggregate the system capabilities into it or remove it from `module.yaml`" (with `rbac.yaml`, `--fix` writes `view` and `edit` into every `module.yaml` subsystem). A module that renders no system capability is not judged, as the platform test skips a module without `templates/rbacv2/manage/`. A subsystem of the module's own (item 5) is compared as any other; a `module.yaml` subsystem item 5 reports and a lineage that is no subsystem of either are left out of the comparison, since they have a finding of their own.
+7. `rbac.deckhouse.io/delegatable` appears only on namespace/project roles.
+8. An object of the RBACv2 scheme before DKP 1.78 (`rbac.deckhouse.io/kind: use` or `manage`, names `d8:use:capability:module:<m>:*` / `d8:manage:permission:module:<m>:*`) gets one finding -- migrate with `rbacv2-migrate-module.sh` from `modules/140-user-authz/docs/internal/` of the deckhouse repository, or describe the module in `rbac.yaml` and run `--fix` -- instead of failing every check above. A legacy object rendered from a template that carries the script's version gate (`include "<module>.rbacv2_new_scheme"`) is not reported: the module serves both models on purpose.
+9. **Warning:** a cluster-scoped resource inside a namespace capability. Such a capability is bound through a RoleBinding, where the rule grants nothing. The scope comes from the module's CRDs or from its `rbac.yaml`; a resource the run knows nothing about is not judged.
 
 What deliberately stays in the platform test: the levels of sensitive capabilities and the closure of
 aggregation across two modules, and the global uniqueness of the capability marker -- a rule sees one module.
@@ -1554,6 +1553,7 @@ aggregation across two modules, and the global uniqueness of the capability mark
 
 ```
 Error: capability "d8:namespace-capability:my-module:view" must carry the rbac.deckhouse.io/capability label
+Error: module.yaml subsystems: declares [security], but the system capabilities aggregate into [network, security]; the two must be the same set, as testing/rbacv2 in deckhouse requires (the documentation and the console read module.yaml, the aggregation controller the labels): declare network in module.yaml subsystems
 Warning: capability "d8:namespace-capability:my-module:view" grants my.io/globals, a cluster-scoped resource, in a namespace capability: bound through a RoleBinding the rule grants nothing; move it to a system capability
 ```
 
@@ -1682,6 +1682,13 @@ legacy role or a capability a `TODO` reason on the resources it grants. An objec
 file that also holds a document a helm_lib include renders stays hand-written: the fix writes the
 whole file.
 
+The declaration sets no subsystems: its system capabilities aggregate into the `subsystems` of
+`module.yaml`. When the system capabilities the module renders aggregate into other subsystems, a
+note on top of the written file proposes the `module.yaml` change (the subsystems to declare there,
+and those to remove if the module is not part of them), and `contract` reports the difference until
+`module.yaml` and the templates agree. Declare them before the `--fix` of the templates: the
+templates follow `module.yaml`, so a subsystem only the templates carry would be dropped from them.
+
 The fix writes the file and succeeds. Every `TODO` in it and everything the linter refuses in it are
 lint findings of the run that follows `--fix`: a `TODO` in `noAccess` or `reason` is reported by
 `coverage`, one in a `scope` or a `when` by the validation of `sync`. A written file that does not parse would be a bug of dmt; it is
@@ -1690,8 +1697,11 @@ overlay. Review the file, resolve the TODOs, then run `--fix` again to bring the
 it. From then on `rbac.yaml` is the source.
 
 With `rbac.yaml` the rule first validates the declaration; a declaration with errors is reported and
-nothing else is compared or written. Then builds the objects the
-declaration produces and compares them with the render.
+nothing else is compared or written. A `subsystems:` key, which an earlier dmt wrote when the
+templates aggregated into other subsystems than `module.yaml` declares, is such an error: the
+finding names the subsystems to declare in `module.yaml` and asks to remove the key, and until then
+`--fix` does not change the aggregation of the system capabilities behind that decision. Then builds
+the objects the declaration produces and compares them with the render.
 
 `sync` owns exactly three classes of rendered objects:
 
@@ -1791,9 +1801,10 @@ leaves unset falls back to the linter's `impact` below `warn`: `impact: ignored`
 - The cloud-data-discoverer account of the cloud providers (and csi-vsphere) keeps its own Role `d8:<module>:cloud-data-discoverer:secret-reader` in `kube-system`, in the account's `rbac-for-us.yaml`. The format cannot declare a Role in another namespace, so the file holds an object the declaration does not produce and its finding carries no fix; the account stays hand-written until the format can say it.
 - An account of a component directory in `default` or `kube-system` cannot be declared yet: the placement rule wants it named `d8-<module>-<dir>` there, and the declaration accepts `<dir>` and, in a namespace of the platform, `<module>-<dir>` only. Bootstrap names the problem in the written file; the account stays hand-written until the two rules agree (control-plane-manager, vertical-pod-autoscaler).
 - **The three states a module can be in when the new `dmt` first runs.** *Only the legacy scheme* (an external module not yet migrated): `contract` reports one "migrate" finding per object; with an `rbac.yaml`, `sync` reports the declared objects as absent and names the cause -- the template renders the legacy scheme -- and the finding carries no fix: rewriting the file would serve the new model only. *Only the 1.78 scheme*: the ordinary case described above. *Both schemes behind the version gate* (`rbacv2-migrate-module.sh` without `--replace`): the linter's values answer the gate with the 1.78 model, so `contract` and `sync` see exactly the new objects and the legacy branch is neither judged nor "extra"; a gated file gets no fix -- rewriting it would drop the legacy branch -- and the finding says so. The legacy branch itself is exercised with `dmt lint --values-file` setting `global.deckhouseVersion` below 1.78; `--matrix` varies module values only, not the platform version.
-- A `dmt lint --values-file` run with `global.deckhouseVersion` below the version gate renders none of the `d8:subsystem:<name>:*` roles a module ships behind the gate. `contract` then reports the `module.yaml` subsystem as unrendered, and `sync` refuses an `rbac.yaml` `subsystems:` entry that names it. Both findings are false and come from that manual run only; the default render and `--matrix` answer the gate with the new model.
+- A `dmt lint --values-file` run with `global.deckhouseVersion` below the version gate renders none of the `d8:subsystem:<name>:*` roles a module ships behind the gate. `contract` then reports the `module.yaml` subsystem as unrendered. The finding is false and comes from that manual run only; the default render and `--matrix` answer the gate with the new model.
+- The `module.yaml` subsystems check (`contract`, item 6) reads the system capabilities a render holds, while the platform test reads the template files. A variant of `--matrix` or a `--values-file` run that leaves out a system capability under a condition, the only one that aggregates into a subsystem, reports that subsystem as declared and carried by none. The default render does not, and neither does a module whose templates `rbac.yaml` writes: `view` and `edit` aggregate into every `module.yaml` subsystem unconditionally.
 - The declaration is one per module and describes the union of editions. Linting a single edition directory shows the edition-only objects as absent; lint the merged tree as CI does. An `rbac.yaml` inside an edition overlay (`ee/be/modules`, `ee/se-plus/modules`, ..., and `ee/modules` for a module that also exists in `modules/`) is an error: CI merges the overlays over `modules/` before linting, so a copy there would shadow the base one or go unseen. A module that has no base elsewhere -- EE-only in `ee/modules/<module>`, or living in one edition directory only such as `ee/be/modules/350-node-local-dns` -- has its base there.
-- `sync` refuses what the declaration alone cannot know is wrong: system levels on a module whose `module.yaml` names no `subsystems` (set `subsystems` in `rbac.yaml`); an account in a component directory named unlike it (the placement rule wants `<dir>`, with `/` as `-` for a nested directory, or `<module>-<dir>` in a namespace of the platform such as `d8-system`). The objects of an account at `a/b` follow the placement rule too: its Role and RoleBinding are `a:b`, its bindings in other namespaces `d8:<module>:a:b:<role>`; a capability marker past 63 characters (a module name of 32 characters and up with a `superadmin` level).
+- `sync` refuses what the declaration alone cannot know is wrong: system levels on a module whose `module.yaml` names no `subsystems` (declare them in `module.yaml`); an account in a component directory named unlike it (the placement rule wants `<dir>`, with `/` as `-` for a nested directory, or `<module>-<dir>` in a namespace of the platform such as `d8-system`). The objects of an account at `a/b` follow the placement rule too: its Role and RoleBinding are `a:b`, its bindings in other namespaces `d8:<module>:a:b:<role>`; a capability marker past 63 characters (a module name of 32 characters and up with a `superadmin` level).
 - Built-in Kubernetes resources (`""`/configmaps, `apps`/deployments, `rbac.authorization.k8s.io`/clusterroles, ...) need no `scope`: the validator knows them. Anything else without a CRD in the module declares its scope.
 - An `rbac.yaml` of the earlier, never consumed shape (no `apiVersion`) is named for what it is: delete it and run `--fix` to write the declaration from the render.
 - Under `--matrix` the first declaration is written from the union of every variant's render; objects rendered only under values other than the defaults are still invisible to a default run, so lint with `--values-file` before the first `--fix` of the templates if the module has such templates.

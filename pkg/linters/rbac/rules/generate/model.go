@@ -38,7 +38,7 @@ import (
 )
 
 // Input is everything the generator needs besides the declaration: the module identity from
-// module.yaml. Subsystems are module.yaml's unless the declaration overrides them.
+// module.yaml. Subsystems are module.yaml's, and the system capabilities aggregate into them only.
 type Input struct {
 	Module     string
 	Namespace  string
@@ -207,8 +207,8 @@ func checkAgainstModule(in Input) error {
 		}
 	}
 
-	if systemLevels && len(in.Decl.Subsystems) == 0 && len(in.Subsystems) == 0 {
-		return fmt.Errorf("system levels are declared but the module aggregates into no subsystem: module.yaml declares none, so set subsystems in %s", rbacyaml.Filename)
+	if systemLevels && len(in.Subsystems) == 0 {
+		return errors.New("system levels are declared but the module aggregates into no subsystem: module.yaml declares none, so declare the module's subsystems in module.yaml")
 	}
 
 	for _, sa := range in.Decl.ServiceAccounts {
@@ -256,10 +256,6 @@ func (b *builder) add(path string, obj Object) {
 }
 
 func (b *builder) subsystems() []string {
-	if len(b.in.Decl.Subsystems) > 0 {
-		return b.in.Decl.Subsystems
-	}
-
 	out := append([]string(nil), b.in.Subsystems...)
 	sort.Strings(out)
 

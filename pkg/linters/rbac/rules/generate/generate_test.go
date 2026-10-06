@@ -152,9 +152,12 @@ func TestBuild_CertManagerModel(t *testing.T) {
 	}, toUs)
 }
 
-func TestBuild_SubsystemsOverrideAndNamespaceLabel(t *testing.T) {
+// The system capabilities aggregate into the subsystems of module.yaml only: a subsystems list the
+// declaration still carries is not read (review of #480, finding 13).
+func TestBuild_SubsystemsOfModuleYAMLAndNamespaceLabel(t *testing.T) {
 	in := certManagerInput(t)
-	in.Decl.Subsystems = []string{"network", "managed-services"}
+	in.Subsystems = []string{"network", "managed-services"}
+	in.Decl.Subsystems = []string{"storage"}
 	in.Namespace = "default"
 	// Accounts of component directories cannot live in default (README, limits).
 	in.Decl.ServiceAccounts = nil
@@ -254,7 +257,8 @@ func TestBuild_RefusesWhatTheModuleCannotCarry(t *testing.T) {
 		decl := base()
 		decl.Subsystems = []string{"storage"}
 		_, err = Build(Input{Module: "m", Namespace: "d8-m", Decl: decl})
-		require.NoError(t, err, "the declaration's own subsystems suffice")
+		require.Error(t, err, "a subsystems list of the declaration is not read")
+		assert.Contains(t, err.Error(), "module.yaml declares none, so declare the module's subsystems in module.yaml")
 	})
 
 	t.Run("an account whose name does not follow its directory", func(t *testing.T) {
