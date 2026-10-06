@@ -482,3 +482,136 @@ func TestContract_LegacySubsystemBackedByARole(t *testing.T) {
 	assert.Contains(t, got, `aggregation selector targets unknown lineage "networking"; the role model replaced it with "network"`)
 	assert.NotContains(t, got, "renders no d8:subsystem:networking:<level> role")
 }
+
+// The module.yaml subsystems are the lineages the system capabilities carry, as the platform test
+// TestRBACv2ModuleSubsystemsValidation requires: a lineage module.yaml does not declare and a
+// subsystem no system capability aggregates into are reported, a module without system capabilities
+// is not judged, and a subsystem of the module's own backed by its roles is compared as any other
+// (review of #480, finding 13).
+func TestContract_ModuleSubsystemsAreTheCarriedLineages(t *testing.T) {
+	systemCapability := func(action string, lineages ...string) rendered {
+		labels := map[string]string{"module": "cert-manager",
+			"rbac.deckhouse.io/kind":       "capability",
+			"rbac.deckhouse.io/scope":      "system",
+			"rbac.deckhouse.io/capability": "system-capability.cert-manager." + action,
+		}
+		for _, lineage := range lineages {
+			labels["rbac.deckhouse.io/aggregate-to-"+lineage+"-as"] = "viewer"
+		}
+
+		return rendered{"templates/rbacv2/manage/" + action + ".yaml", clusterRole("d8:system-capability:cert-manager:"+action, labels, i18n,
+			"rules:\n- apiGroups: [cert-manager.io]\n  resources: [clusterissuers]\n  verbs: [get, list, watch]\n")}
+	}
+
+	ownRole := rendered{"templates/rbacv2/manage/roles/viewer.yaml", clusterRole("d8:subsystem:virtualization:viewer", map[string]string{"module": "cert-manager",
+		"rbac.deckhouse.io/kind":      "role",
+		"rbac.deckhouse.io/scope":     "subsystem",
+		"rbac.deckhouse.io/subsystem": "virtualization",
+		"rbac.deckhouse.io/use-role":  "viewer",
+	}, i18n, "aggregationRule:\n  clusterRoleSelectors:\n  - matchLabels:\n      rbac.deckhouse.io/aggregate-to-virtualization-as: viewer\n"+notUse)}
+
+	const advice = "the two must be the same set, as testing/rbacv2 in deckhouse requires (the documentation and the console read module.yaml, the aggregation controller the labels): "
+
+	for name, tc := range map[string]struct {
+		moduleYAML string
+		objects    []rendered
+		want       string
+	}{
+		"equal sets": {
+			moduleYAML: "name: cert-manager\nsubsystems: [security, network]\n",
+			objects:    []rendered{systemCapability("view", "network", "security"), systemCapability("edit", "security")},
+		},
+		"the system lineage is left out": {
+			moduleYAML: "name: cert-manager\nsubsystems: [security]\n",
+			objects:    []rendered{systemCapability("view", "security", "system")},
+		},
+		"a carried lineage module.yaml does not declare": {
+			moduleYAML: "name: cert-manager\nsubsystems: [security]\n",
+			objects:    []rendered{systemCapability("view", "security"), systemCapability("edit", "network", "security")},
+			want:       "error: module.yaml subsystems: declares [security], but the system capabilities aggregate into [network, security]; " + advice + "declare network in module.yaml subsystems",
+		},
+		"a declared subsystem no system capability carries": {
+			moduleYAML: "name: cert-manager\nsubsystems: [security, network]\n",
+			objects:    []rendered{systemCapability("view", "security")},
+			want:       "error: module.yaml subsystems: declares [network, security], but the system capabilities aggregate into [security]; " + advice + "aggregate the system capabilities into network (with rbac.yaml, `dmt lint --linter rbac --fix` does) or remove it from module.yaml subsystems",
+		},
+		"two declared subsystems no system capability carries": {
+			moduleYAML: "name: cert-manager\nsubsystems: [security, network, storage]\n",
+			objects:    []rendered{systemCapability("view", "security")},
+			want:       "error: module.yaml subsystems: declares [network, security, storage], but the system capabilities aggregate into [security]; " + advice + "aggregate the system capabilities into network, storage (with rbac.yaml, `dmt lint --linter rbac --fix` does) or remove them from module.yaml subsystems",
+		},
+		"both ways at once": {
+			moduleYAML: "name: cert-manager\nsubsystems: [storage]\n",
+			objects:    []rendered{systemCapability("view", "cluster")},
+			want:       "error: module.yaml subsystems: declares [storage], but the system capabilities aggregate into [cluster]; " + advice + "declare cluster in module.yaml subsystems; aggregate the system capabilities into storage (with rbac.yaml, `dmt lint --linter rbac --fix` does) or remove it from module.yaml subsystems",
+		},
+		"no module.yaml": {
+			objects: []rendered{systemCapability("view", "security")},
+			want:    "error: module.yaml subsystems: declares [], but the system capabilities aggregate into [security]; " + advice + "declare security in module.yaml subsystems",
+		},
+		"a module without system capabilities is not judged": {
+			moduleYAML: "name: cert-manager\nsubsystems: [security]\n",
+			objects:    []rendered{{"templates/rbacv2/use/view.yaml", validCapability}},
+		},
+		"a module.yaml that does not parse gives no finding": {
+			moduleYAML: "subsystems: security\n",
+			objects:    []rendered{systemCapability("view", "network")},
+		},
+		"a subsystem of the module's own backed by its roles": {
+			moduleYAML: "name: cert-manager\nsubsystems: [virtualization, security]\n",
+			objects:    []rendered{ownRole, systemCapability("view", "security", "virtualization")},
+		},
+		"a subsystem of the module's own no system capability carries": {
+			moduleYAML: "name: cert-manager\nsubsystems: [virtualization, security]\n",
+			objects:    []rendered{ownRole, systemCapability("view", "security")},
+			want:       "error: module.yaml subsystems: declares [security, virtualization], but the system capabilities aggregate into [security]; " + advice + "aggregate the system capabilities into virtualization (with rbac.yaml, `dmt lint --linter rbac --fix` does) or remove it from module.yaml subsystems",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			files := map[string]string{}
+			if tc.moduleYAML != "" {
+				files["module.yaml"] = tc.moduleYAML
+			}
+
+			got := runContract(t, writeModule(t, files), tc.objects...)
+
+			var subsystems []string
+
+			for _, text := range got {
+				if strings.Contains(text, "but the system capabilities aggregate into") {
+					subsystems = append(subsystems, text)
+				}
+			}
+
+			if tc.want == "" {
+				assert.Empty(t, subsystems)
+				return
+			}
+
+			assert.Equal(t, []string{tc.want}, subsystems)
+		})
+	}
+}
+
+// A lineage or a module.yaml subsystem another finding already names is not compared again: an
+// unrendered subsystem, one of the legacy scheme, and an unknown lineage each get their own finding
+// only.
+func TestContract_ModuleSubsystemsLeaveOutWhatIsReported(t *testing.T) {
+	capability := clusterRole("d8:system-capability:cert-manager:view", map[string]string{"module": "cert-manager",
+		"rbac.deckhouse.io/kind":                       "capability",
+		"rbac.deckhouse.io/scope":                      "system",
+		"rbac.deckhouse.io/capability":                 "system-capability.cert-manager.view",
+		"rbac.deckhouse.io/aggregate-to-security-as":   "viewer",
+		"rbac.deckhouse.io/aggregate-to-kubernetes-as": "viewer",
+		"rbac.deckhouse.io/aggregate-to-infra-as":      "viewer",
+	}, i18n, "rules:\n- apiGroups: [cert-manager.io]\n  resources: [clusterissuers]\n  verbs: [get, list, watch]\n")
+
+	modulePath := writeModule(t, map[string]string{"module.yaml": "name: cert-manager\nsubsystems: [security, kubernetes, infra]\n"})
+	got := strings.Join(runContract(t, modulePath, rendered{"templates/rbacv2/manage/view.yaml", capability}), "\n")
+
+	assert.Contains(t, got, `module.yaml subsystems: "kubernetes" is a subsystem of the legacy scheme`)
+	assert.Contains(t, got, `module.yaml subsystems: "infra" is not a subsystem of the role model`)
+	assert.Contains(t, got, `targets unknown lineage "kubernetes"`)
+	assert.Contains(t, got, `targets unknown lineage "infra"`)
+	assert.NotContains(t, got, "but the system capabilities aggregate into")
+}

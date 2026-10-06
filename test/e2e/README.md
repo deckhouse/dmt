@@ -109,6 +109,7 @@ go test ./test/e2e/ -run 'TestE2E/<linter>/<your-case>' -v
 | `rbac/wildcards` | rbac linter (wildcards in a Role) |
 | `rbac/contract-clean` | rbac linter `contract` (well-formed RBACv2 namespace and system capabilities pass; no rbac.yaml needed) |
 | `rbac/contract-violations` | rbac linter `contract` (missing ru texts, missing capability marker, role with its own rules) |
+| `rbac/contract-module-subsystems` | rbac linter `contract` (a system capability aggregates into a subsystem `module.yaml` does not declare; the finding names it, as `testing/rbacv2` in deckhouse does) |
 | `rbac/contract-cluster-scoped-in-namespace-capability` | rbac linter `contract` (warning: cluster-scoped resource, scope read from a nested `crds/`, inside a namespace capability) |
 | `rbac/coverage-missing-entry` | rbac linter `coverage` (CRD without an entry in rbac.yaml) |
 | `rbac/coverage-fix-writes-stub` | rbac linter `coverage` with `--fix` (a stub is written and the fix succeeds; the stub is not a decision, the lint that follows reports it) |

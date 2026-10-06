@@ -67,8 +67,9 @@ type Object struct {
 // Input is what the render says about the module.
 type Input struct {
 	Module, Namespace string
-	// Subsystems are the module.yaml subsystems; the declaration overrides them only when the
-	// rendered system capabilities aggregate into a different set.
+	// Subsystems are the module.yaml subsystems. The declaration sets none of its own: a note
+	// proposes the module.yaml change when the rendered system capabilities aggregate into a
+	// different set.
 	Subsystems []string
 	Objects    []Object
 	// CRDs maps group/plural to scope for the CRDs under crds/.
@@ -1105,26 +1106,71 @@ func (b *builder) resources() {
 		}
 	}
 
-	if len(b.lineages) > 0 {
-		got := make([]string, 0, len(b.lineages))
-		for l := range b.lineages {
-			got = append(got, l)
-		}
-
-		sort.Strings(got)
-
-		want := append([]string(nil), b.in.Subsystems...)
-		sort.Strings(want)
-
-		if strings.Join(got, ",") != strings.Join(want, ",") {
-			b.decl.Subsystems = got
-			b.note("system capabilities aggregate into %v while module.yaml says %v; subsystems is set explicitly", got, want)
-		}
-	}
+	b.noteSubsystems()
 
 	if len(b.texts) > 0 {
 		b.decl.Capabilities = b.texts
 	}
+}
+
+// noteSubsystems proposes the module.yaml change when the subsystems the rendered system
+// capabilities aggregate into differ from those module.yaml declares. The declaration sets no
+// subsystems: the system capabilities aggregate into those of module.yaml only, which the platform
+// test (testing/rbacv2 in deckhouse) holds equal to the lineages they carry, and contract reports
+// the difference until one side follows the other.
+func (b *builder) noteSubsystems() {
+	var carried []string
+
+	for l := range b.lineages {
+		if l != rbaccontract.LineageSystem {
+			carried = append(carried, l)
+		}
+	}
+
+	if len(carried) == 0 {
+		return
+	}
+
+	sort.Strings(carried)
+
+	declared := slices.Clone(b.in.Subsystems)
+	sort.Strings(declared)
+	declared = slices.Compact(declared)
+
+	if slices.Equal(carried, declared) {
+		return
+	}
+
+	var missing, extra []string
+
+	for _, s := range carried {
+		if !slices.Contains(declared, s) {
+			missing = append(missing, s)
+		}
+	}
+
+	for _, s := range declared {
+		if !slices.Contains(carried, s) {
+			extra = append(extra, s)
+		}
+	}
+
+	var change []string
+	if len(missing) > 0 {
+		change = append(change, "declare "+strings.Join(missing, ", ")+" in module.yaml subsystems")
+	}
+
+	if len(extra) > 0 {
+		pronoun := "it"
+		if len(extra) > 1 {
+			pronoun = "them"
+		}
+
+		change = append(change, "remove "+strings.Join(extra, ", ")+" from module.yaml subsystems if the module is not part of "+pronoun)
+	}
+
+	b.note("the system capabilities aggregate into the subsystems [%s] and module.yaml declares [%s]: %s. The declaration takes the subsystems from module.yaml only, so the --fix of the templates follows module.yaml, and contract reports the difference until the two agree",
+		strings.Join(carried, ", "), strings.Join(declared, ", "), strings.Join(change, "; "))
 }
 
 // componentOf returns the component directory of templates/<component>/<file>, "" for the root file

@@ -158,7 +158,9 @@ func (r *SyncRule) Check(_ context.Context) {
 
 	subsystems := knownSubsystems(r.module, meta.Subsystems)
 
-	if errs := rbacyaml.ValidateFor(decl, crdScopes(crds), subsystems); len(errs) > 0 {
+	// A subsystems list of the declaration names what module.yaml lacks: the one module.yaml writes,
+	// a subsystem contract reports as unrendered included.
+	if errs := rbacyaml.ValidateFor(decl, crdScopes(crds), meta.Subsystems); len(errs) > 0 {
 		for _, e := range errs {
 			declList.Errorf("%v; nothing is compared or written until the declaration is valid", e)
 		}

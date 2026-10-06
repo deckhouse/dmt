@@ -357,6 +357,45 @@ func TestSync_WithoutDeclarationBootstrapsIt(t *testing.T) {
 	assert.Empty(t, texts(runSync(t, modulePath, renderedFrom(t, model, nil))))
 }
 
+// A module whose system capabilities aggregate into a subsystem module.yaml does not declare enters
+// the declaration all the same: the fix writes rbac.yaml without a subsystems key and with a note
+// that proposes the module.yaml change, and succeeds (review of #480, finding 13).
+func TestSync_BootstrapProposesTheModuleYAMLSubsystems(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	require.NoError(t, os.Remove(rbacyaml.Path(modulePath)))
+
+	store := renderedFrom(t, model, func(o *generate.Object) bool {
+		if strings.HasPrefix(o.Name, rbaccontract.SystemCapabilityPrefix) {
+			o.Labels = maps.Clone(o.Labels)
+			o.Labels["rbac.deckhouse.io/aggregate-to-network-as"] = o.Labels["rbac.deckhouse.io/aggregate-to-security-as"]
+		}
+
+		return true
+	})
+
+	errorList := runSync(t, modulePath, store)
+	require.Len(t, errorList.GetFixes(), 1)
+
+	for _, fix := range errorList.GetFixes() {
+		fix()
+	}
+
+	assert.Empty(t, errorList.GetErrors(), "the fix succeeds")
+
+	content, err := os.ReadFile(rbacyaml.Path(modulePath))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "# - the system capabilities aggregate into the subsystems [network, security] and module.yaml declares [security]: declare network in module.yaml subsystems.")
+	assert.NotContains(t, string(content), "\nsubsystems:")
+
+	written, err := rbacyaml.Load(modulePath)
+	require.NoError(t, err, "the written declaration parses")
+	assert.Empty(t, written.Subsystems)
+}
+
 func TestSync_Autofix(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
@@ -1280,9 +1319,9 @@ func TestSync_InvalidDeclarationIsALintFinding(t *testing.T) {
 }
 
 // A module.yaml subsystem the platform does not ship and the module renders no role for is no
-// subsystem of the module's own: a declaration naming it is refused, and nothing is generated from
-// it (review of #480, finding 9).
-func TestSync_UnrenderedModuleSubsystemIsRefused(t *testing.T) {
+// subsystem of the module's own: contract reports it, and it reaches no generated label (review of
+// #480, finding 9).
+func TestSync_UnrenderedModuleSubsystemReachesNoLabel(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
 
@@ -1290,13 +1329,54 @@ func TestSync_UnrenderedModuleSubsystemIsRefused(t *testing.T) {
 	model := syncModel(t, modulePath)
 
 	require.NoError(t, os.WriteFile(filepath.Join(modulePath, "module.yaml"), []byte("name: cert-manager\nnamespace: d8-cert-manager\nsubsystems: [security, infra]\n"), 0o600))
-	decl, err := os.ReadFile(filepath.Join(modulePath, "rbac.yaml"))
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(filepath.Join(modulePath, "rbac.yaml"), append(decl, []byte("subsystems: [infra]\n")...), 0o600))
 
 	errorList := runSync(t, modulePath, renderedFrom(t, model, nil))
-	assert.Contains(t, strings.Join(texts(errorList), "\n"), `subsystems: "infra" is not a subsystem of the role model`)
+	assert.Empty(t, texts(errorList), "the render of the security subsystem alone is what the declaration produces")
 	assert.Empty(t, errorList.GetFixes())
+}
+
+// rbac.yaml sets no subsystems: the system capabilities aggregate into those of module.yaml. A
+// declaration that still lists them is a finding without a fix that names what module.yaml lacks,
+// and nothing is compared or written until the list is gone, so --fix does not change the
+// aggregation of the capabilities before the module.yaml decision is made (review of #480,
+// finding 13).
+func TestSync_SubsystemsOfTheDeclarationAreAFinding(t *testing.T) {
+	for name, tc := range map[string]struct {
+		moduleYAML, listed, want string
+	}{
+		"a subsystem module.yaml lacks": {
+			moduleYAML: "subsystems: [security]",
+			listed:     "[network, security]",
+			want:       "declare network in module.yaml subsystems and remove subsystems from rbac.yaml",
+		},
+		"a subsystem module.yaml declares, rendered or not": {
+			moduleYAML: "subsystems: [security, infra]",
+			listed:     "[infra]",
+			want:       "module.yaml declares every one of them already: remove subsystems from rbac.yaml",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			resetFixState()
+			t.Cleanup(resetFixState)
+
+			modulePath := syncModuleDir(t)
+			model := syncModel(t, modulePath)
+
+			require.NoError(t, os.WriteFile(filepath.Join(modulePath, "module.yaml"), []byte("name: cert-manager\nnamespace: d8-cert-manager\n"+tc.moduleYAML+"\n"), 0o600))
+			decl, err := os.ReadFile(filepath.Join(modulePath, "rbac.yaml"))
+			require.NoError(t, err)
+			require.NoError(t, os.WriteFile(filepath.Join(modulePath, "rbac.yaml"), append(decl, []byte("subsystems: "+tc.listed+"\n")...), 0o600))
+
+			errorList := runSync(t, modulePath, renderedFrom(t, model, func(o *generate.Object) bool {
+				return o.Name != "d8:namespace-capability:cert-manager:view"
+			}))
+			got := texts(errorList)
+			require.Len(t, got, 1, "got: %v", got)
+			assert.Contains(t, got[0], "error: subsystems: rbac.yaml no longer sets the subsystems; the system capabilities aggregate into the subsystems of module.yaml, which testing/rbacv2 in deckhouse holds equal to the lineages they carry; "+tc.want)
+			assert.Contains(t, got[0], "nothing is compared or written until the declaration is valid")
+			assert.Empty(t, errorList.GetFixes())
+		})
+	}
 }
 
 // A template the declaration no longer produces and nothing rendered from is neither reported nor

@@ -774,3 +774,75 @@ func TestBuild_UnmanagedOnce(t *testing.T) {
 	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: objects})
 	assert.Len(t, got.Unmanaged, 2, "unmanaged: %v", got.Unmanaged)
 }
+
+// The declaration sets no subsystems: when the rendered system capabilities aggregate into other
+// subsystems than module.yaml declares, a note proposes the module.yaml change, the written file
+// carries no subsystems key, and the system lineage is no subsystem (review of #480, finding 13).
+func TestBuild_SubsystemsAreProposedForModuleYAML(t *testing.T) {
+	capability := func(action string, lineages ...string) Object {
+		labels := map[string]string{"module": "m", "rbac.deckhouse.io/kind": "capability", "rbac.deckhouse.io/scope": "system"}
+		for _, l := range lineages {
+			labels["rbac.deckhouse.io/aggregate-to-"+l+"-as"] = "viewer"
+		}
+
+		return Object{Kind: "ClusterRole", Name: "d8:system-capability:m:" + action, Path: "templates/rbacv2/manage/" + action + ".yaml", Labels: labels,
+			Rules: []rbacv1.PolicyRule{{APIGroups: []string{"deckhouse.io"}, Resources: []string{"moduleconfigs"}, ResourceNames: []string{"m"}, Verbs: []string{"get", "list", "watch"}}}}
+	}
+
+	const tail = ". The declaration takes the subsystems from module.yaml only, so the --fix of the templates follows module.yaml, and contract reports the difference until the two agree"
+
+	for name, tc := range map[string]struct {
+		subsystems []string
+		objects    []Object
+		want       string
+	}{
+		"equal sets": {
+			subsystems: []string{"security", "network"},
+			objects:    []Object{capability("view", "network", "security", "system")},
+		},
+		"a carried lineage module.yaml does not declare": {
+			subsystems: []string{"security"},
+			objects:    []Object{capability("view", "network", "security")},
+			want:       "the system capabilities aggregate into the subsystems [network, security] and module.yaml declares [security]: declare network in module.yaml subsystems" + tail,
+		},
+		"both ways at once": {
+			subsystems: []string{"security", "storage"},
+			objects:    []Object{capability("view", "security", "cluster")},
+			want:       "the system capabilities aggregate into the subsystems [cluster, security] and module.yaml declares [security, storage]: declare cluster in module.yaml subsystems; remove storage from module.yaml subsystems if the module is not part of it" + tail,
+		},
+		"module.yaml declares none": {
+			objects: []Object{capability("view", "security")},
+			want:    "the system capabilities aggregate into the subsystems [security] and module.yaml declares []: declare security in module.yaml subsystems" + tail,
+		},
+		"capabilities that carry the system lineage only": {
+			subsystems: []string{"security"},
+			objects:    []Object{capability("view", "system")},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := Build(Input{Module: "m", Namespace: "d8-m", Subsystems: tc.subsystems, Objects: tc.objects})
+			assert.Empty(t, got.Decl.Subsystems, "the declaration sets no subsystems")
+
+			var notes []string
+
+			for _, n := range got.Notes {
+				if strings.Contains(n, "module.yaml declares") {
+					notes = append(notes, n)
+				}
+			}
+
+			if tc.want == "" {
+				assert.Empty(t, notes)
+			} else {
+				assert.Equal(t, []string{tc.want}, notes)
+			}
+
+			content, err := Marshal(got)
+			require.NoError(t, err)
+			assert.NotContains(t, string(content), "\nsubsystems:", "the written file has no subsystems key")
+
+			_, err = rbacyaml.Parse(content)
+			require.NoError(t, err, "the written file parses")
+		})
+	}
+}

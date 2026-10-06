@@ -53,9 +53,10 @@ type Declaration struct {
 	// parsed marks a declaration read by Parse: its resources carry their Position in the file.
 	parsed bool
 
-	// Subsystems are the lineages the module's system capabilities aggregate into. Empty means
-	// "the subsystems of module.yaml"; a module whose templates aggregate into more subsystems
-	// than module.yaml declares must set it (kube-dns, kube-proxy, istio).
+	// Subsystems is no longer read: the system capabilities aggregate into the subsystems of
+	// module.yaml, which the platform test (testing/rbacv2 in deckhouse) holds equal to the lineages
+	// they carry. The key still parses, so that a file written by an earlier dmt gets a finding that
+	// says where the subsystems go, rather than an unknown key.
 	Subsystems []string `yaml:"subsystems,omitempty"`
 
 	Resources []Resource `yaml:"resources,omitempty"`
