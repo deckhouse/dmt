@@ -73,8 +73,9 @@ var (
 
 // ContractRule checks the rendered RBACv2 ClusterRoles of a module against the platform's label
 // and naming contract -- the first part of deckhouse/testing/rbacv2/rbacv2_templates_validation_test.go,
-// so that a module outside the platform repository is held to the same contract. It works on
-// rendered objects, not template text, and needs no rbac.yaml.
+// and the module.yaml subsystems of TestRBACv2ModuleSubsystemsValidation in
+// rbacv2_legacy_aliases_test.go -- so that a module outside the platform repository is held to the
+// same contract. It works on rendered objects, not template text, and needs no rbac.yaml.
 //
 // One check is new here: a cluster-scoped resource inside a namespace capability. Such a rule
 // grants nothing through the RoleBinding the capability is bound with. It is reported as a
@@ -106,7 +107,14 @@ func NewContractRule(excludeRules []pkg.KindRuleExclude, m pkg.Module, errorList
 
 func (r *ContractRule) Check(_ context.Context) {
 	scopes := r.resourceScopes()
-	own, unrendered := ownSubsystems(r.module)
+
+	// A module.yaml that does not parse is the module linter's finding, and gives none.
+	meta, metaErr := readModuleMetadata(r.module.GetPath())
+	if metaErr != nil {
+		meta = moduleMetadata{}
+	}
+
+	own, unrendered := splitSubsystems(meta.Subsystems, renderedSubsystems(r.module))
 
 	for _, s := range unrendered {
 		if replacement, ok := rbaccontract.ReplacementOf(s); ok {
@@ -138,6 +146,10 @@ func (r *ContractRule) Check(_ context.Context) {
 	}
 
 	sort.Slice(objects, func(i, j int) bool { return objects[i].Unstructured.GetName() < objects[j].Unstructured.GetName() })
+
+	if metaErr == nil {
+		r.checkModuleSubsystems(objects, meta.Subsystems, own)
+	}
 
 	// Two capabilities with one marker are indistinguishable to the console and to everything that
 	// selects a capability by it.
@@ -185,22 +197,93 @@ func (r *ContractRule) Check(_ context.Context) {
 	}
 }
 
-// ownSubsystems are the subsystems of the module's own: a module may ship one, with
-// its d8:subsystem:<name>:<level> roles and the capabilities that aggregate into it. unrendered are
-// the other subsystems module.yaml declares beyond the platform's -- a typo, or a subsystem with no
-// role to aggregate into. A module.yaml that does not parse is the module linter's finding, and
-// gives none.
-func ownSubsystems(m pkg.Module) (map[string]bool, []string) {
-	meta, err := readModuleMetadata(m.GetPath())
-	if err != nil {
-		return map[string]bool{}, nil
+// checkModuleSubsystems holds the module.yaml subsystems to the lineages the module's system
+// capabilities carry, as TestRBACv2ModuleSubsystemsValidation in deckhouse/testing/rbacv2 does: the
+// documentation and the console read module.yaml, the aggregation controller reads the labels, and
+// nothing else ties the two together. The two sets must be equal, the system lineage left out. A
+// module that renders no system capability is not judged, as the platform test skips a module
+// without manage templates.
+//
+// Each side leaves out what another finding already names: a module.yaml subsystem that is neither
+// the platform's nor the module's own (unrendered, or of the legacy scheme), and a lineage that is
+// no subsystem of either (an unknown lineage). A subsystem of the module's own is compared as any
+// other.
+func (r *ContractRule) checkModuleSubsystems(objects []storage.StoreObject, declared []string, own map[string]bool) {
+	isSubsystem := func(name string) bool { return rbaccontract.IsSubsystem(name) || own[name] }
+
+	carried := map[string]bool{}
+	capabilities := 0
+
+	for _, object := range objects {
+		labels := object.Unstructured.GetLabels()
+		if labels[rbaccontract.LabelKind] != rbaccontract.KindCapability || labels[rbaccontract.LabelScope] != "system" {
+			continue
+		}
+
+		capabilities++
+
+		for key := range labels {
+			if m := aggregateLabelRe.FindStringSubmatch(key); m != nil && m[1] != rbaccontract.LineageSystem && isSubsystem(m[1]) {
+				carried[m[1]] = true
+			}
+		}
 	}
 
-	return splitSubsystems(meta.Subsystems, renderedSubsystems(m))
+	if capabilities == 0 {
+		return
+	}
+
+	known := map[string]bool{}
+
+	for _, s := range declared {
+		if isSubsystem(s) {
+			known[s] = true
+		}
+	}
+
+	var missing, extra []string
+
+	for _, s := range slices.Sorted(maps.Keys(carried)) {
+		if !known[s] {
+			missing = append(missing, s)
+		}
+	}
+
+	for _, s := range slices.Sorted(maps.Keys(known)) {
+		if !carried[s] {
+			extra = append(extra, s)
+		}
+	}
+
+	if len(missing) == 0 && len(extra) == 0 {
+		return
+	}
+
+	var advice []string
+
+	if len(missing) > 0 {
+		advice = append(advice, fmt.Sprintf("declare %s in module.yaml subsystems", strings.Join(missing, ", ")))
+	}
+
+	if len(extra) > 0 {
+		pronoun := "it"
+		if len(extra) > 1 {
+			pronoun = "them"
+		}
+
+		advice = append(advice, fmt.Sprintf("aggregate the system capabilities into %s (with %s, `%s` does) or remove %s from module.yaml subsystems",
+			strings.Join(extra, ", "), rbacyaml.Filename, FixCommand, pronoun))
+	}
+
+	r.errorList.WithFilePath("module.yaml").
+		Errorf("module.yaml subsystems: declares [%s], but the system capabilities aggregate into [%s]; the two must be the same set, as testing/rbacv2 in deckhouse requires (the documentation and the console read module.yaml, the aggregation controller the labels): %s",
+			strings.Join(slices.Sorted(maps.Keys(known)), ", "), strings.Join(slices.Sorted(maps.Keys(carried)), ", "), strings.Join(advice, "; "))
 }
 
 // splitSubsystems sorts the non-platform subsystems of module.yaml into those the render backs with
-// roles (own) and the rest (unrendered, sorted and without duplicates). A subsystem of the legacy
+// roles (own: a module may ship a subsystem of its own, with its d8:subsystem:<name>:<level> roles
+// and the capabilities that aggregate into it) and the rest (unrendered, sorted and without
+// duplicates: a typo, or a subsystem with no role to aggregate into). A subsystem of the legacy
 // scheme is never the module's own, even when the render holds a role for it: the role model
 // replaced it with one of its own subsystems.
 func splitSubsystems(declared []string, rendered map[string]bool) (map[string]bool, []string) {

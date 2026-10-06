@@ -148,8 +148,8 @@ func Validate(d *Declaration, crds CRDScopes) []error {
 	return ValidateFor(d, crds, nil)
 }
 
-// ValidateFor is Validate for a module whose module.yaml declares the given subsystems: one of
-// them that is not the platform's is the module's own, and the declaration may aggregate into it.
+// ValidateFor is Validate for a module whose module.yaml declares the given subsystems: a
+// subsystems list the declaration still carries is reported with the ones module.yaml lacks.
 func ValidateFor(d *Declaration, crds CRDScopes, moduleSubsystems []string) []error {
 	var errs []error
 
@@ -163,15 +163,8 @@ func ValidateFor(d *Declaration, crds CRDScopes, moduleSubsystems []string) []er
 
 	validateNoTemplateText(reflect.ValueOf(d).Elem(), "", report)
 
-	for _, s := range d.Subsystems {
-		if replacement, ok := rbaccontract.ReplacementOf(s); ok {
-			report("subsystems: %q is a subsystem of the legacy scheme, which the role model replaced with %q", s, replacement)
-			continue
-		}
-
-		if !rbaccontract.IsSubsystem(s) && !slices.Contains(moduleSubsystems, s) {
-			report("subsystems: %q is not a subsystem of the role model (%s) nor one module.yaml declares for the module", s, strings.Join(rbaccontract.Subsystems, ", "))
-		}
+	if len(d.Subsystems) > 0 {
+		report("%s", subsystemsFinding(d.Subsystems, moduleSubsystems))
 	}
 
 	seen := make(map[string]struct{}, len(d.Resources))
@@ -224,6 +217,34 @@ func ValidateFor(d *Declaration, crds CRDScopes, moduleSubsystems []string) []er
 	sort.SliceStable(errs, func(i, j int) bool { return errs[i].Error() < errs[j].Error() })
 
 	return errs
+}
+
+// subsystemsFinding is the finding on a subsystems list of the declaration: the system capabilities
+// aggregate into the subsystems of module.yaml only, which the platform test holds equal to the
+// lineages they carry, so the finding names what module.yaml has to declare. A subsystem of the
+// legacy scheme is named by the subsystem of the role model that replaced it.
+func subsystemsFinding(listed, moduleSubsystems []string) string {
+	var missing []string
+
+	for _, s := range listed {
+		if replacement, ok := rbaccontract.ReplacementOf(s); ok {
+			s = replacement
+		}
+
+		if !slices.Contains(moduleSubsystems, s) && !slices.Contains(missing, s) {
+			missing = append(missing, s)
+		}
+	}
+
+	why := fmt.Sprintf("subsystems: %s no longer sets the subsystems; the system capabilities aggregate into the subsystems of module.yaml, which testing/rbacv2 in deckhouse holds equal to the lineages they carry", Filename)
+
+	if len(missing) == 0 {
+		return fmt.Sprintf("%s; module.yaml declares every one of them already: remove subsystems from %s", why, Filename)
+	}
+
+	slices.Sort(missing)
+
+	return fmt.Sprintf("%s; declare %s in module.yaml subsystems and remove subsystems from %s", why, strings.Join(missing, ", "), Filename)
 }
 
 type reporter func(format string, args ...any)
