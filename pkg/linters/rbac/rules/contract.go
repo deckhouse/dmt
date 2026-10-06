@@ -209,11 +209,18 @@ func (r *ContractRule) Check(_ context.Context) {
 // without manage templates.
 //
 // Each side leaves out what another finding already names: a module.yaml subsystem that is neither
-// the platform's nor the module's own (unrendered, or of the legacy scheme), and a lineage that is
-// no subsystem of either (an unknown lineage). A subsystem of the module's own is compared as any
-// other.
+// the platform's nor the module's own (unrendered, or of the legacy scheme), the namespace and project
+// lineages (a system capability must not carry them, checkCapability), and a lineage that is no
+// subsystem of either (an unknown lineage, the legacy ones among them). A subsystem of the module's
+// own is compared as any other.
 func (r *ContractRule) checkModuleSubsystems(objects []storage.StoreObject, declared []string, own map[string]bool) {
-	isSubsystem := func(name string) bool { return rbaccontract.IsSubsystem(name) || own[name] }
+	isSubsystem := func(name string) bool {
+		if name == rbaccontract.LineageNamespace || name == rbaccontract.LineageProject {
+			return false
+		}
+
+		return rbaccontract.IsSubsystem(name) || own[name]
+	}
 
 	carried := map[string]bool{}
 	capabilities := 0
@@ -593,6 +600,31 @@ func checkCapability(role *rbacv1.ClusterRole, scope string, scopes rbacyaml.CRD
 
 	if !aggregates {
 		errorList.Errorf("capability %q does not aggregate into any role (no aggregate-to-*-as labels)", name)
+	}
+
+	// A system capability aggregates into the system lineage and the subsystems. testing/rbacv2 in
+	// deckhouse takes every other lineage it carries for a module.yaml subsystem, and the namespace
+	// and project lineages are none: the module.yaml comparison leaves them out, and this is their
+	// one finding.
+	if scope == rbaccontract.LineageSystem {
+		var lineages, keys []string
+
+		for _, lineage := range []string{rbaccontract.LineageNamespace, rbaccontract.LineageProject} {
+			key := rbaccontract.AggregationLabelPrefix + lineage + rbaccontract.AggregationLabelSuffix
+			if _, ok := labels[key]; ok {
+				lineages = append(lineages, lineage)
+				keys = append(keys, key)
+			}
+		}
+
+		switch len(lineages) {
+		case 1:
+			errorList.Errorf("capability %q is a system capability and must not aggregate into the %s lineage: remove the %s label",
+				name, lineages[0], keys[0])
+		case 2:
+			errorList.Errorf("capability %q is a system capability and must not aggregate into the %s lineages: remove the %s labels",
+				name, strings.Join(lineages, " and "), strings.Join(keys, " and "))
+		}
 	}
 
 	marker := labels[rbaccontract.LabelCapability]

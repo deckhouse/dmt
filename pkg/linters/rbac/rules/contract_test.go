@@ -615,3 +615,55 @@ func TestContract_ModuleSubsystemsLeaveOutWhatIsReported(t *testing.T) {
 	assert.Contains(t, got, `targets unknown lineage "infra"`)
 	assert.NotContains(t, got, "but the system capabilities aggregate into")
 }
+
+// A system capability that aggregates into the namespace or project lineage fails the platform test
+// whatever module.yaml declares: it takes every lineage but system for a module.yaml subsystem, and
+// these two are none. The capability gets one finding, and the module.yaml comparison leaves the two
+// lineages out (review of #480, finding 13).
+func TestContract_SystemCapabilityOutsideTheSubsystemLineages(t *testing.T) {
+	capability := func(lineages ...string) rendered {
+		labels := map[string]string{"module": "cert-manager",
+			"rbac.deckhouse.io/kind":       "capability",
+			"rbac.deckhouse.io/scope":      "system",
+			"rbac.deckhouse.io/capability": "system-capability.cert-manager.view",
+		}
+		for _, lineage := range lineages {
+			labels["rbac.deckhouse.io/aggregate-to-"+lineage+"-as"] = "viewer"
+		}
+
+		return rendered{"templates/rbacv2/manage/view.yaml", clusterRole("d8:system-capability:cert-manager:view", labels, i18n,
+			"rules:\n- apiGroups: [cert-manager.io]\n  resources: [clusterissuers]\n  verbs: [get, list, watch]\n")}
+	}
+
+	for name, tc := range map[string]struct {
+		moduleYAML string
+		lineages   []string
+		want       string
+	}{
+		"the namespace lineage": {
+			moduleYAML: "name: cert-manager\nsubsystems: [security]\n",
+			lineages:   []string{"system", "security", "namespace"},
+			want:       `error: capability "d8:system-capability:cert-manager:view" is a system capability and must not aggregate into the namespace lineage: remove the rbac.deckhouse.io/aggregate-to-namespace-as label`,
+		},
+		"the project lineage": {
+			moduleYAML: "name: cert-manager\nsubsystems: [security]\n",
+			lineages:   []string{"system", "security", "project"},
+			want:       `error: capability "d8:system-capability:cert-manager:view" is a system capability and must not aggregate into the project lineage: remove the rbac.deckhouse.io/aggregate-to-project-as label`,
+		},
+		"both lineages, one finding": {
+			moduleYAML: "name: cert-manager\nsubsystems: [security]\n",
+			lineages:   []string{"system", "security", "namespace", "project"},
+			want:       `error: capability "d8:system-capability:cert-manager:view" is a system capability and must not aggregate into the namespace and project lineages: remove the rbac.deckhouse.io/aggregate-to-namespace-as and rbac.deckhouse.io/aggregate-to-project-as labels`,
+		},
+		"module.yaml declares no subsystem": {
+			moduleYAML: "name: cert-manager\n",
+			lineages:   []string{"system", "namespace"},
+			want:       `error: capability "d8:system-capability:cert-manager:view" is a system capability and must not aggregate into the namespace lineage: remove the rbac.deckhouse.io/aggregate-to-namespace-as label`,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := runContract(t, writeModule(t, map[string]string{"module.yaml": tc.moduleYAML}), capability(tc.lineages...))
+			assert.Equal(t, []string{tc.want}, got)
+		})
+	}
+}
