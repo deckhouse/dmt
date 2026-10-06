@@ -77,6 +77,10 @@ var (
 // rbacv2_legacy_aliases_test.go -- so that a module outside the platform repository is held to the
 // same contract. It works on rendered objects, not template text, and needs no rbac.yaml.
 //
+// One extension holds for a module outside the deckhouse tree only: a subsystem of the module's
+// own, declared in module.yaml and backed by its rendered d8:subsystem:<name>:<level> roles. The
+// platform test keeps the closed list of the eight DKP subsystems for an in-tree module.
+//
 // One check is new here: a cluster-scoped resource inside a namespace capability. Such a rule
 // grants nothing through the RoleBinding the capability is bound with. It is reported as a
 // warning: three in-tree modules carry such rules today, and it becomes an error once they are
