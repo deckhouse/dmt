@@ -777,7 +777,9 @@ func TestBuild_UnmanagedOnce(t *testing.T) {
 
 // The declaration sets no subsystems: when the rendered system capabilities aggregate into other
 // subsystems than module.yaml declares, a note proposes the module.yaml change, the written file
-// carries no subsystems key, and the system lineage is no subsystem (review of #480, finding 13).
+// carries no subsystems key, and the system lineage is no subsystem. The note proposes only what
+// contract accepts in module.yaml: a lineage of the legacy scheme as the subsystem that replaced it,
+// and no namespace, project or unknown lineage (review of #480, finding 13).
 func TestBuild_SubsystemsAreProposedForModuleYAML(t *testing.T) {
 	capability := func(action string, lineages ...string) Object {
 		labels := map[string]string{"module": "m", "rbac.deckhouse.io/kind": "capability", "rbac.deckhouse.io/scope": "system"}
@@ -817,6 +819,28 @@ func TestBuild_SubsystemsAreProposedForModuleYAML(t *testing.T) {
 		"capabilities that carry the system lineage only": {
 			subsystems: []string{"security"},
 			objects:    []Object{capability("view", "system")},
+		},
+		"a legacy lineage is proposed as its replacement": {
+			subsystems: []string{"security"},
+			objects:    []Object{capability("view", "security", "kubernetes")},
+			want:       "the system capabilities aggregate into the subsystems [cluster, security] and module.yaml declares [security]: declare cluster in module.yaml subsystems" + tail,
+		},
+		"legacy lineages whose replacement module.yaml declares": {
+			subsystems: []string{"cluster", "network"},
+			objects:    []Object{capability("view", "kubernetes", "deckhouse", "networking")},
+		},
+		"an unknown lineage is not proposed": {
+			subsystems: []string{"security"},
+			objects:    []Object{capability("view", "security", "infra")},
+		},
+		"the namespace and project lineages are not proposed": {
+			subsystems: []string{"security"},
+			objects:    []Object{capability("view", "security", "namespace", "project")},
+		},
+		"a subsystem of the module's own is proposed as any other": {
+			subsystems: []string{"virtualization"},
+			objects:    []Object{capability("view", "virtualization", "security")},
+			want:       "the system capabilities aggregate into the subsystems [security, virtualization] and module.yaml declares [virtualization]: declare security in module.yaml subsystems" + tail,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

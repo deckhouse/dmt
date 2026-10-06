@@ -1118,12 +1118,17 @@ func (b *builder) resources() {
 // subsystems: the system capabilities aggregate into those of module.yaml only, which the platform
 // test (testing/rbacv2 in deckhouse) holds equal to the lineages they carry, and contract reports
 // the difference until one side follows the other.
+//
+// It proposes only what contract accepts in module.yaml: a subsystem of the role model, or one of
+// the module's own (b.in.Subsystems holds those of module.yaml the render backs). A lineage of the
+// legacy scheme is proposed as the subsystem that replaced it; the system, namespace and project
+// lineages and an unknown one are not, as contract reports the label itself.
 func (b *builder) noteSubsystems() {
 	var carried []string
 
 	for l := range b.lineages {
-		if l != rbaccontract.LineageSystem {
-			carried = append(carried, l)
+		if s, ok := b.carriedSubsystem(l); ok && !slices.Contains(carried, s) {
+			carried = append(carried, s)
 		}
 	}
 
@@ -1171,6 +1176,28 @@ func (b *builder) noteSubsystems() {
 
 	b.note("the system capabilities aggregate into the subsystems [%s] and module.yaml declares [%s]: %s. The declaration takes the subsystems from module.yaml only, so the --fix of the templates follows module.yaml, and contract reports the difference until the two agree",
 		strings.Join(carried, ", "), strings.Join(declared, ", "), strings.Join(change, "; "))
+}
+
+// carriedSubsystem maps a lineage a system capability carries to the module.yaml subsystem it stands
+// for: a subsystem of the role model or of the module's own is itself, and a lineage of the legacy
+// scheme is the subsystem that replaced it, as the unknown-lineage finding of contract and the
+// subsystems finding of rbac.yaml name it. False for the system, namespace and project lineages and
+// for an unknown one, which module.yaml cannot declare.
+func (b *builder) carriedSubsystem(lineage string) (string, bool) {
+	if replacement, ok := rbaccontract.ReplacementOf(lineage); ok {
+		return replacement, true
+	}
+
+	switch lineage {
+	case rbaccontract.LineageSystem, rbaccontract.LineageNamespace, rbaccontract.LineageProject:
+		return "", false
+	}
+
+	if rbaccontract.IsSubsystem(lineage) || slices.Contains(b.in.Subsystems, lineage) {
+		return lineage, true
+	}
+
+	return "", false
 }
 
 // componentOf returns the component directory of templates/<component>/<file>, "" for the root file
