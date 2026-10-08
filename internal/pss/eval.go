@@ -26,8 +26,8 @@ import (
 )
 
 const (
-	speAPIVersion = "deckhouse.io/v1alpha1"
-	speKind       = "SecurityPolicyException"
+	SPEAPIVersion = "deckhouse.io/v1alpha1"
+	SPEKind       = "SecurityPolicyException"
 )
 
 // Violation is one entry of a constraint's `violation` set.
@@ -95,7 +95,7 @@ func Inventory(objects []map[string]any) map[string]any {
 	byNS := map[string]any{}
 
 	for _, o := range objects {
-		if o["apiVersion"] != speAPIVersion || o["kind"] != speKind {
+		if o["apiVersion"] != SPEAPIVersion || o["kind"] != SPEKind {
 			continue
 		}
 
@@ -105,11 +105,11 @@ func Inventory(objects []map[string]any) map[string]any {
 
 		nsMap, ok := byNS[ns].(map[string]any)
 		if !ok {
-			nsMap = map[string]any{speAPIVersion: map[string]any{speKind: map[string]any{}}}
+			nsMap = map[string]any{SPEAPIVersion: map[string]any{SPEKind: map[string]any{}}}
 			byNS[ns] = nsMap
 		}
 
-		nsMap[speAPIVersion].(map[string]any)[speKind].(map[string]any)[name] = o
+		nsMap[SPEAPIVersion].(map[string]any)[SPEKind].(map[string]any)[name] = o
 	}
 
 	return map[string]any{"namespace": byNS}

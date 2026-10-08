@@ -70,6 +70,8 @@ type ContainerRules struct {
 	MountPointsRule              RuleConfig `mapstructure:"mount-points"`
 	SysCgroupMountRule           RuleConfig `mapstructure:"sys-cgroup-mount"`
 	PodSecurityStandardsRule     RuleConfig `mapstructure:"pod-security-standards"`
+	SPEDescriptionRule           RuleConfig `mapstructure:"security-policy-exception-description"`
+	SPEUnusedRule                RuleConfig `mapstructure:"security-policy-exception-unused"`
 }
 
 type ImagesLinterConfig struct {

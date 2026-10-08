@@ -45,6 +45,8 @@ Proper container configuration is critical for cluster stability, security, and 
 | [seccomp-profile](#seccomp-profile) | Validates seccomp profile configuration | ✅ | enabled |
 | [sys-cgroup-mount](#sys-cgroup-mount) | Requires `/sys/fs/cgroup` when a container mounts the host `/sys` | ✅ | enabled |
 | [pod-security-standards](#pod-security-standards) | Validates workloads in `d8-*`/`kube-*` against Pod Security Standards (restricted) with SecurityPolicyExceptions | ✅ | enabled |
+| [security-policy-exception-description](#security-policy-exception-description) | Requires `metadata.description` on every allowance of a SecurityPolicyException | ✅ | enabled |
+| [security-policy-exception-unused](#security-policy-exception-unused) | Warns about SecurityPolicyExceptions no pod template refers to | ✅ | enabled (warning) |
 
 "Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
@@ -1490,6 +1492,86 @@ linters-settings:
     rules:
       pod-security-standards:
         impact: ignored  # disable the rule
+```
+
+### security-policy-exception-description
+
+**Purpose:** Every allowance of a `SecurityPolicyException` must explain why it is needed: the descriptions make up the documentation of component privileges for certification.
+
+**Description:**
+
+Checks every rendered `SecurityPolicyException` (in any namespace). An allowance is every node of `spec` holding `allowedValue` or `allowedValues`, plus, following the CRD, each item of `spec.volumes.hostPath.allowedValues` and each item of `spec.network.hostPorts` (these carry `metadata` per item, not per node). Each allowance needs a non-empty `metadata.description`; whitespace and `TODO` (any case) count as missing. One finding per allowance.
+
+**Error:**
+```
+SecurityPolicyException d8-my-module/agent: allowance spec.securityContext.runAsUser has no metadata.description
+SecurityPolicyException d8-my-module/agent: allowance spec.volumes.hostPath.allowedValues[1] has no metadata.description
+```
+
+**Fix:**
+```yaml
+spec:
+  securityContext:
+    runAsUser:
+      allowedValues: [0]
+      metadata:
+        description: The agent manages iptables rules on the node.
+  volumes:
+    hostPath:
+      allowedValues:
+      - path: /run/xtables.lock
+        readOnly: false
+        metadata:
+          description: Host xtables lock used to serialize iptables updates.
+```
+
+**Configuration:**
+
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  container:
+    rules:
+      security-policy-exception-description:
+        impact: warn
+```
+
+### security-policy-exception-unused
+
+**Purpose:** Finds dead `SecurityPolicyException` objects.
+
+**Description:**
+
+Reports a rendered `SecurityPolicyException` that no rendered Pod, Deployment, StatefulSet, DaemonSet, ReplicationController, Job or CronJob of the same namespace refers to through the `security.deckhouse.io/security-policy-exception` or `security.deckhouse.io/security-policy-exception.container.<name>` label of its pod template (`metadata.labels` for a Pod).
+
+The default level is **warning**: dmt renders with default values only, so a component behind a feature flag may not render while its SPE does.
+
+**Warning:**
+```
+SecurityPolicyException d8-my-module/agent is not referenced by any rendered pod template of its namespace (label security.deckhouse.io/security-policy-exception or security.deckhouse.io/security-policy-exception.container.<container>)
+```
+
+**Configuration:**
+
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  container:
+    rules:
+      security-policy-exception-unused:
+        impact: error  # or ignored
+```
+
+SPEs of pods helm does not render — static pods of the control plane, pods an operator creates — are never referenced from rendered templates. Exclude them by SPE name (any namespace); excluded SPEs are reported as ignored (`--show-ignored`):
+
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  container:
+    exclude-rules:
+      security-policy-exception-unused:
+        - kube-apiserver
+        - scan-vulnerabilityreport
 ```
 
 ## Configuration

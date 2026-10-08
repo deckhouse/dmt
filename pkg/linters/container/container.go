@@ -93,6 +93,8 @@ func (l *Container) rules(objects []rules.ObjectContainers) []pkg.Rule {
 		rules.NewControllerSecurityContextRule(cfg.ExcludeRules.ControllerSecurityContext.Get(), m, level(cfg.Rules.ControllerSecurityContextRule)),
 		rules.NewRevisionHistoryLimitRule(m, level(cfg.Rules.NewRevisionHistoryLimitRule)),
 		rules.NewPodSecurityStandardsRule(m, level(cfg.Rules.PodSecurityStandardsRule)),
+		rules.NewSecurityPolicyExceptionDescriptionRule(m, level(cfg.Rules.SPEDescriptionRule)),
+		rules.NewSecurityPolicyExceptionUnusedRule(cfg.ExcludeRules.SecurityPolicyExceptionUnused.Get(), m, level(cfg.Rules.SPEUnusedRule)),
 
 		// container-scoped, over every container including init ones
 		rules.NewNameDuplicatesRule(objects, level(cfg.Rules.NameDuplicatesRule)),

@@ -410,6 +410,8 @@ type ContainerLinterRules struct {
 	MountPointsRule              RuleConfig
 	SysCgroupMountRule           RuleConfig
 	PodSecurityStandardsRule     RuleConfig
+	SPEDescriptionRule           RuleConfig
+	SPEUnusedRule                RuleConfig
 }
 
 type ContainerExcludeRules struct {
@@ -433,6 +435,8 @@ type ContainerExcludeRules struct {
 
 	Description StringRuleExcludeList
 	MountPoints StringRuleExcludeList
+
+	SecurityPolicyExceptionUnused StringRuleExcludeList
 }
 
 type StringRuleExcludeList []string
