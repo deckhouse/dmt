@@ -792,7 +792,7 @@ func speTemplate(modulePath, name, ns string, spec []byte) string {
 		labels = fmt.Sprintf("  {{- include \"helm_lib_module_labels\" (list . (dict \"app\" %q)) | nindent 2 }}\n", name)
 	}
 
-	return fmt.Sprintf(`{{- if .Values.global.enabledModules | has "admission-policy-engine-crd" }}
+	return fmt.Sprintf(`{{- if .Values.global.enabledModules | has "admission-policy-engine" }}
 ---
 apiVersion: %s
 kind: %s
