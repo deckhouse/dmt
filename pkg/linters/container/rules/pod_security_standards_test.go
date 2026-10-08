@@ -436,7 +436,7 @@ func TestPodSecurityStandards_SPEDefaults(t *testing.T) {
 			violations, err := pss.Eval(t.Context(), pod, raw)
 			require.NoError(t, err)
 
-			got := []string{}
+			got := make([]string, 0, len(violations))
 			for _, v := range violations {
 				got = append(got, v.Standard+"/"+v.Kind)
 			}

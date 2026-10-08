@@ -211,7 +211,7 @@ spec:
 
 			objects := map[storage.ResourceIndex]storage.StoreObject{}
 
-			var spes []map[string]any
+			spes := make([]map[string]any, 0, len(tt.spes))
 
 			for name, spec := range tt.spes {
 				s := spe(t, name, spec)
