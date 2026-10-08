@@ -153,6 +153,7 @@ type TemplatesLinterRules struct {
 	EnabledModulesRule                 RuleConfig `mapstructure:"enabled-modules"`
 	CRDEnabledModulesRule              RuleConfig `mapstructure:"crd-enabled-modules"`
 	WebhookConfigurationRule           RuleConfig `mapstructure:"webhook-configuration-annotations"`
+	AlertGroupingAnnotationsRule       RuleConfig `mapstructure:"alert-grouping-annotations"`
 	MountPointsRule                    RuleConfig `mapstructure:"mount-points"`
 	HelmRenderRule                     RuleConfig `mapstructure:"helm-render"`
 	OpenAPIValuesQuoteRule             RuleConfig `mapstructure:"openapi-values-quote"`

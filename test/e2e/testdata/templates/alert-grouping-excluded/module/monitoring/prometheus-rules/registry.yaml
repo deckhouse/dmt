@@ -1,0 +1,10 @@
+- name: d8.registry
+  rules:
+    - alert: D8RegistryDrainStuck
+      expr: vector(1)
+      annotations:
+        plk_grouped_by__d8_registry_drain_stuck: "D8RegistryDrainStuck,tier=cluster"
+    - alert: D8RegistryConfigInvalid
+      expr: vector(1)
+      annotations:
+        plk_grouped_by__d8_registry_config_invalid: "D8RegistryConfigInvalid,tier=cluster"

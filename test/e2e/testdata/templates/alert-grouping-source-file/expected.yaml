@@ -1,0 +1,13 @@
+description: >
+  The rule reads monitoring/prometheus-rules straight off disk, so it catches a
+  self-grouping alert even when the module renders no PrometheusRule object at all
+  (rendering is gated behind operator-prometheus-crd being in global.enabledModules).
+  Only D8RegistryDrainStuck is broken here; D8RegistryConfigInvalid groups into a
+  properly distinct group and must stay quiet.
+module: module
+expect:
+  - linter: templates
+    rule: alert-grouping-annotations
+    level: warn
+    textContains: "\"D8RegistryDrainStuck\" is grouped into itself"
+    count: 2

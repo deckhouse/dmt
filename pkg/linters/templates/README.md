@@ -17,6 +17,7 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [ingress-rules](#ingress-rules) | Validates Ingress configuration snippets | ✅ | enabled |
 | [httproute-rules](#httproute-rules) | Validates that every Ingress has a companion HTTPRoute backed by a ListenerSet | ✅ | enabled |
 | [prometheus-rules](#prometheus-rules) | Validates Prometheus rules with promtool and proper templates | ✅ | enabled |
+| [alert-grouping-annotations](#alert-grouping-annotations) | Forbids an alert from naming itself as its own `plk_*` group | ✅ | enabled (warn) |
 | [grafana-dashboards](#grafana-dashboards) | Validates Grafana dashboard templates | ✅ | enabled |
 | [cluster-domain](#cluster-domain) | Validates cluster domain configuration is dynamic | ❌ | enabled |
 | [registry](#registry) | Validates registry secret configuration | ❌ | enabled |
@@ -1387,6 +1388,95 @@ linters-settings:
 ```
 
 ---
+
+### alert-grouping-annotations
+
+**Purpose:** Forbids an alerting rule from grouping into a group that carries the alert's own name. The alerts processing system treats such a rule as a circular dependency and refuses to create the event at all, so the alert is never delivered.
+
+**Description:**
+
+Alerts declare their grouping through two annotations whose key suffix ties them together and whose value starts with the name of the group:
+
+- `plk_create_group_if_not_exists__<suffix>` — create the group if it does not exist yet;
+- `plk_grouped_by__<suffix>` — put this alert into that group.
+
+The value is a comma-separated list: the first element is the group name (a trigger name), the rest are label matchers. When that first element equals the alert's own name, the alert is asked to be grouped into itself. The processing system rejects it with:
+
+```
+Couldn't create event due to error: Usage of current alert's trigger (D8RegistryNodeForeignRegistryConfig)
+is forbidden in grouping to prevent circular dependencies!
+```
+
+The alert is then dropped rather than delivered, and the rejection is reported as a `BadAnnotations` exception — which is why this is worth catching before the rules ever reach a cluster.
+
+**What it checks:**
+
+1. Every alerting rule (a rule with an `alert` field) found in the module's `monitoring/prometheus-rules` files, and in any rendered `PrometheusRule` object
+2. For each annotation whose key starts with `plk_create_group_if_not_exists__` or `plk_grouped_by__`, the group name — the value up to the first comma, trimmed — must differ from the alert's name
+3. Recording rules are skipped: they have no `alert` field and are never grouped
+4. Group names are compared exactly; a differently-cased name is a genuinely different trigger and is not reported
+
+Both annotations of a broken pair are reported, so a partial fix does not leave one behind unnoticed, and a finding carries the annotation's line number.
+
+Rule files are read as `*.yaml`, `*.yml` and `*.tpl`, matching the `**.{yaml,tpl}` glob `helm_lib_prometheus_rules` uses. Template files are frequently not valid YAML on their own; for those the rule falls back to a line scan that attributes each grouping annotation to the nearest preceding `- alert:` line.
+
+Names built by a template are compared with substitution in mind. `- alert: {{ $controllerKind }}ImageAbsent` is the alert `DeploymentImageAbsent` once rendered for that kind, so a group named `DeploymentImageAbsent` collides with it and is reported, while an unrelated group such as `UnavailableImagesInNamespace` is not. When both the alert and the group are templated they render in the same context, so they are compared as plain text.
+
+The rule reads the source files rather than relying on rendered objects alone, because `helm_lib_prometheus_rules` only emits `PrometheusRule` objects when `global.enabledModules` contains `operator-prometheus-crd`. On a full deckhouse lint that is not the case, no such object exists, and an object-only check would pass while the broken annotations sit in the files. A rule file that does not parse is skipped — that is the promtool check's finding, not this one's. Findings are deduplicated on the alert and annotation, so an alert reached through both paths is reported once.
+
+**Why it matters:**
+
+A self-grouping alert does not degrade gracefully. It is not delivered late or in the wrong group — it is not delivered at all, while the alerting system fills with `BadAnnotations` errors for every evaluation. Because the rules are valid YAML and pass `promtool`, nothing else in the pipeline catches this.
+
+**Default level:**
+
+This rule reports at `warn` by default. Most of what it checks is an exact comparison with no room for a false positive, but not all of it: a templated name is matched by pattern, and an alert behind a conditional is read whether or not it renders, so a finding can name a collision that never happens. A rule carries one impact, and it has to cover the inferred half. Raise it with `impact: error` where the modules use no templated alert names.
+
+**Examples:**
+
+❌ **Incorrect** - the group is named after the alert itself:
+
+```yaml
+- alert: D8RegistryDrainStuck
+  expr: vector(1)
+  annotations:
+    plk_create_group_if_not_exists__d8_registry_drain_stuck: "D8RegistryDrainStuck,tier=cluster,prometheus=deckhouse"
+    plk_grouped_by__d8_registry_drain_stuck: "D8RegistryDrainStuck,tier=cluster,prometheus=deckhouse"
+```
+
+✅ **Correct** - the alert is grouped into a group of its own name space:
+
+```yaml
+- alert: D8RegistryDrainStuck
+  expr: vector(1)
+  annotations:
+    plk_create_group_if_not_exists__d8_registry_alerts: "D8RegistryAlerts,tier=cluster,prometheus=deckhouse"
+    plk_grouped_by__d8_registry_alerts: "D8RegistryAlerts,tier=cluster,prometheus=deckhouse"
+```
+
+**Configuration:**
+
+The severity lives in the `global` section, which is where per-rule `impact` is read from; a module's own `linters-settings` carries the exclusions. Both can sit in the same `.dmtlint.yaml`:
+
+```yaml
+# raise the rule from its warn default once your modules are clean
+global:
+  linters-settings:
+    templates:
+      rules:
+        alert-grouping-annotations:
+          impact: error
+
+# silence individual alerts by name
+linters-settings:
+  templates:
+    exclude-rules:
+      alert-grouping-annotations:
+        - D8RegistryDrainStuck
+        - D8RegistryConfigInvalid
+```
+
+Because the default is pinned to `warn` rather than to the linter's impact, raising `templates.impact` alone does not raise this rule — set its own `impact` as above.
 
 ### grafana-dashboards
 

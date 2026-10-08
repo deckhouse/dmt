@@ -1,0 +1,7 @@
+description: >
+  An alert grouped into a group named differently from the alert is correct and
+  must not be flagged by the alert-grouping-annotations rule.
+module: module
+expectPass:
+  - linter: templates
+    rule: alert-grouping-annotations
