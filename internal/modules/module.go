@@ -329,6 +329,10 @@ func mapContainerRules(linterSettings *pkg.LintersSettings, configSettings *conf
 		globalConfig.Container.Rules.SPEDescriptionRule.Impact,
 		configSettings.Container.Impact,
 	)
+	linterSettings.Container.Rules.SPESchemaRule.SetLevel(
+		globalConfig.Container.Rules.SPESchemaRule.Impact,
+		configSettings.Container.Impact,
+	)
 	// security-policy-exception-unused defaults to warn: a component behind a feature
 	// flag may not render with default values, leaving its SPE unreferenced.
 	linterSettings.Container.Rules.SPEUnusedRule.SetLevel(

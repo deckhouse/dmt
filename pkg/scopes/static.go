@@ -79,6 +79,7 @@ var staticRules = map[string]set.Set{
 		containerrules.RevisionHistoryLimitRuleName,
 		containerrules.SeccompProfileRuleName,
 		containerrules.SecurityPolicyExceptionDescriptionRuleName,
+		containerrules.SecurityPolicyExceptionSchemaRuleName,
 		containerrules.SecurityPolicyExceptionUnusedRuleName,
 		containerrules.SysCgroupMountRuleName,
 	),

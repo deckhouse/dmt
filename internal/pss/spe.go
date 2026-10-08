@@ -29,6 +29,8 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	structuralschema "k8s.io/apiextensions-apiserver/pkg/apiserver/schema"
 	"k8s.io/apiextensions-apiserver/pkg/apiserver/schema/defaulting"
+	"k8s.io/apiextensions-apiserver/pkg/apiserver/schema/pruning"
+	"k8s.io/apiextensions-apiserver/pkg/apiserver/validation"
 	utiljson "k8s.io/apimachinery/pkg/util/json"
 	"sigs.k8s.io/yaml"
 )
@@ -60,12 +62,18 @@ var speCRD = sync.OnceValues(func() (*speSchema, error) {
 		return nil, fmt.Errorf("pss: SecurityPolicyException CRD: structural schema: %w", err)
 	}
 
-	return &speSchema{paths: paths, structural: structural}, nil
+	validator, _, err := validation.NewSchemaValidator(root)
+	if err != nil {
+		return nil, fmt.Errorf("pss: SecurityPolicyException CRD: schema validator: %w", err)
+	}
+
+	return &speSchema{paths: paths, structural: structural, validator: validator}, nil
 })
 
 type speSchema struct {
 	paths      [][]string
 	structural *structuralschema.Structural
+	validator  validation.SchemaValidator
 }
 
 // SPEAllowancePaths returns the allowances of SecurityPolicyException (SPEAPIVersion)
@@ -95,6 +103,38 @@ func DefaultSPE(obj map[string]any) (map[string]any, error) {
 	}
 
 	defaulting.Default(res, s.structural)
+
+	return res, nil
+}
+
+// ValidateSPE checks a SecurityPolicyException object against the CRD schema the way
+// the apiserver does on create: unknown fields (pruned by the apiserver, rejected by
+// strict field validation), then the defaulted object against openAPIV3Schema.
+// x-kubernetes-validations (CEL) are not evaluated: the CRD has none. Returns one
+// message per problem, field path first.
+func ValidateSPE(obj map[string]any) ([]string, error) {
+	s, err := speCRD()
+	if err != nil {
+		return nil, err
+	}
+
+	o, err := jsonCopy(obj)
+	if err != nil {
+		return nil, err
+	}
+
+	var res []string
+
+	unknown := pruning.PruneWithOptions(o, s.structural, true, structuralschema.UnknownFieldPathOptions{TrackUnknownFieldPaths: true})
+	for _, p := range unknown {
+		res = append(res, fmt.Sprintf("%s: unknown field", p))
+	}
+
+	defaulting.Default(o, s.structural)
+
+	for _, e := range validation.ValidateCustomResource(nil, o, s.validator) {
+		res = append(res, e.Error())
+	}
 
 	return res, nil
 }

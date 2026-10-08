@@ -32,6 +32,7 @@ import (
 const (
 	SecurityPolicyExceptionDescriptionRuleName = "security-policy-exception-description"
 	SecurityPolicyExceptionUnusedRuleName      = "security-policy-exception-unused"
+	SecurityPolicyExceptionSchemaRuleName      = "security-policy-exception-schema"
 
 	speRefLabel             = "security.deckhouse.io/security-policy-exception"
 	speContainerLabelPrefix = speRefLabel + ".container."
@@ -196,5 +197,48 @@ func (r *SecurityPolicyExceptionUnusedRule) Check(_ context.Context) {
 		errorList.Errorf("SecurityPolicyException %s/%s is not referenced by any rendered pod template of its namespace "+
 			"(label %s or %s<container>)",
 			o.Unstructured.GetNamespace(), o.Unstructured.GetName(), speRefLabel, speContainerLabelPrefix)
+	}
+}
+
+func NewSecurityPolicyExceptionSchemaRule(m pkg.Module, errorList *errors.LintRuleErrorsList) *SecurityPolicyExceptionSchemaRule {
+	return &SecurityPolicyExceptionSchemaRule{
+		RuleMeta:  pkg.RuleMeta{Name: SecurityPolicyExceptionSchemaRuleName},
+		module:    m,
+		errorList: errorList.WithRule(SecurityPolicyExceptionSchemaRuleName),
+	}
+}
+
+// SecurityPolicyExceptionSchemaRule validates SecurityPolicyExceptions against the
+// openAPIV3Schema of the CRD, as the apiserver does: the PSS rego reads whatever it
+// is given and may accept an SPE the cluster rejects. pod-security-standards still
+// sees such an SPE.
+type SecurityPolicyExceptionSchemaRule struct {
+	pkg.RuleMeta
+
+	module    pkg.Module
+	errorList *errors.LintRuleErrorsList
+}
+
+var _ pkg.Rule = (*SecurityPolicyExceptionSchemaRule)(nil)
+
+func (r *SecurityPolicyExceptionSchemaRule) Check(_ context.Context) {
+	for _, o := range r.module.GetStorage() {
+		if !isSPE(o) {
+			continue
+		}
+
+		errorList := r.errorList.WithFilePath(o.GetPath()).WithObjectID(o.Identity())
+
+		problems, err := pss.ValidateSPE(o.Unstructured.Object)
+		if err != nil {
+			errorList.Errorf("Cannot validate SecurityPolicyException: %v", err)
+
+			continue
+		}
+
+		for _, p := range problems {
+			errorList.Errorf("SecurityPolicyException %s/%s does not match the CRD schema: %s",
+				o.Unstructured.GetNamespace(), o.Unstructured.GetName(), p)
+		}
 	}
 }

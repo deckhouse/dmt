@@ -15,6 +15,7 @@ func TestRemapSecurityPolicyExceptionRuleLevels(t *testing.T) {
 		settings := remapLinterSettings(&config.LintersSettings{}, &global.Linters{})
 
 		require.Equal(t, pkg.Error, *settings.Container.Rules.SPEDescriptionRule.GetLevel())
+		require.Equal(t, pkg.Error, *settings.Container.Rules.SPESchemaRule.GetLevel())
 		require.Equal(t, pkg.Warn, *settings.Container.Rules.SPEUnusedRule.GetLevel())
 	})
 
@@ -24,12 +25,14 @@ func TestRemapSecurityPolicyExceptionRuleLevels(t *testing.T) {
 				Rules: global.ContainerRules{
 					SPEDescriptionRule: global.RuleConfig{Impact: pkg.Warn.String()},
 					SPEUnusedRule:      global.RuleConfig{Impact: pkg.Error.String()},
+					SPESchemaRule:      global.RuleConfig{Impact: pkg.Warn.String()},
 				},
 			},
 		})
 
 		require.Equal(t, pkg.Warn, *settings.Container.Rules.SPEDescriptionRule.GetLevel())
 		require.Equal(t, pkg.Error, *settings.Container.Rules.SPEUnusedRule.GetLevel())
+		require.Equal(t, pkg.Warn, *settings.Container.Rules.SPESchemaRule.GetLevel())
 	})
 }
 

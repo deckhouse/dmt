@@ -46,6 +46,7 @@ Proper container configuration is critical for cluster stability, security, and 
 | [sys-cgroup-mount](#sys-cgroup-mount) | Requires `/sys/fs/cgroup` when a container mounts the host `/sys` | ✅ | enabled |
 | [pod-security-standards](#pod-security-standards) | Validates workloads in `d8-*`/`kube-*` against Pod Security Standards (restricted) with SecurityPolicyExceptions | ✅ | enabled |
 | [security-policy-exception-description](#security-policy-exception-description) | Requires `metadata.description` on every allowance of a SecurityPolicyException | ✅ | enabled |
+| [security-policy-exception-schema](#security-policy-exception-schema) | Validates SecurityPolicyExceptions against the CRD schema | ✅ | enabled |
 | [security-policy-exception-unused](#security-policy-exception-unused) | Warns about SecurityPolicyExceptions no pod template refers to | ✅ | enabled (warning) |
 
 "Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
@@ -1537,6 +1538,44 @@ linters-settings:
   container:
     rules:
       security-policy-exception-description:
+        impact: warn
+```
+
+### security-policy-exception-schema
+
+**Purpose:** Catches a `SecurityPolicyException` the apiserver rejects. The PSS policies read an SPE as given, so `pod-security-standards` may accept a malformed SPE the cluster never stores.
+
+**Description:**
+
+Validates every rendered `SecurityPolicyException` (in any namespace) against the `openAPIV3Schema` of the CRD embedded into dmt, with the apiserver code (`k8s.io/apiextensions-apiserver`): unknown fields first (the apiserver drops them, or rejects the object under strict field validation), then types, enums, patterns and required fields of the object with the schema defaults applied. One finding per problem, field path first. `pod-security-standards` still uses such an SPE as written.
+
+**Error:**
+```
+SecurityPolicyException d8-my-module/agent does not match the CRD schema: spec.securityContext.sysctls.allowedValues[0]: Invalid value: "string": spec.securityContext.sysctls.allowedValues[0] in body must be of type object: "string"
+SecurityPolicyException d8-my-module/agent does not match the CRD schema: spec.network.hostPID.allowed: unknown field
+```
+
+**Fix:**
+```yaml
+spec:
+  securityContext:
+    sysctls:
+      allowedValues:
+      - name: net.ipv4.ip_forward
+        value: "1"
+  network:
+    hostPID:
+      allowedValue: true
+```
+
+**Configuration:**
+
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  container:
+    rules:
+      security-policy-exception-schema:
         impact: warn
 ```
 

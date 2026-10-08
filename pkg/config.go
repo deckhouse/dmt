@@ -412,6 +412,7 @@ type ContainerLinterRules struct {
 	PodSecurityStandardsRule     RuleConfig
 	SPEDescriptionRule           RuleConfig
 	SPEUnusedRule                RuleConfig
+	SPESchemaRule                RuleConfig
 }
 
 type ContainerExcludeRules struct {
