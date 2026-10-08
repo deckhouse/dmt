@@ -44,6 +44,10 @@ Proper container configuration is critical for cluster stability, security, and 
 | [no-new-privileges](#no-new-privileges) | Validates containers don't allow privilege escalation | ✅ | enabled |
 | [seccomp-profile](#seccomp-profile) | Validates seccomp profile configuration | ✅ | enabled |
 | [sys-cgroup-mount](#sys-cgroup-mount) | Requires `/sys/fs/cgroup` when a container mounts the host `/sys` | ✅ | enabled |
+| [pod-security-standards](#pod-security-standards) | Validates workloads in `d8-*`/`kube-*` against Pod Security Standards (restricted) with SecurityPolicyExceptions | ✅ | enabled |
+| [security-policy-exception-description](#security-policy-exception-description) | Requires `metadata.description` on every allowance of a SecurityPolicyException | ✅ | enabled |
+| [security-policy-exception-schema](#security-policy-exception-schema) | Validates SecurityPolicyExceptions against the CRD schema | ✅ | enabled |
+| [security-policy-exception-unused](#security-policy-exception-unused) | Warns about SecurityPolicyExceptions no pod template refers to | ✅ | enabled (warning) |
 
 "Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
@@ -1459,6 +1463,180 @@ linters-settings:
         - kind: DaemonSet
           name: system-daemon
           container: system-container
+```
+
+### pod-security-standards
+
+**Purpose:** Catches at MR time what admission-policy-engine denies in the cluster: since DKP 1.79 system namespaces (`d8-*`, `kube-*`) are enforced against Pod Security Standards `restricted`, and every legitimate deviation must be described by a `SecurityPolicyException` (SPE).
+
+**Description:**
+
+The rule executes the real rego of admission-policy-engine (both `baseline` and `restricted` constraints, embedded into dmt, see `internal/pss`) with the OPA version gatekeeper uses, against every rendered Pod, Deployment, StatefulSet, DaemonSet, ReplicationController, Job and CronJob in a `d8-*`/`kube-*` namespace. The `SecurityPolicyException` objects rendered by the module are visible to the policies the same way gatekeeper sees them in the cluster, with the `default`s of the CRD schema applied (e.g. `volumes.hostPath.allowedValues[].readOnly: false`).
+
+Controllers are checked as the Pod they create (built from the pod template): the policies are lenient to a controller whose template omits `runAsUser`/`runAsNonRoot` because a mutator might set it, but the Pod itself is denied.
+
+One finding per object lists the violations: the policy kind and its message as the rego reports it (the container, if any, is named in the message), sorted, a message both standards give once. For `D8HostNetwork` dmt adds the full list of the pod's host ports (every `hostPort`, with `hostNetwork: true` every `containerPort`; protocol defaults to TCP): the policy reports them one at a time and does not check ports at all while `hostNetwork` itself is not allowed.
+
+**Error:**
+```
+Deployment/app violates Pod Security Standards (restricted) and no SecurityPolicyException covers it:
+- D8HostNetwork: The hostNetwork or hostPort are not allowed, Pod: app | hostNetwork: true | policy allows: false
+- D8HostNetwork: host ports of the pod (computed by dmt): 53/TCP, 53/UDP, 4224/TCP
+- D8PrivilegedContainer: Privileged container is not allowed, container: app | privileged: true | policy allows: false
+Fix the pod spec, or, if the deviation is really needed, describe it in a SecurityPolicyException: https://deckhouse.ru/modules/admission-policy-engine/latest/#исключения-из-политик-безопасности
+```
+
+SPE templates are usually wrapped in `has "admission-policy-engine"`/`has "admission-policy-engine-crd"`: both modules must be in `global.enabledModules` of the values dmt renders with.
+
+**Autofix:**
+
+`dmt lint --fix` proposes a `SecurityPolicyException` for an object whose violations an SPE can cover (not for one where none can, like an empty `capabilities.drop`):
+
+1. Allowances are taken from the pod spec for the policy kinds that fired: host network and every host port (`{port, protocol}`), hostPID/hostIPC, volume types, hostPath with `readOnly` of its mount, privileged, privilege escalation, capabilities (`add` as is, `drop` common to the containers that do not drop `ALL`), `runAsUser` with `runAsNonRoot`, seccomp (the raw value, from the source the policy reads first), AppArmor (in the annotation form the CRD accepts), procMount. Then the rego itself prunes them: an allowance, or an item of its list, the pod passes without is dropped, so values the policy allows anyway (`configMap` volumes, `NET_BIND_SERVICE`, `RuntimeDefault`) are not added.
+2. Container fields go to the SPE of `security.deckhouse.io/security-policy-exception.container.<name>` if the container has one, the rest to the SPE of the common label `security.deckhouse.io/security-policy-exception`; with no common label the SPE is named after the object.
+3. Every allowance gets `metadata.description: TODO`, which `security-policy-exception-description` rejects on purpose: the reason must be written by a human.
+4. The SPE is validated against the CRD schema, and the policies are run again with it and the pod bound to it.
+
+A new SPE is written next to the pod template, wrapped in `{{- if .Values.global.enabledModules | has "admission-policy-engine" }}`: `security-policy-exception.yaml`, or `security-policy-exception-<name>.yaml` when the directory has templates of several pods. An existing file is never overwritten. dmt does not edit the pod template (a helm template), and does not edit an SPE the module renders already: the finding stays, with a note on what is left — the label to add to the pod template, what to add to an existing SPE, and the violations no SPE covers:
+
+```
+Autofix:  Generated SecurityPolicyException okmeter in templates/security-policy-exception.yaml.
+          Bind the pod to SecurityPolicyException okmeter: add the label "security.deckhouse.io/security-policy-exception: okmeter" to spec.template.metadata.labels of DaemonSet/okmeter in templates/daemonset.yaml.
+          Replace every description: TODO with the reason the component needs the allowance.
+          No SecurityPolicyException covers the rest, fix the pod spec:
+          - D8AllowedCapabilities: container is not dropping all required capabilities, container: okagent | capabilities.drop: [] | policy allows: ["ALL"]
+          - D8AllowedCapabilities: no SecurityPolicyException can cover an empty capabilities.drop, add drop: [ALL] to containers (computed by dmt): okagent
+```
+
+Some violations no SPE covers because of known bugs of the policies: sysctls, AppArmor `Localhost` set by the field, a hostPath volume mounted both read-only and read-write. They are listed with the rest.
+
+**Configuration:**
+
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  container:
+    rules:
+      pod-security-standards:
+        impact: ignored  # disable the rule
+```
+
+### security-policy-exception-description
+
+**Purpose:** Every allowance of a `SecurityPolicyException` must explain why it is needed: the descriptions make up the documentation of component privileges for certification.
+
+**Description:**
+
+Checks every rendered `SecurityPolicyException` (in any namespace). An allowance is every node of `spec` holding `allowedValue` or `allowedValues`, plus, following the CRD, each item of `spec.volumes.hostPath.allowedValues` and each item of `spec.network.hostPorts` (these carry `metadata` per item, not per node). Each allowance needs a non-empty `metadata.description`; whitespace and `TODO` (any case) count as missing. One finding per allowance.
+
+**Error:**
+```
+SecurityPolicyException d8-my-module/agent: allowance spec.securityContext.runAsUser has no metadata.description
+SecurityPolicyException d8-my-module/agent: allowance spec.volumes.hostPath.allowedValues[1] has no metadata.description
+```
+
+**Fix:**
+```yaml
+spec:
+  securityContext:
+    runAsUser:
+      allowedValues: [0]
+      metadata:
+        description: The agent manages iptables rules on the node.
+  volumes:
+    hostPath:
+      allowedValues:
+      - path: /run/xtables.lock
+        readOnly: false
+        metadata:
+          description: Host xtables lock used to serialize iptables updates.
+```
+
+**Configuration:**
+
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  container:
+    rules:
+      security-policy-exception-description:
+        impact: warn
+```
+
+### security-policy-exception-schema
+
+**Purpose:** Catches a `SecurityPolicyException` the apiserver rejects. The PSS policies read an SPE as given, so `pod-security-standards` may accept a malformed SPE the cluster never stores.
+
+**Description:**
+
+Validates every rendered `SecurityPolicyException` (in any namespace) against the `openAPIV3Schema` of the CRD embedded into dmt, with the apiserver code (`k8s.io/apiextensions-apiserver`): unknown fields first (the apiserver drops them, or rejects the object under strict field validation), then types, enums, patterns and required fields of the object with the schema defaults applied. One finding per problem, field path first. `pod-security-standards` still uses such an SPE as written.
+
+**Error:**
+```
+SecurityPolicyException d8-my-module/agent does not match the CRD schema: spec.securityContext.sysctls.allowedValues[0]: Invalid value: "string": spec.securityContext.sysctls.allowedValues[0] in body must be of type object: "string"
+SecurityPolicyException d8-my-module/agent does not match the CRD schema: spec.network.hostPID.allowed: unknown field
+```
+
+**Fix:**
+```yaml
+spec:
+  securityContext:
+    sysctls:
+      allowedValues:
+      - name: net.ipv4.ip_forward
+        value: "1"
+  network:
+    hostPID:
+      allowedValue: true
+```
+
+**Configuration:**
+
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  container:
+    rules:
+      security-policy-exception-schema:
+        impact: warn
+```
+
+### security-policy-exception-unused
+
+**Purpose:** Finds dead `SecurityPolicyException` objects.
+
+**Description:**
+
+Reports a rendered `SecurityPolicyException` that no rendered Pod, Deployment, StatefulSet, DaemonSet, ReplicationController, Job or CronJob of the same namespace refers to through the `security.deckhouse.io/security-policy-exception` or `security.deckhouse.io/security-policy-exception.container.<name>` label of its pod template (`metadata.labels` for a Pod).
+
+The default level is **warning**: dmt renders with default values only, so a component behind a feature flag may not render while its SPE does.
+
+**Warning:**
+```
+SecurityPolicyException d8-my-module/agent is not referenced by any rendered pod template of its namespace (label security.deckhouse.io/security-policy-exception or security.deckhouse.io/security-policy-exception.container.<container>)
+```
+
+**Configuration:**
+
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  container:
+    rules:
+      security-policy-exception-unused:
+        impact: error  # or ignored
+```
+
+SPEs of pods helm does not render — static pods of the control plane, pods an operator creates — are never referenced from rendered templates. Exclude them by SPE name (any namespace); excluded SPEs are reported as ignored (`--show-ignored`):
+
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  container:
+    exclude-rules:
+      security-policy-exception-unused:
+        - kube-apiserver
+        - scan-vulnerabilityreport
 ```
 
 ## Configuration

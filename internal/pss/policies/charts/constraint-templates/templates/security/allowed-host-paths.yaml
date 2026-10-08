@@ -1,0 +1,102 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: d8allowedhostpaths
+  labels:
+    heritage: deckhouse
+    module: admission-policy-engine
+    security.deckhouse.io: security-policy
+  annotations:
+    metadata.gatekeeper.sh/title: "Allowed Host Paths"
+    metadata.gatekeeper.sh/version: 1.0.0
+    description: >-
+      Controls what host paths are allowed to be mount inside a container. 
+spec:
+  crd:
+    spec:
+      names:
+        kind: D8AllowedHostPaths
+      validation:
+        openAPIV3Schema:
+          type: object
+          description: >-
+            Controls what host paths are allowed to be mounted inside a container. 
+          properties:
+            allowedHostPaths:
+              type: array
+              description: "The list of allowed hostpath prefixes."
+              items:
+                type: object
+                properties:
+                  pathPrefix:
+                    type: string
+                  readOnly:
+                    type: boolean
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      code:
+        - engine: Rego
+          source:
+            version: "v1"
+            libs:
+              - |
+                {{- include "constraint-templates.lib.common.container-review" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.path" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.check_path" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.exception.spe" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.message" . | nindent 16 }}
+            rego: |
+              package d8.security_policies
+
+              import data.lib.check_path.check_hostpath_allowed
+              import data.lib.common.has_field
+              import data.lib.common.input_containers
+              import data.lib.common.pod_spec
+              import data.lib.common.object_labels
+              import data.lib.common.object_namespace
+              import data.lib.exception.allowed_values_or_empty
+              import data.lib.exception.resolve_spe_from_labels
+              import data.lib.message.violation_message
+              import data.lib.common.review_kind
+
+              violation contains {"msg": msg, "details": result.detail} if {
+                not input.review.operation == "DELETE"
+                volume := pod_spec.volumes[_]
+                has_field(volume, "hostPath")
+                allowed_paths := get_allowed_paths(input)
+                labels := object_labels
+                spe := resolve_spe_from_labels(labels, object_namespace)
+                spe_paths := allowed_values_or_empty(spe, ["spec", "volumes", "hostPath", "allowedValues"])
+                result := check_hostpath_allowed(
+                  volume,
+                  allowed_paths,
+                  input_containers,
+                  spe_paths
+                )
+                not result.allowed
+                msg := violation_message("HostPath volume is not allowed", sprintf("%v: %v", [review_kind, input.review.object.metadata.name]), result.detail)
+              }
+
+              get_allowed_paths(arg) := out if {
+                not arg.parameters
+                out = []
+              }
+
+              get_allowed_paths(arg) := out if {
+                not arg.parameters.allowedHostPaths
+                out = []
+              }
+
+              get_allowed_paths(arg) := out if {
+                out = arg.parameters.allowedHostPaths
+              }
+
+              input_hostpath_volumes contains v if {
+                v := pod_spec.volumes[_]
+                has_field(v, "hostPath")
+              }
+

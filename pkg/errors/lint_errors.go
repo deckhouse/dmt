@@ -29,6 +29,13 @@ import (
 // be a no-op and must not error.
 type AutofixFunc func() error
 
+// FixNote is returned by an AutofixFunc that did its part but cannot resolve the
+// finding alone: what it did and what is left for a human. The finding stays
+// reported, with the note instead of an autofix error.
+type FixNote string
+
+func (n FixNote) Error() string { return string(n) }
+
 type lintRuleError struct {
 	LinterID    string
 	ModuleID    string

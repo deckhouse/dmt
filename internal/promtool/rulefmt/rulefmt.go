@@ -119,7 +119,7 @@ func (g *RuleGroups) Validate(node ruleGroups) (errs []error) {
 		}
 
 		for k, v := range g.Labels {
-			if !model.LabelName(k).IsValid() || k == model.MetricNameLabel {
+			if !model.UTF8Validation.IsValidLabelName(k) || k == model.MetricNameLabel {
 				errs = append(
 					errs, fmt.Errorf("invalid label name: %s", k),
 				)
@@ -253,7 +253,7 @@ func (r *Rule) Validate(node RuleNode) (nodes []WrappedError) {
 			})
 		}
 
-		if !model.IsValidMetricName(model.LabelValue(r.Record)) {
+		if !model.UTF8Validation.IsValidMetricName(r.Record) {
 			nodes = append(nodes, WrappedError{
 				err:  fmt.Errorf("invalid recording rule name: %s", r.Record),
 				node: &node.Record,
@@ -270,7 +270,7 @@ func (r *Rule) Validate(node RuleNode) (nodes []WrappedError) {
 	}
 
 	for k, v := range r.Labels {
-		if !model.LabelName(k).IsValid() || k == model.MetricNameLabel {
+		if !model.UTF8Validation.IsValidLabelName(k) || k == model.MetricNameLabel {
 			nodes = append(nodes, WrappedError{
 				err: fmt.Errorf("invalid label name: %s", k),
 			})
@@ -284,7 +284,7 @@ func (r *Rule) Validate(node RuleNode) (nodes []WrappedError) {
 	}
 
 	for k := range r.Annotations {
-		if !model.LabelName(k).IsValid() {
+		if !model.UTF8Validation.IsValidLabelName(k) {
 			nodes = append(nodes, WrappedError{
 				err: fmt.Errorf("invalid annotation name: %s", k),
 			})

@@ -70,6 +70,7 @@ var staticRules = map[string]set.Set{
 		containerrules.NameDuplicatesRuleName,
 		containerrules.NamespaceLabelsRuleName,
 		containerrules.NoNewPrivilegesRuleName,
+		containerrules.PodSecurityStandardsRuleName,
 		containerrules.PortsRuleName,
 		containerrules.PriorityClassRuleName,
 		containerrules.ReadinessRuleName,
@@ -77,6 +78,9 @@ var staticRules = map[string]set.Set{
 		containerrules.ResourcesRuleName,
 		containerrules.RevisionHistoryLimitRuleName,
 		containerrules.SeccompProfileRuleName,
+		containerrules.SecurityPolicyExceptionDescriptionRuleName,
+		containerrules.SecurityPolicyExceptionSchemaRuleName,
+		containerrules.SecurityPolicyExceptionUnusedRuleName,
 		containerrules.SysCgroupMountRuleName,
 	),
 	docs.ID: set.New(

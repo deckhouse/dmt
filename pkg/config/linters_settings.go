@@ -75,6 +75,9 @@ type ContainerExcludeRules struct {
 
 	Description StringRuleExcludeList `mapstructure:"description"`
 	MountPoints StringRuleExcludeList `mapstructure:"mount-points"`
+
+	// SecurityPolicyException names, in any namespace
+	SecurityPolicyExceptionUnused StringRuleExcludeList `mapstructure:"security-policy-exception-unused"`
 }
 
 type HooksSettings struct {

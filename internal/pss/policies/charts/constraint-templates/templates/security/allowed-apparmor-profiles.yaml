@@ -1,0 +1,107 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: d8apparmor
+  labels:
+    heritage: deckhouse
+    module: admission-policy-engine
+    security.deckhouse.io: security-policy
+  annotations:
+    metadata.gatekeeper.sh/title: "App Armor"
+    metadata.gatekeeper.sh/version: 1.0.0
+    description: >-
+      Configures an allow-list of AppArmor profiles for use by containers.
+      This corresponds to specific annotations applied to a PodSecurityPolicy.
+      For information on AppArmor, see
+      https://kubernetes.io/docs/tutorials/clusters/apparmor/
+spec:
+  crd:
+    spec:
+      names:
+        kind: D8AppArmor
+      validation:
+        # Schema for the `parameters` field
+        openAPIV3Schema:
+          type: object
+          description: >-
+            Configures an allow-list of AppArmor profiles for use by containers.
+            This corresponds to specific annotations applied to a PodSecurityPolicy.
+            For information on AppArmor, see
+            https://kubernetes.io/docs/tutorials/clusters/apparmor/
+          properties:
+            allowedProfiles:
+              description: "An array of AppArmor profiles. Examples: `runtime/default`, `unconfined`."
+              type: array
+              items:
+                type: string
+            allowedLocalhostFiles:
+              type: array
+              items:
+                type: string
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      code:
+        - engine: Rego
+          source:
+            version: "v1"
+            libs:
+              - |
+                {{- include "constraint-templates.lib.common.container-review" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.check_set" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.match" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.resolve_value" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.expand_synonyms" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.exception.spe" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.message" . | nindent 16 }}
+            rego: |
+              package d8.security_policies
+
+              import data.lib.check_set.check_value_with_glob
+              import data.lib.message.violation_message
+              import data.lib.common.input_containers
+              import data.lib.exception.allowed_values_or_empty
+              import data.lib.exception.resolve_spe_for_container
+              import data.lib.expand_synonyms.expand
+              import data.lib.expand_synonyms.normalize
+              import data.lib.common.pod_spec
+              import data.lib.common.object_labels
+              import data.lib.common.object_namespace
+              import data.lib.common.effective_metadata
+              import data.lib.resolve_value.resolve_from_sources
+              import data.lib.common.review_kind
+
+              apparmor_translation := {
+                "RuntimeDefault": ["runtime/default"],
+                "Unconfined": ["unconfined"],
+                "Localhost": ["localhost", "localhost/*"],
+              }
+
+              violation contains {"msg": msg, "details": object.union(result.detail, {"container": container.name, "field": "appArmorProfile"})} if {
+                not input.review.operation == "DELETE"
+                container := input_containers[_]
+                sources := [
+                  {"type": "container_field", "path": ["securityContext", "appArmorProfile", "type"]},
+                  {"type": "annotation", "key": sprintf("container.apparmor.security.beta.kubernetes.io/%v", [container.name])},
+                  {"type": "pod_field", "path": ["spec", "securityContext", "appArmorProfile", "type"]}
+                ]
+                normalized_obj := {
+                  "metadata": effective_metadata,
+                  "spec": pod_spec,
+                }
+                raw_profile := resolve_from_sources(normalized_obj, container, sources)
+                profile := normalize(raw_profile, apparmor_translation)
+                labels := object_labels
+                exception := resolve_spe_for_container(container, labels, object_namespace)
+                spe_allowed := allowed_values_or_empty(exception, ["spec", "securityContext", "appArmorProfile", "allowedValues"])
+                allowed := expand(input.parameters.allowedProfiles, apparmor_translation)
+                spe_allowed_expanded := expand(spe_allowed, apparmor_translation)
+                result := check_value_with_glob(profile, allowed, spe_allowed_expanded)
+                not result.allowed
+                msg := violation_message("AppArmor profile is not allowed", sprintf("%v: %v, container: %v", [review_kind, input.review.object.metadata.name, container.name]), result.detail)
+              }
