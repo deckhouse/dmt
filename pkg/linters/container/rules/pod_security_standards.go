@@ -78,7 +78,12 @@ func (r *PodSecurityStandardsRule) Check(ctx context.Context) {
 		all = append(all, o.Unstructured.Object)
 	}
 
-	inventory := pss.Inventory(all)
+	inventory, err := pss.Inventory(all)
+	if err != nil {
+		r.errorList.Errorf("Cannot check Pod Security Standards: %v", err)
+
+		return
+	}
 
 	for _, o := range objects {
 		r.checkObject(ctx, o, inventory)

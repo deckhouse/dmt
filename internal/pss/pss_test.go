@@ -91,7 +91,10 @@ func TestEvalConcurrent(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			violations, err := Eval(t.Context(), pod, Inventory(nil))
+			inventory, err := Inventory(nil)
+			require.NoError(t, err)
+
+			violations, err := Eval(t.Context(), pod, inventory)
 			assert.NoError(t, err)
 			assert.True(t, slices.ContainsFunc(violations, func(v Violation) bool {
 				return v.Kind == "D8PrivilegedContainer"
