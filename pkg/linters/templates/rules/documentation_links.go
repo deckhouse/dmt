@@ -21,7 +21,9 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
+	"text/template/parse"
 
 	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/pkg"
@@ -37,10 +39,6 @@ var (
 	// The path stops at characters that end a link in Markdown, YAML, JSON or a
 	// Go template action.
 	publicDocumentationURLRe = regexp.MustCompile("https?://(?:www\\.)?deckhouse\\.(?:io|ru)(?:/[^\\s)\\]\"'<>{}`|]*)?")
-
-	// multilineTemplateActionRe matches a Go template action, e.g. {{- else }},
-	// including actions that span several lines, unlike templateActionRe.
-	multilineTemplateActionRe = regexp.MustCompile(`(?s){{-?\s*(.*?)\s*-?}}`)
 
 	// alertsAndDashboardsKindRe matches a manifest of a resource that carries
 	// alerts or dashboards, so that only such files under templates/ are scanned.
@@ -206,242 +204,180 @@ func documentationPath(link string) string {
 	return "/"
 }
 
-// templateBlock is an open {{ if }}, {{ with }}, {{ range }}, {{ define }} or
-// {{ block }} action.
-type templateBlock struct {
-	// start is the offset where the current branch begins.
-	start int
-	// fallback reports whether the current branch is rendered only when the
-	// in-cluster documentation is unavailable.
-	fallback bool
-	// earlierFallback reports whether a false condition of an earlier branch in
-	// the {{ if }}/{{ else if }} chain already implies that the in-cluster
-	// documentation is unavailable, which makes every later branch a fallback.
-	earlierFallback bool
-}
+var (
+	publicDomainTemplatePath = []string{"Values", "global", "modules", "publicDomainTemplate"}
+	enabledModulesPath       = []string{"Values", "global", "enabledModules"}
+)
 
-// publicSiteFallbackRanges returns the byte ranges of the branches rendered only
-// when the in-cluster documentation is unavailable, where linking to the public
-// site is the correct fallback:
+// publicSiteFallbackRanges parses the file as a Go template, the way Helm does,
+// and returns the byte ranges of the text rendered only when the in-cluster
+// documentation is unavailable, where linking to the public site is the correct
+// fallback:
 //
 //	{{ if .Values.global.modules.publicDomainTemplate }}...in-cluster link...{{ else }}https://deckhouse.io{{ end }}
 //
-// Blocks are tracked on a stack, so nested blocks close the right branch, and a
-// fallback range covers everything nested in it.
+// A file that does not parse has no fallbacks: Helm cannot render it either.
 func publicSiteFallbackRanges(content string) [][2]int {
-	var (
-		ranges [][2]int
-		stack  []*templateBlock
-	)
+	tree := parse.New("documentation-links")
+	// Helm and sprig functions are not known here; only the structure matters.
+	tree.Mode = parse.SkipFuncCheck
 
-	closeBranch := func(block *templateBlock, end int) {
-		if block.fallback {
-			ranges = append(ranges, [2]int{block.start, end})
-		}
+	trees := map[string]*parse.Tree{}
+	if _, err := tree.Parse(content, "", "", trees); err != nil {
+		return nil
 	}
 
-	for _, loc := range multilineTemplateActionRe.FindAllStringSubmatchIndex(content, -1) {
-		fields := strings.Fields(content[loc[2]:loc[3]])
-		if len(fields) == 0 {
-			continue
-		}
+	var ranges [][2]int
 
-		keyword, cond := fields[0], strings.Join(fields[1:], " ")
-
-		switch keyword {
-		case "if", "with":
-			stack = append(stack, &templateBlock{
-				start:           loc[1],
-				fallback:        documentationUnavailableWhen(cond, true),
-				earlierFallback: documentationUnavailableWhen(cond, false),
-			})
-		case "range", "define", "block":
-			stack = append(stack, &templateBlock{start: loc[1]})
-		case "else":
-			if len(stack) == 0 {
-				continue
-			}
-
-			block := stack[len(stack)-1]
-			closeBranch(block, loc[0])
-
-			block.start = loc[1]
-			block.fallback = block.earlierFallback
-
-			// {{ else if cond }} and {{ else with cond }} continue the chain.
-			if len(fields) > 1 && (fields[1] == "if" || fields[1] == "with") {
-				chained := strings.Join(fields[2:], " ")
-				block.fallback = block.fallback || documentationUnavailableWhen(chained, true)
-				block.earlierFallback = block.earlierFallback || documentationUnavailableWhen(chained, false)
-			}
-		case "end":
-			if len(stack) == 0 {
-				continue
-			}
-
-			closeBranch(stack[len(stack)-1], loc[0])
-			stack = stack[:len(stack)-1]
-		}
+	// Every {{ define }} is a separate tree; positions are offsets in content.
+	for _, t := range trees {
+		collectFallbackRanges(t.Root, false, &ranges)
 	}
 
 	return ranges
 }
 
-// documentationUnavailableWhen reports whether the template condition cond being
-// truthy (or falsy) guarantees that the in-cluster documentation is unavailable.
-// The condition is parsed just enough to follow not, and, or, empty and
-// comparisons with an empty string; anything else is an opaque operand.
-func documentationUnavailableWhen(cond string, truthy bool) bool {
-	cond = strings.TrimSpace(cond)
+// collectFallbackRanges walks the template tree and records the text inside
+// fallback branches. An {{ else if }} chain is parsed as an if nested in the
+// else branch, so the branches after a fallback condition stay fallbacks.
+func collectFallbackRanges(node parse.Node, fallback bool, ranges *[][2]int) {
+	switch n := node.(type) {
+	case *parse.ListNode:
+		if n == nil {
+			return
+		}
 
-	// A pipeline, e.g. .Values.global.enabledModules | has "documentation", is
-	// an opaque operand.
-	if hasTopLevel(cond, '|') {
-		return !truthy && isDocumentationGate(cond)
+		for _, child := range n.Nodes {
+			collectFallbackRanges(child, fallback, ranges)
+		}
+	case *parse.TextNode:
+		if fallback {
+			*ranges = append(*ranges, [2]int{int(n.Pos), int(n.Pos) + len(n.Text)})
+		}
+	case *parse.IfNode:
+		collectBranchRanges(&n.BranchNode, fallback, ranges)
+	case *parse.WithNode:
+		collectBranchRanges(&n.BranchNode, fallback, ranges)
+	case *parse.RangeNode:
+		collectFallbackRanges(n.List, fallback, ranges)
+		collectFallbackRanges(n.ElseList, fallback, ranges)
+	}
+}
+
+func collectBranchRanges(branch *parse.BranchNode, fallback bool, ranges *[][2]int) {
+	collectFallbackRanges(branch.List, fallback || documentationUnavailableWhen(branch.Pipe, true), ranges)
+	collectFallbackRanges(branch.ElseList, fallback || documentationUnavailableWhen(branch.Pipe, false), ranges)
+}
+
+// documentationUnavailableWhen reports whether the pipeline being truthy (or
+// falsy) guarantees that the in-cluster documentation is unavailable, that is
+// publicDomainTemplate is empty or the documentation module is disabled. It
+// follows not, empty, comparisons with "", and, or and parentheses; any other
+// expression is an opaque value.
+func documentationUnavailableWhen(pipe *parse.PipeNode, truthy bool) bool {
+	if pipe == nil || len(pipe.Cmds) == 0 {
+		return false
 	}
 
-	args := splitTemplateArgs(cond)
+	// In a | f b the value of a is the last argument of f.
+	last := pipe.Cmds[len(pipe.Cmds)-1]
+	args := slices.Clone(last.Args)
+
+	if len(pipe.Cmds) > 1 {
+		args = append(args, &parse.PipeNode{NodeType: parse.NodePipe, Cmds: pipe.Cmds[:len(pipe.Cmds)-1]})
+	}
+
+	return commandUnavailableWhen(args, truthy)
+}
+
+func commandUnavailableWhen(args []parse.Node, truthy bool) bool {
 	if len(args) == 1 {
-		if arg := args[0]; strings.HasPrefix(arg, "(") && strings.HasSuffix(arg, ")") {
-			return documentationUnavailableWhen(arg[1:len(arg)-1], truthy)
-		}
+		return valueUnavailableWhen(args[0], truthy)
 	}
 
-	if len(args) > 1 {
-		operands := args[1:]
-
-		switch args[0] {
-		case "not", "empty":
-			if len(operands) == 1 {
-				return documentationUnavailableWhen(operands[0], !truthy)
-			}
-		case "eq":
-			if len(operands) == 2 && operands[1] == `""` {
-				return documentationUnavailableWhen(operands[0], !truthy)
-			}
-
-			if len(operands) == 2 && operands[0] == `""` {
-				return documentationUnavailableWhen(operands[1], !truthy)
-			}
-		case "and":
-			// A truthy "and" needs one operand that implies unavailability, a
-			// falsy one needs every operand to.
-			if truthy {
-				return anyOperand(operands, truthy)
-			}
-
-			return allOperands(operands, truthy)
-		case "or":
-			if truthy {
-				return allOperands(operands, truthy)
-			}
-
-			return anyOperand(operands, truthy)
-		}
+	fn, ok := args[0].(*parse.IdentifierNode)
+	if !ok {
+		return false
 	}
 
-	return !truthy && isDocumentationGate(cond)
-}
+	operands := args[1:]
 
-// isDocumentationGate reports whether an operand is one of the values the
-// in-cluster documentation depends on, so that the operand being falsy means the
-// documentation is unavailable. The documentation module publishes its Ingress
-// only when publicDomainTemplate is set and the cluster is bootstrapped.
-func isDocumentationGate(operand string) bool {
-	return strings.Contains(operand, "publicDomainTemplate") ||
-		strings.Contains(operand, "clusterIsBootstrapped") ||
-		strings.Contains(operand, "enabledModules") && strings.Contains(operand, `"documentation"`)
-}
-
-func anyOperand(operands []string, truthy bool) bool {
-	for _, operand := range operands {
-		if documentationUnavailableWhen(operand, truthy) {
-			return true
+	switch fn.Ident {
+	case "not", "empty":
+		if len(operands) == 1 {
+			return valueUnavailableWhen(operands[0], !truthy)
 		}
+	case "eq":
+		if len(operands) == 2 && isStringNode(operands[1], "") {
+			return valueUnavailableWhen(operands[0], !truthy)
+		}
+
+		if len(operands) == 2 && isStringNode(operands[0], "") {
+			return valueUnavailableWhen(operands[1], !truthy)
+		}
+	case "and":
+		// A truthy "and" needs one operand that implies unavailability, a
+		// falsy one needs every operand to.
+		if truthy {
+			return anyOperandUnavailableWhen(operands, truthy)
+		}
+
+		return allOperandsUnavailableWhen(operands, truthy)
+	case "or":
+		if truthy {
+			return allOperandsUnavailableWhen(operands, truthy)
+		}
+
+		return anyOperandUnavailableWhen(operands, truthy)
+	case "has":
+		// has "documentation" .Values.global.enabledModules
+		return !truthy && len(operands) == 2 &&
+			isStringNode(operands[0], "documentation") && isValuesPath(operands[1], enabledModulesPath)
 	}
 
 	return false
 }
 
-func allOperands(operands []string, truthy bool) bool {
-	for _, operand := range operands {
-		if !documentationUnavailableWhen(operand, truthy) {
-			return false
-		}
+func valueUnavailableWhen(node parse.Node, truthy bool) bool {
+	if pipe, ok := node.(*parse.PipeNode); ok {
+		return documentationUnavailableWhen(pipe, truthy)
 	}
 
-	return len(operands) > 0
+	return !truthy && isValuesPath(node, publicDomainTemplatePath)
 }
 
-// splitTemplateArgs splits a template expression into its top-level arguments,
-// keeping parenthesized groups and quoted strings whole.
-func splitTemplateArgs(expr string) []string {
-	var (
-		args  []string
-		depth int
-		quote rune
-		start = -1
-	)
-
-	for i, c := range expr {
-		switch {
-		case quote != 0:
-			if c == quote && (quote == '`' || i == 0 || expr[i-1] != '\\') {
-				quote = 0
-			}
-		case c == '"' || c == '`':
-			quote = c
-		case c == '(':
-			depth++
-		case c == ')':
-			depth--
-		case c == ' ' || c == '\t' || c == '\n':
-			if depth == 0 {
-				if start >= 0 {
-					args = append(args, expr[start:i])
-					start = -1
-				}
-
-				continue
-			}
-		}
-
-		if start < 0 {
-			start = i
-		}
-	}
-
-	if start >= 0 {
-		args = append(args, expr[start:])
-	}
-
-	return args
+func anyOperandUnavailableWhen(operands []parse.Node, truthy bool) bool {
+	return slices.ContainsFunc(operands, func(operand parse.Node) bool {
+		return valueUnavailableWhen(operand, truthy)
+	})
 }
 
-// hasTopLevel reports whether the expression contains c outside of
-// parentheses and quoted strings.
-func hasTopLevel(expr string, c byte) bool {
-	depth := 0
-	quote := byte(0)
+func allOperandsUnavailableWhen(operands []parse.Node, truthy bool) bool {
+	return len(operands) > 0 && !slices.ContainsFunc(operands, func(operand parse.Node) bool {
+		return !valueUnavailableWhen(operand, truthy)
+	})
+}
 
-	for i := 0; i < len(expr); i++ {
-		switch ch := expr[i]; {
-		case quote != 0:
-			if ch == quote && (quote == '`' || expr[i-1] != '\\') {
-				quote = 0
-			}
-		case ch == '"' || ch == '`':
-			quote = ch
-		case ch == '(':
-			depth++
-		case ch == ')':
-			depth--
-		case ch == c && depth == 0:
-			return true
-		}
+// isValuesPath reports whether the node is the given field of the root
+// context, written as .Values.x or $.Values.x.
+func isValuesPath(node parse.Node, path []string) bool {
+	switch n := node.(type) {
+	case *parse.PipeNode:
+		// The value piped into a function, e.g. .Values.global.enabledModules
+		// in .Values.global.enabledModules | has "documentation".
+		return len(n.Cmds) == 1 && len(n.Cmds[0].Args) == 1 && isValuesPath(n.Cmds[0].Args[0], path)
+	case *parse.FieldNode:
+		return slices.Equal(n.Ident, path)
+	case *parse.VariableNode:
+		return len(n.Ident) > 0 && n.Ident[0] == "$" && slices.Equal(n.Ident[1:], path)
 	}
 
 	return false
+}
+
+func isStringNode(node parse.Node, text string) bool {
+	s, ok := node.(*parse.StringNode)
+	return ok && s.Text == text
 }
 
 func inRanges(offset int, ranges [][2]int) bool {

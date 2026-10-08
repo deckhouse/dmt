@@ -19,6 +19,7 @@ package rules
 import (
 	"fmt"
 	"testing"
+	"text/template/parse"
 
 	"github.com/stretchr/testify/require"
 
@@ -82,8 +83,8 @@ func TestDocumentationLinksRule_Fallbacks(t *testing.T) {
 			body: "{{ if and " + pdt + " (" + hasDocs + ") }}" + inCluster + "{{ else }}https://deckhouse.io/a{{ end }}",
 		},
 		{
-			name: "else of and over publicDomainTemplate and clusterIsBootstrapped",
-			body: "{{ if and " + pdt + " .Values.global.clusterIsBootstrapped }}" + inCluster + "{{ else }}https://deckhouse.io/a{{ end }}",
+			name: "else of a root variable path to publicDomainTemplate",
+			body: "{{ if $.Values.global.modules.publicDomainTemplate }}" + inCluster + "{{ else }}https://deckhouse.io/a{{ end }}",
 		},
 		{
 			name: "then of or over negated gates",
@@ -121,6 +122,16 @@ func TestDocumentationLinksRule_Fallbacks(t *testing.T) {
 		{
 			name:      "else of and with an unrelated operand: it renders with the documentation available",
 			body:      "{{ if and " + pdt + " .Values.foo.enabled }}" + inCluster + "{{ else }}https://deckhouse.io/a{{ end }}",
+			wantLinks: []string{"https://deckhouse.io/a"},
+		},
+		{
+			name:      "else of and over publicDomainTemplate and clusterIsBootstrapped: only the two gates count",
+			body:      "{{ if and " + pdt + " .Values.global.clusterIsBootstrapped }}" + inCluster + "{{ else }}https://deckhouse.io/a{{ end }}",
+			wantLinks: []string{"https://deckhouse.io/a"},
+		},
+		{
+			name:      "else of a value that only contains publicDomainTemplate in its name",
+			body:      "{{ if .Values.foo.publicDomainTemplate }}x{{ else }}https://deckhouse.io/a{{ end }}",
 			wantLinks: []string{"https://deckhouse.io/a"},
 		},
 		{
@@ -174,8 +185,9 @@ func TestDocumentationLinksRule_Fallbacks(t *testing.T) {
 			wantLinks: []string{"https://deckhouse.io/b", "https://deckhouse.io/c"},
 		},
 		{
-			name: "stray end before the block is ignored",
-			body: "{{ end }}{{ if " + pdt + " }}" + inCluster + "{{ else }}https://deckhouse.io/a{{ end }}",
+			name:      "a template that does not parse has no fallbacks: Helm cannot render it either",
+			body:      "{{ end }}{{ if " + pdt + " }}" + inCluster + "{{ else }}https://deckhouse.io/a{{ end }}",
+			wantLinks: []string{"https://deckhouse.io/a"},
 		},
 
 		// else if / else with chains.
@@ -198,7 +210,7 @@ func TestDocumentationLinksRule_Fallbacks(t *testing.T) {
 		},
 		{
 			name: "gate in else with",
-			body: "{{ if .Values.foo.enabled }}x{{ else with " + pdt + " }}" + inCluster + "{{ else }}https://deckhouse.io/a{{ end }}",
+			body: "{{ with .Values.foo }}x{{ else with " + pdt + " }}" + inCluster + "{{ else }}https://deckhouse.io/a{{ end }}",
 		},
 
 		// Escaped Prometheus templates and comments are not Helm actions.
@@ -249,6 +261,19 @@ func TestDocumentationLinksRule_Fallbacks(t *testing.T) {
 	}
 }
 
+// conditionPipe parses {{ if cond }} and returns the pipeline of the condition.
+func conditionPipe(t *testing.T, cond string) *parse.PipeNode {
+	t.Helper()
+
+	tree := parse.New("cond")
+	tree.Mode = parse.SkipFuncCheck
+
+	_, err := tree.Parse("{{ if "+cond+" }}{{ end }}", "", "", map[string]*parse.Tree{})
+	require.NoError(t, err)
+
+	return tree.Root.Nodes[0].(*parse.IfNode).Pipe
+}
+
 func TestDocumentationUnavailableWhen(t *testing.T) {
 	tests := []struct {
 		cond                string
@@ -260,11 +285,15 @@ func TestDocumentationUnavailableWhen(t *testing.T) {
 		{cond: "empty " + pdt, whenTrue: true},
 		{cond: "eq " + pdt + ` ""`, whenTrue: true},
 		{cond: `eq "" ` + pdt, whenTrue: true},
-		{cond: `eq ` + pdt + ` "x"`, whenFalse: true},
+		{cond: `eq ` + pdt + ` "x"`},
 		{cond: hasDocs, whenFalse: true},
 		{cond: `.Values.global.enabledModules | has "documentation"`, whenFalse: true},
 		{cond: `has "cni-cilium" .Values.global.enabledModules`},
-		{cond: ".Values.global.clusterIsBootstrapped", whenFalse: true},
+		{cond: ".Values.global.clusterIsBootstrapped"},
+		{cond: "$.Values.global.modules.publicDomainTemplate", whenFalse: true},
+		{cond: ".Values.foo.publicDomainTemplate"},
+		{cond: `has "documentation" .Values.foo`},
+		{cond: `.Values.foo | has "documentation"`},
 		{cond: "and " + pdt + " (" + hasDocs + ")", whenFalse: true},
 		{cond: "and " + pdt + " .Values.foo"},
 		{cond: "and " + pdt + " (not (" + hasDocs + "))", whenTrue: true},
@@ -277,8 +306,10 @@ func TestDocumentationUnavailableWhen(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.cond, func(t *testing.T) {
-			require.Equal(t, tt.whenTrue, documentationUnavailableWhen(tt.cond, true), "when the condition is true")
-			require.Equal(t, tt.whenFalse, documentationUnavailableWhen(tt.cond, false), "when the condition is false")
+			pipe := conditionPipe(t, tt.cond)
+
+			require.Equal(t, tt.whenTrue, documentationUnavailableWhen(pipe, true), "when the condition is true")
+			require.Equal(t, tt.whenFalse, documentationUnavailableWhen(pipe, false), "when the condition is false")
 		})
 	}
 }

@@ -3080,10 +3080,11 @@ Findings are reported at the `warn` level by default.
    recording rules only, without annotations
 4. A link in a branch rendered only when the in-cluster documentation is
    unavailable is a valid fallback and is not reported. The documentation is
-   unavailable when `publicDomainTemplate` is not set, the `documentation`
-   module is disabled or the cluster is not bootstrapped yet. The rule follows
-   `not`, `and`, `or`, `empty`, comparisons with `""`, nested blocks and
-   `else if`/`else with` chains:
+   unavailable when `.Values.global.modules.publicDomainTemplate` is not set or
+   the `documentation` module is disabled. Files rendered by Helm are parsed
+   with Go's `text/template/parse`, so the rule follows nested blocks and
+   `else if`/`else with` chains, and in conditions `not`, `and`, `or`, `empty`,
+   comparisons with `""` and parentheses:
 
    ```gotemplate
    {{ if .Values.global.modules.publicDomainTemplate }}...{{ else }}https://deckhouse.io/...{{ end }}
@@ -3094,7 +3095,8 @@ Findings are reported at the `warn` level by default.
    The else branch of a condition combined with an unrelated value, such as
    `{{ if and .Values.global.modules.publicDomainTemplate .Values.foo }}`, is not
    a fallback: it is also rendered when the documentation is available.
-   Conditions on template variables (`{{ if $domain }}`) are not followed
+   Conditions on template variables (`{{ if $domain }}`) are not followed, and a
+   file that does not parse has no fallbacks
 
 Source files are scanned instead of rendered objects: lib-helm passes only
 `.tpl` files from `monitoring/` through `tpl`, so plain `.yaml` rules and
