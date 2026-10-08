@@ -1,0 +1,6 @@
+linters-settings:
+  templates:
+    exclude-rules:
+      documentation-links:
+        directories:
+          - monitoring/prometheus-rules/vendor/

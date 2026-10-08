@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2e-config
+  namespace: e2e-documentation-links-templates
+data:
+  url: https://deckhouse.io/modules/e2e/configmap.html

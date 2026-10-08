@@ -1,0 +1,6 @@
+global:
+  linters-settings:
+    templates:
+      rules:
+        documentation-links:
+          impact: ignored

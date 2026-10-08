@@ -1,0 +1,6 @@
+linters-settings:
+  templates:
+    exclude-rules:
+      documentation-links:
+        files:
+          - monitoring/prometheus-rules/alerts.yaml

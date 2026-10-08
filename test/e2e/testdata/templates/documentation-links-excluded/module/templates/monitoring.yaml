@@ -1,0 +1,2 @@
+# This module renders alerts via include "helm_lib_prometheus_rules" .
+# (kept as a comment so the e2e fixture renders without helm_lib being available)

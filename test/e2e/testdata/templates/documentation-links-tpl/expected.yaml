@@ -1,0 +1,14 @@
+description: >
+  A link to the public site in a .tpl rules file is flagged with the helper to
+  use, but without the rename hint: lib-helm already templates .tpl files.
+module: module
+expect:
+  - linter: templates
+    rule: documentation-links
+    level: warn
+    count: 1
+    textContains: 'https://deckhouse.ru/products/kubernetes-platform/documentation/v1/'
+expectPass:
+  - linter: templates
+    rule: documentation-links
+    textContains: "rename it to .tpl"

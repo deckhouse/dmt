@@ -1,0 +1,22 @@
+description: >
+  Valid fallbacks in a file do not hide the hardcoded links next to them: a link
+  after the fallback block, a link in the then branch of publicDomainTemplate and
+  a link in the else branch of "and publicDomainTemplate <other value>", which is
+  rendered even when the in-cluster documentation is available.
+module: module
+expect:
+  - linter: templates
+    rule: documentation-links
+    count: 3
+  - linter: templates
+    rule: documentation-links
+    count: 1
+    textContains: '"https://deckhouse.io/modules/e2e/after.html"'
+  - linter: templates
+    rule: documentation-links
+    count: 1
+    textContains: '"https://deckhouse.io/modules/e2e/then.html"'
+  - linter: templates
+    rule: documentation-links
+    count: 1
+    textContains: '"https://deckhouse.io/modules/e2e/and.html"'
