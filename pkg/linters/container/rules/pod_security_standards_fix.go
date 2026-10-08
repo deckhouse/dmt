@@ -634,10 +634,18 @@ func newSPE(name, ns string, spec map[string]any) map[string]any {
 }
 
 func allContainers(spec map[string]any) []map[string]any {
-	var res []map[string]any
+	lists := make([][]any, 0, 3)
+	n := 0
 
 	for _, field := range []string{"containers", "initContainers", "ephemeralContainers"} {
 		list, _ := spec[field].([]any)
+		lists = append(lists, list)
+		n += len(list)
+	}
+
+	res := make([]map[string]any, 0, n)
+
+	for _, list := range lists {
 		for _, c := range list {
 			res = append(res, mapOf(c))
 		}
