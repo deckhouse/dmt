@@ -24,6 +24,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/deckhouse/dmt/internal/flags"
 	"github.com/deckhouse/dmt/internal/pss"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
@@ -86,11 +87,12 @@ func (r *PodSecurityStandardsRule) Check(ctx context.Context) {
 	}
 
 	for _, o := range objects {
-		r.checkObject(ctx, o, inventory)
+		r.checkObject(ctx, o, inventory, objects)
 	}
 }
 
-func (r *PodSecurityStandardsRule) checkObject(ctx context.Context, object storage.StoreObject, inventory map[string]any) {
+func (r *PodSecurityStandardsRule) checkObject(ctx context.Context, object storage.StoreObject, inventory map[string]any,
+	objects map[storage.ResourceIndex]storage.StoreObject) {
 	ns := object.Unstructured.GetNamespace()
 	if !strings.HasPrefix(ns, "d8-") && !strings.HasPrefix(ns, "kube-") {
 		return
@@ -119,6 +121,8 @@ func (r *PodSecurityStandardsRule) checkObject(ctx context.Context, object stora
 	advice := "Fix the pod spec, or, if the deviation is really needed, describe it in a SecurityPolicyException: " + pssDocURL
 	if unexceptable {
 		advice = "Fix the pod spec: no SecurityPolicyException can cover these violations"
+	} else if flags.Fix {
+		errorList = errorList.WithFix(r.speFix(ctx, object, pod, violations, objects))
 	}
 
 	errorList.Errorf("%s/%s violates Pod Security Standards (restricted) and no SecurityPolicyException covers it:\n%s\n%s",
@@ -151,7 +155,12 @@ func violationLines(pod map[string]any, violations []pss.Violation) ([]string, b
 			seen[hostNetworkKind] = true
 
 			if ports := hostPorts(pod); len(ports) > 0 {
-				res = append(res, "- "+hostNetworkKind+": host ports of the pod (computed by dmt): "+strings.Join(ports, ", "))
+				strs := make([]string, 0, len(ports))
+				for _, p := range ports {
+					strs = append(strs, p.String())
+				}
+
+				res = append(res, "- "+hostNetworkKind+": host ports of the pod (computed by dmt): "+strings.Join(strs, ", "))
 			}
 		}
 	}
@@ -241,13 +250,21 @@ func containersWhere(pod map[string]any, f func(spec, container map[string]any) 
 	return res
 }
 
-// hostPorts returns sorted unique "port/PROTOCOL" of every hostPort of the pod's
-// containers, init and ephemeral containers, with hostNetwork every containerPort.
-func hostPorts(pod map[string]any) []string {
+type hostPort struct {
+	Port     int64
+	Protocol string
+}
+
+func (p hostPort) String() string { return fmt.Sprintf("%d/%s", p.Port, p.Protocol) }
+
+// hostPorts returns sorted unique host ports of the pod's containers, init and
+// ephemeral containers: every hostPort, with hostNetwork every containerPort too.
+// The protocol defaults to TCP.
+func hostPorts(pod map[string]any) []hostPort {
 	spec := nested(pod, "spec")
 	hostNetwork, _ := spec["hostNetwork"].(bool)
 
-	set := map[string]bool{}
+	set := map[hostPort]bool{}
 
 	for _, field := range []string{"containers", "initContainers", "ephemeralContainers"} {
 		list, _ := spec[field].([]any)
@@ -269,9 +286,8 @@ func hostPorts(pod map[string]any) []string {
 				}
 
 				for _, k := range keys {
-					// int64 from unstructured, float64 from plain JSON
-					if n := fmt.Sprint(port[k]); n != "<nil>" && n != "0" {
-						set[n+"/"+proto] = true
+					if n := toInt64(port[k]); n != 0 {
+						set[hostPort{Port: n, Protocol: proto}] = true
 					}
 				}
 			}
@@ -279,16 +295,26 @@ func hostPorts(pod map[string]any) []string {
 	}
 
 	res := slices.Collect(maps.Keys(set))
-	slices.SortFunc(res, func(a, b string) int {
-		var na, nb int
-
-		_, _ = fmt.Sscanf(a, "%d", &na)
-		_, _ = fmt.Sscanf(b, "%d", &nb)
-
-		return cmp.Or(na-nb, strings.Compare(a, b))
+	slices.SortFunc(res, func(a, b hostPort) int {
+		return cmp.Or(cmp.Compare(a.Port, b.Port), strings.Compare(a.Protocol, b.Protocol))
 	})
 
 	return res
+}
+
+// toInt64 reads a number of an unstructured object: int64 from the renderer,
+// float64 from plain JSON.
+func toInt64(v any) int64 {
+	switch n := v.(type) {
+	case int64:
+		return n
+	case int:
+		return int64(n)
+	case float64:
+		return int64(n)
+	}
+
+	return 0
 }
 
 // podOf returns the Pod the object creates: the object itself for a Pod, a `kind: Pod`
