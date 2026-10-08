@@ -1470,7 +1470,7 @@ linters-settings:
 
 **Description:**
 
-The rule executes the real rego of admission-policy-engine (both `baseline` and `restricted` constraints, embedded into dmt, see `internal/pss`) with the OPA version gatekeeper uses, against every rendered Pod, Deployment, StatefulSet, DaemonSet, ReplicationController, Job and CronJob in a `d8-*`/`kube-*` namespace. The `SecurityPolicyException` objects rendered by the module are visible to the policies the same way gatekeeper sees them in the cluster.
+The rule executes the real rego of admission-policy-engine (both `baseline` and `restricted` constraints, embedded into dmt, see `internal/pss`) with the OPA version gatekeeper uses, against every rendered Pod, Deployment, StatefulSet, DaemonSet, ReplicationController, Job and CronJob in a `d8-*`/`kube-*` namespace. The `SecurityPolicyException` objects rendered by the module are visible to the policies the same way gatekeeper sees them in the cluster, with the `default`s of the CRD schema applied (e.g. `volumes.hostPath.allowedValues[].readOnly: false`).
 
 Controllers are checked as the Pod they create (built from the pod template): the policies are lenient to a controller whose template omits `runAsUser`/`runAsNonRoot` because a mutator might set it, but the Pod itself is denied.
 

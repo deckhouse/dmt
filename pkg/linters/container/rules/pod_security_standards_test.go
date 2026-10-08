@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"slices"
 	"sort"
 	"testing"
 
@@ -376,7 +377,71 @@ func TestPodSecurityStandards_EdgeCases(t *testing.T) {
 				spes = append(spes, spe(t, name, spec))
 			}
 
-			assert.ElementsMatch(t, tt.want, fired(t, podOf(obj), pss.Inventory(spes)))
+			assert.ElementsMatch(t, tt.want, fired(t, podOf(obj), spes...))
+		})
+	}
+}
+
+// SPEs get the defaults of the CRD schema, as in the cluster. raw is the result on the
+// SPE as written, want with the defaults applied.
+func TestPodSecurityStandards_SPEDefaults(t *testing.T) {
+	const (
+		writableMount = `{spec: {template: {spec: {containers: [{name: app, volumeMounts: [{mountPath: /logs, readOnly: null}]}]}}}}`
+		addNetAdmin   = `{spec: {template: {spec: {containers: [{name: app, securityContext: {capabilities: {add: [NET_ADMIN]}}}]}}}}`
+	)
+
+	tests := []struct {
+		name      string
+		patches   []string
+		spec      string
+		raw, want []string
+	}{
+		{
+			name:    "hostPath readOnly defaults to false and covers a writable mount",
+			patches: []string{hostPathVolume, writableMount, speLabel},
+			spec:    `{volumes: {types: {allowedValues: [hostPath]}, hostPath: {allowedValues: [{path: /var/log}]}}}`,
+			raw:     []string{bHostPaths},
+		},
+		{
+			name:    "hostPath readOnly defaults to false and does not cover a read-only mount",
+			patches: []string{hostPathVolume, speLabel},
+			spec:    `{volumes: {types: {allowedValues: [hostPath]}, hostPath: {allowedValues: [{path: /var/log}]}}}`,
+			raw:     []string{bHostPaths},
+			want:    []string{bHostPaths},
+		},
+		{
+			name:    "capabilities drop defaults to [all], outcome unchanged",
+			patches: []string{addNetAdmin, speLabel},
+			spec:    `{securityContext: {capabilities: {allowedValues: {add: [NET_ADMIN]}}}}`,
+		},
+		{
+			name:    "capabilities add defaults to [], outcome unchanged",
+			patches: []string{addNetAdmin, speLabel},
+			spec:    `{securityContext: {capabilities: {allowedValues: {drop: [ALL]}}}}`,
+			raw:     []string{bCapabilities, rCapabilities},
+			want:    []string{bCapabilities, rCapabilities},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pod := podOf(patchedDeployment(t, tt.patches...))
+			s := spe(t, "spe", tt.spec)
+
+			raw := map[string]any{"namespace": map[string]any{"d8-test": map[string]any{
+				pss.SPEAPIVersion: map[string]any{pss.SPEKind: map[string]any{"spe": s}},
+			}}}
+
+			violations, err := pss.Eval(t.Context(), pod, raw)
+			require.NoError(t, err)
+
+			got := []string{}
+			for _, v := range violations {
+				got = append(got, v.Standard+"/"+v.Kind)
+			}
+
+			assert.ElementsMatch(t, tt.raw, slices.Compact(slices.Sorted(slices.Values(got))), "as written")
+			assert.ElementsMatch(t, tt.want, fired(t, pod, s), "defaulted")
 		})
 	}
 }
@@ -386,8 +451,8 @@ func TestPodSecurityStandards_EdgeCases(t *testing.T) {
 func TestPodSecurityStandards_ControllerStrict(t *testing.T) {
 	obj := patchedDeployment(t, `{spec: {template: {spec: {securityContext: {runAsUser: null, runAsNonRoot: null}}}}}`)
 
-	assert.Empty(t, fired(t, obj.Unstructured.Object, pss.Inventory(nil)), "the controller itself passes in lenient mode")
-	assert.Equal(t, []string{rUsers}, fired(t, podOf(obj), pss.Inventory(nil)))
+	assert.Empty(t, fired(t, obj.Unstructured.Object), "the controller itself passes in lenient mode")
+	assert.Equal(t, []string{rUsers}, fired(t, podOf(obj)))
 }
 
 func TestPodSecurityStandards_PodOf(t *testing.T) {
@@ -463,8 +528,11 @@ func TestPodSecurityStandardsRule(t *testing.T) {
 	}
 }
 
-func fired(t *testing.T, pod, inventory map[string]any) []string {
+func fired(t *testing.T, pod map[string]any, spes ...map[string]any) []string {
 	t.Helper()
+
+	inventory, err := pss.Inventory(spes)
+	require.NoError(t, err)
 
 	violations, err := pss.Eval(t.Context(), pod, inventory)
 	require.NoError(t, err)

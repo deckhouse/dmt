@@ -90,13 +90,19 @@ func prepare() ([]query, error) {
 
 // Inventory builds gatekeeper's data.inventory from SecurityPolicyException objects:
 // inventory.namespace[ns]["deckhouse.io/v1alpha1"].SecurityPolicyException[name].
-// Objects of other kinds are ignored.
-func Inventory(objects []map[string]any) map[string]any {
+// Objects of other kinds are ignored. SPEs get the defaults of the CRD schema, as
+// gatekeeper sees them in the cluster (DefaultSPE).
+func Inventory(objects []map[string]any) (map[string]any, error) {
 	byNS := map[string]any{}
 
 	for _, o := range objects {
 		if o["apiVersion"] != SPEAPIVersion || o["kind"] != SPEKind {
 			continue
+		}
+
+		o, err := DefaultSPE(o)
+		if err != nil {
+			return nil, err
 		}
 
 		meta, _ := o["metadata"].(map[string]any)
@@ -112,7 +118,7 @@ func Inventory(objects []map[string]any) map[string]any {
 		nsMap[SPEAPIVersion].(map[string]any)[SPEKind].(map[string]any)[name] = o
 	}
 
-	return map[string]any{"namespace": byNS}
+	return map[string]any{"namespace": byNS}, nil
 }
 
 // Eval runs every Check of both standards against pod, a `kind: Pod` object, with

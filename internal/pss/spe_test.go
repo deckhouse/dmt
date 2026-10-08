@@ -22,6 +22,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"sigs.k8s.io/yaml"
 )
 
 func joinPaths(paths [][]string) []string {
@@ -107,4 +108,37 @@ func TestAllowancePathsErrors(t *testing.T) {
 		_, err := allowancePaths([]byte(doc))
 		assert.Error(t, err, name)
 	}
+}
+
+func TestDefaultSPE(t *testing.T) {
+	var obj map[string]any
+	require.NoError(t, yaml.Unmarshal([]byte(`
+apiVersion: deckhouse.io/v1alpha1
+kind: SecurityPolicyException
+metadata: {name: spe, namespace: d8-test}
+spec:
+  securityContext:
+    capabilities: {allowedValues: {}}
+  volumes:
+    hostPath: {allowedValues: [{path: /var/log}, {path: /etc, readOnly: true}]}
+`), &obj))
+
+	orig, err := jsonCopy(obj)
+	require.NoError(t, err)
+
+	got, err := DefaultSPE(obj)
+	require.NoError(t, err)
+
+	assert.Equal(t, orig, obj, "input must not be modified")
+	assert.Equal(t, map[string]any{
+		"securityContext": map[string]any{
+			"capabilities": map[string]any{"allowedValues": map[string]any{"drop": []any{"all"}, "add": []any{}}},
+		},
+		"volumes": map[string]any{
+			"hostPath": map[string]any{"allowedValues": []any{
+				map[string]any{"path": "/var/log", "readOnly": false},
+				map[string]any{"path": "/etc", "readOnly": true},
+			}},
+		},
+	}, got["spec"])
 }
