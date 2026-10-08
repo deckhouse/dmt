@@ -767,7 +767,14 @@ func writeSPE(modulePath string, object storage.StoreObject, workloads int, p *s
 	rel, _ := filepath.Rel(modulePath, path)
 	content := speTemplate(modulePath, name, object.Unstructured.GetNamespace(), spec)
 
-	if _, err := os.Stat(path); err == nil {
+	written := fmt.Sprintf("Generated SecurityPolicyException %s in %s.", name, rel)
+
+	if data, err := os.ReadFile(path); err == nil {
+		// another render variant of the same module wrote it in this run
+		if string(data) == content {
+			return written, nil
+		}
+
 		return fmt.Sprintf("%s exists, not overwritten; SecurityPolicyException %s to add:\n%s", rel, name, content), nil
 	}
 
@@ -775,7 +782,7 @@ func writeSPE(modulePath string, object storage.StoreObject, workloads int, p *s
 		return "", err
 	}
 
-	return fmt.Sprintf("Generated SecurityPolicyException %s in %s.", name, rel), nil
+	return written, nil
 }
 
 func speTemplate(modulePath, name, ns string, spec []byte) string {

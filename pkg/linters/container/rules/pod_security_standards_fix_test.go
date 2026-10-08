@@ -407,3 +407,35 @@ func TestPodSecurityStandardsFix_UnboundSPE(t *testing.T) {
 	assert.Equal(t, `Bind the pod to SecurityPolicyException app: add the label "security.deckhouse.io/security-policy-exception: app" to spec.template.metadata.labels of Deployment/app in .`,
 		errs[0].FixError.Error())
 }
+
+// Violations no SPE covers are listed in the note apart from the generated SPE.
+func TestPodSecurityStandardsFix_Leftover(t *testing.T) {
+	withFix(t)
+
+	modulePath := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(modulePath, "templates"), 0o755))
+
+	obj := patchedDeployment(t, `{spec: {template: {spec: {containers: [{name: app, securityContext: {privileged: true, capabilities: {drop: null}}}]}}}}`)
+	obj.AbsPath = filepath.Join(modulePath, "templates", "deployment.yaml")
+
+	m := mocks.NewModuleMock(minimock.NewController(t))
+	m.GetStorageMock.Return(map[storage.ResourceIndex]storage.StoreObject{storage.GetResourceIndex(obj): obj})
+	m.GetPathMock.Return(modulePath)
+
+	errorList := errors.NewLintRuleErrorsList()
+	NewPodSecurityStandardsRule(m, errorList).Check(t.Context())
+
+	fixes := errorList.GetFixes()
+	require.Len(t, fixes, 1)
+	fixes[0]()
+
+	errs := errorList.GetErrors()
+	require.Len(t, errs, 1)
+	assert.Equal(t, `Generated SecurityPolicyException app in templates/security-policy-exception.yaml.
+Bind the pod to SecurityPolicyException app: add the label "security.deckhouse.io/security-policy-exception: app" to spec.template.metadata.labels of Deployment/app in .
+Replace every description: TODO with the reason the component needs the allowance.
+No SecurityPolicyException covers the rest, fix the pod spec:
+- D8AllowedCapabilities: container is not dropping all required capabilities, container: app | capabilities.drop: [] | policy allows: ["ALL"]
+- D8AllowedCapabilities: no SecurityPolicyException can cover an empty capabilities.drop, add drop: [ALL] to containers (computed by dmt): app`,
+		errs[0].FixError.Error())
+}
