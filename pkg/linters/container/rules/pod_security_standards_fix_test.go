@@ -345,7 +345,7 @@ Replace every description: TODO with the reason the component needs the allowanc
 	file := filepath.Join(modulePath, "templates", "app", "security-policy-exception.yaml")
 	content, err := os.ReadFile(file)
 	require.NoError(t, err)
-	assert.Equal(t, `{{- if .Values.global.enabledModules | has "admission-policy-engine-crd" }}
+	assert.Equal(t, `{{- if .Values.global.enabledModules | has "admission-policy-engine" }}
 ---
 apiVersion: deckhouse.io/v1alpha1
 kind: SecurityPolicyException

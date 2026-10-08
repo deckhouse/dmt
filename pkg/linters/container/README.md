@@ -1497,7 +1497,7 @@ SPE templates are usually wrapped in `has "admission-policy-engine"`/`has "admis
 3. Every allowance gets `metadata.description: TODO`, which `security-policy-exception-description` rejects on purpose: the reason must be written by a human.
 4. The SPE is validated against the CRD schema, and the policies are run again with it and the pod bound to it.
 
-A new SPE is written next to the pod template, wrapped in `{{- if .Values.global.enabledModules | has "admission-policy-engine-crd" }}`: `security-policy-exception.yaml`, or `security-policy-exception-<name>.yaml` when the directory has templates of several pods. An existing file is never overwritten. dmt does not edit the pod template (a helm template), and does not edit an SPE the module renders already: the finding stays, with a note on what is left — the label to add to the pod template, what to add to an existing SPE, and the violations no SPE covers:
+A new SPE is written next to the pod template, wrapped in `{{- if .Values.global.enabledModules | has "admission-policy-engine" }}`: `security-policy-exception.yaml`, or `security-policy-exception-<name>.yaml` when the directory has templates of several pods. An existing file is never overwritten. dmt does not edit the pod template (a helm template), and does not edit an SPE the module renders already: the finding stays, with a note on what is left — the label to add to the pod template, what to add to an existing SPE, and the violations no SPE covers:
 
 ```
 Autofix:  Generated SecurityPolicyException okmeter in templates/security-policy-exception.yaml.
