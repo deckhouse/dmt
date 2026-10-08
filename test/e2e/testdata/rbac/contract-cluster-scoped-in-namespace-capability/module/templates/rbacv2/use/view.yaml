@@ -1,0 +1,19 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: d8:namespace-capability:e2e-rbac:view
+  labels:
+    module: e2e-rbac
+    rbac.deckhouse.io/kind: capability
+    rbac.deckhouse.io/scope: namespace
+    rbac.deckhouse.io/capability: namespace-capability.e2e-rbac.view
+    rbac.deckhouse.io/aggregate-to-namespace-as: viewer
+  annotations:
+    en.meta.deckhouse.io/title: "Module e2e-rbac: view"
+    ru.meta.deckhouse.io/title: "Модуль e2e-rbac: просмотр"
+    en.meta.deckhouse.io/description: "Read-only access to e2e-rbac resources in a namespace."
+    ru.meta.deckhouse.io/description: "Доступ только на чтение к ресурсам модуля e2e-rbac в пространстве имён."
+rules:
+- apiGroups: [e2e.deckhouse.io]
+  resources: [widgets, globals]
+  verbs: [get, list, watch]

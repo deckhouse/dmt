@@ -1,0 +1,3 @@
+name: e2e-rbac
+namespace: d8-e2e-rbac
+subsystems: [networking]

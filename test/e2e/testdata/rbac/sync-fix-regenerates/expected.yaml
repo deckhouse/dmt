@@ -1,0 +1,10 @@
+description: >
+  A generated capability file that is missing is reported by sync; --fix writes it from rbac.yaml
+  and the finding is resolved in the same run (nothing is dropped, so the safeguard lets it through).
+kind: fix
+module: module
+expectPass:
+  # the module must render: a render failure would otherwise pass every expectPass trivially
+  - linter: manager
+  - linter: rbac
+    rule: sync

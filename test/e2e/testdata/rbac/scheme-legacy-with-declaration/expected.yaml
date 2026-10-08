@@ -1,0 +1,31 @@
+description: >
+  A module on the scheme before DKP 1.78 that already has an rbac.yaml: the declaration produces the
+  1.78 objects, the templates render the legacy ones, and sync names the cause once per file instead
+  of listing every absent object as a mystery. The legacy objects themselves are not "extra".
+module: module
+expect:
+  - linter: rbac
+    rule: sync
+    level: warn
+    textContains: "the template renders the legacy RBACv2 scheme (rbac.deckhouse.io/kind: use, the manage/use model before DKP 1.78) where the declaration produces the 1.78 model; migrate the module with rbacv2-migrate-module.sh"
+    count: 2
+  - linter: rbac
+    rule: sync
+    level: warn
+    textContains: "the template renders the legacy RBACv2 scheme (rbac.deckhouse.io/kind: manage"
+    count: 2
+  - linter: rbac
+    rule: contract
+    level: warn
+    textContains: "is of the legacy RBACv2 scheme"
+    count: 4
+expectPass:
+  - linter: manager
+  - linter: rbac
+    rule: coverage
+  - linter: rbac
+    rule: sync
+    textContains: "d8:use:capability"
+  - linter: rbac
+    rule: sync
+    textContains: "d8:manage:permission"

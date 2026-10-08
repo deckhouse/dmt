@@ -20,9 +20,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
+	"sort"
+	"strings"
 
 	"github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/mapstructure"
@@ -150,7 +153,101 @@ func (l *Loader) parseConfig() error {
 		return fmt.Errorf("can't unmarshal config by viper (flags, file): %w", err)
 	}
 
-	return nil
+	return validateRbacKeys(l.viper)
+}
+
+// rbacKnownKeys lists the keys the rbac blocks accept, by path. viper drops an unknown key without
+// a word, and for these blocks silence is expensive: a misspelled per-rule level or exclusion would
+// leave a rule at full strength -- or off -- with nobody noticing. Only the rbac blocks are held to
+// this; the other linters keep viper's lenient behaviour.
+var rbacKnownKeys = map[string]map[string]struct{}{
+	"global.linters-settings.rbac":                {"impact": {}, "rules": {}},
+	"global.linters-settings.rbac.rules":          {"coverage": {}, "sync": {}, "contract": {}},
+	"global.linters-settings.rbac.rules.coverage": {"impact": {}},
+	"global.linters-settings.rbac.rules.sync":     {"impact": {}},
+	"global.linters-settings.rbac.rules.contract": {"impact": {}},
+	"linters-settings.rbac":                       {"impact": {}, "exclude-rules": {}},
+	"linters-settings.rbac.exclude-rules": {
+		"binding-subject": {}, "placement": {}, "wildcards": {}, "coverage": {}, "contract": {}, "sync": {},
+	},
+}
+
+// rbacKnownListKeys lists the exclusion lists whose entries are kind/name pairs; the other lists
+// hold plain strings and have no keys to misspell.
+var rbacKnownListKeys = map[string]map[string]struct{}{
+	"linters-settings.rbac.exclude-rules.placement": {"kind": {}, "name": {}},
+	"linters-settings.rbac.exclude-rules.wildcards": {"kind": {}, "name": {}},
+	"linters-settings.rbac.exclude-rules.contract":  {"kind": {}, "name": {}},
+	"linters-settings.rbac.exclude-rules.sync":      {"kind": {}, "name": {}},
+}
+
+// validateRbacKeys reports every unknown key of the rbac blocks in one error, so that a config
+// with several misspellings is fixed in one round.
+func validateRbacKeys(v *viper.Viper) error {
+	var problems []string
+
+	for _, path := range slices.Sorted(maps.Keys(rbacKnownKeys)) {
+		block, ok := v.Get(path).(map[string]any)
+		if !ok {
+			continue
+		}
+
+		problems = append(problems, unknownKeys(block, rbacKnownKeys[path], path)...)
+
+		// A level that is not one of the known ones is read as error: "ignore" for "ignored" would
+		// raise a rule instead of silencing it.
+		if impact, set := block["impact"]; set {
+			if s, isString := impact.(string); !isString || !knownLevels[s] {
+				problems = append(problems, fmt.Sprintf("%s.impact is %v: the levels are ignored, warn, error, critical", path, impact))
+			}
+		}
+	}
+
+	for _, path := range slices.Sorted(maps.Keys(rbacKnownListKeys)) {
+		list, ok := v.Get(path).([]any)
+		if !ok {
+			continue
+		}
+
+		for i, item := range list {
+			entry, ok := item.(map[string]any)
+			if !ok {
+				problems = append(problems, fmt.Sprintf("entry %d under %q is not a kind/name pair", i, path))
+				continue
+			}
+
+			problems = append(problems, unknownKeys(entry, rbacKnownListKeys[path], fmt.Sprintf("%s[%d]", path, i))...)
+		}
+	}
+
+	if len(problems) == 0 {
+		return nil
+	}
+
+	return fmt.Errorf("%s in %s", strings.Join(problems, "; "), v.ConfigFileUsed())
+}
+
+// knownLevels are the impact values pkg.ParseStringToLevel knows.
+var knownLevels = map[string]bool{"ignored": true, "warn": true, "error": true, "critical": true}
+
+// unknownKeys names the keys of block that known does not list, with the accepted ones.
+func unknownKeys(block map[string]any, known map[string]struct{}, path string) []string {
+	var unknown []string
+
+	for key := range block {
+		if _, ok := known[key]; !ok {
+			unknown = append(unknown, key)
+		}
+	}
+
+	if len(unknown) == 0 {
+		return nil
+	}
+
+	sort.Strings(unknown)
+
+	return []string{fmt.Sprintf("unknown key(s) %s under %q: the accepted keys are %s",
+		strings.Join(unknown, ", "), path, strings.Join(slices.Sorted(maps.Keys(known)), ", "))}
 }
 
 func (l *Loader) setConfigDir() error {
