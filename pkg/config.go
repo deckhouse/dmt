@@ -409,6 +409,7 @@ type ContainerLinterRules struct {
 	ReadinessRule                RuleConfig
 	MountPointsRule              RuleConfig
 	SysCgroupMountRule           RuleConfig
+	PodSecurityStandardsRule     RuleConfig
 }
 
 type ContainerExcludeRules struct {

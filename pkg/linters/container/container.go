@@ -92,6 +92,7 @@ func (l *Container) rules(objects []rules.ObjectContainers) []pkg.Rule {
 		rules.NewDNSPolicyRule(cfg.ExcludeRules.DNSPolicy.Get(), m, level(cfg.Rules.DNSPolicyRule)),
 		rules.NewControllerSecurityContextRule(cfg.ExcludeRules.ControllerSecurityContext.Get(), m, level(cfg.Rules.ControllerSecurityContextRule)),
 		rules.NewRevisionHistoryLimitRule(m, level(cfg.Rules.NewRevisionHistoryLimitRule)),
+		rules.NewPodSecurityStandardsRule(m, level(cfg.Rules.PodSecurityStandardsRule)),
 
 		// container-scoped, over every container including init ones
 		rules.NewNameDuplicatesRule(objects, level(cfg.Rules.NameDuplicatesRule)),

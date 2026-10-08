@@ -321,6 +321,10 @@ func mapContainerRules(linterSettings *pkg.LintersSettings, configSettings *conf
 		globalConfig.Container.Rules.MountPointsRule.Impact,
 		configSettings.Container.Impact,
 	)
+	linterSettings.Container.Rules.PodSecurityStandardsRule.SetLevel(
+		globalConfig.Container.Rules.PodSecurityStandardsRule.Impact,
+		configSettings.Container.Impact,
+	)
 	// sys-cgroup-mount defaults to warn: a container that mounts /sys but not
 	// /sys/fs/cgroup only breaks on a hardened (read-only) containerd such as the
 	// CSE edition, so a missing cgroup mount is a portability warning rather than

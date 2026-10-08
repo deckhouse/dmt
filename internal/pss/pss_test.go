@@ -17,6 +17,8 @@ limitations under the License.
 package pss
 
 import (
+	"slices"
+	"sync"
 	"testing"
 
 	"github.com/open-policy-agent/opa/v1/ast"
@@ -60,4 +62,42 @@ func TestChecks(t *testing.T) {
 		require.Contains(t, byStd[Restricted], kind)
 		assert.NotEqual(t, byStd[Baseline][kind].Parameters, byStd[Restricted][kind].Parameters, kind)
 	}
+}
+
+// Prepared queries are shared by modules linted in parallel; run with -race.
+func TestEvalConcurrent(t *testing.T) {
+	qs, err := queries()
+	require.NoError(t, err)
+
+	checks, err := Checks()
+	require.NoError(t, err)
+	require.Len(t, qs, len(checks), "every check is prepared")
+
+	pod := map[string]any{
+		"apiVersion": "v1",
+		"kind":       "Pod",
+		"metadata":   map[string]any{"name": "p", "namespace": "d8-test"},
+		"spec": map[string]any{"containers": []any{map[string]any{
+			"name":            "app",
+			"securityContext": map[string]any{"privileged": true},
+		}}},
+	}
+
+	var wg sync.WaitGroup
+
+	for range 8 {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			violations, err := Eval(t.Context(), pod, Inventory(nil))
+			assert.NoError(t, err)
+			assert.True(t, slices.ContainsFunc(violations, func(v Violation) bool {
+				return v.Kind == "D8PrivilegedContainer"
+			}))
+		}()
+	}
+
+	wg.Wait()
 }
