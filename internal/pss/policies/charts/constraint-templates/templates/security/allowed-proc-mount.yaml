@@ -1,0 +1,113 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: d8allowedprocmount
+  labels:
+    heritage: deckhouse
+    module: admission-policy-engine
+    security.deckhouse.io: security-policy
+  annotations:
+    metadata.gatekeeper.sh/title: "Proc Mount"
+    metadata.gatekeeper.sh/version: 1.1.0
+    description: >-
+      Controls the allowed `procMount` types for the container. Corresponds to
+      the `allowedProcMountTypes` field in a PodSecurityPolicy. For more
+      information, see
+      https://kubernetes.io/docs/concepts/policy/pod-security-policy/#allowedprocmounttypes
+spec:
+  crd:
+    spec:
+      names:
+        kind: D8AllowedProcMount
+      validation:
+        # Schema for the `parameters` field
+        openAPIV3Schema:
+          type: object
+          description: >-
+            Controls the allowed `procMount` types for the container. Corresponds to
+            the `allowedProcMountTypes` field in a PodSecurityPolicy. For more
+            information, see
+            https://kubernetes.io/docs/concepts/policy/pod-security-policy/#allowedprocmounttypes
+          properties:
+            allowedProcMount:
+              type: string
+              description: >-
+                Defines the strategy for the security exposure of certain paths
+                in `/proc` by the container runtime. Setting to `Default` uses
+                the runtime defaults, where `Unmasked` bypasses the default
+                behavior.
+              enum:
+                - Default
+                - Unmasked
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      code:
+        - engine: Rego
+          source:
+            version: "v1"
+            libs:
+              - |
+                {{- include "constraint-templates.lib.common.container-review" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.check_set" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.match" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.exception.spe" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.message" . | nindent 16 }}
+            rego: |
+              package d8.security_policies
+ 
+              import data.lib.check_set.check_container_value_in_set
+              import data.lib.common.input_containers
+              import data.lib.common.object_labels
+              import data.lib.common.object_namespace
+              import data.lib.message.violation_message
+ 
+              violation contains {"msg": msg, "details": {}} if {
+                not input.review.operation == "DELETE"
+                c := input_containers[_]
+                allowed_proc_mount := get_allowed_proc_mount(input)
+                labels := object_labels
+                result := check_container_value_in_set(
+                  c,
+                  ["securityContext", "procMount"],
+                  "procMount",
+                  allowed_proc_mount,
+                  ["spec", "securityContext", "procMount", "allowedValues"],
+                  labels,
+                  object_namespace
+                )
+                not result.allowed
+                msg := violation_message("ProcMount type is not allowed", sprintf("container: %v", [c.name]), result.detail)
+              }
+ 
+              get_allowed_proc_mount(arg) := out if {
+                not arg.parameters
+                out = ["Default"]
+              }
+ 
+              get_allowed_proc_mount(arg) := out if {
+                not arg.parameters.allowedProcMount
+                out = ["Default"]
+              }
+ 
+              get_allowed_proc_mount(arg) := out if {
+                arg.parameters.allowedProcMount
+                not valid_proc_mount(arg.parameters.allowedProcMount)
+                out = ["Default"]
+              }
+ 
+              get_allowed_proc_mount(arg) := out if {
+                valid_proc_mount(arg.parameters.allowedProcMount)
+                out = [arg.parameters.allowedProcMount]
+              }
+ 
+              valid_proc_mount(str) if {
+                lower(str) == "default"
+              }
+ 
+              valid_proc_mount(str) if {
+                lower(str) == "unmasked"
+              }

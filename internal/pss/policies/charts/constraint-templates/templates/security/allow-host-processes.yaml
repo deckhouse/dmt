@@ -1,0 +1,156 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: d8hostprocesses
+  labels:
+    heritage: deckhouse
+    module: admission-policy-engine
+    security.deckhouse.io: security-policy
+  annotations:
+    metadata.gatekeeper.sh/title: "Host Processes"
+    metadata.gatekeeper.sh/version: 1.0.0
+    description: >-
+      Disallows sharing of host PID and/or IPC namespaces by pod containers.
+      Corresponds to the `hostPID` and `hostIPC` fields in a PodSecurityPolicy.
+      For more information, see
+      https://kubernetes.io/docs/concepts/policy/pod-security-policy/#host-namespaces
+spec:
+  crd:
+    spec:
+      names:
+        kind: D8HostProcesses
+      validation:
+        # Schema for the `parameters` field
+        openAPIV3Schema:
+          type: object
+          description: >-
+            Disallows sharing of host PID and/or IPC namespaces by pod containers.
+            Corresponds to the `hostPID` and `hostIPC` fields in a PodSecurityPolicy.
+            For more information, see
+            https://kubernetes.io/docs/concepts/policy/pod-security-policy/#host-namespaces
+          properties:
+            allowHostPID:
+              type: boolean
+              description: "Allowed access to host PID namespacse."
+            allowHostIPC:
+              type: boolean
+              description: "Allowed access to host IPC namespacse."
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      code:
+        - engine: Rego
+          source:
+            version: "v1"
+            libs:
+              - |
+                {{- include "constraint-templates.lib.common.container-review" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.check_bool" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.exception.spe" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.message" . | nindent 16 }}
+            rego: |
+              package d8.security_policies
+
+              import data.lib.common.get_field
+              import data.lib.common.object_labels
+              import data.lib.common.object_namespace
+              import data.lib.common.pod_spec
+              import data.lib.exception.path_value_resolved
+              import data.lib.exception.resolve_spe_from_labels
+              import data.lib.message.violation_message
+
+              violation contains {"msg": msg, "details": {}} if {
+                not input.review.operation == "DELETE"
+                obj := input.review.object
+                labels := object_labels
+                namespace := object_namespace
+                spe := resolve_spe_from_labels(labels, namespace)
+                checks := [
+                  {
+                    "field_path": ["hostPID"],
+                    "field_name": "hostPID",
+                    "default_val": false,
+                    "spe_path": ["spec", "network", "hostPID", "allowedValue"],
+                    "param_field": "allowHostPID"
+                  },
+                  {
+                    "field_path": ["hostIPC"],
+                    "field_name": "hostIPC",
+                    "default_val": false,
+                    "spe_path": ["spec", "network", "hostIPC", "allowedValue"],
+                    "param_field": "allowHostIPC"
+                  }
+                ]
+                check := checks[_]
+                actual := get_field(pod_spec, check.field_path, check.default_val)
+                param_allow := object.get(input.parameters, check.param_field, false)
+                spe_applied := path_value_resolved(spe, check.spe_path)
+                expected := object.get(spe, check.spe_path, false)
+                spe_applied
+                not host_namespace_permitted(actual, expected)
+                detail := {
+                  "field": check.field_name,
+                  "actual": actual,
+                  "policy_allowed": param_allow,
+                  "spe_applied": spe_applied,
+                  "spe_allowed": expected,
+                }
+                reason := sprintf("Sharing the %v namespace is not allowed", [check.field_name])
+                msg := violation_message(reason, obj.metadata.name, detail)
+              }
+
+              violation contains {"msg": msg, "details": {}} if {
+                not input.review.operation == "DELETE"
+                obj := input.review.object
+                labels := object_labels
+                namespace := object_namespace
+                spe := resolve_spe_from_labels(labels, namespace)
+                checks := [
+                  {
+                    "field_path": ["hostPID"],
+                    "field_name": "hostPID",
+                    "default_val": false,
+                    "spe_path": ["spec", "network", "hostPID", "allowedValue"],
+                    "param_field": "allowHostPID"
+                  },
+                  {
+                    "field_path": ["hostIPC"],
+                    "field_name": "hostIPC",
+                    "default_val": false,
+                    "spe_path": ["spec", "network", "hostIPC", "allowedValue"],
+                    "param_field": "allowHostIPC"
+                  }
+                ]
+                check := checks[_]
+                actual := get_field(pod_spec, check.field_path, check.default_val)
+                param_allow := object.get(input.parameters, check.param_field, false)
+                not path_value_resolved(spe, check.spe_path)
+                not param_allow
+                actual != false
+                detail := {
+                  "field": check.field_name,
+                  "actual": actual,
+                  "policy_allowed": false,
+                  "spe_applied": false,
+                }
+                reason := sprintf("Sharing the %v namespace is not allowed", [check.field_name])
+                msg := violation_message(reason, obj.metadata.name, detail)
+              }
+
+              # Where an exception is in force it decides whether the namespace may be shared,
+              # including narrowing a constraint that allows it. What it cannot do is turn
+              # `allowedValue: true` into a requirement: comparing the pod against the exception
+              # alone denied a pod that did not share the namespace at all, because its `false`
+              # differed from the `true` the exception permitted. Not using a feature is never a
+              # violation of a rule that restricts it.
+              host_namespace_permitted(actual, _) if {
+                actual == false
+              }
+
+              host_namespace_permitted(actual, spe_allowed) if {
+                actual == true
+                spe_allowed == true
+              }
+

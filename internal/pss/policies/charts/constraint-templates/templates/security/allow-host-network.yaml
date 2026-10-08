@@ -1,0 +1,224 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: d8hostnetwork
+  labels:
+    heritage: deckhouse
+    module: admission-policy-engine
+    security.deckhouse.io: security-policy
+  annotations:
+    metadata.gatekeeper.sh/title: "Host Networking"
+    metadata.gatekeeper.sh/version: 1.0.0
+    description: >-
+      Controls usage of host network namespace by pod containers. Specific
+      ports must be specified. Corresponds to the `hostNetwork` and
+      `hostPorts` fields in a PodSecurityPolicy. For more information, see
+      https://kubernetes.io/docs/concepts/policy/pod-security-policy/#host-namespaces
+spec:
+  crd:
+    spec:
+      names:
+        kind: D8HostNetwork
+      validation:
+        # Schema for the `parameters` field
+        openAPIV3Schema:
+          type: object
+          description: >-
+            Controls usage of host network namespace by pod containers. Specific
+            ports must be specified. Corresponds to the `hostNetwork` and
+            `hostPorts` fields in a PodSecurityPolicy. For more information, see
+            https://kubernetes.io/docs/concepts/policy/pod-security-policy/#host-namespaces
+          properties:
+            allowHostNetwork:
+              description: "Determines if the policy allows the use of HostNetwork in the pod spec."
+              type: boolean
+            ranges:
+              type: array
+              description: "A list of of hostPort ranges allowed by the rule."
+              items:
+                type: object
+                description: "The range of hostPorts allowed by the rule."
+                properties:
+                  min:
+                    description: "The start of the allowed port range, inclusive."
+                    type: integer
+                  max:
+                    description: "The end of the allowed port range, inclusive."
+                    type: integer
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      code:
+        - engine: Rego
+          source:
+            version: "v1"
+            libs:
+              - |
+                {{- include "constraint-templates.lib.common.container-review" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.range" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.check_range" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.exception.spe" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.message" . | nindent 16 }}
+            rego: |
+              package d8.security_policies
+
+              import data.lib.check_range.check_ports_with_protocol_in_ranges
+              import data.lib.message.violation_message
+              import data.lib.common.input_containers
+              import data.lib.common.object_labels
+              import data.lib.common.object_namespace
+              import data.lib.common.pod_spec
+              import data.lib.exception.allowed_values_or_empty
+              import data.lib.exception.path_value_resolved
+              import data.lib.exception.resolve_spe_from_labels
+              import data.lib.common.review_kind
+
+              violation contains {"msg": msg, "details": {}} if {
+                not input.review.operation == "DELETE"
+                obj := input.review.object
+                allow_host_network := object.get(input.parameters, "allowHostNetwork", false)
+                labels := object_labels
+                namespace := object_namespace
+                spe := resolve_spe_from_labels(labels, namespace)
+                bool_result := host_network_result(obj, allow_host_network, spe)
+                host_network := object.get(pod_spec, "hostNetwork", false)
+                ports := collect_ports(host_network)
+                spe_ports_path := ["spec", "network", "hostPorts"]
+                spe_ports_applied := path_value_resolved(spe, spe_ports_path)
+                spe_ports := allowed_values_or_empty(spe, spe_ports_path)
+                range_result := host_port_result(ports, spe_ports_applied, spe_ports)
+                failed := failed_result(bool_result, range_result)
+                msg := violation_message("The hostNetwork or hostPort are not allowed", sprintf("%v: %v", [review_kind, obj.metadata.name]), failed.detail)
+              }
+
+              # Where an exception is in force it decides whether the host network may be used,
+              # including narrowing a constraint that allows it. What it cannot do is turn
+              # `allowedValue: true` into a requirement: comparing the pod against the exception
+              # alone denied a pod that did not use hostNetwork at all, because its `false`
+              # differed from the `true` the exception permitted. Not using a feature is never a
+              # violation of a rule that restricts it.
+              host_network_permitted(actual, _) if {
+                actual == false
+              }
+
+              host_network_permitted(actual, spe_allowed) if {
+                actual == true
+                spe_allowed == true
+              }
+
+              host_network_result(obj, allow_host_network, spe) := result if {
+                spe_path := ["spec", "network", "hostNetwork", "allowedValue"]
+                path_value_resolved(spe, spe_path)
+                actual := object.get(pod_spec, "hostNetwork", false)
+                spe_allowed := object.get(spe, spe_path, false)
+                host_network_permitted(actual, spe_allowed)
+                result := {"allowed": true, "msg": "", "detail": {}}
+              }
+
+              host_network_result(obj, allow_host_network, spe) := result if {
+                spe_path := ["spec", "network", "hostNetwork", "allowedValue"]
+                path_value_resolved(spe, spe_path)
+                actual := object.get(pod_spec, "hostNetwork", false)
+                spe_allowed := object.get(spe, spe_path, false)
+                not host_network_permitted(actual, spe_allowed)
+                result := {
+                  "allowed": false,
+                  "msg": "",
+                  "detail": {
+                    "field": "hostNetwork",
+                    "actual": actual,
+                    "policy_allowed": allow_host_network,
+                    "spe_applied": true,
+                    "spe_allowed": spe_allowed,
+                  },
+                }
+              }
+
+              host_network_result(_, true, spe) := {"allowed": true, "msg": "", "detail": {}} if {
+                not path_value_resolved(spe, ["spec", "network", "hostNetwork", "allowedValue"])
+              }
+
+              host_network_result(obj, false, spe) := result if {
+                not path_value_resolved(spe, ["spec", "network", "hostNetwork", "allowedValue"])
+                actual := object.get(pod_spec, "hostNetwork", false)
+                actual == false
+                result := {"allowed": true, "msg": "", "detail": {}}
+              }
+
+              host_network_result(_, false, spe) := result if {
+                not path_value_resolved(spe, ["spec", "network", "hostNetwork", "allowedValue"])
+                actual := object.get(pod_spec, "hostNetwork", false)
+                actual != false
+                result := {
+                  "allowed": false,
+                  "msg": "",
+                  "detail": {
+                    "field": "hostNetwork",
+                    "actual": actual,
+                    "policy_allowed": false,
+                    "spe_applied": false,
+                  },
+                }
+              }
+
+              failed_result(bool_result, _) := bool_result if {
+                not bool_result.allowed
+              }
+
+              failed_result(bool_result, range_result) := range_result if {
+                bool_result.allowed
+                not range_result.allowed
+              }
+
+              collect_ports(host_network) := ports if {
+                host_ports := [
+                  {"port": p.hostPort, "protocol": object.get(p, "protocol", "TCP")} |
+                  p := input_containers[_].ports[_]
+                  object.get(p, "hostPort", null) != null
+                ]
+                container_ports := [
+                  {"port": p.containerPort, "protocol": object.get(p, "protocol", "TCP")} |
+                  p := input_containers[_].ports[_]
+                  object.get(p, "containerPort", null) != null
+                ]
+                host_network
+                ports := array.concat(host_ports, container_ports)
+              }
+
+              collect_ports(host_network) := ports if {
+                host_ports := [
+                  {"port": p.hostPort, "protocol": object.get(p, "protocol", "TCP")} |
+                  p := input_containers[_].ports[_]
+                  object.get(p, "hostPort", null) != null
+                ]
+                not host_network
+                ports := host_ports
+              }
+
+              # `allowedHostPorts` is optional, and omitting it places no restriction on host ports,
+              # while an empty list forbids every one of them. The check has to stay total either
+              # way: the constraint is also rendered for a policy that only sets `allowHostNetwork`,
+              # and reading an absent `parameters.ranges` left the whole violation rule undefined,
+              # so such a policy silently stopped denying anything at all.
+              host_port_result(_, false, _) := {"allowed": true, "msg": "", "detail": {}} if {
+                not host_port_ranges_configured
+              }
+
+              host_port_result(ports, false, spe_ports) := result if {
+                host_port_ranges_configured
+                result := check_ports_with_protocol_in_ranges(ports, "hostPorts", input.parameters.ranges, spe_ports)
+              }
+
+              # An exception that names host ports governs them on its own, so the policy ranges
+              # give way to it.
+              host_port_result(ports, true, spe_ports) := result if {
+                result := check_ports_with_protocol_in_ranges(ports, "hostPorts", [], spe_ports)
+              }
+
+              host_port_ranges_configured if {
+                object.get(input.parameters, "ranges", null) != null
+              }
+ 
