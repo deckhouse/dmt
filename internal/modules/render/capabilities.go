@@ -17,12 +17,13 @@ limitations under the License.
 package render
 
 // ExtraAPIVersions are the API versions dmt adds on top of Helm's defaults so
-// templates gating on them (VPA, cert-manager, Gateway API) render offline. Pass
-// the result to Render via Options.ExtraAPIVersions.
+// templates gating on them (VPA, cert-manager, Gateway API, SecurityPolicyException)
+// render offline. Pass the result to Render via Options.ExtraAPIVersions.
 func ExtraAPIVersions() []string {
 	return []string{
 		"autoscaling.k8s.io/v1/VerticalPodAutoscaler",
 		"cert-manager.io/v1",
+		"deckhouse.io/v1alpha1/SecurityPolicyException",
 		"gateway.networking.k8s.io/v1/Gateway",
 		"gateway.networking.k8s.io/v1/HTTPRoute",
 		"gateway.networking.k8s.io/v1/ListenerSet",
