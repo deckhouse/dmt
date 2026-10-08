@@ -72,6 +72,7 @@ type ContainerRules struct {
 	PodSecurityStandardsRule     RuleConfig `mapstructure:"pod-security-standards"`
 	SPEDescriptionRule           RuleConfig `mapstructure:"security-policy-exception-description"`
 	SPEUnusedRule                RuleConfig `mapstructure:"security-policy-exception-unused"`
+	SPESchemaRule                RuleConfig `mapstructure:"security-policy-exception-schema"`
 }
 
 type ImagesLinterConfig struct {

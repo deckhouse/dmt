@@ -269,3 +269,28 @@ func speObject(t *testing.T, name, ns, spec string) storage.StoreObject {
 
 	return withNamespace(t, storage.StoreObject{Unstructured: unstructured.Unstructured{Object: spe(t, name, spec)}}, ns)
 }
+
+func TestSecurityPolicyExceptionSchemaRule(t *testing.T) {
+	objects := []storage.StoreObject{
+		speObject(t, "good", "d8-test", `{securityContext: {sysctls: {allowedValues: [{name: kernel.msgmax, value: "65536"}]}}}`),
+		speObject(t, "bad", "d8-test", `{securityContext: {sysctls: {allowedValues: [kernel.msgmax]}, appArmorProfile: {allowedValues: [default]}}, network: {hostPID: {allowed: true}}}`),
+	}
+
+	errs := runRule(t, objects, func(m pkg.Module, l *errors.LintRuleErrorsList) pkg.Rule {
+		return NewSecurityPolicyExceptionSchemaRule(m, l)
+	})
+
+	texts := make([]string, 0, len(errs))
+	for _, e := range errs {
+		assert.Equal(t, SecurityPolicyExceptionSchemaRuleName, e.RuleID)
+		texts = append(texts, e.Text)
+	}
+
+	const prefix = "SecurityPolicyException d8-test/bad does not match the CRD schema: "
+
+	assert.ElementsMatch(t, []string{
+		prefix + "spec.network.hostPID.allowed: unknown field",
+		prefix + `spec.securityContext.sysctls.allowedValues[0]: Invalid value: "string": spec.securityContext.sysctls.allowedValues[0] in body must be of type object: "string"`,
+		prefix + `spec.securityContext.appArmorProfile.allowedValues[0]: Invalid value: "default": spec.securityContext.appArmorProfile.allowedValues[0] in body should match '^(runtime\/default|unconfined|localhost\/.+)$'`,
+	}, texts)
+}

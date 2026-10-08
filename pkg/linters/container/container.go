@@ -95,6 +95,7 @@ func (l *Container) rules(objects []rules.ObjectContainers) []pkg.Rule {
 		rules.NewPodSecurityStandardsRule(m, level(cfg.Rules.PodSecurityStandardsRule)),
 		rules.NewSecurityPolicyExceptionDescriptionRule(m, level(cfg.Rules.SPEDescriptionRule)),
 		rules.NewSecurityPolicyExceptionUnusedRule(cfg.ExcludeRules.SecurityPolicyExceptionUnused.Get(), m, level(cfg.Rules.SPEUnusedRule)),
+		rules.NewSecurityPolicyExceptionSchemaRule(m, level(cfg.Rules.SPESchemaRule)),
 
 		// container-scoped, over every container including init ones
 		rules.NewNameDuplicatesRule(objects, level(cfg.Rules.NameDuplicatesRule)),

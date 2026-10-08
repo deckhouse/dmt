@@ -142,3 +142,49 @@ spec:
 		},
 	}, got["spec"])
 }
+
+func TestValidateSPE(t *testing.T) {
+	for name, tc := range map[string]struct {
+		spec string
+		want []string
+	}{
+		"valid": {spec: `
+securityContext:
+  sysctls: {allowedValues: [{name: net.ipv4.ip_forward, value: "1"}]}
+  appArmorProfile: {allowedValues: [unconfined]}
+volumes:
+  hostPath: {allowedValues: [{path: /var/log}]}
+network:
+  hostPorts: [{port: 53, protocol: UDP}]`},
+		"sysctls as strings": {
+			spec: `{securityContext: {sysctls: {allowedValues: [net.ipv4.ip_forward=1]}}}`,
+			want: []string{`spec.securityContext.sysctls.allowedValues[0]: Invalid value: "string": spec.securityContext.sysctls.allowedValues[0] in body must be of type object: "string"`},
+		},
+		"appArmor pattern": {
+			spec: `{securityContext: {appArmorProfile: {allowedValues: [RuntimeDefault]}}}`,
+			want: []string{`spec.securityContext.appArmorProfile.allowedValues[0]: Invalid value: "RuntimeDefault": spec.securityContext.appArmorProfile.allowedValues[0] in body should match '^(runtime\/default|unconfined|localhost\/.+)$'`},
+		},
+		"unknown field": {
+			spec: `{network: {hostNetwork: {allowedValue: true, allowed: true}}}`,
+			want: []string{`spec.network.hostNetwork.allowed: unknown field`},
+		},
+		"missing required": {
+			spec: `{securityContext: {capabilities: {metadata: {description: x}}}}`,
+			want: []string{`spec.securityContext.capabilities.allowedValues: Required value`},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var spec map[string]any
+			require.NoError(t, yaml.Unmarshal([]byte(tc.spec), &spec))
+
+			got, err := ValidateSPE(map[string]any{
+				"apiVersion": SPEAPIVersion,
+				"kind":       SPEKind,
+				"metadata":   map[string]any{"name": "spe", "namespace": "d8-test"},
+				"spec":       spec,
+			})
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
