@@ -131,7 +131,13 @@ type TemplatesLinterConfig struct {
 	ExcludeRules              TemplatesExcludeRules
 	PrometheusRuleSettings    PrometheusRuleSettings
 	GrafanaDashboardsSettings GrafanaDashboardsSettings
+	SourceLabelSettings       SourceLabelSettings
 }
+
+type SourceLabelSettings struct {
+	AllowedMetrics []string
+}
+
 type TemplatesLinterRules struct {
 	VPARule                            RuleConfig
 	PDBRule                            RuleConfig
@@ -157,6 +163,7 @@ type TemplatesLinterRules struct {
 	HTTPSCertificateReuseRule          RuleConfig
 	ListenerSetRedirectRule            RuleConfig
 	HTTPRouteRedirectRule              RuleConfig
+	SourceLabelRule                    RuleConfig
 }
 
 type PrometheusRuleSettings struct {

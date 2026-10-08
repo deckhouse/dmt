@@ -425,6 +425,7 @@ func mapTemplatesRules(linterSettings *pkg.LintersSettings, configSettings *conf
 	rules.HTTPSCertificateReuseRule.SetLevel(globalRules.HTTPSCertificateReuseRule.Impact, fallbackImpact)
 	rules.ListenerSetRedirectRule.SetLevel(globalRules.ListenerSetRedirectRule.Impact, fallbackImpact)
 	rules.HTTPRouteRedirectRule.SetLevel(globalRules.HTTPRouteRedirectRule.Impact, fallbackImpact)
+	rules.SourceLabelRule.SetLevel(globalRules.SourceLabelRule.Impact, fallbackImpact)
 }
 
 // mapOpenAPIRules configures OpenAPI linter rules
@@ -574,6 +575,7 @@ func mapTemplatesExclusionsAndSettings(linterSettings *pkg.LintersSettings, conf
 	// Additional settings
 	linterSettings.Templates.PrometheusRuleSettings.Disable = configSettings.Templates.PrometheusRules.Disable
 	linterSettings.Templates.GrafanaDashboardsSettings.Disable = configSettings.Templates.GrafanaDashboards.Disable
+	linterSettings.Templates.SourceLabelSettings.AllowedMetrics = configSettings.Templates.SourceLabel.AllowedMetrics
 }
 
 // mapRBACExclusions maps RBAC linter exclusion rules
