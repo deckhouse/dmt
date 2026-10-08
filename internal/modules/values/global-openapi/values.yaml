@@ -297,6 +297,8 @@ properties:
       - managed-trino
       - managed-valkey
       - operator-postgres
+      - admission-policy-engine
+      - admission-policy-engine-crd
   discovery:
     additionalProperties: true
     type: object
