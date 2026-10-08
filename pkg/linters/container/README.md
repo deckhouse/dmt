@@ -44,6 +44,7 @@ Proper container configuration is critical for cluster stability, security, and 
 | [no-new-privileges](#no-new-privileges) | Validates containers don't allow privilege escalation | ✅ | enabled |
 | [seccomp-profile](#seccomp-profile) | Validates seccomp profile configuration | ✅ | enabled |
 | [sys-cgroup-mount](#sys-cgroup-mount) | Requires `/sys/fs/cgroup` when a container mounts the host `/sys` | ✅ | enabled |
+| [pod-security-standards](#pod-security-standards) | Validates workloads in `d8-*`/`kube-*` against Pod Security Standards (restricted) with SecurityPolicyExceptions | ✅ | enabled |
 
 "Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
@@ -1459,6 +1460,36 @@ linters-settings:
         - kind: DaemonSet
           name: system-daemon
           container: system-container
+```
+
+### pod-security-standards
+
+**Purpose:** Catches at MR time what admission-policy-engine denies in the cluster: since DKP 1.79 system namespaces (`d8-*`, `kube-*`) are enforced against Pod Security Standards `restricted`, and every legitimate deviation must be described by a `SecurityPolicyException` (SPE).
+
+**Description:**
+
+The rule executes the real rego of admission-policy-engine (both `baseline` and `restricted` constraints, embedded into dmt, see `internal/pss`) with the OPA version gatekeeper uses, against every rendered Pod, Deployment, StatefulSet, DaemonSet, ReplicationController, Job and CronJob in a `d8-*`/`kube-*` namespace. The `SecurityPolicyException` objects rendered by the module are visible to the policies the same way gatekeeper sees them in the cluster.
+
+Controllers are checked as the Pod they create (built from the pod template): the policies are lenient to a controller whose template omits `runAsUser`/`runAsNonRoot` because a mutator might set it, but the Pod itself is denied.
+
+The finding does not list the violated policies; check the object against the [admission-policy-engine documentation](https://deckhouse.ru/modules/admission-policy-engine/latest/#исключения-из-политик-безопасности).
+
+**Error:**
+```
+Deployment/app violates Pod Security Standards (restricted) and no SecurityPolicyException covers it. Fix the pod spec, or, if the deviation is really needed, describe it in a SecurityPolicyException: https://deckhouse.ru/modules/admission-policy-engine/latest/#исключения-из-политик-безопасности
+```
+
+SPE templates are usually wrapped in `has "admission-policy-engine"`/`has "admission-policy-engine-crd"`: both modules must be in `global.enabledModules` of the values dmt renders with.
+
+**Configuration:**
+
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  container:
+    rules:
+      pod-security-standards:
+        impact: ignored  # disable the rule
 ```
 
 ## Configuration

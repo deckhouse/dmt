@@ -70,6 +70,7 @@ var staticRules = map[string]set.Set{
 		containerrules.NameDuplicatesRuleName,
 		containerrules.NamespaceLabelsRuleName,
 		containerrules.NoNewPrivilegesRuleName,
+		containerrules.PodSecurityStandardsRuleName,
 		containerrules.PortsRuleName,
 		containerrules.PriorityClassRuleName,
 		containerrules.ReadinessRuleName,
