@@ -602,8 +602,7 @@ func spe(t *testing.T, name, spec string) map[string]any {
 }
 
 // Violations of several containers in one message, sorted, a msg both standards give
-// once; hostNetwork gets the full host port list, an empty capabilities.drop the
-// containers no SPE helps.
+// once; an empty capabilities.drop gets the containers no SPE helps.
 func TestPodSecurityStandardsRule_Message(t *testing.T) {
 	obj := patchedDeployment(t, `
 spec:
@@ -629,8 +628,7 @@ spec:
 - D8AllowedCapabilities: container has a disallowed capability, container: sidecar | capabilities.add: ["NET_ADMIN"] | policy allows: ["NET_BIND_SERVICE"]
 - D8AllowedCapabilities: container is not dropping all required capabilities, container: sidecar | capabilities.drop: [] | policy allows: ["ALL"]
 - D8AllowedCapabilities: no SecurityPolicyException can cover an empty capabilities.drop, add drop: [ALL] to containers (computed by dmt): sidecar
-- D8HostNetwork: The hostNetwork or hostPort are not allowed, Pod: app | hostNetwork: true | policy allows: false
-- D8HostNetwork: host ports of the pod (computed by dmt): 53/TCP, 53/UDP, 4224/TCP
+- D8HostNetwork: The hostNetwork or hostPort are not allowed, Pod: app | hostNetwork: true | policy allows: false | hostPorts: port 53/TCP, port 53/UDP, port 4224/TCP | policy allows: []
 - D8PrivilegedContainer: Privileged container is not allowed, container: app | privileged: true | policy allows: false
 Fix the pod spec, or, if the deviation is really needed, describe it in a SecurityPolicyException: https://deckhouse.ru/modules/admission-policy-engine/latest/#исключения-из-политик-безопасности`, message(t, obj))
 }
@@ -679,7 +677,7 @@ func TestPodSecurityStandardsRule_MessageUnexceptable(t *testing.T) {
 				`{spec: {template: {spec: {securityContext: {runAsUser: null}}}}}`,
 				`{spec: {template: {spec: {initContainers: [{name: init, image: init, securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, runAsNonRoot: false}}]}}}}`,
 			},
-			want: header + "- D8AllowedUsers: Container init is attempting to run as disallowed user. | Actual runAsUser: not set, runAsNonRoot: not set | Allowed runAsUser: {\"rule\": \"MustRunAsNonRoot\"}\n" +
+			want: header + "- D8AllowedUsers: Container init is attempting to run as disallowed user. | Actual runAsUser: not set, runAsNonRoot: false | Allowed runAsUser: {\"rule\": \"MustRunAsNonRoot\"}\n" +
 				noUserFix + "init\n" + fixOnly,
 		},
 		{

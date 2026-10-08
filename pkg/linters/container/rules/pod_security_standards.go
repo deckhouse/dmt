@@ -116,7 +116,7 @@ func (r *PodSecurityStandardsRule) checkObject(ctx context.Context, object stora
 		return
 	}
 
-	lines, unexceptable := violationLines(pod, violations)
+	lines, unexceptable := violationLines(violations)
 
 	advice := "Fix the pod spec, or, if the deviation is really needed, describe it in a SecurityPolicyException: " + pssDocURL
 	if unexceptable {
@@ -130,58 +130,43 @@ func (r *PodSecurityStandardsRule) checkObject(ctx context.Context, object stora
 }
 
 // violationLines lists violations as sorted "- <Kind>: <msg>" lines, a msg fired by
-// both standards once. The rego reports nothing but msg (details are empty), so the
-// container is not split out: it is in the msg of container checks already.
-// D8HostNetwork reports host ports one at a time, so its group gets the full list.
+// both standards once. The container of container checks is in their msg already,
+// and D8HostNetwork lists hostNetwork and every disallowed port in its one msg.
 //
-// Kinds no SecurityPolicyException can cover get the containers to fix computed from
-// the spec. unexceptable is true when those containers account for every violation.
-func violationLines(pod map[string]any, violations []pss.Violation) ([]string, bool) {
+// Violations no SecurityPolicyException can cover get a line with their containers
+// (taken from details). unexceptable is true when every violation is such.
+func violationLines(violations []pss.Violation) ([]string, bool) {
 	seen := map[string]bool{}
-	counts := map[string]int{}
+	containers := map[string][]string{}
+	unexceptable := true
 
 	var res []string
 
 	for _, v := range violations {
-		counts[v.Kind]++
-
 		line := "- " + v.Kind + ": " + v.Msg
 		if !seen[line] {
 			seen[line] = true
 			res = append(res, line)
 		}
 
-		if v.Kind == hostNetworkKind && !seen[hostNetworkKind] {
-			seen[hostNetworkKind] = true
+		u, ok := unexceptableKinds[v.Kind]
+		d, _ := v.Details.(map[string]any)
 
-			if ports := hostPorts(pod); len(ports) > 0 {
-				strs := make([]string, 0, len(ports))
-				for _, p := range ports {
-					strs = append(strs, p.String())
-				}
-
-				res = append(res, "- "+hostNetworkKind+": host ports of the pod (computed by dmt): "+strings.Join(strs, ", "))
-			}
-		}
-	}
-
-	unexceptable := true
-
-	for kind, n := range counts {
-		u, ok := unexceptableKinds[kind]
-		if !ok {
+		if !ok || !u.match(d) {
 			unexceptable = false
 
 			continue
 		}
 
-		containers := u.containers(pod)
-		if len(containers) > 0 {
-			res = append(res, "- "+kind+": "+u.msg+" (computed by dmt): "+strings.Join(containers, ", "))
+		name, _ := d["container"].(string)
+		if !slices.Contains(containers[v.Kind], name) {
+			containers[v.Kind] = append(containers[v.Kind], name)
 		}
+	}
 
-		// one violation per such container, anything more can be excepted
-		unexceptable = unexceptable && n == len(containers)
+	for kind, names := range containers {
+		slices.Sort(names)
+		res = append(res, "- "+kind+": "+unexceptableKinds[kind].msg+" (computed by dmt): "+strings.Join(names, ", "))
 	}
 
 	slices.Sort(res)
@@ -192,62 +177,28 @@ func violationLines(pod map[string]any, violations []pss.Violation) ([]string, b
 const hostNetworkKind = "D8HostNetwork"
 
 // unexceptableKinds are violations the rego gives no SecurityPolicyException a way
-// to cover: an SPE's capabilities.drop must be a non-empty subset of the container's,
-// and a container with neither runAsUser nor runAsNonRoot: true is denied with no
-// SPE lookup at all.
+// to cover, matched by their details: an SPE's capabilities.drop must be a non-empty
+// subset of the container's, and a container with neither runAsUser nor
+// runAsNonRoot: true is denied with no SPE lookup at all (the only D8AllowedUsers
+// violation whose details carry runAsNonRoot).
 var unexceptableKinds = map[string]struct {
-	msg        string
-	containers func(pod map[string]any) []string
+	msg   string
+	match func(details map[string]any) bool
 }{
 	"D8AllowedCapabilities": {
 		msg: "no SecurityPolicyException can cover an empty capabilities.drop, add drop: [ALL] to containers",
-		containers: func(pod map[string]any) []string {
-			return containersWhere(pod, func(_, c map[string]any) bool {
-				drop, _ := nested(c, "securityContext", "capabilities")["drop"].([]any)
-				return len(drop) == 0
-			})
+		match: func(d map[string]any) bool {
+			actual, _ := d["actual"].([]any)
+			return d["field"] == "capabilities.drop" && len(actual) == 0
 		},
 	},
 	"D8AllowedUsers": {
 		msg: "no SecurityPolicyException can cover unset runAsUser and runAsNonRoot, set runAsUser for containers",
-		containers: func(pod map[string]any) []string {
-			return containersWhere(pod, func(spec, c map[string]any) bool {
-				// container securityContext takes precedence over the pod's
-				get := func(field string) any {
-					if v, ok := nested(c, "securityContext")[field]; ok {
-						return v
-					}
-
-					return nested(spec, "securityContext")[field]
-				}
-
-				return get("runAsUser") == nil && get("runAsNonRoot") != true
-			})
+		match: func(d map[string]any) bool {
+			_, ok := d["runAsNonRoot"]
+			return ok
 		},
 	},
-}
-
-// containersWhere returns sorted names of the pod's containers, init and ephemeral
-// containers matching f.
-func containersWhere(pod map[string]any, f func(spec, container map[string]any) bool) []string {
-	spec := nested(pod, "spec")
-
-	var res []string
-
-	for _, field := range []string{"containers", "initContainers", "ephemeralContainers"} {
-		list, _ := spec[field].([]any)
-		for _, c := range list {
-			cm, _ := c.(map[string]any)
-			if f(spec, cm) {
-				name, _ := cm["name"].(string)
-				res = append(res, name)
-			}
-		}
-	}
-
-	slices.Sort(res)
-
-	return res
 }
 
 type hostPort struct {

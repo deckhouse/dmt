@@ -708,7 +708,7 @@ func (r *PodSecurityStandardsRule) speFix(ctx context.Context, object storage.St
 
 	workloads := workloadsIn(objects, filepath.Dir(object.AbsPath))
 	modulePath := r.module.GetPath()
-	leftover, _ := violationLines(pod, p.leftover)
+	leftover, _ := violationLines(p.leftover)
 
 	return func() error {
 		var notes []string
