@@ -17,7 +17,11 @@ limitations under the License.
 package rules
 
 import (
+	"cmp"
 	"context"
+	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/deckhouse/dmt/internal/pss"
@@ -105,9 +109,92 @@ func (r *PodSecurityStandardsRule) checkObject(ctx context.Context, object stora
 		return
 	}
 
-	errorList.Errorf("%s/%s violates Pod Security Standards (restricted) and no SecurityPolicyException covers it. "+
+	errorList.Errorf("%s/%s violates Pod Security Standards (restricted) and no SecurityPolicyException covers it:\n%s\n"+
 		"Fix the pod spec, or, if the deviation is really needed, describe it in a SecurityPolicyException: %s",
-		object.Unstructured.GetKind(), object.Unstructured.GetName(), pssDocURL)
+		object.Unstructured.GetKind(), object.Unstructured.GetName(), strings.Join(violationLines(pod, violations), "\n"), pssDocURL)
+}
+
+// violationLines lists violations as sorted "- <Kind>: <msg>" lines, a msg fired by
+// both standards once. The rego reports nothing but msg (details are empty), so the
+// container is not split out: it is in the msg of container checks already.
+// D8HostNetwork reports host ports one at a time, so its group gets the full list.
+func violationLines(pod map[string]any, violations []pss.Violation) []string {
+	seen := map[string]bool{}
+
+	var res []string
+
+	for _, v := range violations {
+		line := "- " + v.Kind + ": " + v.Msg
+		if !seen[line] {
+			seen[line] = true
+			res = append(res, line)
+		}
+
+		if v.Kind == hostNetworkKind && !seen[hostNetworkKind] {
+			seen[hostNetworkKind] = true
+			res = append(res, "- "+hostNetworkKind+": host ports of the pod (computed by dmt): "+strings.Join(hostPorts(pod), ", "))
+		}
+	}
+
+	slices.Sort(res)
+
+	return res
+}
+
+const hostNetworkKind = "D8HostNetwork"
+
+// hostPorts returns sorted unique "port/PROTOCOL" of every hostPort of the pod's
+// containers, init and ephemeral containers, with hostNetwork every containerPort.
+func hostPorts(pod map[string]any) []string {
+	spec := nested(pod, "spec")
+	hostNetwork, _ := spec["hostNetwork"].(bool)
+
+	set := map[string]bool{}
+
+	for _, field := range []string{"containers", "initContainers", "ephemeralContainers"} {
+		list, _ := spec[field].([]any)
+		for _, c := range list {
+			cm, _ := c.(map[string]any)
+
+			ports, _ := cm["ports"].([]any)
+			for _, p := range ports {
+				port, _ := p.(map[string]any)
+
+				proto, _ := port["protocol"].(string)
+				if proto == "" {
+					proto = "TCP"
+				}
+
+				keys := []string{"hostPort"}
+				if hostNetwork {
+					keys = append(keys, "containerPort")
+				}
+
+				for _, k := range keys {
+					// int64 from unstructured, float64 from plain JSON
+					if n := fmt.Sprint(port[k]); n != "<nil>" && n != "0" {
+						set[n+"/"+proto] = true
+					}
+				}
+			}
+		}
+	}
+
+	res := slices.Collect(maps.Keys(set))
+	slices.SortFunc(res, func(a, b string) int {
+		var na, nb int
+
+		_, _ = fmt.Sscanf(a, "%d", &na)
+		_, _ = fmt.Sscanf(b, "%d", &nb)
+
+		return cmp.Or(na-nb, strings.Compare(a, b))
+	})
+
+	if len(res) == 0 {
+		return []string{"none"}
+	}
+
+	return res
 }
 
 // podOf returns the Pod the object creates: the object itself for a Pod, a `kind: Pod`
