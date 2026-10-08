@@ -78,6 +78,8 @@ var staticRules = map[string]set.Set{
 		containerrules.ResourcesRuleName,
 		containerrules.RevisionHistoryLimitRuleName,
 		containerrules.SeccompProfileRuleName,
+		containerrules.SecurityPolicyExceptionDescriptionRuleName,
+		containerrules.SecurityPolicyExceptionUnusedRuleName,
 		containerrules.SysCgroupMountRuleName,
 	),
 	docs.ID: set.New(

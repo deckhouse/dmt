@@ -325,6 +325,16 @@ func mapContainerRules(linterSettings *pkg.LintersSettings, configSettings *conf
 		globalConfig.Container.Rules.PodSecurityStandardsRule.Impact,
 		configSettings.Container.Impact,
 	)
+	linterSettings.Container.Rules.SPEDescriptionRule.SetLevel(
+		globalConfig.Container.Rules.SPEDescriptionRule.Impact,
+		configSettings.Container.Impact,
+	)
+	// security-policy-exception-unused defaults to warn: a component behind a feature
+	// flag may not render with default values, leaving its SPE unreferenced.
+	linterSettings.Container.Rules.SPEUnusedRule.SetLevel(
+		globalConfig.Container.Rules.SPEUnusedRule.Impact,
+		pkg.Warn.String(),
+	)
 	// sys-cgroup-mount defaults to warn: a container that mounts /sys but not
 	// /sys/fs/cgroup only breaks on a hardened (read-only) containerd such as the
 	// CSE edition, so a missing cgroup mount is a portability warning rather than
@@ -509,6 +519,7 @@ func mapContainerExclusions(linterSettings *pkg.LintersSettings, configSettings 
 	excludes.SysCgroupMount = configExcludes.SysCgroupMount.Get()
 	excludes.Description = pkg.StringRuleExcludeList(configExcludes.Description)
 	excludes.MountPoints = pkg.StringRuleExcludeList(configExcludes.MountPoints)
+	excludes.SecurityPolicyExceptionUnused = pkg.StringRuleExcludeList(configExcludes.SecurityPolicyExceptionUnused)
 }
 
 // mapImageExclusionsAndSettings maps Image linter exclusions and additional settings
