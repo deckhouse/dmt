@@ -1,8 +1,7 @@
 description: >
   Modules without monitoring/ declare alerts and dashboards as resources in
   templates/. Alert rules, propagated alert rules and dashboards are flagged;
-  logs rules groups (recording rules only, no annotations) and other resources
-  such as a ConfigMap are not scanned.
+  other resources such as a ConfigMap are not scanned.
 module: module
 expect:
   - linter: templates
