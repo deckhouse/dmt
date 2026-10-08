@@ -17,10 +17,8 @@ limitations under the License.
 package rules
 
 import (
-	"cmp"
 	"context"
-	"fmt"
-	"maps"
+	"encoding/json"
 	"slices"
 	"strings"
 
@@ -201,62 +199,13 @@ var unexceptableKinds = map[string]struct {
 	},
 }
 
-type hostPort struct {
-	Port     int64
-	Protocol string
-}
-
-func (p hostPort) String() string { return fmt.Sprintf("%d/%s", p.Port, p.Protocol) }
-
-// hostPorts returns sorted unique host ports of the pod's containers, init and
-// ephemeral containers: every hostPort, with hostNetwork every containerPort too.
-// The protocol defaults to TCP.
-func hostPorts(pod map[string]any) []hostPort {
-	spec := nested(pod, "spec")
-	hostNetwork, _ := spec["hostNetwork"].(bool)
-
-	set := map[hostPort]bool{}
-
-	for _, field := range []string{"containers", "initContainers", "ephemeralContainers"} {
-		list, _ := spec[field].([]any)
-		for _, c := range list {
-			cm, _ := c.(map[string]any)
-
-			ports, _ := cm["ports"].([]any)
-			for _, p := range ports {
-				port, _ := p.(map[string]any)
-
-				proto, _ := port["protocol"].(string)
-				if proto == "" {
-					proto = "TCP"
-				}
-
-				keys := []string{"hostPort"}
-				if hostNetwork {
-					keys = append(keys, "containerPort")
-				}
-
-				for _, k := range keys {
-					if n := toInt64(port[k]); n != 0 {
-						set[hostPort{Port: n, Protocol: proto}] = true
-					}
-				}
-			}
-		}
-	}
-
-	res := slices.Collect(maps.Keys(set))
-	slices.SortFunc(res, func(a, b hostPort) int {
-		return cmp.Or(cmp.Compare(a.Port, b.Port), strings.Compare(a.Protocol, b.Protocol))
-	})
-
-	return res
-}
-
 // toInt64 reads a number of an unstructured object: int64 from the renderer,
-// float64 from plain JSON.
+// float64 from plain JSON, json.Number from rego.
 func toInt64(v any) int64 {
 	switch n := v.(type) {
+	case json.Number:
+		i, _ := n.Int64()
+		return i
 	case int64:
 		return n
 	case int:
