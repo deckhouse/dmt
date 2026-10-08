@@ -19,7 +19,6 @@ package rules
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 
 	"k8s.io/utils/ptr"
@@ -69,79 +68,53 @@ func (r *SecurityPolicyExceptionDescriptionRule) Check(_ context.Context) {
 		}
 
 		errorList := r.errorList.WithFilePath(o.GetPath()).WithObjectID(o.Identity())
+
+		templates, err := pss.SPEAllowancePaths()
+		if err != nil {
+			errorList.Errorf("Cannot check SecurityPolicyException allowances: %v", err)
+
+			continue
+		}
+
 		spec, _ := o.Unstructured.Object["spec"].(map[string]any)
 
-		for _, path := range undescribedAllowances(spec) {
+		for _, path := range undescribedAllowances(spec, templates) {
 			errorList.WithValue(path).Errorf("SecurityPolicyException %s/%s: allowance %s has no metadata.description",
 				o.Unstructured.GetNamespace(), o.Unstructured.GetName(), path)
 		}
 	}
 }
 
-// undescribedAllowances returns the paths of the allowances in spec without a
-// description. An allowance is any map holding allowedValue/allowedValues, wherever it
-// is, except two places where the CRD puts metadata on array items instead:
-//   - spec.volumes.hostPath: each allowedValues item ({path, readOnly, metadata}),
-//     the node itself has no metadata in the schema (it would be pruned);
-//   - spec.network.hostPorts: an array of {port, protocol, metadata} with no
-//     allowedValue(s) at all.
-func undescribedAllowances(spec map[string]any) []string {
+// undescribedAllowances returns the paths of the allowances present in spec without a
+// description. templates are allowance paths from the CRD schema (pss.SPEAllowancePaths),
+// pss.ArrayItem segments expand to every element of the array.
+func undescribedAllowances(spec map[string]any, templates [][]string) []string {
 	var res []string
 
-	check := func(path string, node any) {
-		if !hasDescription(node) {
-			res = append(res, path)
-		}
-	}
+	var walk func(path string, node any, tpl []string)
 
-	checkItems := func(path string, items any) {
-		list, _ := items.([]any)
-		for i, item := range list {
-			check(fmt.Sprintf("%s[%d]", path, i), item)
-		}
-	}
-
-	var walk func(path string, node map[string]any)
-
-	walk = func(path string, node map[string]any) {
-		if path == "spec.volumes.hostPath" {
-			checkItems(path+".allowedValues", node["allowedValues"])
-
-			return
-		}
-
-		_, one := node["allowedValue"]
-		_, many := node["allowedValues"]
-
-		if one || many {
-			// Do not descend: values (sysctls, seLinuxOptions items) are not allowances.
-			check(path, node)
-
-			return
-		}
-
-		keys := make([]string, 0, len(node))
-		for k := range node {
-			keys = append(keys, k)
-		}
-
-		sort.Strings(keys)
-
-		for _, k := range keys {
-			p := path + "." + k
-			if p == "spec.network.hostPorts" {
-				checkItems(p, node[k])
-
-				continue
+	walk = func(path string, node any, tpl []string) {
+		switch {
+		case len(tpl) == 0:
+			if !hasDescription(node) {
+				res = append(res, path)
 			}
-
-			if child, ok := node[k].(map[string]any); ok {
-				walk(p, child)
+		case tpl[0] == pss.ArrayItem:
+			list, _ := node.([]any)
+			for i, item := range list {
+				walk(fmt.Sprintf("%s[%d]", path, i), item, tpl[1:])
+			}
+		default:
+			m, _ := node.(map[string]any)
+			if child := m[tpl[0]]; child != nil {
+				walk(path+"."+tpl[0], child, tpl[1:])
 			}
 		}
 	}
 
-	walk("spec", spec)
+	for _, tpl := range templates {
+		walk("spec", spec, tpl)
+	}
 
 	return res
 }

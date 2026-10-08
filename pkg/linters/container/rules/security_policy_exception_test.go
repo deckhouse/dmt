@@ -26,6 +26,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/deckhouse/dmt/internal/mocks"
+	"github.com/deckhouse/dmt/internal/pss"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -104,13 +105,30 @@ network:
 		},
 	}
 
+	templates, err := pss.SPEAllowancePaths()
+	require.NoError(t, err)
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var spec map[string]any
 			require.NoError(t, yaml.Unmarshal([]byte(tt.spec), &spec))
-			assert.Equal(t, tt.want, undescribedAllowances(spec))
+			assert.Equal(t, tt.want, undescribedAllowances(spec, templates))
 		})
 	}
+}
+
+// An allowance is whatever the templates say: nothing in the rule is specific to the CRD.
+func TestUndescribedAllowancesArbitraryTemplates(t *testing.T) {
+	var spec map[string]any
+	require.NoError(t, yaml.Unmarshal([]byte(`
+foo:
+  bar: [{x: 1}, {x: 2, metadata: {description: ok}}, {x: 3, metadata: {description: todo}}]
+  baz: {allowedValue: true}
+qux: null`), &spec))
+
+	assert.Equal(t,
+		[]string{"spec.foo.bar[0]", "spec.foo.bar[2]", "spec.foo.baz"},
+		undescribedAllowances(spec, [][]string{{"foo", "bar", pss.ArrayItem}, {"foo", "baz"}, {"qux"}, {"missing"}}))
 }
 
 func TestSecurityPolicyExceptionDescriptionRule(t *testing.T) {
