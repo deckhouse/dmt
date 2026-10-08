@@ -1488,6 +1488,28 @@ Fix the pod spec, or, if the deviation is really needed, describe it in a Securi
 
 SPE templates are usually wrapped in `has "admission-policy-engine"`/`has "admission-policy-engine-crd"`: both modules must be in `global.enabledModules` of the values dmt renders with.
 
+**Autofix:**
+
+`dmt lint --fix` proposes a `SecurityPolicyException` for an object whose violations an SPE can cover (not for one where none can, like an empty `capabilities.drop`):
+
+1. Allowances are taken from the pod spec for the policy kinds that fired: host network and every host port (`{port, protocol}`), hostPID/hostIPC, volume types, hostPath with `readOnly` of its mount, privileged, privilege escalation, capabilities (`add` as is, `drop` common to the containers that do not drop `ALL`), `runAsUser` with `runAsNonRoot`, seccomp (the raw value, from the source the policy reads first), AppArmor (in the annotation form the CRD accepts), procMount. Then the rego itself prunes them: an allowance, or an item of its list, the pod passes without is dropped, so values the policy allows anyway (`configMap` volumes, `NET_BIND_SERVICE`, `RuntimeDefault`) are not added.
+2. Container fields go to the SPE of `security.deckhouse.io/security-policy-exception.container.<name>` if the container has one, the rest to the SPE of the common label `security.deckhouse.io/security-policy-exception`; with no common label the SPE is named after the object.
+3. Every allowance gets `metadata.description: TODO`, which `security-policy-exception-description` rejects on purpose: the reason must be written by a human.
+4. The SPE is validated against the CRD schema, and the policies are run again with it and the pod bound to it.
+
+A new SPE is written next to the pod template, wrapped in `{{- if .Values.global.enabledModules | has "admission-policy-engine-crd" }}`: `security-policy-exception.yaml`, or `security-policy-exception-<name>.yaml` when the directory has templates of several pods. An existing file is never overwritten. dmt does not edit the pod template (a helm template), and does not edit an SPE the module renders already: the finding stays, with a note on what is left — the label to add to the pod template, what to add to an existing SPE, and the violations no SPE covers:
+
+```
+Autofix:  Generated SecurityPolicyException okmeter in templates/security-policy-exception.yaml.
+          Bind the pod to it: add the label "security.deckhouse.io/security-policy-exception: okmeter" to spec.template.metadata.labels of DaemonSet/okmeter in templates/daemonset.yaml.
+          Replace every description: TODO with the reason the component needs the allowance.
+          No SecurityPolicyException covers the rest, fix the pod spec:
+          - D8AllowedCapabilities: container is not dropping all required capabilities, container: okagent | capabilities.drop: [] | policy allows: ["ALL"]
+          - D8AllowedCapabilities: no SecurityPolicyException can cover an empty capabilities.drop, add drop: [ALL] to containers (computed by dmt): okagent
+```
+
+Some violations no SPE covers because of known bugs of the policies: sysctls, AppArmor `Localhost` set by the field, a hostPath volume mounted both read-only and read-write. They are listed with the rest.
+
 **Configuration:**
 
 ```yaml
