@@ -1501,7 +1501,7 @@ A new SPE is written next to the pod template, wrapped in `{{- if .Values.global
 
 ```
 Autofix:  Generated SecurityPolicyException okmeter in templates/security-policy-exception.yaml.
-          Bind the pod to it: add the label "security.deckhouse.io/security-policy-exception: okmeter" to spec.template.metadata.labels of DaemonSet/okmeter in templates/daemonset.yaml.
+          Bind the pod to SecurityPolicyException okmeter: add the label "security.deckhouse.io/security-policy-exception: okmeter" to spec.template.metadata.labels of DaemonSet/okmeter in templates/daemonset.yaml.
           Replace every description: TODO with the reason the component needs the allowance.
           No SecurityPolicyException covers the rest, fix the pod spec:
           - D8AllowedCapabilities: container is not dropping all required capabilities, container: okagent | capabilities.drop: [] | policy allows: ["ALL"]

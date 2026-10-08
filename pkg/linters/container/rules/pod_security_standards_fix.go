@@ -714,13 +714,14 @@ func (r *PodSecurityStandardsRule) speFix(ctx context.Context, object storage.St
 			notes = append(notes, note)
 		}
 
-		if p.bindGeneral && p.adds[p.general] != nil {
+		_, rendered := p.rendered[p.general]
+		if p.bindGeneral && (p.adds[p.general] != nil || rendered) {
 			path := "metadata.labels"
 			if tp, ok := podTemplatePaths[object.Unstructured.GetKind()]; ok {
 				path = strings.Join(tp, ".") + ".metadata.labels"
 			}
 
-			notes = append(notes, fmt.Sprintf("Bind the pod to it: add the label %q to %s of %s/%s in %s.",
+			notes = append(notes, fmt.Sprintf("Bind the pod to SecurityPolicyException %s: add the label %q to %s of %s/%s in %s.", p.general,
 				speRefLabel+": "+p.general, path, object.Unstructured.GetKind(), object.Unstructured.GetName(), object.ShortPath()))
 		}
 
