@@ -1,0 +1,10 @@
+description: >
+  Every supported way to fall back to the public site when the in-cluster
+  documentation is unavailable must pass: links built by the lib-helm helper,
+  the else branch of publicDomainTemplate (inline and as a block), the
+  documentation module check (both spellings), negated conditions, empty,
+  and/or over the gates, else if chains and fallbacks nested in other blocks.
+module: module
+expectAbsent:
+  - linter: templates
+    rule: documentation-links

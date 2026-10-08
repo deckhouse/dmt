@@ -140,8 +140,17 @@ go test ./test/e2e/ -run 'TestE2E/<linter>/<your-case>' -v
 | `templates/cluster-domain` | `cluster-domain` (hardcoded `cluster.local`) |
 | `templates/registry` | `registry` (global dockercfg without module override) |
 | `templates/enabled-modules` | `enabled-modules` (deprecated `.Values.global.enabledModules | has`) |
-| `templates/documentation-links` | `documentation-links` (warn: alert links to the public documentation site) |
+| `templates/documentation-links` | `documentation-links` (warn: public link in a plain `.yaml` rules file, with the helper and the rename hint) |
+| `templates/documentation-links-tpl` | `documentation-links` (public link in a `.tpl` rules file, no rename hint) |
+| `templates/documentation-links-fallbacks` | `documentation-links` passes every supported fallback: helper, else of `publicDomainTemplate` (inline and block), `has "documentation"` (both spellings), `not`, `empty`, `and`/`or`, `else if`, nesting |
+| `templates/documentation-links-mixed` | `documentation-links` (links next to valid fallbacks are still flagged, including the else of `and publicDomainTemplate <other>`) |
+| `templates/documentation-links-dashboards` | `documentation-links` (`.json` dashboard flagged, `.tpl` dashboard with a fallback passes) |
+| `templates/documentation-links-templates` | `documentation-links` (alert, propagated alert and dashboard resources in `templates/` flagged; logs rules groups and ConfigMaps not scanned) |
+| `templates/documentation-links-hostnames` | `documentation-links` (`http`, `www` and bare hosts flagged; longer hosts and links without a scheme not) |
 | `templates/documentation-links-excluded` | `documentation-links` exclusion via `.dmtlint.yaml` `exclude-rules.documentation-links.files` |
+| `templates/documentation-links-excluded-directory` | `documentation-links` exclusion via `exclude-rules.documentation-links.directories` |
+| `templates/documentation-links-impact-error` | `documentation-links` raised to error via the global per-rule impact |
+| `templates/documentation-links-impact-ignored` | `documentation-links` turned off via the global per-rule impact |
 
 ### manager (module creation)
 

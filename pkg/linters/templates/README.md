@@ -3075,11 +3075,26 @@ Findings are reported at the `warn` level by default.
 2. `monitoring/grafana-dashboards/**/*.{json,tpl}`
 3. Files in `templates/` declaring alerts or dashboards: `PrometheusRule`,
    `CustomPrometheusRules`, `GrafanaDashboardDefinition`, and the
-   `*ObservabilityMetricsRulesGroup`, `*ObservabilityLogsRulesGroup`,
-   `*ObservabilityDashboard` resources of the observability module
-4. A link in a branch rendered only when `publicDomainTemplate` is not set
-   (`{{ if .Values.global.modules.publicDomainTemplate }}...{{ else }}https://deckhouse.io...{{ end }}`)
-   is a valid fallback and is not reported
+   `*ObservabilityMetricsRulesGroup` and `*ObservabilityDashboard` resources of
+   the observability module. Logs rules groups are not scanned: they hold
+   recording rules only, without annotations
+4. A link in a branch rendered only when the in-cluster documentation is
+   unavailable is a valid fallback and is not reported. The documentation is
+   unavailable when `publicDomainTemplate` is not set, the `documentation`
+   module is disabled or the cluster is not bootstrapped yet. The rule follows
+   `not`, `and`, `or`, `empty`, comparisons with `""`, nested blocks and
+   `else if`/`else with` chains:
+
+   ```gotemplate
+   {{ if .Values.global.modules.publicDomainTemplate }}...{{ else }}https://deckhouse.io/...{{ end }}
+   {{ if has "documentation" .Values.global.enabledModules }}...{{ else }}https://deckhouse.io/...{{ end }}
+   {{ if not .Values.global.modules.publicDomainTemplate }}https://deckhouse.io/...{{ end }}
+   ```
+
+   The else branch of a condition combined with an unrelated value, such as
+   `{{ if and .Values.global.modules.publicDomainTemplate .Values.foo }}`, is not
+   a fallback: it is also rendered when the documentation is available.
+   Conditions on template variables (`{{ if $domain }}`) are not followed
 
 Source files are scanned instead of rendered objects: lib-helm passes only
 `.tpl` files from `monitoring/` through `tpl`, so plain `.yaml` rules and

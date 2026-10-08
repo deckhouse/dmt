@@ -1,0 +1,13 @@
+description: >
+  The default warn level is raised to error through the per-rule impact in the
+  global section of .dmtlint.yaml.
+module: module
+expect:
+  - linter: templates
+    rule: documentation-links
+    level: error
+    count: 1
+expectPass:
+  - linter: templates
+    rule: documentation-links
+    level: warn

@@ -108,6 +108,41 @@ spec:
 			wantLines: []int{7},
 		},
 		{
+			name: "flags propagated alert rules and dashboards declared in templates",
+			files: map[string]string{
+				"templates/propagated-rules.yaml": `apiVersion: observability.deckhouse.io/v1alpha1
+kind: ClusterObservabilityPropagatedMetricsRulesGroup
+spec:
+  rules:
+  - alert: A
+    annotations:
+      runbook_url: https://deckhouse.io/modules/foo/alerts.html#a
+`,
+				"templates/dashboard.yaml": `apiVersion: observability.deckhouse.io/v1alpha1
+kind: ClusterObservabilityDashboard
+spec:
+  definition: |
+    {"links": [{"url": "https://deckhouse.io/modules/foo/"}]}
+`,
+			},
+			wantCount: 2,
+		},
+		{
+			name: "ignores logs rules groups: they hold recording rules only, without annotations",
+			files: map[string]string{
+				"templates/logs-rules.yaml": `apiVersion: observability.deckhouse.io/v1alpha1
+kind: ClusterObservabilityLogsRulesGroup
+spec:
+  rules:
+  - record: foo:count
+    expr: count_over_time({app="foo"}[5m])
+    labels:
+      docs: https://deckhouse.io/modules/foo/
+`,
+			},
+			wantCount: 0,
+		},
+		{
 			name: "ignores templates that are not alerts or dashboards",
 			files: map[string]string{
 				"templates/configmap.yaml": `apiVersion: v1

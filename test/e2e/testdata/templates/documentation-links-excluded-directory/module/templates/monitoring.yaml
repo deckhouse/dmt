@@ -1,0 +1,3 @@
+# This module renders alerts via include "helm_lib_prometheus_rules" .
+# and dashboards via include "helm_lib_grafana_dashboard_definitions" .
+# (kept as a comment so the e2e fixture renders without helm_lib being available)

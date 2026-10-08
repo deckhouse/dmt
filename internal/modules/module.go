@@ -419,12 +419,7 @@ func mapTemplatesRules(linterSettings *pkg.LintersSettings, configSettings *conf
 	rules.OpenAPIValuesQuoteRule.SetLevel(globalRules.OpenAPIValuesQuoteRule.Impact, fallbackImpact)
 	rules.SchemaValidationRule.SetLevel(globalRules.SchemaValidationRule.Impact, fallbackImpact)
 	rules.DeprecatedHTTPRouteAnnotationsRule.SetLevel(globalRules.DeprecatedHTTPRouteAnnotationsRule.Impact, fallbackImpact)
-
-	// documentation-links defaults to warn: existing modules still link to the
-	// public site, and the links work everywhere except closed environments.
-	// A per-rule impact in config still overrides this default.
 	rules.DocumentationLinksRule.SetLevel(globalRules.DocumentationLinksRule.Impact, pkg.Warn.String())
-
 	rules.IngressEnablementRule.SetLevel(globalRules.IngressEnablementRule.Impact, fallbackImpact)
 	rules.GatewayEnablementRule.SetLevel(globalRules.GatewayEnablementRule.Impact, fallbackImpact)
 	rules.HTTPSCertificateReuseRule.SetLevel(globalRules.HTTPSCertificateReuseRule.Impact, fallbackImpact)

@@ -1,0 +1,14 @@
+description: >
+  A module whose .dmtlint.yaml excludes a directory from the documentation-links
+  rule via exclude-rules.documentation-links.directories must not be flagged for
+  files in it, while files outside of it still are.
+module: module
+expect:
+  - linter: templates
+    rule: documentation-links
+    count: 1
+    textContains: '"https://deckhouse.io/modules/e2e/kept.html"'
+expectPass:
+  - linter: templates
+    rule: documentation-links
+    textContains: "vendor.html"

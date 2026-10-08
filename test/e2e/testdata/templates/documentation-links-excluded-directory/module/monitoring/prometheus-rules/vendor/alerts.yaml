@@ -1,0 +1,6 @@
+- name: e2e.documentation-links
+  rules:
+    - alert: E2EDocumentationLinks
+      expr: vector(1)
+      annotations:
+        description: https://deckhouse.io/modules/e2e/vendor.html

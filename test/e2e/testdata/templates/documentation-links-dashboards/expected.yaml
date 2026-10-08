@@ -1,0 +1,15 @@
+description: >
+  A link to the public site in a .json Grafana dashboard is flagged with the
+  rename hint, while a .tpl dashboard falling back to the public site in the
+  else branch of publicDomainTemplate passes.
+module: module
+expect:
+  - linter: templates
+    rule: documentation-links
+    level: warn
+    count: 1
+    textContains: '"https://deckhouse.io/modules/e2e/json.html"'
+  - linter: templates
+    rule: documentation-links
+    count: 1
+    textContains: "rename it to .tpl"

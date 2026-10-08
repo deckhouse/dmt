@@ -51,8 +51,6 @@ var (
 		"ClusterObservabilityMetricsRulesGroup",
 		"ClusterObservabilityPropagatedMetricsRulesGroup",
 		"ObservabilityMetricsRulesGroup",
-		"ClusterObservabilityLogsRulesGroup",
-		"ObservabilityLogsRulesGroup",
 		"ClusterObservabilityDashboard",
 		"ClusterObservabilityPropagatedDashboard",
 		"ObservabilityDashboard",
@@ -144,7 +142,7 @@ func (r *DocumentationLinksRule) checkContent(relPath, content string) {
 
 	var fallbacks [][2]int
 	if rendered {
-		fallbacks = publicDomainFallbackRanges(content)
+		fallbacks = publicSiteFallbackRanges(content)
 	}
 
 	for _, loc := range publicDocumentationURLRe.FindAllStringIndex(content, -1) {
@@ -208,32 +206,39 @@ func documentationPath(link string) string {
 	return "/"
 }
 
-// templateBlock is an open {{ if }}, {{ range }}, {{ with }}, {{ define }} or
+// templateBlock is an open {{ if }}, {{ with }}, {{ range }}, {{ define }} or
 // {{ block }} action.
 type templateBlock struct {
-	// fallbackBranch is the branch rendered when publicDomainTemplate is not set:
-	// "else" for {{ if ...publicDomainTemplate }}, "then" for
-	// {{ if not ...publicDomainTemplate }}, and "" when the condition does not
-	// depend on publicDomainTemplate.
-	fallbackBranch string
-	inElse         bool
-	start          int
+	// start is the offset where the current branch begins.
+	start int
+	// fallback reports whether the current branch is rendered only when the
+	// in-cluster documentation is unavailable.
+	fallback bool
+	// earlierFallback reports whether a false condition of an earlier branch in
+	// the {{ if }}/{{ else if }} chain already implies that the in-cluster
+	// documentation is unavailable, which makes every later branch a fallback.
+	earlierFallback bool
 }
 
-func (b *templateBlock) inFallback() bool {
-	return b.fallbackBranch == "else" && b.inElse || b.fallbackBranch == "then" && !b.inElse
-}
-
-// publicDomainFallbackRanges returns the byte ranges of the branches rendered
-// only when publicDomainTemplate is not set, where linking to the public site is
-// the correct fallback:
+// publicSiteFallbackRanges returns the byte ranges of the branches rendered only
+// when the in-cluster documentation is unavailable, where linking to the public
+// site is the correct fallback:
 //
 //	{{ if .Values.global.modules.publicDomainTemplate }}...in-cluster link...{{ else }}https://deckhouse.io{{ end }}
-func publicDomainFallbackRanges(content string) [][2]int {
+//
+// Blocks are tracked on a stack, so nested blocks close the right branch, and a
+// fallback range covers everything nested in it.
+func publicSiteFallbackRanges(content string) [][2]int {
 	var (
 		ranges [][2]int
 		stack  []*templateBlock
 	)
+
+	closeBranch := func(block *templateBlock, end int) {
+		if block.fallback {
+			ranges = append(ranges, [2]int{block.start, end})
+		}
+	}
 
 	for _, loc := range multilineTemplateActionRe.FindAllStringSubmatchIndex(content, -1) {
 		fields := strings.Fields(content[loc[2]:loc[3]])
@@ -241,20 +246,16 @@ func publicDomainFallbackRanges(content string) [][2]int {
 			continue
 		}
 
-		keyword, rest := fields[0], strings.Join(fields[1:], " ")
+		keyword, cond := fields[0], strings.Join(fields[1:], " ")
 
 		switch keyword {
-		case "if":
-			block := &templateBlock{start: loc[1]}
-			if strings.Contains(rest, "publicDomainTemplate") {
-				block.fallbackBranch = "else"
-				if strings.HasPrefix(strings.TrimLeft(rest, "( "), "not ") {
-					block.fallbackBranch = "then"
-				}
-			}
-
-			stack = append(stack, block)
-		case "range", "with", "define", "block":
+		case "if", "with":
+			stack = append(stack, &templateBlock{
+				start:           loc[1],
+				fallback:        documentationUnavailableWhen(cond, true),
+				earlierFallback: documentationUnavailableWhen(cond, false),
+			})
+		case "range", "define", "block":
 			stack = append(stack, &templateBlock{start: loc[1]})
 		case "else":
 			if len(stack) == 0 {
@@ -262,27 +263,185 @@ func publicDomainFallbackRanges(content string) [][2]int {
 			}
 
 			block := stack[len(stack)-1]
-			if block.inFallback() {
-				ranges = append(ranges, [2]int{block.start, loc[0]})
-			}
+			closeBranch(block, loc[0])
 
-			block.inElse = true
 			block.start = loc[1]
+			block.fallback = block.earlierFallback
+
+			// {{ else if cond }} and {{ else with cond }} continue the chain.
+			if len(fields) > 1 && (fields[1] == "if" || fields[1] == "with") {
+				chained := strings.Join(fields[2:], " ")
+				block.fallback = block.fallback || documentationUnavailableWhen(chained, true)
+				block.earlierFallback = block.earlierFallback || documentationUnavailableWhen(chained, false)
+			}
 		case "end":
 			if len(stack) == 0 {
 				continue
 			}
 
-			block := stack[len(stack)-1]
-			if block.inFallback() {
-				ranges = append(ranges, [2]int{block.start, loc[0]})
-			}
-
+			closeBranch(stack[len(stack)-1], loc[0])
 			stack = stack[:len(stack)-1]
 		}
 	}
 
 	return ranges
+}
+
+// documentationUnavailableWhen reports whether the template condition cond being
+// truthy (or falsy) guarantees that the in-cluster documentation is unavailable.
+// The condition is parsed just enough to follow not, and, or, empty and
+// comparisons with an empty string; anything else is an opaque operand.
+func documentationUnavailableWhen(cond string, truthy bool) bool {
+	cond = strings.TrimSpace(cond)
+
+	// A pipeline, e.g. .Values.global.enabledModules | has "documentation", is
+	// an opaque operand.
+	if hasTopLevel(cond, '|') {
+		return !truthy && isDocumentationGate(cond)
+	}
+
+	args := splitTemplateArgs(cond)
+	if len(args) == 1 {
+		if arg := args[0]; strings.HasPrefix(arg, "(") && strings.HasSuffix(arg, ")") {
+			return documentationUnavailableWhen(arg[1:len(arg)-1], truthy)
+		}
+	}
+
+	if len(args) > 1 {
+		operands := args[1:]
+
+		switch args[0] {
+		case "not", "empty":
+			if len(operands) == 1 {
+				return documentationUnavailableWhen(operands[0], !truthy)
+			}
+		case "eq":
+			if len(operands) == 2 && operands[1] == `""` {
+				return documentationUnavailableWhen(operands[0], !truthy)
+			}
+
+			if len(operands) == 2 && operands[0] == `""` {
+				return documentationUnavailableWhen(operands[1], !truthy)
+			}
+		case "and":
+			// A truthy "and" needs one operand that implies unavailability, a
+			// falsy one needs every operand to.
+			if truthy {
+				return anyOperand(operands, truthy)
+			}
+
+			return allOperands(operands, truthy)
+		case "or":
+			if truthy {
+				return allOperands(operands, truthy)
+			}
+
+			return anyOperand(operands, truthy)
+		}
+	}
+
+	return !truthy && isDocumentationGate(cond)
+}
+
+// isDocumentationGate reports whether an operand is one of the values the
+// in-cluster documentation depends on, so that the operand being falsy means the
+// documentation is unavailable. The documentation module publishes its Ingress
+// only when publicDomainTemplate is set and the cluster is bootstrapped.
+func isDocumentationGate(operand string) bool {
+	return strings.Contains(operand, "publicDomainTemplate") ||
+		strings.Contains(operand, "clusterIsBootstrapped") ||
+		strings.Contains(operand, "enabledModules") && strings.Contains(operand, `"documentation"`)
+}
+
+func anyOperand(operands []string, truthy bool) bool {
+	for _, operand := range operands {
+		if documentationUnavailableWhen(operand, truthy) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func allOperands(operands []string, truthy bool) bool {
+	for _, operand := range operands {
+		if !documentationUnavailableWhen(operand, truthy) {
+			return false
+		}
+	}
+
+	return len(operands) > 0
+}
+
+// splitTemplateArgs splits a template expression into its top-level arguments,
+// keeping parenthesized groups and quoted strings whole.
+func splitTemplateArgs(expr string) []string {
+	var (
+		args  []string
+		depth int
+		quote rune
+		start = -1
+	)
+
+	for i, c := range expr {
+		switch {
+		case quote != 0:
+			if c == quote && (quote == '`' || i == 0 || expr[i-1] != '\\') {
+				quote = 0
+			}
+		case c == '"' || c == '`':
+			quote = c
+		case c == '(':
+			depth++
+		case c == ')':
+			depth--
+		case c == ' ' || c == '\t' || c == '\n':
+			if depth == 0 {
+				if start >= 0 {
+					args = append(args, expr[start:i])
+					start = -1
+				}
+
+				continue
+			}
+		}
+
+		if start < 0 {
+			start = i
+		}
+	}
+
+	if start >= 0 {
+		args = append(args, expr[start:])
+	}
+
+	return args
+}
+
+// hasTopLevel reports whether the expression contains c outside of
+// parentheses and quoted strings.
+func hasTopLevel(expr string, c byte) bool {
+	depth := 0
+	quote := byte(0)
+
+	for i := 0; i < len(expr); i++ {
+		switch ch := expr[i]; {
+		case quote != 0:
+			if ch == quote && (quote == '`' || expr[i-1] != '\\') {
+				quote = 0
+			}
+		case ch == '"' || ch == '`':
+			quote = ch
+		case ch == '(':
+			depth++
+		case ch == ')':
+			depth--
+		case ch == c && depth == 0:
+			return true
+		}
+	}
+
+	return false
 }
 
 func inRanges(offset int, ranges [][2]int) bool {
