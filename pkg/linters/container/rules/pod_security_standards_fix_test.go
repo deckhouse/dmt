@@ -339,7 +339,7 @@ func TestPodSecurityStandardsFix(t *testing.T) {
 	var note errors.FixNote
 	require.True(t, stderrors.As(e.FixError, &note), e.FixError)
 	assert.Equal(t, `Generated SecurityPolicyException app in templates/app/security-policy-exception.yaml.
-Bind the pod to it: add the label "security.deckhouse.io/security-policy-exception: app" to spec.template.metadata.labels of Deployment/app in .
+Bind the pod to SecurityPolicyException app: add the label "security.deckhouse.io/security-policy-exception: app" to spec.template.metadata.labels of Deployment/app in .
 Replace every description: TODO with the reason the component needs the allowance.`, string(note))
 
 	file := filepath.Join(modulePath, "templates", "app", "security-policy-exception.yaml")
@@ -381,4 +381,29 @@ func withFix(t *testing.T) {
 	flags.Fix = true
 
 	t.Cleanup(func() { flags.Fix = false })
+}
+
+// An SPE named after the object rendered already, e.g. by an earlier --fix, with the
+// pod not bound to it: nothing to add, the binding is still to do.
+func TestPodSecurityStandardsFix_UnboundSPE(t *testing.T) {
+	withFix(t)
+
+	obj := patchedDeployment(t, privilegedApp)
+	s := storage.StoreObject{Unstructured: unstructured.Unstructured{Object: spe(t, "app", `{securityContext: {privileged: {allowedValue: true}}}`)}}
+
+	m := mocks.NewModuleMock(minimock.NewController(t))
+	m.GetStorageMock.Return(map[storage.ResourceIndex]storage.StoreObject{storage.GetResourceIndex(obj): obj, storage.GetResourceIndex(s): s})
+	m.GetPathMock.Return(t.TempDir())
+
+	errorList := errors.NewLintRuleErrorsList()
+	NewPodSecurityStandardsRule(m, errorList).Check(t.Context())
+
+	fixes := errorList.GetFixes()
+	require.Len(t, fixes, 1)
+	fixes[0]()
+
+	errs := errorList.GetErrors()
+	require.Len(t, errs, 1)
+	assert.Equal(t, `Bind the pod to SecurityPolicyException app: add the label "security.deckhouse.io/security-policy-exception: app" to spec.template.metadata.labels of Deployment/app in .`,
+		errs[0].FixError.Error())
 }
