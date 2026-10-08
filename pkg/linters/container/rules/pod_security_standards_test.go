@@ -17,6 +17,7 @@ limitations under the License.
 package rules
 
 import (
+	"fmt"
 	"slices"
 	"sort"
 	"testing"
@@ -601,7 +602,8 @@ func spe(t *testing.T, name, spec string) map[string]any {
 }
 
 // Violations of several containers in one message, sorted, a msg both standards give
-// once; hostNetwork gets the full host port list.
+// once; hostNetwork gets the full host port list, an empty capabilities.drop the
+// containers no SPE helps.
 func TestPodSecurityStandardsRule_Message(t *testing.T) {
 	obj := patchedDeployment(t, `
 spec:
@@ -621,6 +623,85 @@ spec:
         image: sidecar
         securityContext: {capabilities: {add: [NET_ADMIN]}}`)
 
+	assert.Equal(t, `Deployment/app violates Pod Security Standards (restricted) and no SecurityPolicyException covers it:
+- D8AllowPrivilegeEscalation: Privilege escalation container is not allowed, container: sidecar | allowPrivilegeEscalation: true | policy allows: false
+- D8AllowedCapabilities: container has a disallowed capability, container: sidecar | capabilities.add: ["NET_ADMIN"] | policy allows: ["AUDIT_WRITE", "CHOWN", "DAC_OVERRIDE", "FOWNER", "FSETID", "KILL", "MKNOD", "NET_BIND_SERVICE", "SETFCAP", "SETGID", "SETPCAP", "SETUID", "SYS_CHROOT"]
+- D8AllowedCapabilities: container has a disallowed capability, container: sidecar | capabilities.add: ["NET_ADMIN"] | policy allows: ["NET_BIND_SERVICE"]
+- D8AllowedCapabilities: container is not dropping all required capabilities, container: sidecar | capabilities.drop: [] | policy allows: ["ALL"]
+- D8AllowedCapabilities: no SecurityPolicyException can cover an empty capabilities.drop, add drop: [ALL] to containers (computed by dmt): sidecar
+- D8HostNetwork: The hostNetwork or hostPort are not allowed, Pod: app | hostNetwork: true | policy allows: false
+- D8HostNetwork: host ports of the pod (computed by dmt): 53/TCP, 53/UDP, 4224/TCP
+- D8PrivilegedContainer: Privileged container is not allowed, container: app | privileged: true | policy allows: false
+Fix the pod spec, or, if the deviation is really needed, describe it in a SecurityPolicyException: https://deckhouse.ru/modules/admission-policy-engine/latest/#исключения-из-политик-безопасности`, message(t, obj))
+}
+
+// Violations no SPE can cover get the containers to fix; when nothing else is
+// violated the message does not send to a SecurityPolicyException.
+func TestPodSecurityStandardsRule_MessageUnexceptable(t *testing.T) {
+	const (
+		header    = "Deployment/app violates Pod Security Standards (restricted) and no SecurityPolicyException covers it:\n"
+		fixOnly   = "Fix the pod spec: no SecurityPolicyException can cover these violations"
+		fixOrSPE  = "Fix the pod spec, or, if the deviation is really needed, describe it in a SecurityPolicyException: " + pssDocURL
+		noDrop    = "- D8AllowedCapabilities: container is not dropping all required capabilities, container: %s | capabilities.drop: [] | policy allows: [\"ALL\"]\n"
+		noUser    = "- D8AllowedUsers: Container %s is attempting to run as disallowed user. | Actual runAsUser: not set, runAsNonRoot: not set | Allowed runAsUser: {\"rule\": \"MustRunAsNonRoot\"}\n"
+		noDropFix = "- D8AllowedCapabilities: no SecurityPolicyException can cover an empty capabilities.drop, add drop: [ALL] to containers (computed by dmt): "
+		noUserFix = "- D8AllowedUsers: no SecurityPolicyException can cover unset runAsUser and runAsNonRoot, set runAsUser for containers (computed by dmt): "
+	)
+
+	noUsers := `{spec: {template: {spec: {securityContext: {runAsUser: null, runAsNonRoot: null}}}}}`
+	initNoDrop := `{spec: {template: {spec: {initContainers: [{name: init, image: init, securityContext: {allowPrivilegeEscalation: false}}]}}}}`
+
+	tests := []struct {
+		name    string
+		patches []string
+		want    string
+	}{
+		{
+			name:    "no drop in an init container",
+			patches: []string{initNoDrop},
+			want:    header + fmt.Sprintf(noDrop, "init") + noDropFix + "init\n" + fixOnly,
+		},
+		{
+			name:    "empty drop in containers",
+			patches: []string{initNoDrop, `{spec: {template: {spec: {containers: [{name: app, securityContext: {capabilities: {drop: []}}}]}}}}`},
+			want: header + fmt.Sprintf(noDrop, "app") + fmt.Sprintf(noDrop, "init") +
+				noDropFix + "app, init\n" + fixOnly,
+		},
+		{
+			name:    "no runAsUser nor runAsNonRoot",
+			patches: []string{noUsers, initNoDrop},
+			want: header + fmt.Sprintf(noDrop, "init") + noDropFix + "init\n" +
+				fmt.Sprintf(noUser, "app") + fmt.Sprintf(noUser, "init") + noUserFix + "app, init\n" + fixOnly,
+		},
+		{
+			name: "runAsNonRoot: true of the pod is inherited, false of a container is not enough",
+			patches: []string{
+				`{spec: {template: {spec: {securityContext: {runAsUser: null}}}}}`,
+				`{spec: {template: {spec: {initContainers: [{name: init, image: init, securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, runAsNonRoot: false}}]}}}}`,
+			},
+			want: header + "- D8AllowedUsers: Container init is attempting to run as disallowed user. | Actual runAsUser: not set, runAsNonRoot: not set | Allowed runAsUser: {\"rule\": \"MustRunAsNonRoot\"}\n" +
+				noUserFix + "init\n" + fixOnly,
+		},
+		{
+			name:    "an exceptable violation of the same kind",
+			patches: []string{initNoDrop, `{spec: {template: {spec: {containers: [{name: app, securityContext: {capabilities: {add: [NET_ADMIN]}}}]}}}}`},
+			want: header +
+				"- D8AllowedCapabilities: container has a disallowed capability, container: app | capabilities.add: [\"NET_ADMIN\"] | policy allows: [\"AUDIT_WRITE\", \"CHOWN\", \"DAC_OVERRIDE\", \"FOWNER\", \"FSETID\", \"KILL\", \"MKNOD\", \"NET_BIND_SERVICE\", \"SETFCAP\", \"SETGID\", \"SETPCAP\", \"SETUID\", \"SYS_CHROOT\"]\n" +
+				"- D8AllowedCapabilities: container has a disallowed capability, container: app | capabilities.add: [\"NET_ADMIN\"] | policy allows: [\"NET_BIND_SERVICE\"]\n" +
+				fmt.Sprintf(noDrop, "init") + noDropFix + "init\n" + fixOrSPE,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, message(t, patchedDeployment(t, tt.patches...)))
+		})
+	}
+}
+
+func message(t *testing.T, obj storage.StoreObject) string {
+	t.Helper()
+
 	m := mocks.NewModuleMock(minimock.NewController(t))
 	m.GetStorageMock.Return(map[storage.ResourceIndex]storage.StoreObject{storage.GetResourceIndex(obj): obj})
 
@@ -629,13 +710,6 @@ spec:
 
 	errs := errorList.GetErrors()
 	require.Len(t, errs, 1)
-	assert.Equal(t, `Deployment/app violates Pod Security Standards (restricted) and no SecurityPolicyException covers it:
-- D8AllowPrivilegeEscalation: Privilege escalation container is not allowed, container: sidecar | allowPrivilegeEscalation: true | policy allows: false
-- D8AllowedCapabilities: container has a disallowed capability, container: sidecar | capabilities.add: ["NET_ADMIN"] | policy allows: ["AUDIT_WRITE", "CHOWN", "DAC_OVERRIDE", "FOWNER", "FSETID", "KILL", "MKNOD", "NET_BIND_SERVICE", "SETFCAP", "SETGID", "SETPCAP", "SETUID", "SYS_CHROOT"]
-- D8AllowedCapabilities: container has a disallowed capability, container: sidecar | capabilities.add: ["NET_ADMIN"] | policy allows: ["NET_BIND_SERVICE"]
-- D8AllowedCapabilities: container is not dropping all required capabilities, container: sidecar | capabilities.drop: [] | policy allows: ["ALL"]
-- D8HostNetwork: The hostNetwork or hostPort are not allowed, Pod: app | hostNetwork: true | policy allows: false
-- D8HostNetwork: host ports of the pod (computed by dmt): 53/TCP, 53/UDP, 4224/TCP
-- D8PrivilegedContainer: Privileged container is not allowed, container: app | privileged: true | policy allows: false
-Fix the pod spec, or, if the deviation is really needed, describe it in a SecurityPolicyException: https://deckhouse.ru/modules/admission-policy-engine/latest/#исключения-из-политик-безопасности`, errs[0].Text)
+
+	return errs[0].Text
 }
