@@ -1474,11 +1474,15 @@ The rule executes the real rego of admission-policy-engine (both `baseline` and 
 
 Controllers are checked as the Pod they create (built from the pod template): the policies are lenient to a controller whose template omits `runAsUser`/`runAsNonRoot` because a mutator might set it, but the Pod itself is denied.
 
-The finding does not list the violated policies; check the object against the [admission-policy-engine documentation](https://deckhouse.ru/modules/admission-policy-engine/latest/#исключения-из-политик-безопасности).
+One finding per object lists the violations: the policy kind and its message as the rego reports it (the container, if any, is named in the message), sorted, a message both standards give once. For `D8HostNetwork` dmt adds the full list of the pod's host ports (every `hostPort`, with `hostNetwork: true` every `containerPort`; protocol defaults to TCP): the policy reports them one at a time and does not check ports at all while `hostNetwork` itself is not allowed.
 
 **Error:**
 ```
-Deployment/app violates Pod Security Standards (restricted) and no SecurityPolicyException covers it. Fix the pod spec, or, if the deviation is really needed, describe it in a SecurityPolicyException: https://deckhouse.ru/modules/admission-policy-engine/latest/#исключения-из-политик-безопасности
+Deployment/app violates Pod Security Standards (restricted) and no SecurityPolicyException covers it:
+- D8HostNetwork: The hostNetwork or hostPort are not allowed, Pod: app | hostNetwork: true | policy allows: false
+- D8HostNetwork: host ports of the pod (computed by dmt): 53/TCP, 53/UDP, 4224/TCP
+- D8PrivilegedContainer: Privileged container is not allowed, container: app | privileged: true | policy allows: false
+Fix the pod spec, or, if the deviation is really needed, describe it in a SecurityPolicyException: https://deckhouse.ru/modules/admission-policy-engine/latest/#исключения-из-политик-безопасности
 ```
 
 SPE templates are usually wrapped in `has "admission-policy-engine"`/`has "admission-policy-engine-crd"`: both modules must be in `global.enabledModules` of the values dmt renders with.

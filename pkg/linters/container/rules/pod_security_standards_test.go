@@ -531,3 +531,43 @@ func spe(t *testing.T, name, spec string) map[string]any {
 		"spec":       s,
 	}
 }
+
+// Violations of several containers in one message, sorted, a msg both standards give
+// once; hostNetwork gets the full host port list.
+func TestPodSecurityStandardsRule_Message(t *testing.T) {
+	obj := patchedDeployment(t, `
+spec:
+  template:
+    spec:
+      hostNetwork: true
+      initContainers:
+      - name: init
+        image: init
+        ports: [{containerPort: 4224}]
+        securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+      containers:
+      - name: app
+        securityContext: {privileged: true}
+        ports: [{containerPort: 53, protocol: UDP}, {containerPort: 53, protocol: TCP}]
+      - name: sidecar
+        image: sidecar
+        securityContext: {capabilities: {add: [NET_ADMIN]}}`)
+
+	m := mocks.NewModuleMock(minimock.NewController(t))
+	m.GetStorageMock.Return(map[storage.ResourceIndex]storage.StoreObject{storage.GetResourceIndex(obj): obj})
+
+	errorList := errors.NewLintRuleErrorsList()
+	NewPodSecurityStandardsRule(m, errorList).Check(t.Context())
+
+	errs := errorList.GetErrors()
+	require.Len(t, errs, 1)
+	assert.Equal(t, `Deployment/app violates Pod Security Standards (restricted) and no SecurityPolicyException covers it:
+- D8AllowPrivilegeEscalation: Privilege escalation container is not allowed, container: sidecar | allowPrivilegeEscalation: true | policy allows: false
+- D8AllowedCapabilities: container has a disallowed capability, container: sidecar | capabilities.add: ["NET_ADMIN"] | policy allows: ["AUDIT_WRITE", "CHOWN", "DAC_OVERRIDE", "FOWNER", "FSETID", "KILL", "MKNOD", "NET_BIND_SERVICE", "SETFCAP", "SETGID", "SETPCAP", "SETUID", "SYS_CHROOT"]
+- D8AllowedCapabilities: container has a disallowed capability, container: sidecar | capabilities.add: ["NET_ADMIN"] | policy allows: ["NET_BIND_SERVICE"]
+- D8AllowedCapabilities: container is not dropping all required capabilities, container: sidecar | capabilities.drop: [] | policy allows: ["ALL"]
+- D8HostNetwork: The hostNetwork or hostPort are not allowed, Pod: app | hostNetwork: true | policy allows: false
+- D8HostNetwork: host ports of the pod (computed by dmt): 53/TCP, 53/UDP, 4224/TCP
+- D8PrivilegedContainer: Privileged container is not allowed, container: app | privileged: true | policy allows: false
+Fix the pod spec, or, if the deviation is really needed, describe it in a SecurityPolicyException: https://deckhouse.ru/modules/admission-policy-engine/latest/#исключения-из-политик-безопасности`, errs[0].Text)
+}
