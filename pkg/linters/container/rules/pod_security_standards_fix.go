@@ -106,7 +106,7 @@ func proposeSPE(ctx context.Context, pod map[string]any, violations []pss.Violat
 		groups[target] = append(groups[target], c)
 	}
 
-	candidates := map[string]map[string]any{p.general: podAllowances(spec, kinds)}
+	candidates := map[string]map[string]any{p.general: podAllowances(spec, violations, kinds)}
 	for target, cs := range groups {
 		if candidates[target] == nil {
 			candidates[target] = map[string]any{}
@@ -223,7 +223,7 @@ func proposeSPE(ctx context.Context, pod map[string]any, violations []pss.Violat
 }
 
 // podAllowances are the candidate pod-level allowances (common label only).
-func podAllowances(spec map[string]any, kinds map[string]bool) map[string]any {
+func podAllowances(spec map[string]any, violations []pss.Violation, kinds map[string]bool) map[string]any {
 	res := map[string]any{}
 
 	if kinds[hostNetworkKind] {
@@ -231,12 +231,22 @@ func podAllowances(spec map[string]any, kinds map[string]bool) map[string]any {
 			setPath(res, true, "network", "hostNetwork", "allowedValue")
 		}
 
-		// Once an SPE lists host ports, only the listed {port, protocol} pass.
-		hps := hostPorts(map[string]any{"spec": spec})
+		// Once an SPE lists host ports, only the listed {port, protocol} pass: every
+		// disallowed port the rego reports, the policy ranges dmt checks with are empty.
+		var ports []any
 
-		ports := make([]any, 0, len(hps))
-		for _, p := range hps {
-			ports = append(ports, map[string]any{"port": p.Port, "protocol": p.Protocol})
+		for _, v := range violations {
+			if v.Kind != hostNetworkKind {
+				continue
+			}
+
+			list, _ := mapOf(v.Details)["ports"].([]any)
+			for _, e := range list {
+				port := map[string]any{"port": toInt64(mapOf(e)["port"]), "protocol": mapOf(e)["protocol"]}
+				if !slices.ContainsFunc(ports, func(x any) bool { return sameValue(x, port) }) {
+					ports = append(ports, port)
+				}
+			}
 		}
 
 		if len(ports) > 0 {
