@@ -82,6 +82,11 @@ type Input struct {
 	// Unrendered are the RBAC objects the template text holds that no render showed: under a
 	// condition false for the linter's values. The declaration does not hold them.
 	Unrendered []string
+	// LeftAsIs maps an object the declaration produces (its generated identity: Kind/name, or
+	// namespace/Kind/name) to the template the fix of the templates leaves as it is, because the
+	// lint finds a case there the declaration does not close. A rename in such a file waits for
+	// that case, and its note says so instead of promising the new name.
+	LeftAsIs map[string]string
 }
 
 // Result is the declaration with the reader's homework.
@@ -194,9 +199,30 @@ func (b *builder) ns(o Object) string {
 }
 
 func (b *builder) rename(kind, from, to string) {
-	if from != to {
-		b.note("%s %s will be named %s by --fix", kind, from, to)
+	if from == to {
+		return
 	}
+
+	if path, ok := b.in.LeftAsIs[b.producedID(kind, to)]; ok {
+		b.note("%s %s keeps its name for now: the declaration names it %s, but --fix leaves %s as it is until what \"dmt lint\" reports on that file is resolved", kind, from, to, path)
+		return
+	}
+
+	b.note("%s %s will be named %s by --fix", kind, from, to)
+}
+
+// producedID is the identity the generator gives the object a rename names: to is its name, or
+// namespace/name for an object outside the module namespace.
+func (b *builder) producedID(kind, to string) string {
+	if kind == "ClusterRole" || kind == "ClusterRoleBinding" {
+		return kind + "/" + to
+	}
+
+	if ns, name, ok := strings.Cut(to, "/"); ok {
+		return ns + "/" + kind + "/" + name
+	}
+
+	return b.in.Namespace + "/" + kind + "/" + to
 }
 
 func (o Object) identity() string {
