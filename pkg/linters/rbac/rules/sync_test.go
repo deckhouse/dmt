@@ -396,6 +396,89 @@ func TestSync_BootstrapProposesTheModuleYAMLSubsystems(t *testing.T) {
 	assert.Empty(t, written.Subsystems)
 }
 
+// A rename the bootstrap notes in a template the next fix leaves as it is does not happen with that
+// fix, so the note says the object keeps its name until the case on that file is closed; the same
+// rename in a template the fix rewrites is promised as before (dry run on security-events-manager,
+// 2026-10-09).
+func TestSync_BootstrapRenameNoteFollowsTheFix(t *testing.T) {
+	const rel = "templates/rbac-to-us.yaml"
+
+	for name, tc := range map[string]struct {
+		unreadable    bool
+		want, notWant []string
+	}{
+		"the fix rewrites the file": {
+			want: []string{
+				"# - Role access-to-cert-manager-metrics will be named access-to-cert-manager by --fix",
+				"# - RoleBinding access-to-cert-manager-metrics will be named access-to-cert-manager by --fix",
+			},
+			notWant: []string{"keeps its name"},
+		},
+		"the fix leaves the file as it is": {
+			unreadable: true,
+			want: []string{
+				"# - Role access-to-cert-manager-metrics keeps its name for now: the declaration names it access-to-cert-manager, but --fix leaves " + rel + " as it is until what \"dmt lint\" reports on that file is resolved",
+				"# - RoleBinding access-to-cert-manager-metrics keeps its name for now: the declaration names it access-to-cert-manager, but --fix leaves " + rel + " as it is",
+			},
+			notWant: []string{"will be named access-to-cert-manager by --fix"},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			resetFixState()
+			t.Cleanup(resetFixState)
+
+			modulePath := syncModuleDir(t)
+			model := syncModel(t, modulePath)
+			writeGenerated(t, modulePath, model)
+			require.NoError(t, os.Remove(rbacyaml.Path(modulePath)))
+
+			// The module renders its scrape Role and RoleBinding under a name of its own.
+			full := filepath.Join(modulePath, rel)
+			content, err := os.ReadFile(full)
+			require.NoError(t, err)
+
+			text := strings.ReplaceAll(string(content), "name: access-to-cert-manager\n", "name: access-to-cert-manager-metrics\n")
+			if tc.unreadable {
+				text += "---\n{{ include \"extra-access\" . }}\n"
+			}
+
+			require.NoError(t, os.WriteFile(full, []byte(text), 0o600))
+
+			store := renderedFrom(t, model, func(o *generate.Object) bool {
+				if o.Name == "access-to-cert-manager" {
+					o.Name = "access-to-cert-manager-metrics"
+				}
+
+				if o.RoleRefName == "access-to-cert-manager" {
+					o.RoleRefName = "access-to-cert-manager-metrics"
+				}
+
+				return true
+			})
+
+			errorList := runSync(t, modulePath, store)
+			require.Len(t, errorList.GetFixes(), 1)
+
+			for _, fix := range errorList.GetFixes() {
+				fix()
+			}
+
+			assert.Empty(t, errorList.GetErrors(), "the fix succeeds")
+
+			written, err := os.ReadFile(rbacyaml.Path(modulePath))
+			require.NoError(t, err)
+
+			for _, w := range tc.want {
+				assert.Contains(t, string(written), w)
+			}
+
+			for _, w := range tc.notWant {
+				assert.NotContains(t, string(written), w)
+			}
+		})
+	}
+}
+
 func TestSync_Autofix(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
