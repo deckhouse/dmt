@@ -97,6 +97,48 @@ func TestBindingSuffix(t *testing.T) {
 	assert.Equal(t, "cluster-admin", BindingSuffix("cluster-admin"))
 }
 
+// The name of a foreign-namespace binding follows the placement rule, and a role named after the
+// account lends it the rest of its name instead of the module and the account twice (dry run on
+// security-events-manager, 2026-10-09).
+func TestAccountForeignBindingName(t *testing.T) {
+	for name, tc := range map[string]struct {
+		module, path, account, ns, role, want string
+	}{
+		"kube-system, a role of the platform": {
+			module: "cert-manager", path: "cainjector", account: "cainjector", ns: "kube-system",
+			role: "extension-apiserver-authentication-reader",
+			want: "d8:cert-manager:cainjector:extension-apiserver-authentication-reader",
+		},
+		"kube-system, a role named after the account": {
+			module: "m", path: "a", account: "a", ns: "kube-system", role: "d8:m:a:x", want: "d8:m:a:x",
+		},
+		"platform namespace, a role named after the account with d8:": {
+			module: "security-events-manager", path: "controller", account: "controller", ns: "d8-log-shipper",
+			role: "d8:security-events-manager:controller:log-shipper-secrets",
+			want: "security-events-manager:controller:log-shipper-secrets",
+		},
+		"platform namespace, a role named after the account": {
+			module: "m", path: "a", account: "a", ns: "d8-monitoring", role: "m:a:x", want: "m:a:x",
+		},
+		"platform namespace, another role": {
+			module: "m", path: "a/b", account: "m-a-b", ns: "d8-system", role: "some-role", want: "m:a:b:some-role",
+		},
+		"root account, kube-system": {
+			module: "m", account: "acct", ns: "kube-system", role: "d8:m:acct:x", want: "d8:m:acct:x",
+		},
+		"another namespace keeps the d8: prefix": {
+			module: "m", path: "a", account: "a", ns: "d8-other", role: "d8:m:a:x", want: "d8:m:a:x",
+		},
+		"the prefix alone is no name to lend": {
+			module: "m", path: "a", account: "a", ns: "kube-system", role: "d8:m:a:", want: "d8:m:a:m-a-",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.want, AccountForeignBindingName(tc.module, tc.path, tc.account, tc.ns, tc.role))
+		})
+	}
+}
+
 func TestVerbsAndKinds(t *testing.T) {
 	assert.Equal(t, append(append([]string{}, ResourceVerbs...), "*"), Verbs)
 	assert.True(t, IsLegacyKind(KindLegacyUse))

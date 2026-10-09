@@ -297,3 +297,26 @@ func AccountForeignBindingPrefix(module, path, account string) string {
 
 	return "d8:" + module + ":" + strings.ReplaceAll(path, "/", ":")
 }
+
+// AccountForeignBindingName is the name of an account's RoleBinding to the Role roleName in the
+// namespace ns (bindRoles), as the placement rule wants it: the prefix d8:<module>:<x> in default
+// and kube-system, <module>:<x> in the platform namespaces (DeckhouseNamespaces). A role the module
+// already names after the account under either prefix lends the binding the rest of its name, so
+// the module and the account are not named twice and a binding named like its role keeps the name.
+func AccountForeignBindingName(module, path, account, ns, roleName string) string {
+	system := AccountForeignBindingPrefix(module, path, account)
+	platform := strings.TrimPrefix(system, "d8:")
+
+	prefix := system
+	if IsDeckhouseNamespace(ns) {
+		prefix = platform
+	}
+
+	for _, own := range []string{system, platform} {
+		if rest, ok := strings.CutPrefix(roleName, own+":"); ok && rest != "" {
+			return prefix + ":" + BindingSuffix(rest)
+		}
+	}
+
+	return prefix + ":" + BindingSuffix(roleName)
+}

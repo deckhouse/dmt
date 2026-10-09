@@ -345,6 +345,54 @@ func TestBuild_WhatTheFormatCannotHoldIsNamed(t *testing.T) {
 	assert.Contains(t, strings.Join(got.Unmanaged, "\n"), "a RoleBinding to the ClusterRole view, which bindRoles cannot express")
 }
 
+// A Role an account binds in another namespace stays hand-written because bindRoles names it
+// without writing it, not because nothing binds it; where it keeps the fix off its template, the
+// note says to move it (dry run on security-events-manager, 2026-10-09).
+func TestBuild_AHandWrittenRoleOfBindRolesSaysWhy(t *testing.T) {
+	const path = "templates/worker/rbac-for-us.yaml"
+
+	objects := []Object{
+		{Kind: "ServiceAccount", Name: "worker", Path: path, Labels: map[string]string{"module": "m"}},
+		{Kind: "Role", Name: "d8:m:worker:secrets", Namespace: "d8-log-shipper", Path: path, Labels: map[string]string{"module": "m"},
+			Rules: []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"secrets"}, Verbs: []string{"get"}}}},
+		{Kind: "RoleBinding", Name: "d8:m:worker:secrets", Namespace: "d8-log-shipper", Path: path, Labels: map[string]string{"module": "m"},
+			RoleRef:  rbacv1.RoleRef{Kind: "Role", Name: "d8:m:worker:secrets"},
+			Subjects: []rbacv1.Subject{{Kind: "ServiceAccount", Name: "worker", Namespace: "d8-m"}}},
+		{Kind: "Role", Name: "orphan", Namespace: "d8-m", Path: "templates/orphan.yaml", Labels: map[string]string{"module": "m"},
+			Rules: []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"configmaps"}, Verbs: []string{"get"}}}},
+	}
+
+	for name, tc := range map[string]struct {
+		leftAsIs map[string]string
+		want     string
+		notWant  string
+	}{
+		"the fix rewrites the file": {
+			want:    "d8-log-shipper/Role/d8:m:worker:secrets (" + path + "): bindRoles of worker binds it, and the declaration names the Role without writing it",
+			notWant: "move it",
+		},
+		"the fix leaves the file as it is": {
+			leftAsIs: map[string]string{"d8-log-shipper/RoleBinding/m:worker:secrets": path},
+			want:     "the declaration names the Role without writing it -- move it to a template the declaration does not write: --fix leaves " + path + " as it is while the Role is there",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Objects: objects, LeftAsIs: tc.leftAsIs})
+
+			require.Len(t, got.Decl.ServiceAccounts, 1)
+			assert.Equal(t, []rbacyaml.RoleRef{{Namespace: "d8-log-shipper", Name: "d8:m:worker:secrets"}}, got.Decl.ServiceAccounts[0].BindRoles)
+
+			unmanaged := strings.Join(got.Unmanaged, "\n")
+			assert.Contains(t, unmanaged, tc.want)
+			assert.Contains(t, unmanaged, "d8-m/Role/orphan (templates/orphan.yaml): bound to nothing the declaration describes")
+
+			if tc.notWant != "" {
+				assert.NotContains(t, unmanaged, tc.notWant)
+			}
+		})
+	}
+}
+
 // A role granting "*" verbs or API groups stays out of the declaration with a note, instead of
 // being written in a shape the validation refuses (review of #479, finding 21); a grant on every
 // ModuleConfig is an ordinary system entry (review of #479, reply to finding 13d).
