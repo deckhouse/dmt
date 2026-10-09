@@ -45,6 +45,10 @@ type Object struct {
 	RoleRef     rbacv1.RoleRef
 	Subjects    []rbacv1.Subject
 	Automount   *bool
+	// Undeclarable are the fields of a ServiceAccount the declaration cannot carry
+	// (imagePullSecrets, secrets): the account is declared, and the fix of its template waits until
+	// they leave it.
+	Undeclarable []string
 	// Aggregated marks a ClusterRole with an aggregationRule: its rules belong to the aggregation
 	// controller, and the declaration has no place for the selectors.
 	Aggregated bool
@@ -209,6 +213,16 @@ func (b *builder) rename(kind, from, to string) {
 	}
 
 	b.note("%s %s will be named %s by --fix", kind, from, to)
+}
+
+// AccountFieldAdvice says how a ServiceAccount loses a field the declaration cannot carry while its
+// pods keep working.
+func AccountFieldAdvice(field string) string {
+	if field == "imagePullSecrets" {
+		return "set them in the pod spec of the workloads that run as the account (where Deckhouse modules set deckhouse-registry) and remove them from the account"
+	}
+
+	return "remove the list from the account if its pods do not rely on it"
 }
 
 // producedID is the identity the generator gives the object a rename names: to is its name, or
@@ -680,6 +694,10 @@ func (b *builder) serviceAccounts() {
 			b.note("ServiceAccount %s mounted its token (automountServiceAccountToken unset or true); kept as true -- set false once its pods mount the token themselves", sa.Name)
 		}
 
+		for _, field := range sa.Undeclarable {
+			b.note("ServiceAccount %s has %s, which the declaration cannot carry: --fix leaves %s as it is until then -- %s", sa.Name, field, sa.Path, AccountFieldAdvice(field))
+		}
+
 		e.Annotations = copyAnnotations(sa.Annotations)
 		e.When = sa.When
 
@@ -772,7 +790,7 @@ func (b *builder) serviceAccounts() {
 				b.note("RoleBinding %s/%s binds %s to the Role %s again; it folds into one", b.ns(rb), rb.Name, sa.Name, rb.RoleRef.Name)
 			} else {
 				e.BindRoles = append(e.BindRoles, rbacyaml.RoleRef{Namespace: b.ns(rb), Name: rb.RoleRef.Name})
-				b.rename("RoleBinding", b.ns(rb)+"/"+rb.Name, b.ns(rb)+"/"+rbaccontract.AccountForeignBindingPrefix(b.in.Module, e.Path, sa.Name)+":"+rbaccontract.BindingSuffix(rb.RoleRef.Name))
+				b.rename("RoleBinding", b.ns(rb)+"/"+rb.Name, b.ns(rb)+"/"+rbaccontract.AccountForeignBindingName(b.in.Module, e.Path, sa.Name, b.ns(rb), rb.RoleRef.Name))
 			}
 
 			if rb.RoleRef.Kind == "Role" {
@@ -1014,11 +1032,40 @@ func (b *builder) leftovers() {
 		case "ClusterRole":
 			b.unmanage(o, "bound to nothing the declaration describes")
 		case "Role":
-			b.unmanage(o, "bound to nothing the declaration describes")
+			b.unmanage(o, b.unboundRoleWhy(o))
 		case "ClusterRoleBinding", "RoleBinding", "ServiceAccount":
 			b.unmanage(o, "not described")
 		}
 	}
+}
+
+// unboundRoleWhy says why a Role stays hand-written. A Role an account binds with bindRoles is one
+// the declaration names and does not write; in a template the declaration writes it keeps the fix
+// off that file (dry run on security-events-manager, 2026-10-09).
+func (b *builder) unboundRoleWhy(o Object) string {
+	ref := rbacyaml.RoleRef{Namespace: b.ns(o), Name: o.Name}
+
+	var accounts []string
+
+	for _, sa := range b.decl.ServiceAccounts {
+		if slices.Contains(sa.BindRoles, ref) {
+			accounts = append(accounts, sa.Name)
+		}
+	}
+
+	if len(accounts) == 0 {
+		return "bound to nothing the declaration describes"
+	}
+
+	why := "bindRoles of " + strings.Join(accounts, ", ") + " binds it, and the declaration names the Role without writing it"
+
+	for _, path := range b.in.LeftAsIs {
+		if path == o.Path {
+			return why + " -- move it to a template the declaration does not write: --fix leaves " + o.Path + " as it is while the Role is there"
+		}
+	}
+
+	return why
 }
 
 func (b *builder) resources() {

@@ -30,6 +30,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 
 	"github.com/deckhouse/dmt/internal/set"
+	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/bootstrap"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbaccontract"
 )
@@ -43,7 +44,9 @@ import (
 //     rewrite the file under it;
 //   - changes collects what every variant's fix of a file adds and removes, for its log;
 //   - bootstrap, variants, seen and in collect the objects of every variant for the first
-//     declaration, and which variants rendered each.
+//     declaration, and which variants rendered each;
+//   - renders keeps what every variant rendered, for the first declaration's notes to judge the
+//     templates by: dmt releases the render of a module once it is linted, before any fix runs.
 //
 // fixOutcomes, below, remembers the result of the first closure that ran for a target, so the
 // others return it instead of doing the work again.
@@ -57,7 +60,8 @@ var fixState = struct {
 	variants map[string]int
 	seen     map[string]map[string]int
 	// in names, per object, the variants that rendered it (review of #479, finding 52).
-	in map[string]map[string]string
+	in      map[string]map[string]string
+	renders map[string][]renderSnapshot
 }{
 	withheld:  set.New(),
 	changes:   map[string]set.Set{},
@@ -65,6 +69,7 @@ var fixState = struct {
 	variants:  map[string]int{},
 	seen:      map[string]map[string]int{},
 	in:        map[string]map[string]string{},
+	renders:   map[string][]renderSnapshot{},
 }
 
 // fixOutcomes remembers the result of every fix that ran, by file. It has a lock of its own, held
@@ -141,6 +146,62 @@ func recordBootstrapObjects(path string, objects []bootstrap.Object) {
 		fixState.seen[path][key]++
 		fixState.in[path][key] += fmt.Sprintf("%d,", fixState.variants[path])
 	}
+}
+
+// renderSnapshot is what the sync rule reads of one render to judge the templates: the identity of
+// every rendered object, and the objects of every template that renders a kind the declaration
+// writes. The objects of the other templates matter to no judgment of a file the declaration
+// produces, and keeping them would hold the whole render of every module until the fixes run.
+type renderSnapshot struct {
+	ids     map[string]struct{}
+	objects map[storage.ResourceIndex]storage.StoreObject
+}
+
+// renderOf reads a render as it is, for the lint of the variant that rendered it.
+func renderOf(store map[storage.ResourceIndex]storage.StoreObject) renderSnapshot {
+	ids := make(map[string]struct{}, len(store))
+	for index := range store {
+		ids[index.AsString()] = struct{}{}
+	}
+
+	return renderSnapshot{ids: ids, objects: store}
+}
+
+// recordBootstrapRender keeps what one render variant rendered, for the fix that writes the first
+// declaration: its notes must say what the lint of each variant will say once the file is written,
+// and by then the render is gone. A variant that renders nothing is kept too: the text of its
+// templates is judged all the same. The store is released after the lint, which empties its map
+// and leaves the objects as they are, so the snapshot holds the objects themselves, not a copy.
+func recordBootstrapRender(path string, store map[storage.ResourceIndex]storage.StoreObject) {
+	snapshot := renderSnapshot{ids: make(map[string]struct{}, len(store)), objects: map[storage.ResourceIndex]storage.StoreObject{}}
+	declarable := map[string]bool{}
+
+	for index, object := range store {
+		snapshot.ids[index.AsString()] = struct{}{}
+
+		if isRBACKind(object.Unstructured.GetKind()) {
+			declarable[object.ShortPath()] = true
+		}
+	}
+
+	for index, object := range store {
+		if declarable[object.ShortPath()] {
+			snapshot.objects[index] = object
+		}
+	}
+
+	fixState.Lock()
+	defer fixState.Unlock()
+
+	fixState.renders[path] = append(fixState.renders[path], snapshot)
+}
+
+// bootstrapRendersOf returns what every variant recorded with recordBootstrapRender.
+func bootstrapRendersOf(path string) []renderSnapshot {
+	fixState.Lock()
+	defer fixState.Unlock()
+
+	return slices.Clone(fixState.renders[path])
 }
 
 // unionRules returns the rules of a, then those of b that a does not hold.

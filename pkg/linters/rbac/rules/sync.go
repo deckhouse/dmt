@@ -183,17 +183,18 @@ func (r *SyncRule) Check(_ context.Context) {
 		return
 	}
 
-	run := r.newSyncRun(modulePath, model)
+	run := r.newSyncRun(modulePath, model, renderOf(r.module.GetStorage()))
 	divergences := r.compareRender(run)
 	compareFiles(run, divergences)
 	r.report(run, divergences)
 }
 
-// syncRun is what one Check computes once and every step reads: the model, the rendered objects the
-// rule owns, where the declaration puts each object, and the text of every template.
+// syncRun is what one Check computes once and every step reads: the model, the render, the rendered
+// objects the rule owns, where the declaration puts each object, and the text of every template.
 type syncRun struct {
 	modulePath string
 	model      *generate.Model
+	store      map[storage.ResourceIndex]storage.StoreObject
 	actual     map[string]managedObject
 	// placed maps every identity the declaration produces to the file it puts the object in.
 	placed map[string]string
@@ -211,14 +212,15 @@ type templateText struct {
 	err     error
 }
 
-func (r *SyncRule) newSyncRun(modulePath string, model *generate.Model) *syncRun {
+func (r *SyncRule) newSyncRun(modulePath string, model *generate.Model, render renderSnapshot) *syncRun {
 	run := &syncRun{
 		modulePath: modulePath,
 		model:      model,
-		actual:     r.managedObjects(model),
+		store:      render.objects,
+		actual:     r.managedObjects(model, render.objects),
 		placed:     map[string]string{},
-		templates:  templateTexts(modulePath),
-		rendered:   map[string]struct{}{},
+		templates:  templateTexts(modulePath, r.module.GetName()),
+		rendered:   render.ids,
 		fromFile:   map[string]map[string]storage.StoreObject{},
 	}
 
@@ -228,9 +230,8 @@ func (r *SyncRule) newSyncRun(modulePath string, model *generate.Model) *syncRun
 		}
 	}
 
-	for index, object := range r.module.GetStorage() {
+	for index, object := range render.objects {
 		id := index.AsString()
-		run.rendered[id] = struct{}{}
 
 		if run.fromFile[object.ShortPath()] == nil {
 			run.fromFile[object.ShortPath()] = map[string]storage.StoreObject{}
@@ -449,7 +450,7 @@ func (r *SyncRule) unfixable(run *syncRun, file generate.File) []string {
 
 	produced := identitiesOf(file.Objects)
 	fromFile := run.fromFile[file.Path]
-	renderedRoles := renderedRolesOf(r.module.GetStorage(), file.Path)
+	renderedRoles := renderedRolesOf(run.store, file.Path)
 
 	// misplaced collects, per object, where it should go or where it is now: one case each.
 	misplaced := map[string]string{}
@@ -460,7 +461,7 @@ func (r *SyncRule) unfixable(run *syncRun, file generate.File) []string {
 		}
 
 		if doc.unreadable {
-			out = append(out, "it holds a document the linter cannot read (an include, a range, a computed name or a template action the declaration does not write) -- declare what it renders in "+rbacyaml.Filename+" or move it to another template")
+			out = append(out, "it holds a document the linter cannot read, "+doc.why+" (an include, a range, a computed name or a template action the declaration does not write) -- declare what it renders in "+rbacyaml.Filename+" or move it to another template")
 			continue
 		}
 
@@ -479,7 +480,7 @@ func (r *SyncRule) unfixable(run *syncRun, file generate.File) []string {
 			continue
 		}
 
-		out = append(out, doc.id+", which "+rbacyaml.Filename+" does not produce -- declare it in "+rbacyaml.Filename+" or move it to another template")
+		out = append(out, run.notProduced(doc.id))
 	}
 
 	// The render is judged too: an object that renders from the file and that the text did not show
@@ -519,7 +520,7 @@ func (r *SyncRule) unfixable(run *syncRun, file generate.File) []string {
 			continue
 		}
 
-		out = append(out, id+", which "+rbacyaml.Filename+" does not produce -- declare it in "+rbacyaml.Filename+" or move it to another template")
+		out = append(out, run.notProduced(id))
 	}
 
 	// An object this file should hold that renders from, or is written in, another template: the
@@ -575,10 +576,8 @@ func (r *SyncRule) heldObjects(run *syncRun, file generate.File) []string {
 		}
 
 		if o.Kind == "ServiceAccount" {
-			for _, field := range []string{"imagePullSecrets", "secrets"} {
-				if list, found, _ := unstructured.NestedSlice(object.Unstructured.Object, field); found && len(list) > 0 {
-					out = append(out, fmt.Sprintf("%s has %s, which %s cannot declare and a rewrite would drop -- keep the account out of the declaration", id, field, rbacyaml.Filename))
-				}
+			for _, field := range undeclarableAccountFields(object) {
+				out = append(out, fmt.Sprintf("%s has %s, which %s cannot declare and a rewrite would drop -- %s, or keep the account out of the declaration", id, field, rbacyaml.Filename, bootstrap.AccountFieldAdvice(field)))
 			}
 		}
 	}
@@ -731,6 +730,21 @@ func (run *syncRun) elsewhere(id, path string) string {
 	}
 
 	return ""
+}
+
+// notProduced names an object a file the declaration writes holds and the declaration does not
+// produce. A Role a produced binding refers to -- bindRoles names a Role and does not write it --
+// cannot be declared, only moved.
+func (run *syncRun) notProduced(id string) string {
+	for _, file := range run.model.Files {
+		for _, o := range file.Objects {
+			if o.Kind == "RoleBinding" && o.RoleRefKind == "Role" && o.Namespace+"/Role/"+o.RoleRefName == id {
+				return id + ", which " + rbacyaml.Filename + " binds with bindRoles and does not write -- move it to a template the declaration does not write"
+			}
+		}
+	}
+
+	return id + ", which " + rbacyaml.Filename + " does not produce -- declare it in " + rbacyaml.Filename + " or move it to another template"
 }
 
 // withoutUnrendered leaves out the objects a template holds by its text when nothing rendered from
@@ -973,7 +987,7 @@ type managedObject struct {
 }
 
 // managedObjects selects the rendered objects of the three classes, keyed by identity.
-func (r *SyncRule) managedObjects(model *generate.Model) map[string]managedObject {
+func (r *SyncRule) managedObjects(model *generate.Model, store map[storage.ResourceIndex]storage.StoreObject) map[string]managedObject {
 	declared := map[string]struct{}{}
 
 	for _, file := range model.Files {
@@ -984,7 +998,7 @@ func (r *SyncRule) managedObjects(model *generate.Model) map[string]managedObjec
 
 	out := map[string]managedObject{}
 
-	for index, object := range r.module.GetStorage() {
+	for index, object := range store {
 		identity := index.AsString()
 		labels := object.Unstructured.GetLabels()
 		annotations := object.Unstructured.GetAnnotations()
@@ -1392,6 +1406,8 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 	// variants render are conditional on its values.
 	if len(store) == 0 {
 		recordBootstrapObjects(path, nil)
+		recordBootstrapRender(path, nil)
+
 		return
 	}
 
@@ -1416,6 +1432,8 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 
 	if len(in.Objects) == 0 {
 		recordBootstrapObjects(path, nil)
+		recordBootstrapRender(path, store)
+
 		return
 	}
 
@@ -1428,6 +1446,7 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 	// Under --matrix every variant renders its own set of objects; the fix builds from their union,
 	// so an object rendered only under some values still reaches the first declaration.
 	recordBootstrapObjects(path, in.Objects)
+	recordBootstrapRender(path, store)
 
 	declList.WithFix(func() error {
 		return fixOnce(path, func() error {
@@ -1444,7 +1463,7 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 
 			// A rename in a template the next fix would leave as it is does not happen with that fix:
 			// the notes must not promise it.
-			if leftAsIs := r.leftAsIs(modulePath, in.Subsystems, result.Decl); len(leftAsIs) > 0 {
+			if leftAsIs := r.leftAsIs(modulePath, bootstrapRendersOf(path), in.Subsystems, result.Decl); len(leftAsIs) > 0 {
 				in.LeftAsIs = leftAsIs
 				result = bootstrap.Build(in)
 			}
@@ -1461,10 +1480,12 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 }
 
 // leftAsIs maps every object a bootstrapped declaration produces into a template the fix of the
-// templates would leave as it is to that template. It asks the same question the lint asks once
-// the declaration is written, of the same render and template text. A declaration the generator
-// refuses maps nothing: the lint after the write reports why.
-func (r *SyncRule) leftAsIs(modulePath string, subsystems []string, decl *rbacyaml.Declaration) map[string]string {
+// templates would leave as it is to that template. It asks the same question the lint of every
+// variant asks once the declaration is written, of the renders the variants recorded (the module's
+// own is released by the time a fix runs) and of the template text: a file one variant withholds,
+// no variant rewrites. A declaration the generator refuses maps nothing: the lint after the write
+// reports why.
+func (r *SyncRule) leftAsIs(modulePath string, renders []renderSnapshot, subsystems []string, decl *rbacyaml.Declaration) map[string]string {
 	if decl == nil {
 		return nil
 	}
@@ -1479,16 +1500,19 @@ func (r *SyncRule) leftAsIs(modulePath string, subsystems []string, decl *rbacya
 		return nil
 	}
 
-	run := r.newSyncRun(modulePath, model)
 	out := map[string]string{}
 
-	for _, file := range model.Files {
-		if len(r.unfixable(run, file)) == 0 {
-			continue
-		}
+	for _, render := range renders {
+		run := r.newSyncRun(modulePath, model, render)
 
-		for _, o := range file.Objects {
-			out[o.Identity()] = file.Path
+		for _, file := range model.Files {
+			if len(r.unfixable(run, file)) == 0 {
+				continue
+			}
+
+			for _, o := range file.Objects {
+				out[o.Identity()] = file.Path
+			}
 		}
 	}
 
@@ -1537,11 +1561,26 @@ func bootstrapObject(object storage.StoreObject) (bootstrap.Object, bool) {
 		}
 
 		o.Automount = sa.AutomountServiceAccountToken
+		o.Undeclarable = undeclarableAccountFields(object)
 	default:
 		return o, false
 	}
 
 	return o, true
+}
+
+// undeclarableAccountFields lists the fields of a rendered ServiceAccount the declaration cannot
+// carry, in a fixed order.
+func undeclarableAccountFields(object storage.StoreObject) []string {
+	var out []string
+
+	for _, field := range []string{"imagePullSecrets", "secrets"} {
+		if list, found, _ := unstructured.NestedSlice(object.Unstructured.Object, field); found && len(list) > 0 {
+			out = append(out, field)
+		}
+	}
+
+	return out
 }
 
 // identitiesOf returns the identities of the objects.
@@ -1558,8 +1597,50 @@ func identitiesOf(objects []generate.Object) map[string]struct{} {
 type textDocument struct {
 	id         string
 	kind, name string
-	managed    bool // a legacy role or a module capability
-	unreadable bool // an include, a range, a computed name: what it renders is not known
+	managed    bool   // a legacy role or a module capability
+	unreadable bool   // an include, a range, a computed name: what it renders is not known
+	why        string // for an unreadable document, what made it so, for the finding
+}
+
+// chartNameActionRe is the action a template writes the chart name with. dmt names the chart after
+// the module (the placement rule reads it so), so the lint reads the action as that name, the way
+// Helm renders it, and a namespace written as d8-{{ .Chart.Name }} is the module's own.
+var chartNameActionRe = regexp.MustCompile(`\{\{\s*\$?\.Chart\.Name\s*\}\}`)
+
+// unreadableWhy names what made a document unreadable: the first action the declaration does not
+// write, or the line the document lacks.
+func unreadableWhy(foreignLine, kind, name string) string {
+	switch {
+	case foreignLine != "":
+		return "at " + actionLine(foreignLine)
+	case kind == "":
+		return "one without a kind line"
+	case name == "":
+		return "a " + kind + " without a metadata.name line"
+	default:
+		return "a " + kind + " with the computed name " + actionLine(name)
+	}
+}
+
+// withChartName returns the text with every chart name action replaced by the module name.
+func withChartName(text, module string) string {
+	if module == "" {
+		return text
+	}
+
+	return chartNameActionRe.ReplaceAllLiteralString(text, module)
+}
+
+// actionLine is a line of a template as a finding quotes it: trimmed, and cut when it is long.
+func actionLine(line string) string {
+	const limit = 100
+
+	line = strings.TrimSpace(line)
+	if runes := []rune(line); len(runes) > limit {
+		line = string(runes[:limit]) + "..."
+	}
+
+	return "`" + line + "`"
 }
 
 var (
@@ -1604,9 +1685,14 @@ func textDocuments(content string) []textDocument {
 		// makes the document someone else's wherever it stands, after the kind line too: what it
 		// renders under other values is not in this render (review of #479, finding 31).
 		foreign := false
+		foreignLine := ""
 
 		for _, line := range strings.Split(doc, "\n") {
 			if strings.Contains(line, "{{") && (!wrapperLineRe.MatchString(line) || abortingActionRe.MatchString(line)) && !labelsLineRe.MatchString(line) {
+				if !foreign {
+					foreignLine = line
+				}
+
 				foreign = true
 			}
 
@@ -1640,7 +1726,7 @@ func textDocuments(content string) []textDocument {
 		case kind == "" && !other && !foreign:
 			continue // comments, or the end of a conditional block
 		case foreign || kind == "" || name == "" || strings.Contains(name, "{{"):
-			out = append(out, textDocument{id: fmt.Sprintf("<unreadable document %d>", i), unreadable: true})
+			out = append(out, textDocument{id: fmt.Sprintf("<unreadable document %d>", i), unreadable: true, why: unreadableWhy(foreignLine, kind, name)})
 			continue
 		}
 
@@ -1660,8 +1746,9 @@ func textDocuments(content string) []textDocument {
 	return out
 }
 
-// templateTexts reads every template of the module, by path relative to the module.
-func templateTexts(modulePath string) map[string]templateText {
+// templateTexts reads every template of the module, by path relative to the module; module is the
+// chart name its actions write (withChartName).
+func templateTexts(modulePath, module string) map[string]templateText {
 	out := map[string]templateText{}
 
 	for _, path := range templateFiles(modulePath) {
@@ -1676,7 +1763,8 @@ func templateTexts(modulePath string) map[string]templateText {
 			continue
 		}
 
-		out[filepath.ToSlash(rel)] = templateText{content: string(content), docs: textDocuments(string(content))}
+		text := withChartName(string(content), module)
+		out[filepath.ToSlash(rel)] = templateText{content: text, docs: textDocuments(text)}
 	}
 
 	return out
@@ -1696,7 +1784,7 @@ func templateFiles(modulePath string) []string {
 // access-to-<module>). Both render, so the old copy keeps the grant alive after the declaration
 // drops it. No fix: the copy sits in a file the generator does not own.
 func (r *SyncRule) replacedCopies(run *syncRun, divergences map[string][]string) map[string][]string {
-	store := r.module.GetStorage()
+	store := run.store
 
 	all := make([]generate.Object, 0, len(run.placed))
 	for _, f := range run.model.Files {

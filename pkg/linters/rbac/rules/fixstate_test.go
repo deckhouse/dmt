@@ -38,6 +38,7 @@ func resetFixState() {
 	fixState.variants = map[string]int{}
 	fixState.seen = map[string]map[string]int{}
 	fixState.in = map[string]map[string]string{}
+	fixState.renders = map[string][]renderSnapshot{}
 	fixState.Unlock()
 
 	fixOutcomes.Lock()
