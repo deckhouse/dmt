@@ -29,9 +29,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/werf/nelm/pkg/action"
-	"github.com/werf/nelm/pkg/common"
-	"github.com/werf/nelm/pkg/helm/pkg/chart/loader"
+	"github.com/werf/nelm/v2/pkg/action"
+	"github.com/werf/nelm/v2/pkg/common"
+	"github.com/werf/nelm/v2/pkg/helm/pkg/chart/loader"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
 
@@ -171,8 +171,15 @@ func renderChart(
 	namespace, releaseName, valuesFile string,
 	opts Options,
 ) (*action.ChartRenderResultV2, error) {
+	// nelm treats any path not starting with "/" or "." as a remote chart reference
+	// (e.g. "modules/foo" becomes repo "modules", chart "foo") and tries to download it.
+	chartPath, err := filepath.Abs(opts.Path)
+	if err != nil {
+		return nil, fmt.Errorf("resolve chart path: %w", err)
+	}
+
 	res, err := action.ChartRender(ctx, action.ChartRenderOptions{
-		Chart:                  opts.Path,
+		Chart:                  chartPath,
 		DefaultChartName:       releaseName,
 		DefaultChartVersion:    defaultChartVersion,
 		DefaultChartAPIVersion: defaultChartAPIVersion,

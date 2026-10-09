@@ -229,6 +229,8 @@ func normalizeManifests(files map[string]string) (string, error) {
 				continue
 			}
 
+			fillV1Metadata(obj)
+
 			canonical, err := yaml.Marshal(obj)
 			if err != nil {
 				return "", fmt.Errorf("marshal rendered manifest %q: %w", path, err)
@@ -242,6 +244,28 @@ func normalizeManifests(files map[string]string) (string, error) {
 	}
 
 	return sb.String(), nil
+}
+
+// fillV1Metadata keeps snapshots compatible with those taken under nelm v1, which
+// always emitted top-level metadata.labels and metadata.annotations ({} when unset
+// or null); nelm v2 omits them. Nested metadata (e.g. spec.template) was never
+// touched by v1 and must stay as rendered.
+func fillV1Metadata(obj any) {
+	m, ok := obj.(map[string]any)
+	if !ok {
+		return
+	}
+
+	meta, ok := m["metadata"].(map[string]any)
+	if !ok {
+		return
+	}
+
+	for _, key := range []string{"labels", "annotations"} {
+		if meta[key] == nil {
+			meta[key] = map[string]any{}
+		}
+	}
 }
 
 // splitYAMLDocuments splits a multi-document YAML string on lines containing
