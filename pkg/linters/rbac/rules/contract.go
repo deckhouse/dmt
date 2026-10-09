@@ -18,6 +18,7 @@ package rules
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"regexp"
 	"slices"
@@ -25,7 +26,9 @@ import (
 	"strings"
 
 	rbacv1 "k8s.io/api/rbac/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
@@ -49,8 +52,6 @@ const (
 
 var (
 	aggregateLabelRe = regexp.MustCompile(`^rbac\.deckhouse\.io/aggregate-to-([a-z0-9-]+)-as$`)
-	// labelValueRe is the Kubernetes label-value grammar the capability marker must satisfy.
-	labelValueRe = regexp.MustCompile(`^(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?$`)
 
 	roleNameRe = map[string]*regexp.Regexp{
 		"system":    regexp.MustCompile(`^d8:system:([a-z]+)$`),
@@ -60,9 +61,9 @@ var (
 	}
 
 	capabilityNamePrefix = map[string]string{
-		"system":    "d8:system-capability:",
+		"system":    rbaccontract.SystemCapabilityPrefix,
 		"subsystem": "d8:subsystem-capability:",
-		"namespace": "d8:namespace-capability:",
+		"namespace": rbaccontract.NamespaceCapabilityPrefix,
 		"project":   "d8:project-capability:",
 	}
 
@@ -72,8 +73,13 @@ var (
 
 // ContractRule checks the rendered RBACv2 ClusterRoles of a module against the platform's label
 // and naming contract -- the first part of deckhouse/testing/rbacv2/rbacv2_templates_validation_test.go,
-// so that a module outside the platform repository is held to the same contract. It works on
-// rendered objects, not template text, and needs no rbac.yaml.
+// and the module.yaml subsystems of TestRBACv2ModuleSubsystemsValidation in
+// rbacv2_legacy_aliases_test.go -- so that a module outside the platform repository is held to the
+// same contract. It works on rendered objects, not template text, and needs no rbac.yaml.
+//
+// One extension holds for a module outside the deckhouse tree only: a subsystem of the module's
+// own, declared in module.yaml and backed by its rendered d8:subsystem:<name>:<level> roles. The
+// platform test keeps the closed list of the eight DKP subsystems for an in-tree module.
 //
 // One check is new here: a cluster-scoped resource inside a namespace capability. Such a rule
 // grants nothing through the RoleBinding the capability is bound with. It is reported as a
@@ -106,6 +112,28 @@ func NewContractRule(excludeRules []pkg.KindRuleExclude, m pkg.Module, errorList
 func (r *ContractRule) Check(_ context.Context) {
 	scopes := r.resourceScopes()
 
+	// A module.yaml that does not parse is the module linter's finding, and gives none.
+	meta, metaErr := readModuleMetadata(r.module.GetPath())
+	if metaErr != nil {
+		meta = moduleMetadata{}
+	}
+
+	own, unrendered := splitSubsystems(meta.Subsystems, renderedSubsystems(r.module))
+
+	for _, s := range unrendered {
+		if replacement, ok := rbaccontract.ReplacementOf(s); ok {
+			r.errorList.WithFilePath("module.yaml").
+				Errorf("module.yaml subsystems: %q is a subsystem of the legacy scheme, which the role model replaced with %q; declare the module's subsystem of the role model (%s)",
+					s, replacement, strings.Join(rbaccontract.Subsystems, ", "))
+
+			continue
+		}
+
+		r.errorList.WithFilePath("module.yaml").
+			Errorf("module.yaml subsystems: %q is not a subsystem of the role model (%s), and the module renders no d8:subsystem:%s:<level> role for it; a subsystem of the module's own needs its roles",
+				s, strings.Join(rbaccontract.Subsystems, ", "), s)
+	}
+
 	// Sorted for a deterministic order of findings across runs and render variants.
 	objects := make([]storage.StoreObject, 0)
 
@@ -122,6 +150,10 @@ func (r *ContractRule) Check(_ context.Context) {
 	}
 
 	sort.Slice(objects, func(i, j int) bool { return objects[i].Unstructured.GetName() < objects[j].Unstructured.GetName() })
+
+	if metaErr == nil {
+		r.checkModuleSubsystems(objects, meta.Subsystems, own)
+	}
 
 	// Two capabilities with one marker are indistinguishable to the console and to everything that
 	// selects a capability by it.
@@ -165,8 +197,184 @@ func (r *ContractRule) Check(_ context.Context) {
 			continue
 		}
 
-		checkContract(role, r.module.GetName(), scopes, errorList)
+		checkContract(role, r.module.GetName(), own, scopes, errorList)
 	}
+}
+
+// checkModuleSubsystems holds the module.yaml subsystems to the lineages the module's system
+// capabilities carry, as TestRBACv2ModuleSubsystemsValidation in deckhouse/testing/rbacv2 does: the
+// documentation and the console read module.yaml, the aggregation controller reads the labels, and
+// nothing else ties the two together. The two sets must be equal, the system lineage left out. A
+// module that renders no system capability is not judged, as the platform test skips a module
+// without manage templates.
+//
+// Each side leaves out what another finding already names: a module.yaml subsystem that is neither
+// the platform's nor the module's own (unrendered, or of the legacy scheme), the namespace and project
+// lineages (a system capability must not carry them, checkCapability), and a lineage that is no
+// subsystem of either (an unknown lineage, the legacy ones among them). A subsystem of the module's
+// own is compared as any other.
+func (r *ContractRule) checkModuleSubsystems(objects []storage.StoreObject, declared []string, own map[string]bool) {
+	isSubsystem := func(name string) bool {
+		if name == rbaccontract.LineageNamespace || name == rbaccontract.LineageProject {
+			return false
+		}
+
+		return rbaccontract.IsSubsystem(name) || own[name]
+	}
+
+	carried := map[string]bool{}
+	capabilities := 0
+
+	for _, object := range objects {
+		labels := object.Unstructured.GetLabels()
+		if labels[rbaccontract.LabelKind] != rbaccontract.KindCapability || labels[rbaccontract.LabelScope] != "system" {
+			continue
+		}
+
+		capabilities++
+
+		for key := range labels {
+			if m := aggregateLabelRe.FindStringSubmatch(key); m != nil && m[1] != rbaccontract.LineageSystem && isSubsystem(m[1]) {
+				carried[m[1]] = true
+			}
+		}
+	}
+
+	if capabilities == 0 {
+		return
+	}
+
+	known := map[string]bool{}
+
+	for _, s := range declared {
+		if isSubsystem(s) {
+			known[s] = true
+		}
+	}
+
+	var missing, extra []string
+
+	for _, s := range slices.Sorted(maps.Keys(carried)) {
+		if !known[s] {
+			missing = append(missing, s)
+		}
+	}
+
+	for _, s := range slices.Sorted(maps.Keys(known)) {
+		if !carried[s] {
+			extra = append(extra, s)
+		}
+	}
+
+	if len(missing) == 0 && len(extra) == 0 {
+		return
+	}
+
+	var advice []string
+
+	if len(missing) > 0 {
+		advice = append(advice, fmt.Sprintf("declare %s in module.yaml subsystems", strings.Join(missing, ", ")))
+	}
+
+	if len(extra) > 0 {
+		pronoun := "it"
+		if len(extra) > 1 {
+			pronoun = "them"
+		}
+
+		advice = append(advice, fmt.Sprintf("aggregate the system capabilities into %s (with %s, `%s` does) or remove %s from module.yaml subsystems",
+			strings.Join(extra, ", "), rbacyaml.Filename, FixCommand, pronoun))
+	}
+
+	r.errorList.WithFilePath("module.yaml").
+		Errorf("module.yaml subsystems: declares [%s], but the system capabilities aggregate into [%s]; the two must be the same set, as testing/rbacv2 in deckhouse requires (the documentation and the console read module.yaml, the aggregation controller the labels): %s",
+			strings.Join(slices.Sorted(maps.Keys(known)), ", "), strings.Join(slices.Sorted(maps.Keys(carried)), ", "), strings.Join(advice, "; "))
+}
+
+// splitSubsystems sorts the non-platform subsystems of module.yaml into those the render backs with
+// roles (own: a module may ship a subsystem of its own, with its d8:subsystem:<name>:<level> roles
+// and the capabilities that aggregate into it) and the rest (unrendered, sorted and without
+// duplicates: a typo, or a subsystem with no role to aggregate into). A subsystem of the legacy
+// scheme is never the module's own, even when the render holds a role for it: the role model
+// replaced it with one of its own subsystems.
+func splitSubsystems(declared []string, rendered map[string]bool) (map[string]bool, []string) {
+	own := map[string]bool{}
+
+	var unrendered []string
+
+	for _, s := range declared {
+		_, legacy := rbaccontract.ReplacementOf(s)
+
+		switch {
+		case rbaccontract.IsSubsystem(s):
+		case rendered[s] && !legacy:
+			own[s] = true
+		default:
+			unrendered = append(unrendered, s)
+		}
+	}
+
+	slices.Sort(unrendered)
+
+	return own, slices.Compact(unrendered)
+}
+
+// renderedSubsystems are the subsystems the module renders a d8:subsystem:<name>:<level> ClusterRole
+// for, labelled as the module's own.
+func renderedSubsystems(m pkg.Module) map[string]bool {
+	rendered := map[string]bool{}
+
+	for _, object := range m.GetStorage() {
+		if object.Unstructured.GetKind() != "ClusterRole" || object.Unstructured.GetLabels()[rbaccontract.LabelModule] != m.GetName() {
+			continue
+		}
+
+		if match := roleNameRe["subsystem"].FindStringSubmatch(object.Unstructured.GetName()); match != nil {
+			rendered[match[1]] = true
+		}
+	}
+
+	return rendered
+}
+
+// knownSubsystems keeps the module.yaml subsystems the role model or the module's render backs, in
+// module.yaml order: the list the declaration is validated against and the objects are derived from.
+// An unrendered one is reported by the contract rule and must not reach a generated label.
+func knownSubsystems(m pkg.Module, declared []string) []string {
+	own, _ := splitSubsystems(declared, renderedSubsystems(m))
+
+	known := make([]string, 0, len(declared))
+	for _, s := range declared {
+		if rbaccontract.IsSubsystem(s) || own[s] {
+			known = append(known, s)
+		}
+	}
+
+	return known
+}
+
+// replacedBy names the subsystem of the role model that replaced a lineage of the legacy scheme, as
+// the tail of a finding; empty for any other lineage.
+func replacedBy(lineage string) string {
+	if replacement, ok := rbaccontract.ReplacementOf(lineage); ok {
+		return fmt.Sprintf("; the role model replaced it with %q", replacement)
+	}
+
+	return ""
+}
+
+// lineageLevels returns the levels of a lineage: one of the role model's, or a subsystem of the
+// module's own, which has the levels of every subsystem. Nil for a lineage neither knows.
+func lineageLevels(lineage string, own map[string]bool) []string {
+	if levels := rbaccontract.LevelsOf(lineage); levels != nil {
+		return levels
+	}
+
+	if own[lineage] {
+		return rbaccontract.SystemLevels
+	}
+
+	return nil
 }
 
 // resourceScopes collects what this run knows about resource scopes: the module's CRDs and the
@@ -195,7 +403,7 @@ func (r *ContractRule) resourceScopes() rbacyaml.CRDScopes {
 
 // checkContract applies the contract to one rendered ClusterRole. The checks and their messages
 // follow the platform test so that both give the same verdict on a module.
-func checkContract(role *rbacv1.ClusterRole, module string, scopes rbacyaml.CRDScopes, errorList *errors.LintRuleErrorsList) {
+func checkContract(role *rbacv1.ClusterRole, module string, own map[string]bool, scopes rbacyaml.CRDScopes, errorList *errors.LintRuleErrorsList) {
 	name := role.Name
 	labels := role.Labels
 	annotations := role.Annotations
@@ -235,7 +443,7 @@ func checkContract(role *rbacv1.ClusterRole, module string, scopes rbacyaml.CRDS
 
 	switch kind {
 	case rbaccontract.KindRole:
-		checkRole(role, scope, errorList)
+		checkRole(role, scope, own, errorList)
 	case rbaccontract.KindCapability:
 		checkCapability(role, scope, scopes, errorList)
 	}
@@ -249,9 +457,9 @@ func checkContract(role *rbacv1.ClusterRole, module string, scopes rbacyaml.CRDS
 
 		lineage, level := m[1], labels[key]
 
-		levels := rbaccontract.LevelsOf(lineage)
+		levels := lineageLevels(lineage, own)
 		if levels == nil {
-			errorList.Errorf("aggregation label %q targets unknown lineage %q", key, lineage)
+			errorList.Errorf("aggregation label %q targets unknown lineage %q%s", key, lineage, replacedBy(lineage))
 			continue
 		}
 
@@ -267,7 +475,7 @@ func checkContract(role *rbacv1.ClusterRole, module string, scopes rbacyaml.CRDS
 	}
 }
 
-func checkRole(role *rbacv1.ClusterRole, scope string, errorList *errors.LintRuleErrorsList) {
+func checkRole(role *rbacv1.ClusterRole, scope string, own map[string]bool, errorList *errors.LintRuleErrorsList) {
 	name, labels := role.Name, role.Labels
 
 	re := roleNameRe[scope]
@@ -290,8 +498,8 @@ func checkRole(role *rbacv1.ClusterRole, scope string, errorList *errors.LintRul
 	}
 
 	if scope == "subsystem" {
-		if !rbaccontract.IsSubsystem(m[1]) {
-			errorList.Errorf("role name %q references unknown subsystem %q", name, m[1])
+		if !rbaccontract.IsSubsystem(m[1]) && !own[m[1]] {
+			errorList.Errorf("role name %q references unknown subsystem %q; a subsystem of the module's own is declared in module.yaml subsystems", name, m[1])
 		}
 
 		if got := labels["rbac.deckhouse.io/subsystem"]; got != m[1] {
@@ -324,14 +532,33 @@ func checkRole(role *rbacv1.ClusterRole, scope string, errorList *errors.LintRul
 				continue
 			}
 
-			levels := rbaccontract.LevelsOf(m[1])
+			levels := lineageLevels(m[1], own)
 			if levels == nil {
-				errorList.Errorf("role %q aggregation selector targets unknown lineage %q", name, m[1])
+				errorList.Errorf("role %q aggregation selector targets unknown lineage %q%s", name, m[1], replacedBy(m[1]))
 			} else if !slices.Contains(levels, value) {
 				errorList.Errorf("role %q aggregation selector has invalid level %q", name, value)
 			}
 		}
+
+		// A use capability of the scheme before DKP 1.78 gives rules in a namespace. A system or
+		// subsystem role is bound cluster-wide, so a selector of it that took such a capability by its
+		// aggregation label would give these rules in every namespace.
+		if (scope == "system" || scope == "subsystem") && !excludesKind(selector, rbaccontract.KindLegacyUse) {
+			errorList.Errorf("role %q aggregation selector must leave out %s %q with a NotIn expression", name, rbaccontract.LabelKind, rbaccontract.KindLegacyUse)
+		}
 	}
+}
+
+// excludesKind reports whether a selector leaves out the objects of the given rbac.deckhouse.io/kind
+// with a NotIn expression.
+func excludesKind(selector metav1.LabelSelector, kind string) bool {
+	for _, expression := range selector.MatchExpressions {
+		if expression.Key == rbaccontract.LabelKind && expression.Operator == metav1.LabelSelectorOpNotIn && slices.Contains(expression.Values, kind) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func checkCapability(role *rbacv1.ClusterRole, scope string, scopes rbacyaml.CRDScopes, errorList *errors.LintRuleErrorsList) {
@@ -375,12 +602,37 @@ func checkCapability(role *rbacv1.ClusterRole, scope string, scopes rbacyaml.CRD
 		errorList.Errorf("capability %q does not aggregate into any role (no aggregate-to-*-as labels)", name)
 	}
 
+	// A system capability aggregates into the system lineage and the subsystems. testing/rbacv2 in
+	// deckhouse takes every other lineage it carries for a module.yaml subsystem, and the namespace
+	// and project lineages are none: the module.yaml comparison leaves them out, and this is their
+	// one finding.
+	if scope == rbaccontract.LineageSystem {
+		var lineages, keys []string
+
+		for _, lineage := range []string{rbaccontract.LineageNamespace, rbaccontract.LineageProject} {
+			key := rbaccontract.AggregationLabelPrefix + lineage + rbaccontract.AggregationLabelSuffix
+			if _, ok := labels[key]; ok {
+				lineages = append(lineages, lineage)
+				keys = append(keys, key)
+			}
+		}
+
+		switch len(lineages) {
+		case 1:
+			errorList.Errorf("capability %q is a system capability and must not aggregate into the %s lineage: remove the %s label",
+				name, lineages[0], keys[0])
+		case 2:
+			errorList.Errorf("capability %q is a system capability and must not aggregate into the %s lineages: remove the %s labels",
+				name, strings.Join(lineages, " and "), strings.Join(keys, " and "))
+		}
+	}
+
 	marker := labels[rbaccontract.LabelCapability]
 
 	switch {
 	case marker == "":
 		errorList.Errorf("capability %q must carry the %s label", name, rbaccontract.LabelCapability)
-	case len(marker) > 63 || !labelValueRe.MatchString(marker):
+	case len(validation.IsValidLabelValue(marker)) > 0:
 		errorList.Errorf("capability %q has invalid %s label value %q", name, rbaccontract.LabelCapability, marker)
 	}
 

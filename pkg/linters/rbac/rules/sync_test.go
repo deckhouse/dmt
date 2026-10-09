@@ -18,9 +18,10 @@ package rules
 
 import (
 	"context"
-	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -31,6 +32,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/deckhouse/dmt/internal/mocks"
@@ -147,10 +149,10 @@ func putObject(t *testing.T, store *storage.UnstructuredObjectStore, path string
 func writeGenerated(t *testing.T, modulePath string, model *generate.Model) {
 	t.Helper()
 
-	for _, r := range generate.Render(model) {
-		full := filepath.Join(modulePath, r.Path)
+	for _, f := range model.Files {
+		full := filepath.Join(modulePath, f.Path)
 		require.NoError(t, os.MkdirAll(filepath.Dir(full), 0o755))
-		require.NoError(t, os.WriteFile(full, []byte(r.Content), 0o600))
+		require.NoError(t, os.WriteFile(full, []byte(generate.RenderFile(f)), 0o600))
 	}
 }
 
@@ -199,7 +201,7 @@ func TestSync_Divergences(t *testing.T) {
 
 				return true
 			},
-			want: []string{"error: templates/rbacv2/use/view.yaml does not match rbac.yaml: ClusterRole/d8:namespace-capability:cert-manager:view: get cert-manager.io/issuers is declared but absent from the render; ClusterRole/d8:namespace-capability:cert-manager:view: list cert-manager.io/issuers is declared but absent from the render; ClusterRole/d8:namespace-capability:cert-manager:view: watch cert-manager.io/issuers is declared but absent from the render. Run `dmt lint --linter rbac --fix` to regenerate the file from the declaration"},
+			want: []string{"error: templates/rbacv2/use/view.yaml does not match rbac.yaml: ClusterRole/d8:namespace-capability:cert-manager:view: get cert-manager.io/issuers is declared but absent from the render; ClusterRole/d8:namespace-capability:cert-manager:view: list cert-manager.io/issuers is declared but absent from the render; ClusterRole/d8:namespace-capability:cert-manager:view: watch cert-manager.io/issuers is declared but absent from the render. Run `dmt lint --linter rbac --fix` to rewrite the file from the declaration"},
 		},
 		"R13a: a rule under when that did not render is not a divergence": {
 			tweak: func(o *generate.Object) bool {
@@ -224,7 +226,7 @@ func TestSync_Divergences(t *testing.T) {
 
 				return true
 			},
-			want: []string{`error: templates/user-authz-cluster-roles.yaml does not match rbac.yaml: ClusterRole/d8:user-authz:cert-manager:user: get ""/secrets is in the render but not declared. Run ` + "`dmt lint --linter rbac --fix`" + ` to regenerate the file from the declaration`},
+			want: []string{`error: templates/user-authz-cluster-roles.yaml does not match rbac.yaml: ClusterRole/d8:user-authz:cert-manager:user: get ""/secrets is in the render but not declared. Run ` + "`dmt lint --linter rbac --fix`" + ` to rewrite the file from the declaration`},
 		},
 		"R25a: the rules agree but a lineage is lost": {
 			tweak: func(o *generate.Object) bool {
@@ -234,13 +236,13 @@ func TestSync_Divergences(t *testing.T) {
 
 				return true
 			},
-			want: []string{"error: templates/rbacv2/manage/view.yaml does not match rbac.yaml: ClusterRole/d8:system-capability:cert-manager:view: aggregation into security=viewer is declared but absent from the render. Run `dmt lint --linter rbac --fix` to regenerate the file from the declaration"},
+			want: []string{"error: templates/rbacv2/manage/view.yaml does not match rbac.yaml: ClusterRole/d8:system-capability:cert-manager:view: aggregation into security=viewer is declared but absent from the render. Run `dmt lint --linter rbac --fix` to rewrite the file from the declaration"},
 		},
 		"a declared object is absent from the render": {
 			tweak: func(o *generate.Object) bool {
 				return o.Name != "access-to-cert-manager-auth" || o.Kind != "RoleBinding"
 			},
-			want: []string{"error: templates/rbac-to-us.yaml does not match rbac.yaml: d8-cert-manager/RoleBinding/access-to-cert-manager-auth is declared but absent from the render. Run `dmt lint --linter rbac --fix` to regenerate the file from the declaration"},
+			want: []string{"error: templates/rbac-to-us.yaml does not match rbac.yaml: d8-cert-manager/RoleBinding/access-to-cert-manager-auth is declared but absent from the render. Run `dmt lint --linter rbac --fix` to rewrite the file from the declaration"},
 		},
 		"a conditional object absent from the render is fine": {
 			tweak: func(o *generate.Object) bool { return o.When == "" },
@@ -254,7 +256,7 @@ func TestSync_Divergences(t *testing.T) {
 					Rules:       []generate.Rule{{PolicyRule: rbacyaml.PolicyRule{APIGroups: []string{"cert-manager.io"}, Resources: []string{"issuers"}, Verbs: []string{"deletecollection"}}}},
 				})
 			},
-			want: []string{"error: templates/user-authz-cluster-roles.yaml does not match rbac.yaml: ClusterRole/d8:user-authz:cert-manager:super-admin is in the render but rbac.yaml does not produce it: declare its rights in rbac.yaml or remove it from the template. Run `dmt lint --linter rbac --fix` to regenerate the file from the declaration"},
+			want: []string{"error: templates/user-authz-cluster-roles.yaml does not match rbac.yaml: ClusterRole/d8:user-authz:cert-manager:super-admin is in the render but rbac.yaml does not produce it: declare its rights in rbac.yaml or remove it from the template. Run `dmt lint --linter rbac --fix` to rewrite the file from the declaration"},
 		},
 		"D2: capabilities of the project lineage and platform-wide ones are not the declaration's": {
 			extra: func(t *testing.T, store *storage.UnstructuredObjectStore) {
@@ -279,7 +281,7 @@ func TestSync_Divergences(t *testing.T) {
 					Rules:  []generate.Rule{{PolicyRule: rbacyaml.PolicyRule{APIGroups: []string{"cert-manager.io"}, Resources: []string{"issuers"}, Verbs: []string{"deletecollection"}}}},
 				})
 			},
-			want: []string{"error: templates/rbacv2/use/superadmin.yaml does not match rbac.yaml: ClusterRole/d8:namespace-capability:cert-manager:superadmin is in the render but rbac.yaml does not produce it: declare its rights in rbac.yaml or remove it from the template. Only a person can close this: the declaration does not produce this file"},
+			want: []string{"error: templates/rbacv2/use/superadmin.yaml does not match rbac.yaml: ClusterRole/d8:namespace-capability:cert-manager:superadmin is in the render but rbac.yaml does not produce it: declare its rights in rbac.yaml or remove it from the template"},
 		},
 		"a binding with a different subject": {
 			tweak: func(o *generate.Object) bool {
@@ -289,7 +291,7 @@ func TestSync_Divergences(t *testing.T) {
 
 				return true
 			},
-			want: []string{"error: templates/rbac-for-us.yaml does not match rbac.yaml: ClusterRoleBinding/d8:cert-manager:admin-kubeconfig: subject Group//kubeadm:cluster-admins is declared but absent from the render; ClusterRoleBinding/d8:cert-manager:admin-kubeconfig: subject Group//kubeadm:cluster-operators is in the render but not declared. Run `dmt lint --linter rbac --fix` to regenerate the file from the declaration"},
+			want: []string{"error: templates/rbac-for-us.yaml does not match rbac.yaml: ClusterRoleBinding/d8:cert-manager:admin-kubeconfig: subject Group//kubeadm:cluster-admins is declared but absent from the render; ClusterRoleBinding/d8:cert-manager:admin-kubeconfig: subject Group//kubeadm:cluster-operators is in the render but not declared. Run `dmt lint --linter rbac --fix` to rewrite the file from the declaration"},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -323,7 +325,7 @@ func TestSync_InvalidDeclarationStopsEverything(t *testing.T) {
 	got := texts(runSync(t, modulePath, renderedFrom(t, model, nil)))
 	require.Len(t, got, 1, "got: %v", got)
 	assert.Contains(t, got[0], "namespace levels are not allowed for a cluster-scoped resource")
-	assert.Contains(t, got[0], "nothing is compared or generated until the declaration is valid")
+	assert.Contains(t, got[0], "nothing is compared or written until the declaration is valid")
 }
 
 // Without rbac.yaml the rule reports the declaration missing, and --fix writes it from the render:
@@ -356,11 +358,233 @@ func TestSync_WithoutDeclarationBootstrapsIt(t *testing.T) {
 	assert.Empty(t, texts(runSync(t, modulePath, renderedFrom(t, model, nil))))
 }
 
+// A module whose system capabilities aggregate into a subsystem module.yaml does not declare enters
+// the declaration all the same: the fix writes rbac.yaml without a subsystems key and with a note
+// that proposes the module.yaml change, and succeeds (review of #480, finding 13).
+func TestSync_BootstrapProposesTheModuleYAMLSubsystems(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	require.NoError(t, os.Remove(rbacyaml.Path(modulePath)))
+
+	store := renderedFrom(t, model, func(o *generate.Object) bool {
+		if strings.HasPrefix(o.Name, rbaccontract.SystemCapabilityPrefix) {
+			o.Labels = maps.Clone(o.Labels)
+			o.Labels["rbac.deckhouse.io/aggregate-to-network-as"] = o.Labels["rbac.deckhouse.io/aggregate-to-security-as"]
+		}
+
+		return true
+	})
+
+	errorList := runSync(t, modulePath, store)
+	require.Len(t, errorList.GetFixes(), 1)
+
+	for _, fix := range errorList.GetFixes() {
+		fix()
+	}
+
+	assert.Empty(t, errorList.GetErrors(), "the fix succeeds")
+
+	content, err := os.ReadFile(rbacyaml.Path(modulePath))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "# - the system capabilities aggregate into the subsystems [network, security] and module.yaml declares [security]: declare network in module.yaml subsystems.")
+	assert.NotContains(t, string(content), "\nsubsystems:")
+
+	written, err := rbacyaml.Load(modulePath)
+	require.NoError(t, err, "the written declaration parses")
+	assert.Empty(t, written.Subsystems)
+}
+
+// A rename the bootstrap notes in a template the next fix leaves as it is does not happen with that
+// fix, so the note says the object keeps its name until the case on that file is closed; the same
+// rename in a template the fix rewrites is promised as before (dry run on security-events-manager,
+// 2026-10-09).
+func TestSync_BootstrapRenameNoteFollowsTheFix(t *testing.T) {
+	const rel = "templates/rbac-to-us.yaml"
+
+	for name, tc := range map[string]struct {
+		unreadable    bool
+		want, notWant []string
+	}{
+		"the fix rewrites the file": {
+			want: []string{
+				"# - Role access-to-cert-manager-metrics will be named access-to-cert-manager by --fix",
+				"# - RoleBinding access-to-cert-manager-metrics will be named access-to-cert-manager by --fix",
+			},
+			notWant: []string{"keeps its name"},
+		},
+		"the fix leaves the file as it is": {
+			unreadable: true,
+			want: []string{
+				"# - Role access-to-cert-manager-metrics keeps its name for now: the declaration names it access-to-cert-manager, but --fix leaves " + rel + " as it is until what \"dmt lint\" reports on that file is resolved",
+				"# - RoleBinding access-to-cert-manager-metrics keeps its name for now: the declaration names it access-to-cert-manager, but --fix leaves " + rel + " as it is",
+			},
+			notWant: []string{"will be named access-to-cert-manager by --fix"},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			resetFixState()
+			t.Cleanup(resetFixState)
+
+			modulePath := syncModuleDir(t)
+			model := syncModel(t, modulePath)
+			writeGenerated(t, modulePath, model)
+			require.NoError(t, os.Remove(rbacyaml.Path(modulePath)))
+
+			// The module renders its scrape Role and RoleBinding under a name of its own.
+			full := filepath.Join(modulePath, rel)
+			content, err := os.ReadFile(full)
+			require.NoError(t, err)
+
+			text := strings.ReplaceAll(string(content), "name: access-to-cert-manager\n", "name: access-to-cert-manager-metrics\n")
+			if tc.unreadable {
+				text += "---\n{{ include \"extra-access\" . }}\n"
+			}
+
+			require.NoError(t, os.WriteFile(full, []byte(text), 0o600))
+
+			store := renderedFrom(t, model, func(o *generate.Object) bool {
+				if o.Name == "access-to-cert-manager" {
+					o.Name = "access-to-cert-manager-metrics"
+				}
+
+				if o.RoleRefName == "access-to-cert-manager" {
+					o.RoleRefName = "access-to-cert-manager-metrics"
+				}
+
+				return true
+			})
+
+			errorList := runSync(t, modulePath, store)
+			require.Len(t, errorList.GetFixes(), 1)
+
+			// dmt releases the render of a module once it is linted, before any fix runs (dry run on
+			// security-events-manager, 2026-10-09: every rename was noted as withheld).
+			store.Reset()
+
+			for _, fix := range errorList.GetFixes() {
+				fix()
+			}
+
+			assert.Empty(t, errorList.GetErrors(), "the fix succeeds")
+
+			written, err := os.ReadFile(rbacyaml.Path(modulePath))
+			require.NoError(t, err)
+
+			for _, w := range tc.want {
+				assert.Contains(t, string(written), w)
+			}
+
+			for _, w := range tc.notWant {
+				assert.NotContains(t, string(written), w)
+			}
+		})
+	}
+}
+
+// An account with imagePullSecrets enters the declaration with a note that the fix of its template
+// waits until they move to the pod spec, and the lint after the write gives the same advice instead
+// of telling to drop the account the bootstrap has just declared (dry run on
+// security-events-manager, 2026-10-09).
+func TestSync_BootstrapNotesAnAccountWithImagePullSecrets(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+	require.NoError(t, os.Remove(rbacyaml.Path(modulePath)))
+
+	rendered := func(tweak func(o *generate.Object) bool) *storage.UnstructuredObjectStore {
+		store := renderedFrom(t, model, tweak)
+
+		for _, object := range store.Storage {
+			if object.Unstructured.GetKind() == "ServiceAccount" && object.Unstructured.GetName() == "cainjector" {
+				require.NoError(t, unstructured.SetNestedSlice(object.Unstructured.Object, []any{map[string]any{"name": "deckhouse-registry"}}, "imagePullSecrets"))
+			}
+		}
+
+		return store
+	}
+
+	errorList := runSync(t, modulePath, rendered(nil))
+	require.Len(t, errorList.GetFixes(), 1)
+
+	for _, fix := range errorList.GetFixes() {
+		fix()
+	}
+
+	assert.Empty(t, errorList.GetErrors(), "the fix succeeds")
+
+	written, err := os.ReadFile(rbacyaml.Path(modulePath))
+	require.NoError(t, err)
+	assert.Contains(t, string(written), "# - ServiceAccount cainjector has imagePullSecrets, which the declaration cannot carry: --fix leaves templates/cainjector/rbac-for-us.yaml as it is until then -- set them in the pod spec of the workloads that run as the account")
+
+	declared, err := rbacyaml.Load(modulePath)
+	require.NoError(t, err)
+	require.Len(t, declared.ServiceAccounts, 1, "the account is declared")
+
+	// A divergence in its file makes the lint judge the fix; the advice is the same.
+	got := strings.Join(texts(runSync(t, modulePath, rendered(dropRule("d8:cert-manager:cainjector")))), "\n")
+	assert.Contains(t, got, "has imagePullSecrets, which rbac.yaml cannot declare and a rewrite would drop -- set them in the pod spec of the workloads that run as the account")
+	assert.NotContains(t, got, "drop -- keep the account out of the declaration")
+}
+
+// A namespace written as d8-{{ .Chart.Name }}, as most modules write it, is the module's own: the
+// document is readable, and the file gets the fix (dry run on security-events-manager, 2026-10-09).
+func TestSync_ChartNameNamespaceIsReadable(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	const rel = "templates/cainjector/rbac-for-us.yaml"
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+
+	full := filepath.Join(modulePath, rel)
+	content, err := os.ReadFile(full)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(full, []byte(strings.ReplaceAll(string(content), "namespace: d8-cert-manager", "namespace: d8-{{ .Chart.Name }}")), 0o600))
+
+	list := runSync(t, modulePath, renderedFrom(t, model, dropRule("d8:cert-manager:cainjector")))
+	got := strings.Join(texts(list), "\n")
+	assert.Contains(t, got, rel+" does not match rbac.yaml")
+	assert.NotContains(t, got, "The autofix leaves the file as it is")
+	assert.NotEmpty(t, list.GetFixes())
+}
+
+// A document the linter cannot read is named in the finding by what made it so.
+func TestTextDocuments_ChartNameAndWhy(t *testing.T) {
+	const account = "---\napiVersion: v1\nkind: ServiceAccount\nmetadata:\n  name: controller\n  namespace: d8-{{ $.Chart.Name }}\n"
+
+	got := textDocuments(withChartName(account, "m"))
+	require.Len(t, got, 1)
+	assert.False(t, got[0].unreadable)
+	assert.Equal(t, "d8-m/ServiceAccount/controller", got[0].id)
+
+	for name, tc := range map[string]struct{ doc, why string }{
+		"a chart name the lint was not told": {account, "at `namespace: d8-{{ $.Chart.Name }}`"},
+		"an include":                         {"---\n{{ include \"extra\" . }}\n", "at `{{ include \"extra\" . }}`"},
+		"no kind line":                       {"---\napiVersion: v1\nmetadata:\n  name: x\n", "one without a kind line"},
+		"no name line":                       {"---\napiVersion: v1\nkind: Role\nmetadata:\n  namespace: x\n", "a Role without a metadata.name line"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			docs := textDocuments(tc.doc)
+			require.Len(t, docs, 1)
+			assert.True(t, docs[0].unreadable)
+			assert.Equal(t, tc.why, docs[0].why)
+		})
+	}
+}
+
 func TestSync_Autofix(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
 
-	t.Run("regenerates a missing file and is idempotent", func(t *testing.T) {
+	t.Run("writes a missing file and is idempotent", func(t *testing.T) {
 		resetFixState()
 
 		modulePath := syncModuleDir(t)
@@ -380,10 +604,6 @@ func TestSync_Autofix(t *testing.T) {
 		written, err := os.ReadFile(filepath.Join(modulePath, "templates/rbacv2/use/view.yaml"))
 		require.NoError(t, err)
 		assert.Equal(t, generate.RenderFile(*model.File("templates/rbacv2/use/view.yaml")), string(written))
-
-		generated, version := generate.ParseHeader(string(written))
-		assert.True(t, generated)
-		assert.Equal(t, rbaccontract.ContractVersion, version)
 
 		// Running the same fix again, in a new run, changes nothing.
 		resetFixState()
@@ -416,7 +636,7 @@ func TestSync_Autofix(t *testing.T) {
 
 		path := filepath.Join(modulePath, rel)
 		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-		require.NoError(t, os.WriteFile(path, []byte(generate.Header()+"\n# stale, with the secrets rule the declaration does not name\n"), 0o600))
+		require.NoError(t, os.WriteFile(path, []byte("# stale, with the secrets rule the declaration does not name\n"), 0o600))
 
 		errorList := runSync(t, modulePath, store)
 		got := texts(errorList)
@@ -435,7 +655,7 @@ func TestSync_Autofix(t *testing.T) {
 		assert.NotContains(t, string(written), "secrets")
 	})
 
-	t.Run("US-F2: a file without the header is maintained by hand", func(t *testing.T) {
+	t.Run("an object the declaration does not produce keeps the file as it is: a lint finding", func(t *testing.T) {
 		resetFixState()
 
 		modulePath := syncModuleDir(t)
@@ -448,68 +668,21 @@ func TestSync_Autofix(t *testing.T) {
 			return true
 		})
 
+		const handMade = "# hand-made\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: x\n"
+
 		path := filepath.Join(modulePath, "templates/rbacv2/use/view.yaml")
 		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-		require.NoError(t, os.WriteFile(path, []byte("# hand-made\napiVersion: v1\n"), 0o600))
+		require.NoError(t, os.WriteFile(path, []byte(handMade), 0o600))
 
 		errorList := runSync(t, modulePath, store)
-		for _, fix := range errorList.GetFixes() {
-			fix()
-		}
-
-		remaining := errorList.GetErrors()
-		require.Len(t, remaining, 1)
-		require.Error(t, remaining[0].FixError)
-		assert.Contains(t, remaining[0].FixError.Error(), "is maintained by hand (no generator header)")
-
-		unchanged, err := os.ReadFile(path)
-		require.NoError(t, err)
-		assert.Equal(t, "# hand-made\napiVersion: v1\n", string(unchanged))
-
-		aside, err := os.ReadFile(asidePath(path))
-		require.NoError(t, err)
-		assert.True(t, strings.HasPrefix(string(aside), generate.Header()))
+		assert.Contains(t, strings.Join(texts(errorList), "\n"), "The autofix leaves the file as it is: ConfigMap/x, which rbac.yaml does not produce -- declare it in rbac.yaml or move it to another template")
+		assertLintOnly(t, errorList, modulePath)
 	})
 }
 
-// R40: a file whose header names another contract version is a divergence, and the fix rewrites it.
-func TestSync_ForeignContractVersionIsRegenerated(t *testing.T) {
-	resetFixState()
-	t.Cleanup(resetFixState)
-
-	modulePath := syncModuleDir(t)
-	model := syncModel(t, modulePath)
-	store := renderedFrom(t, model, nil)
-
-	const rel = "templates/rbacv2/use/view.yaml"
-
-	want := generate.RenderFile(*model.File(rel))
-	_, body, _ := strings.Cut(want, "\n")
-	stale := strings.Replace(generate.Header(), "contract "+rbaccontract.ContractVersion+".", "contract 0.", 1) + "\n" + body
-
-	path := filepath.Join(modulePath, rel)
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-	require.NoError(t, os.WriteFile(path, []byte(stale), 0o600))
-
-	errorList := runSync(t, modulePath, store)
-	got := texts(errorList)
-	require.Len(t, got, 1, "got: %v", got)
-	assert.Contains(t, got[0], `templates/rbacv2/use/view.yaml does not match rbac.yaml: the file was generated under contract version "0"; the current contract is "`+rbaccontract.ContractVersion+`". Run `+"`dmt lint --linter rbac --fix`")
-
-	for _, fix := range errorList.GetFixes() {
-		fix()
-	}
-
-	assert.Empty(t, errorList.GetErrors())
-
-	written, err := os.ReadFile(path)
-	require.NoError(t, err)
-	assert.Equal(t, want, string(written))
-}
-
-// R36: under --matrix every variant records at lint time the objects it rendered into a file that the
-// declaration does not produce; the closure that runs first judges the union, so a foreign object
-// rendered only under some values still protects the file, and the other closures report the same.
+// R36: under --matrix a variant that finds a case in a file reports it without a fix, and the fix of
+// another variant leaves the file alone: a foreign object rendered only under some values still
+// protects the file, and no fix fails.
 func TestSync_FixSeesEveryRenderVariant(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
@@ -536,14 +709,20 @@ func TestSync_FixSeesEveryRenderVariant(t *testing.T) {
 		Rules: []generate.Rule{{PolicyRule: rbacyaml.PolicyRule{APIGroups: []string{""}, Resources: []string{"secrets"}, Verbs: []string{"get"}}}},
 	})
 
-	before, err := os.ReadFile(filepath.Join(modulePath, rel))
+	// The text on disk is not what the fix would write, so a fix that ran would show.
+	stalePath := filepath.Join(modulePath, rel)
+	written, err := os.ReadFile(stalePath)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(stalePath, append(written, []byte("# stale\n")...), 0o600))
+
+	before, err := os.ReadFile(stalePath)
 	require.NoError(t, err)
 
 	// Lint both variants first, as the manager does, then apply the fixes: B's closure runs first.
 	listB := runSync(t, modulePath, variantB)
 	listA := runSync(t, modulePath, variantA)
-	require.Len(t, listB.GetFixes(), 1)
-	require.Len(t, listA.GetFixes(), 1)
+	require.Len(t, listB.GetFixes(), 1, "variant B sees nothing to keep the file for")
+	require.Empty(t, listA.GetFixes(), "variant A reports the case without a fix")
 
 	for _, list := range []*errors.LintRuleErrorsList{listB, listA} {
 		for _, fix := range list.GetFixes() {
@@ -552,11 +731,12 @@ func TestSync_FixSeesEveryRenderVariant(t *testing.T) {
 	}
 
 	for name, list := range map[string]*errors.LintRuleErrorsList{"B": listB, "A": listA} {
-		remaining := list.GetErrors()
-		require.Len(t, remaining, 1, "variant %s", name)
-		require.Error(t, remaining[0].FixError, "variant %s", name)
-		assert.Contains(t, remaining[0].FixError.Error(), "also holds objects the declaration does not produce: ClusterRole/d8:cert-manager:only-sometimes", "variant %s", name)
+		for _, e := range list.GetErrors() {
+			assert.NoError(t, e.FixError, "variant %s", name)
+		}
 	}
+
+	assert.Contains(t, strings.Join(texts(listA), "\n"), "The autofix leaves the file as it is: ClusterRole/d8:cert-manager:only-sometimes, which rbac.yaml does not produce")
 
 	unchanged, err := os.ReadFile(filepath.Join(modulePath, rel))
 	require.NoError(t, err)
@@ -576,7 +756,7 @@ func TestSync_DeclarationInEditionOverlay(t *testing.T) {
 	got := texts(runSync(t, modulePath, storage.NewUnstructuredObjectStore()))
 	require.Len(t, got, 1, "got: %v", got)
 	assert.Contains(t, got[0], "rbac.yaml lies in the edition overlay ee/be/modules; the declaration describes the union of editions and belongs to modules/<module>/ only")
-	assert.Contains(t, got[0], "Only a person can close this")
+	assert.Empty(t, runSync(t, modulePath, storage.NewUnstructuredObjectStore()).GetFixes(), "a lint finding: nothing to fix")
 
 	assert.Empty(t, texts(runCoverage(t, modulePath)), "coverage leaves the overlay finding to sync")
 }
@@ -628,7 +808,8 @@ func TestSync_LegacyTemplateIsNamed(t *testing.T) {
 	assert.NotContains(t, got[0], "d8:use:capability", "the legacy object itself is not reported as extra")
 }
 
-// R30: a template that serves both schemes behind the version gate is never regenerated, header or not.
+// R30: a template that serves both schemes behind the version gate is a lint finding: a rewrite
+// would drop the legacy branch.
 func TestSync_GatedTemplateIsNotRegenerated(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
@@ -650,21 +831,8 @@ func TestSync_GatedTemplateIsNotRegenerated(t *testing.T) {
 	require.NoError(t, os.WriteFile(path, []byte(gated), 0o600))
 
 	errorList := runSync(t, modulePath, store)
-	for _, fix := range errorList.GetFixes() {
-		fix()
-	}
-
-	remaining := errorList.GetErrors()
-	require.Len(t, remaining, 1)
-	require.Error(t, remaining[0].FixError)
-	assert.Contains(t, remaining[0].FixError.Error(), "renders one of two role models depending on the platform version (the rbacv2_new_scheme gate of rbacv2-migrate-module.sh, or a deckhouseVersion test the declaration did not produce); regenerating it would drop the legacy branch")
-
-	unchanged, err := os.ReadFile(path)
-	require.NoError(t, err)
-	assert.Equal(t, gated, string(unchanged))
-
-	_, err = os.Stat(asidePath(path))
-	assert.True(t, os.IsNotExist(err), "no .generated copy for a gated file")
+	assert.Contains(t, strings.Join(texts(errorList), "\n"), "the template serves both role models behind the version gate (the rbacv2_new_scheme gate of rbacv2-migrate-module.sh, or a deckhouseVersion test the declaration does not produce), and a rewrite would drop the legacy branch")
+	assertLintOnly(t, errorList, modulePath)
 }
 
 // A gated template whose legacy branch rendered (values below 1.78) is not a divergence: the 1.78
@@ -687,9 +855,10 @@ func TestSync_GatedTemplateRenderingLegacyBranchIsSilent(t *testing.T) {
 	assert.Empty(t, texts(runSync(t, modulePath, store)))
 }
 
-// A generator-owned file must be the text the declaration renders now: a rule under `when` that is
-// false today is invisible to the render, so only the text says whether it reached the template.
-func TestSync_GeneratedFileTextIsCompared(t *testing.T) {
+// The render is judged, not the text: a file whose text differs from what the declaration writes
+// while its render agrees is no divergence (a rule under a `when` false for these values is checked
+// in the render variant where it holds, --matrix or --values-file).
+func TestSync_TheRenderIsJudgedNotTheText(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
 
@@ -708,30 +877,8 @@ func TestSync_GeneratedFileTextIsCompared(t *testing.T) {
 		assert.Empty(t, texts(runSync(t, modulePath, store)))
 	})
 
-	t.Run("a stale generated file is regenerated", func(t *testing.T) {
-		stale := strings.Replace(want, "\n{{- if .Values.certManager.internal.acmeEnabled }}", "\n# a conditional rule was declared after this file was generated\n{{- if .Values.certManager.internal.acmeEnabled }}", 1)
-		require.NotEqual(t, want, stale, "the fixture must carry a conditional rule")
-		require.NoError(t, os.WriteFile(path, []byte(stale), 0o600))
-
-		errorList := runSync(t, modulePath, store)
-		got := texts(errorList)
-		require.Len(t, got, 1, "got: %v", got)
-		assert.Contains(t, got[0], "the file carries the generator header but is not what the declaration renders now")
-
-		for _, fix := range errorList.GetFixes() {
-			fix()
-		}
-
-		assert.Empty(t, errorList.GetErrors())
-
-		written, err := os.ReadFile(path)
-		require.NoError(t, err)
-		assert.Equal(t, want, string(written))
-	})
-
-	t.Run("a hand-maintained file is judged by its render only", func(t *testing.T) {
-		_, body, _ := strings.Cut(want, "\n")
-		require.NoError(t, os.WriteFile(path, []byte("# hand-maintained\n"+body), 0o600))
+	t.Run("another text with the same render is not a divergence", func(t *testing.T) {
+		require.NoError(t, os.WriteFile(path, []byte("# written by hand\n"+want), 0o600))
 		assert.Empty(t, texts(runSync(t, modulePath, store)))
 	})
 }
@@ -775,8 +922,8 @@ func TestSync_MissingFileWithConditionalObjectsIsReported(t *testing.T) {
 	assert.Empty(t, texts(runSync(t, modulePath, store)))
 }
 
-// A generated file that also holds an object the declaration does not produce is never rewritten:
-// the generator writes the whole file, and the foreign object would vanish with it.
+// A declared file that also holds an object the declaration does not produce is a lint finding:
+// the rewrite writes the whole file, and the foreign object would vanish with it.
 func TestSync_FileWithForeignObjectsIsNotRegenerated(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
@@ -801,22 +948,41 @@ func TestSync_FileWithForeignObjectsIsNotRegenerated(t *testing.T) {
 		Rules: []generate.Rule{{PolicyRule: rbacyaml.PolicyRule{APIGroups: []string{""}, Resources: []string{"secrets"}, Verbs: []string{"get"}}}},
 	})
 
-	before, err := os.ReadFile(filepath.Join(modulePath, rel))
-	require.NoError(t, err)
+	errorList := runSync(t, modulePath, store)
+	assert.Contains(t, strings.Join(texts(errorList), "\n"), "The autofix leaves the file as it is: ClusterRole/d8:cert-manager:cainjector:requester, which rbac.yaml does not produce -- declare it in rbac.yaml or move it to another template")
+	assertLintOnly(t, errorList, modulePath)
+}
+
+// The Role bindRoles names is one the declaration cannot write: the finding says to move it, not
+// to declare it (dry run on security-events-manager, 2026-10-09).
+func TestSync_ARoleOfBindRolesInADeclaredFileIsToMove(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+
+	const rel = "templates/cainjector/rbac-for-us.yaml"
+
+	// The render: the cainjector file lacks a declared rule, and holds the Role its account binds.
+	store := renderedFrom(t, model, func(o *generate.Object) bool {
+		if o.Kind == "ClusterRole" && o.Name == "d8:cert-manager:cainjector" {
+			o.Rules = o.Rules[:1]
+		}
+
+		return true
+	})
+	putObject(t, store, rel, generate.Object{
+		Kind: "Role", Name: "extension-apiserver-authentication-reader", Namespace: "kube-system", Class: generate.ClassDeclared,
+		Rules: []generate.Rule{{PolicyRule: rbacyaml.PolicyRule{APIGroups: []string{""}, Resources: []string{"configmaps"}, Verbs: []string{"get"}}}},
+	})
 
 	errorList := runSync(t, modulePath, store)
-	for _, fix := range errorList.GetFixes() {
-		fix()
-	}
-
-	remaining := errorList.GetErrors()
-	require.Len(t, remaining, 1)
-	require.Error(t, remaining[0].FixError)
-	assert.Contains(t, remaining[0].FixError.Error(), "templates/cainjector/rbac-for-us.yaml also holds objects the declaration does not produce: ClusterRole/d8:cert-manager:cainjector:requester; regenerating the file would drop them")
-
-	after, err := os.ReadFile(filepath.Join(modulePath, rel))
-	require.NoError(t, err)
-	assert.Equal(t, string(before), string(after), "the file is left alone")
+	got := strings.Join(texts(errorList), "\n")
+	assert.Contains(t, got, "The autofix leaves the file as it is: kube-system/Role/extension-apiserver-authentication-reader, which rbac.yaml binds with bindRoles and does not write -- move it to a template the declaration does not write")
+	assert.NotContains(t, got, "extension-apiserver-authentication-reader, which rbac.yaml does not produce")
+	assertLintOnly(t, errorList, modulePath)
 }
 
 // A rendered object the generator produces under another name is replaced, not foreign: a binding
@@ -831,8 +997,8 @@ func TestSync_RenamedObjectsAreNotForeign(t *testing.T) {
 
 	const rel = "templates/rbac-to-us.yaml"
 
-	// A file of contract 1 lists no owned objects; only there does a rename apply.
-	asContractOne(t, filepath.Join(modulePath, rel))
+	// The text on disk is not what the fix writes, so a fix that ran shows.
+	appendComment(t, filepath.Join(modulePath, rel))
 
 	// The render still carries the old names a hand-written module gave the metrics access: the
 	// Role and its RoleBinding, with the same rules, roleRef and subjects.
@@ -857,7 +1023,7 @@ func TestSync_RenamedObjectsAreNotForeign(t *testing.T) {
 		fix()
 	}
 
-	assert.Empty(t, errorList.GetErrors(), "the renamed bindings are replaced, so the file is regenerated")
+	assert.Empty(t, errorList.GetErrors(), "the renamed bindings are replaced, so the file is rewritten")
 
 	written, err := os.ReadFile(filepath.Join(modulePath, rel))
 	require.NoError(t, err)
@@ -875,7 +1041,7 @@ func TestSync_OldShapeFileIsNamed(t *testing.T) {
 }
 
 // An object the declaration puts in another file is left where it renders: the fix does not move
-// objects between files (review of #479, findings 15, 23, 25 and 29).
+// objects between files, and the lint names both ends (review of #479, findings 15, 23, 25 and 29).
 func TestSync_MisplacedObjectIsNamed(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
@@ -892,32 +1058,16 @@ func TestSync_MisplacedObjectIsNamed(t *testing.T) {
 	viewPath := filepath.Join(modulePath, "templates/rbacv2/use/view.yaml")
 	editPath := filepath.Join(modulePath, "templates/rbacv2/use/edit.yaml")
 
-	require.NoError(t, os.WriteFile(viewPath, []byte(generate.Header()+"\n# stale\n"), 0o600))
-	require.NoError(t, os.WriteFile(editPath, []byte(generate.Header()+"\n# stale\n"), 0o600))
+	require.NoError(t, os.WriteFile(viewPath, []byte("# stale\n"), 0o600))
+	require.NoError(t, os.WriteFile(editPath, []byte("# stale\n"), 0o600))
 
 	errorList := runSync(t, modulePath, store)
-	for _, fix := range errorList.GetFixes() {
-		fix()
-	}
-
-	var messages []string
-
-	for _, e := range errorList.GetErrors() {
-		if e.FixError != nil {
-			messages = append(messages, e.FixError.Error())
-		}
-	}
-
-	joined := strings.Join(messages, "\n")
-	assert.Contains(t, joined, "ClusterRole/d8:namespace-capability:cert-manager:edit (the declaration now puts it in templates/rbacv2/use/edit.yaml; the fix does not move objects between files")
-	assert.Contains(t, joined, "templates/rbacv2/use/edit.yaml would produce objects that still render from another file: ClusterRole/d8:namespace-capability:cert-manager:edit (renders from templates/rbacv2/use/view.yaml)",
+	joined := strings.Join(texts(errorList), "\n")
+	assert.Contains(t, joined, "templates/rbacv2/use/view.yaml does not match rbac.yaml: ClusterRole/d8:namespace-capability:cert-manager:edit renders here; the declaration puts it in templates/rbacv2/use/edit.yaml. The autofix leaves the file as it is: move ClusterRole/d8:namespace-capability:cert-manager:edit to templates/rbacv2/use/edit.yaml")
+	assert.Contains(t, joined, "templates/rbacv2/use/edit.yaml does not match rbac.yaml: ClusterRole/d8:namespace-capability:cert-manager:edit renders from templates/rbacv2/use/view.yaml; the declaration puts it in this file. The autofix leaves the file as it is: move ClusterRole/d8:namespace-capability:cert-manager:edit here from templates/rbacv2/use/view.yaml",
 		"the target is not written either, so the object never renders twice")
-
-	for _, path := range []string{viewPath, editPath} {
-		kept, err := os.ReadFile(path)
-		require.NoError(t, err)
-		assert.Equal(t, generate.Header()+"\n# stale\n", string(kept), path+" is left alone")
-	}
+	assert.Equal(t, 4, strings.Count(joined, "ClusterRole/d8:namespace-capability:cert-manager:edit"), "one fact and one action in each of the two findings")
+	assertLintOnly(t, errorList, modulePath)
 }
 
 // Under --matrix the first declaration is written from the union of every variant's render.
@@ -948,9 +1098,9 @@ func TestSync_BootstrapUnitesRenderVariants(t *testing.T) {
 	assert.Equal(t, "cainjector", written.ServiceAccounts[0].Name)
 }
 
-// A generated file the declaration produces nothing for any more is an orphan: --fix deletes it.
-// One that also holds an object outside the owned classes, or serves both models, stays.
-func TestSync_OrphanGeneratedFileIsDeleted(t *testing.T) {
+// A template the declaration produces nothing for any more is a lint finding: declare what it
+// renders or delete it. The autofix deletes no file.
+func TestSync_TemplateTheDeclarationNoLongerProducesIsALintFinding(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
 
@@ -971,35 +1121,12 @@ func TestSync_OrphanGeneratedFileIsDeleted(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(rbacyaml.Path(modulePath), raw, 0o600))
 
-	const rel = "templates/user-authz-cluster-roles.yaml"
-
 	errorList := runSync(t, modulePath, store)
 	got := texts(errorList)
 	require.Len(t, got, 1, "got: %v", got)
-	assert.Contains(t, got[0], "The file carries the generator header and the declaration produces nothing for it; `dmt lint --linter rbac --fix` deletes it")
-
-	for _, fix := range errorList.GetFixes() {
-		fix()
-	}
-
-	assert.Empty(t, errorList.GetErrors())
-
-	_, err = os.Stat(filepath.Join(modulePath, rel))
-	assert.True(t, os.IsNotExist(err), "the orphan is gone")
-
-	// The same file with a foreign object beside the legacy roles is not deleted.
-	resetFixState()
-	writeGenerated(t, modulePath, model)
-	putObject(t, store, rel, generate.Object{
-		Kind: "ClusterRole", Name: "d8:cert-manager:something-else", Class: generate.ClassDeclared,
-		Rules: []generate.Rule{{PolicyRule: rbacyaml.PolicyRule{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"get"}}}},
-	})
-
-	errorList = runSync(t, modulePath, store)
-	got = texts(errorList)
-	require.Len(t, got, 1, "got: %v", got)
-	assert.Contains(t, got[0], "the file also holds ClusterRole/d8:cert-manager:something-else, which the declaration does not describe. Only a person can close this")
-	assertOnlyFailingFixes(t, errorList, modulePath)
+	assert.Contains(t, got[0], "templates/user-authz-cluster-roles.yaml does not match rbac.yaml: ")
+	assert.Contains(t, got[0], "is in the render but rbac.yaml does not produce it: declare its rights in rbac.yaml or remove it from the template")
+	assertLintOnly(t, errorList, modulePath)
 }
 
 // exclude-rules.sync silences an object's findings without forgetting the object: a declared
@@ -1032,7 +1159,9 @@ func TestSync_ExcludedObjectIsSilentButKnown(t *testing.T) {
 	got = texts(runSync(t, modulePath, store, exclude))
 	assert.Empty(t, got, "got: %v", got)
 
-	// Without the exclusion the same render is a finding.
+	// Without the exclusion the same render is a finding once the template no longer holds it.
+	require.NoError(t, os.WriteFile(filepath.Join(modulePath, "templates/rbacv2/use/view.yaml"), []byte("# emptied\n"), 0o600))
+
 	got = texts(runSync(t, modulePath, store))
 	require.Len(t, got, 1, "got: %v", got)
 	assert.Contains(t, got[0], "is declared but absent from the render")
@@ -1064,7 +1193,7 @@ func TestSync_ServiceAccountAutomountIsCompared(t *testing.T) {
 
 // A rendered binding under another name is a rename only when it points at the role the produced
 // binding replaces. One that binds the same subjects to cluster-admin is a foreign object, and
-// the file it lives in is not regenerated.
+// the file it lives in is a lint finding without a fix.
 func TestSync_BindingToAnotherRoleIsNotARename(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
@@ -1072,8 +1201,6 @@ func TestSync_BindingToAnotherRoleIsNotARename(t *testing.T) {
 	modulePath := syncModuleDir(t)
 	model := syncModel(t, modulePath)
 	writeGenerated(t, modulePath, model)
-
-	const rel = "templates/rbac-to-us.yaml"
 
 	store := renderedFrom(t, model, func(o *generate.Object) bool {
 		if o.Kind == "RoleBinding" && o.Name == "access-to-cert-manager" {
@@ -1085,92 +1212,9 @@ func TestSync_BindingToAnotherRoleIsNotARename(t *testing.T) {
 		return true
 	})
 
-	before, err := os.ReadFile(filepath.Join(modulePath, rel))
-	require.NoError(t, err)
-
 	errorList := runSync(t, modulePath, store)
-	for _, fix := range errorList.GetFixes() {
-		fix()
-	}
-
-	remaining := errorList.GetErrors()
-	require.Len(t, remaining, 1, "got: %v", texts(errorList))
-	require.Error(t, remaining[0].FixError)
-	assert.Contains(t, remaining[0].FixError.Error(), "also holds objects the declaration does not produce: d8-cert-manager/RoleBinding/access-to-cert-manager-prometheus-metrics")
-
-	after, err := os.ReadFile(filepath.Join(modulePath, rel))
-	require.NoError(t, err)
-	assert.Equal(t, string(before), string(after), "the file is left alone")
-}
-
-// The orphan fix judges the union of render variants: an object another variant placed in the
-// file keeps the file, and a header that vanished between lint and fix keeps it too.
-func TestSync_OrphanDeletionRefusedByOtherVariantsAndByHand(t *testing.T) {
-	resetFixState()
-	t.Cleanup(resetFixState)
-
-	modulePath := syncModuleDir(t)
-	model := syncModel(t, modulePath)
-	writeGenerated(t, modulePath, model)
-	store := renderedFrom(t, model, nil)
-
-	decl, err := rbacyaml.Load(modulePath)
-	require.NoError(t, err)
-
-	for i := range decl.Resources {
-		decl.Resources[i].Legacy = nil
-	}
-
-	raw, err := yaml.Marshal(decl)
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(rbacyaml.Path(modulePath), raw, 0o600))
-
-	const rel = "templates/user-authz-cluster-roles.yaml"
-
-	fullPath := filepath.Join(modulePath, rel)
-
-	t.Run("another variant holds a foreign object", func(t *testing.T) {
-		errorList := runSync(t, modulePath, store)
-		fixes := errorList.GetFixes()
-		require.Len(t, fixes, 1)
-
-		// What the run under other values found in the same file.
-		recordForeignObjects(fullPath, []string{"ClusterRole/d8:cert-manager:only-under-other-values"})
-
-		fixes[0]()
-
-		remaining := errorList.GetErrors()
-		require.Len(t, remaining, 1)
-		require.Error(t, remaining[0].FixError)
-		assert.Contains(t, remaining[0].FixError.Error(), "also holds objects the declaration does not describe (ClusterRole/d8:cert-manager:only-under-other-values), some only under other values; it is not deleted")
-
-		_, err := os.Stat(fullPath)
-		require.NoError(t, err, "the file stays")
-	})
-
-	t.Run("the header left the file before the fix ran", func(t *testing.T) {
-		resetFixState()
-
-		errorList := runSync(t, modulePath, store)
-		fixes := errorList.GetFixes()
-		require.Len(t, fixes, 1)
-
-		content, err := os.ReadFile(fullPath)
-		require.NoError(t, err)
-
-		_, rest, _ := strings.Cut(string(content), "\n")
-		require.NoError(t, os.WriteFile(fullPath, []byte(rest), 0o600))
-
-		fixes[0]()
-
-		remaining := errorList.GetErrors()
-		require.Len(t, remaining, 1)
-		require.Error(t, remaining[0].FixError)
-		assert.Contains(t, remaining[0].FixError.Error(), "is not the generator's to delete any more")
-
-		_, err = os.Stat(fullPath)
-		require.NoError(t, err, "the file stays")
-	})
+	assert.Contains(t, strings.Join(texts(errorList), "\n"), "d8-cert-manager/RoleBinding/access-to-cert-manager-prometheus-metrics, which rbac.yaml does not produce")
+	assertLintOnly(t, errorList, modulePath)
 }
 
 // A `when` that tests the platform version is the declaration's own; the produced file carries
@@ -1203,13 +1247,19 @@ func TestSync_WhenOnDeckhouseVersionIsNotAGate(t *testing.T) {
 
 	require.NotEmpty(t, rel, "a file renders the version test")
 
-	// The file is stale: a comment was appended by hand.
+	// The file is stale: it lost a rule the declaration names, and its text is not what the fix
+	// writes, so a fix that ran shows.
 	fullPath := filepath.Join(modulePath, rel)
-	content, err := os.ReadFile(fullPath)
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(fullPath, append(content, []byte("# a stray edit\n")...), 0o600))
+	appendComment(t, fullPath)
+	stale := renderedFrom(t, model, func(o *generate.Object) bool {
+		if len(o.Rules) > 1 && strings.Contains(generate.RenderFile(*model.File(rel)), o.Name) {
+			o.Rules = o.Rules[:len(o.Rules)-1]
+		}
 
-	errorList := runSync(t, modulePath, renderedFrom(t, model, nil))
+		return true
+	})
+
+	errorList := runSync(t, modulePath, stale)
 	got := texts(errorList)
 	require.Len(t, got, 1, "got: %v", got)
 	assert.Contains(t, got[0], "does not match rbac.yaml")
@@ -1218,36 +1268,15 @@ func TestSync_WhenOnDeckhouseVersionIsNotAGate(t *testing.T) {
 		fix()
 	}
 
-	assert.Empty(t, errorList.GetErrors(), "the file is regenerated, not mistaken for a gated template")
+	assert.Empty(t, errorList.GetErrors(), "the file is rewritten, not mistaken for a gated template")
 
 	after, err := os.ReadFile(fullPath)
 	require.NoError(t, err)
 	assert.Equal(t, generate.RenderFile(*model.File(rel)), string(after))
 }
 
-// asContractOne rewrites a generated file the way contract 1 wrote it: the header without the list
-// of owned objects.
-func asContractOne(t *testing.T, path string) {
-	t.Helper()
-
-	content, err := os.ReadFile(path)
-	require.NoError(t, err)
-
-	lines := strings.Split(string(content), "\n")
-	kept := lines[:1]
-	kept[0] = strings.Replace(kept[0], "contract "+rbaccontract.ContractVersion+".", "contract 1.", 1)
-
-	for _, l := range lines[1:] {
-		if !strings.HasPrefix(l, "# dmt:owns ") {
-			kept = append(kept, l)
-		}
-	}
-
-	require.NoError(t, os.WriteFile(path, []byte(strings.Join(kept, "\n")), 0o600))
-}
-
-// A generated file may carry objects of other kinds; the fix never drops them (review of #479,
-// finding 2): neither on a regeneration nor when the declaration stops producing the file.
+// A declared file may carry objects of other kinds; the fix never drops them (review of #479,
+// finding 2): the file is a lint finding without a fix.
 func TestSync_NonRBACObjectsInGeneratedFilesAreKept(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
@@ -1267,22 +1296,9 @@ func TestSync_NonRBACObjectsInGeneratedFilesAreKept(t *testing.T) {
 	})
 	putConfigMap(t, store, rel, "cainjector-extra")
 
-	before, err := os.ReadFile(filepath.Join(modulePath, rel))
-	require.NoError(t, err)
-
 	errorList := runSync(t, modulePath, store)
-	for _, fix := range errorList.GetFixes() {
-		fix()
-	}
-
-	remaining := errorList.GetErrors()
-	require.Len(t, remaining, 1, "got: %v", texts(errorList))
-	require.Error(t, remaining[0].FixError)
-	assert.Contains(t, remaining[0].FixError.Error(), "also holds objects the declaration does not produce: d8-cert-manager/ConfigMap/cainjector-extra")
-
-	after, err := os.ReadFile(filepath.Join(modulePath, rel))
-	require.NoError(t, err)
-	assert.Equal(t, string(before), string(after))
+	assert.Contains(t, strings.Join(texts(errorList), "\n"), "d8-cert-manager/ConfigMap/cainjector-extra, which rbac.yaml does not produce")
+	assertLintOnly(t, errorList, modulePath)
 }
 
 // An object the generator wrote earlier and the declaration no longer names leaves the file with
@@ -1328,7 +1344,7 @@ func TestSync_DroppedLegacyLevelIsRemoved(t *testing.T) {
 }
 
 // A hand-written role with the same rules as a produced one is a duplicate, not an old name, when
-// the produced one is rendered too (review of #479, finding 3): the fix refuses instead of dropping it.
+// the produced one is rendered too (review of #479, finding 3): the file is a lint finding.
 func TestSync_DuplicateOfARenderedObjectIsNotARename(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
@@ -1338,8 +1354,6 @@ func TestSync_DuplicateOfARenderedObjectIsNotARename(t *testing.T) {
 	writeGenerated(t, modulePath, model)
 
 	const rel = "templates/rbac-to-us.yaml"
-
-	asContractOne(t, filepath.Join(modulePath, rel))
 
 	store := renderedFrom(t, model, nil)
 
@@ -1355,15 +1369,16 @@ func TestSync_DuplicateOfARenderedObjectIsNotARename(t *testing.T) {
 	duplicate.Name = "extra-reader-bound-elsewhere"
 	putObject(t, store, rel, duplicate)
 
-	errorList := runSync(t, modulePath, store)
-	for _, fix := range errorList.GetFixes() {
-		fix()
-	}
+	// The file agrees with the declaration otherwise: nothing to report, nothing to rewrite.
+	assert.Empty(t, texts(runSync(t, modulePath, store)))
 
-	remaining := errorList.GetErrors()
-	require.Len(t, remaining, 1, "got: %v", texts(errorList))
-	require.Error(t, remaining[0].FixError)
-	assert.Contains(t, remaining[0].FixError.Error(), "d8-cert-manager/Role/extra-reader-bound-elsewhere")
+	// Once it diverges, the duplicate keeps it as it is.
+	stale := renderedFrom(t, model, func(o *generate.Object) bool { return o.Kind != "RoleBinding" || o.Name != "access-to-cert-manager" })
+	putObject(t, stale, rel, duplicate)
+
+	errorList := runSync(t, modulePath, stale)
+	assert.Contains(t, strings.Join(texts(errorList), "\n"), "d8-cert-manager/Role/extra-reader-bound-elsewhere, which rbac.yaml does not produce")
+	assertLintOnly(t, errorList, modulePath)
 }
 
 func putConfigMap(t *testing.T, store *storage.UnstructuredObjectStore, path, name string) {
@@ -1399,9 +1414,9 @@ func TestSync_AccessLevelAndAggregationAreCompared(t *testing.T) {
 	assert.Contains(t, got[0], `ClusterRole/d8:user-authz:cert-manager:user: the user-authz.deckhouse.io/access-level annotation is "SuperAdmin" in the render, the declaration produces "User"`)
 }
 
-// A written declaration with TODO in it keeps the bootstrap finding and the non-zero exit: the
-// file exists, the decisions do not (review of #479, finding 9).
-func TestSync_BootstrapWithOpenDecisionsKeepsTheFinding(t *testing.T) {
+// The fix writes the declaration with its TODOs and succeeds; the lint that follows reports each
+// TODO as a decision to make (review of #479, finding 9).
+func TestSync_BootstrapWritesTheDeclarationTheLintReportsItsTODO(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
 
@@ -1415,13 +1430,14 @@ func TestSync_BootstrapWithOpenDecisionsKeepsTheFinding(t *testing.T) {
 		fix()
 	}
 
-	remaining := errorList.GetErrors()
-	require.Len(t, remaining, 1)
-	require.Error(t, remaining[0].FixError)
-	assert.Contains(t, remaining[0].FixError.Error(), "rbac.yaml is written; 1 TODO in it are decisions only a person can make")
+	for _, e := range errorList.GetErrors() {
+		require.NoError(t, e.FixError)
+	}
 
 	_, err := os.Stat(rbacyaml.Path(modulePath))
-	require.NoError(t, err, "the file is written all the same")
+	require.NoError(t, err, "the file is written")
+
+	assert.Contains(t, strings.Join(texts(runCoverage(t, modulePath)), "\n"), "cert-manager.io/nobodies is still undecided in rbac.yaml")
 }
 
 // A module directory in an edition overlay gets no declaration of its own (review of #479,
@@ -1449,9 +1465,9 @@ func TestSync_NoBootstrapInAnOverlay(t *testing.T) {
 	assert.True(t, os.IsNotExist(err))
 }
 
-// A template the tolerant render skipped is neither compared nor regenerated: its objects were
-// never seen (review of #479, finding 13k).
-func TestSync_DroppedTemplateIsNotRegenerated(t *testing.T) {
+// A template nothing rendered from -- the render skipped it and warned, or every object is under a
+// condition false for these values -- is not reported for the objects its text holds.
+func TestSync_TemplateNothingRenderedFromIsNotReported(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
 
@@ -1461,55 +1477,48 @@ func TestSync_DroppedTemplateIsNotRegenerated(t *testing.T) {
 
 	const rel = "templates/rbac-to-us.yaml"
 
-	// The render skipped the whole template, so none of its objects is in the storage.
-	dropped := map[string]struct{}{}
-	for _, o := range model.File(rel).Objects {
-		dropped[o.Identity()] = struct{}{}
-	}
-
 	store := renderedFrom(t, model, func(o *generate.Object) bool {
-		_, gone := dropped[o.Identity()]
+		for _, p := range model.File(rel).Objects {
+			if p.Identity() == o.Identity() {
+				return false
+			}
+		}
 
-		return !gone
+		return true
 	})
-	store.MarkDropped(rel, "required value missing")
 
-	errorList := runSync(t, modulePath, store)
-	got := texts(errorList)
-	require.Len(t, got, 1, "got: %v", got)
-	assert.Contains(t, got[0], rel+" failed to render in this run (required value missing); nothing in it is compared or regenerated")
-	assertOnlyFailingFixes(t, errorList, modulePath)
+	got := texts(runSync(t, modulePath, store))
+	assert.Empty(t, got, "got: %v", got)
+
+	// Without its text the same absence is a divergence.
+	require.NoError(t, os.WriteFile(filepath.Join(modulePath, rel), []byte("# emptied\n"), 0o600))
+	assert.Contains(t, strings.Join(texts(runSync(t, modulePath, store)), "\n"), "is declared but absent from the render")
 }
 
-// A module.yaml that does not parse stops the rule instead of generating without subsystems
-// (review of #479, finding 13k).
+// A module.yaml that does not parse stops the rule instead of rewriting without subsystems; the
+// module linter reports it, and --fix leaves the module alone.
 func TestSync_BrokenModuleYAMLStops(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
 
 	modulePath := syncModuleDir(t)
 	model := syncModel(t, modulePath)
-	require.NoError(t, os.WriteFile(filepath.Join(modulePath, "module.yaml"), []byte("name: [broken\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(modulePath, "module.yaml"), []byte("subsystems: security\n"), 0o600))
 
-	errorList := runSync(t, modulePath, renderedFrom(t, model, nil))
-	got := texts(errorList)
-	require.Len(t, got, 1, "got: %v", got)
-	assert.Contains(t, got[0], "parse module.yaml")
+	errorList := runSync(t, modulePath, renderedFrom(t, model, func(o *generate.Object) bool {
+		if o.Name == "d8:namespace-capability:cert-manager:view" {
+			o.Rules = o.Rules[:len(o.Rules)-1]
+		}
 
-	// The fix writes nothing and fails, so `--fix` does not exit 0 over a module it left alone.
-	before := snapshotTree(t, modulePath)
-
-	for _, fix := range errorList.GetFixes() {
-		fix()
-	}
-
-	assert.True(t, errorList.ContainsFailedFixes())
-	assert.Equal(t, before, snapshotTree(t, modulePath))
+		return true
+	}))
+	assert.Empty(t, texts(errorList), "a divergence is not judged while module.yaml does not parse")
+	assert.Empty(t, errorList.GetFixes())
 }
 
-// A declaration the linter refuses carries a failing fix: nothing is generated and `--fix`
-// reports it rather than exiting 0 (regression hunt, B5).
-func TestSync_InvalidDeclarationFailsTheFix(t *testing.T) {
+// A declaration the linter refuses is a lint finding without a fix: nothing is generated from it
+// (regression hunt, B5).
+func TestSync_InvalidDeclarationIsALintFinding(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
 
@@ -1521,19 +1530,74 @@ func TestSync_InvalidDeclarationFailsTheFix(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(modulePath, "rbac.yaml"), []byte(strings.Replace(string(decl), "serviceAccounts:\n", "serviceAccounts:\n  - name: wrong-name\n    path: a/b\n", 1)), 0o600))
 
 	errorList := runSync(t, modulePath, renderedFrom(t, model, nil))
-	require.NotEmpty(t, errorList.GetFixes())
-	assert.Contains(t, strings.Join(texts(errorList), "\n"), "one directory under templates/ only")
-
-	for _, fix := range errorList.GetFixes() {
-		fix()
-	}
-
-	assert.True(t, errorList.ContainsFailedFixes())
+	assert.Contains(t, strings.Join(texts(errorList), "\n"), "the placement rule wants the account named")
+	assert.Empty(t, errorList.GetFixes())
 }
 
-// A generated file whose objects are all under a false condition is found on disk and deleted
-// when the declaration drops them (review of #479, finding 16).
-func TestSync_OrphanWithEveryObjectUnderWhenIsFound(t *testing.T) {
+// A module.yaml subsystem the platform does not ship and the module renders no role for is no
+// subsystem of the module's own: contract reports it, and it reaches no generated label (review of
+// #480, finding 9).
+func TestSync_UnrenderedModuleSubsystemReachesNoLabel(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+
+	require.NoError(t, os.WriteFile(filepath.Join(modulePath, "module.yaml"), []byte("name: cert-manager\nnamespace: d8-cert-manager\nsubsystems: [security, infra]\n"), 0o600))
+
+	errorList := runSync(t, modulePath, renderedFrom(t, model, nil))
+	assert.Empty(t, texts(errorList), "the render of the security subsystem alone is what the declaration produces")
+	assert.Empty(t, errorList.GetFixes())
+}
+
+// rbac.yaml sets no subsystems: the system capabilities aggregate into those of module.yaml. A
+// declaration that still lists them is a finding without a fix that names what module.yaml lacks,
+// and nothing is compared or written until the list is gone, so --fix does not change the
+// aggregation of the capabilities before the module.yaml decision is made (review of #480,
+// finding 13).
+func TestSync_SubsystemsOfTheDeclarationAreAFinding(t *testing.T) {
+	for name, tc := range map[string]struct {
+		moduleYAML, listed, want string
+	}{
+		"a subsystem module.yaml lacks": {
+			moduleYAML: "subsystems: [security]",
+			listed:     "[network, security]",
+			want:       "declare network in module.yaml subsystems and remove subsystems from rbac.yaml",
+		},
+		"a subsystem module.yaml declares, rendered or not": {
+			moduleYAML: "subsystems: [security, infra]",
+			listed:     "[infra]",
+			want:       "module.yaml declares every one of them already: remove subsystems from rbac.yaml",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			resetFixState()
+			t.Cleanup(resetFixState)
+
+			modulePath := syncModuleDir(t)
+			model := syncModel(t, modulePath)
+
+			require.NoError(t, os.WriteFile(filepath.Join(modulePath, "module.yaml"), []byte("name: cert-manager\nnamespace: d8-cert-manager\n"+tc.moduleYAML+"\n"), 0o600))
+			decl, err := os.ReadFile(filepath.Join(modulePath, "rbac.yaml"))
+			require.NoError(t, err)
+			require.NoError(t, os.WriteFile(filepath.Join(modulePath, "rbac.yaml"), append(decl, []byte("subsystems: "+tc.listed+"\n")...), 0o600))
+
+			errorList := runSync(t, modulePath, renderedFrom(t, model, func(o *generate.Object) bool {
+				return o.Name != "d8:namespace-capability:cert-manager:view"
+			}))
+			got := texts(errorList)
+			require.Len(t, got, 1, "got: %v", got)
+			assert.Contains(t, got[0], "error: subsystems: rbac.yaml no longer sets the subsystems; the system capabilities aggregate into the subsystems of module.yaml, which testing/rbacv2 in deckhouse holds equal to the lineages they carry; "+tc.want)
+			assert.Contains(t, got[0], "nothing is compared or written until the declaration is valid")
+			assert.Empty(t, errorList.GetFixes())
+		})
+	}
+}
+
+// A template the declaration no longer produces and nothing rendered from is neither reported nor
+// deleted: the autofix deletes no file (review of #479, finding 16).
+func TestSync_UnrenderedTemplateNoLongerProducedIsKept(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
 
@@ -1555,19 +1619,17 @@ func TestSync_OrphanWithEveryObjectUnderWhenIsFound(t *testing.T) {
 	require.NoError(t, os.WriteFile(rbacyaml.Path(modulePath), raw, 0o600))
 
 	errorList := runSync(t, modulePath, store)
-	assert.Contains(t, strings.Join(texts(errorList), "\n"), rel+" does not match rbac.yaml")
-
-	for _, fix := range errorList.GetFixes() {
-		fix()
-	}
+	assert.NotContains(t, strings.Join(texts(errorList), "\n"), rel)
+	assertLintOnly(t, errorList, modulePath)
 
 	_, err = os.Stat(filepath.Join(modulePath, rel))
-	assert.True(t, os.IsNotExist(err), "the orphan is deleted")
+	assert.NoError(t, err, "the file stays")
 }
 
-// A template one render variant could not render is not rewritten by another variant's fix
-// (review of #479, finding 17).
-func TestSync_TemplateDroppedInAnotherVariantIsNotRewritten(t *testing.T) {
+// A template with an action the declaration never writes -- a fail guard, which also makes the
+// render skip it under some values -- is a lint finding in the variant that renders it, and the
+// variant that skipped it reports nothing (review of #479, finding 17).
+func TestSync_TemplateWithAFailGuardIsNotRewritten(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
 
@@ -1578,116 +1640,42 @@ func TestSync_TemplateDroppedInAnotherVariantIsNotRewritten(t *testing.T) {
 	const rel = "templates/rbac-to-us.yaml"
 
 	fullPath := filepath.Join(modulePath, rel)
-	require.NoError(t, os.WriteFile(fullPath, []byte(generate.Header()+"\n# stale\n"), 0o600))
-
-	// The variant that could not render it.
-	failing := renderedFrom(t, model, nil)
-	failing.MarkDropped(rel, "required value missing")
-	runSync(t, modulePath, failing)
-
-	// The variant that renders it asks for a regeneration.
-	errorList := runSync(t, modulePath, renderedFrom(t, model, nil))
-	for _, fix := range errorList.GetFixes() {
-		fix()
-	}
-
-	var messages []string
-
-	for _, e := range errorList.GetErrors() {
-		if e.FixError != nil {
-			messages = append(messages, e.FixError.Error())
-		}
-	}
-
-	assert.Contains(t, strings.Join(messages, "\n"), rel+" failed to render under some values (required value missing)")
-
-	kept, err := os.ReadFile(fullPath)
-	require.NoError(t, err)
-	assert.Equal(t, generate.Header()+"\n# stale\n", string(kept))
-}
-
-// A contract 1 file lists no owned objects, and a name is no proof of ownership (review of #479,
-// finding 26): an object the declaration dropped is refused there. One --fix with the declaration
-// unchanged brings the file to contract 2; then the drop applies.
-func TestSync_ContractOneNeedsAnUpgradeBeforeADrop(t *testing.T) {
-	resetFixState()
-	t.Cleanup(resetFixState)
-
-	modulePath := syncModuleDir(t)
-	model := syncModel(t, modulePath)
-	writeGenerated(t, modulePath, model)
-	store := renderedFrom(t, model, nil)
-
-	const rel = "templates/rbac-to-us.yaml"
-
-	path := filepath.Join(modulePath, rel)
-	asContractOne(t, path)
-
-	dropPrometheus := func() {
-		decl, err := rbacyaml.Load(modulePath)
-		require.NoError(t, err)
-
-		decl.PrometheusAccess = nil
-		raw, err := yaml.Marshal(decl)
-		require.NoError(t, err)
-		require.NoError(t, os.WriteFile(rbacyaml.Path(modulePath), raw, 0o600))
-	}
-
-	original, err := os.ReadFile(rbacyaml.Path(modulePath))
+	content, err := os.ReadFile(fullPath)
 	require.NoError(t, err)
 
-	t.Run("dropped in the same run: refused", func(t *testing.T) {
-		resetFixState()
-		dropPrometheus()
+	guarded := "{{- if not .Values.certManager.enabled }}{{ fail \"certManager.enabled is required\" }}{{- end }}\n" + string(content)
+	require.NoError(t, os.WriteFile(fullPath, []byte(guarded), 0o600))
 
-		errorList := runSync(t, modulePath, store)
-		for _, fix := range errorList.GetFixes() {
-			fix()
-		}
-
-		var messages []string
-
-		for _, e := range errorList.GetErrors() {
-			if e.FixError != nil {
-				messages = append(messages, e.FixError.Error())
+	inFile := func(o *generate.Object) bool {
+		for _, p := range model.File(rel).Objects {
+			if p.Identity() == o.Identity() {
+				return true
 			}
 		}
 
-		assert.Contains(t, strings.Join(messages, "\n"), "d8-cert-manager/Role/access-to-cert-manager")
-	})
+		return false
+	}
 
-	t.Run("upgraded first, dropped next: removed", func(t *testing.T) {
-		resetFixState()
-		require.NoError(t, os.WriteFile(rbacyaml.Path(modulePath), original, 0o600))
-		asContractOne(t, path)
+	// The variant that skipped the template.
+	skipped := runSync(t, modulePath, renderedFrom(t, model, func(o *generate.Object) bool { return !inFile(o) }))
+	assert.NotContains(t, strings.Join(texts(skipped), "\n"), rel)
 
-		upgrade := runSync(t, modulePath, store)
-		for _, fix := range upgrade.GetFixes() {
-			fix()
+	// The variant that renders it stale.
+	stale := runSync(t, modulePath, renderedFrom(t, model, func(o *generate.Object) bool {
+		if inFile(o) && o.Kind == "Role" {
+			o.Rules = o.Rules[:len(o.Rules)-1]
 		}
 
-		require.Empty(t, upgrade.GetErrors(), "the upgrade to contract 2 applies")
-
-		resetFixState()
-		dropPrometheus()
-
-		errorList := runSync(t, modulePath, store)
-		for _, fix := range errorList.GetFixes() {
-			fix()
-		}
-
-		assert.Empty(t, errorList.GetErrors())
-
-		if written, err := os.ReadFile(path); err == nil {
-			assert.NotContains(t, string(written), "name: access-to-cert-manager\n")
-		}
-	})
+		return true
+	}))
+	assert.Contains(t, strings.Join(texts(stale), "\n"), "it holds a document the linter cannot read")
+	assertLintOnly(t, stale, modulePath)
 }
 
-// A generated file found only on disk -- nothing in it rendered -- is not deleted when an object it
-// holds is now declared elsewhere, nor when it holds an object the generator did not write
+// An account the declaration moves to another file while its old file still holds it by its text
+// is a lint finding at the target: writing it there would define it twice once its condition holds
 // (review of #479, findings 23 and 24).
-func TestSync_UnrenderedOrphanIsJudgedByItsText(t *testing.T) {
+func TestSync_ObjectHeldByAnotherTemplateIsNotWrittenTwice(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
 
@@ -1696,8 +1684,6 @@ func TestSync_UnrenderedOrphanIsJudgedByItsText(t *testing.T) {
 	writeGenerated(t, modulePath, model)
 
 	const rel = "templates/cainjector/rbac-for-us.yaml"
-
-	fullPath := filepath.Join(modulePath, rel)
 
 	// Default values: the cainjector account (under when) does not render.
 	store := renderedFrom(t, model, func(o *generate.Object) bool { return o.When == "" })
@@ -1705,75 +1691,121 @@ func TestSync_UnrenderedOrphanIsJudgedByItsText(t *testing.T) {
 	decl, err := rbacyaml.Load(modulePath)
 	require.NoError(t, err)
 
-	t.Run("the account moves to the root rbac-for-us.yaml: refused", func(t *testing.T) {
-		resetFixState()
+	decl.ServiceAccounts[0].Path = ""
+	raw, err := yaml.Marshal(decl)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(rbacyaml.Path(modulePath), raw, 0o600))
 
-		moved := *decl
-		moved.ServiceAccounts = append([]rbacyaml.ServiceAccount(nil), decl.ServiceAccounts...)
-		moved.ServiceAccounts[0].Path = ""
-		raw, err := yaml.Marshal(&moved)
-		require.NoError(t, err)
-		require.NoError(t, os.WriteFile(rbacyaml.Path(modulePath), raw, 0o600))
+	// The account is under a condition false for these values: nothing renders it, and the root
+	// file is not written with it while the old file's text holds it.
+	assertLintOnly(t, runSync(t, modulePath, store), modulePath)
 
-		errorList := runSync(t, modulePath, store)
-		for _, fix := range errorList.GetFixes() {
-			fix()
-		}
+	// Rendered with the condition true, the account renders from its old file: both are reported,
+	// neither is rewritten.
+	errorList := runSync(t, modulePath, renderedFrom(t, model, nil))
+	joined := strings.Join(texts(errorList), "\n")
+	assert.Contains(t, joined, "move d8-cert-manager/ServiceAccount/cainjector here from "+rel)
+	assertLintOnly(t, errorList, modulePath)
 
-		_, err = os.Stat(fullPath)
-		require.NoError(t, err, "the file with the account stays")
-	})
-
-	t.Run("a hand-added ConfigMap under the same condition: refused", func(t *testing.T) {
-		resetFixState()
-
-		dropped := *decl
-		dropped.ServiceAccounts = nil
-		raw, err := yaml.Marshal(&dropped)
-		require.NoError(t, err)
-		require.NoError(t, os.WriteFile(rbacyaml.Path(modulePath), raw, 0o600))
-
-		content, err := os.ReadFile(fullPath)
-		require.NoError(t, err)
-
-		withHand := strings.Replace(string(content), "{{- end }}\n", "---\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cainjector-extra\n  namespace: d8-cert-manager\n{{- end }}\n", 1)
-		require.NoError(t, os.WriteFile(fullPath, []byte(withHand), 0o600))
-
-		errorList := runSync(t, modulePath, store)
-		for _, fix := range errorList.GetFixes() {
-			fix()
-		}
-
-		var messages []string
-
-		for _, e := range errorList.GetErrors() {
-			if e.FixError != nil {
-				messages = append(messages, e.FixError.Error())
-			}
-		}
-
-		assert.Contains(t, strings.Join(messages, "\n"), "d8-cert-manager/ConfigMap/cainjector-extra")
-
-		kept, err := os.ReadFile(fullPath)
-		require.NoError(t, err)
-		assert.Equal(t, withHand, string(kept))
-	})
+	root, err := os.ReadFile(filepath.Join(modulePath, "templates/rbac-for-us.yaml"))
+	require.NoError(t, err)
+	assert.NotContains(t, string(root), "name: cainjector\n")
 }
 
-// The disk scan skips the generator's _<file>.generated asides (review of #479, finding 27).
-func TestGeneratedTemplates_SkipsAsides(t *testing.T) {
+// The text of every template is read, partials aside: they render no objects.
+func TestConditionsByDocument(t *testing.T) {
+	const (
+		one = "kind: ClusterRole\nmetadata:\n  name: one\n"
+		two = "kind: ClusterRole\nmetadata:\n  name: two\n"
+	)
+
+	ifA := map[string]struct{}{"if .Values.a": {}}
+
+	for _, tc := range []struct {
+		name     string
+		text     string
+		expected map[string]map[string]struct{}
+	}{
+		{
+			name:     "a block opened inside a document and open across the separator",
+			text:     "---\n{{- if .Values.a }}\n" + one + "---\n" + two + "{{- end }}\n",
+			expected: map[string]map[string]struct{}{"ClusterRole/one": ifA, "ClusterRole/two": ifA},
+		},
+		{
+			name:     "the same without a leading separator",
+			text:     "{{- if .Values.a }}\n" + one + "---\n" + two + "{{- end }}\n",
+			expected: map[string]map[string]struct{}{"ClusterRole/one": ifA, "ClusterRole/two": ifA},
+		},
+		{
+			name:     "the generator's block opened right before the next separator",
+			text:     "---\n" + one + "{{- if .Values.a }}\n---\n" + two + "{{- end }}\n",
+			expected: map[string]map[string]struct{}{"ClusterRole/one": {}, "ClusterRole/two": ifA},
+		},
+		{
+			name:     "a block opened mid-object and closed in the next document",
+			text:     "---\n" + one + "{{- if .Values.a }}\nrules: []\n---\n" + two + "{{- end }}\n",
+			expected: map[string]map[string]struct{}{"ClusterRole/one": ifA, "ClusterRole/two": ifA},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.expected, conditionsByDocument(tc.text))
+		})
+	}
+}
+
+// Every file the generator writes reads back with the conditions of each of its objects -- its own
+// and those of its rules -- and no other: the layouts conditionsByDocument has to tell apart come
+// from generate.RenderFile.
+func TestConditionsByDocument_GeneratedFiles(t *testing.T) {
+	model := syncModel(t, syncModuleDir(t))
+
+	for _, f := range model.Files {
+		got := conditionsByDocument(generate.RenderFile(f))
+
+		for _, o := range f.Objects {
+			id := o.Kind + "/" + o.Name
+			if o.Namespace != "" {
+				id = o.Namespace + "/" + id
+			}
+
+			expected := map[string]struct{}{}
+
+			for _, when := range append([]string{o.When}, ruleConditions(o)...) {
+				if when != "" {
+					expected["if "+strings.Join(strings.Fields(when), " ")] = struct{}{}
+				}
+			}
+
+			assert.Equal(t, expected, got[id], "%s in %s", id, f.Path)
+		}
+	}
+}
+
+func ruleConditions(o generate.Object) []string {
+	out := make([]string, 0, len(o.Rules))
+	for _, r := range o.Rules {
+		out = append(out, r.When)
+	}
+
+	return out
+}
+
+func TestTemplateTexts_SkipsPartials(t *testing.T) {
 	modulePath := t.TempDir()
 	dir := filepath.Join(modulePath, "templates", "rbacv2", "use")
 	require.NoError(t, os.MkdirAll(dir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "view.yaml"), []byte(generate.Header()+"\n"), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "_edit.yaml.generated"), []byte(generate.Header()+"\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "view.yaml"), []byte("---\nkind: ServiceAccount\nmetadata:\n  name: a\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "_helpers.tpl"), []byte("{{- define \"x\" }}{{- end }}\n"), 0o600))
 
-	assert.Equal(t, []string{"templates/rbacv2/use/view.yaml"}, generatedTemplates(modulePath))
+	got := templateTexts(modulePath, "")
+	assert.Equal(t, []string{"templates/rbacv2/use/view.yaml"}, slices.Collect(maps.Keys(got)))
+	assert.Equal(t, "ServiceAccount/a", got["templates/rbacv2/use/view.yaml"].docs[0].id)
 }
 
-// A hand-added object named the way the generator names things, in a contract 1 file, is refused
-// rather than removed (review of #479, finding 26).
-func TestSync_ContractOneHandAddedGeneratorNamedIsForeign(t *testing.T) {
+// A declared file the lint cannot read is not written over: what it holds is unknown.
+func TestSync_UnreadableTemplateIsNotRewritten(t *testing.T) {
 	resetFixState()
 	t.Cleanup(resetFixState)
 
@@ -1781,61 +1813,43 @@ func TestSync_ContractOneHandAddedGeneratorNamedIsForeign(t *testing.T) {
 	model := syncModel(t, modulePath)
 	writeGenerated(t, modulePath, model)
 
-	const rel = "templates/cainjector/rbac-for-us.yaml"
+	const rel = "templates/rbacv2/use/view.yaml"
 
-	asContractOne(t, filepath.Join(modulePath, rel))
+	fullPath := filepath.Join(modulePath, rel)
+	require.NoError(t, os.Chmod(fullPath, 0o000))
+	t.Cleanup(func() { _ = os.Chmod(fullPath, 0o600) })
 
-	store := renderedFrom(t, model, nil)
-	putObject(t, store, rel, generate.Object{Kind: "ClusterRole", Name: "d8:cert-manager:hand-extra", Class: generate.ClassDeclared,
-		Rules: []generate.Rule{{PolicyRule: rbacyaml.PolicyRule{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"get"}}}}})
+	if _, err := os.ReadFile(fullPath); err == nil {
+		t.Skip("the file stays readable (running as root)")
+	}
+
+	store := renderedFrom(t, model, func(o *generate.Object) bool {
+		if o.Name == "d8:namespace-capability:cert-manager:view" {
+			o.Rules = o.Rules[:len(o.Rules)-1]
+		}
+
+		return true
+	})
 
 	errorList := runSync(t, modulePath, store)
-	for _, fix := range errorList.GetFixes() {
-		fix()
-	}
-
-	var messages []string
-
-	for _, e := range errorList.GetErrors() {
-		if e.FixError != nil {
-			messages = append(messages, e.FixError.Error())
-		}
-	}
-
-	assert.Contains(t, strings.Join(messages, "\n"), "ClusterRole/d8:cert-manager:hand-extra")
+	assert.Contains(t, strings.Join(texts(errorList), "\n"), "The autofix leaves the file as it is: the file cannot be read")
+	require.Empty(t, errorList.GetFixes())
 }
 
-// snapshotTree maps every file under dir to its content.
-func snapshotTree(t *testing.T, dir string) map[string]string {
+// assertLintOnly checks a run whose findings are the linter's to report and no fix's to close:
+// --fix changes nothing on disk and no fix fails.
+func assertLintOnly(t *testing.T, errorList *errors.LintRuleErrorsList, _ string) {
 	t.Helper()
 
-	out := map[string]string{}
-
-	require.NoError(t, filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return err
-		}
-
-		data, err := os.ReadFile(path)
-		out[path] = string(data)
-
-		return err
-	}))
-
-	return out
+	require.Empty(t, errorList.GetFixes(), "no finding carries a fix")
 }
 
-// assertOnlyFailingFixes runs the fixes of a finding only a person can close: they change nothing
-// on disk and fail, so `--fix` does not exit 0 over them.
-func assertOnlyFailingFixes(t *testing.T, errorList *errors.LintRuleErrorsList, modulePath string) {
+// appendComment makes a template's text differ from what the fix writes without changing what it
+// renders: a test that expects a rewrite then sees whether the fix ran.
+func appendComment(t *testing.T, path string) {
 	t.Helper()
 
-	before := snapshotTree(t, modulePath)
-
-	for _, fix := range errorList.GetFixes() {
-		fix()
-	}
-
-	assert.True(t, errorList.ContainsFailedFixes())
-	assert.Equal(t, before, snapshotTree(t, modulePath))
+	content, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(path, append(content, []byte("# stale\n")...), 0o600))
 }

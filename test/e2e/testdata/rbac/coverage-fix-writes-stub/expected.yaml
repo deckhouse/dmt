@@ -1,0 +1,10 @@
+description: >
+  --fix appends an undecided stub (noAccess: "TODO") for the CRD without an entry and the fix
+  succeeds: the missing-entry finding is closed. The stub is not a decision; the lint that follows
+  --fix reports it (spec 005 R33).
+kind: fix
+module: module
+expectPass:
+  - linter: rbac
+    rule: coverage
+    textContains: "has no entry in rbac.yaml"

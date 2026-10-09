@@ -21,7 +21,12 @@ limitations under the License.
 // rbac.deckhouse.io/v1alpha1.
 package rbacyaml
 
-import "strings"
+import (
+	"slices"
+	"strings"
+
+	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbaccontract"
+)
 
 // Filename is the declaration's name in the module root.
 const Filename = "rbac.yaml"
@@ -48,16 +53,18 @@ type Declaration struct {
 	// parsed marks a declaration read by Parse: its resources carry their Position in the file.
 	parsed bool
 
-	// Subsystems are the lineages the module's system capabilities aggregate into. Empty means
-	// "the subsystems of module.yaml"; a module whose templates aggregate into more subsystems
-	// than module.yaml declares must set it (kube-dns, kube-proxy, istio).
+	// Subsystems is no longer read: the system capabilities aggregate into the subsystems of
+	// module.yaml, which the platform test (testing/rbacv2 in deckhouse) holds equal to the lineages
+	// they carry. The key still parses, so that a file written by an earlier dmt gets a finding that
+	// says where the subsystems go, rather than an unknown key.
 	Subsystems []string `yaml:"subsystems,omitempty"`
 
 	Resources []Resource `yaml:"resources,omitempty"`
 
-	// Capabilities holds the localized texts of capabilities outside the platform convention,
-	// keyed "<lineage>.<level>" (for example "namespace.admin"). view/edit need no entry.
-	Capabilities map[string]CapabilityText `yaml:"capabilities,omitempty"`
+	// Capabilities describes capabilities beyond what a level alone says, keyed "<lineage>.<action>"
+	// (for example "namespace.admin"): the localized texts of every capability outside the view/edit
+	// convention, the level of a capability with an action of its own, and labels of the module.
+	Capabilities map[string]Capability `yaml:"capabilities,omitempty"`
 
 	ServiceAccounts []ServiceAccount `yaml:"serviceAccounts,omitempty"`
 
@@ -96,10 +103,11 @@ type Resource struct {
 	// excludes Namespace, System and Legacy. NoAccessTODO is the undecided stub.
 	NoAccess string `yaml:"noAccess,omitempty"`
 
-	// Namespace maps RBACv2 namespace-lineage levels to verbs. Allowed for Namespaced
-	// resources only.
+	// Namespace maps RBACv2 namespace-lineage levels to verbs, or the action of a capability that
+	// Capabilities gives a level. Allowed for Namespaced resources only.
 	Namespace map[string][]string `yaml:"namespace,omitempty"`
-	// System maps RBACv2 system-lineage levels to verbs. Allowed for both scopes.
+	// System maps RBACv2 system-lineage levels to verbs, or the action of a capability that
+	// Capabilities gives a level. Allowed for both scopes.
 	System map[string][]string `yaml:"system,omitempty"`
 	// Legacy maps user-authz v1 access levels to verbs. It is never derived from the RBACv2
 	// levels; an absent Legacy means no legacy rights.
@@ -122,10 +130,39 @@ func (r Resource) HasLevels() bool {
 // Key returns "group/resource", the identity of the entry.
 func (r Resource) Key() string { return r.Group + "/" + r.Resource }
 
-// CapabilityText is the localized title and description of a capability.
-type CapabilityText struct {
-	Title       LocalizedText `yaml:"title"`
-	Description LocalizedText `yaml:"description"`
+// Capability is one entry of Capabilities. A capability named after a level takes the action of
+// that level (viewer -> view, manager -> edit, the rest as they are); a capability with an action
+// of its own (download_snapshots, access_terminal) names the level it aggregates into, and a
+// resource entry grants it under its action instead of a level.
+type Capability struct {
+	// Level is the level of the lineage the capability aggregates into; required for an action of
+	// its own, not allowed for the action of a level.
+	Level string `yaml:"level,omitempty"`
+
+	// Labels go on the capability beside the ones of the role model: a label of the module that a
+	// role of the module selects, outside the role model (rbac.deckhouse.io/ is dmt's).
+	Labels map[string]string `yaml:"labels,omitempty"`
+
+	// Title and Description are required for every capability but view and edit, which take the
+	// platform's conventional texts.
+	Title       LocalizedText `yaml:"title,omitempty"`
+	Description LocalizedText `yaml:"description,omitempty"`
+}
+
+// HasTexts reports whether the entry sets a title or a description.
+func (c Capability) HasTexts() bool {
+	return c.Title != LocalizedText{} || c.Description != LocalizedText{}
+}
+
+// ActionOf resolves a key of a resource entry's Namespace or System map to the action of the
+// capability it grants: a level grants the capability of that level's action, any other key is the
+// action of a capability Capabilities gives a level.
+func ActionOf(lineage, key string) string {
+	if slices.Contains(rbaccontract.LevelsOf(lineage), key) {
+		return rbaccontract.CapabilityAction(key)
+	}
+
+	return key
 }
 
 // LocalizedText is an en/ru pair; both are required.
@@ -164,6 +201,11 @@ type ServiceAccount struct {
 	// module ships for other subjects to bind (an aggregated apiserver's requester role). Each is
 	// d8:<module>:<name of the account>:<name>, or exactly the given name when it starts with d8:.
 	ExtraClusterRoles []ExtraClusterRole `yaml:"extraClusterRoles,omitempty"`
+
+	// Annotations go on the ServiceAccount (helm.sh/resource-policy: keep, werf.io/deploy-on, ...);
+	// RBACAnnotations on every role and binding generated for the account.
+	Annotations     map[string]string `yaml:"annotations,omitempty"`
+	RBACAnnotations map[string]string `yaml:"rbacAnnotations,omitempty"`
 
 	// AutomountToken is the ServiceAccount's automountServiceAccountToken; unset means false, the
 	// platform convention. A pod that needs the token sets it true on the pod, or the account
@@ -208,20 +250,29 @@ type PrometheusAccess struct {
 	// `.Values.global.enabledModules | has "prometheus"`. The Role stays unconditional, so the
 	// generated file keeps the shape of the hand-written ones.
 	When string `yaml:"when,omitempty"`
+	// Labels and Annotations go on the Role and the RoleBinding.
+	Labels      map[string]string `yaml:"labels,omitempty"`
+	Annotations map[string]string `yaml:"annotations,omitempty"`
 }
 
 // Access grants arbitrary subjects rights on the module. ClusterRules produce a ClusterRole and
 // ClusterRoleBinding d8:<module>:<name> in templates/rbac-for-us.yaml; NamespaceRules produce a
-// Role and RoleBinding access-to-<module>-<name> in templates/rbac-to-us.yaml. Exactly one of the
+// Role and RoleBinding access-to-<module>-<name> in templates/rbac-to-us.yaml, or
+// access-to-<path with dashes>-<name> in templates/<path>/rbac-to-us.yaml. Exactly one of the
 // two must be set: the placement rule keeps cluster-scoped objects out of rbac-to-us.yaml.
 type Access struct {
 	Name     string    `yaml:"name"`
 	Subjects []Subject `yaml:"subjects"`
 	// Path is the component directory under templates/ whose rbac-for-us.yaml (clusterRules) or
 	// rbac-to-us.yaml (namespaceRules) holds the objects; empty means the module root files.
-	Path           string       `yaml:"path,omitempty"`
-	ClusterRules   []PolicyRule `yaml:"clusterRules,omitempty"`
-	NamespaceRules []PolicyRule `yaml:"namespaceRules,omitempty"`
+	Path string `yaml:"path,omitempty"`
+	// When wraps the role and the binding in {{- if <When> }}, as for a ServiceAccount.
+	When string `yaml:"when,omitempty"`
+	// Labels and Annotations go on the role and the binding.
+	Labels         map[string]string `yaml:"labels,omitempty"`
+	Annotations    map[string]string `yaml:"annotations,omitempty"`
+	ClusterRules   []PolicyRule      `yaml:"clusterRules,omitempty"`
+	NamespaceRules []PolicyRule      `yaml:"namespaceRules,omitempty"`
 }
 
 // Subject is an RBAC subject; Namespace is required for a ServiceAccount.

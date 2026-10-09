@@ -20,7 +20,6 @@ import (
 	"context"
 	stderrors "errors"
 	"fmt"
-	"io/fs"
 	"log/slog"
 	"maps"
 	"os"
@@ -30,7 +29,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"text/template/parse"
 
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -40,6 +38,7 @@ import (
 
 	"github.com/deckhouse/deckhouse/pkg/log"
 
+	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
@@ -52,13 +51,15 @@ import (
 const SyncRuleName = "sync"
 
 // SyncRule compares the RBAC objects the chart renders with the ones rbac.yaml declares, in both
-// directions, and regenerates the templates from the declaration on --fix. It owns three classes
+// directions, and on --fix rewrites a file the declaration produces from the declaration, unless the
+// lint finds a case in it only a change of the templates or the declaration closes. It owns three classes
 // of rendered objects (ADR, "Область ответственности sync"): legacy roles, the module's RBACv2
 // capabilities, and the objects whose names the generator builds; everything else in the render is
 // unmanaged and never reported.
 //
-// It runs only when the module has an rbac.yaml. A declaration that does not validate is reported
-// and nothing else is compared or generated (spec 005 R14). A rule declared under `when` that is
+// Without rbac.yaml it reports the file missing and --fix writes it from the render (bootstrap).
+// With it, a declaration that does not validate is a finding and nothing else is compared (spec
+// 005 R14). A rule declared under `when` that is
 // absent from the render is not a divergence (R13a); a rule declared without `when` that is absent
 // is (R13b) -- the condition belongs to the declaration.
 type SyncRule struct {
@@ -124,36 +125,44 @@ func (r *SyncRule) Check(_ context.Context) {
 	}
 
 	if overlay != "" {
-		declList.WithFix(manualFix("move the declaration out of the edition overlay")).Errorf("%s lies in the edition overlay %s; the declaration describes the union of editions and belongs to modules/<module>/ only -- CI merges the overlays over modules/ before linting, so a copy here would shadow it or go unseen. Only a person can close this: move the file",
+		declList.Errorf("%s lies in the edition overlay %s; the declaration describes the union of editions and belongs to modules/<module>/ only -- CI merges the overlays over modules/ before linting, so a copy here would shadow it or go unseen: move the file",
 			rbacyaml.Filename, overlay)
 
 		return
 	}
 
 	if err != nil {
-		if content, readErr := os.ReadFile(rbacyaml.Path(modulePath)); readErr == nil && !strings.Contains(string(content), "apiVersion:") {
-			declList.WithFix(manualFix("delete the rbac.yaml of an earlier shape")).Errorf("%s is not a declaration (no apiVersion): an rbac.yaml of an earlier shape that nothing reads; delete it and run `%s` to write the declaration from the render", rbacyaml.Filename, FixCommand)
+		if content, readErr := os.ReadFile(rbacyaml.Path(modulePath)); readErr == nil && strings.TrimSpace(string(content)) == "" {
+			declList.Errorf("%s is empty; delete it and run `%s` to write the declaration from the render", rbacyaml.Filename, FixCommand)
+			return
+		} else if readErr == nil && !strings.Contains(string(content), "apiVersion:") {
+			declList.Errorf("%s is not a declaration (no apiVersion): an rbac.yaml of an earlier shape that nothing reads; delete it and run `%s` to write the declaration from the render", rbacyaml.Filename, FixCommand)
 			return
 		}
 
-		declList.WithFix(manualFix("make the declaration parse")).Errorf("%v; nothing is compared or generated until the declaration parses", err)
+		declList.Errorf("%v; nothing is compared or written until the declaration parses", err)
 
 		return
 	}
 
-	// A CRD document that does not parse is reported by coverage; the declaration is judged
-	// against the CRDs that do.
+	// A CRD document that does not parse is reported by the openapi linter; the declaration is
+	// judged against the CRDs that do.
 	crds, _ := moduleCRDs(modulePath)
 
+	// The subsystems of module.yaml decide the aggregation of every system capability, so nothing is
+	// compared or written until it parses; the module linter reports why it does not.
 	meta, err := readModuleMetadata(modulePath)
 	if err != nil {
-		r.errorList.WithFilePath("module.yaml").WithFix(manualFix("make module.yaml parse")).Errorf("%v; nothing is compared or generated until it parses: its subsystems decide the aggregation of every system capability", err)
 		return
 	}
 
-	if errs := rbacyaml.Validate(decl, crdScopes(crds)); len(errs) > 0 {
+	subsystems := knownSubsystems(r.module, meta.Subsystems)
+
+	// A subsystems list of the declaration names what module.yaml lacks: the one module.yaml writes,
+	// a subsystem contract reports as unrendered included.
+	if errs := rbacyaml.ValidateFor(decl, crdScopes(crds), meta.Subsystems); len(errs) > 0 {
 		for _, e := range errs {
-			declList.WithFix(manualFix("correct the declaration")).Errorf("%v; nothing is compared or generated until the declaration is valid", e)
+			declList.Errorf("%v; nothing is compared or written until the declaration is valid", e)
 		}
 
 		return
@@ -166,65 +175,151 @@ func (r *SyncRule) Check(_ context.Context) {
 	model, err := generate.Build(generate.Input{
 		Module:     r.module.GetName(),
 		Namespace:  r.module.GetNamespace(),
-		Subsystems: meta.Subsystems,
+		Subsystems: subsystems,
 		Decl:       decl,
 	})
 	if err != nil {
-		declList.WithFix(manualFix("correct the declaration")).Errorf("cannot derive the RBAC objects from the declaration: %v", err)
+		declList.Errorf("cannot derive the RBAC objects from the declaration: %v", err)
 		return
 	}
 
-	actual := r.managedObjects(model)
-	divergences := r.compareRender(model, actual)
-	r.compareText(modulePath, model, actual, divergences)
-	r.report(modulePath, model, divergences)
+	run := r.newSyncRun(modulePath, model, renderOf(r.module.GetStorage()))
+	divergences := r.compareRender(run)
+	compareFiles(run, divergences)
+	r.report(run, divergences)
+}
+
+// syncRun is what one Check computes once and every step reads: the model, the render, the rendered
+// objects the rule owns, where the declaration puts each object, and the text of every template.
+type syncRun struct {
+	modulePath string
+	model      *generate.Model
+	store      map[storage.ResourceIndex]storage.StoreObject
+	actual     map[string]managedObject
+	// placed maps every identity the declaration produces to the file it puts the object in.
+	placed map[string]string
+	// templates holds the text of every template, by path relative to the module.
+	templates map[string]templateText
+	// rendered is the identity of every rendered object; fromFile the rendered objects by template.
+	rendered map[string]struct{}
+	fromFile map[string]map[string]storage.StoreObject
+}
+
+// templateText is one template as the lint reads it; err is why it could not be read.
+type templateText struct {
+	content string
+	docs    []textDocument
+	err     error
+}
+
+func (r *SyncRule) newSyncRun(modulePath string, model *generate.Model, render renderSnapshot) *syncRun {
+	run := &syncRun{
+		modulePath: modulePath,
+		model:      model,
+		store:      render.objects,
+		actual:     r.managedObjects(model, render.objects),
+		placed:     map[string]string{},
+		templates:  templateTexts(modulePath, r.module.GetName()),
+		rendered:   render.ids,
+		fromFile:   map[string]map[string]storage.StoreObject{},
+	}
+
+	for _, file := range model.Files {
+		for _, o := range file.Objects {
+			run.placed[o.Identity()] = file.Path
+		}
+	}
+
+	for index, object := range render.objects {
+		id := index.AsString()
+
+		if run.fromFile[object.ShortPath()] == nil {
+			run.fromFile[object.ShortPath()] = map[string]storage.StoreObject{}
+		}
+
+		run.fromFile[object.ShortPath()][id] = object
+	}
+
+	return run
 }
 
 // compareRender judges the declaration against the rendered objects, both ways: every produced
 // object must be rendered as produced, and every legacy role or module capability rendered must be
 // produced. The findings are collected per template.
-func (r *SyncRule) compareRender(model *generate.Model, actual map[string]managedObject) map[string][]string {
-	modulePath := r.module.GetPath()
+func (r *SyncRule) compareRender(run *syncRun) map[string][]string {
 	legacy := r.legacyFiles()
 	divergences := map[string][]string{}
+	holds := holdingConditions(run.model, run.actual)
 
-	for _, file := range model.Files {
-		kind, isLegacy := legacy[file.Path]
+	for _, file := range run.model.Files {
+		_, isLegacy := legacy[file.Path]
 
 		// A template that serves both models behind the version gate rendered its legacy branch:
 		// the values of this run say the cluster is below 1.78. The 1.78 objects it declares are
 		// conditional on the gate and are compared in the run where the gate answers "new" -- the
 		// default one -- so this is not a divergence (the same reading as a rule under when, D4).
-		if isLegacy && templateHasGate(modulePath, file.Path) {
+		if isLegacy && templateGated(run.templates[file.Path].content, "") {
 			continue
 		}
 
-		found := compareFile(r.enabledObjects(file), actual, r.module.GetName())
+		// A template that renders the scheme before 1.78 where the declaration produces the new one
+		// is named by the case that keeps its fix off (unfixable).
+		divergences[file.Path] = append(divergences[file.Path], compareFile(r.enabledObjects(run.withoutUnrendered(file)), run.actual, r.module.GetName(), holds)...)
+	}
 
-		// The template renders the scheme before 1.78 where the declaration produces the new one:
-		// the objects the declaration names cannot be there. Say so once instead of listing them.
-		if isLegacy && len(found) > 0 {
-			found = append(found, fmt.Sprintf("the template renders the legacy RBACv2 scheme (%s: %s, the manage/use model before DKP 1.78) where the declaration produces the 1.78 model; migrate the module with rbacv2-migrate-module.sh to serve both, or delete the file and run `%s` to serve the new one only",
-				rbaccontract.LabelKind, kind, FixCommand))
+	// A condition the declaration puts an object or a rule under that the template does not hold
+	// is drift the render cannot show: what it gates renders for every value. The text is the same
+	// in every variant, so every variant reports it, and the rewrite writes the condition.
+	for _, file := range run.model.Files {
+		text := run.templates[file.Path]
+		if text.err != nil || text.content == "" || templateGated(text.content, generate.RenderFile(file)) {
+			continue
 		}
 
-		divergences[file.Path] = append(divergences[file.Path], found...)
+		held := conditionsByDocument(text.content)
+
+		for id, want := range conditionsByDocument(generate.RenderFile(file)) {
+			have, inText := held[id]
+			if !inText || !r.Enabled(kindOfIdentity(id), nameOfIdentity(id)) {
+				continue
+			}
+
+			for _, cond := range slices.Sorted(maps.Keys(want)) {
+				if _, ok := have[cond]; !ok {
+					divergences[file.Path] = append(divergences[file.Path], fmt.Sprintf("%s: the declaration writes {{ %s }} around it or its rules, which the template does not hold, so what it gates renders for every value", id, cond))
+				}
+			}
+
+			// The other way the render of some values cannot show it either: the template gates what
+			// the declaration does not. unfixable names the case, so the file keeps its text.
+			for _, cond := range slices.Sorted(maps.Keys(have)) {
+				if _, ok := want[cond]; !ok {
+					divergences[file.Path] = append(divergences[file.Path], fmt.Sprintf("%s: the template holds {{ %s }} around it or its rules, which the declaration does not write", id, cond))
+				}
+			}
+		}
+	}
+
+	divergences = r.replacedCopies(run, divergences)
+
+	// A produced object that renders from another template than the one the declaration puts it
+	// in is misplaced: both files are reported, and neither is rewritten while it renders there.
+	for path, objects := range run.fromFile {
+		for id, object := range objects {
+			where, produced := run.placed[id]
+			if !produced || path == where || !r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {
+				continue
+			}
+
+			divergences[where] = append(divergences[where], id+" renders from "+path+"; the declaration puts it in this file")
+			divergences[path] = append(divergences[path], id+" renders here; the declaration puts it in "+where)
+		}
 	}
 
 	// A legacy role or a module capability the declaration does not produce is an object the
 	// declaration must own: it is reported under the template it came from.
-	modelIdentities := map[string]struct{}{}
-
-	for _, file := range model.Files {
-		for _, o := range file.Objects {
-			modelIdentities[o.Identity()] = struct{}{}
-		}
-	}
-
-	divergences = r.replacedCopies(model, actual, modelIdentities, divergences)
-
-	for identity, obj := range actual {
-		if _, produced := modelIdentities[identity]; produced || obj.class == generate.ClassDeclared {
+	for identity, obj := range run.actual {
+		if _, produced := run.placed[identity]; produced || obj.class == generate.ClassDeclared {
 			continue
 		}
 
@@ -239,7 +334,7 @@ func (r *SyncRule) compareRender(model *generate.Model, actual map[string]manage
 		kind := obj.object.Unstructured.GetKind()
 		if rules, found, _ := unstructured.NestedSlice(obj.object.Unstructured.Object, "rules"); (kind == "Role" || kind == "ClusterRole") && (!found || len(rules) == 0) {
 			// A role without rules grants nothing and has nothing to declare.
-			why = "it has no rules and grants nothing, so the regeneration drops it -- remove it from the template"
+			why = "it has no rules and grants nothing -- remove it from the template"
 		}
 
 		divergences[obj.object.ShortPath()] = append(divergences[obj.object.ShortPath()],
@@ -249,146 +344,39 @@ func (r *SyncRule) compareRender(model *generate.Model, actual map[string]manage
 	return divergences
 }
 
-// compareText judges the generated files by their text: a file that carries the generator header
-// must be what the declaration renders now, and a file that does not exist while an object it
-// holds is absent from the render was never written.
-func (r *SyncRule) compareText(modulePath string, model *generate.Model, actual map[string]managedObject, divergences map[string][]string) {
-	placed := map[string]string{}
-
-	for _, f := range model.Files {
-		for _, o := range f.Objects {
-			placed[o.Identity()] = f.Path
-		}
-	}
-
-	// A rule under `when` whose condition is false today is absent from the render without being
-	// a divergence (D4), yet it still has to reach the template -- so for these files the text is
-	// compared too. A file of another contract version is the same case (R40). A file without the
-	// header is maintained by hand and is judged by its render only.
-	for _, file := range model.Files {
-		content, err := os.ReadFile(filepath.Join(modulePath, file.Path))
-		if err != nil {
-			// A file that does not exist while an object it holds is absent from the render: the
-			// render cannot tell a conditional object whose condition is false from one whose
-			// template was never written, but the text can -- nothing produces it (D4 covers the
-			// render, not the file).
-			switch {
-			case !stderrors.Is(err, os.ErrNotExist):
-				divergences[file.Path] = append(divergences[file.Path], fmt.Sprintf("the file cannot be read: %v", err))
-			case hasAbsentObject(file, actual):
-				divergences[file.Path] = append(divergences[file.Path],
-					"the file does not exist, and objects the declaration puts in it are absent from the render (objects under `when` included: no template produces them)")
-			}
-
-			continue
-		}
-
-		generated, version := generate.ParseHeader(string(content))
+// compareFiles reports a file the declaration produces that does not exist while an object it
+// holds is absent from the render: the render cannot tell a conditional object whose condition is
+// false from one whose template was never written, but the file system can (D4 covers the render,
+// not the file).
+func compareFiles(run *syncRun, divergences map[string][]string) {
+	for _, file := range run.model.Files {
+		_, err := os.Stat(filepath.Join(run.modulePath, file.Path))
 
 		switch {
-		case !generated:
-		case version != rbaccontract.ContractVersion:
+		case err == nil:
+		case !stderrors.Is(err, os.ErrNotExist):
+			divergences[file.Path] = append(divergences[file.Path], fmt.Sprintf("the file cannot be read: %v", err))
+		case hasAbsentObject(file, run.actual):
 			divergences[file.Path] = append(divergences[file.Path],
-				fmt.Sprintf("the file was generated under contract version %q; the current contract is %q", version, rbaccontract.ContractVersion))
-		case string(content) != generate.RenderFile(file):
-			divergences[file.Path] = append(divergences[file.Path],
-				"the file carries the generator header but is not what the declaration renders now (a rule under `when`, a text edit or an older generator); remove the header to maintain it by hand")
-		}
-
-		if generated {
-			produced := make(map[string]struct{}, len(file.Objects))
-			for _, o := range file.Objects {
-				produced[o.Identity()] = struct{}{}
-			}
-
-			divergences[file.Path] = append(divergences[file.Path], noLongerProduced(string(content), produced, placed)...)
-		}
-	}
-
-	// A generated file the declaration produces nothing for any more renders objects no model
-	// file names; it is reported under its own path so that the orphan fix can judge it.
-	inModel := make(map[string]struct{}, len(model.Files))
-	for _, f := range model.Files {
-		inModel[f.Path] = struct{}{}
-	}
-
-	// The render shows only the files whose objects render under these values; a generated file
-	// whose every object is under a false condition is found on disk.
-	candidates := map[string]struct{}{}
-
-	for _, object := range r.module.GetStorage() {
-		candidates[object.ShortPath()] = struct{}{}
-	}
-
-	for _, path := range generatedTemplates(modulePath) {
-		candidates[path] = struct{}{}
-	}
-
-	for _, path := range slices.Sorted(maps.Keys(candidates)) {
-		if _, ok := inModel[path]; ok {
-			continue
-		}
-
-		content, err := os.ReadFile(filepath.Join(modulePath, path))
-		if err != nil {
-			continue
-		}
-
-		if generated, _ := generate.ParseHeader(string(content)); generated {
-			divergences[path] = append(divergences[path], noLongerProduced(string(content), nil, placed)...)
+				"the file does not exist, and objects the declaration puts in it are absent from the render (objects under `when` included: no template produces them)")
 		}
 	}
 }
 
-// noLongerProduced lists, as divergences, the objects the header of a generated file names as the
-// generator's that the declaration no longer produces there.
-func noLongerProduced(content string, produced map[string]struct{}, placed map[string]string) []string {
-	owned, _ := generate.ParseOwned(content)
+// report emits one finding per template. A file the declaration produces gets the fix that rewrites
+// it from the declaration, unless the lint finds a case only a change of the templates or of the
+// declaration closes: then the finding names the case and carries no fix. A template the
+// declaration produces nothing for is a finding without a fix: declare what it renders or delete
+// it, the autofix deletes no file.
+func (r *SyncRule) report(run *syncRun, divergences map[string][]string) {
+	// Every variant judges every produced file, reported or not: under --matrix the fix of one
+	// variant must not rewrite a file another variant found a case in.
+	cases := make(map[string][]string, len(run.model.Files))
 
-	out := make([]string, 0, len(owned))
-
-	for id := range owned {
-		if _, ok := produced[id]; ok {
-			continue
-		}
-
-		if where, moved := placed[id]; moved {
-			out = append(out, id+" is now declared in "+where+"; the fix does not move objects between files -- move it by hand")
-			continue
-		}
-
-		out = append(out, id+" was generated into this file and the declaration no longer produces it")
-	}
-
-	sort.Strings(out)
-
-	return out
-}
-
-// report emits one finding per template, with the fix that closes it when one exists: the
-// regeneration of a produced file, the deletion of an orphaned generated file, or none.
-func (r *SyncRule) report(modulePath string, model *generate.Model, divergences map[string][]string) {
-	// What every generated file holds by its text, rendered or not: an object under a false
-	// condition that the declaration moved is in its old file's text only, and writing it into the
-	// new one would define it twice once the condition holds.
-	held := map[string][]string{}
-
-	for _, path := range generatedTemplates(modulePath) {
-		content, err := os.ReadFile(filepath.Join(modulePath, path))
-		if err != nil {
-			continue
-		}
-
-		for _, doc := range textDocuments(string(content)) {
-			held[doc.id] = append(held[doc.id], path)
-		}
-	}
-
-	placed := map[string]string{}
-
-	for _, f := range model.Files {
-		for _, o := range f.Objects {
-			placed[o.Identity()] = f.Path
+	for _, file := range run.model.Files {
+		if found := r.unfixable(run, file); len(found) > 0 {
+			cases[file.Path] = found
+			withholdFix(filepath.Join(run.modulePath, file.Path))
 		}
 	}
 
@@ -401,153 +389,389 @@ func (r *SyncRule) report(modulePath string, model *generate.Model, divergences 
 
 	sort.Strings(paths)
 
-	var dropped map[string]string
-	if store := r.module.GetObjectStore(); store != nil {
-		dropped = store.Dropped
-	}
-
-	// Under --matrix another variant may regenerate a file this one could not render; record it
-	// for every variant's fix, whether or not this variant reports the file.
-	for path, cause := range dropped {
-		recordDropped(filepath.Join(modulePath, path), cause)
-	}
-
 	for _, path := range paths {
 		list := divergences[path]
 		sort.Strings(list)
 
 		fileList := r.errorList.WithFilePath(path).WithObjectID(path)
 
-		// A template the render skipped is missing from the storage without being missing from
-		// the chart: its objects -- the foreign ones included -- were never seen, so neither the
-		// comparison nor a rewrite can be trusted.
-		if cause, skipped := dropped[path]; skipped {
-			recordDropped(filepath.Join(modulePath, path), cause)
-			fileList.WithFix(manualFix("make "+path+" render")).Errorf("%s failed to render in this run (%s); nothing in it is compared or regenerated until it renders", path, cause)
+		file := run.model.File(path)
 
-			continue
-		}
-
-		if file := model.File(path); file != nil {
-			// An object this file produces that still renders from another file stays there until a
-			// person moves it; writing it here as well would render it twice.
-			recordBlocked(filepath.Join(modulePath, path), r.renderedElsewhere(*file))
-			recordBlocked(filepath.Join(modulePath, path), heldElsewhere(*file, held))
-			fileList = fileList.WithFix(regenerateFix(modulePath, *file, placed, r.foreignObjects(*file, model), removalsOf(list)))
-			fileList.Errorf("%s does not match %s: %s. Run `%s` to regenerate the file from the declaration",
+		switch {
+		case file == nil:
+			fileList.Errorf("%s does not match %s: %s", path, rbacyaml.Filename, strings.Join(list, "; "))
+		case len(cases[path]) > 0:
+			fileList.Errorf("%s does not match %s: %s. The autofix leaves the file as it is: %s",
+				path, rbacyaml.Filename, strings.Join(list, "; "), strings.Join(cases[path], "; "))
+		default:
+			fileList.WithFix(rewriteFix(run.modulePath, *file, list)).Errorf("%s does not match %s: %s. Run `%s` to rewrite the file from the declaration",
 				path, rbacyaml.Filename, strings.Join(list, "; "), FixCommand)
-
-			continue
 		}
-
-		// A file the generator wrote earlier that the declaration produces nothing for any more -- a
-		// legacy section dropped, every namespace level gone -- is an orphan: the declaration wins,
-		// and the fix deletes it, as long as it holds nothing but objects of the owned classes.
-		if orphan, reason := r.orphanGeneratedFile(path, model); orphan {
-			// Another render variant may place an object in the file that this one does not see;
-			// the fix judges the union, as the regeneration does.
-			recordForeignObjects(filepath.Join(modulePath, path), nil)
-
-			fileList.WithFix(removeFileFix(modulePath, path, placed, list)).Errorf("%s does not match %s: %s. The file carries the generator header and the declaration produces nothing for it; `%s` deletes it",
-				path, rbacyaml.Filename, strings.Join(list, "; "), FixCommand)
-
-			continue
-		} else if reason != "" {
-			list = append(list, reason)
-		}
-
-		fileList.WithFix(manualFix("edit "+path+" by hand")).Errorf("%s does not match %s: %s. Only a person can close this: the declaration does not produce this file",
-			path, rbacyaml.Filename, strings.Join(list, "; "))
 	}
 }
 
-// orphanGeneratedFile reports whether a template the declaration produces nothing for is the
-// generator's (header present) and holds only objects of the owned classes, so deleting it loses
-// nothing the declaration does not know about. Otherwise it returns why the file stays. Objects
-// outside the owned classes are recorded for the fix, which judges the union over render variants.
-func (r *SyncRule) orphanGeneratedFile(path string, model *generate.Model) (bool, string) {
-	if model.File(path) != nil {
-		return false, ""
+// unfixable lists what keeps the fix from rewriting a file the declaration produces: every document
+// its text holds must be one the declaration puts there, a legacy role or a module capability the
+// declaration no longer produces (the rewrite drops it: sync owns them by class), or an object the
+// declaration now produces under another name. The text is the same in every render variant, so
+// every variant reaches the same answer; the render adds what the text cannot show. An object in
+// the wrong file is one case, whichever way the lint saw it.
+func (r *SyncRule) unfixable(run *syncRun, file generate.File) []string {
+	// What the lint could not read, the fix must not write over.
+	text := run.templates[file.Path]
+	if text.err != nil {
+		return []string{fmt.Sprintf("the file cannot be read (%v), so what it holds is unknown", text.err)}
 	}
 
-	fullPath := filepath.Join(r.module.GetPath(), path)
+	var out []string
 
-	content, err := os.ReadFile(fullPath)
-	if err != nil {
-		return false, ""
+	if templateGated(text.content, generate.RenderFile(file)) {
+		out = append(out, fmt.Sprintf("the template serves both role models behind the version gate (the %s gate of rbacv2-migrate-module.sh, or a deckhouseVersion test the declaration does not produce), and a rewrite would drop the legacy branch -- edit the new branch, or drop the gate and the legacy object once clusters below DKP 1.78 are no longer served",
+			rbaccontract.GateMarker))
 	}
 
-	if generated, _ := generate.ParseHeader(string(content)); !generated {
-		return false, ""
+	// A condition the template holds and the rewrite would not write gates something the render of
+	// these values may not show: the rewrite would drop it, or grant it unconditionally.
+	if !templateGated(text.content, generate.RenderFile(file)) {
+		written := templateConditions(generate.RenderFile(file))
+
+		for _, cond := range slices.Sorted(maps.Keys(templateConditions(text.content))) {
+			if _, ok := written[cond]; !ok {
+				out = append(out, fmt.Sprintf("the template holds {{ %s }}, which %s does not write, and what it gates may not be in this render -- declare the condition as `when` on what it gates, or, if the declaration dropped it on purpose, delete it from the template", cond, rbacyaml.Filename))
+			}
+		}
 	}
 
-	if templateGated(string(content), "") {
-		return false, "the file serves both role models behind the version gate"
+	if info, err := os.Lstat(filepath.Join(run.modulePath, file.Path)); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		out = append(out, "the template is a symbolic link, and a rewrite would replace the link with a file of its own -- rewrite its target, or make it a file")
 	}
 
-	foreign := r.foreignIn(path, nil, nil, model)
+	out = append(out, r.heldObjects(run, file)...)
 
-	if len(foreign) > 0 {
-		sort.Strings(foreign)
-		recordForeignObjects(fullPath, foreign)
+	produced := identitiesOf(file.Objects)
+	fromFile := run.fromFile[file.Path]
+	renderedRoles := renderedRolesOf(run.store, file.Path)
 
-		return false, "the file also holds " + strings.Join(foreign, ", ") + ", which the declaration does not describe"
+	// misplaced collects, per object, where it should go or where it is now: one case each.
+	misplaced := map[string]string{}
+
+	for _, doc := range text.docs {
+		if _, ok := produced[doc.id]; ok {
+			continue
+		}
+
+		if doc.unreadable {
+			out = append(out, "it holds a document the linter cannot read, "+doc.why+" (an include, a range, a computed name or a template action the declaration does not write) -- declare what it renders in "+rbacyaml.Filename+" or move it to another template")
+			continue
+		}
+
+		if where, ok := run.placed[doc.id]; ok && where != file.Path {
+			misplaced[doc.id] = "move " + doc.id + " to " + where
+			continue
+		}
+
+		// exclude-rules.sync silences an object's finding; it must not turn the object into a
+		// silent removal either.
+		if doc.managed && r.Enabled(doc.kind, doc.name) {
+			continue
+		}
+
+		if object, ok := fromFile[doc.id]; ok && replacedByProduced(object, file.Objects, renderedRoles, run.rendered) {
+			continue
+		}
+
+		out = append(out, run.notProduced(doc.id))
 	}
 
-	return true, ""
+	// The render is judged too: an object that renders from the file and that the text did not show
+	// -- a document the reading above missed -- must not vanish with the rewrite either.
+	legacyKind := ""
+
+	for id, object := range fromFile {
+		if _, ok := produced[id]; ok {
+			continue
+		}
+
+		if where, ok := run.placed[id]; ok && where != file.Path {
+			misplaced[id] = "move " + id + " to " + where
+			continue
+		}
+
+		kind, name := object.Unstructured.GetKind(), object.Unstructured.GetName()
+		if m, ok := run.actual[id]; ok && m.class != generate.ClassDeclared && r.Enabled(kind, name) {
+			continue
+		}
+
+		// The model before 1.78: rewriting the file would serve the new model only.
+		if level := object.Unstructured.GetLabels()[rbaccontract.LabelKind]; kind == "ClusterRole" && rbaccontract.IsLegacyKind(level) {
+			// The kind named is the smallest one the file renders: map order must not pick it.
+			if legacyKind != "" && legacyKind < level {
+				continue
+			}
+
+			legacyKind = level
+			misplaced["legacy scheme"] = fmt.Sprintf("the template renders the legacy RBACv2 scheme (%s: %s, the manage/use model before DKP 1.78) where the declaration produces the 1.78 model; migrate the module with rbacv2-migrate-module.sh to serve both, or delete the file and run `%s` to serve the new one only",
+				rbaccontract.LabelKind, level, FixCommand)
+
+			continue
+		}
+
+		if replacedByProduced(object, file.Objects, renderedRoles, run.rendered) {
+			continue
+		}
+
+		out = append(out, run.notProduced(id))
+	}
+
+	// An object this file should hold that renders from, or is written in, another template: the
+	// fix does not move objects between files, and writing it here would render it twice.
+	for _, o := range file.Objects {
+		id := o.Identity()
+		if _, ok := misplaced[id]; ok {
+			continue
+		}
+
+		if at := run.elsewhere(id, file.Path); at != "" {
+			misplaced[id] = "move " + id + " here from " + at
+		}
+	}
+
+	out = append(out, slices.Collect(maps.Values(misplaced))...)
+	sort.Strings(out)
+
+	return slices.Compact(out)
 }
 
-// removeFileFix deletes an orphaned generated file and logs what went with it. It re-reads the
-// file when it runs and refuses when any render variant placed an object in it that the
-// declaration does not describe, or when the header or the gate say the file is not the
-// generator's to delete.
-func removeFileFix(modulePath, path string, placed map[string]string, removed []string) errors.AutofixFunc {
-	fullPath := filepath.Join(modulePath, path)
-	recordRemovals(fullPath, removed)
+// heldObjects lists the objects the declaration produces in the file that a rewrite would change
+// beyond what sync compares: one exclude-rules.sync keeps out of the comparison, metadata of a legacy
+// role or a capability the format has no field for, and the secrets of a ServiceAccount.
+func (r *SyncRule) heldObjects(run *syncRun, file generate.File) []string {
+	var out []string
 
-	return func() error {
-		return fixOnce(fullPath, func() error {
-			if err := fixBlocked(modulePath, path); err != nil {
-				return err
+	inText := map[string]bool{}
+	for _, doc := range run.templates[file.Path].docs {
+		inText[doc.id] = true
+	}
+
+	for _, o := range file.Objects {
+		id := o.Identity()
+		object, rendered := run.fromFile[file.Path][id]
+
+		if !r.Enabled(o.Kind, o.Name) {
+			if rendered || inText[id] {
+				out = append(out, id+" is excluded from sync (exclude-rules.sync), and a rewrite would write it from the declaration over what the template holds -- lift the exclusion, or move the object to another template")
 			}
 
-			removed := recordedRemovals(fullPath)
+			continue
+		}
 
-			if foreign := foreignObjectsOf(fullPath); len(foreign) > 0 {
-				return fmt.Errorf("%s also holds objects the declaration does not describe (%s), some only under other values; it is not deleted -- declare them in %s or move them to another template",
-					path, strings.Join(foreign, ", "), rbacyaml.Filename)
+		if !rendered {
+			continue
+		}
+
+		if o.Class != generate.ClassDeclared {
+			if held := undeclarableMetadata(o, object); len(held) > 0 {
+				out = append(out, fmt.Sprintf("%s carries %s, which %s cannot declare and a rewrite would drop -- remove it from the template", id, strings.Join(held, ", "), rbacyaml.Filename))
+			}
+		}
+
+		if o.Kind == "ServiceAccount" {
+			for _, field := range undeclarableAccountFields(object) {
+				out = append(out, fmt.Sprintf("%s has %s, which %s cannot declare and a rewrite would drop -- %s, or keep the account out of the declaration", id, field, rbacyaml.Filename, bootstrap.AccountFieldAdvice(field)))
+			}
+		}
+	}
+
+	return out
+}
+
+// conditionsByDocument returns, per object the text holds (by identity), the conditions it renders
+// under: the blocks open where its document starts and the blocks opened and closed inside it -- a
+// rule under its own condition. A block opened in a document and still open at the next separator
+// belongs to the documents after it, and to its own document too when document content follows the
+// opening line: the object there is under it as well. A block opened after the document's last
+// content line -- the generator's {{- if X }} right before the next --- -- is the next object's
+// only (review of #480, finding 10).
+func conditionsByDocument(text string) map[string]map[string]struct{} {
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	out := map[string]map[string]struct{}{}
+
+	var stack []string
+
+	flush := func(doc string, conds map[string]struct{}) {
+		for _, d := range textDocuments(doc) {
+			if !d.unreadable {
+				out[d.id] = conds
+			}
+		}
+	}
+
+	var (
+		doc   strings.Builder
+		conds = map[string]struct{}{}
+		// inner are the blocks opened inside the current document, by stack depth; followed marks
+		// the depths whose block has document content after its opening line.
+		inner    = map[int]string{}
+		followed = map[int]bool{}
+	)
+
+	// openInDocument adds to the document's conditions the blocks opened in it and still open that
+	// its content follows.
+	openInDocument := func() {
+		for depth, c := range inner {
+			if followed[depth] {
+				conds[c] = struct{}{}
+			}
+		}
+	}
+
+	for _, line := range strings.Split(text, "\n") {
+		if bootstrap.DocSeparatorRe.MatchString(line) {
+			openInDocument()
+			flush(doc.String(), conds)
+			doc.Reset()
+
+			conds = map[string]struct{}{}
+
+			for _, c := range stack {
+				if c != "" {
+					conds[c] = struct{}{}
+				}
 			}
 
-			content, err := os.ReadFile(fullPath)
-			if err != nil {
-				if stderrors.Is(err, os.ErrNotExist) {
-					return nil
+			inner = map[int]string{}
+			followed = map[int]bool{}
+
+			continue
+		}
+
+		doc.WriteString(line + "\n")
+
+		for _, m := range blockActionRe.FindAllStringSubmatch(line, -1) {
+			switch action := strings.Join(strings.Fields(m[1]), " "); {
+			case strings.HasPrefix(action, "if "):
+				stack = append(stack, action)
+				inner[len(stack)] = action
+				followed[len(stack)] = false
+			case action != "end" && !strings.HasPrefix(action, "else"):
+				// range, with, define, block: closed by an end, a condition of none.
+				stack = append(stack, "")
+			case strings.HasPrefix(action, "else"):
+				if len(stack) > 0 {
+					stack[len(stack)-1] = action
+					inner[len(stack)] = action
+					followed[len(stack)] = false
+				}
+			case action == "end" && len(stack) > 0:
+				if c, ok := inner[len(stack)]; ok {
+					conds[c] = struct{}{}
+
+					delete(inner, len(stack))
+					delete(followed, len(stack))
 				}
 
-				return fmt.Errorf("read %s: %w", path, err)
+				stack = stack[:len(stack)-1]
 			}
+		}
 
-			if generated, _ := generate.ParseHeader(string(content)); !generated || templateGated(string(content), "") {
-				return fmt.Errorf("%s is not the generator's to delete any more (no header, or the version gate); remove it by hand if that is the intent", path)
+		if trimmed := strings.TrimSpace(line); trimmed != "" && !strings.HasPrefix(trimmed, "#") && !wrapperLineRe.MatchString(line) {
+			for depth := range inner {
+				followed[depth] = true
 			}
-
-			// Found on disk, the file may hold objects no variant rendered; only a file whose every
-			// object the generator lists as its own and the declaration no longer places anywhere
-			// is deleted.
-			if unknown := notTheGenerators(string(content), nil, placed, path); len(unknown) > 0 {
-				return fmt.Errorf("%s holds objects the fix cannot account for: %s; it is not deleted -- move or remove them by hand", path, strings.Join(unknown, ", "))
-			}
-
-			if err := os.Remove(fullPath); err != nil {
-				return fmt.Errorf("delete %s: %w", path, err)
-			}
-
-			log.Warn("rbac autofix deleted a generated template the declaration produces nothing for",
-				slog.String("file", path), slog.Any("removed", removed))
-
-			return nil
-		})
+		}
 	}
+
+	openInDocument()
+	flush(doc.String(), conds)
+
+	return out
+}
+
+func kindOfIdentity(id string) string {
+	parts := strings.Split(id, "/")
+	return parts[len(parts)-2]
+}
+
+func nameOfIdentity(id string) string {
+	parts := strings.Split(id, "/")
+	return parts[len(parts)-1]
+}
+
+// templateConditions returns the conditions of a template text, `if <expr>` and `else`, each with its
+// spacing normalized: what the declaration writes is `{{- if <when> }}` around what it gates.
+func templateConditions(text string) map[string]struct{} {
+	out := map[string]struct{}{}
+
+	for _, m := range conditionActionRe.FindAllStringSubmatch(text, -1) {
+		out[strings.Join(strings.Fields(m[1]), " ")] = struct{}{}
+	}
+
+	return out
+}
+
+// elsewhere returns the template other than path that renders the object or holds it by its text.
+func (run *syncRun) elsewhere(id, path string) string {
+	for _, at := range slices.Sorted(maps.Keys(run.fromFile)) {
+		if _, ok := run.fromFile[at][id]; ok && at != path {
+			return at
+		}
+	}
+
+	for _, at := range slices.Sorted(maps.Keys(run.templates)) {
+		if at == path {
+			continue
+		}
+
+		for _, doc := range run.templates[at].docs {
+			if doc.id == id {
+				return at
+			}
+		}
+	}
+
+	return ""
+}
+
+// notProduced names an object a file the declaration writes holds and the declaration does not
+// produce. A Role a produced binding refers to -- bindRoles names a Role and does not write it --
+// cannot be declared, only moved.
+func (run *syncRun) notProduced(id string) string {
+	for _, file := range run.model.Files {
+		for _, o := range file.Objects {
+			if o.Kind == "RoleBinding" && o.RoleRefKind == "Role" && o.Namespace+"/Role/"+o.RoleRefName == id {
+				return id + ", which " + rbacyaml.Filename + " binds with bindRoles and does not write -- move it to a template the declaration does not write"
+			}
+		}
+	}
+
+	return id + ", which " + rbacyaml.Filename + " does not produce -- declare it in " + rbacyaml.Filename + " or move it to another template"
+}
+
+// withoutUnrendered leaves out the objects a template holds by its text when nothing rendered from
+// it: the render skipped the template (and warned about it) or every object in it is under a
+// condition false for these values. Either way the render tells nothing about them, and they are
+// judged where the template renders.
+func (run *syncRun) withoutUnrendered(file generate.File) generate.File {
+	if len(run.fromFile[file.Path]) > 0 {
+		return file
+	}
+
+	inText := map[string]bool{}
+	for _, doc := range run.templates[file.Path].docs {
+		inText[doc.id] = true
+	}
+
+	kept := make([]generate.Object, 0, len(file.Objects))
+
+	for _, o := range file.Objects {
+		if !inText[o.Identity()] {
+			kept = append(kept, o)
+		}
+	}
+
+	file.Objects = kept
+
+	return file
 }
 
 // enabledObjects returns the file with the objects exclude-rules.sync names left out: they are
@@ -586,130 +810,38 @@ func (r *SyncRule) legacyFiles() map[string]string {
 	return out
 }
 
-// foreignObjects lists the rendered objects of the file that a regeneration would drop without the
-// declaration knowing them: everything that is neither produced now nor the generator's own.
-func (r *SyncRule) foreignObjects(file generate.File, model *generate.Model) []string {
-	produced := make(map[string]struct{}, len(file.Objects))
-	for _, o := range file.Objects {
-		produced[o.Identity()] = struct{}{}
-	}
-
-	return r.foreignIn(file.Path, produced, file.Objects, model)
-}
-
-// foreignIn judges every rendered object of the template at path, of any kind. An object the
-// declaration produces is kept. An object the header lists as the generator's (contract 2) is a
-// removal: the declaration no longer names it and wins (D14). In a file whose header lists no
-// objects -- a contract 1 file or one maintained by hand -- a legacy role or a module capability
-// the declaration does not produce is a removal for the same reason, and an RBAC object the
-// generator now produces under another name is a rename. Everything else is someone else's: a
-// ConfigMap, a Secret, a hand-written role -- and the fix refuses to drop it.
-func (r *SyncRule) foreignIn(path string, produced map[string]struct{}, producedObjects []generate.Object, model *generate.Model) []string {
-	fullPath := filepath.Join(r.module.GetPath(), path)
-	owned, listed := ownedBy(fullPath)
-
-	// Where the declaration puts every object it produces: an object rendered from another file
-	// than that is misplaced rather than unknown, and the refusal says so.
-	placed := map[string]string{}
-
-	for _, f := range model.Files {
-		for _, o := range f.Objects {
-			placed[o.Identity()] = f.Path
-		}
-	}
-
-	managed := r.managedObjects(model)
-	storage := r.module.GetStorage()
-
-	rendered := make(map[string]struct{}, len(storage))
-	for index := range storage {
-		rendered[index.AsString()] = struct{}{}
-	}
-
-	var out []string
-
-	for index, object := range storage {
-		if object.ShortPath() != path {
-			continue
-		}
-
-		id := index.AsString()
-
-		if _, ok := produced[id]; ok {
-			continue
-		}
-
-		// Produced in another file of the model. The fix does not move objects between files --
-		// the target may be maintained by hand, gated or refused, and the object would be lost or
-		// rendered twice -- so this file is left alone until a person moves it.
-		if where, declared := placed[id]; declared && where != path {
-			out = append(out, id+" (the declaration now puts it in "+where+"; the fix does not move objects between files -- move it there by hand, or delete this file, then run the fix)")
-			continue
-		}
-
-		if _, ok := owned[id]; ok {
-			continue
-		}
-
-		if !listed && isRBACKind(object.Unstructured.GetKind()) {
-			// exclude-rules.sync silences an object's finding; it must not turn the object into a
-			// silent removal either.
-			if m, ok := managed[id]; ok && m.class != generate.ClassDeclared && r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {
-				continue
-			}
-
-			if replacedByProduced(object, producedObjects, renderedRolesOf(storage, path), rendered) {
-				continue
-			}
-		}
-
-		out = append(out, id)
-	}
-
-	sort.Strings(out)
-
-	return out
-}
-
-// ownedBy reads the objects the header of a generated file lists as the generator's, and whether
-// it lists any at all.
-func ownedBy(fullPath string) (map[string]struct{}, bool) {
-	content, err := os.ReadFile(fullPath)
-	if err != nil {
-		return nil, false
-	}
-
-	if generated, _ := generate.ParseHeader(string(content)); !generated {
-		return nil, false
-	}
-
-	return generate.ParseOwned(string(content))
-}
-
-// hasHeader reports whether the file carries the generator header.
-func hasHeader(fullPath string) bool {
-	content, err := os.ReadFile(fullPath)
-	if err != nil {
-		return false
-	}
-
-	generated, _ := generate.ParseHeader(string(content))
-
-	return generated
-}
-
-// isRBACKind reports whether the kind is one the generator produces.
+// isRBACKind reports whether the kind is one the declaration writes.
 func isRBACKind(kind string) bool {
-	switch kind {
-	case "ClusterRole", "Role", "ClusterRoleBinding", "RoleBinding", "ServiceAccount":
-		return true
-	}
-
-	return false
+	return rbacKinds[kind]
 }
 
-// replacedByProduced reports whether a rendered object has a produced counterpart of the same kind
-// and content under another name.
+// carriesOver reports whether a produced object keeps the metadata of a rendered one it would
+// replace: every label and annotation outside the role model's own -- helm_lib's, Helm's, the
+// rbac.deckhouse.io/* labels and the localized texts a migration rewrites by design -- with the
+// same value. An rbac.authorization.k8s.io aggregation label or helm.sh/resource-policy on the old
+// object would otherwise leave with the rename, unreported.
+func carriesOver(object storage.StoreObject, o generate.Object) bool {
+	for k, v := range object.Unstructured.GetLabels() {
+		if !moduleLabels[k] && !strings.HasPrefix(k, "rbac.deckhouse.io/") && o.Labels[k] != v {
+			return false
+		}
+	}
+
+	for k, v := range object.Unstructured.GetAnnotations() {
+		if strings.HasPrefix(k, "meta.helm.sh/") || strings.HasPrefix(k, "rbac.deckhouse.io/") || slices.Contains(rbaccontract.I18nAnnotations, k) {
+			continue
+		}
+
+		if o.Annotations[k] != v {
+			return false
+		}
+	}
+
+	return true
+}
+
+// replacedByProduced reports whether a rendered object has a produced counterpart of the same kind,
+// content and metadata under another name.
 func replacedByProduced(object storage.StoreObject, produced []generate.Object, renderedRoles map[string]tupleSet, rendered map[string]struct{}) bool {
 	content := object.Unstructured.UnstructuredContent()
 
@@ -723,7 +855,7 @@ func replacedByProduced(object storage.StoreObject, produced []generate.Object, 
 		got := subjectSet(binding.Subjects)
 
 		for _, o := range produced {
-			if o.Kind != object.Unstructured.GetKind() || o.Namespace != object.Unstructured.GetNamespace() || o.RoleRefKind != binding.RoleRef.Kind {
+			if o.Kind != object.Unstructured.GetKind() || o.Namespace != object.Unstructured.GetNamespace() || o.RoleRefKind != binding.RoleRef.Kind || !carriesOver(object, o) {
 				continue
 			}
 
@@ -745,8 +877,13 @@ func replacedByProduced(object storage.StoreObject, produced []generate.Object, 
 
 		got := expandRenderedRules(role.Rules)
 
+		// An aggregationRule collects rights the counterpart does not name.
+		if role.AggregationRule != nil {
+			return false
+		}
+
 		for _, o := range produced {
-			if o.Kind != object.Unstructured.GetKind() || o.Namespace != object.Unstructured.GetNamespace() {
+			if o.Kind != object.Unstructured.GetKind() || o.Namespace != object.Unstructured.GetNamespace() || !carriesOver(object, o) {
 				continue
 			}
 
@@ -754,12 +891,7 @@ func replacedByProduced(object storage.StoreObject, produced []generate.Object, 
 				continue
 			}
 
-			always, conditional := expandModelRules(o.Rules)
-			for t := range conditional {
-				always.add(t)
-			}
-
-			if len(always.minus(got)) == 0 && len(got.minus(always)) == 0 {
+			if grantsExactly(o, got) {
 				return true
 			}
 		}
@@ -811,15 +943,21 @@ func roleRefMatches(producedBinding generate.Object, renderedRef rbacv1.RoleRef,
 			continue
 		}
 
-		always, conditional := expandModelRules(o.Rules)
-		for t := range conditional {
-			always.add(t)
-		}
-
-		return len(always.minus(rendered)) == 0 && len(rendered.minus(always)) == 0
+		return grantsExactly(o, rendered)
 	}
 
 	return false
+}
+
+// grantsExactly reports whether a produced object grants what the rendered rules grant: its rules
+// under a condition count too, since the render being compared may hold them.
+func grantsExactly(o generate.Object, got tupleSet) bool {
+	want, conditional := expandModelRules(o.Rules, nil)
+	for t := range conditional {
+		want.add(t)
+	}
+
+	return len(want.minus(got)) == 0 && len(got.minus(want)) == 0
 }
 
 func subjectSet(list []rbacv1.Subject) string {
@@ -849,7 +987,7 @@ type managedObject struct {
 }
 
 // managedObjects selects the rendered objects of the three classes, keyed by identity.
-func (r *SyncRule) managedObjects(model *generate.Model) map[string]managedObject {
+func (r *SyncRule) managedObjects(model *generate.Model, store map[storage.ResourceIndex]storage.StoreObject) map[string]managedObject {
 	declared := map[string]struct{}{}
 
 	for _, file := range model.Files {
@@ -860,14 +998,14 @@ func (r *SyncRule) managedObjects(model *generate.Model) map[string]managedObjec
 
 	out := map[string]managedObject{}
 
-	for index, object := range r.module.GetStorage() {
+	for index, object := range store {
 		identity := index.AsString()
 		labels := object.Unstructured.GetLabels()
 		annotations := object.Unstructured.GetAnnotations()
 
 		switch {
 		case object.Unstructured.GetKind() == "ClusterRole" && annotations[rbaccontract.AccessLevelAnnotation] != "":
-			out[identity] = managedObject{object, generate.ClassLegacy}
+			out[identity] = managedObject{object: object, class: generate.ClassLegacy}
 		case object.Unstructured.GetKind() == "ClusterRole" && labels[rbaccontract.LabelKind] == rbaccontract.KindCapability && labels[rbaccontract.LabelModule] == r.module.GetName() &&
 			isModuleCapabilityName(object.Unstructured.GetName(), r.module.GetName()):
 			// Only the capabilities the declaration can produce: the module's own, in the namespace
@@ -875,10 +1013,10 @@ func (r *SyncRule) managedObjects(model *generate.Model) map[string]managedObjec
 			// platform-wide ones named after a lineage rather than the module (user-authz,
 			// multitenancy-manager); the format has no place for them, so they stay hand-written
 			// and are neither generated nor "extra" (D2).
-			out[identity] = managedObject{object, generate.ClassCapability}
+			out[identity] = managedObject{object: object, class: generate.ClassCapability}
 		default:
 			if _, ok := declared[identity]; ok {
-				out[identity] = managedObject{object, generate.ClassDeclared}
+				out[identity] = managedObject{object: object, class: generate.ClassDeclared}
 			}
 		}
 	}
@@ -897,20 +1035,64 @@ func hasAbsentObject(file generate.File, actual map[string]managedObject) bool {
 	return false
 }
 
-// compareFile lists the divergences between the objects a generated file declares and the render.
-func compareFile(file generate.File, actual map[string]managedObject, module string) []string {
-	var out []string
-
-	// A `when` excuses an absent object only while its condition is false: when another object of
-	// the file under the same `when` rendered, the condition holds in this render, and the absence
-	// is drift (review of #479, finding 47).
+// holdingConditions returns the `when` conditions the render shows to hold: an object or a rule of
+// the declaration renders under them. A condition reads the same values in every template of one
+// render, so an object or a rule absent under a condition that holds is drift, whichever file it
+// belongs to -- a new grant under a condition some other grant already renders under must be
+// written, not excused (review of #479, finding 47).
+func holdingConditions(model *generate.Model, actual map[string]managedObject) map[string]bool {
 	holds := map[string]bool{}
 
-	for _, o := range file.Objects {
-		if _, ok := actual[o.Identity()]; ok && o.When != "" {
-			holds[o.When] = true
+	for _, file := range model.Files {
+		for _, o := range file.Objects {
+			act, ok := actual[o.Identity()]
+			if !ok {
+				continue
+			}
+
+			if o.When != "" {
+				holds[o.When] = true
+			}
+
+			rendered := expandRenderedRules(renderedRules(act.object))
+
+			for _, rule := range o.Rules {
+				if rule.When == "" || holds[rule.When] {
+					continue
+				}
+
+				tuples := tupleSet{}
+				expandPolicyRule(rule.PolicyRule, tuples)
+
+				if len(tuples.uncoveredBy(rendered)) == 0 {
+					holds[rule.When] = true
+				}
+			}
 		}
 	}
+
+	return holds
+}
+
+// renderedRules returns the rules of a rendered Role or ClusterRole, none for any other object or
+// one that cannot be read (compareObject reports that).
+func renderedRules(object storage.StoreObject) []rbacv1.PolicyRule {
+	var role rbacv1.ClusterRole
+
+	switch object.Unstructured.GetKind() {
+	case "ClusterRole", "Role":
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(object.Unstructured.UnstructuredContent(), &role); err != nil {
+			return nil
+		}
+	}
+
+	return role.Rules
+}
+
+// compareFile lists the divergences between the objects a declared file holds and the render.
+// holds are the conditions the render shows to hold (holdingConditions).
+func compareFile(file generate.File, actual map[string]managedObject, module string, holds map[string]bool) []string {
+	var out []string
 
 	for _, expected := range file.Objects {
 		act, ok := actual[expected.Identity()]
@@ -922,14 +1104,21 @@ func compareFile(file generate.File, actual map[string]managedObject, module str
 			continue
 		}
 
-		out = append(out, compareObject(expected, act.object, module)...)
+		out = append(out, compareObject(expected, act.object, module, holds)...)
 	}
 
 	return out
 }
 
-func compareObject(expected generate.Object, actual storage.StoreObject, module string) []string {
+func compareObject(expected generate.Object, actual storage.StoreObject, module string, holds map[string]bool) []string {
 	var out []string
+
+	if expected.Class == generate.ClassDeclared {
+		out = append(out, compareAnnotations(expected, actual)...)
+		out = append(out, compareLabels(expected, actual)...)
+	} else {
+		out = append(out, compareOwnedMetadata(expected, actual)...)
+	}
 
 	id := expected.Identity()
 	content := actual.Unstructured.UnstructuredContent()
@@ -957,7 +1146,7 @@ func compareObject(expected generate.Object, actual storage.StoreObject, module 
 		}
 
 		actualTuples := expandRenderedRules(rules)
-		always, conditional := expandModelRules(expected.Rules)
+		always, conditional := expandModelRules(expected.Rules, holds)
 
 		for _, t := range always.uncoveredBy(actualTuples) {
 			out = append(out, fmt.Sprintf("%s: %s is declared but absent from the render", id, t))
@@ -975,7 +1164,7 @@ func compareObject(expected generate.Object, actual storage.StoreObject, module 
 			out = append(out, compareCapabilityLabels(expected, actual, module, aggregation)...)
 		} else if aggregation != nil {
 			// The generator writes no aggregationRule on any other role; one in the render collects
-			// rights the declaration does not name, and a regeneration would drop it.
+			// rights the declaration does not name, and a rewrite would drop it.
 			out = append(out, fmt.Sprintf("%s: an aggregationRule is in the render but the declaration produces none", id))
 		}
 
@@ -994,7 +1183,7 @@ func compareObject(expected generate.Object, actual storage.StoreObject, module 
 		}
 
 		// Kubernetes mounts the token unless told otherwise; the generator writes what the
-		// declaration says, false by default. A regeneration must not take a token away unnoticed.
+		// declaration says, false by default. A rewrite must not take a token away unnoticed.
 		rendered := sa.AutomountServiceAccountToken == nil || *sa.AutomountServiceAccountToken
 		declared := expected.AutomountToken != nil && *expected.AutomountToken
 
@@ -1084,6 +1273,27 @@ func compareCapabilityLabels(expected generate.Object, actual storage.StoreObjec
 		out = append(out, fmt.Sprintf("%s: label %s is %q in the render, expected %q", id, rbaccontract.LabelModule, labels[rbaccontract.LabelModule], module))
 	}
 
+	// The other labels are the module's (a role of the module outside the role model selects them)
+	// or nobody's; the rewrite writes the declared ones only, and a dropped selector label is a
+	// lost right.
+	own := func(key string) bool {
+		return !strings.HasPrefix(key, "rbac.deckhouse.io/") && !moduleLabels[key]
+	}
+
+	for _, k := range slices.Sorted(maps.Keys(labels)) {
+		if want, ok := expected.Labels[k]; own(k) && !ok {
+			out = append(out, fmt.Sprintf("%s: label %s is in the render but not declared", id, k))
+		} else if own(k) && want != labels[k] {
+			out = append(out, fmt.Sprintf("%s: label %s is %q in the render, the declaration produces %q", id, k, labels[k], want))
+		}
+	}
+
+	for _, k := range slices.Sorted(maps.Keys(expected.Labels)) {
+		if _, ok := labels[k]; own(k) && !ok {
+			out = append(out, fmt.Sprintf("%s: label %s is declared but absent from the render", id, k))
+		}
+	}
+
 	if aggregation != nil {
 		out = append(out, fmt.Sprintf("%s: a capability carries rules and is aggregated by roles; it must not define aggregationRule", id))
 	}
@@ -1115,100 +1325,34 @@ func crdScopes(crds []crdInfo) rbacyaml.CRDScopes {
 	return scopes
 }
 
-// regenerateFix returns the autofix for a generated file: write it from the declaration. Everything
-// the fix needs is captured now, while the render exists -- the object store is released before
-// --fix runs (R32). The declaration is the source of truth: a right it no longer names leaves the
-// template (decided 2026-09-22, replacing D3), and the finding that led here listed it. Three
-// things are never written over:
-//
-//   - a file that also holds objects the declaration does not produce -- the generator writes the
-//     whole file and they would vanish;
-//   - a template that serves both role models behind the version gate (R30);
-//   - a file without the generator header, maintained by hand: the generated text is written
-//     beside it as _<file>.generated and the finding stays (R16, US-F2).
-//
-// removalsOf picks, from a file's divergences, what a regeneration takes away: rights and objects
-// the render has and the declaration does not name. They are logged when the file is written, so a
-// --fix run without a preceding dmt lint does not remove rights in silence.
-func removalsOf(divergences []string) []string {
-	// Every divergence is something the regeneration changes in the cluster -- a right removed, a
-	// token taken away, a level or a roleRef changed -- except the two that are only about the text.
-	var out []string
-
-	for _, d := range divergences {
-		if strings.HasPrefix(d, "the file carries the generator header but is not what the declaration renders now") ||
-			strings.HasPrefix(d, "the file was generated under contract version") {
-			continue
-		}
-
-		out = append(out, d)
-	}
-
-	return out
-}
-
-func regenerateFix(modulePath string, file generate.File, placed map[string]string, foreign, removals []string) errors.AutofixFunc {
+// rewriteFix returns the autofix for a file the declaration produces: write it from the
+// declaration. Everything the fix needs is captured now, while the render exists -- the object store
+// is released before --fix runs (R32). The declaration is the source of truth: a right it no longer
+// names leaves the template (decided 2026-09-22, replacing D3); the finding that led here listed it,
+// and the fix logs it, so a --fix run without a preceding dmt lint does not remove rights in silence.
+func rewriteFix(modulePath string, file generate.File, changes []string) errors.AutofixFunc {
 	content := generate.RenderFile(file)
 	fullPath := filepath.Join(modulePath, file.Path)
 
 	// Under --matrix the module is linted once per render variant and every variant collects its
-	// own finding with its own closure. Each records what its render grants now, while the store
-	// exists; the closure that runs first checks the union of them and writes, the others report
-	// its outcome (R36). A right rendered only under some values is therefore not lost (D3).
-	recordForeignObjects(fullPath, foreign)
-	recordRemovals(fullPath, removals)
+	// own finding with its own closure. Each records what its render changes, while the store
+	// exists; the closure that runs first writes and logs the union (R36).
+	recordChanges(fullPath, changes)
 
 	return func() error {
 		return fixOnce(fullPath, func() error {
-			if err := fixBlocked(modulePath, file.Path); err != nil {
-				return err
+			// Another variant reported the file without a fix: its finding names the case, and the
+			// lint after --fix reports it.
+			if fixWithheld(fullPath) {
+				return nil
 			}
 
-			removals := recordedRemovals(fullPath)
-
 			existing, err := os.ReadFile(fullPath)
-			exists := err == nil
-
 			if err != nil && !stderrors.Is(err, os.ErrNotExist) {
 				return fmt.Errorf("read %s: %w", file.Path, err)
 			}
 
-			if exists {
-				// Objects in the file that the declaration does not produce would vanish with the rewrite,
-				// header or not -- and "delete the file and run --fix again" would lose them too, so this
-				// comes before every other answer. (A foreign object under `when` that did not render this
-				// time is caught by the run where it renders; every variant's list is joined.)
-				if foreign := foreignObjectsOf(fullPath); len(foreign) > 0 {
-					return fmt.Errorf("%s also holds objects the declaration does not produce: %s; regenerating the file would drop them, and so would deleting it -- declare them in %s or move them to another template, then run `%s` again",
-						file.Path, strings.Join(foreign, ", "), rbacyaml.Filename, FixCommand)
-				}
-
-				// The render shows only what renders under these values; the text shows everything the
-				// file holds, objects under a false condition included.
-				if generated, _ := generate.ParseHeader(string(existing)); generated {
-					if unknown := notTheGenerators(string(existing), identitiesOf(file.Objects), placed, file.Path); len(unknown) > 0 {
-						return fmt.Errorf("%s holds objects the fix cannot account for: %s; they are not what the generator wrote there, so regenerating the file would drop them -- declare them in %s, move them, or remove them by hand, then run `%s` again",
-							file.Path, strings.Join(unknown, ", "), rbacyaml.Filename, FixCommand)
-					}
-				}
-
-				if templateGated(string(existing), content) {
-					return fmt.Errorf("%s renders one of two role models depending on the platform version (the %s gate of rbacv2-migrate-module.sh, or a deckhouseVersion test the declaration did not produce); regenerating it would drop the legacy branch -- edit the new branch by hand, or drop the gate and the legacy object once clusters below DKP 1.78 are no longer served, then run `%s`",
-						file.Path, rbaccontract.GateMarker, FixCommand)
-				}
-
-				if generated, _ := generate.ParseHeader(string(existing)); !generated {
-					aside := asidePath(fullPath)
-					if err := writeFileAtomic(aside, []byte(content), 0o644); err != nil { //nolint:gosec // a source file of the module
-						return fmt.Errorf("write %s: %w", asidePath(file.Path), err)
-					}
-
-					return fmt.Errorf("%s is maintained by hand (no generator header); the generated version is beside it as %s -- compare, then either delete the file and run `%s` again, or keep maintaining it by hand",
-						file.Path, asidePath(file.Path), FixCommand)
-				}
-			}
-
-			if exists && string(existing) == content {
+			if err == nil && string(existing) == content {
 				return nil
 			}
 
@@ -1222,19 +1366,19 @@ func regenerateFix(modulePath string, file generate.File, placed map[string]stri
 			}
 
 			if err := writeFileAtomic(fullPath, []byte(content), perm); err != nil {
-				return err
+				return fmt.Errorf("write %s: %w", file.Path, err)
 			}
 
 			// The declaration is the source: what it no longer names left the file. Say so where a
 			// --fix run without a preceding lint would otherwise remove it in silence.
-			if len(removals) > 0 {
+			if changes := recordedChanges(fullPath); len(changes) > 0 {
 				// The divergences go both ways: what the render has and the declaration does not
 				// leaves, what the declaration has and the render lacks arrives.
-				added, removed := splitChanges(removals)
-				log.Warn("rbac autofix regenerated a template: what the render had and the declaration does not name is removed, what the declaration names is added",
+				added, removed := splitChanges(changes)
+				log.Warn("rbac autofix rewrote a template from rbac.yaml: what the render had and the declaration does not name is removed, what the declaration names is added",
 					slog.String("file", file.Path), slog.Any("removed", removed), slog.Any("added", added))
 			} else {
-				log.Info("rbac autofix regenerated a template from rbac.yaml", slog.String("file", file.Path))
+				log.Info("rbac autofix rewrote a template from rbac.yaml", slog.String("file", file.Path))
 			}
 
 			return nil
@@ -1242,18 +1386,10 @@ func regenerateFix(modulePath string, file generate.File, placed map[string]stri
 	}
 }
 
-// asidePath is where the generated text of a hand-maintained file is written for comparison:
-// _<name>.generated in the same directory. Helm renders every file under templates/ whatever its
-// extension, so a plain copy would render a second set of objects; a name starting with an
-// underscore is a partial to Helm and produces no objects.
-func asidePath(path string) string {
-	return filepath.Join(filepath.Dir(path), "_"+filepath.Base(path)+".generated")
-}
-
 // isModuleCapabilityName reports whether the name is one the generator builds for this module:
 // d8:namespace-capability:<module>:<action> or d8:system-capability:<module>:<action>.
 func isModuleCapabilityName(name, module string) bool {
-	return strings.HasPrefix(name, "d8:namespace-capability:"+module+":") || strings.HasPrefix(name, "d8:system-capability:"+module+":")
+	return strings.HasPrefix(name, rbaccontract.NamespaceCapabilityPrefix+module+":") || strings.HasPrefix(name, rbaccontract.SystemCapabilityPrefix+module+":")
 }
 
 // bootstrap is the entry of an existing module into the declaration: without rbac.yaml, the rule
@@ -1263,57 +1399,54 @@ func isModuleCapabilityName(name, module string) bool {
 // creates the file"). From then on rbac.yaml is the source and the templates follow it.
 func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 	modulePath := r.module.GetPath()
-	storage := r.module.GetStorage()
+	store := r.module.GetStorage()
+	path := rbacyaml.Path(modulePath)
 
-	if len(storage) == 0 {
+	// A variant that renders no RBAC object still counts: under --matrix the objects the other
+	// variants render are conditional on its values.
+	if len(store) == 0 {
+		recordBootstrapObjects(path, nil)
+		recordBootstrapRender(path, nil)
+
 		return
 	}
 
+	// Without the subsystems of module.yaml the declaration cannot be written; the module linter
+	// reports why it does not parse.
 	meta, err := readModuleMetadata(modulePath)
 	if err != nil {
-		r.errorList.WithFilePath("module.yaml").WithFix(manualFix("make module.yaml parse")).Errorf("%v; the declaration is not written until it parses", err)
 		return
 	}
 
-	in := bootstrap.Input{Module: r.module.GetName(), Namespace: r.module.GetNamespace(), Subsystems: meta.Subsystems, CRDs: map[string]string{}}
-
 	crds, _ := moduleCRDs(modulePath)
-	for _, crd := range crds {
-		in.CRDs[crd.Key()] = crd.Scope
-	}
+	in := bootstrap.Input{Module: r.module.GetName(), Namespace: r.module.GetNamespace(), Subsystems: knownSubsystems(r.module, meta.Subsystems), CRDs: crdScopes(crds)}
 
-	texts := map[string]string{}
+	docs := map[string][]bootstrap.Doc{}
 
-	for _, object := range storage {
+	for _, object := range store {
 		if o, ok := bootstrapObject(object); ok {
-			text, read := texts[o.Path]
-			if !read {
-				if content, err := os.ReadFile(filepath.Join(modulePath, o.Path)); err == nil {
-					text = string(content)
-				}
-
-				texts[o.Path] = text
-			}
-
-			o.Library = renderedByInclude(text, o.Kind, o.Name)
-			o.Repeated = renderedInRange(text, o.Kind, o.Name)
+			locateInTemplate(modulePath, &o, docs)
 			in.Objects = append(in.Objects, o)
 		}
 	}
 
 	if len(in.Objects) == 0 {
+		recordBootstrapObjects(path, nil)
+		recordBootstrapRender(path, store)
+
 		return
 	}
 
 	markLibraryFiles(in.Objects)
 
+	// The notes on what no render showed are for the written file: the fix reads the templates.
 	result := bootstrap.Build(in)
 	described := len(in.Objects) - len(result.Unmanaged)
-	path := rbacyaml.Path(modulePath)
 
 	// Under --matrix every variant renders its own set of objects; the fix builds from their union,
 	// so an object rendered only under some values still reaches the first declaration.
 	recordBootstrapObjects(path, in.Objects)
+	recordBootstrapRender(path, store)
 
 	declList.WithFix(func() error {
 		return fixOnce(path, func() error {
@@ -1325,17 +1458,65 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 			markLibraryFiles(in.Objects)
 			in.Partial = bootstrapPartialOf(path)
 			in.Variants = bootstrapVariantsOf(path)
+			in.Unrendered = unrenderedObjects(modulePath, in.Objects)
 			result := bootstrap.Build(in)
+
+			// A rename in a template the next fix would leave as it is does not happen with that fix:
+			// the notes must not promise it.
+			if leftAsIs := r.leftAsIs(modulePath, bootstrapRendersOf(path), in.Subsystems, result.Decl); len(leftAsIs) > 0 {
+				in.LeftAsIs = leftAsIs
+				result = bootstrap.Build(in)
+			}
 
 			content, err := bootstrap.Marshal(result)
 			if err != nil {
 				return fmt.Errorf("render %s: %w", rbacyaml.Filename, err)
 			}
 
-			return writeBootstrapped(path, content, crds, in)
+			return writeBootstrapped(path, content)
 		})
-	}).Errorf("%s is missing: `%s` writes it from the RBAC objects the module renders today (%d of %d objects described, the rest listed in the file as hand-written); every TODO and note in it is a decision for a person before the templates are regenerated from it",
+	}).Errorf("%s is missing: `%s` writes it from the RBAC objects the module renders today (%d of %d objects described, the rest listed in its notes and left as they are); every TODO in it is a decision `dmt lint` reports, and the notes say what the declaration does not carry",
 		rbacyaml.Filename, FixCommand, described, len(in.Objects))
+}
+
+// leftAsIs maps every object a bootstrapped declaration produces into a template the fix of the
+// templates would leave as it is to that template. It asks the same question the lint of every
+// variant asks once the declaration is written, of the renders the variants recorded (the module's
+// own is released by the time a fix runs) and of the template text: a file one variant withholds,
+// no variant rewrites. A declaration the generator refuses maps nothing: the lint after the write
+// reports why.
+func (r *SyncRule) leftAsIs(modulePath string, renders []renderSnapshot, subsystems []string, decl *rbacyaml.Declaration) map[string]string {
+	if decl == nil {
+		return nil
+	}
+
+	model, err := generate.Build(generate.Input{
+		Module:     r.module.GetName(),
+		Namespace:  r.module.GetNamespace(),
+		Subsystems: subsystems,
+		Decl:       decl,
+	})
+	if err != nil {
+		return nil
+	}
+
+	out := map[string]string{}
+
+	for _, render := range renders {
+		run := r.newSyncRun(modulePath, model, render)
+
+		for _, file := range model.Files {
+			if len(r.unfixable(run, file)) == 0 {
+				continue
+			}
+
+			for _, o := range file.Objects {
+				out[o.Identity()] = file.Path
+			}
+		}
+	}
+
+	return out
 }
 
 // bootstrapObject converts a rendered object of RBAC interest for the importer.
@@ -1380,6 +1561,7 @@ func bootstrapObject(object storage.StoreObject) (bootstrap.Object, bool) {
 		}
 
 		o.Automount = sa.AutomountServiceAccountToken
+		o.Undeclarable = undeclarableAccountFields(object)
 	default:
 		return o, false
 	}
@@ -1387,80 +1569,16 @@ func bootstrapObject(object storage.StoreObject) (bootstrap.Object, bool) {
 	return o, true
 }
 
-// openDecisions counts the TODO values in a written declaration; the header comment that explains
-// them does not count.
-func openDecisions(content string) int {
-	n := 0
-
-	for line := range strings.SplitSeq(content, "\n") {
-		if !strings.HasPrefix(strings.TrimSpace(line), "#") {
-			n += strings.Count(line, "TODO")
-		}
-	}
-
-	return n
-}
-
-// fixBlocked says why a fix must leave the file alone although this variant would rewrite it: a
-// render variant skipped the template, or an object it would write still renders from another file.
-func fixBlocked(modulePath, path string) error {
-	fullPath := filepath.Join(modulePath, path)
-
-	if cause, dropped := droppedCause(fullPath); dropped {
-		return fmt.Errorf("%s failed to render under some values (%s); it is not rewritten until it renders in every variant", path, cause)
-	}
-
-	if elsewhere := blockedBy(fullPath); len(elsewhere) > 0 {
-		return fmt.Errorf("%s would produce objects that still render from another file: %s; writing them here would render them twice -- move them by hand, then run `%s` again", path, strings.Join(elsewhere, ", "), FixCommand)
-	}
-
-	return nil
-}
-
-// generatedTemplates lists, relative to the module, the files under templates/ that carry the
-// generator header.
-func generatedTemplates(modulePath string) []string {
+// undeclarableAccountFields lists the fields of a rendered ServiceAccount the declaration cannot
+// carry, in a fixed order.
+func undeclarableAccountFields(object storage.StoreObject) []string {
 	var out []string
 
-	root := filepath.Join(modulePath, "templates")
-
-	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return nil //nolint:nilerr // an unreadable entry is not a generated file
-		}
-
-		// A `_<file>.generated` aside is the generator's proposal beside a hand-maintained file, not
-		// a template of the chart.
-		if base := filepath.Base(path); strings.HasPrefix(base, "_") || strings.HasSuffix(base, ".generated") {
-			return nil
-		}
-
-		if hasHeader(path) {
-			if rel, relErr := filepath.Rel(modulePath, path); relErr == nil {
-				out = append(out, filepath.ToSlash(rel))
-			}
-		}
-
-		return nil
-	})
-
-	return out
-}
-
-// renderedElsewhere lists the objects the file produces that the render shows in another file.
-func (r *SyncRule) renderedElsewhere(file generate.File) []string {
-	produced := identitiesOf(file.Objects)
-
-	var out []string
-
-	for index, object := range r.module.GetStorage() {
-		id := index.AsString()
-		if _, ok := produced[id]; ok && object.ShortPath() != file.Path {
-			out = append(out, id+" (renders from "+object.ShortPath()+")")
+	for _, field := range []string{"imagePullSecrets", "secrets"} {
+		if list, found, _ := unstructured.NestedSlice(object.Unstructured.Object, field); found && len(list) > 0 {
+			out = append(out, field)
 		}
 	}
-
-	sort.Strings(out)
 
 	return out
 }
@@ -1475,55 +1593,73 @@ func identitiesOf(objects []generate.Object) map[string]struct{} {
 	return out
 }
 
-// notTheGenerators reads the objects a generated file holds from its text -- rendered or not -- and
-// returns those the fix cannot account for: not produced into this file now, and either placed in
-// another file of the model (the fix does not move objects) or not the generator's at all. A
-// contract 2 file lists the generator's objects in its header; in a contract 1 file only a legacy
-// role or a module capability, recognized by its markers, counts as the generator's.
-func notTheGenerators(content string, produced map[string]struct{}, placed map[string]string, path string) []string {
-	owned, listed := generate.ParseOwned(content)
-
-	var out []string
-
-	for _, doc := range textDocuments(content) {
-		if _, ok := produced[doc.id]; ok {
-			continue
-		}
-
-		if where, ok := placed[doc.id]; ok && where != path {
-			out = append(out, doc.id+" (now declared in "+where+")")
-			continue
-		}
-
-		_, isOwned := owned[doc.id]
-
-		switch {
-		case listed && isOwned:
-		case !listed && doc.managed:
-		default:
-			out = append(out, doc.id)
-		}
-	}
-
-	sort.Strings(out)
-
-	return out
+// textDocument is what the lint needs to know about one object of a template's text.
+type textDocument struct {
+	id         string
+	kind, name string
+	managed    bool   // a legacy role or a module capability
+	unreadable bool   // an include, a range, a computed name: what it renders is not known
+	why        string // for an unreadable document, what made it so, for the finding
 }
 
-// textDocument is what the fix needs to know about one object of a generated file's text.
-type textDocument struct {
-	id      string
-	managed bool // a legacy role or a module capability
+// chartNameActionRe is the action a template writes the chart name with. dmt names the chart after
+// the module (the placement rule reads it so), so the lint reads the action as that name, the way
+// Helm renders it, and a namespace written as d8-{{ .Chart.Name }} is the module's own.
+var chartNameActionRe = regexp.MustCompile(`\{\{\s*\$?\.Chart\.Name\s*\}\}`)
+
+// unreadableWhy names what made a document unreadable: the first action the declaration does not
+// write, or the line the document lacks.
+func unreadableWhy(foreignLine, kind, name string) string {
+	switch {
+	case foreignLine != "":
+		return "at " + actionLine(foreignLine)
+	case kind == "":
+		return "one without a kind line"
+	case name == "":
+		return "a " + kind + " without a metadata.name line"
+	default:
+		return "a " + kind + " with the computed name " + actionLine(name)
+	}
+}
+
+// withChartName returns the text with every chart name action replaced by the module name.
+func withChartName(text, module string) string {
+	if module == "" {
+		return text
+	}
+
+	return chartNameActionRe.ReplaceAllLiteralString(text, module)
+}
+
+// actionLine is a line of a template as a finding quotes it: trimmed, and cut when it is long.
+func actionLine(line string) string {
+	const limit = 100
+
+	line = strings.TrimSpace(line)
+	if runes := []rune(line); len(runes) > limit {
+		line = string(runes[:limit]) + "..."
+	}
+
+	return "`" + line + "`"
 }
 
 var (
 	kindLineRe      = regexp.MustCompile(`^kind:\s*(\S+)\s*(#.*)?$`)
 	nameLineRe      = regexp.MustCompile(`^  name:\s*"?([^"\s#]+)"?\s*(#.*)?$`)
 	namespaceLineRe = regexp.MustCompile(`^  namespace:\s*"?([^"\s#]+)"?\s*(#.*)?$`)
-	separatorRe     = regexp.MustCompile(`(?m)^---[ \t]*(#.*)?$`)
-	// wrapperLineRe matches the lines the generator puts between objects: its conditions and
-	// their ends. Anything else outside an object is content the fix does not understand.
-	wrapperLineRe = regexp.MustCompile(`^\s*(\{\{-?\s*(if|else|end)\b[^}]*-?\}\}\s*)*$`)
+	// wrapperLineRe matches the lines the declaration writes between objects: its conditions and
+	// their ends. Anything else outside an object is content the lint does not understand.
+	wrapperLineRe = regexp.MustCompile(`^\s*(\{\{-?\s*(if|else|end)\b(?:[^}"]|"(?:[^"\\]|\\.)*")*-?\}\}\s*)*$`)
+	// abortingActionRe matches what a condition line may call that the declaration never writes: an
+	// abort of the render. An include in a condition decides whether the document renders, not
+	// what it holds, and a `when` may call one (include "<chart>.<helper>" .).
+	abortingActionRe = regexp.MustCompile(`(^|[^.\w])(fail|required)\b`)
+	// conditionActionRe matches the condition actions of a template, a string literal inside them
+	// included: {{- if <expr> }}, {{ else }}, {{ else if <expr> }}.
+	// blockActionRe matches the block actions that open, switch or close a block: if and else, the
+	// blocks without a condition of their own (range, with, define, block), and end.
+	blockActionRe     = regexp.MustCompile(`\{\{-?\s*((?:if|else|range|with|define|block)\b(?:[^}"]|"(?:[^"\\]|\\.)*")*?|end)\s*-?\}\}`)
+	conditionActionRe = regexp.MustCompile(`\{\{-?\s*((?:if|else)\b(?:[^}"]|"(?:[^"\\]|\\.)*")*?)\s*-?\}\}`)
 	// labelsLineRe is the only other template action the generator writes: the module labels, with
 	// no labels of its own or a dict of quoted literals (generate.labelsInclude). Anything else on
 	// that line -- another include, labels from the values -- is not the generator's (review of
@@ -1531,16 +1667,16 @@ var (
 	labelsLineRe = regexp.MustCompile(`^  \{\{- include "helm_lib_module_labels" \(list \.(?: \(dict(?: "(?:[^"\\]|\\.)*" "(?:[^"\\]|\\.)*")+\))?\) \| nindent 2 \}\}$`)
 )
 
-// textDocuments parses the objects of a generated file from its text: the generator writes kind,
+// textDocuments parses the objects of a template from its text: the declaration writes kind,
 // metadata.name and metadata.namespace on lines of their own. A document it cannot read -- an
-// include, a templated name, anything that is neither an object nor the generator's own
-// wrapper lines -- yields an identity that matches nothing, so the fix refuses rather than guesses.
+// include, a templated name, anything that is neither an object nor the declaration's own
+// wrapper lines -- is unreadable, and the lint keeps the fix off rather than guess.
 func textDocuments(content string) []textDocument {
 	content = strings.ReplaceAll(content, "\r\n", "\n")
 
 	var out []textDocument
 
-	for i, doc := range separatorRe.Split(content, -1) {
+	for i, doc := range bootstrap.DocSeparatorRe.Split(content, -1) {
 		var kind, name, namespace string
 
 		inMetadata := false
@@ -1549,9 +1685,14 @@ func textDocuments(content string) []textDocument {
 		// makes the document someone else's wherever it stands, after the kind line too: what it
 		// renders under other values is not in this render (review of #479, finding 31).
 		foreign := false
+		foreignLine := ""
 
 		for _, line := range strings.Split(doc, "\n") {
-			if strings.Contains(line, "{{") && !wrapperLineRe.MatchString(line) && !labelsLineRe.MatchString(line) {
+			if strings.Contains(line, "{{") && (!wrapperLineRe.MatchString(line) || abortingActionRe.MatchString(line)) && !labelsLineRe.MatchString(line) {
+				if !foreign {
+					foreignLine = line
+				}
+
 				foreign = true
 			}
 
@@ -1583,9 +1724,9 @@ func textDocuments(content string) []textDocument {
 
 		switch {
 		case kind == "" && !other && !foreign:
-			continue // the header, or the end of a conditional block
+			continue // comments, or the end of a conditional block
 		case foreign || kind == "" || name == "" || strings.Contains(name, "{{"):
-			out = append(out, textDocument{id: fmt.Sprintf("<unreadable document %d>", i)})
+			out = append(out, textDocument{id: fmt.Sprintf("<unreadable document %d>", i), unreadable: true, why: unreadableWhy(foreignLine, kind, name)})
 			continue
 		}
 
@@ -1599,27 +1740,42 @@ func textDocuments(content string) []textDocument {
 			// the generator writes the module labels through helm_lib_module_labels, as a dict
 			strings.Contains(doc, strconv.Quote(rbaccontract.LabelKind)+" "+strconv.Quote(rbaccontract.KindCapability))
 
-		out = append(out, textDocument{id: id, managed: managed})
+		out = append(out, textDocument{id: id, kind: kind, name: name, managed: managed})
 	}
 
 	return out
 }
 
-// heldElsewhere lists the objects the file produces that another generated file's text holds.
-func heldElsewhere(file generate.File, held map[string][]string) []string {
-	var out []string
+// templateTexts reads every template of the module, by path relative to the module; module is the
+// chart name its actions write (withChartName).
+func templateTexts(modulePath, module string) map[string]templateText {
+	out := map[string]templateText{}
 
-	for _, o := range file.Objects {
-		for _, path := range held[o.Identity()] {
-			if path != file.Path {
-				out = append(out, o.Identity()+" (held by "+path+")")
-			}
+	for _, path := range templateFiles(modulePath) {
+		rel, err := filepath.Rel(modulePath, path)
+		if err != nil {
+			continue // GetFiles lists paths under the module: a path outside it is not a template
 		}
+
+		content, err := os.ReadFile(path)
+		if err != nil {
+			out[filepath.ToSlash(rel)] = templateText{err: err}
+			continue
+		}
+
+		text := withChartName(string(content), module)
+		out[filepath.ToSlash(rel)] = templateText{content: text, docs: textDocuments(text)}
 	}
 
-	sort.Strings(out)
-
 	return out
+}
+
+// templateFiles lists the templates Helm renders: every file under templates/ but a partial (a
+// name starting with an underscore), which renders no objects.
+func templateFiles(modulePath string) []string {
+	return fsutils.GetFiles(filepath.Join(modulePath, "templates"), false, func(_, path string) bool {
+		return !strings.HasPrefix(filepath.Base(path), "_")
+	})
 }
 
 // replacedCopies reports a rendered object the declaration does not own that grants exactly what a
@@ -1627,35 +1783,25 @@ func heldElsewhere(file generate.File, held map[string][]string) []string {
 // another name, often in another file (the Prometheus access Roles bootstrap folds into
 // access-to-<module>). Both render, so the old copy keeps the grant alive after the declaration
 // drops it. No fix: the copy sits in a file the generator does not own.
-func (r *SyncRule) replacedCopies(model *generate.Model, actual map[string]managedObject, produced map[string]struct{}, divergences map[string][]string) map[string][]string {
-	storage := r.module.GetStorage()
+func (r *SyncRule) replacedCopies(run *syncRun, divergences map[string][]string) map[string][]string {
+	store := run.store
 
-	rendered := make(map[string]struct{}, len(storage))
-	for index := range storage {
-		rendered[index.AsString()] = struct{}{}
-	}
-
-	n := 0
-	for _, f := range model.Files {
-		n += len(f.Objects)
-	}
-
-	all := make([]generate.Object, 0, n)
-	for _, f := range model.Files {
+	all := make([]generate.Object, 0, len(run.placed))
+	for _, f := range run.model.Files {
 		all = append(all, f.Objects...)
 	}
 
 	copies := map[string]string{}
-	renderedGrantees := renderedRoleSubjects(storage)
+	renderedGrantees := renderedRoleSubjects(store)
 	declaredGrantees := modelRoleSubjects(all)
 
-	for index, object := range storage {
+	for index, object := range store {
 		id := index.AsString()
-		if _, ok := produced[id]; ok {
+		if _, ok := run.placed[id]; ok {
 			continue
 		}
 
-		if _, ok := actual[id]; ok {
+		if _, ok := run.actual[id]; ok {
 			continue
 		}
 
@@ -1664,7 +1810,7 @@ func (r *SyncRule) replacedCopies(model *generate.Model, actual map[string]manag
 			continue
 		}
 
-		if twin := renderedTwin(object, all, rendered); twin != "" {
+		if twin := renderedTwin(object, all, run.rendered); twin != "" {
 			// Equal rules alone do not make a copy: another account may need the same rights. A
 			// replaced role is granted to the subjects the declaration grants its successor to.
 			if (kind == "Role" || kind == "ClusterRole") && !shareGrantee(renderedGrantees[roleKey(kind, object.Unstructured.GetNamespace(), object.Unstructured.GetName())], declaredGrantees[twinRoleKey(all, twin)]) {
@@ -1678,13 +1824,13 @@ func (r *SyncRule) replacedCopies(model *generate.Model, actual map[string]manag
 	}
 
 	// A binding of such a copy is part of it.
-	for index, object := range storage {
+	for index, object := range store {
 		kind := object.Unstructured.GetKind()
 		if kind != "RoleBinding" && kind != "ClusterRoleBinding" {
 			continue
 		}
 
-		if _, ok := produced[index.AsString()]; ok {
+		if _, ok := run.placed[index.AsString()]; ok {
 			continue
 		}
 
@@ -1723,14 +1869,7 @@ func renderedTwin(object storage.StoreObject, produced []generate.Object, render
 				continue
 			}
 
-			got := expandRenderedRules(role.Rules)
-			always, conditional := expandModelRules(o.Rules)
-
-			for t := range conditional {
-				always.add(t)
-			}
-
-			if len(always.minus(got)) == 0 && len(got.minus(always)) == 0 {
+			if grantsExactly(o, expandRenderedRules(role.Rules)) {
 				return o.Identity()
 			}
 		case "ClusterRoleBinding", "RoleBinding":
@@ -1748,12 +1887,214 @@ func renderedTwin(object storage.StoreObject, produced []generate.Object, render
 	return ""
 }
 
-// manualFix is the fix of a finding only a person can close: nothing is generated while it
-// stands, so `--fix` must not report success (it fails with what to do).
-func manualFix(what string) errors.AutofixFunc {
-	return func() error {
-		return fmt.Errorf("nothing was generated: %s first", what)
+// compareAnnotations compares the annotations of an object the declaration writes whole: a
+// resource policy or a deploy hook dropped by a rewrite changes what Helm or werf do with it.
+// compareOwnedMetadata compares the annotations of a legacy role or a capability the declaration
+// writes -- the access level is compared with the rules, the localized texts here -- and names what
+// the format cannot hold: a rewrite would drop it, so the file gets no fix while it is there
+// (unfixable).
+func compareOwnedMetadata(expected generate.Object, actual storage.StoreObject) []string {
+	id := expected.Identity()
+	rendered := actual.Unstructured.GetAnnotations()
+
+	var out []string
+
+	if expected.Class == generate.ClassCapability {
+		for _, k := range rbaccontract.I18nAnnotations {
+			if rendered[k] != expected.Annotations[k] {
+				out = append(out, fmt.Sprintf("%s: annotation %s is %q in the render, the declaration produces %q", id, k, rendered[k], expected.Annotations[k]))
+			}
+		}
 	}
+
+	for _, key := range undeclarableMetadata(expected, actual) {
+		out = append(out, fmt.Sprintf("%s: %s is in the render, and %s cannot declare it", id, key, rbacyaml.Filename))
+	}
+
+	return out
+}
+
+// undeclarableMetadata lists the labels and annotations of a rendered legacy role or capability
+// that the declaration has no field for: Helm's and helm_lib's aside, a legacy role carries only its
+// access level, a capability only the labels of the role model, its labels of the module and its
+// localized texts.
+func undeclarableMetadata(expected generate.Object, actual storage.StoreObject) []string {
+	var out []string
+
+	for _, k := range slices.Sorted(maps.Keys(actual.Unstructured.GetLabels())) {
+		switch {
+		case moduleLabels[k]:
+		case expected.Class == generate.ClassCapability && !strings.HasPrefix(k, "rbac.deckhouse.io/"):
+			// A label of the module: compared by compareCapabilityLabels, declared in capabilities.
+		case expected.Class == generate.ClassCapability && (aggregateLabelRe.MatchString(k) || expected.Labels[k] != ""):
+		default:
+			out = append(out, "label "+k)
+		}
+	}
+
+	for _, k := range slices.Sorted(maps.Keys(actual.Unstructured.GetAnnotations())) {
+		if strings.HasPrefix(k, "meta.helm.sh/") || expected.Annotations[k] != "" {
+			continue
+		}
+
+		if expected.Class == generate.ClassCapability && slices.Contains(rbaccontract.I18nAnnotations, k) {
+			continue
+		}
+
+		out = append(out, "annotation "+k)
+	}
+
+	return out
+}
+
+func compareAnnotations(expected generate.Object, actual storage.StoreObject) []string {
+	id := expected.Identity()
+	rendered := actual.Unstructured.GetAnnotations()
+
+	var out []string
+
+	for _, k := range slices.Sorted(maps.Keys(rendered)) {
+		// Helm's release annotations and the generator's own are nobody's to declare.
+		if strings.HasPrefix(k, "meta.helm.sh/") || strings.HasPrefix(k, "rbac.deckhouse.io/") {
+			continue
+		}
+
+		if want, ok := expected.Annotations[k]; !ok {
+			out = append(out, fmt.Sprintf("%s: annotation %s is in the render but not declared", id, k))
+		} else if want != rendered[k] {
+			out = append(out, fmt.Sprintf("%s: annotation %s is %q in the render, the declaration produces %q", id, k, rendered[k], want))
+		}
+	}
+
+	for _, k := range slices.Sorted(maps.Keys(expected.Annotations)) {
+		if _, ok := rendered[k]; !ok {
+			out = append(out, fmt.Sprintf("%s: annotation %s is declared but absent from the render", id, k))
+		}
+	}
+
+	return out
+}
+
+// locateInTemplate reads the template blocks around a rendered object from its template's text:
+// the render only holds what rendered for the linter's values, the text holds the conditions.
+func locateInTemplate(modulePath string, o *bootstrap.Object, cache map[string][]bootstrap.Doc) {
+	// A subchart's template is written against the subchart's values, and the generator writes
+	// the module's own templates: the declaration has no place for its objects.
+	if strings.HasPrefix(o.Path, "charts/") {
+		o.Located = true
+		o.Unmanageable = "rendered by the subchart " + strings.SplitN(o.Path, "/", 3)[1] + ", whose templates and values are its own"
+
+		return
+	}
+
+	docs, ok := cache[o.Path]
+	if !ok {
+		if content, err := os.ReadFile(filepath.Join(modulePath, o.Path)); err == nil {
+			docs = bootstrap.TemplateDocs(string(content))
+		}
+
+		cache[o.Path] = docs
+	}
+
+	d, found := bootstrap.Locate(docs, *o)
+	if !found {
+		return
+	}
+
+	o.Located = true
+	o.When, o.Unmanageable, o.Partial = d.When, d.Unmanageable, d.Partial
+
+	o.Library = d.Library
+
+	if d.Library && o.Unmanageable == "" {
+		o.Unmanageable = "rendered by an include of a named template (helm_lib or another chart), which owns it"
+	}
+}
+
+// rbacKinds are the kinds bootstrap describes.
+var rbacKinds = map[string]bool{"ClusterRole": true, "ClusterRoleBinding": true, "Role": true, "RoleBinding": true, "ServiceAccount": true}
+
+// unrenderedObjects lists the RBAC objects with a literal name that the module's templates hold
+// and no render showed: an object under a condition false for the linter's values would
+// otherwise be left out of the first declaration without a word, and the rewrite would drop
+// it. Only the text can tell; a computed name is not followed.
+func unrenderedObjects(modulePath string, rendered []bootstrap.Object) []string {
+	var out []string
+
+	for _, path := range templateFiles(modulePath) {
+		content, err := os.ReadFile(path)
+		if err != nil {
+			continue // an unreadable template is not the importer's to report
+		}
+
+		rel, err := filepath.Rel(modulePath, path)
+		if err != nil {
+			continue
+		}
+
+		for _, doc := range bootstrap.TemplateDocs(string(content)) {
+			if !rbacKinds[doc.Kind] || doc.Unmanageable != "" || renderedAs(doc, rel, rendered) {
+				continue
+			}
+
+			// A computed name is listed as the template writes it: the person adds the objects it
+			// produces (review of #479, finding 34).
+			var entry string
+
+			switch {
+			case doc.Name != "":
+				entry = fmt.Sprintf("%s/%s (%s", doc.Kind, doc.Name, rel)
+			case doc.NameTemplate != "":
+				entry = fmt.Sprintf("a %s with the computed name %s (%s", doc.Kind, doc.NameTemplate, rel)
+			default:
+				continue
+			}
+
+			if doc.When != "" {
+				entry += ", under `" + doc.When + "`"
+			}
+
+			out = append(out, entry+")")
+		}
+	}
+
+	sort.Strings(out)
+
+	return out
+}
+
+// moduleLabels are the labels helm_lib_module_labels writes on every object; the declaration
+// names the others.
+var moduleLabels = map[string]bool{rbaccontract.LabelHeritage: true, rbaccontract.LabelModule: true}
+
+// compareLabels compares the labels of an object the declaration writes whole: an aggregation
+// label or a part-of label the declaration does not carry would be dropped by the next
+// rewrite, and an aggregation label is a right.
+func compareLabels(expected generate.Object, actual storage.StoreObject) []string {
+	id := expected.Identity()
+	rendered := actual.Unstructured.GetLabels()
+
+	var out []string
+
+	for _, k := range slices.Sorted(maps.Keys(rendered)) {
+		if moduleLabels[k] {
+			continue
+		}
+
+		if want, ok := expected.Labels[k]; !ok {
+			out = append(out, fmt.Sprintf("%s: label %s is in the render but not declared", id, k))
+		} else if want != rendered[k] {
+			out = append(out, fmt.Sprintf("%s: label %s is %q in the render, the declaration produces %q", id, k, rendered[k], want))
+		}
+	}
+
+	for _, k := range slices.Sorted(maps.Keys(expected.Labels)) {
+		if _, ok := rendered[k]; !ok && !moduleLabels[k] {
+			out = append(out, fmt.Sprintf("%s: label %s is declared but absent from the render", id, k))
+		}
+	}
+
+	return out
 }
 
 // roleKey names a role as bindings refer to it: a Role with its namespace, a ClusterRole without.
@@ -1832,13 +2173,14 @@ func shareGrantee(a, b map[string]bool) bool {
 	return false
 }
 
-// splitChanges sorts the divergences of a regenerated file into what the regeneration adds (the
+// splitChanges sorts the divergences of a rewritten file into what the rewrite adds (the
 // declaration names it, the render lacks it) and everything else, which it removes or changes.
 func splitChanges(divergences []string) ([]string, []string) {
-	var added, removed []string
+	// Empty, not nil: the log prints a nil slice as an error of its own.
+	added, removed := []string{}, []string{}
 
 	for _, d := range divergences {
-		if strings.Contains(d, "is declared but absent from the render") {
+		if strings.Contains(d, "is declared but absent from the render") || strings.HasPrefix(d, "the file does not exist") {
 			added = append(added, d)
 		} else {
 			removed = append(removed, d)
@@ -1848,105 +2190,16 @@ func splitChanges(divergences []string) ([]string, []string) {
 	return added, removed
 }
 
-// writeBootstrapped writes the declaration bootstrap produced and says what is left for a person.
-// A declaration that does not parse would be a bug of dmt; it is written all the same, so the
-// module's developer sees the file and the parse error rather than nothing.
-func writeBootstrapped(path string, content []byte, crds []crdInfo, in bootstrap.Input) error {
+// writeBootstrapped writes the declaration bootstrap produced. Its TODOs are for the lint that
+// follows --fix to report: the fix did its work. A declaration that does not parse would be a bug
+// of dmt; the next lint reports it with the line, and the module's developer fixes the line and
+// goes on instead of waiting for a dmt release.
+func writeBootstrapped(path string, content []byte) error {
 	if err := writeFileAtomic(path, content, 0o644); err != nil { //nolint:gosec // a source file of the module
-		return err
-	}
-
-	if _, err := rbacyaml.Parse(content); err != nil {
-		return fmt.Errorf("%s is written, but it does not parse: %w; this is a bug of dmt, report it with the module", rbacyaml.Filename, err)
-	}
-
-	// The file is written, but a TODO in it is a decision nobody has made yet: the finding stays,
-	// and so does the non-zero exit, until a person makes it (ADR, bootstrap). What the linter
-	// would refuse in the written file is named here too, rather than on the next run.
-	problems := writtenProblems(content, crds, in)
-
-	if open := openDecisions(string(content)); open > 0 {
-		return fmt.Errorf("%s is written; %d TODO in it are decisions only a person can make%s -- resolve them, then run `%s` to regenerate the templates", rbacyaml.Filename, open, problems, FixCommand)
-	}
-
-	if problems != "" {
-		return fmt.Errorf("%s is written%s -- correct it, then run `%s` to regenerate the templates", rbacyaml.Filename, problems, FixCommand)
+		return fmt.Errorf("write %s: %w", rbacyaml.Filename, err)
 	}
 
 	return nil
-}
-
-// writtenProblems lists what the linter refuses in a declaration bootstrap wrote, the TODO
-// values aside: they are counted on their own.
-func writtenProblems(content []byte, crds []crdInfo, in bootstrap.Input) string {
-	decl, err := rbacyaml.Parse(content)
-	if err != nil {
-		return "; it does not parse: " + err.Error()
-	}
-
-	var problems []string
-
-	for _, e := range rbacyaml.Validate(decl, crdScopes(crds)) {
-		if !strings.Contains(e.Error(), "TODO") {
-			problems = append(problems, e.Error())
-		}
-	}
-
-	if len(problems) == 0 {
-		if _, err := generate.Build(generate.Input{Module: in.Module, Namespace: in.Namespace, Subsystems: in.Subsystems, Decl: decl}); err != nil && !strings.Contains(err.Error(), "TODO") {
-			problems = append(problems, err.Error())
-		}
-	}
-
-	if len(problems) == 0 {
-		return ""
-	}
-
-	return "; the linter refuses: " + strings.Join(problems, "; ")
-}
-
-var (
-	// includeRe finds an include of a named template (or the template action) in a document.
-	includeRe = regexp.MustCompile(`\{\{-?\s*(include|template)\s+"`)
-	// rawNameLineRe is a metadata name as written, computed or not.
-	rawNameLineRe = regexp.MustCompile(`^  name:\s*(.+?)\s*$`)
-	actionRe      = regexp.MustCompile(`\{\{.*?\}\}`)
-)
-
-// renderedByInclude reports whether the template renders the object through an include of a
-// named template -- helm_lib_csi_controller_rbac, typically -- rather than through a document of
-// its own: no document of the object's kind names it (literally or with a computed name), and a
-// document without a kind of its own includes a template.
-func renderedByInclude(content, kind, name string) bool {
-	include := false
-
-	for _, doc := range separatorRe.Split(strings.ReplaceAll(content, "\r\n", "\n"), -1) {
-		var docKind, docName string
-
-		for _, line := range strings.Split(doc, "\n") {
-			if m := kindLineRe.FindStringSubmatch(line); m != nil && docKind == "" {
-				docKind = m[1]
-			}
-
-			if m := rawNameLineRe.FindStringSubmatch(line); m != nil && docName == "" {
-				docName = m[1]
-				if i := strings.Index(docName, " #"); i >= 0 && !strings.Contains(docName, "{{") {
-					docName = strings.TrimSpace(docName[:i])
-				}
-
-				docName = strings.Trim(docName, `"'`)
-			}
-		}
-
-		switch {
-		case docKind == "":
-			include = include || includeRe.MatchString(doc)
-		case docKind == kind && namesMatch(docName, name):
-			return false
-		}
-	}
-
-	return include
 }
 
 // markLibraryFiles marks the objects of a template that also renders a library's objects: the
@@ -1965,112 +2218,23 @@ func markLibraryFiles(objects []bootstrap.Object) {
 	}
 }
 
-// namesMatch reports whether a metadata name as the template writes it can be the rendered name:
-// equal, or with every action of a computed name standing for any text.
-func namesMatch(written, rendered string) bool {
-	if !strings.Contains(written, "{{") {
-		return written == rendered
-	}
-
-	var b strings.Builder
-
-	b.WriteString("^")
-
-	last := 0
-	for _, m := range actionRe.FindAllStringIndex(written, -1) {
-		b.WriteString(regexp.QuoteMeta(written[last:m[0]]))
-		b.WriteString(".*")
-
-		last = m[1]
-	}
-
-	b.WriteString(regexp.QuoteMeta(written[last:]) + "$")
-
-	re, err := regexp.Compile(b.String())
-
-	return err == nil && re.MatchString(rendered)
-}
-
-// renderedInRange reports whether the object's document sits inside a {{ range }} of its
-// template: one document renders several objects, and the declaration would freeze the one this
-// render produced under its literal name (istio's istiod-<version>). The template is read with
-// text/template/parse, not with patterns; a template that does not parse tells nothing.
-func renderedInRange(content, kind, name string) bool {
-	content = strings.ReplaceAll(content, "\r\n", "\n")
-
-	offset := documentOffset(content, kind, name)
-	if offset < 0 {
-		return false
-	}
-
-	tree := parse.New("template")
-	tree.Mode = parse.SkipFuncCheck
-
-	if _, err := tree.Parse(content, "", "", map[string]*parse.Tree{}); err != nil || tree.Root == nil {
-		return false
-	}
-
-	return inRange(tree.Root, offset, false)
-}
-
-// documentOffset is the offset of the metadata name line of the object's document, or -1.
-func documentOffset(content, kind, name string) int {
-	start := 0
-
-	for _, bounds := range append(separatorRe.FindAllStringIndex(content, -1), []int{len(content), len(content)}) {
-		doc := content[start:bounds[0]]
-		docStart := start
-		start = bounds[1]
-
-		var docKind string
-
-		offset, lineStart := -1, docStart
-
-		for _, line := range strings.SplitAfter(doc, "\n") {
-			trimmed := strings.TrimRight(line, "\n")
-
-			if m := kindLineRe.FindStringSubmatch(trimmed); m != nil && docKind == "" {
-				docKind = m[1]
-			}
-
-			if m := rawNameLineRe.FindStringSubmatch(trimmed); m != nil && offset < 0 && namesMatch(strings.Trim(m[1], `"'`), name) {
-				offset = lineStart
-			}
-
-			lineStart += len(line)
+// renderedAs reports whether a rendered object comes from the document: rendered from the same
+// template, in the namespace the document names if it names one, under its literal name or a name
+// its computed name can produce. An object of another template is not the document's, whatever
+// its name (review of #480).
+func renderedAs(doc bootstrap.Doc, path string, rendered []bootstrap.Object) bool {
+	for _, o := range rendered {
+		if o.Kind != doc.Kind || o.Path != path {
+			continue
 		}
 
-		if docKind == kind && offset >= 0 {
-			return offset
-		}
-	}
-
-	return -1
-}
-
-// inRange reports whether the text at offset lies in the body of a range.
-func inRange(node parse.Node, offset int, ranged bool) bool {
-	switch n := node.(type) {
-	case *parse.ListNode:
-		if n == nil {
-			return false
+		if doc.Namespace != "" && o.Namespace != "" && doc.Namespace != o.Namespace {
+			continue
 		}
 
-		for _, c := range n.Nodes {
-			if inRange(c, offset, ranged) {
-				return true
-			}
+		if (doc.Name != "" && o.Name == doc.Name) || (doc.NamePattern != nil && doc.NamePattern.MatchString(o.Name)) {
+			return true
 		}
-	case *parse.TextNode:
-		start := int(n.Position())
-
-		return ranged && offset >= start && offset < start+len(n.Text)
-	case *parse.IfNode:
-		return inRange(n.List, offset, ranged) || inRange(n.ElseList, offset, ranged)
-	case *parse.WithNode:
-		return inRange(n.List, offset, ranged) || inRange(n.ElseList, offset, ranged)
-	case *parse.RangeNode:
-		return inRange(n.List, offset, true) || inRange(n.ElseList, offset, ranged)
 	}
 
 	return false

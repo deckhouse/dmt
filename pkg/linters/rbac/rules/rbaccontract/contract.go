@@ -27,6 +27,8 @@ package rbaccontract
 import (
 	"slices"
 	"strings"
+
+	"github.com/iancoleman/strcase"
 )
 
 // Label and annotation keys of the role model
@@ -80,15 +82,17 @@ const (
 )
 
 // Subsystems are the lineages of the subsystem roles d8:subsystem:<name>:<level>
-// (modules/140-user-authz/templates/rbacv2/global/subsystem/roles/<name>/).
+// (modules/140-user-authz/templates/rbacv2/global/subsystem/roles/<name>/). The legacy scheme's
+// deckhouse, infrastructure and kubernetes are cluster in this list, and its networking is network.
 var Subsystems = []string{
-	"deckhouse",
-	"infrastructure",
-	"kubernetes",
-	"networking",
-	"observability",
+	"iam",
 	"security",
+	"cluster",
+	"delivery",
+	"network",
 	"storage",
+	"observability",
+	"managed-services",
 }
 
 // Levels a capability may aggregate to, per lineage. The namespace lineage carries the full
@@ -103,30 +107,10 @@ var (
 	ProjectLevels = slices.Clone(NamespaceLevels)
 )
 
-// ContractVersion is the version of the platform contract the generator writes templates for. It is
-// recorded in the header of every generated file, so that a file produced under an older contract
-// is recognizable after the contract changes. Bump it when the generated shape changes.
-const ContractVersion = "2"
-
 // LegacyKebab returns the name suffix of the legacy ClusterRole for an access level, as the
 // modules spell it today (d8:user-authz:<module>:cluster-editor for ClusterEditor).
 func LegacyKebab(level string) string {
-	var b []byte
-
-	for i := 0; i < len(level); i++ {
-		c := level[i]
-		if c >= 'A' && c <= 'Z' {
-			if i > 0 {
-				b = append(b, '-')
-			}
-
-			c += 'a' - 'A'
-		}
-
-		b = append(b, c)
-	}
-
-	return string(b)
+	return strcase.ToKebab(level)
 }
 
 // LegacyLevels is the access-level enum of ClusterAuthorizationRule
@@ -143,16 +127,6 @@ var Verbs = append(slices.Clone(ResourceVerbs), "*")
 // ResourceVerbs are the verbs a rule may list, without the wildcard.
 var ResourceVerbs = []string{"get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"}
 
-// AllLineages returns every lineage a capability label may name: the three base lineages and
-// the seven subsystems.
-func AllLineages() []string {
-	out := make([]string, 0, 3+len(Subsystems))
-	out = append(out, LineageNamespace, LineageProject, LineageSystem)
-	out = append(out, Subsystems...)
-
-	return out
-}
-
 // LevelsOf returns the levels the given lineage accepts, or nil for an unknown lineage.
 func LevelsOf(lineage string) []string {
 	switch lineage {
@@ -164,18 +138,31 @@ func LevelsOf(lineage string) []string {
 		return SystemLevels
 	}
 
-	for _, s := range Subsystems {
-		if s == lineage {
-			return SystemLevels
-		}
+	if IsSubsystem(lineage) {
+		return SystemLevels
 	}
 
 	return nil
 }
 
-// IsSubsystem reports whether the name is one of the seven subsystems.
+// IsSubsystem reports whether the name is one of the subsystems the platform ships.
 func IsSubsystem(name string) bool {
 	return slices.Contains(Subsystems, name)
+}
+
+// ReplacementOf returns the subsystem of the role model that took over a subsystem of the legacy
+// scheme the role model no longer has: deckhouse, infrastructure and kubernetes went into cluster,
+// and networking is network. It reports false for any other name, including observability,
+// security and storage, which kept their names.
+func ReplacementOf(name string) (string, bool) {
+	switch name {
+	case "deckhouse", "infrastructure", "kubernetes":
+		return "cluster", true
+	case "networking":
+		return "network", true
+	}
+
+	return "", false
 }
 
 // CapabilityAction maps a level to the action suffix of the capability it produces:
@@ -211,10 +198,6 @@ func LevelOfAction(action string) string {
 func BindingSuffix(roleName string) string {
 	return strings.ReplaceAll(strings.TrimPrefix(roleName, "d8:"), ":", "-")
 }
-
-// ConventionalActions are the capability actions whose localized texts come from the platform
-// convention and need no capabilities entry in rbac.yaml.
-var ConventionalActions = []string{"view", "edit"}
 
 // IsConventionalAction reports whether the texts of a capability with this action are supplied
 // by the platform (view/edit) rather than by the declaration.
@@ -267,8 +250,19 @@ func IsLegacyKind(kind string) bool {
 	return kind == KindLegacyUse || kind == KindLegacyManage
 }
 
-// DeckhouseNamespaces are the namespaces the placement rule treats as the platform's own: there an
-// account of templates/<dir>/ may carry the module name in front of the directory.
+// AccessRoleName is the Role and RoleBinding name of a namespace access entry. The placement rule
+// wants access-to-<module>-... in templates/rbac-to-us.yaml and access-to-<directory>-... in
+// templates/<directory>/rbac-to-us.yaml.
+func AccessRoleName(module, path, name string) string {
+	if path == "" {
+		return "access-to-" + module + "-" + name
+	}
+
+	return "access-to-" + strings.ReplaceAll(path, "/", "-") + "-" + name
+}
+
+// DeckhouseNamespaces are the namespaces the placement rule treats as the platform's own: an
+// object there is named after the module as well as after its directory.
 //
 // TODO: remove the entries after d8-system once the RBAC object names are fixed.
 var DeckhouseNamespaces = []string{"d8-monitoring", "d8-system", "d8-admission-policy-engine", "d8-operator-trivy", "d8-log-shipper", "d8-local-path-provisioner"}
@@ -276,4 +270,53 @@ var DeckhouseNamespaces = []string{"d8-monitoring", "d8-system", "d8-admission-p
 // IsDeckhouseNamespace reports whether the namespace is one of DeckhouseNamespaces.
 func IsDeckhouseNamespace(ns string) bool {
 	return slices.Contains(DeckhouseNamespaces, ns)
+}
+
+// AccountRoleName is the Role and RoleBinding name of an account's namespaceRules. The placement
+// rule wants the objects of templates/<a>/<b>/rbac-for-us.yaml to start with a:b (or
+// <module>:a:b for an account named after the module); at the root the account's own name.
+func AccountRoleName(module, path, account string) string {
+	if path == "" {
+		return account
+	}
+
+	dirs := strings.ReplaceAll(path, "/", ":")
+	if account == module+"-"+strings.ReplaceAll(path, "/", "-") {
+		return module + ":" + dirs
+	}
+
+	return dirs
+}
+
+// AccountForeignBindingPrefix is the prefix of an account's RoleBindings in other namespaces
+// (bindRoles): d8:<module>:<account> at the root, d8:<module>:<a>:<b> for templates/<a>/<b>/.
+func AccountForeignBindingPrefix(module, path, account string) string {
+	if path == "" {
+		return "d8:" + module + ":" + account
+	}
+
+	return "d8:" + module + ":" + strings.ReplaceAll(path, "/", ":")
+}
+
+// AccountForeignBindingName is the name of an account's RoleBinding to the Role roleName in the
+// namespace ns (bindRoles), as the placement rule wants it: the prefix d8:<module>:<x> in default
+// and kube-system, <module>:<x> in the platform namespaces (DeckhouseNamespaces). A role the module
+// already names after the account under either prefix lends the binding the rest of its name, so
+// the module and the account are not named twice and a binding named like its role keeps the name.
+func AccountForeignBindingName(module, path, account, ns, roleName string) string {
+	system := AccountForeignBindingPrefix(module, path, account)
+	platform := strings.TrimPrefix(system, "d8:")
+
+	prefix := system
+	if IsDeckhouseNamespace(ns) {
+		prefix = platform
+	}
+
+	for _, own := range []string{system, platform} {
+		if rest, ok := strings.CutPrefix(roleName, own+":"); ok && rest != "" {
+			return prefix + ":" + BindingSuffix(rest)
+		}
+	}
+
+	return prefix + ":" + BindingSuffix(roleName)
 }

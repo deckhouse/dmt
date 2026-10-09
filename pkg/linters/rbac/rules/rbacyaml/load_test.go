@@ -338,9 +338,47 @@ noAccess: nobody`),
 			yaml: entry(`group: external.io
 resource: "*/scale"
 scope: Namespaced
+reason: the resources of the group are not known statically
 noAccess: nobody`),
 			crds:    certManagerCRDs,
 			wantErr: "",
+		},
+		"regression hunt B12: the wildcard of a subresource needs a reason, as \"*\" does": {
+			yaml: entry(`group: external.io
+resource: "*/scale"
+scope: Namespaced
+noAccess: nobody`),
+			crds:    certManagerCRDs,
+			wantErr: `resource "*/scale" requires reason`,
+		},
+		"regression hunt B12: the wildcard of a subresource in a group of the module": {
+			yaml: entry(`group: cert-manager.io
+resource: "*/status"
+reason: every status
+noAccess: nobody`),
+			crds:    certManagerCRDs,
+			wantErr: `resource "*/status" is allowed only for a group the module ships no CRD for`,
+		},
+		"regression hunt B12: a built-in resource under the wrong scope": {
+			yaml: entry(`group: ""
+resource: nodes
+scope: Namespaced
+noAccess: nobody`),
+			wantErr: `scope "Namespaced" disagrees with Kubernetes, which serves /nodes as "Cluster"`,
+		},
+		"regression hunt 2 B7: namespaces declared Namespaced on purpose": {
+			yaml: entry(`group: ""
+resource: namespaces
+scope: Namespaced
+namespace: {viewer: [get]}`),
+			wantErr: "",
+		},
+		"regression hunt B12: no dot in a resource name": {
+			yaml: entry(`group: external.io
+resource: things.v1
+scope: Namespaced
+noAccess: nobody`),
+			wantErr: `resource "things.v1" is not a resource name`,
 		},
 		"review 6: a resource name with a space": {
 			yaml: entry(`group: external.io
@@ -463,9 +501,13 @@ func TestValidate_TopLevel(t *testing.T) {
 			yaml:    "resources: []\n",
 			wantErr: `apiVersion must be "rbac.deckhouse.io/v1alpha1", got ""`,
 		},
-		"subsystems: not a subsystem": {
-			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\nsubsystems: [networking, billing]\n",
-			wantErr: `subsystems: "billing" is not a subsystem of the role model`,
+		"subsystems: the key is no longer read": {
+			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\nsubsystems: [network, billing]\n",
+			wantErr: "subsystems: rbac.yaml no longer sets the subsystems; the system capabilities aggregate into the subsystems of module.yaml, which testing/rbacv2 in deckhouse holds equal to the lineages they carry; declare billing, network in module.yaml subsystems and remove subsystems from rbac.yaml",
+		},
+		"subsystems: a subsystem of the legacy scheme is named by its replacement": {
+			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\nsubsystems: [cluster, kubernetes]\n",
+			wantErr: "declare cluster in module.yaml subsystems and remove subsystems from rbac.yaml",
 		},
 		"duplicate resource entry": {
 			yaml: "apiVersion: rbac.deckhouse.io/v1alpha1\nresources:\n" +
@@ -478,12 +520,13 @@ func TestValidate_TopLevel(t *testing.T) {
 			wantErr: `"namespace.view" needs no texts`,
 		},
 		"capabilities: missing ru": {
-			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\ncapabilities:\n  namespace.admin: {title: {en: a}, description: {en: c, ru: d}}\n",
+			yaml: "apiVersion: rbac.deckhouse.io/v1alpha1\ncapabilities:\n  namespace.admin: {title: {en: a}, description: {en: c, ru: d}}\n" +
+				"resources:\n  - {group: x.io, resource: things, scope: Namespaced, namespace: {admin: [get]}}\n",
 			wantErr: "namespace.admin.title requires both en and ru",
 		},
 		"capabilities: bad key": {
 			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\ncapabilities:\n  project.admin: {title: {en: a, ru: b}, description: {en: c, ru: d}}\n",
-			wantErr: `key "project.admin" must be "namespace.<level>" or "system.<level>"`,
+			wantErr: `key "project.admin" must be "namespace.<action>" or "system.<action>"`,
 		},
 		"access: both rule kinds": {
 			yaml: "apiVersion: rbac.deckhouse.io/v1alpha1\naccess:\n  - name: x\n    subjects: [{kind: Group, name: g}]\n" +
@@ -512,7 +555,8 @@ func TestValidate_TopLevel(t *testing.T) {
 			wantErr: "prometheusAccess: when",
 		},
 		"review 13a: a template delimiter in a capability text": {
-			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\ncapabilities:\n  namespace.admin: {title: {en: 'Use {{ .Values.x }}', ru: b}, description: {en: c, ru: d}}\n",
+			yaml: "apiVersion: rbac.deckhouse.io/v1alpha1\ncapabilities:\n  namespace.admin: {title: {en: 'Use {{ .Values.x }}', ru: b}, description: {en: c, ru: d}}\n" +
+				"resources:\n  - {group: x.io, resource: things, scope: Namespaced, namespace: {admin: [get]}}\n",
 			wantErr: `capabilities.namespace.admin.title.en: "Use {{ .Values.x }}" holds a template delimiter`,
 		},
 		"prometheusAccess: empty": {
@@ -529,6 +573,213 @@ func TestValidate_TopLevel(t *testing.T) {
 			assert.Contains(t, errs[0].Error(), tc.wantErr)
 		})
 	}
+}
+
+// A capability with an action of its own names the level it aggregates into, and any capability
+// may carry labels of the module (ADR author, 2026-09-28: arbitrary actions are allowed, and a role
+// of the module outside the role model aggregates capabilities by a label of the module).
+func TestValidate_CapabilityActions(t *testing.T) {
+	const texts = "title: {en: a, ru: b}, description: {en: c, ru: d}"
+
+	grant := func(key string) string {
+		return "resources:\n  - {group: x.io, resource: things, scope: Namespaced, namespace: {" + key + ": [get]}}\n"
+	}
+
+	for name, tc := range map[string]struct {
+		yaml     string
+		wantErrs []string
+	}{
+		"an action of its own with a level and labels": {
+			yaml: grant("download") + "capabilities:\n  namespace.download: {level: viewer, labels: {x.deckhouse.io/agent: \"true\"}, " + texts + "}\n",
+		},
+		"view with labels only": {
+			yaml: grant("viewer") + "capabilities:\n  namespace.view: {labels: {x.deckhouse.io/agent: \"true\"}}\n",
+		},
+		"system view with labels, always produced": {
+			yaml: "capabilities:\n  system.view: {labels: {x.deckhouse.io/agent: \"true\"}}\n",
+		},
+		"namespace view with labels nobody grants": {
+			yaml:     "capabilities:\n  namespace.view: {labels: {x.deckhouse.io/agent: \"true\"}}\n",
+			wantErrs: []string{`capabilities: "namespace.view" is described, but no resource entry grants it`},
+		},
+		"a key that is neither a level nor a declared action": {
+			yaml:     grant("download"),
+			wantErrs: []string{`resources[0] (x.io/things): namespace level "download" is not valid; the namespace levels are viewer, user, manager, admin, superadmin, or the action of a capability that capabilities gives a level (namespace.download: {level: ...})`},
+		},
+		"an action of its own without a level": {
+			yaml: grant("download") + "capabilities:\n  namespace.download: {" + texts + "}\n",
+			wantErrs: []string{
+				`capabilities: "namespace.download" is an action of its own and needs the level it aggregates into (level: one of viewer, user, manager, admin, superadmin)`,
+			},
+		},
+		"an action of its own without texts": {
+			yaml:     grant("download") + "capabilities:\n  namespace.download: {level: viewer}\n",
+			wantErrs: []string{"namespace.download.title requires both en and ru", "namespace.download.description requires both en and ru", `"namespace.download" is used by a resource entry but has no title and description`},
+		},
+		"a level for the capability of a level": {
+			yaml:     grant("admin") + "capabilities:\n  namespace.admin: {level: admin, " + texts + "}\n",
+			wantErrs: []string{`capabilities: "namespace.admin" is the capability of namespace level "admin"; level is only for an action of its own`},
+		},
+		"a level name as an action": {
+			yaml:     grant("viewer") + "capabilities:\n  namespace.viewer: {level: viewer, " + texts + "}\n",
+			wantErrs: []string{`capabilities: "namespace.viewer": "viewer" is a level, whose capability is namespace.view`},
+		},
+		"an action that is not snake case": {
+			yaml:     "capabilities:\n  namespace.Download: {level: viewer, " + texts + "}\n",
+			wantErrs: []string{`capabilities: "namespace.Download": the action must be lowercase letters`, `capabilities: "namespace.Download" is described, but no resource entry grants it`},
+		},
+		"a level the lineage does not have": {
+			yaml:     "resources:\n  - {group: x.io, resource: things, scope: Cluster, system: {download: [get]}}\ncapabilities:\n  system.download: {level: admin, " + texts + "}\n",
+			wantErrs: []string{`capabilities: system.download.level "admin" is not valid; the system levels are viewer, manager, superadmin`},
+		},
+		"view as a key of a resource": {
+			yaml:     grant("view"),
+			wantErrs: []string{`resources[0] (x.io/things): namespace level "view" is not valid; the capability namespace.view is granted by the level "viewer"`},
+		},
+		"labels dmt writes, and a bad value": {
+			yaml: grant("viewer") + "capabilities:\n  namespace.view: {labels: {rbac.deckhouse.io/aggregate-to-x-as: member, module: other, heritage: other, x.deckhouse.io/agent: \"not ok\"}}\n",
+			wantErrs: []string{
+				`capabilities: namespace.view.labels: "rbac.deckhouse.io/aggregate-to-x-as" is set by dmt, not by the declaration`,
+				`capabilities: namespace.view.labels: "module" is set by dmt, not by the declaration`,
+				`capabilities: namespace.view.labels: "heritage" is set by dmt, not by the declaration`,
+				`capabilities: namespace.view.labels: "x.deckhouse.io/agent": "not ok" is not a valid label value`,
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			decl, err := Parse([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\n" + tc.yaml))
+			require.NoError(t, err)
+
+			errs := Validate(decl, nil)
+
+			got := make([]string, 0, len(errs))
+			for _, e := range errs {
+				got = append(got, e.Error())
+			}
+
+			require.Len(t, got, len(tc.wantErrs), "errors: %v", got)
+
+			for _, want := range tc.wantErrs {
+				assert.Contains(t, strings.Join(got, "\n"), want)
+			}
+		})
+	}
+}
+
+// A component path, the name of an access entry or of an extra role, and a `when` are held to what the
+// rewrite writes and the lint reads back (review of #480).
+func TestValidate_NamesPathsAndConditions(t *testing.T) {
+	for name, tc := range map[string]struct {
+		yaml    string
+		wantErr string
+	}{
+		"double slash in a path": {
+			yaml:    "access:\n  - {name: x, path: a//b, subjects: [{kind: Group, name: g}], namespaceRules: [{apiGroups: [a], resources: [b], verbs: [get]}]}\n",
+			wantErr: `access[0] (x): path must be a directory under templates/ of lowercase names joined by single slashes (a or a/b), got "a//b"`,
+		},
+		"dot segment in a path": {
+			yaml:    "serviceAccounts:\n  - {name: a, path: ./a}\n",
+			wantErr: `path must be a directory under templates/ of lowercase names joined by single slashes (a or a/b), got "./a"`,
+		},
+		"access name with a space": {
+			yaml:    "access:\n  - {name: a b, subjects: [{kind: Group, name: g}], clusterRules: [{apiGroups: [a], resources: [b], verbs: [get]}]}\n",
+			wantErr: `access[0] (a b): "a b" is not a valid role name`,
+		},
+		"access name with a colon is a role name": {
+			yaml:    "access:\n  - {name: a:b, subjects: [{kind: Group, name: g}], clusterRules: [{apiGroups: [a], resources: [b], verbs: [get]}]}\n  - {name: x/y, subjects: [{kind: Group, name: g}], clusterRules: [{apiGroups: [a], resources: [b], verbs: [get]}]}\n",
+			wantErr: `access[1] (x/y): "x/y" is not a valid role name`,
+		},
+		"extra role name with a slash": {
+			yaml:    "serviceAccounts:\n  - {name: a, extraClusterRoles: [{name: x/y, rules: [{apiGroups: [a], resources: [b], verbs: [get]}]}]}\n",
+			wantErr: `serviceAccounts[0] (a).extraClusterRoles[0]: "x/y" is not a valid role name`,
+		},
+		"a label value with a space": {
+			yaml:    "serviceAccounts:\n  - {name: a, labels: {app: \"has space\"}}\n",
+			wantErr: `serviceAccounts[0] (a).labels: "app": "has space" is not a valid label value`,
+		},
+		"heritage on an access entry": {
+			yaml:    "access:\n  - {name: x, labels: {heritage: foo}, subjects: [{kind: Group, name: g}], clusterRules: [{apiGroups: [a], resources: [b], verbs: [get]}]}\n",
+			wantErr: `access[0] (x).labels: "heritage" is set by helm_lib_module_labels, not by the declaration`,
+		},
+		"module on the scrape access": {
+			yaml:    "prometheusAccess:\n  deployments: [a]\n  labels: {module: bar}\n",
+			wantErr: `prometheusAccess.labels: "module" is set by helm_lib_module_labels, not by the declaration`,
+		},
+		"a bound cluster role with a slash": {
+			yaml:    "serviceAccounts:\n  - {name: a, bindClusterRoles: [a/b]}\n",
+			wantErr: `serviceAccounts[0] (a).bindClusterRoles[0]: "a/b" is not a valid role name`,
+		},
+		"a bound role in a bad namespace": {
+			yaml:    "serviceAccounts:\n  - {name: a, bindRoles: [{namespace: Bad NS, name: r}]}\n",
+			wantErr: `serviceAccounts[0] (a).bindRoles[0]: "Bad NS" is not a namespace name`,
+		},
+		"a ServiceAccount subject with a bad name": {
+			yaml:    "access:\n  - {name: x, subjects: [{kind: ServiceAccount, name: Bad_Name, namespace: ns}], clusterRules: [{apiGroups: [a], resources: [b], verbs: [get]}]}\n",
+			wantErr: `access[0] (x).subjects[0]: "Bad_Name" is not a ServiceAccount name`,
+		},
+		"an empty workload name": {
+			yaml:    "prometheusAccess:\n  deployments: [\"\"]\n",
+			wantErr: `prometheusAccess.deployments[0]: "" is not a workload name`,
+		},
+		"when over two lines": {
+			yaml:    "resources:\n  - group: x.io\n    resource: things\n    scope: Namespaced\n    when: |\n      .Values.a\n    namespace: {viewer: [get]}\n",
+			wantErr: `spans several lines; write the condition on one line`,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			decl, err := Parse([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\n" + tc.yaml))
+			require.NoError(t, err)
+
+			errs := Validate(decl, nil)
+			require.Len(t, errs, 1, "errors: %v", errs)
+			assert.Contains(t, errs[0].Error(), tc.wantErr)
+		})
+	}
+}
+
+// A trailing --- holds no document; a second document is refused.
+func TestParse_TrailingSeparator(t *testing.T) {
+	_, err := Parse([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\n---\n"))
+	require.NoError(t, err)
+
+	_, err = Parse([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\n---\nresources: []\n"))
+	require.ErrorContains(t, err, "the file must hold a single YAML document")
+}
+
+// rbac.yaml sets no subsystems: the key still parses, and a declaration that carries it is told to
+// declare in module.yaml what module.yaml lacks, and to drop the key (review of #480, finding 13).
+func TestValidateFor_SubsystemsAreModuleYAMLs(t *testing.T) {
+	decl, err := Parse([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\nsubsystems: [virtualization, security, networking]\n"))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"networking", "security", "virtualization"}, decl.Subsystems, "the key still parses")
+
+	for name, tc := range map[string]struct {
+		moduleSubsystems []string
+		want             string
+	}{
+		"module.yaml declares none": {
+			want: "declare network, security, virtualization in module.yaml subsystems and remove subsystems from rbac.yaml",
+		},
+		"module.yaml lacks one": {
+			moduleSubsystems: []string{"security", "network"},
+			want:             "declare virtualization in module.yaml subsystems and remove subsystems from rbac.yaml",
+		},
+		"module.yaml declares them all": {
+			moduleSubsystems: []string{"network", "virtualization", "security"},
+			want:             "module.yaml declares every one of them already: remove subsystems from rbac.yaml",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			errs := ValidateFor(decl, nil, tc.moduleSubsystems)
+			require.Len(t, errs, 1, "got: %v", errs)
+			assert.Contains(t, errs[0].Error(), "subsystems: rbac.yaml no longer sets the subsystems; the system capabilities aggregate into the subsystems of module.yaml")
+			assert.Contains(t, errs[0].Error(), tc.want)
+		})
+	}
+
+	empty, err := Parse([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\nsubsystems: []\n"))
+	require.NoError(t, err)
+	assert.Empty(t, ValidateFor(empty, nil, nil), "an empty list sets nothing")
 }
 
 func TestLoad(t *testing.T) {
@@ -646,13 +897,47 @@ legacy:
 	assert.Contains(t, w[0], "legacy.SuperAdmin produces a role user-authz does not aggregate")
 }
 
-// Messages name a resource entry by its index in the file, although the entries are sorted
-// (regression hunt, B12).
-func TestValidate_IndexOfTheFile(t *testing.T) {
+// The generator writes label and annotation keys unquoted; the generator's and Helm's own
+// annotations are not the declaration's (regression hunt, B7).
+func TestValidate_AccountMetadataKeys(t *testing.T) {
+	decl := &Declaration{APIVersion: APIVersionV1Alpha1, ServiceAccounts: []ServiceAccount{{
+		Name:            "m",
+		Labels:          map[string]string{"bad key": "x", "example.com/" + strings.Repeat("a", 80): "x"},
+		Annotations:     map[string]string{"helm.sh/resource-policy": "keep", "meta.helm.sh/release-name": "m"},
+		RBACAnnotations: map[string]string{"rbac.deckhouse.io/kind": "x", "werf.io/deploy-on": "pre-install"},
+	}}}
+
+	errs := Validate(decl, nil)
+
+	msgs := make([]string, 0, len(errs))
+	for _, e := range errs {
+		msgs = append(msgs, e.Error())
+	}
+
+	got := strings.Join(msgs, "\n")
+	assert.Contains(t, got, `serviceAccounts[0] (m).labels: "bad key" is not a valid key`)
+	assert.Contains(t, got, `serviceAccounts[0] (m).labels: "example.com/`+strings.Repeat("a", 80)+`" is not a valid key`, "the name of a key is 63 characters at most")
+	assert.Contains(t, got, `serviceAccounts[0] (m).annotations: "meta.helm.sh/release-name" is set by dmt or by Helm`)
+	assert.Contains(t, got, `serviceAccounts[0] (m).rbacAnnotations: "rbac.deckhouse.io/kind" is set by dmt or by Helm`)
+	assert.NotContains(t, got, "helm.sh/resource-policy")
+	assert.NotContains(t, got, "werf.io")
+}
+
+// A text for a level nobody grants is reported; so are an account name Kubernetes refuses and an
+// empty value in a rule; messages carry the entry's index in the file (regression hunt, B12).
+func TestValidate_RegressionHuntB12(t *testing.T) {
 	decl, err := Parse([]byte(`apiVersion: rbac.deckhouse.io/v1alpha1
+capabilities:
+  namespace.approve: {title: {en: a, ru: b}, description: {en: c, ru: d}}
 resources:
   - {group: z.io, resource: things, scope: Namespaced, namespace: {viewer: [get]}}
   - {group: a.io, resource: things, scope: Namespaced, namespace: {viewer: [bogus]}}
+serviceAccounts:
+  - name: Bad_Name
+    clusterRules:
+      - apiGroups: [""]
+        resources: [""]
+        verbs: [get, ""]
 `))
 	require.NoError(t, err)
 
@@ -664,8 +949,32 @@ resources:
 	}
 
 	got := strings.Join(msgs, "\n")
-	assert.Contains(t, got, `resources[1] (a.io/things): namespace.viewer: "bogus" is not a verb`)
+	assert.Contains(t, got, `capabilities: "namespace.approve" is described, but no resource entry grants it`)
+	assert.Contains(t, got, `resources[1] (a.io/things): namespace.viewer: "bogus" is not a verb`, "the index of the file, not of the sorted list")
 	assert.NotContains(t, got, "resources[0] (a.io/things)")
+	assert.Contains(t, got, `serviceAccounts[0] (Bad_Name): a ServiceAccount name is a lowercase DNS subdomain`)
+	assert.Contains(t, got, `serviceAccounts[0] (Bad_Name).clusterRules[0]: verbs holds an empty value`)
+	assert.Contains(t, got, `serviceAccounts[0] (Bad_Name).clusterRules[0]: resources holds an empty value`)
+}
+
+// A condition that parses but passes a function without its arguments fails when it renders; the
+// validator names it (regression hunt 2, B1).
+func TestValidateWhen_BareFunction(t *testing.T) {
+	check := func(when string) string {
+		var got []string
+
+		validateWhen(when, "x", func(format string, args ...any) { got = append(got, fmt.Sprintf(format, args...)) })
+
+		return strings.Join(got, "\n")
+	}
+
+	assert.Contains(t, check("and not (.Values.a) (.Values.b)"), "passes not to another function without its arguments")
+	assert.Contains(t, check("and (.Values.a) not (.Values.b)"), "passes not")
+	assert.Empty(t, check("and (not (.Values.a)) (.Values.b)"))
+	assert.Empty(t, check(`.Values.global.enabledModules | has "prometheus"`))
+	assert.Empty(t, check(`and .Values.a (not .Values.b)`))
+	assert.Empty(t, check(`include "helper" . | eq "true"`))
+	assert.Empty(t, check(`lt (now | unixEpoch) 0 | not`))
 }
 
 // A TODO `when` is an open decision, not a malformed expression (review of #479, finding 51).
