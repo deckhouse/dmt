@@ -32,6 +32,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/deckhouse/dmt/internal/mocks"
@@ -459,6 +460,10 @@ func TestSync_BootstrapRenameNoteFollowsTheFix(t *testing.T) {
 			errorList := runSync(t, modulePath, store)
 			require.Len(t, errorList.GetFixes(), 1)
 
+			// dmt releases the render of a module once it is linted, before any fix runs (dry run on
+			// security-events-manager, 2026-10-09: every rename was noted as withheld).
+			store.Reset()
+
 			for _, fix := range errorList.GetFixes() {
 				fix()
 			}
@@ -475,6 +480,102 @@ func TestSync_BootstrapRenameNoteFollowsTheFix(t *testing.T) {
 			for _, w := range tc.notWant {
 				assert.NotContains(t, string(written), w)
 			}
+		})
+	}
+}
+
+// An account with imagePullSecrets enters the declaration with a note that the fix of its template
+// waits until they move to the pod spec, and the lint after the write gives the same advice instead
+// of telling to drop the account the bootstrap has just declared (dry run on
+// security-events-manager, 2026-10-09).
+func TestSync_BootstrapNotesAnAccountWithImagePullSecrets(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+	require.NoError(t, os.Remove(rbacyaml.Path(modulePath)))
+
+	rendered := func(tweak func(o *generate.Object) bool) *storage.UnstructuredObjectStore {
+		store := renderedFrom(t, model, tweak)
+
+		for _, object := range store.Storage {
+			if object.Unstructured.GetKind() == "ServiceAccount" && object.Unstructured.GetName() == "cainjector" {
+				require.NoError(t, unstructured.SetNestedSlice(object.Unstructured.Object, []any{map[string]any{"name": "deckhouse-registry"}}, "imagePullSecrets"))
+			}
+		}
+
+		return store
+	}
+
+	errorList := runSync(t, modulePath, rendered(nil))
+	require.Len(t, errorList.GetFixes(), 1)
+
+	for _, fix := range errorList.GetFixes() {
+		fix()
+	}
+
+	assert.Empty(t, errorList.GetErrors(), "the fix succeeds")
+
+	written, err := os.ReadFile(rbacyaml.Path(modulePath))
+	require.NoError(t, err)
+	assert.Contains(t, string(written), "# - ServiceAccount cainjector has imagePullSecrets, which the declaration cannot carry: --fix leaves templates/cainjector/rbac-for-us.yaml as it is until then -- set them in the pod spec of the workloads that run as the account")
+
+	declared, err := rbacyaml.Load(modulePath)
+	require.NoError(t, err)
+	require.Len(t, declared.ServiceAccounts, 1, "the account is declared")
+
+	// A divergence in its file makes the lint judge the fix; the advice is the same.
+	got := strings.Join(texts(runSync(t, modulePath, rendered(dropRule("d8:cert-manager:cainjector")))), "\n")
+	assert.Contains(t, got, "has imagePullSecrets, which rbac.yaml cannot declare and a rewrite would drop -- set them in the pod spec of the workloads that run as the account")
+	assert.NotContains(t, got, "drop -- keep the account out of the declaration")
+}
+
+// A namespace written as d8-{{ .Chart.Name }}, as most modules write it, is the module's own: the
+// document is readable, and the file gets the fix (dry run on security-events-manager, 2026-10-09).
+func TestSync_ChartNameNamespaceIsReadable(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	const rel = "templates/cainjector/rbac-for-us.yaml"
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+
+	full := filepath.Join(modulePath, rel)
+	content, err := os.ReadFile(full)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(full, []byte(strings.ReplaceAll(string(content), "namespace: d8-cert-manager", "namespace: d8-{{ .Chart.Name }}")), 0o600))
+
+	list := runSync(t, modulePath, renderedFrom(t, model, dropRule("d8:cert-manager:cainjector")))
+	got := strings.Join(texts(list), "\n")
+	assert.Contains(t, got, rel+" does not match rbac.yaml")
+	assert.NotContains(t, got, "The autofix leaves the file as it is")
+	assert.NotEmpty(t, list.GetFixes())
+}
+
+// A document the linter cannot read is named in the finding by what made it so.
+func TestTextDocuments_ChartNameAndWhy(t *testing.T) {
+	const account = "---\napiVersion: v1\nkind: ServiceAccount\nmetadata:\n  name: controller\n  namespace: d8-{{ $.Chart.Name }}\n"
+
+	got := textDocuments(withChartName(account, "m"))
+	require.Len(t, got, 1)
+	assert.False(t, got[0].unreadable)
+	assert.Equal(t, "d8-m/ServiceAccount/controller", got[0].id)
+
+	for name, tc := range map[string]struct{ doc, why string }{
+		"a chart name the lint was not told": {account, "at `namespace: d8-{{ $.Chart.Name }}`"},
+		"an include":                         {"---\n{{ include \"extra\" . }}\n", "at `{{ include \"extra\" . }}`"},
+		"no kind line":                       {"---\napiVersion: v1\nmetadata:\n  name: x\n", "one without a kind line"},
+		"no name line":                       {"---\napiVersion: v1\nkind: Role\nmetadata:\n  namespace: x\n", "a Role without a metadata.name line"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			docs := textDocuments(tc.doc)
+			require.Len(t, docs, 1)
+			assert.True(t, docs[0].unreadable)
+			assert.Equal(t, tc.why, docs[0].why)
 		})
 	}
 }
@@ -849,6 +950,38 @@ func TestSync_FileWithForeignObjectsIsNotRegenerated(t *testing.T) {
 
 	errorList := runSync(t, modulePath, store)
 	assert.Contains(t, strings.Join(texts(errorList), "\n"), "The autofix leaves the file as it is: ClusterRole/d8:cert-manager:cainjector:requester, which rbac.yaml does not produce -- declare it in rbac.yaml or move it to another template")
+	assertLintOnly(t, errorList, modulePath)
+}
+
+// The Role bindRoles names is one the declaration cannot write: the finding says to move it, not
+// to declare it (dry run on security-events-manager, 2026-10-09).
+func TestSync_ARoleOfBindRolesInADeclaredFileIsToMove(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+
+	const rel = "templates/cainjector/rbac-for-us.yaml"
+
+	// The render: the cainjector file lacks a declared rule, and holds the Role its account binds.
+	store := renderedFrom(t, model, func(o *generate.Object) bool {
+		if o.Kind == "ClusterRole" && o.Name == "d8:cert-manager:cainjector" {
+			o.Rules = o.Rules[:1]
+		}
+
+		return true
+	})
+	putObject(t, store, rel, generate.Object{
+		Kind: "Role", Name: "extension-apiserver-authentication-reader", Namespace: "kube-system", Class: generate.ClassDeclared,
+		Rules: []generate.Rule{{PolicyRule: rbacyaml.PolicyRule{APIGroups: []string{""}, Resources: []string{"configmaps"}, Verbs: []string{"get"}}}},
+	})
+
+	errorList := runSync(t, modulePath, store)
+	got := strings.Join(texts(errorList), "\n")
+	assert.Contains(t, got, "The autofix leaves the file as it is: kube-system/Role/extension-apiserver-authentication-reader, which rbac.yaml binds with bindRoles and does not write -- move it to a template the declaration does not write")
+	assert.NotContains(t, got, "extension-apiserver-authentication-reader, which rbac.yaml does not produce")
 	assertLintOnly(t, errorList, modulePath)
 }
 
@@ -1666,7 +1799,7 @@ func TestTemplateTexts_SkipsPartials(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "view.yaml"), []byte("---\nkind: ServiceAccount\nmetadata:\n  name: a\n"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "_helpers.tpl"), []byte("{{- define \"x\" }}{{- end }}\n"), 0o600))
 
-	got := templateTexts(modulePath)
+	got := templateTexts(modulePath, "")
 	assert.Equal(t, []string{"templates/rbacv2/use/view.yaml"}, slices.Collect(maps.Keys(got)))
 	assert.Equal(t, "ServiceAccount/a", got["templates/rbacv2/use/view.yaml"].docs[0].id)
 }
