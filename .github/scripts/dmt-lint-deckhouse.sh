@@ -108,6 +108,15 @@ structure_prepare() {
 echo "Preparing deckhouse module structure in ${WORK_DIR}"
 structure_prepare
 
+# The public GitHub mirror is built by copybara without ee/**, yet editions.yaml
+# still lists the ee/ editions and werf.yaml reads their files unconditionally,
+# so every module fails with "cannot create module". Lint such a tree as CE.
+if [[ ! -d "${WORK_DIR}/ee" ]]; then
+  echo "No ee/ in the source (public mirror): keeping CE-only editions"
+  yq -i '.editions |= map(select(.modulesDir | test("^ee/") | not))' "${WORK_DIR}/editions.yaml"
+  export WERF_ENV=CE
+fi
+
 echo "Linting with: ${DMT_BIN}"
 "${DMT_BIN}" --version || true
 
