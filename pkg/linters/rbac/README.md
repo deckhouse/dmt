@@ -1651,7 +1651,9 @@ Without `rbac.yaml` the rule reports the declaration missing, and `--fix` writes
 objects the module renders today: the declaration a person would have transcribed from the templates,
 with a `TODO` wherever a decision is still theirs (a resource without a CRD whose scope the linter
 cannot know, a CRD nobody grants, a namespaced resource granted cluster-wide) and a note on top for
-every object `--fix` will name differently or the format cannot describe. An entry whose CRD is in `crds/`
+every object `--fix` will name differently or the format cannot describe. A rename in a template the
+next `--fix` leaves as it is (the lint finds a case there the declaration does not close) is noted as
+waiting for that case: the object keeps its name until the file can be rewritten. An entry whose CRD is in `crds/`
 carries no `scope`: the CRD states it; an external resource whose scope is not known gets
 `scope: "TODO: Namespaced or Cluster (Cluster drops the namespace levels)"`. A grant limited to `resourceNames` is never widened to every
 object: it is left out and named in a note. A role granting `*` verbs or API groups, which the format

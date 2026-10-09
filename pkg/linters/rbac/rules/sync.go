@@ -1442,6 +1442,13 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 			in.Unrendered = unrenderedObjects(modulePath, in.Objects)
 			result := bootstrap.Build(in)
 
+			// A rename in a template the next fix would leave as it is does not happen with that fix:
+			// the notes must not promise it.
+			if leftAsIs := r.leftAsIs(modulePath, in.Subsystems, result.Decl); len(leftAsIs) > 0 {
+				in.LeftAsIs = leftAsIs
+				result = bootstrap.Build(in)
+			}
+
 			content, err := bootstrap.Marshal(result)
 			if err != nil {
 				return fmt.Errorf("render %s: %w", rbacyaml.Filename, err)
@@ -1451,6 +1458,41 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 		})
 	}).Errorf("%s is missing: `%s` writes it from the RBAC objects the module renders today (%d of %d objects described, the rest listed in its notes and left as they are); every TODO in it is a decision `dmt lint` reports, and the notes say what the declaration does not carry",
 		rbacyaml.Filename, FixCommand, described, len(in.Objects))
+}
+
+// leftAsIs maps every object a bootstrapped declaration produces into a template the fix of the
+// templates would leave as it is to that template. It asks the same question the lint asks once
+// the declaration is written, of the same render and template text. A declaration the generator
+// refuses maps nothing: the lint after the write reports why.
+func (r *SyncRule) leftAsIs(modulePath string, subsystems []string, decl *rbacyaml.Declaration) map[string]string {
+	if decl == nil {
+		return nil
+	}
+
+	model, err := generate.Build(generate.Input{
+		Module:     r.module.GetName(),
+		Namespace:  r.module.GetNamespace(),
+		Subsystems: subsystems,
+		Decl:       decl,
+	})
+	if err != nil {
+		return nil
+	}
+
+	run := r.newSyncRun(modulePath, model)
+	out := map[string]string{}
+
+	for _, file := range model.Files {
+		if len(r.unfixable(run, file)) == 0 {
+			continue
+		}
+
+		for _, o := range file.Objects {
+			out[o.Identity()] = file.Path
+		}
+	}
+
+	return out
 }
 
 // bootstrapObject converts a rendered object of RBAC interest for the importer.
