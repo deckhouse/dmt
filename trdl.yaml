@@ -1,3 +1,3 @@
-docker_image: golang:1.25-alpine@sha256:c05ba4b73604069d376c4f41346b05374335b5ca0c46fb6dfede5a59f5196931
+docker_image: registry.deckhouse.io/container-factory@sha256:9701f93cec25acec10837e2399f7fda7e4c23303bed6514bfa0ff692396f170b # builder/golang-alpine-1.25 (alpine:3.22.2)
 commands:
 - ./scripts/ci/build_release.sh {{ .Tag }} && cp -a release-build/{{ .Tag }}/* /result
