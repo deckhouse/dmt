@@ -143,6 +143,7 @@ var staticRules = map[string]set.Set{
 		templatesrules.ListenerSetRedirectRuleName,
 		templatesrules.IngressRuleName,
 		templatesrules.KubeRbacProxyRuleName,
+		templatesrules.MonitorSourceLabelRuleName,
 		templatesrules.MountPointsRuleName,
 		templatesrules.OpenAPIValuesQuoteRuleName,
 		templatesrules.PDBRuleName,

@@ -1,0 +1,9 @@
+description: >
+  A module whose .dmtlint.yaml excludes its PodMonitor and PrometheusRule from the
+  monitor-source-label rule via exclude-rules.monitor-source-label must not be
+  flagged, even though neither object sets d8_source. This proves the exclusion is
+  wired from .dmtlint.yaml through to the rule.
+module: module
+expectAbsent:
+  - linter: templates
+    rule: monitor-source-label

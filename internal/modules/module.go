@@ -425,6 +425,7 @@ func mapTemplatesRules(linterSettings *pkg.LintersSettings, configSettings *conf
 	rules.HTTPSCertificateReuseRule.SetLevel(globalRules.HTTPSCertificateReuseRule.Impact, fallbackImpact)
 	rules.ListenerSetRedirectRule.SetLevel(globalRules.ListenerSetRedirectRule.Impact, fallbackImpact)
 	rules.HTTPRouteRedirectRule.SetLevel(globalRules.HTTPRouteRedirectRule.Impact, fallbackImpact)
+	rules.MonitorSourceLabelRule.SetLevel(globalRules.MonitorSourceLabelRule.Impact, fallbackImpact)
 }
 
 // mapOpenAPIRules configures OpenAPI linter rules
@@ -570,6 +571,7 @@ func mapTemplatesExclusionsAndSettings(linterSettings *pkg.LintersSettings, conf
 	excludes.HTTPSCertificateReuse.Directories = pkg.DirectoryRuleExcludeList(configExcludes.HTTPSCertificateReuse.Directories)
 	excludes.ListenerSetRedirect = configExcludes.ListenerSetRedirect.Get()
 	excludes.HTTPRouteRedirect = configExcludes.HTTPRouteRedirect.Get()
+	excludes.MonitorSourceLabel = configExcludes.MonitorSourceLabel.Get()
 
 	// Additional settings
 	linterSettings.Templates.PrometheusRuleSettings.Disable = configSettings.Templates.PrometheusRules.Disable

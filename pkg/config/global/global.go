@@ -164,6 +164,7 @@ type TemplatesLinterRules struct {
 	HTTPSCertificateReuseRule          RuleConfig `mapstructure:"https-certificate-reuse"`
 	ListenerSetRedirectRule            RuleConfig `mapstructure:"listenerset-redirect"`
 	HTTPRouteRedirectRule              RuleConfig `mapstructure:"httproute-redirect"`
+	MonitorSourceLabelRule             RuleConfig `mapstructure:"monitor-source-label"`
 }
 
 func (c LinterConfig) IsWarn() bool {

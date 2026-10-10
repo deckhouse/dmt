@@ -258,6 +258,7 @@ type TemplatesLinterRules struct {
 	HTTPSCertificateReuseRule          RuleConfig `mapstructure:"https-certificate-reuse"`
 	ListenerSetRedirectRule            RuleConfig `mapstructure:"listenerset-redirect"`
 	HTTPRouteRedirectRule              RuleConfig `mapstructure:"httproute-redirect"`
+	MonitorSourceLabelRule             RuleConfig `mapstructure:"monitor-source-label"`
 }
 
 type TemplatesExcludeRules struct {
@@ -279,6 +280,7 @@ type TemplatesExcludeRules struct {
 	HTTPSCertificateReuse          PathRuleExclude                `mapstructure:"https-certificate-reuse"`
 	ListenerSetRedirect            ListenerSetRedirectExcludeList `mapstructure:"listenerset-redirect"`
 	HTTPRouteRedirect              HTTPRouteRedirectExcludeList   `mapstructure:"httproute-redirect"`
+	MonitorSourceLabel             KindRuleExcludeList            `mapstructure:"monitor-source-label"`
 }
 
 type EnabledModulesExcludeRule struct {
