@@ -1,0 +1,13 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: wrong-role-binding-name
+  namespace: d8-e2e-rbac-root
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: access-to-e2e-rbac-root
+subjects:
+  - kind: ServiceAccount
+    name: wrong-service-account-name
+    namespace: d8-e2e-rbac-root
