@@ -97,6 +97,7 @@ func (l *Templates) rules() []pkg.Rule {
 		rules.NewPromtoolRule(cfg, m, level(cfg.Rules.PrometheusRule)),
 		rules.NewIngressRule(cfg.ExcludeRules.Ingress.Get(), m, level(cfg.Rules.IngressRule)),
 		rules.NewHTTPRouteRule(cfg.ExcludeRules.HTTPRoute.Get(), m, level(cfg.Rules.HTTPRouteRule)),
+		rules.NewCertificateGatewayIssuerRule(cfg.ExcludeRules.CertificateGatewayIssuer.Get(), m, level(cfg.Rules.CertificateGatewayIssuerRule)),
 		rules.NewClusterDomainRule(m, level(cfg.Rules.ClusterDomainRule)),
 		// The werf rule has no rule-level config, so it reports at the linter's level.
 		rules.NewWerfRule(m, errorList),

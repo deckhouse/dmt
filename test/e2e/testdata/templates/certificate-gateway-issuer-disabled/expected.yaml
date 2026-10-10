@@ -1,0 +1,7 @@
+description: >
+  A Certificate that sets issuerRef.name via printf "letsencrypt-gateway-%s"
+  must not fail the lint when certificate-gateway-issuer is excluded.
+module: module
+expectPass:
+  - linter: templates
+    rule: certificate-gateway-issuer
