@@ -32,6 +32,9 @@ type License struct {
 	Name        string // Human-readable name
 	Template    string // License template with {{YEAR}} placeholder
 	YearPattern string // Regex pattern for year validation
+	// Phrases, if set, are used instead of Template: all of them must appear
+	// in the license text, ignoring whitespace and line wrapping
+	Phrases []string
 }
 
 // CommentStyle defines how comments are formatted in different file types
@@ -119,6 +122,18 @@ SPDX-License-Identifier: Apache-2.0`,
 				Name: "SPDX MPL-2.0 third-party",
 				Template: `Copyright{{ANYTHING}}
 SPDX-License-Identifier: MPL-2.0`,
+			},
+			{
+				Type: "CE",
+				Name: "BSD License",
+				Phrases: []string{
+					"Copyright",
+					"Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:",
+					"Redistributions of source code must retain the above copyright notice",
+					"Redistributions in binary form must reproduce the above copyright notice",
+					`THIS SOFTWARE IS PROVIDED BY`,
+					`"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES`,
+				},
 			},
 			{
 				Type: "EE",
@@ -220,7 +235,7 @@ func (p *LicenseParser) ParseFile(filename string) (*LicenseInfo, error) {
 	}
 
 	// Read file header
-	const maxHeaderSize = 2048
+	const maxHeaderSize = 4096
 
 	header, err := p.readFileHeader(filename, maxHeaderSize) // Read more bytes for better detection
 	if err != nil {
@@ -435,6 +450,10 @@ func (*LicenseParser) normalizeText(text string) string {
 
 // matchLicense checks if text matches a license template
 func (p *LicenseParser) matchLicense(text string, license License) (bool, string) {
+	if len(license.Phrases) > 0 {
+		return p.matchPhrases(text, license.Phrases), ""
+	}
+
 	// Normalize both texts
 	text = p.normalizeText(text)
 	template := p.normalizeText(license.Template)
@@ -463,4 +482,22 @@ func (p *LicenseParser) matchLicense(text string, license License) (bool, string
 	}
 
 	return true, "2025" // Default year if not captured
+}
+
+// matchPhrases checks that all phrases appear in text, ignoring whitespace differences
+func (p *LicenseParser) matchPhrases(text string, phrases []string) bool {
+	text = collapseWhitespace(p.normalizeText(text))
+
+	for _, phrase := range phrases {
+		if !strings.Contains(text, collapseWhitespace(phrase)) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// collapseWhitespace replaces any run of whitespace with a single space
+func collapseWhitespace(s string) string {
+	return strings.Join(strings.Fields(s), " ")
 }
