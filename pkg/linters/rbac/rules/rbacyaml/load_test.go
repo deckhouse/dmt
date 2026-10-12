@@ -225,6 +225,44 @@ namespace:
 			crds:    certManagerCRDs,
 			wantErr: "namespace levels are not allowed for a cluster-scoped resource",
 		},
+		"R26: a system level writes an identity resource": {
+			yaml: entry(`group: ""
+resource: pods
+scope: Namespaced
+reason: the operator restarts its pods by hand
+system:
+  viewer: [get, list, watch]
+  manager: [create, delete]`),
+			crds:    certManagerCRDs,
+			wantErr: `a system level must not grant create, delete on /pods`,
+		},
+		"R26: a system level reads an identity resource": {
+			yaml: entry(`group: apps
+resource: deployments
+scope: Namespaced
+reason: the operator inspects its deployments
+system:
+  viewer: [get, list, watch]`),
+			crds: certManagerCRDs,
+		},
+		"R26: a system level touches an identity subresource": {
+			yaml: entry(`group: ""
+resource: serviceaccounts/token
+scope: Namespaced
+reason: the operator mints tokens
+system:
+  manager: [create]`),
+			crds:    certManagerCRDs,
+			wantErr: `a system level must not grant create on /serviceaccounts/token`,
+		},
+		"R26: a namespace level writes an identity resource": {
+			yaml: entry(`group: ""
+resource: secrets
+scope: Namespaced
+namespace:
+  manager: [create, update, delete]`),
+			crds: certManagerCRDs,
+		},
 		"R4: noAccess together with levels": {
 			yaml: entry(`group: cert-manager.io
 resource: issuers
