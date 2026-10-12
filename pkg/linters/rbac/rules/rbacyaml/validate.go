@@ -302,9 +302,82 @@ func validateResource(d *Declaration, r *Resource, where string, crds CRDScopes,
 		report("%s: a namespaced resource granted at a system level is granted across the whole cluster; confirm it with reason: \"<why>\"", where)
 	}
 
+	if scope == ScopeNamespaced && grantsIdentityAtSystemLevel(r) {
+		report("%s: a system level must not grant %s on %s/%s: in the namespace of the module it hands the holders of the role the ServiceAccounts of the module, and the role model writes into the namespaces of the platform at the superadmin level only; keep the system levels read-only here or grant it at a namespace level", where, identityVerbsOf(r), r.Group, r.Resource)
+	}
+
 	validateLevels(d, r.Namespace, rbaccontract.LineageNamespace, rbaccontract.NamespaceLevels, where, usedCapabilities, report)
 	validateLevels(d, r.System, rbaccontract.LineageSystem, rbaccontract.SystemLevels, where, usedCapabilities, report)
 	validateLevels(nil, r.Legacy, "legacy", rbaccontract.LegacyLevels, where, nil, report)
+}
+
+// identityResources are the namespaced resources through which a write grants the identity of a
+// ServiceAccount of the namespace: workloads that run as one, the Secrets that may hold its token,
+// the account itself and the bindings that widen it. Keyed by API group.
+var identityResources = map[string]map[string]bool{
+	"":                          {"pods": true, "replicationcontrollers": true, "podtemplates": true, "secrets": true, "serviceaccounts": true},
+	"apps":                      {"deployments": true, "replicasets": true, "statefulsets": true, "daemonsets": true},
+	"batch":                     {"jobs": true, "cronjobs": true},
+	"rbac.authorization.k8s.io": {"roles": true, "rolebindings": true},
+}
+
+// identitySubresources grant the identity of a ServiceAccount with any verb: a terminal in a pod
+// that carries its token, or the token itself.
+var identitySubresources = map[string]bool{
+	"/pods/exec":                true,
+	"/pods/attach":              true,
+	"/pods/portforward":         true,
+	"/pods/ephemeralcontainers": true,
+	"/serviceaccounts/token":    true,
+}
+
+var writeVerbs = map[string]bool{"create": true, "update": true, "patch": true, "delete": true, "deletecollection": true, "*": true}
+
+// grantsIdentityAtSystemLevel reports whether a system level of the entry writes an identity
+// resource or touches an identity subresource (see identityResources, identitySubresources).
+func grantsIdentityAtSystemLevel(r *Resource) bool {
+	return identityVerbsOf(r) != ""
+}
+
+// identityVerbsOf lists the verbs of the system levels of the entry that grant an identity, or ""
+// when none does.
+func identityVerbsOf(r *Resource) string {
+	if identitySubresources[r.Group+"/"+r.Resource] {
+		verbs := []string{}
+		for _, levelVerbs := range r.System {
+			verbs = append(verbs, levelVerbs...)
+		}
+
+		if len(verbs) == 0 {
+			return ""
+		}
+
+		slices.Sort(verbs)
+
+		return strings.Join(slices.Compact(verbs), ", ")
+	}
+
+	if !identityResources[r.Group][r.Resource] {
+		return ""
+	}
+
+	verbs := []string{}
+
+	for _, levelVerbs := range r.System {
+		for _, verb := range levelVerbs {
+			if writeVerbs[verb] {
+				verbs = append(verbs, verb)
+			}
+		}
+	}
+
+	if len(verbs) == 0 {
+		return ""
+	}
+
+	slices.Sort(verbs)
+
+	return strings.Join(slices.Compact(verbs), ", ")
 }
 
 // resolveScope returns the effective scope of the entry: the declared one, checked against the
