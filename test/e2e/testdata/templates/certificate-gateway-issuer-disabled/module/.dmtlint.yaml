@@ -1,0 +1,6 @@
+linters-settings:
+  templates:
+    exclude-rules:
+      certificate-gateway-issuer:
+        - kind: Certificate
+          name: gateway-cert

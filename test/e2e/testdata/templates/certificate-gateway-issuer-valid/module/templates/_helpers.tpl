@@ -1,0 +1,3 @@
+{{- define "helm_lib_module_https_cert_manager_cluster_issuer_name_for_gateway_api" -}}
+letsencrypt-gateway-test-gateway
+{{- end }}
