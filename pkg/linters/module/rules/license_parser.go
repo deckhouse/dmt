@@ -136,6 +136,16 @@ SPDX-License-Identifier: MPL-2.0`,
 				},
 			},
 			{
+				Type: "CE",
+				Name: "MIT License",
+				Phrases: []string{
+					"Copyright",
+					"Permission is hereby granted, free of charge, to any person obtaining a copy of this software",
+					"The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.",
+					`THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND`,
+				},
+			},
+			{
 				Type: "EE",
 				Name: "Deckhouse Platform Enterprise Edition",
 				Template: `Copyright {{YEAR}} Flant JSC{{ANYTHING}}
