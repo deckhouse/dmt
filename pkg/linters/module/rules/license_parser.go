@@ -109,6 +109,18 @@ limitations under the License.`,
 SPDX-License-Identifier: Apache-2.0`,
 			},
 			{
+				Type: "CE",
+				Name: "SPDX Apache-2.0 third-party",
+				Template: `Copyright{{ANYTHING}}
+SPDX-License-Identifier: Apache-2.0`,
+			},
+			{
+				Type: "CE",
+				Name: "SPDX MPL-2.0 third-party",
+				Template: `Copyright{{ANYTHING}}
+SPDX-License-Identifier: MPL-2.0`,
+			},
+			{
 				Type: "EE",
 				Name: "Deckhouse Platform Enterprise Edition",
 				Template: `Copyright {{YEAR}} Flant JSC{{ANYTHING}}

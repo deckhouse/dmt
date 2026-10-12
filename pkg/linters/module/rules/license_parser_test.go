@@ -93,6 +93,57 @@ func main() {}
 			},
 		},
 		{
+			name:     "Go file with third-party SPDX license (line comment)",
+			filename: "test.go",
+			content: `// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
+package main
+`,
+			want: &LicenseInfo{
+				Type: "CE",
+				Year: "2025",
+			},
+		},
+		{
+			name:     "Go file with third-party SPDX license (block comment)",
+			filename: "test.go",
+			content: `/*
+Copyright (c) HashiCorp, Inc.
+SPDX-License-Identifier: MPL-2.0
+*/
+
+package main
+`,
+			want: &LicenseInfo{
+				Type: "CE",
+				Year: "2025",
+			},
+		},
+		{
+			name:     "Go file with third-party SPDX Apache-2.0 license",
+			filename: "test.go",
+			content: `// Copyright The Kubernetes Authors.
+// SPDX-License-Identifier: Apache-2.0
+
+package main
+`,
+			want: &LicenseInfo{
+				Type: "CE",
+				Year: "2025",
+			},
+		},
+		{
+			name:     "Go file with third-party SPDX BUSL-1.1 license is rejected",
+			filename: "test.go",
+			content: `// Copyright IBM Corp. 2016, 2025
+// SPDX-License-Identifier: BUSL-1.1
+
+package main
+`,
+			wantErr: true,
+		},
+		{
 			name:     "Go file with EE license",
 			filename: "test.go",
 			content: `/*
