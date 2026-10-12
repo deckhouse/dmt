@@ -125,6 +125,24 @@ SPDX-License-Identifier: MPL-2.0`,
 			},
 			{
 				Type: "CE",
+				Name: "SPDX MIT third-party",
+				Template: `Copyright{{ANYTHING}}
+SPDX-License-Identifier: MIT`,
+			},
+			{
+				Type: "CE",
+				Name: "SPDX BSD-2-Clause third-party",
+				Template: `Copyright{{ANYTHING}}
+SPDX-License-Identifier: BSD-2-Clause`,
+			},
+			{
+				Type: "CE",
+				Name: "SPDX BSD-3-Clause third-party",
+				Template: `Copyright{{ANYTHING}}
+SPDX-License-Identifier: BSD-3-Clause`,
+			},
+			{
+				Type: "CE",
 				Name: "BSD License",
 				Phrases: []string{
 					"Copyright",

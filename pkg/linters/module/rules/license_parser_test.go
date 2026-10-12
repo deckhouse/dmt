@@ -134,6 +134,46 @@ package main
 			},
 		},
 		{
+			name:     "Go file with third-party SPDX MIT license",
+			filename: "test.go",
+			content: `// Copyright (c) 2020 Someone
+// SPDX-License-Identifier: MIT
+
+package main
+`,
+			want: &LicenseInfo{
+				Type: "CE",
+				Year: "2025",
+			},
+		},
+		{
+			name:     "Go file with third-party SPDX BSD-2-Clause license",
+			filename: "test.go",
+			content: `// Copyright (c) 2020 Someone
+// SPDX-License-Identifier: BSD-2-Clause
+
+package main
+`,
+			want: &LicenseInfo{
+				Type: "CE",
+				Year: "2025",
+			},
+		},
+		{
+			name:     "Shell script with third-party SPDX BSD-3-Clause license",
+			filename: "test.sh",
+			content: `#!/bin/bash
+# Copyright (c) 2020 Someone
+# SPDX-License-Identifier: BSD-3-Clause
+
+echo "Hello"
+`,
+			want: &LicenseInfo{
+				Type: "CE",
+				Year: "2025",
+			},
+		},
+		{
 			name:     "Go file with third-party SPDX BUSL-1.1 license is rejected",
 			filename: "test.go",
 			content: `// Copyright IBM Corp. 2016, 2025
