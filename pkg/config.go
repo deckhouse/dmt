@@ -152,6 +152,7 @@ type TemplatesLinterRules struct {
 	OpenAPIValuesQuoteRule             RuleConfig
 	SchemaValidationRule               RuleConfig
 	DeprecatedHTTPRouteAnnotationsRule RuleConfig
+	DocumentationLinksRule             RuleConfig
 	IngressEnablementRule              RuleConfig
 	GatewayEnablementRule              RuleConfig
 	HTTPSCertificateReuseRule          RuleConfig
@@ -180,6 +181,7 @@ type TemplatesExcludeRules struct {
 	OpenAPIValuesQuote             StringRuleExcludeList
 	SchemaValidation               KindRuleExcludeList
 	DeprecatedHTTPRouteAnnotations PathRuleExclude
+	DocumentationLinks             PathRuleExclude
 	IngressEnablement              PathRuleExclude
 	GatewayEnablement              PathRuleExclude
 	HTTPSCertificateReuse          PathRuleExclude

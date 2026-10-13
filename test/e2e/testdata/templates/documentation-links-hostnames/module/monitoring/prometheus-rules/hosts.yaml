@@ -1,0 +1,11 @@
+- name: e2e.documentation-links
+  rules:
+    - alert: E2EDocumentationLinks
+      expr: vector(1)
+      annotations:
+        a: http://deckhouse.ru/modules/e2e/
+        b: https://www.deckhouse.io/modules/e2e/
+        c: See https://deckhouse.io.
+        d: https://deckhouse.io.example.com/modules/e2e/
+        e: https://deckhouse.ru-mirror.example.com/modules/e2e/
+        f: deckhouse.io/modules/e2e/

@@ -29,6 +29,7 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [openapi-values-quote](#openapi-values-quote) | Requires templates to quote OpenAPI string values that have no `pattern`/`enum`/`format` | ✅ | enabled |
 | [schema-validation](#schema-validation) | Strictly decodes every rendered standard Kubernetes resource against its API type | ✅ | enabled |
 | [deprecated-httproute-annotations](#deprecated-httproute-annotations) | Flags deprecated annotation keys (e.g. `alb.network.deckhouse.io/response-headers-to-add`) | ✅ | enabled |
+| [documentation-links](#documentation-links) | Flags links to the public documentation site (`deckhouse.io`/`deckhouse.ru`) in alerts and dashboards instead of the in-cluster documentation | ✅ | enabled (warn) |
 | [ingress-enablement](#ingress-enablement) | Requires Ingress creation to be gated by `helm_lib_module_ingress_enabled` | ✅ | enabled |
 | [gateway-enablement](#gateway-enablement) | Requires HTTPRoute/ListenerSet creation to be gated by `helm_lib_module_gateway_enabled` | ✅ | enabled |
 | [https-certificate-reuse](#https-certificate-reuse) | Requires a custom certificate to be copied once and reused by Ingress and Gateway API via `helm_lib_module_https_secret_name`'s plain and two-prefix forms | ✅ | enabled |
@@ -3137,6 +3138,113 @@ linters-settings:
           - templates/legacy-ingress.yaml
         directories:
           - templates/vendor/
+```
+
+---
+
+### documentation-links
+
+**Purpose:** Makes documentation links in alerts and dashboards point to the
+in-cluster documentation, so that they work in closed environments where the
+public site is unreachable.
+
+**Description:**
+
+Scans alert and dashboard sources for links to `https://deckhouse.io/...` or
+`https://deckhouse.ru/...` and reports every occurrence with its line number,
+suggesting the `helm_lib_module_documentation_uri` helper from lib-helm. The
+helper renders a link to the in-cluster documentation
+(`<scheme>://documentation.<publicDomain>/<path>`) and falls back to
+`https://deckhouse.io/<path>` when `publicDomainTemplate` is not set.
+
+Findings are reported at the `warn` level by default.
+
+**What it checks:**
+
+1. `monitoring/prometheus-rules/**/*.{yaml,yml,tpl}`
+2. `monitoring/grafana-dashboards/**/*.{json,tpl}`
+3. Files in `templates/` declaring alerts or dashboards: `PrometheusRule`,
+   `CustomPrometheusRules`, `GrafanaDashboardDefinition`, and the
+   `*ObservabilityMetricsRulesGroup` and `*ObservabilityDashboard` resources of
+   the observability module. Logs rules groups are not scanned: they hold
+   recording rules only, without annotations
+4. A link in a branch rendered only when the in-cluster documentation is
+   unavailable is a valid fallback and is not reported. The documentation is
+   unavailable when `.Values.global.modules.publicDomainTemplate` is not set or
+   the `documentation` module is disabled. Files rendered by Helm are parsed
+   with Go's `text/template/parse`, so the rule follows nested blocks and
+   `else if`/`else with` chains, and in conditions `not`, `and`, `or`, `empty`,
+   comparisons with `""` and parentheses:
+
+   ```gotemplate
+   {{ if .Values.global.modules.publicDomainTemplate }}...{{ else }}https://deckhouse.io/...{{ end }}
+   {{ if has "documentation" .Values.global.enabledModules }}...{{ else }}https://deckhouse.io/...{{ end }}
+   {{ if not .Values.global.modules.publicDomainTemplate }}https://deckhouse.io/...{{ end }}
+   ```
+
+   The else branch of a condition combined with an unrelated value, such as
+   `{{ if and .Values.global.modules.publicDomainTemplate .Values.foo }}`, is not
+   a fallback: it is also rendered when the documentation is available.
+   Conditions on template variables (`{{ if $domain }}`) are not followed, and a
+   file that does not parse has no fallbacks
+
+Source files are scanned instead of rendered objects: lib-helm passes only
+`.tpl` files from `monitoring/` through `tpl`, so plain `.yaml` rules and
+`.json` dashboards never reach Helm templating. Such a file has to be renamed
+to `.tpl` before it can use the helper, and the Prometheus/Grafana templates
+already in it have to be escaped, e.g. ``{{`{{ $labels.node }}`}}``.
+
+**Why it matters:**
+
+Clusters in closed environments cannot reach the public documentation site,
+while the in-cluster documentation serves the docs of every enabled module.
+
+**Examples:**
+
+❌ **Incorrect** - Linking to the public site:
+
+```yaml
+# monitoring/prometheus-rules/node.yaml
+- name: node
+  rules:
+    - alert: NodeUnmanaged
+      annotations:
+        description: |
+          The {{ $labels.node }} Node is not managed, see the [instructions](https://deckhouse.io/modules/node-manager/faq.html#how-to-clean-up-a-node-for-adding-to-the-cluster).
+```
+
+**Warning:**
+```
+Link "https://deckhouse.io/modules/node-manager/faq.html#how-to-clean-up-a-node-for-adding-to-the-cluster" points to the public documentation site, which is unreachable from closed environments. Link to the in-cluster documentation instead: {{ include "helm_lib_module_documentation_uri" (list . "/modules/node-manager/faq.html#how-to-clean-up-a-node-for-adding-to-the-cluster") }}. This file is not rendered by Helm: rename it to .tpl and escape the existing Prometheus/Grafana templates, e.g. {{`{{ $labels.node }}`}}
+```
+
+✅ **Correct** - Using the helper in a `.tpl` file:
+
+```yaml
+# monitoring/prometheus-rules/node.tpl
+- name: node
+  rules:
+    - alert: NodeUnmanaged
+      annotations:
+        description: |
+          The {{`{{ $labels.node }}`}} Node is not managed, see the [instructions]({{ include "helm_lib_module_documentation_uri" (list . "/modules/node-manager/faq.html#how-to-clean-up-a-node-for-adding-to-the-cluster") }}).
+```
+
+**Configuration:**
+
+The rule supports excluding specific files and directories (paths are relative
+to the module root):
+
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  templates:
+    exclude-rules:
+      documentation-links:
+        files:
+          - monitoring/prometheus-rules/legacy.yaml
+        directories:
+          - monitoring/grafana-dashboards/vendor/
 ```
 
 ---

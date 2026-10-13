@@ -1,0 +1,7 @@
+apiVersion: observability.deckhouse.io/v1alpha1
+kind: ClusterObservabilityDashboard
+metadata:
+  name: e2e-dashboard
+spec:
+  definition: |
+    {"title": "E2E", "links": [{"url": "https://deckhouse.io/modules/e2e/dashboard.html"}]}

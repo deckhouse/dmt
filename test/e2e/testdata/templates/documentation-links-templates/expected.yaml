@@ -1,0 +1,21 @@
+description: >
+  Modules without monitoring/ declare alerts and dashboards as resources in
+  templates/. Alert rules, propagated alert rules and dashboards are flagged;
+  other resources such as a ConfigMap are not scanned.
+module: module
+expect:
+  - linter: templates
+    rule: documentation-links
+    count: 3
+  - linter: templates
+    rule: documentation-links
+    count: 1
+    textContains: '"https://deckhouse.io/modules/e2e/rules.html"'
+  - linter: templates
+    rule: documentation-links
+    count: 1
+    textContains: '"https://deckhouse.io/modules/e2e/propagated.html"'
+  - linter: templates
+    rule: documentation-links
+    count: 1
+    textContains: '"https://deckhouse.io/modules/e2e/dashboard.html"'
