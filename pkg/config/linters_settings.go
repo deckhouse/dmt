@@ -222,6 +222,10 @@ type RBACExcludeRules struct {
 	BindingSubject StringRuleExcludeList `mapstructure:"binding-subject"`
 	Placement      KindRuleExcludeList   `mapstructure:"placement"`
 	Wildcards      KindRuleExcludeList   `mapstructure:"wildcards"`
+	// Coverage lists "group/resource" keys of CRDs the declaration deliberately leaves out.
+	Coverage StringRuleExcludeList `mapstructure:"coverage"`
+	Contract KindRuleExcludeList   `mapstructure:"contract"`
+	Sync     KindRuleExcludeList   `mapstructure:"sync"`
 }
 
 type TemplatesSettings struct {

@@ -1,0 +1,10 @@
+description: >
+  A CRD of the module (in a nested crds/ directory) without an entry in rbac.yaml is a coverage
+  error that names the autofix command.
+module: module
+expect:
+  - linter: rbac
+    rule: coverage
+    level: warn
+    textContains: "CRD e2e.deckhouse.io/globals (crds/vendor/globals.yaml) has no entry in rbac.yaml"
+    count: 1

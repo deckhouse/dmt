@@ -1,0 +1,18 @@
+description: >
+  A rule added by hand to a generated capability and a legacy role the declaration does not produce
+  are both reported by the sync rule, one finding per template, with the fix command.
+module: module
+expect:
+  - linter: rbac
+    rule: sync
+    level: warn
+    textContains: 'templates/rbacv2/use/edit.yaml does not match rbac.yaml: ClusterRole/d8:namespace-capability:cert-manager:edit: get ""/secrets is in the render but not declared'
+    count: 1
+  - linter: rbac
+    rule: sync
+    level: warn
+    textContains: "templates/user-authz-cluster-roles.yaml does not match rbac.yaml: ClusterRole/d8:user-authz:cert-manager:super-admin is in the render but rbac.yaml does not produce it"
+    count: 1
+expectPass:
+  # the module must render: a render failure would otherwise pass every expectPass trivially
+  - linter: manager

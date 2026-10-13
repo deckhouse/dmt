@@ -440,6 +440,11 @@ func (m *Manager) HasCriticalErrors() bool {
 	return m.errors.ContainsErrors()
 }
 
+// HasFailedFixes reports whether --fix left a finding open with the reason in its FixError.
+func (m *Manager) HasFailedFixes() bool {
+	return m.errors.ContainsFailedFixes()
+}
+
 // ApplyFixes is the single entry point for the --fix flag. It runs every fix
 // attached to a collected finding. Findings whose fix succeeds are marked Fixed
 // and subsequently dropped by GetErrors; findings whose fix fails are kept, and
