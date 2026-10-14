@@ -680,6 +680,10 @@ func validateServiceAccounts(accounts []ServiceAccount, report reporter) {
 			}
 
 			validateRoleName(ref.Name, fmt.Sprintf("%s.bindRoles[%d]", where, j), report)
+
+			if ref.BindingName != "" {
+				validateRoleName(ref.BindingName, fmt.Sprintf("%s.bindRoles[%d].bindingName", where, j), report)
+			}
 		}
 
 		for j, name := range sa.BindClusterRoles {

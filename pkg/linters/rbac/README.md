@@ -1462,6 +1462,9 @@ serviceAccounts:
                                               # <module>:<name>:<role> in a namespace of the platform
       - namespace: kube-system
         name: extension-apiserver-authentication-reader
+      - namespace: d8-log-shipper             # bindingName: the name the binding already has, kept
+        name: d8:cert-manager:cainjector:secrets  # instead of the derived one (bootstrap writes it)
+        bindingName: d8:cert-manager:cainjector:secrets
 
 # Metrics access -> Role/RoleBinding in the module namespace; `when` gates the RoleBinding to the
 # scraper only, the Role is unconditional, as the modules write it today. One entry as a mapping, or a
@@ -1497,6 +1500,7 @@ Format rules the loader enforces:
 - No value holds `{{` or `}}`: `--fix` writes the values into Helm templates as they are, and a `when` is the condition only.
 - `legacy.SuperAdmin` validates but is a warning: user-authz aggregates custom legacy roles for `User` through `ClusterAdmin` only.
 - `prometheusAccess` is one entry written as a mapping (the form of the first declarations) or a list of entries; a list of one entry is written back as the mapping. Each entry names at least one workload and produces a Role and a RoleBinding to the scraper in the module namespace: `access-to-<module>` in `templates/rbac-to-us.yaml` without `path` and `name`, `access-to-<module>-<name>` there with `name`, `access-to-<path, / as ->-<name>` in `templates/<path>/rbac-to-us.yaml` with both -- the names `access[]` gets, which the placement rule wants. A `path` needs a `name`, and two entries of one `path` and `name` are an error. `when` gates the RoleBinding of the Prometheus scraper (typically `.Values.global.enabledModules | has "prometheus"`); the Role stays unconditional.
+- `bindRoles[].bindingName` names the RoleBinding; without it the binding gets the name the placement rule wants (`d8:<module>:<account>:<role>` in `default` and `kube-system`, `<module>:<account>:<role>` in a namespace of the platform). It is a role name like the others (no `/`, `%` or whitespace); the placement rule judges it in the render, as any binding.
 - Levels: `namespace` -- `viewer`, `user`, `manager`, `admin`, `superadmin`; `system` -- `viewer`, `manager`, `superadmin`; `legacy` -- `User`, `PrivilegedUser`, `Editor`, `Admin`, `ClusterEditor`, `ClusterAdmin`, `SuperAdmin`.
 - `namespace` levels are allowed only for `Namespaced` resources; a `Namespaced` resource at a `system` level needs a `reason`.
 - A `system` level never writes a namespaced resource through which a write grants the identity of a ServiceAccount of the module's namespace -- `pods`, `replicationcontrollers`, `podtemplates`, `secrets`, `serviceaccounts`, the `apps` and `batch` workloads, `roles`, `rolebindings` -- and never touches `pods/exec`, `pods/attach`, `pods/portforward`, `pods/ephemeralcontainers` or `serviceaccounts/token` at all, whatever the `reason`: the role model writes into the namespaces of the platform at the `superadmin` level only, so the holders of a subsystem `manager` must not reach the ServiceAccounts of the module through its capability. Read verbs on the resources stay allowed; grant the writes at a `namespace` level instead.
@@ -1699,7 +1703,12 @@ template when the name is `access-to-<directory>-<name>`, else the root with `ac
 or `access-to-<module>`. A Role of `templates/<dir>/<file>` keeps its directory and moves to its
 `rbac-to-us.yaml`, and a note says so. A name no entry can express (one the placement rule does not
 want, `access-to-<module>s`) or a RoleBinding named otherwise than its Role folds into
-`access-to-<module>` at the root, as several Roles of that name do, with a note on why and the rename. Under
+`access-to-<module>` at the root, as several Roles of that name do, with a note on why and the rename.
+An account's RoleBinding to a Role of another namespace (`bindRoles`) keeps the name it has, as
+`bindingName`, when the placement rule -- with its `exclude-rules.placement` -- accepts it in the file
+the declaration writes it to, or refuses the name it wants there as well (a binding in the namespace of
+another module: a rename would gain nothing, and a note says so); otherwise the note names the name
+`--fix` gives it. Under
 `--matrix` an object the variants render with different rules gets the union and a note, as one a block
 varies. A note names the labels and annotations of a
 legacy role, and the annotations of a capability, the fix would drop; the labels of a capability go into its

@@ -242,6 +242,15 @@ func (r ExtraClusterRole) FullName(module, account string) string {
 type RoleRef struct {
 	Namespace string `yaml:"namespace"`
 	Name      string `yaml:"name"`
+	// BindingName is the name of the RoleBinding; empty means the name the placement rule wants
+	// (rbaccontract.AccountForeignBindingName). The bootstrap sets it when the module's binding
+	// already has another name the placement rule accepts, so the first --fix renames nothing.
+	BindingName string `yaml:"bindingName,omitempty"`
+}
+
+// Refers reports whether the entry binds the Role name in the namespace ns.
+func (r RoleRef) Refers(ns, name string) bool {
+	return r.Namespace == ns && r.Name == name
 }
 
 // PrometheusAccess declares the workloads whose metrics Prometheus scrapes; the generator
