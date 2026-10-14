@@ -121,6 +121,7 @@ go test ./test/e2e/ -run 'TestE2E/<linter>/<your-case>' -v
 | `rbac/sync-fix-leaves-foreign-object` | rbac linter `sync` with `--fix` (a declared file that diverges and holds a ConfigMap written by hand: the finding names the ConfigMap, carries no fix, and the file stays) |
 | `rbac/sync-module-role` | rbac linter `sync` (a role of the module outside the role model aggregates capabilities by a label of the module; one capability has an action of its own; the alias of the old name lives in `templates/rbacv2-compat/`) |
 | `rbac/sync-template-does-not-render` | rbac linter `sync` (a template the render skips: the render's warning is the only finding, sync reports nothing for the objects its text holds) |
+| `rbac/sync-excluded-object-not-written` | rbac linter `sync` (`exclude-rules.sync` names the two system capabilities the declaration produces, and their files do not exist: no finding, so `--fix` writes nothing there) |
 | `rbac/bootstrap-writes-declaration` | rbac linter `sync` with `--fix` on a module without rbac.yaml (the first declaration is written from the render) |
 | `rbac/scheme-legacy-only` | rbac linter `contract` on a module with the pre-1.78 use/manage scheme only (one finding naming the migration script) |
 | `rbac/scheme-legacy-with-declaration` | rbac linters `contract` and `sync` on a module that has rbac.yaml and still renders the legacy scheme (the legacy files are named) |

@@ -1167,6 +1167,73 @@ func TestSync_ExcludedObjectIsSilentButKnown(t *testing.T) {
 	assert.Contains(t, got[0], "is declared but absent from the render")
 }
 
+// --fix never writes an object exclude-rules.sync names (pilot on security-events-manager,
+// 2026-10-14): a file the declaration puts only such objects in is no finding, and a file it puts
+// one in beside others gets no fix, since the rewrite writes every object of the file.
+func TestSync_ExcludedObjectIsNeverWritten(t *testing.T) {
+	t.Run("a missing file of excluded objects only", func(t *testing.T) {
+		resetFixState()
+		t.Cleanup(resetFixState)
+
+		modulePath := syncModuleDir(t)
+		model := syncModel(t, modulePath)
+		writeGenerated(t, modulePath, model)
+
+		files := []string{"templates/rbacv2/manage/view.yaml", "templates/rbacv2/manage/edit.yaml"}
+		excludes := make([]pkg.KindRuleExclude, 0, len(files))
+		excluded := map[string]bool{}
+
+		for _, rel := range files {
+			file := model.File(rel)
+			require.NotNil(t, file)
+
+			for _, o := range file.Objects {
+				excludes = append(excludes, pkg.KindRuleExclude{Kind: o.Kind, Name: o.Name})
+				excluded[o.Identity()] = true
+			}
+
+			require.NoError(t, os.Remove(filepath.Join(modulePath, rel)))
+		}
+
+		store := renderedFrom(t, model, func(o *generate.Object) bool { return !excluded[o.Identity()] })
+
+		errorList := runSync(t, modulePath, store, excludes...)
+		assert.Empty(t, texts(errorList))
+
+		for _, fix := range errorList.GetFixes() {
+			fix()
+		}
+
+		for _, rel := range files {
+			assert.NoFileExists(t, filepath.Join(modulePath, rel), "--fix wrote an excluded object")
+		}
+	})
+
+	t.Run("a missing file of an excluded object and others", func(t *testing.T) {
+		resetFixState()
+		t.Cleanup(resetFixState)
+
+		modulePath := syncModuleDir(t)
+		model := syncModel(t, modulePath)
+		writeGenerated(t, modulePath, model)
+
+		const rel = "templates/cainjector/rbac-for-us.yaml"
+
+		require.NoError(t, os.Remove(filepath.Join(modulePath, rel)))
+
+		// The condition of the account is false for these values: nothing of the file renders.
+		store := renderedFrom(t, model, func(o *generate.Object) bool { return o.When == "" })
+
+		errorList := runSync(t, modulePath, store, pkg.KindRuleExclude{Kind: "ClusterRole", Name: "d8:cert-manager:cainjector"})
+		got := texts(errorList)
+		require.Len(t, got, 1, "got: %v", got)
+		assert.Contains(t, got[0], rel+" does not match rbac.yaml: the file does not exist")
+		assert.Contains(t, got[0], "The autofix leaves the file as it is: ClusterRole/d8:cert-manager:cainjector is excluded from sync (exclude-rules.sync), and a rewrite would write it from the declaration with the rest of the file")
+		assertLintOnly(t, errorList, modulePath)
+		assert.NoFileExists(t, filepath.Join(modulePath, rel))
+	})
+}
+
 // A ServiceAccount is compared like every other declared object: a token the render mounts but
 // the declaration does not is a divergence, since the regeneration would take it away.
 func TestSync_ServiceAccountAutomountIsCompared(t *testing.T) {
