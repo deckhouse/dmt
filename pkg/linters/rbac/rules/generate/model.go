@@ -481,11 +481,11 @@ func (b *builder) serviceAccounts() {
 		ann := sa.RBACAnnotations
 
 		subject := []Subject{{Kind: "ServiceAccount", Name: sa.Name, Namespace: b.in.Namespace}}
-		clusterName := "d8:" + b.in.Module + ":" + sa.Name
 
 		if len(sa.ClusterRules) > 0 {
+			clusterName, bindingName := sa.ClusterRoleNames(b.in.Module)
 			b.add(path, Object{Kind: "ClusterRole", Name: clusterName, Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann), Rules: policyRules(sa.ClusterRules)})
-			b.add(path, Object{Kind: "ClusterRoleBinding", Name: clusterName, Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann), RoleRefKind: "ClusterRole", RoleRefName: clusterName, Subjects: subject})
+			b.add(path, Object{Kind: "ClusterRoleBinding", Name: bindingName, Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann), RoleRefKind: "ClusterRole", RoleRefName: clusterName, Subjects: subject})
 		}
 
 		if len(sa.NamespaceRules) > 0 {
@@ -499,7 +499,7 @@ func (b *builder) serviceAccounts() {
 			b.add(path, Object{Kind: "ClusterRole", Name: extraName, Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann), Rules: policyRules(extra.Rules)})
 
 			if extra.IsBound() {
-				b.add(path, Object{Kind: "ClusterRoleBinding", Name: extraName, Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann), RoleRefKind: "ClusterRole", RoleRefName: extraName, Subjects: subject})
+				b.add(path, Object{Kind: "ClusterRoleBinding", Name: extra.BindingNameOf(b.in.Module, sa.Name), Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann), RoleRefKind: "ClusterRole", RoleRefName: extraName, Subjects: subject})
 			}
 		}
 

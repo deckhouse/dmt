@@ -838,6 +838,18 @@ func TestValidate_NamesPathsAndConditions(t *testing.T) {
 			yaml:    "serviceAccounts:\n  - {name: a, roleBindingName: leader}\n",
 			wantErr: `serviceAccounts[0] (a).roleBindingName: names the RoleBinding of namespaceRules, and the account has no namespaceRules`,
 		},
+		"an account cluster role binding name with a slash": {
+			yaml:    "serviceAccounts:\n  - {name: a, clusterRoleBindingName: a/b, clusterRules: [{apiGroups: [a], resources: [b], verbs: [get]}]}\n",
+			wantErr: `serviceAccounts[0] (a).clusterRoleBindingName: "a/b" is not a valid role name`,
+		},
+		"an account cluster role binding name without clusterRules": {
+			yaml:    "serviceAccounts:\n  - {name: a, clusterRoleBindingName: d8:m:a-binding}\n",
+			wantErr: `serviceAccounts[0] (a).clusterRoleBindingName: names the ClusterRoleBinding of clusterRules, and the account has no clusterRules`,
+		},
+		"an extra role binding name with a space": {
+			yaml:    "serviceAccounts:\n  - {name: a, extraClusterRoles: [{name: x, bindingName: a b, rules: [{apiGroups: [a], resources: [b], verbs: [get]}]}]}\n",
+			wantErr: `serviceAccounts[0] (a).extraClusterRoles[0] (x).bindingName: "a b" is not a valid role name`,
+		},
 		"a scrape access binding name with a slash": {
 			yaml:    "prometheusAccess:\n  name: m\n  bindingName: a/b\n  deployments: [dex]\n",
 			wantErr: `prometheusAccess.bindingName: "a/b" is not a valid role name`,
@@ -1015,6 +1027,19 @@ serviceAccounts:
         rules: []
       - name: d8:other:full-name
         rules: []
+      - name: manager-role
+        bindingName: d8:cert-manager:webhook:manager-rolebinding
+        rules:
+          - apiGroups: [""]
+            resources: [secrets]
+            verbs: [list]
+      - name: unbound
+        bind: false
+        bindingName: d8:cert-manager:webhook:unbound
+        rules:
+          - apiGroups: [""]
+            resources: [secrets]
+            verbs: [watch]
 `))
 	require.NoError(t, err)
 	require.NotNil(t, decl.ServiceAccounts[0].AutomountToken)
@@ -1023,6 +1048,8 @@ serviceAccounts:
 	assert.True(t, decl.ServiceAccounts[0].ExtraClusterRoles[1].IsBound())
 	assert.Equal(t, "d8:cert-manager:webhook:requester", decl.ServiceAccounts[0].ExtraClusterRoles[0].FullName("cert-manager", "webhook"))
 	assert.Equal(t, "d8:other:full-name", decl.ServiceAccounts[0].ExtraClusterRoles[3].FullName("cert-manager", "webhook"))
+	assert.Equal(t, "d8:cert-manager:webhook:requester", decl.ServiceAccounts[0].ExtraClusterRoles[1].BindingNameOf("cert-manager", "webhook"), "the binding takes the role's name")
+	assert.Equal(t, "d8:cert-manager:webhook:manager-rolebinding", decl.ServiceAccounts[0].ExtraClusterRoles[4].BindingNameOf("cert-manager", "webhook"))
 
 	errs := Validate(decl, nil)
 
@@ -1034,7 +1061,8 @@ serviceAccounts:
 	assert.Contains(t, msgs, `serviceAccounts[0] (webhook).extraClusterRoles[1]: duplicate name "requester"`)
 	assert.Contains(t, msgs, "serviceAccounts[0] (webhook).extraClusterRoles[2]: name is required")
 	assert.Contains(t, msgs, "serviceAccounts[0] (webhook).extraClusterRoles[3] (d8:other:full-name): rules is required")
-	assert.Len(t, msgs, 3, "got: %v", msgs)
+	assert.Contains(t, msgs, "serviceAccounts[0] (webhook).extraClusterRoles[5] (unbound).bindingName: names the ClusterRoleBinding of the role, and bind: false writes none")
+	assert.Len(t, msgs, 4, "got: %v", msgs)
 }
 
 // Built-in Kubernetes resources need no scope of their own; a duplicate subject is an error.
