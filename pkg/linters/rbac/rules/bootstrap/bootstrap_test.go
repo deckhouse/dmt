@@ -17,8 +17,10 @@ limitations under the License.
 package bootstrap
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -160,8 +162,8 @@ func TestBuild_RoundTripOnTheCertManagerFixture(t *testing.T) {
 	}
 
 	assert.Len(t, got.Decl.Access, len(want.Access))
-	require.NotNil(t, got.Decl.PrometheusAccess)
-	assert.ElementsMatch(t, want.PrometheusAccess.Deployments, got.Decl.PrometheusAccess.Deployments)
+	require.Len(t, got.Decl.PrometheusAccess, 1)
+	assert.ElementsMatch(t, want.PrometheusAccess[0].Deployments, got.Decl.PrometheusAccess[0].Deployments)
 
 	// nothing to rename: the generator's names come back as themselves
 	for _, n := range got.Notes {
@@ -295,7 +297,7 @@ func TestBuild_TODOsAndUnmanaged(t *testing.T) {
 	}
 
 	assert.Equal(t, "Namespaced", byKey["/pods"].Scope, "a well-known core resource gets its scope")
-	assert.Equal(t, "TODO: Namespaced or Cluster", byKey["trivy.deckhouse.io/vulnerabilityreports"].Scope, "an unknown one is a TODO value for the author (review of #479, reply to finding 9)")
+	assert.Equal(t, "TODO: Namespaced or Cluster (Cluster drops the namespace levels)", byKey["trivy.deckhouse.io/vulnerabilityreports"].Scope, "an unknown one is a TODO value for the author (review of #479, reply to finding 9)")
 	assert.Contains(t, byKey["deckhouse.io/things"].NoAccess, "TODO", "a CRD nobody grants is an undecided entry")
 
 	require.Len(t, got.Decl.ServiceAccounts, 1)
@@ -336,12 +338,107 @@ func TestBuild_WhatTheFormatCannotHoldIsNamed(t *testing.T) {
 
 	notes := strings.Join(got.Notes, "\n")
 	assert.NotContains(t, notes, "system/viewer: a moduleconfigs rule", "the generator's own rule is not a note")
-	assert.Contains(t, notes, "system/superadmin: a moduleconfigs rule the generator does not produce (delete on [m])")
-	assert.Contains(t, notes, "system/manager: a moduleconfigs rule the generator does not produce (update on [other])")
+	assert.Contains(t, notes, "system/superadmin: a moduleconfigs rule the declaration does not produce (delete on [m])")
+	assert.Contains(t, notes, "system/manager: a moduleconfigs rule the declaration does not produce (update on [other])")
 
 	require.Len(t, got.Decl.ServiceAccounts, 1)
 	assert.Empty(t, got.Decl.ServiceAccounts[0].BindRoles)
 	assert.Contains(t, strings.Join(got.Unmanaged, "\n"), "a RoleBinding to the ClusterRole view, which bindRoles cannot express")
+}
+
+// A Role an account binds in another namespace stays hand-written because bindRoles names it
+// without writing it, not because nothing binds it; where it keeps the fix off its template, the
+// note says to move it (dry run on security-events-manager, 2026-10-09).
+func TestBuild_AHandWrittenRoleOfBindRolesSaysWhy(t *testing.T) {
+	const path = "templates/worker/rbac-for-us.yaml"
+
+	objects := []Object{
+		{Kind: "ServiceAccount", Name: "worker", Path: path, Labels: map[string]string{"module": "m"}},
+		{Kind: "Role", Name: "d8:m:worker:secrets", Namespace: "d8-log-shipper", Path: path, Labels: map[string]string{"module": "m"},
+			Rules: []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"secrets"}, Verbs: []string{"get"}}}},
+		{Kind: "RoleBinding", Name: "d8:m:worker:secrets", Namespace: "d8-log-shipper", Path: path, Labels: map[string]string{"module": "m"},
+			RoleRef:  rbacv1.RoleRef{Kind: "Role", Name: "d8:m:worker:secrets"},
+			Subjects: []rbacv1.Subject{{Kind: "ServiceAccount", Name: "worker", Namespace: "d8-m"}}},
+		{Kind: "Role", Name: "orphan", Namespace: "d8-m", Path: "templates/orphan.yaml", Labels: map[string]string{"module": "m"},
+			Rules: []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"configmaps"}, Verbs: []string{"get"}}}},
+	}
+
+	for name, tc := range map[string]struct {
+		leftAsIs map[string]string
+		want     string
+		notWant  string
+	}{
+		"the fix rewrites the file": {
+			want:    "d8-log-shipper/Role/d8:m:worker:secrets (" + path + "): bindRoles of worker binds it, and the declaration names the Role without writing it",
+			notWant: "move it",
+		},
+		"the fix leaves the file as it is": {
+			leftAsIs: map[string]string{"d8-log-shipper/RoleBinding/m:worker:secrets": path},
+			want:     "the declaration names the Role without writing it -- move it to a template the declaration does not write: --fix leaves " + path + " as it is while the Role is there",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Objects: objects, LeftAsIs: tc.leftAsIs})
+
+			require.Len(t, got.Decl.ServiceAccounts, 1)
+			assert.Equal(t, []rbacyaml.RoleRef{{Namespace: "d8-log-shipper", Name: "d8:m:worker:secrets"}}, got.Decl.ServiceAccounts[0].BindRoles)
+
+			unmanaged := strings.Join(got.Unmanaged, "\n")
+			assert.Contains(t, unmanaged, tc.want)
+			assert.Contains(t, unmanaged, "d8-m/Role/orphan (templates/orphan.yaml): bound to nothing the declaration describes")
+
+			if tc.notWant != "" {
+				assert.NotContains(t, unmanaged, tc.notWant)
+			}
+		})
+	}
+}
+
+// An account whose objects render from another template of a component directory than its
+// rbac-for-us.yaml keeps the directory as its path, as one in templates/<dir>/rbac-for-us.yaml does:
+// the fix then writes it beside the template it came from rather than into the root file (pilot on
+// user-authn, 2026-10-14: templates/user-api/rbac.yaml). A path the generator would refuse -- an
+// account not named after the directory, a module in kube-system -- leaves it at the root.
+func TestBuild_AccountPathFromItsComponentDirectory(t *testing.T) {
+	labels := map[string]string{"module": "m"}
+
+	for name, tc := range map[string]struct {
+		namespace, account, path string
+		expected                 string
+	}{
+		"a component file other than rbac-for-us.yaml":     {namespace: "d8-m", account: "user-api", path: "templates/user-api/rbac.yaml", expected: "user-api"},
+		"a nested component directory":                     {namespace: "d8-m", account: "a-b", path: "templates/a/b/sa.yaml", expected: "a/b"},
+		"the module name in front in a platform namespace": {namespace: "d8-system", account: "m-user-api", path: "templates/user-api/rbac.yaml", expected: "user-api"},
+		"rbac-for-us.yaml of the directory, as before":     {namespace: "d8-m", account: "user-api", path: "templates/user-api/rbac-for-us.yaml", expected: "user-api"},
+		"an account not named after its directory":         {namespace: "d8-m", account: "api", path: "templates/user-api/rbac.yaml", expected: ""},
+		"the module name in front outside the platform":    {namespace: "d8-m", account: "m-user-api", path: "templates/user-api/rbac.yaml", expected: ""},
+		"a module in kube-system":                          {namespace: "kube-system", account: "user-api", path: "templates/user-api/rbac.yaml", expected: ""},
+		"a directory that is no DNS label":                 {namespace: "d8-m", account: "a.b", path: "templates/a.b/rbac.yaml", expected: ""},
+		"a template at the root":                           {namespace: "d8-m", account: "user-api", path: "templates/rbac.yaml", expected: ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			rules := []rbacv1.PolicyRule{{APIGroups: []string{"deckhouse.io"}, Resources: []string{"useroperations"}, Verbs: []string{"create"}}}
+			got := Build(Input{Module: "m", Namespace: tc.namespace, Objects: []Object{
+				{Kind: "ServiceAccount", Name: tc.account, Namespace: tc.namespace, Path: tc.path, Labels: labels},
+				{Kind: "ClusterRole", Name: "d8:m:" + tc.account, Path: tc.path, Labels: labels, Rules: rules},
+				{Kind: "ClusterRoleBinding", Name: "d8:m:" + tc.account, Path: tc.path, Labels: labels,
+					RoleRef:  rbacv1.RoleRef{Kind: "ClusterRole", Name: "d8:m:" + tc.account},
+					Subjects: []rbacv1.Subject{{Kind: "ServiceAccount", Name: tc.account, Namespace: tc.namespace}}},
+			}})
+
+			require.Len(t, got.Decl.ServiceAccounts, 1, "unmanaged: %v", got.Unmanaged)
+			assert.Equal(t, tc.expected, got.Decl.ServiceAccounts[0].Path)
+
+			target := "templates/rbac-for-us.yaml"
+			if tc.expected != "" {
+				target = "templates/" + tc.expected + "/rbac-for-us.yaml"
+			}
+
+			if !strings.HasSuffix(tc.path, "/rbac-for-us.yaml") {
+				assert.Contains(t, strings.Join(got.Notes, "\n"), "ServiceAccount "+tc.account+" lives in "+tc.path+"; the declaration keeps accounts in templates/[<path>/]rbac-for-us.yaml and --fix will write it to "+target)
+			}
+		})
+	}
 }
 
 // A role granting "*" verbs or API groups stays out of the declaration with a note, instead of
@@ -389,7 +486,7 @@ func TestBuild_AggregatedRoleOfAnAccountStaysHandWritten(t *testing.T) {
 
 	require.Len(t, got.Decl.ServiceAccounts, 1)
 	assert.Empty(t, got.Decl.ServiceAccounts[0].ExtraClusterRoles)
-	assert.Equal(t, []string{"d8:m:capi:aggregated"}, got.Decl.ServiceAccounts[0].BindClusterRoles)
+	assert.Equal(t, []rbacyaml.ClusterRoleRef{{Name: "d8:m:capi:aggregated"}}, got.Decl.ServiceAccounts[0].BindClusterRoles)
 	assert.Contains(t, strings.Join(got.Unmanaged, "\n"), "ClusterRole/d8:m:capi:aggregated")
 	assert.Empty(t, rbacyaml.Validate(got.Decl, nil), "the written declaration validates")
 }
@@ -409,36 +506,63 @@ func TestBuild_RepeatedBindingOfAnAccountFolds(t *testing.T) {
 	}})
 
 	require.Len(t, got.Decl.ServiceAccounts, 1)
-	assert.Equal(t, []string{"d8:rbac-proxy"}, got.Decl.ServiceAccounts[0].BindClusterRoles)
+	assert.Equal(t, []rbacyaml.ClusterRoleRef{{Name: "d8:rbac-proxy"}}, got.Decl.ServiceAccounts[0].BindClusterRoles)
 	assert.Regexp(t, `ClusterRoleBinding d8:m:autoscaler(-mcm)?:rbac-proxy binds autoscaler to d8:rbac-proxy again; it folds into d8:m:autoscaler:rbac-proxy`, strings.Join(got.Notes, "\n"))
 	assert.Empty(t, rbacyaml.Validate(got.Decl, nil))
 }
 
-// An account outside the module namespace is listed once; an empty legacy role is noted; the scrape
-// gate is asked about once, for the first Role (regression hunts 1 and 2).
-func TestBuild_NotesAreWrittenOnce(t *testing.T) {
+// Annotations of an account and of its roles survive the import, apart from Helm's and the
+// generator's own; a nested access Role keeps its entry name (regression hunt, B7 and B8).
+func TestBuild_AnnotationsAndNestedAccessNames(t *testing.T) {
 	labels := map[string]string{"module": "m"}
-	scraper := []rbacv1.Subject{{Kind: "User", Name: "d8-monitoring:scraper"}}
-	metrics := func(name string) []rbacv1.PolicyRule {
-		return []rbacv1.PolicyRule{{APIGroups: []string{"apps"}, Resources: []string{"deployments/prometheus-metrics"}, ResourceNames: []string{name}, Verbs: []string{"get"}}}
-	}
+	subject := []rbacv1.Subject{{Kind: "ServiceAccount", Name: "m", Namespace: "d8-m"}}
+	rules := []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"nodes"}, Verbs: []string{"get"}}}
 
 	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{
-		{Kind: "ServiceAccount", Name: "elsewhere", Namespace: "kube-system", Path: "templates/rbac-for-us.yaml", Labels: labels},
-		{Kind: "ClusterRole", Name: "m:user", Path: "templates/user-authz-cluster-roles.yaml", Labels: labels,
-			Annotations: map[string]string{rbaccontract.AccessLevelAnnotation: "User"}},
-		{Kind: "Role", Name: "access-to-m-a", Namespace: "d8-m", Path: "templates/rbac-to-us.yaml", Labels: labels, Rules: metrics("a")},
-		{Kind: "RoleBinding", Name: "access-to-m-a", Namespace: "d8-m", Path: "templates/rbac-to-us.yaml", Labels: labels, RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "access-to-m-a"}, Subjects: scraper},
-		{Kind: "Role", Name: "access-to-m-b", Namespace: "d8-m", Path: "templates/rbac-to-us.yaml", Labels: labels, Rules: metrics("b")},
-		{Kind: "RoleBinding", Name: "access-to-m-b", Namespace: "d8-m", Path: "templates/rbac-to-us.yaml", Labels: labels, RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "access-to-m-b"}, Subjects: scraper},
+		{Kind: "ServiceAccount", Name: "m", Path: "templates/rbac-for-us.yaml", Labels: labels,
+			Annotations: map[string]string{"helm.sh/resource-policy": "keep", "meta.helm.sh/release-name": "m"}},
+		{Kind: "ClusterRole", Name: "d8:m:m", Path: "templates/rbac-for-us.yaml", Labels: labels, Rules: rules,
+			Annotations: map[string]string{"werf.io/deploy-on": "pre-install"}},
+		{Kind: "ClusterRoleBinding", Name: "d8:m:m", Path: "templates/rbac-for-us.yaml", Labels: labels,
+			RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: "d8:m:m"}, Subjects: subject,
+			Annotations: map[string]string{"werf.io/deploy-on": "pre-install"}},
+		{Kind: "Role", Name: "access-to-webhook-reader", Namespace: "d8-m", Path: "templates/webhook/rbac-to-us.yaml", Labels: labels,
+			Rules: []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"secrets"}, Verbs: []string{"get"}}}},
+		{Kind: "RoleBinding", Name: "access-to-webhook-reader", Namespace: "d8-m", Path: "templates/webhook/rbac-to-us.yaml", Labels: labels,
+			RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "access-to-webhook-reader"}, Subjects: []rbacv1.Subject{{Kind: "Group", Name: "g"}}},
 	}})
 
-	assert.Len(t, got.Unmanaged, 1, "got: %v", got.Unmanaged)
+	require.Len(t, got.Decl.ServiceAccounts, 1)
+	assert.Equal(t, map[string]string{"helm.sh/resource-policy": "keep"}, got.Decl.ServiceAccounts[0].Annotations)
+	assert.Equal(t, map[string]string{"werf.io/deploy-on": "pre-install"}, got.Decl.ServiceAccounts[0].RBACAnnotations)
 
-	notes := strings.Join(got.Notes, "\n")
-	assert.Contains(t, notes, "ClusterRole m:user (legacy User) has no rules and grants nothing")
-	assert.Equal(t, 1, strings.Count(notes, "whether the template gated the scraper binding"))
-	assert.Equal(t, 1, strings.Count(notes, "several Prometheus access Roles fold"))
+	require.Len(t, got.Decl.Access, 1)
+	assert.Equal(t, "reader", got.Decl.Access[0].Name)
+	assert.Equal(t, "webhook", got.Decl.Access[0].Path)
+	assert.NotContains(t, strings.Join(got.Notes, "\n"), "will be named", "the generator writes the names the module already has")
+	assert.Empty(t, rbacyaml.Validate(got.Decl, nil))
+}
+
+// Labels and annotations of an access entry and of the scrape access survive the import
+// (regression hunt 2, A2 and A4).
+func TestBuild_AccessMetadataImported(t *testing.T) {
+	labels := map[string]string{"module": "m", "heritage": "deckhouse", "app": "capi"}
+	hook := map[string]string{"werf.io/deploy-on": "pre-install"}
+	nodes := []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"nodes"}, Verbs: []string{"get"}}}
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{
+		{Kind: "ClusterRole", Name: "d8:m:manager", Path: "templates/rbac-for-us.yaml", Labels: labels, Annotations: hook, Rules: nodes},
+		{Kind: "ClusterRoleBinding", Name: "d8:m:manager", Path: "templates/rbac-for-us.yaml", Labels: labels, Annotations: hook,
+			RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: "d8:m:manager"}, Subjects: []rbacv1.Subject{{Kind: "Group", Name: "g"}}},
+		{Kind: "ServiceAccount", Name: "m", Path: "templates/rbac-for-us.yaml", Labels: map[string]string{"module": "m", "app.kubernetes.io/part-of": "gatekeeper"}},
+	}})
+
+	require.Len(t, got.Decl.Access, 1)
+	assert.Equal(t, map[string]string{"app": "capi"}, got.Decl.Access[0].Labels)
+	assert.Equal(t, hook, got.Decl.Access[0].Annotations)
+
+	require.Len(t, got.Decl.ServiceAccounts, 1)
+	assert.Equal(t, map[string]string{"app.kubernetes.io/part-of": "gatekeeper"}, got.Decl.ServiceAccounts[0].Labels)
 }
 
 // What a library renders stays hand-written, apart from the legacy roles and capabilities sync
@@ -449,10 +573,10 @@ func TestBuild_LibraryAndEmptyRolesAreSetAside(t *testing.T) {
 	sa := []rbacv1.Subject{{Kind: "ServiceAccount", Name: "m", Namespace: "d8-m"}}
 
 	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{
-		{Kind: "ServiceAccount", Name: "csi", Path: "templates/csi/rbac-for-us.yaml", Labels: labels, Library: true},
-		{Kind: "ClusterRole", Name: "d8:m:csi:controller", Path: "templates/csi/rbac-for-us.yaml", Labels: labels, Library: true,
+		{Kind: "ServiceAccount", Name: "csi", Path: "templates/csi/rbac-for-us.yaml", Labels: labels, Unmanageable: "rendered by an include of a named template (helm_lib or another chart), which owns it", Located: true, Library: true},
+		{Kind: "ClusterRole", Name: "d8:m:csi:controller", Path: "templates/csi/rbac-for-us.yaml", Labels: labels, Unmanageable: "rendered by an include of a named template (helm_lib or another chart), which owns it", Located: true, Library: true,
 			Rules: []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"nodes"}, Verbs: []string{"get"}}}},
-		{Kind: "ClusterRole", Name: "d8:m:user", Path: "templates/user-authz-cluster-roles.yaml", Labels: labels, Library: true,
+		{Kind: "ClusterRole", Name: "d8:m:user", Path: "templates/user-authz-cluster-roles.yaml", Labels: labels, Unmanageable: "rendered by an include of a named template (helm_lib or another chart), which owns it", Located: true, Library: true,
 			Annotations: map[string]string{rbaccontract.AccessLevelAnnotation: "User"},
 			Rules:       []rbacv1.PolicyRule{{APIGroups: []string{"x.io"}, Resources: []string{"things"}, Verbs: []string{"get"}}}},
 		{Kind: "ServiceAccount", Name: "m", Path: "templates/rbac-for-us.yaml", Labels: labels},
@@ -463,68 +587,50 @@ func TestBuild_LibraryAndEmptyRolesAreSetAside(t *testing.T) {
 
 	unmanaged := strings.Join(got.Unmanaged, "\n")
 	assert.Contains(t, unmanaged, "ServiceAccount/csi (templates/csi/rbac-for-us.yaml): rendered by an include of a named template")
+	assert.NotContains(t, unmanaged, "ClusterRole/d8:m:user", "a legacy role a library renders is sync's")
 	assert.Contains(t, unmanaged, "ClusterRole/d8:m:csi:controller (templates/csi/rbac-for-us.yaml): rendered by an include")
 	assert.Contains(t, unmanaged, "ClusterRole/d8:m:m:iop:istiod-1x25 (templates/rbac-for-us.yaml): has no rules")
+	assert.Equal(t, 3, strings.Count(unmanaged, "\n")+1, "got: %s", unmanaged)
 
 	require.Len(t, got.Decl.Resources, 1, "the legacy role a library renders is imported")
 	assert.Contains(t, got.Decl.Resources[0].Legacy, "User")
 
 	require.Len(t, got.Decl.ServiceAccounts, 1)
 	assert.Empty(t, got.Decl.ServiceAccounts[0].ExtraClusterRoles, "no entry without rules")
-	assert.Equal(t, []string{"d8:m:m:iop:istiod-1x25"}, got.Decl.ServiceAccounts[0].BindClusterRoles)
+	assert.Equal(t, []rbacyaml.ClusterRoleRef{{Name: "d8:m:m:iop:istiod-1x25"}}, got.Decl.ServiceAccounts[0].BindClusterRoles)
 	assert.Empty(t, rbacyaml.Validate(got.Decl, rbacyaml.CRDScopes{"x.io/things": "Namespaced"}))
 }
 
-// A namespace access Role of a component directory stays hand-written rather than becoming an
-// entry the generator refuses or names access-to-<module>-access-to-<dir>-x (review of #479,
-// finding 37).
-func TestBuild_NestedNamespaceAccessStaysHandWritten(t *testing.T) {
-	labels := map[string]string{"module": "istio"}
-
-	got := Build(Input{Module: "istio", Namespace: "d8-istio", Objects: []Object{
-		{Kind: "Role", Name: "access-to-kiali-http", Namespace: "d8-istio", Path: "templates/kiali/rbac-to-us.yaml", Labels: labels,
-			Rules: []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"services/proxy"}, Verbs: []string{"get"}}}},
-		{Kind: "RoleBinding", Name: "access-to-kiali-http", Namespace: "d8-istio", Path: "templates/kiali/rbac-to-us.yaml", Labels: labels,
-			RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "access-to-kiali-http"}, Subjects: []rbacv1.Subject{{Kind: "Group", Name: "g"}}},
-	}})
-
-	assert.Empty(t, got.Decl.Access)
-	assert.Len(t, got.Unmanaged, 2)
-	assert.NotContains(t, strings.Join(got.Notes, "\n"), "access-to-istio-access-to")
-}
-
-// What the format does not describe is noted per object: labels and annotations a regeneration
-// drops, and the condition of an object only some render variants showed (review of #479,
-// finding 40). An account's app label is the format's.
+// What the format still does not carry is noted per object: the labels and annotations of a
+// legacy role or a capability, and the condition of an object only some render variants showed
+// when the template did not give it (review of #479, finding 40). An account carries its own.
 func TestBuild_DroppedMetadataAndConditionsAreNoted(t *testing.T) {
-	labels := map[string]string{"module": "m", "heritage": "deckhouse", "app": "m"}
-	nodes := []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"nodes"}, Verbs: []string{"get"}}}
-	sa := []rbacv1.Subject{{Kind: "ServiceAccount", Name: "m", Namespace: "d8-m"}}
+	labels := map[string]string{"module": "m", "heritage": "deckhouse"}
 
 	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{
-		{Kind: "ServiceAccount", Name: "m", Namespace: "d8-m", Path: "templates/rbac-for-us.yaml", Labels: labels,
+		{Kind: "ServiceAccount", Name: "m", Namespace: "d8-m", Path: "templates/rbac-for-us.yaml", Labels: labels, Located: true,
 			Annotations: map[string]string{"helm.sh/resource-policy": "keep", "meta.helm.sh/release-name": "m"}},
-		{Kind: "ClusterRole", Name: "d8:m:m", Path: "templates/rbac-for-us.yaml", Labels: labels, Rules: nodes},
-		{Kind: "ClusterRoleBinding", Name: "d8:m:m", Path: "templates/rbac-for-us.yaml", Labels: labels,
-			Annotations: map[string]string{"werf.io/deploy-on": "pre-install"},
-			RoleRef:     rbacv1.RoleRef{Kind: "ClusterRole", Name: "d8:m:m"}, Subjects: sa},
-		{Kind: "ClusterRole", Name: "d8:m:reader", Path: "templates/rbac-for-us.yaml", Labels: map[string]string{"module": "m", "gatekeeper.sh/system": "yes"}, Rules: nodes},
-		{Kind: "ClusterRoleBinding", Name: "d8:m:reader", Path: "templates/rbac-for-us.yaml", Labels: map[string]string{"module": "m"},
-			RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: "d8:m:reader"}, Subjects: []rbacv1.Subject{{Kind: "Group", Name: "g"}}},
-	}, Partial: []string{"ClusterRoleBinding//d8:m:reader"}})
+		{Kind: "ClusterRole", Name: "d8:m:user", Path: "templates/user-authz-cluster-roles.yaml", Located: true,
+			Labels:      map[string]string{"module": "m", "gatekeeper.sh/system": "yes"},
+			Annotations: map[string]string{rbaccontract.AccessLevelAnnotation: "User", "werf.io/deploy-on": "pre-install"},
+			Rules:       []rbacv1.PolicyRule{{APIGroups: []string{"x.io"}, Resources: []string{"things"}, Verbs: []string{"get"}}}},
+		{Kind: "ClusterRole", Name: "d8:m:admin", Path: "templates/user-authz-cluster-roles.yaml", Located: true, When: ".Values.m.on",
+			Labels:      map[string]string{"module": "m"},
+			Annotations: map[string]string{rbaccontract.AccessLevelAnnotation: "Admin"},
+			Rules:       []rbacv1.PolicyRule{{APIGroups: []string{"x.io"}, Resources: []string{"things"}, Verbs: []string{"delete"}}}},
+	}, CRDs: map[string]string{"x.io/things": "Namespaced"}, Partial: []string{"ClusterRole//d8:m:user", "ClusterRole//d8:m:admin"}})
 
 	notes := strings.Join(got.Notes, "\n")
-	assert.Contains(t, notes, "ServiceAccount m (templates/rbac-for-us.yaml) carries what the format does not describe (annotation helm.sh/resource-policy)")
-	assert.Contains(t, notes, "ClusterRoleBinding d8:m:m (templates/rbac-for-us.yaml) carries what the format does not describe (annotation werf.io/deploy-on)")
-	// An access entry has no `when`: what renders only under some values stays hand-written
+	assert.Contains(t, notes, "ClusterRole d8:m:user (templates/user-authz-cluster-roles.yaml) carries what the format does not describe (label gatekeeper.sh/system, annotation werf.io/deploy-on)")
+	// A legacy role only some variants rendered, its condition unknown, leaves a TODO reason
 	// (review of #479, finding 41).
-	unmanaged := strings.Join(got.Unmanaged, "\n")
-	assert.Contains(t, unmanaged, "ClusterRoleBinding/d8:m:reader (templates/rbac-for-us.yaml): renders only under some of the linted values")
-	assert.Contains(t, unmanaged, "ClusterRole/d8:m:reader (templates/rbac-for-us.yaml): renders only under some of the linted values")
-	assert.Empty(t, got.Decl.Access)
-	assert.NotContains(t, notes, "label app")
-	assert.NotContains(t, notes, "meta.helm.sh")
-	assert.NotContains(t, notes, "label heritage")
+	require.Len(t, got.Decl.Resources, 1)
+	assert.Contains(t, got.Decl.Resources[0].Reason, "ClusterRole d8:m:user renders only under some of the linted values")
+	assert.NotContains(t, got.Decl.Resources[0].Reason, "ClusterRole d8:m:admin renders only under some", "its condition was read from the template")
+	assert.NotContains(t, notes, "ServiceAccount m (templates/rbac-for-us.yaml) carries", "an account carries its annotations")
+
+	require.Len(t, got.Decl.ServiceAccounts, 1)
+	assert.Equal(t, map[string]string{"helm.sh/resource-policy": "keep"}, got.Decl.ServiceAccounts[0].Annotations)
 }
 
 // An object of the module in a file that also holds what a helm_lib include renders stays
@@ -581,7 +687,7 @@ func TestBuild_PartialObjectBesideDeclaredOnes(t *testing.T) {
 	}, Partial: []string{"ClusterRoleBinding//d8:m:supplement"}})
 
 	notes := strings.Join(got.Notes, "\n")
-	assert.Contains(t, notes, "ClusterRoleBinding d8:m:supplement stays hand-written in templates/rbac-for-us.yaml, which the declaration also writes: move it to the rbac-for-us.yaml of another component directory")
+	assert.Contains(t, notes, "ClusterRoleBinding d8:m:supplement stays hand-written in templates/rbac-for-us.yaml, which the declaration also writes: move it to the rbac-for-us.yaml of another component directory (the placement rule accepts it in any): until then templates/rbac-for-us.yaml gets no fix")
 	assert.Contains(t, notes, "ClusterRole d8:m:supplement stays hand-written in templates/rbac-for-us.yaml")
 }
 
@@ -673,4 +779,847 @@ func TestBuild_AccountObjectsInOtherVariants(t *testing.T) {
 	assert.Contains(t, when, "render in other variants than ServiceAccount autoscaler, so no single `when` holds")
 	assert.Contains(t, when, "ClusterRoleBinding d8:m:autoscaler:plain")
 	assert.Contains(t, when, "ClusterRoleBinding d8:m:autoscaler:mcm")
+}
+
+// A capability with an action of its own comes back under its action, with the level it aggregates
+// into and the labels of the module; one whose level the declaration cannot say stays hand-written.
+func TestBuild_CapabilityOfItsOwnActionRoundTrips(t *testing.T) {
+	const agent = "m.deckhouse.io/aggregate-to-agent"
+
+	want := &rbacyaml.Declaration{APIVersion: rbacyaml.APIVersionV1Alpha1,
+		Resources: []rbacyaml.Resource{
+			{Group: "x.io", Resource: "snapshots", Namespace: map[string][]string{"viewer": {"get"}, "download_snapshots": {"create"}}},
+		},
+		Capabilities: map[string]rbacyaml.Capability{
+			"namespace.download_snapshots": {Level: "admin", Labels: map[string]string{agent: "true"},
+				Title: rbacyaml.LocalizedText{EN: "t", RU: "т"}, Description: rbacyaml.LocalizedText{EN: "d", RU: "д"}},
+			"namespace.view": {Labels: map[string]string{agent: "true"}},
+		},
+	}
+	crds := map[string]string{"x.io/snapshots": "Namespaced"}
+
+	model, err := generate.Build(generate.Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"storage"}, Decl: want})
+	require.NoError(t, err)
+
+	objects := objectsOf(model, "m", "d8-m")
+	got := Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"storage"}, Objects: objects, CRDs: crds})
+	require.Empty(t, got.Unmanaged)
+	assert.Equal(t, want.Capabilities, got.Decl.Capabilities)
+	require.Len(t, got.Decl.Resources, 1)
+	assert.Equal(t, want.Resources[0].Namespace, got.Decl.Resources[0].Namespace)
+
+	for i := range objects {
+		if objects[i].Name == "d8:namespace-capability:m:download_snapshots" {
+			objects[i].Labels["rbac.deckhouse.io/aggregate-to-kubernetes-as"] = "viewer"
+		}
+	}
+
+	got = Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"storage"}, Objects: objects, CRDs: crds})
+	assert.Contains(t, strings.Join(got.Unmanaged, "\n"),
+		"ClusterRole/d8:namespace-capability:m:download_snapshots (templates/rbacv2/use/download_snapshots.yaml): a capability with an action of its own that aggregates into several levels (admin, viewer); the declaration gives it one")
+
+	for why, labels := range map[string]map[string]string{
+		"a capability with an action of its own that aggregates into no level":                        {},
+		`a capability that aggregates into namespace level "member", which the lineage does not have`: {"rbac.deckhouse.io/aggregate-to-namespace-as": "member"},
+	} {
+		for i := range objects {
+			if objects[i].Name == "d8:namespace-capability:m:download_snapshots" {
+				objects[i].Labels = maps.Clone(labels)
+				objects[i].Labels["rbac.deckhouse.io/kind"] = "capability"
+			}
+		}
+
+		got = Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"storage"}, Objects: objects, CRDs: crds})
+		assert.Contains(t, strings.Join(got.Unmanaged, "\n"), why)
+	}
+}
+
+// prometheusAccess writes get on the named workloads' prometheus-metrics and nothing else: a scrape
+// Role that grants more is not narrowed into it (review of #480).
+func TestBuild_ScrapeRoleThatGrantsMoreIsNotNarrowed(t *testing.T) {
+	scraper := []rbacv1.Subject{{Kind: "User", Name: "d8-monitoring:scraper"}}
+	binding := Object{Kind: "RoleBinding", Name: "access-to-m", Path: "templates/rbac-to-us.yaml", RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "access-to-m"}, Subjects: scraper, Located: true}
+
+	for name, rules := range map[string][]rbacv1.PolicyRule{
+		"every deployment": {{APIGroups: []string{"apps"}, Resources: []string{"deployments/prometheus-metrics"}, Verbs: []string{"get"}}},
+		"more verbs":       {{APIGroups: []string{"apps"}, Resources: []string{"deployments/prometheus-metrics"}, ResourceNames: []string{"m"}, Verbs: []string{"get", "list"}}},
+		"pods":             {{APIGroups: []string{""}, Resources: []string{"pods/prometheus-metrics"}, ResourceNames: []string{"m"}, Verbs: []string{"get"}}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			role := Object{Kind: "Role", Name: "access-to-m", Path: "templates/rbac-to-us.yaml", Rules: rules, Located: true}
+
+			got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{role, binding}})
+			assert.Nil(t, got.Decl.PrometheusAccess)
+		})
+	}
+
+	role := Object{Kind: "Role", Name: "access-to-m", Path: "templates/rbac-to-us.yaml", Located: true,
+		Rules: []rbacv1.PolicyRule{{APIGroups: []string{"apps"}, Resources: []string{"deployments/prometheus-metrics"}, ResourceNames: []string{"m"}, Verbs: []string{"get"}}}}
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{role, binding}})
+	require.Len(t, got.Decl.PrometheusAccess, 1)
+	assert.Equal(t, []string{"m"}, got.Decl.PrometheusAccess[0].Deployments)
+}
+
+// Each scrape Role becomes a prometheusAccess entry that keeps its name and its component directory,
+// so the first --fix renames and moves nothing (pilots, 2026-10-14: user-authn's
+// access-to-dex-prometheus-metrics in templates/dex/, security-events-manager's
+// access-to-security-events-manager-metrics). A binding named otherwise than its Role keeps its name
+// as bindingName where the placement rule accepts it (deckhouse main: access-to-cloud-data-discoverer-role
+// / -binding of the cloud providers), and is renamed with the reason where it does not. A Role name no
+// entry can express folds into access-to-<module> at the root as before, and a note says why.
+func TestBuild_ScrapeRolesKeepTheirNames(t *testing.T) {
+	scraper := []rbacv1.Subject{{Kind: "User", Name: "d8-monitoring:scraper"}, {Kind: "ServiceAccount", Name: "prometheus", Namespace: "d8-monitoring"}}
+	gate := `.Values.global.enabledModules | has "prometheus"`
+
+	scrape := func(role, binding, path, workload string, when string) []Object {
+		return []Object{
+			{Kind: "Role", Name: role, Namespace: "d8-m", Path: path, Located: true,
+				Rules: []rbacv1.PolicyRule{{APIGroups: []string{"apps"}, Resources: []string{"deployments/prometheus-metrics"}, ResourceNames: []string{workload}, Verbs: []string{"get"}}}},
+			{Kind: "RoleBinding", Name: binding, Namespace: "d8-m", Path: path, Located: true, When: when,
+				RoleRef: rbacv1.RoleRef{Kind: "Role", Name: role}, Subjects: scraper},
+		}
+	}
+
+	objects := slices.Concat(
+		scrape("access-to-m", "access-to-m", "templates/rbac-to-us.yaml", "m", gate),
+		scrape("access-to-m-metrics", "access-to-m-metrics", "templates/rbac-to-us.yaml", "agent", ""),
+		scrape("access-to-dex-prometheus-metrics", "access-to-dex-prometheus-metrics", "templates/dex/rbac-to-us.yaml", "dex", gate),
+		scrape("access-to-node-role", "access-to-node-role", "templates/node/prometheus.yaml", "node", gate),
+		scrape("access-to-m-web", "access-to-m-web", "templates/web/rbac-to-us.yaml", "web", gate),
+		scrape("access-to-ms", "access-to-ms", "templates/rbac-to-us.yaml", "ms", gate),
+		scrape("access-to-m-x", "access-to-m-y", "templates/rbac-to-us.yaml", "x", gate),
+		scrape("access-to-dex-x", "dex-x-scrape", "templates/dex/rbac-to-us.yaml", "dx", gate),
+	)
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: objects, PlacementAccepts: placementOf("m", "d8-m")})
+	require.Empty(t, got.Unmanaged)
+
+	type entry struct{ path, name, role, binding, file, when string }
+
+	entries := make([]entry, 0, len(got.Decl.PrometheusAccess))
+	for _, pa := range got.Decl.PrometheusAccess {
+		entries = append(entries, entry{pa.Path, pa.Name, pa.RoleName("m"), pa.BindingNameOf("m"), pa.File(), pa.When})
+	}
+
+	assert.Equal(t, []entry{
+		// access-to-m, and the name no entry expresses, folds into it.
+		{"", "", "access-to-m", "access-to-m", "templates/rbac-to-us.yaml", gate},
+		{"", "metrics", "access-to-m-metrics", "access-to-m-metrics", "templates/rbac-to-us.yaml", ""},
+		// access-to-m-web of templates/web/ is not a name the placement rule wants there; at the root it is.
+		{"", "web", "access-to-m-web", "access-to-m-web", "templates/rbac-to-us.yaml", gate},
+		{"", "x", "access-to-m-x", "access-to-m-y", "templates/rbac-to-us.yaml", gate},
+		{"dex", "prometheus-metrics", "access-to-dex-prometheus-metrics", "access-to-dex-prometheus-metrics", "templates/dex/rbac-to-us.yaml", gate},
+		// dex-x-scrape is not a name the placement rule wants in templates/dex/rbac-to-us.yaml.
+		{"dex", "x", "access-to-dex-x", "access-to-dex-x", "templates/dex/rbac-to-us.yaml", gate},
+		{"node", "role", "access-to-node-role", "access-to-node-role", "templates/node/rbac-to-us.yaml", gate},
+	}, entries)
+	assert.Equal(t, []string{"m", "ms"}, got.Decl.PrometheusAccess[0].Deployments)
+
+	notes := strings.Join(got.Notes, "\n")
+	for _, kept := range []string{"access-to-m-metrics", "access-to-dex-prometheus-metrics", "access-to-node-role", "access-to-m-web"} {
+		assert.NotContains(t, notes, "Role "+kept+" will be named", "%s keeps its name", kept)
+	}
+
+	assert.Contains(t, notes, "Role access-to-ms keeps no name of its own in prometheusAccess: the placement rule names a scrape Role access-to-m[-<name>] in templates/rbac-to-us.yaml; it folds into access-to-m in templates/rbac-to-us.yaml")
+	assert.Contains(t, notes, "Role access-to-ms will be named access-to-m by --fix")
+	assert.NotContains(t, notes, "access-to-m-x will be named")
+	assert.NotContains(t, notes, "access-to-m-y will be named")
+	assert.Contains(t, notes, "RoleBinding dex-x-scrape will be named access-to-dex-x by --fix: the placement rule refuses dex-x-scrape in templates/dex/rbac-to-us.yaml")
+	assert.Contains(t, notes, "several Prometheus access Roles fold into one prometheusAccess (Role access-to-m)")
+	assert.Contains(t, notes, "Role access-to-node-role lives in templates/node/prometheus.yaml; prometheusAccess keeps it in templates/node/rbac-to-us.yaml and --fix will write it there")
+	assert.Contains(t, notes, "Role access-to-m-web lives in templates/web/rbac-to-us.yaml; prometheusAccess keeps it in templates/rbac-to-us.yaml and --fix will write it there")
+	assert.NotContains(t, notes, "Role access-to-dex-prometheus-metrics lives in", "it stays where it is")
+
+	// The written declaration validates, and the generator writes the kept names back.
+	content, err := Marshal(got)
+	require.NoError(t, err)
+
+	decl, err := rbacyaml.Parse(content)
+	require.NoError(t, err)
+	require.Empty(t, rbacyaml.Validate(decl, nil))
+
+	model, err := generate.Build(generate.Input{Module: "m", Namespace: "d8-m", Decl: decl})
+	require.NoError(t, err)
+
+	for _, kept := range []string{"access-to-m-metrics", "access-to-dex-prometheus-metrics", "access-to-node-role", "access-to-m-web", "access-to-m-x"} {
+		found := false
+
+		for _, f := range model.Files {
+			for _, o := range f.Objects {
+				found = found || o.Identity() == "d8-m/Role/"+kept
+			}
+		}
+
+		assert.True(t, found, "the generator writes %s", kept)
+	}
+
+	bindings := map[string]string{}
+	for _, o := range model.File("templates/rbac-to-us.yaml").Objects {
+		bindings[o.Identity()] = o.RoleRefName
+	}
+
+	assert.Equal(t, "access-to-m-x", bindings["d8-m/RoleBinding/access-to-m-y"], "the binding keeps its name beside its Role")
+}
+
+// One scrape Role writes the mapping form, as the first declarations did.
+func TestBuild_OneScrapeRoleWritesTheMapping(t *testing.T) {
+	scraper := []rbacv1.Subject{{Kind: "User", Name: "d8-monitoring:scraper"}}
+	metrics := []rbacv1.PolicyRule{{APIGroups: []string{"apps"}, Resources: []string{"deployments/prometheus-metrics"}, ResourceNames: []string{"dex"}, Verbs: []string{"get"}}}
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{
+		{Kind: "Role", Name: "access-to-dex-prometheus-metrics", Namespace: "d8-m", Path: "templates/dex/rbac-to-us.yaml", Located: true, Rules: metrics},
+		{Kind: "RoleBinding", Name: "access-to-dex-prometheus-metrics", Namespace: "d8-m", Path: "templates/dex/rbac-to-us.yaml", Located: true,
+			RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "access-to-dex-prometheus-metrics"}, Subjects: scraper},
+	}})
+
+	content, err := Marshal(got)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "prometheusAccess:\n  path: dex\n  name: prometheus-metrics\n  deployments:\n    - dex\n")
+}
+
+// An account's RoleBinding to a Role of another namespace keeps the name the module gave it when the
+// placement rule, with its exclusions, accepts it in the file the declaration writes it to
+// (security-events-manager, 2026-10-14: d8:security-events-manager:controller:log-shipper-secrets in
+// d8-log-shipper, excluded from placement). Otherwise --fix gives it the name the rule wants.
+func TestBuild_ForeignBindingKeepsItsName(t *testing.T) {
+	const path = "templates/controller/rbac-for-us.yaml"
+
+	labels := map[string]string{"module": "m"}
+	objects := []Object{
+		{Kind: "ServiceAccount", Name: "controller", Path: path, Labels: labels},
+		{Kind: "RoleBinding", Name: "d8:m:controller:log-shipper-secrets", Namespace: "d8-log-shipper", Path: path, Labels: labels,
+			RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "d8:m:controller:log-shipper-secrets"}, Subjects: []rbacv1.Subject{{Kind: "ServiceAccount", Name: "controller", Namespace: "d8-m"}}},
+		{Kind: "RoleBinding", Name: "d8:m:controller:extension-apiserver-authentication-reader", Namespace: "kube-system", Path: path, Labels: labels,
+			RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "extension-apiserver-authentication-reader"}, Subjects: []rbacv1.Subject{{Kind: "ServiceAccount", Name: "controller", Namespace: "d8-m"}}},
+	}
+
+	var asked []string
+
+	accepts := func(path, kind, name, namespace string) bool {
+		asked = append(asked, strings.Join([]string{path, kind, namespace, name}, " "))
+		return name == "d8:m:controller:log-shipper-secrets"
+	}
+
+	for name, tc := range map[string]struct {
+		accepts func(path, kind, name, namespace string) bool
+		want    []rbacyaml.RoleRef
+		note    string
+	}{
+		"the placement rule accepts the name": {
+			accepts: accepts,
+			want: []rbacyaml.RoleRef{
+				{Namespace: "d8-log-shipper", Name: "d8:m:controller:log-shipper-secrets", BindingName: "d8:m:controller:log-shipper-secrets"},
+				{Namespace: "kube-system", Name: "extension-apiserver-authentication-reader"},
+			},
+		},
+		"the placement rule refuses the name and accepts the derived one": {
+			accepts: func(_, _, name, _ string) bool { return name == "m:controller:log-shipper-secrets" },
+			want: []rbacyaml.RoleRef{
+				{Namespace: "d8-log-shipper", Name: "d8:m:controller:log-shipper-secrets"},
+				{Namespace: "kube-system", Name: "extension-apiserver-authentication-reader"},
+			},
+			note: "RoleBinding d8-log-shipper/d8:m:controller:log-shipper-secrets will be named d8-log-shipper/m:controller:log-shipper-secrets by --fix",
+		},
+		// terraform-manager, 2026-10-14: a binding in the namespace of another module, which the rule
+		// refuses under either name -- a rename would gain nothing.
+		"the placement rule refuses both names": {
+			accepts: func(string, string, string, string) bool { return false },
+			want: []rbacyaml.RoleRef{
+				{Namespace: "d8-log-shipper", Name: "d8:m:controller:log-shipper-secrets", BindingName: "d8:m:controller:log-shipper-secrets"},
+				{Namespace: "kube-system", Name: "extension-apiserver-authentication-reader"},
+			},
+		},
+		"nobody asks the placement rule": {
+			want: []rbacyaml.RoleRef{
+				{Namespace: "d8-log-shipper", Name: "d8:m:controller:log-shipper-secrets"},
+				{Namespace: "kube-system", Name: "extension-apiserver-authentication-reader"},
+			},
+			note: "RoleBinding d8-log-shipper/d8:m:controller:log-shipper-secrets will be named d8-log-shipper/m:controller:log-shipper-secrets by --fix",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			asked = nil
+
+			got := Build(Input{Module: "m", Namespace: "d8-m", Objects: objects, PlacementAccepts: tc.accepts})
+			require.Len(t, got.Decl.ServiceAccounts, 1)
+			assert.Equal(t, "controller", got.Decl.ServiceAccounts[0].Path)
+			assert.ElementsMatch(t, tc.want, got.Decl.ServiceAccounts[0].BindRoles)
+
+			notes := strings.Join(got.Notes, "\n")
+			if tc.note == "" {
+				assert.NotContains(t, notes, "will be named")
+			} else {
+				assert.Contains(t, notes, tc.note)
+			}
+
+			keptRefused := strings.Contains(notes, "RoleBinding d8-log-shipper/d8:m:controller:log-shipper-secrets keeps its name: the placement rule refuses it in "+path+", and the name the declaration would give it (m:controller:log-shipper-secrets) as well")
+			assert.Equal(t, name == "the placement rule refuses both names", keptRefused, "the note on a name the rule refuses either way")
+
+			assert.NotContains(t, notes, "extension-apiserver-authentication-reader will be named", "the binding has the name the rule wants")
+
+			// The generator writes both bindings under the names the module has.
+			model, err := generate.Build(generate.Input{Module: "m", Namespace: "d8-m", Decl: got.Decl})
+			require.NoError(t, err)
+
+			ids := map[string]bool{}
+			for _, o := range model.File(path).Objects {
+				ids[o.Identity()] = true
+			}
+
+			assert.True(t, ids["kube-system/RoleBinding/d8:m:controller:extension-apiserver-authentication-reader"])
+			assert.Equal(t, tc.note == "", ids["d8-log-shipper/RoleBinding/d8:m:controller:log-shipper-secrets"])
+		})
+	}
+
+	asked = nil
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: objects, PlacementAccepts: accepts})
+	require.Len(t, got.Decl.ServiceAccounts, 1)
+	assert.Equal(t, []string{path + " RoleBinding d8-log-shipper d8:m:controller:log-shipper-secrets"}, asked,
+		"only a name other than the derived one is asked about, in the file the declaration writes it to")
+}
+
+// An access Role named exactly access-to-<module> keeps its name: the entry is named after it, and the
+// generator does not write the prefix twice (deckhouse main: openvpn's access-to-openvpn became
+// access-to-openvpn-access-to-openvpn).
+func TestBuild_AccessNamedAfterTheModuleKeepsItsName(t *testing.T) {
+	rules := []rbacv1.PolicyRule{{APIGroups: []string{"apps"}, Resources: []string{"deployments/http"}, ResourceNames: []string{"m"}, Verbs: []string{"get"}}}
+	subjects := []rbacv1.Subject{{Kind: "ServiceAccount", Name: "ingress", Namespace: "d8-ingress"}}
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{
+		{Kind: "Role", Name: "access-to-m", Namespace: "d8-m", Path: "templates/rbac-to-us.yaml", Located: true, Rules: rules},
+		{Kind: "RoleBinding", Name: "access-to-m", Namespace: "d8-m", Path: "templates/rbac-to-us.yaml", Located: true,
+			RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "access-to-m"}, Subjects: subjects},
+	}})
+
+	require.Len(t, got.Decl.Access, 1)
+	assert.Equal(t, "access-to-m", got.Decl.Access[0].Name)
+	assert.NotContains(t, strings.Join(got.Notes, "\n"), "will be named")
+
+	model, err := generate.Build(generate.Input{Module: "m", Namespace: "d8-m", Decl: got.Decl})
+	require.NoError(t, err)
+
+	f := model.File("templates/rbac-to-us.yaml")
+	require.NotNil(t, f)
+	assert.Equal(t, "d8-m/Role/access-to-m", f.Objects[0].Identity())
+	assert.Equal(t, "d8-m/RoleBinding/access-to-m", f.Objects[1].Identity())
+}
+
+// placementOf answers for the bootstrap as the placement rule of dmt does for the files the
+// declaration writes, in short: ClusterRoles and their bindings in rbac-for-us.yaml start with
+// d8:<module>; Roles and bindings of rbac-to-us.yaml start with access-to-<module> at the root and
+// access-to-<directory>- in a component directory, in the module namespace; those of a component's
+// rbac-for-us.yaml start with its directories joined by colons there, or with d8:<module>:<directories>
+// in kube-system; those of the root rbac-for-us.yaml start with d8:<module> in default and kube-system,
+// and take any other name in a namespace of the platform only (the rule refuses a Role there in the
+// module's own namespace whatever its name).
+func placementOf(module, namespace string) func(path, kind, name, ns string) bool {
+	return func(path, kind, name, ns string) bool {
+		dir := strings.TrimSuffix(strings.TrimPrefix(path, "templates/"), "/"+filepath.Base(path))
+		if dir == filepath.Base(path) {
+			dir = ""
+		}
+
+		switch {
+		case kind == "ClusterRole" || kind == "ClusterRoleBinding":
+			return strings.HasSuffix(path, "rbac-for-us.yaml") && strings.HasPrefix(name, "d8:"+module)
+		case strings.HasSuffix(path, "rbac-to-us.yaml") && dir == "":
+			return ns == namespace && strings.HasPrefix(name, "access-to-"+module)
+		case strings.HasSuffix(path, "rbac-to-us.yaml"):
+			return ns == namespace && strings.HasPrefix(name, "access-to-"+strings.ReplaceAll(dir, "/", "-")+"-")
+		case dir == "" && strings.HasPrefix(name, "d8:"+module):
+			return ns == "default" || ns == "kube-system"
+		case dir == "":
+			return rbaccontract.IsDeckhouseNamespace(ns)
+		case strings.HasPrefix(name, strings.ReplaceAll(dir, "/", ":")):
+			return ns == namespace
+		default:
+			return ns == "kube-system" && strings.HasPrefix(name, "d8:"+module+":"+strings.ReplaceAll(dir, "/", ":"))
+		}
+	}
+}
+
+func TestPlacementOf(t *testing.T) {
+	accepts := placementOf("m", "d8-m")
+	assert.True(t, accepts("templates/rbac-for-us.yaml", "ClusterRoleBinding", "d8:m:reader:system-authenticated", ""))
+	assert.False(t, accepts("templates/rbac-for-us.yaml", "ClusterRole", "reader", ""))
+	assert.True(t, accepts("templates/rbac-to-us.yaml", "Role", "access-to-m", "d8-m"))
+	assert.False(t, accepts("templates/rbac-to-us.yaml", "Role", "bashible", "d8-m"))
+	assert.True(t, accepts("templates/dex/rbac-to-us.yaml", "RoleBinding", "access-to-dex-x", "d8-m"))
+	assert.True(t, accepts("templates/a/b/rbac-for-us.yaml", "Role", "a:b:leader", "d8-m"))
+	assert.True(t, accepts("templates/a/rbac-for-us.yaml", "RoleBinding", "d8:m:a:reader", "kube-system"))
+	assert.False(t, accepts("templates/a/rbac-for-us.yaml", "RoleBinding", "d8:m:a:reader", "d8-other"))
+	assert.False(t, accepts("templates/rbac-for-us.yaml", "Role", "m", "d8-m"), "no Role of the root file in the module's own namespace")
+	assert.True(t, accepts("templates/rbac-for-us.yaml", "Role", "d8:m:leader", "kube-system"))
+	assert.True(t, accepts("templates/rbac-for-us.yaml", "Role", "leader", "d8-system"))
+	assert.False(t, accepts("templates/rbac-for-us.yaml", "Role", "d8:m:leader", "d8-system"))
+}
+
+// access[] keeps the names its ClusterRole, Role and bindings have where the placement rule accepts
+// them, as roleName and bindingName (deckhouse main: user-authz's ...:system-authenticated bindings);
+// where the rule refuses the name, --fix renames the object and the note says why.
+func TestBuild_AccessKeepsTheNamesThePlacementRuleAccepts(t *testing.T) {
+	group := []rbacv1.Subject{{Kind: "Group", Name: "system:authenticated"}}
+	rules := []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"namespaces"}, Verbs: []string{"list"}}}
+	labels := map[string]string{"module": "m"}
+
+	objects := []Object{
+		{Kind: "ClusterRole", Name: "d8:m:reader", Path: "templates/rbac-for-us.yaml", Labels: labels, Rules: rules, Located: true},
+		{Kind: "ClusterRoleBinding", Name: "d8:m:reader:system-authenticated", Path: "templates/rbac-for-us.yaml", Labels: labels, Located: true,
+			RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: "d8:m:reader"}, Subjects: group},
+		{Kind: "ClusterRole", Name: "lister", Path: "templates/rbac-for-us.yaml", Labels: labels, Rules: rules, Located: true},
+		{Kind: "ClusterRoleBinding", Name: "lister", Path: "templates/rbac-for-us.yaml", Labels: labels, Located: true,
+			RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: "lister"}, Subjects: group},
+		{Kind: "Role", Name: "access-to-m-http", Namespace: "d8-m", Path: "templates/rbac-to-us.yaml", Labels: labels, Rules: rules, Located: true},
+		{Kind: "RoleBinding", Name: "access-to-m-http-binding", Namespace: "d8-m", Path: "templates/rbac-to-us.yaml", Labels: labels, Located: true,
+			RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "access-to-m-http"}, Subjects: group},
+		{Kind: "Role", Name: "bashible", Namespace: "d8-m", Path: "templates/rbac-to-us.yaml", Labels: labels, Rules: rules, Located: true},
+		{Kind: "RoleBinding", Name: "bashible", Namespace: "d8-m", Path: "templates/rbac-to-us.yaml", Labels: labels, Located: true,
+			RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "bashible"}, Subjects: group},
+	}
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: objects, PlacementAccepts: placementOf("m", "d8-m")})
+	require.Empty(t, got.Unmanaged)
+
+	byName := map[string]rbacyaml.Access{}
+	for _, a := range got.Decl.Access {
+		byName[a.Name] = a
+	}
+
+	assert.Equal(t, [2]string{"", "d8:m:reader:system-authenticated"}, [2]string{byName["reader"].RoleName, byName["reader"].BindingName})
+	assert.Equal(t, [2]string{"", "access-to-m-http-binding"}, [2]string{byName["http"].RoleName, byName["http"].BindingName}, "the entry is named after the Role")
+	assert.Equal(t, [2]string{"", ""}, [2]string{byName["lister"].RoleName, byName["lister"].BindingName})
+	assert.Equal(t, [2]string{"", ""}, [2]string{byName["bashible"].RoleName, byName["bashible"].BindingName})
+
+	notes := strings.Join(got.Notes, "\n")
+	assert.Contains(t, notes, "ClusterRole lister will be named d8:m:lister by --fix: the placement rule refuses lister in templates/rbac-for-us.yaml")
+	assert.Contains(t, notes, "ClusterRoleBinding lister will be named d8:m:lister by --fix: the placement rule refuses lister in templates/rbac-for-us.yaml")
+	assert.Contains(t, notes, "Role bashible will be named access-to-m-bashible by --fix: the placement rule refuses bashible in templates/rbac-to-us.yaml")
+	assert.NotContains(t, notes, "reader will be named")
+	assert.NotContains(t, notes, "http will be named")
+	assert.NotContains(t, notes, "http-binding will be named")
+
+	model, err := generate.Build(generate.Input{Module: "m", Namespace: "d8-m", Decl: got.Decl})
+	require.NoError(t, err)
+
+	ids := map[string]string{}
+
+	for _, f := range model.Files {
+		for _, o := range f.Objects {
+			ids[o.Identity()] = o.RoleRefName
+		}
+	}
+
+	assert.Equal(t, "d8:m:reader", ids["ClusterRoleBinding/d8:m:reader:system-authenticated"])
+	assert.Equal(t, "access-to-m-http", ids["d8-m/RoleBinding/access-to-m-http-binding"])
+	assert.Contains(t, ids, "d8-m/Role/access-to-m-http")
+
+	// Without the placement rule's answer every name is derived, as before.
+	got = Build(Input{Module: "m", Namespace: "d8-m", Objects: objects})
+	for _, a := range got.Decl.Access {
+		assert.Empty(t, a.RoleName+a.BindingName, a.Name)
+	}
+}
+
+// An account's ClusterRoleBinding to a role it does not own keeps its name as the bindClusterRoles
+// entry's bindingName where the placement rule accepts it (deckhouse main: kube-dns's
+// d8:kube-dns:coredns:rbac-proxy, kube-proxy's d8:kube-proxy-metrics-rbac); where the rule refuses the
+// name, --fix renames the binding and the note says why.
+func TestBuild_BindClusterRolesKeepTheirBindingNames(t *testing.T) {
+	const path = "templates/controller/rbac-for-us.yaml"
+
+	labels := map[string]string{"module": "m"}
+	account := []rbacv1.Subject{{Kind: "ServiceAccount", Name: "controller", Namespace: "d8-m"}}
+	binding := func(name, role string) Object {
+		return Object{Kind: "ClusterRoleBinding", Name: name, Path: path, Labels: labels, Located: true,
+			RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: role}, Subjects: account}
+	}
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", PlacementAccepts: placementOf("m", "d8-m"), Objects: []Object{
+		{Kind: "ServiceAccount", Name: "controller", Namespace: "d8-m", Path: path, Labels: labels, Located: true},
+		binding("d8:m:controller:d8-rbac-proxy", "d8:rbac-proxy"),
+		binding("controller:auth-delegator", "system:auth-delegator"),
+		binding("d8:m:controller:system-node-proxier", "system:node-proxier"),
+	}})
+
+	require.Empty(t, got.Unmanaged)
+	require.Len(t, got.Decl.ServiceAccounts, 1)
+	assert.Equal(t, []rbacyaml.ClusterRoleRef{
+		{Name: "system:auth-delegator"},
+		{Name: "d8:rbac-proxy", BindingName: "d8:m:controller:d8-rbac-proxy"},
+		{Name: "system:node-proxier"},
+	}, got.Decl.ServiceAccounts[0].BindClusterRoles)
+
+	notes := strings.Join(got.Notes, "\n")
+	assert.Contains(t, notes, "ClusterRoleBinding controller:auth-delegator will be named d8:m:controller:system-auth-delegator by --fix: the placement rule refuses controller:auth-delegator in "+path)
+	assert.NotContains(t, notes, "d8-rbac-proxy will be named")
+	assert.NotContains(t, notes, "system-node-proxier will be named")
+
+	// The written declaration validates, and the generator writes the kept name back.
+	content, err := Marshal(got)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "    bindClusterRoles:\n      - system:auth-delegator\n      - name: d8:rbac-proxy\n        bindingName: d8:m:controller:d8-rbac-proxy\n      - system:node-proxier\n")
+
+	decl, err := rbacyaml.Parse(content)
+	require.NoError(t, err)
+	require.Empty(t, rbacyaml.Validate(decl, nil))
+
+	model, err := generate.Build(generate.Input{Module: "m", Namespace: "d8-m", Decl: decl})
+	require.NoError(t, err)
+
+	ids := map[string]string{}
+	for _, o := range model.File(path).Objects {
+		ids[o.Identity()] = o.RoleRefName
+	}
+
+	assert.Equal(t, "d8:rbac-proxy", ids["ClusterRoleBinding/d8:m:controller:d8-rbac-proxy"])
+	assert.Equal(t, "system:auth-delegator", ids["ClusterRoleBinding/d8:m:controller:system-auth-delegator"])
+	assert.Equal(t, "system:node-proxier", ids["ClusterRoleBinding/d8:m:controller:system-node-proxier"])
+
+	// kube-proxy in deckhouse main: the account of the root file in kube-system, two bindings named after
+	// the module only, which the placement rule accepts there.
+	root := []rbacv1.Subject{{Kind: "ServiceAccount", Name: "d8-kube-proxy", Namespace: "kube-system"}}
+	got = Build(Input{Module: "kube-proxy", Namespace: "kube-system", PlacementAccepts: placementOf("kube-proxy", "kube-system"), Objects: []Object{
+		{Kind: "ServiceAccount", Name: "d8-kube-proxy", Namespace: "kube-system", Path: "templates/rbac-for-us.yaml", Labels: labels, Located: true},
+		{Kind: "ClusterRoleBinding", Name: "d8:kube-proxy", Path: "templates/rbac-for-us.yaml", Labels: labels, Located: true,
+			RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: "system:node-proxier"}, Subjects: root},
+		{Kind: "ClusterRoleBinding", Name: "d8:kube-proxy-metrics-rbac", Path: "templates/rbac-for-us.yaml", Labels: labels, Located: true,
+			RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: "d8:rbac-proxy"}, Subjects: root},
+	}})
+
+	require.Len(t, got.Decl.ServiceAccounts, 1)
+	assert.Equal(t, []rbacyaml.ClusterRoleRef{
+		{Name: "system:node-proxier", BindingName: "d8:kube-proxy"},
+		{Name: "d8:rbac-proxy", BindingName: "d8:kube-proxy-metrics-rbac"},
+	}, got.Decl.ServiceAccounts[0].BindClusterRoles)
+	assert.NotContains(t, strings.Join(got.Notes, "\n"), "will be named")
+}
+
+// The Role of an account's namespaceRules and its RoleBinding keep their names as roleName and
+// roleBindingName where the placement rule accepts them (deckhouse main: the leader-election Roles of
+// the cloud providers, cloud-provider-vcd's capcd-controller-manager-leader-election with its
+// ...-role-binding, kube-proxy's d8:kube-proxy in kube-system); where the rule refuses the name, --fix
+// renames the object and the note says why. A Role and binding of the module in rbac-to-us.yaml that
+// bind the account are an access entry, which keeps them in that file under their names
+// (registry-packages-proxy's access-to-registry-packages-proxy-from-http).
+func TestBuild_AccountRoleKeepsItsNames(t *testing.T) {
+	leases := []rbacv1.PolicyRule{{APIGroups: []string{"coordination.k8s.io"}, Resources: []string{"leases"}, Verbs: []string{"get", "update"}}}
+	labels := map[string]string{"module": "m"}
+	objectsOf := func(ns, account, path, role, binding string) []Object {
+		return []Object{
+			{Kind: "ServiceAccount", Name: account, Namespace: ns, Path: path, Labels: labels, Located: true},
+			{Kind: "Role", Name: role, Namespace: ns, Path: path, Labels: labels, Rules: leases, Located: true},
+			{Kind: "RoleBinding", Name: binding, Namespace: ns, Path: path, Labels: labels, Located: true,
+				RoleRef: rbacv1.RoleRef{Kind: "Role", Name: role}, Subjects: []rbacv1.Subject{{Kind: "ServiceAccount", Name: account, Namespace: ns}}},
+		}
+	}
+
+	for name, tc := range map[string]struct {
+		module, namespace     string
+		objects               []Object
+		wantRole, wantBinding string
+		roleName, roleBinding string
+		note                  string
+	}{
+		"a component's Role and binding of one name": {
+			module: "m", namespace: "d8-m",
+			objects:  objectsOf("d8-m", "capdvp", "templates/capdvp/rbac-for-us.yaml", "capdvp-leader-election-role", "capdvp-leader-election-role"),
+			roleName: "capdvp-leader-election-role", wantRole: "capdvp-leader-election-role", wantBinding: "capdvp-leader-election-role",
+		},
+		"a component's Role and binding of two names": {
+			module: "m", namespace: "d8-m",
+			objects:  objectsOf("d8-m", "capcd", "templates/capcd/rbac-for-us.yaml", "capcd-leader-election", "capcd-leader-election-role-binding"),
+			roleName: "capcd-leader-election", roleBinding: "capcd-leader-election-role-binding",
+			wantRole: "capcd-leader-election", wantBinding: "capcd-leader-election-role-binding",
+		},
+		"the root account of a module in kube-system": {
+			module: "kube-proxy", namespace: "kube-system",
+			objects:  objectsOf("kube-system", "d8-kube-proxy", "templates/rbac-for-us.yaml", "d8:kube-proxy", "d8:kube-proxy"),
+			roleName: "d8:kube-proxy", wantRole: "d8:kube-proxy", wantBinding: "d8:kube-proxy",
+		},
+		"a name the placement rule refuses": {
+			module: "m", namespace: "d8-m",
+			objects:  objectsOf("d8-m", "caps", "templates/caps/rbac-for-us.yaml", "d8:m:caps-leader-election-role", "d8:m:caps-leader-election-role"),
+			wantRole: "caps", wantBinding: "caps",
+			note: "Role d8:m:caps-leader-election-role will be named caps by --fix: the placement rule refuses d8:m:caps-leader-election-role in templates/caps/rbac-for-us.yaml",
+		},
+		"a name the placement rule refuses, and the derived one too": {
+			module: "m", namespace: "d8-m",
+			objects:  objectsOf("d8-m", "m", "templates/rbac-for-us.yaml", "m-leader-election", "m-leader-election"),
+			roleName: "m-leader-election", wantRole: "m-leader-election", wantBinding: "m-leader-election",
+			note: "Role m-leader-election keeps its name: the placement rule refuses it in templates/rbac-for-us.yaml, and the name the declaration would give it (m) as well",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := Build(Input{Module: tc.module, Namespace: tc.namespace, Objects: tc.objects, PlacementAccepts: placementOf(tc.module, tc.namespace)})
+			require.Empty(t, got.Unmanaged)
+			require.Len(t, got.Decl.ServiceAccounts, 1)
+
+			sa := got.Decl.ServiceAccounts[0]
+			assert.Equal(t, tc.roleName, sa.RoleName)
+			assert.Equal(t, tc.roleBinding, sa.RoleBindingName)
+
+			notes := strings.Join(got.Notes, "\n")
+			if tc.note != "" {
+				assert.Contains(t, notes, tc.note)
+			}
+
+			if !strings.Contains(tc.note, "will be named") {
+				assert.NotContains(t, notes, "will be named")
+			}
+
+			// The written declaration validates, and the generator writes the names back.
+			content, err := Marshal(got)
+			require.NoError(t, err)
+
+			decl, err := rbacyaml.Parse(content)
+			require.NoError(t, err)
+			require.Empty(t, rbacyaml.Validate(decl, nil))
+
+			model, err := generate.Build(generate.Input{Module: tc.module, Namespace: tc.namespace, Decl: decl})
+			require.NoError(t, err)
+
+			refs := map[string]string{}
+
+			for _, f := range model.Files {
+				for _, o := range f.Objects {
+					refs[o.Identity()] = o.RoleRefName
+				}
+			}
+
+			assert.Contains(t, refs, tc.namespace+"/Role/"+tc.wantRole)
+			assert.Equal(t, tc.wantRole, refs[tc.namespace+"/RoleBinding/"+tc.wantBinding])
+		})
+	}
+
+	t.Run("a Role and binding of rbac-to-us.yaml are an access entry", func(t *testing.T) {
+		objects := objectsOf("d8-m", "m", "templates/rbac-for-us.yaml", "access-to-m-from-http", "access-to-m-from-http")
+		objects[1].Path, objects[2].Path = "templates/rbac-to-us.yaml", "templates/rbac-to-us.yaml"
+
+		got := Build(Input{Module: "m", Namespace: "d8-m", Objects: objects, PlacementAccepts: placementOf("m", "d8-m")})
+		require.Empty(t, got.Unmanaged)
+		require.Len(t, got.Decl.ServiceAccounts, 1)
+		assert.Empty(t, got.Decl.ServiceAccounts[0].NamespaceRules)
+		require.Len(t, got.Decl.Access, 1)
+		assert.Equal(t, rbacyaml.Access{Name: "from-http", Subjects: []rbacyaml.Subject{{Kind: "ServiceAccount", Name: "m", Namespace: "d8-m"}},
+			NamespaceRules: []rbacyaml.PolicyRule{{APIGroups: []string{"coordination.k8s.io"}, Resources: []string{"leases"}, Verbs: []string{"get", "update"}}}}, got.Decl.Access[0])
+		assert.NotContains(t, strings.Join(got.Notes, "\n"), "will be named")
+	})
+}
+
+// The ClusterRoleBinding of an account's own ClusterRole keeps its name as clusterRoleBindingName, and
+// the one of an extra ClusterRole as its bindingName, where the placement rule accepts it (deckhouse
+// main: cloud-provider-vcd's d8:cloud-provider-vcd:capcd-controller-manager-binding, node-manager's
+// ...:capi-controller-manager:manager-rolebinding); where the rule refuses the name, --fix renames the
+// binding and the note says why.
+func TestBuild_AccountClusterRoleBindingsKeepTheirNames(t *testing.T) {
+	const path = "templates/capcd/rbac-for-us.yaml"
+
+	labels := map[string]string{"module": "m"}
+	account := []rbacv1.Subject{{Kind: "ServiceAccount", Name: "capcd", Namespace: "d8-m"}}
+	rules := func(resource string) []rbacv1.PolicyRule {
+		return []rbacv1.PolicyRule{{APIGroups: []string{"infrastructure.cluster.x-k8s.io"}, Resources: []string{resource}, Verbs: []string{"get"}}}
+	}
+	pair := func(role, binding, resource string) []Object {
+		return []Object{
+			{Kind: "ClusterRole", Name: role, Path: path, Labels: labels, Rules: rules(resource), Located: true},
+			{Kind: "ClusterRoleBinding", Name: binding, Path: path, Labels: labels, Located: true,
+				RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: role}, Subjects: account},
+		}
+	}
+
+	objects := slices.Concat(
+		[]Object{{Kind: "ServiceAccount", Name: "capcd", Namespace: "d8-m", Path: path, Labels: labels, Located: true}},
+		pair("d8:m:capcd", "d8:m:capcd-binding", "vcdclusters"),
+		pair("d8:m:capcd:manager-role", "d8:m:capcd:manager-rolebinding", "vcdmachines"),
+		pair("d8:m:capcd:reader", "capcd-reader", "vcdmachinetemplates"),
+		pair("d8:m:capcd:writer", "d8:m:capcd:writer", "vcdclustertemplates"),
+	)
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: objects, PlacementAccepts: placementOf("m", "d8-m")})
+	require.Empty(t, got.Unmanaged)
+	require.Len(t, got.Decl.ServiceAccounts, 1)
+
+	sa := got.Decl.ServiceAccounts[0]
+	assert.Equal(t, "d8:m:capcd-binding", sa.ClusterRoleBindingName)
+
+	bindings := map[string]string{}
+	for _, extra := range sa.ExtraClusterRoles {
+		bindings[extra.Name] = extra.BindingName
+	}
+
+	assert.Equal(t, map[string]string{"manager-role": "d8:m:capcd:manager-rolebinding", "reader": "", "writer": ""}, bindings)
+
+	notes := strings.Join(got.Notes, "\n")
+	assert.Contains(t, notes, "ClusterRoleBinding capcd-reader will be named d8:m:capcd:reader by --fix: the placement rule refuses capcd-reader in "+path)
+	assert.NotContains(t, notes, "d8:m:capcd-binding will be named")
+	assert.NotContains(t, notes, "manager-rolebinding will be named")
+	assert.NotContains(t, notes, "ClusterRoleBinding d8:m:capcd:writer will be named", "the binding has the name the declaration gives it")
+
+	// The written declaration validates, and the generator writes the kept names back.
+	content, err := Marshal(got)
+	require.NoError(t, err)
+
+	decl, err := rbacyaml.Parse(content)
+	require.NoError(t, err)
+	require.Empty(t, rbacyaml.Validate(decl, nil))
+
+	model, err := generate.Build(generate.Input{Module: "m", Namespace: "d8-m", Decl: decl})
+	require.NoError(t, err)
+
+	refs := map[string]string{}
+	for _, o := range model.File(path).Objects {
+		refs[o.Identity()] = o.RoleRefName
+	}
+
+	assert.Equal(t, "d8:m:capcd", refs["ClusterRoleBinding/d8:m:capcd-binding"])
+	assert.Equal(t, "d8:m:capcd:manager-role", refs["ClusterRoleBinding/d8:m:capcd:manager-rolebinding"])
+	assert.Equal(t, "d8:m:capcd:reader", refs["ClusterRoleBinding/d8:m:capcd:reader"])
+	assert.Equal(t, "d8:m:capcd:writer", refs["ClusterRoleBinding/d8:m:capcd:writer"])
+}
+
+// An access entry writes namespace access to rbac-to-us.yaml, whatever template its Role came from; a
+// note names the move (deckhouse main: node-manager's Roles of templates/bashible/rbac-for-us.yaml bound
+// to node groups). Under the name it has the object is moved by hand, since --fix moves no object between
+// templates; under a new name --fix writes the new one, and the lint then asks to delete the old one.
+func TestBuild_AccessEntryThatMovesSaysSo(t *testing.T) {
+	const path = "templates/bashible/rbac-for-us.yaml"
+
+	nodes := []rbacv1.Subject{{Kind: "Group", Name: "system:nodes"}}
+	rules := []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"get"}}}
+	pair := func(name string) []Object {
+		return []Object{
+			{Kind: "Role", Name: name, Namespace: "d8-m", Path: path, Rules: rules, Located: true},
+			{Kind: "RoleBinding", Name: name, Namespace: "d8-m", Path: path, Located: true, RoleRef: rbacv1.RoleRef{Kind: "Role", Name: name}, Subjects: nodes},
+		}
+	}
+
+	// d8:m:bashible:rpp is excluded from the placement rule, as in node-manager's .dmtlint.yaml.
+	accepts := func(file, kind, name, ns string) bool {
+		return name == "d8:m:bashible:rpp" || placementOf("m", "d8-m")(file, kind, name, ns)
+	}
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: slices.Concat(pair("bashible"), pair("d8:m:bashible:rpp")), PlacementAccepts: accepts})
+	require.Empty(t, got.Unmanaged)
+	require.Len(t, got.Decl.Access, 2)
+
+	notes := strings.Join(got.Notes, "\n")
+	assert.Contains(t, notes, "Role bashible will be named access-to-m-bashible by --fix: the placement rule refuses bashible in templates/rbac-to-us.yaml")
+	assert.Contains(t, notes, "Role bashible lives in "+path+"; the access entry writes it to templates/rbac-to-us.yaml as access-to-m-bashible, and the lint then asks to delete the old one")
+	assert.Contains(t, notes, "RoleBinding bashible lives in "+path+"; the access entry writes it to templates/rbac-to-us.yaml as access-to-m-bashible")
+	assert.Contains(t, notes, "Role d8:m:bashible:rpp lives in "+path+"; the access entry keeps it under its name in templates/rbac-to-us.yaml -- move it there by hand: --fix moves no object between templates")
+	assert.Contains(t, notes, "RoleBinding d8:m:bashible:rpp lives in "+path+"; the access entry keeps it under its name in templates/rbac-to-us.yaml -- move it there by hand")
+	assert.NotContains(t, notes, "d8:m:bashible:rpp will be named")
+
+	// An entry in the file its objects live in says nothing of a move.
+	inPlace := pair("access-to-m-http")
+	inPlace[0].Path, inPlace[1].Path = "templates/rbac-to-us.yaml", "templates/rbac-to-us.yaml"
+	got = Build(Input{Module: "m", Namespace: "d8-m", Objects: inPlace, PlacementAccepts: accepts})
+	assert.NotContains(t, strings.Join(got.Notes, "\n"), "lives in")
+}
+
+// An object is left hand-written once, with one reason, however many passes would name it.
+func TestBuild_UnmanagedOnce(t *testing.T) {
+	objects := []Object{
+		{Kind: "ClusterRoleBinding", Name: "admin", Path: "templates/rbac-for-us.yaml", RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: "cluster-admin"}, Subjects: []rbacv1.Subject{{Kind: "Group", Name: "g"}}},
+		{Kind: "RoleBinding", Name: "reader", Namespace: "kube-system", Path: "templates/rbac-for-us.yaml", RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "reader"}, Subjects: []rbacv1.Subject{{Kind: "Group", Name: "g"}}},
+	}
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: objects})
+	assert.Len(t, got.Unmanaged, 2, "unmanaged: %v", got.Unmanaged)
+}
+
+// The declaration sets no subsystems: when the rendered system capabilities aggregate into other
+// subsystems than module.yaml declares, a note proposes the module.yaml change, the written file
+// carries no subsystems key, and the system lineage is no subsystem. The note proposes only what
+// contract accepts in module.yaml: a lineage of the legacy scheme as the subsystem that replaced it,
+// and no namespace, project or unknown lineage (review of #480, finding 13).
+func TestBuild_SubsystemsAreProposedForModuleYAML(t *testing.T) {
+	capability := func(action string, lineages ...string) Object {
+		labels := map[string]string{"module": "m", "rbac.deckhouse.io/kind": "capability", "rbac.deckhouse.io/scope": "system"}
+		for _, l := range lineages {
+			labels["rbac.deckhouse.io/aggregate-to-"+l+"-as"] = "viewer"
+		}
+
+		return Object{Kind: "ClusterRole", Name: "d8:system-capability:m:" + action, Path: "templates/rbacv2/manage/" + action + ".yaml", Labels: labels,
+			Rules: []rbacv1.PolicyRule{{APIGroups: []string{"deckhouse.io"}, Resources: []string{"moduleconfigs"}, ResourceNames: []string{"m"}, Verbs: []string{"get", "list", "watch"}}}}
+	}
+
+	const tail = ". The declaration takes the subsystems from module.yaml only, so the --fix of the templates follows module.yaml, and contract reports the difference until the two agree"
+
+	for name, tc := range map[string]struct {
+		subsystems []string
+		objects    []Object
+		want       string
+	}{
+		"equal sets": {
+			subsystems: []string{"security", "network"},
+			objects:    []Object{capability("view", "network", "security", "system")},
+		},
+		"a carried lineage module.yaml does not declare": {
+			subsystems: []string{"security"},
+			objects:    []Object{capability("view", "network", "security")},
+			want:       "the system capabilities aggregate into the subsystems [network, security] and module.yaml declares [security]: declare network in module.yaml subsystems" + tail,
+		},
+		"both ways at once": {
+			subsystems: []string{"security", "storage"},
+			objects:    []Object{capability("view", "security", "cluster")},
+			want:       "the system capabilities aggregate into the subsystems [cluster, security] and module.yaml declares [security, storage]: declare cluster in module.yaml subsystems; remove storage from module.yaml subsystems if the module is not part of it" + tail,
+		},
+		"module.yaml declares none": {
+			objects: []Object{capability("view", "security")},
+			want:    "the system capabilities aggregate into the subsystems [security] and module.yaml declares []: declare security in module.yaml subsystems" + tail,
+		},
+		"capabilities that carry the system lineage only": {
+			subsystems: []string{"security"},
+			objects:    []Object{capability("view", "system")},
+		},
+		"a legacy lineage is proposed as its replacement": {
+			subsystems: []string{"security"},
+			objects:    []Object{capability("view", "security", "kubernetes")},
+			want:       "the system capabilities aggregate into the subsystems [cluster, security] and module.yaml declares [security]: declare cluster in module.yaml subsystems" + tail,
+		},
+		"legacy lineages whose replacement module.yaml declares": {
+			subsystems: []string{"cluster", "network"},
+			objects:    []Object{capability("view", "kubernetes", "deckhouse", "networking")},
+		},
+		"an unknown lineage is not proposed": {
+			subsystems: []string{"security"},
+			objects:    []Object{capability("view", "security", "infra")},
+		},
+		"the namespace and project lineages are not proposed": {
+			subsystems: []string{"security"},
+			objects:    []Object{capability("view", "security", "namespace", "project")},
+		},
+		"a subsystem of the module's own is proposed as any other": {
+			subsystems: []string{"virtualization"},
+			objects:    []Object{capability("view", "virtualization", "security")},
+			want:       "the system capabilities aggregate into the subsystems [security, virtualization] and module.yaml declares [virtualization]: declare security in module.yaml subsystems" + tail,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := Build(Input{Module: "m", Namespace: "d8-m", Subsystems: tc.subsystems, Objects: tc.objects})
+			assert.Empty(t, got.Decl.Subsystems, "the declaration sets no subsystems")
+
+			var notes []string
+
+			for _, n := range got.Notes {
+				if strings.Contains(n, "module.yaml declares") {
+					notes = append(notes, n)
+				}
+			}
+
+			if tc.want == "" {
+				assert.Empty(t, notes)
+			} else {
+				assert.Equal(t, []string{tc.want}, notes)
+			}
+
+			content, err := Marshal(got)
+			require.NoError(t, err)
+			assert.NotContains(t, string(content), "\nsubsystems:", "the written file has no subsystems key")
+
+			_, err = rbacyaml.Parse(content)
+			require.NoError(t, err, "the written file parses")
+		})
+	}
 }

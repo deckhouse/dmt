@@ -1,0 +1,10 @@
+description: >
+  exclude-rules.sync names the two system capabilities the declaration produces for the module.yaml
+  subsystems, and their files under templates/rbacv2/manage/ do not exist: a file the declaration
+  puts only excluded objects in is no finding, so --fix has nothing to write there.
+module: module
+expectPass:
+  # the module must render: a render failure would otherwise pass every expectPass trivially
+  - linter: manager
+  - linter: rbac
+    rule: sync
