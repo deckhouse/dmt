@@ -966,6 +966,23 @@ func (b *builder) serviceAccounts() {
 	}
 }
 
+// movedEntry notes an object of an access entry that lives in another template than the one the entry
+// writes it to, under name. Under the name it has, --fix moves no object between templates: it is moved
+// by hand. Under a new name, --fix writes the new one there (the rename note says why), and the lint
+// then asks to delete the old one.
+func (b *builder) movedEntry(o Object, file, name string) {
+	if o.Path == "" || o.Path == file {
+		return
+	}
+
+	if name == o.Name {
+		b.note("%s %s lives in %s; the access entry keeps it under its name in %s -- move it there by hand: --fix moves no object between templates", o.Kind, o.Name, o.Path, file)
+		return
+	}
+
+	b.note("%s %s lives in %s; the access entry writes it to %s as %s, and the lint then asks to delete the old one", o.Kind, o.Name, o.Path, file, name)
+}
+
 // accessToUs reports whether a RoleBinding and the Role of the module namespace it binds both live in
 // an rbac-to-us.yaml: access to the module, which otherBindings makes an access entry of whoever the
 // subject is.
@@ -1017,6 +1034,10 @@ func (b *builder) otherBindings() {
 
 		role, _ = entry.ObjectNames(b.in.Module)
 		entry.BindingName = b.keptName(file, "ClusterRoleBinding", "", crb.Name, role)
+
+		role, binding := entry.ObjectNames(b.in.Module)
+		b.movedEntry(cr, file, role)
+		b.movedEntry(crb, file, binding)
 
 		b.decl.Access = append(b.decl.Access, entry)
 		b.mark(cr)
@@ -1072,6 +1093,10 @@ func (b *builder) otherBindings() {
 
 		derived, _ = entry.ObjectNames(b.in.Module)
 		entry.BindingName = b.keptName(file, "RoleBinding", b.in.Namespace, rb.Name, derived)
+
+		roleName, bindingName := entry.ObjectNames(b.in.Module)
+		b.movedEntry(role, file, roleName)
+		b.movedEntry(rb, file, bindingName)
 
 		b.decl.Access = append(b.decl.Access, entry)
 		b.mark(role)

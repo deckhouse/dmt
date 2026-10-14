@@ -1477,6 +1477,46 @@ func TestBuild_AccountClusterRoleBindingsKeepTheirNames(t *testing.T) {
 	assert.Equal(t, "d8:m:capcd:writer", refs["ClusterRoleBinding/d8:m:capcd:writer"])
 }
 
+// An access entry writes namespace access to rbac-to-us.yaml, whatever template its Role came from; a
+// note names the move (deckhouse main: node-manager's Roles of templates/bashible/rbac-for-us.yaml bound
+// to node groups). Under the name it has the object is moved by hand, since --fix moves no object between
+// templates; under a new name --fix writes the new one, and the lint then asks to delete the old one.
+func TestBuild_AccessEntryThatMovesSaysSo(t *testing.T) {
+	const path = "templates/bashible/rbac-for-us.yaml"
+
+	nodes := []rbacv1.Subject{{Kind: "Group", Name: "system:nodes"}}
+	rules := []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"get"}}}
+	pair := func(name string) []Object {
+		return []Object{
+			{Kind: "Role", Name: name, Namespace: "d8-m", Path: path, Rules: rules, Located: true},
+			{Kind: "RoleBinding", Name: name, Namespace: "d8-m", Path: path, Located: true, RoleRef: rbacv1.RoleRef{Kind: "Role", Name: name}, Subjects: nodes},
+		}
+	}
+
+	// d8:m:bashible:rpp is excluded from the placement rule, as in node-manager's .dmtlint.yaml.
+	accepts := func(file, kind, name, ns string) bool {
+		return name == "d8:m:bashible:rpp" || placementOf("m", "d8-m")(file, kind, name, ns)
+	}
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: slices.Concat(pair("bashible"), pair("d8:m:bashible:rpp")), PlacementAccepts: accepts})
+	require.Empty(t, got.Unmanaged)
+	require.Len(t, got.Decl.Access, 2)
+
+	notes := strings.Join(got.Notes, "\n")
+	assert.Contains(t, notes, "Role bashible will be named access-to-m-bashible by --fix: the placement rule refuses bashible in templates/rbac-to-us.yaml")
+	assert.Contains(t, notes, "Role bashible lives in "+path+"; the access entry writes it to templates/rbac-to-us.yaml as access-to-m-bashible, and the lint then asks to delete the old one")
+	assert.Contains(t, notes, "RoleBinding bashible lives in "+path+"; the access entry writes it to templates/rbac-to-us.yaml as access-to-m-bashible")
+	assert.Contains(t, notes, "Role d8:m:bashible:rpp lives in "+path+"; the access entry keeps it under its name in templates/rbac-to-us.yaml -- move it there by hand: --fix moves no object between templates")
+	assert.Contains(t, notes, "RoleBinding d8:m:bashible:rpp lives in "+path+"; the access entry keeps it under its name in templates/rbac-to-us.yaml -- move it there by hand")
+	assert.NotContains(t, notes, "d8:m:bashible:rpp will be named")
+
+	// An entry in the file its objects live in says nothing of a move.
+	inPlace := pair("access-to-m-http")
+	inPlace[0].Path, inPlace[1].Path = "templates/rbac-to-us.yaml", "templates/rbac-to-us.yaml"
+	got = Build(Input{Module: "m", Namespace: "d8-m", Objects: inPlace, PlacementAccepts: accepts})
+	assert.NotContains(t, strings.Join(got.Notes, "\n"), "lives in")
+}
+
 // An object is left hand-written once, with one reason, however many passes would name it.
 func TestBuild_UnmanagedOnce(t *testing.T) {
 	objects := []Object{

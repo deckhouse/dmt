@@ -1742,7 +1742,11 @@ through the name field of its kind (`bindRoles[].bindingName`, `bindClusterRoles
 when the placement rule -- with its `exclude-rules.placement` -- accepts the name in the file the
 declaration writes the object to, or refuses the name the declaration would give it as well (a binding
 in the namespace of another module: a rename would gain nothing, and a note says so). Where the rule
-refuses the name and accepts the derived one, `--fix` renames the object and the note says why. Under
+refuses the name and accepts the derived one, `--fix` renames the object and the note says why. An
+`access` entry writes namespace access to `rbac-to-us.yaml` and cluster access to `rbac-for-us.yaml`,
+whatever template its role came from; a note names such a move: under the name it has the object is
+moved by hand, since `--fix` moves no object between templates, and under a new name `--fix` writes the
+new one and the lint then asks to delete the old one. Under
 `--matrix` an object the variants render with different rules gets the union and a note, as one a block
 varies. A note names the labels and annotations of a
 legacy role, and the annotations of a capability, the fix would drop; the labels of a capability go into its
