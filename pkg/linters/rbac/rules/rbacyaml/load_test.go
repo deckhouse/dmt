@@ -805,6 +805,10 @@ func TestValidate_NamesPathsAndConditions(t *testing.T) {
 			yaml:    "prometheusAccess:\n  - {deployments: [a]}\n  - {name: metrics}\n",
 			wantErr: `prometheusAccess[1]: names no workload`,
 		},
+		"a scrape access binding name with a slash": {
+			yaml:    "prometheusAccess:\n  name: m\n  bindingName: a/b\n  deployments: [dex]\n",
+			wantErr: `prometheusAccess.bindingName: "a/b" is not a valid role name`,
+		},
 		"an access role name with a slash": {
 			yaml:    "access:\n  - {name: x, roleName: a/b, subjects: [{kind: Group, name: g}], clusterRules: [{apiGroups: [a], resources: [b], verbs: [get]}]}\n",
 			wantErr: `access[0] (x).roleName: "a/b" is not a valid role name`,

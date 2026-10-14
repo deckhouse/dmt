@@ -584,7 +584,7 @@ func (b *builder) prometheusAccess() {
 		// The Role is unconditional and only the binding to the scraper is gated: that is how the
 		// modules write it today, and a Role nobody is bound to grants nothing.
 		b.add(pa.File(), Object{
-			Kind: "RoleBinding", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, Labels: copyMap(pa.Labels), Annotations: copyMap(pa.Annotations), RoleRefKind: "Role", RoleRefName: name, When: pa.When,
+			Kind: "RoleBinding", Name: pa.BindingNameOf(b.in.Module), Namespace: b.in.Namespace, Class: ClassDeclared, Labels: copyMap(pa.Labels), Annotations: copyMap(pa.Annotations), RoleRefKind: "Role", RoleRefName: name, When: pa.When,
 			Subjects: []Subject{{Kind: "User", Name: "d8-monitoring:scraper"}, {Kind: "ServiceAccount", Name: "prometheus", Namespace: "d8-monitoring"}},
 		})
 	}
