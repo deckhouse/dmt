@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
+	"helm.sh/helm/v3/pkg/chart"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -72,7 +73,7 @@ func syncModel(t *testing.T, modulePath string) *generate.Model {
 	decl, err := rbacyaml.Load(modulePath)
 	require.NoError(t, err)
 
-	model, err := generate.Build(generate.Input{Module: syncModule, Namespace: "d8-cert-manager", Subsystems: []string{"security"}, Decl: decl})
+	model, err := generate.Build(generate.Input{Module: syncModule, Namespace: "d8-cert-manager", ChartName: syncModule, Subsystems: []string{"security"}, Decl: decl})
 	require.NoError(t, err)
 
 	return model
@@ -159,12 +160,12 @@ func writeGenerated(t *testing.T, modulePath string, model *generate.Model) {
 func runSync(t *testing.T, modulePath string, store *storage.UnstructuredObjectStore, excludes ...pkg.KindRuleExclude) *errors.LintRuleErrorsList {
 	t.Helper()
 
-	return runSyncOf(t, modulePath, store, nil, excludes...)
+	return runSyncOf(t, syncModule, modulePath, store, nil, excludes...)
 }
 
-// runSyncOf runs the sync rule on the cert-manager module with the exclude-rules of the placement
-// rule and of sync.
-func runSyncOf(t *testing.T, modulePath string, store *storage.UnstructuredObjectStore, placement []pkg.KindRuleExclude, excludes ...pkg.KindRuleExclude) *errors.LintRuleErrorsList {
+// runSyncOf runs the sync rule on the cert-manager module whose chart is named chartName, with the
+// exclude-rules of the placement rule and of sync.
+func runSyncOf(t *testing.T, chartName, modulePath string, store *storage.UnstructuredObjectStore, placement []pkg.KindRuleExclude, excludes ...pkg.KindRuleExclude) *errors.LintRuleErrorsList {
 	t.Helper()
 
 	m := mocks.NewModuleMock(minimock.NewController(t))
@@ -174,6 +175,7 @@ func runSyncOf(t *testing.T, modulePath string, store *storage.UnstructuredObjec
 	m.GetNamespaceMock.Optional().Return("d8-cert-manager")
 	m.GetStorageMock.Optional().Return(store.Storage)
 	m.GetObjectStoreMock.Optional().Return(store)
+	m.GetChartMock.Optional().Return(&chart.Chart{Metadata: &chart.Metadata{Name: chartName}})
 
 	errorList := errors.NewLintRuleErrorsList()
 	NewSyncRule(excludes, m, errorList).WithPlacementExcludes(placement).Check(context.Background())
@@ -1909,7 +1911,7 @@ func TestConditionsByDocument_GeneratedFiles(t *testing.T) {
 	model := syncModel(t, syncModuleDir(t))
 
 	for _, f := range model.Files {
-		got := conditionsByDocument(generate.RenderFile(f))
+		got := conditionsByDocument(withChartName(generate.RenderFile(f), syncModule))
 
 		for _, o := range f.Objects {
 			id := o.Kind + "/" + o.Name
@@ -2001,6 +2003,49 @@ func appendComment(t *testing.T, path string) {
 	require.NoError(t, os.WriteFile(path, append(content, []byte("# stale\n")...), 0o600))
 }
 
+// The rewrite writes the module namespace as d8-{{ $.Chart.Name }} when the chart is named after the
+// module, as the hand-written templates do, and the lint reads it back as the module namespace; a
+// chart named otherwise renders another namespace from that text, so the namespace is written as it
+// is.
+func TestSync_RewriteWritesTheChartNamespace(t *testing.T) {
+	const rel = "templates/cainjector/rbac-for-us.yaml"
+
+	for chartName, want := range map[string]string{
+		syncModule:          "  namespace: d8-{{ $.Chart.Name }}\n",
+		"cert-manager-fork": "  namespace: d8-cert-manager\n",
+	} {
+		t.Run(chartName, func(t *testing.T) {
+			resetFixState()
+			t.Cleanup(resetFixState)
+
+			modulePath := syncModuleDir(t)
+			model := syncModel(t, modulePath)
+			writeGenerated(t, modulePath, model)
+			require.NoError(t, os.Remove(filepath.Join(modulePath, rel)))
+
+			// Rendered as with the condition of the cainjector objects false: the file is missing and
+			// the render cannot show its objects.
+			store := renderedFrom(t, model, func(o *generate.Object) bool { return o.When == "" })
+
+			errorList := runSyncOf(t, chartName, modulePath, store, nil)
+			require.Len(t, errorList.GetFixes(), 1, "the missing file")
+
+			for _, fix := range errorList.GetFixes() {
+				fix()
+			}
+
+			written, err := os.ReadFile(filepath.Join(modulePath, rel))
+			require.NoError(t, err)
+			assert.Contains(t, string(written), want)
+			assert.Contains(t, string(written), "  namespace: kube-system\n", "a namespace of another module is written as it is")
+
+			resetFixState()
+			assert.Empty(t, texts(runSyncOf(t, chartName, modulePath, store, nil)), "the lint after the rewrite is clean")
+			assert.Empty(t, runSyncOf(t, chartName, modulePath, store, nil).GetFixes(), "and a second --fix writes nothing")
+		})
+	}
+}
+
 // The bootstrap keeps the name of a RoleBinding to a Role of another namespace where the placement
 // rule accepts it -- with its exclusions -- in the file the declaration writes it to
 // (security-events-manager, 2026-10-14).
@@ -2073,7 +2118,7 @@ func TestSync_BootstrapKeepsAnExcludedBindingName(t *testing.T) {
 				return true
 			})
 
-			errorList := runSyncOf(t, modulePath, store, tc.placement)
+			errorList := runSyncOf(t, syncModule, modulePath, store, tc.placement)
 			require.Len(t, errorList.GetFixes(), 1)
 
 			store.Reset()

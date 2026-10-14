@@ -40,8 +40,12 @@ import (
 // Input is everything the generator needs besides the declaration: the module identity from
 // module.yaml. Subsystems are module.yaml's, and the system capabilities aggregate into them only.
 type Input struct {
-	Module     string
-	Namespace  string
+	Module    string
+	Namespace string
+	// ChartName is what {{ .Chart.Name }} renders to in the module's chart. When it is the module
+	// name and the module lives in d8-<module>, the templates write that namespace as
+	// d8-{{ $.Chart.Name }}, as the hand-written ones do; empty or another name writes it literally.
+	ChartName  string
 	Subsystems []string
 	Decl       *rbacyaml.Declaration
 }
@@ -114,7 +118,14 @@ type File struct {
 	// Path is relative to the module root.
 	Path    string
 	Objects []Object
+	// ChartNamespace is the namespace the file writes as d8-{{ $.Chart.Name }} (ChartNamespaceText),
+	// in metadata.namespace and in the namespace of a ServiceAccount subject: d8-<module> when the
+	// chart is named after the module. Empty writes every namespace literally.
+	ChartNamespace string
 }
+
+// ChartNamespaceText is how the templates write the module namespace d8-<module>.
+const ChartNamespaceText = "d8-{{ $.Chart.Name }}"
 
 // Model is the full set of generated files, sorted by path.
 type Model struct {
@@ -154,12 +165,18 @@ func Build(in Input) (*Model, error) {
 	b.serviceAccounts()
 	b.access()
 
+	chartNamespace := ""
+	if in.ChartName == in.Module && in.Namespace == "d8-"+in.Module {
+		chartNamespace = in.Namespace
+	}
+
 	model := &Model{Files: make([]File, 0, len(b.files))}
 	for _, f := range b.files {
 		for i := range f.Objects {
 			liftRuleConditions(&f.Objects[i])
 		}
 
+		f.ChartNamespace = chartNamespace
 		model.Files = append(model.Files, *f)
 	}
 
