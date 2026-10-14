@@ -822,6 +822,22 @@ func TestValidate_NamesPathsAndConditions(t *testing.T) {
 			yaml:    "serviceAccounts:\n  - {name: a, bindClusterRoles: [{bindingName: d8:m:a:x}]}\n",
 			wantErr: `serviceAccounts[0] (a).bindClusterRoles[0]: empty name`,
 		},
+		"an account role name with a slash": {
+			yaml:    "serviceAccounts:\n  - {name: a, roleName: a/b, namespaceRules: [{apiGroups: [a], resources: [b], verbs: [get]}]}\n",
+			wantErr: `serviceAccounts[0] (a).roleName: "a/b" is not a valid role name`,
+		},
+		"an account role binding name with a space": {
+			yaml:    "serviceAccounts:\n  - {name: a, roleBindingName: a b, namespaceRules: [{apiGroups: [a], resources: [b], verbs: [get]}]}\n",
+			wantErr: `serviceAccounts[0] (a).roleBindingName: "a b" is not a valid role name`,
+		},
+		"an account role name without namespaceRules": {
+			yaml:    "serviceAccounts:\n  - {name: a, roleName: leader, clusterRules: [{apiGroups: [a], resources: [b], verbs: [get]}]}\n",
+			wantErr: `serviceAccounts[0] (a).roleName: names the Role of namespaceRules, and the account has no namespaceRules`,
+		},
+		"an account role binding name without namespaceRules": {
+			yaml:    "serviceAccounts:\n  - {name: a, roleBindingName: leader}\n",
+			wantErr: `serviceAccounts[0] (a).roleBindingName: names the RoleBinding of namespaceRules, and the account has no namespaceRules`,
+		},
 		"a scrape access binding name with a slash": {
 			yaml:    "prometheusAccess:\n  name: m\n  bindingName: a/b\n  deployments: [dex]\n",
 			wantErr: `prometheusAccess.bindingName: "a/b" is not a valid role name`,

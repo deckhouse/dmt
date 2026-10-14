@@ -186,19 +186,24 @@ type PolicyRule struct {
 
 // ServiceAccount declares one ServiceAccount of the module with its rights. The generator
 // produces the ServiceAccount, ClusterRole d8:<module>:<name> with its ClusterRoleBinding
-// (from ClusterRules), Role <name> in the module namespace with its RoleBinding (from
-// NamespaceRules), a ClusterRoleBinding per BindClusterRoles entry and a RoleBinding in a
+// (from ClusterRules), a Role in the module namespace with its RoleBinding (from NamespaceRules,
+// NamespaceRoleNames), a ClusterRoleBinding per BindClusterRoles entry and a RoleBinding in a
 // foreign namespace per BindRoles entry, all into templates/[<path>/]rbac-for-us.yaml.
 type ServiceAccount struct {
 	Name string `yaml:"name"`
 	// Path is the component directory under templates/; empty means the module root file.
-	Path             string            `yaml:"path,omitempty"`
-	When             string            `yaml:"when,omitempty"`
-	Labels           map[string]string `yaml:"labels,omitempty"`
-	ClusterRules     []PolicyRule      `yaml:"clusterRules,omitempty"`
-	NamespaceRules   []PolicyRule      `yaml:"namespaceRules,omitempty"`
-	BindClusterRoles []ClusterRoleRef  `yaml:"bindClusterRoles,omitempty"`
-	BindRoles        []RoleRef         `yaml:"bindRoles,omitempty"`
+	Path           string            `yaml:"path,omitempty"`
+	When           string            `yaml:"when,omitempty"`
+	Labels         map[string]string `yaml:"labels,omitempty"`
+	ClusterRules   []PolicyRule      `yaml:"clusterRules,omitempty"`
+	NamespaceRules []PolicyRule      `yaml:"namespaceRules,omitempty"`
+	// RoleName names the Role of NamespaceRules instead of rbaccontract.AccountRoleName, and
+	// RoleBindingName its RoleBinding instead of the Role's name: the names the objects had before the
+	// declaration, which the bootstrap keeps where the placement rule accepts them.
+	RoleName         string           `yaml:"roleName,omitempty"`
+	RoleBindingName  string           `yaml:"roleBindingName,omitempty"`
+	BindClusterRoles []ClusterRoleRef `yaml:"bindClusterRoles,omitempty"`
+	BindRoles        []RoleRef        `yaml:"bindRoles,omitempty"`
 
 	// ExtraClusterRoles are further ClusterRoles that live in the account's rbac-for-us.yaml:
 	// controller roles split by concern (cert-manager's approve, certificates, ...), or roles the
@@ -215,6 +220,23 @@ type ServiceAccount struct {
 	// platform convention. A pod that needs the token sets it true on the pod, or the account
 	// declares true here.
 	AutomountToken *bool `yaml:"automountServiceAccountToken,omitempty"`
+}
+
+// NamespaceRoleNames returns the names of the Role of NamespaceRules and of its RoleBinding: RoleName,
+// else the name the placement rule wants (rbaccontract.AccountRoleName); RoleBindingName, else the
+// Role's.
+func (sa ServiceAccount) NamespaceRoleNames(module string) (string, string) {
+	role := sa.RoleName
+	if role == "" {
+		role = rbaccontract.AccountRoleName(module, sa.Path, sa.Name)
+	}
+
+	binding := sa.RoleBindingName
+	if binding == "" {
+		binding = role
+	}
+
+	return role, binding
 }
 
 // ExtraClusterRole is one more ClusterRole in a ServiceAccount's file. Bind unset or true also

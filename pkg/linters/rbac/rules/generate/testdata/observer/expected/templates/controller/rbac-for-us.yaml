@@ -10,7 +10,7 @@ automountServiceAccountToken: false
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: controller
+  name: controller-leader-election-role
   namespace: d8-{{ $.Chart.Name }}
   {{- include "helm_lib_module_labels" (list . (dict "app" "controller")) | nindent 2 }}
 rules:
@@ -26,13 +26,13 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: controller
+  name: controller-leader-election-rolebinding
   namespace: d8-{{ $.Chart.Name }}
   {{- include "helm_lib_module_labels" (list . (dict "app" "controller")) | nindent 2 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: controller
+  name: controller-leader-election-role
 subjects:
 - kind: ServiceAccount
   name: controller

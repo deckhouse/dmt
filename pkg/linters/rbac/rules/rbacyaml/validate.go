@@ -644,6 +644,9 @@ func validateServiceAccounts(accounts []ServiceAccount, report reporter) {
 		validatePolicyRules(sa.ClusterRules, where+".clusterRules", report)
 		validatePolicyRules(sa.NamespaceRules, where+".namespaceRules", report)
 
+		validateAccountNameField(sa.RoleName, where+".roleName", len(sa.NamespaceRules) > 0, "the Role of namespaceRules, and the account has no namespaceRules", report)
+		validateAccountNameField(sa.RoleBindingName, where+".roleBindingName", len(sa.NamespaceRules) > 0, "the RoleBinding of namespaceRules, and the account has no namespaceRules", report)
+
 		extraNames := make(map[string]struct{}, len(sa.ExtraClusterRoles))
 
 		for j, extra := range sa.ExtraClusterRoles {
@@ -698,6 +701,21 @@ func validateServiceAccounts(accounts []ServiceAccount, report reporter) {
 				validateRoleName(ref.BindingName, fmt.Sprintf("%s.bindClusterRoles[%d].bindingName", where, j), report)
 			}
 		}
+	}
+}
+
+// validateAccountNameField checks a name field of an account: a role name, and an object the account
+// produces -- a name for an object the declaration does not write is a slip, refused with what it
+// names and why there is none.
+func validateAccountNameField(name, where string, produced bool, names string, report reporter) {
+	if name == "" {
+		return
+	}
+
+	validateRoleName(name, where, report)
+
+	if !produced {
+		report("%s: names %s", where, names)
 	}
 }
 

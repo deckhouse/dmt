@@ -489,9 +489,9 @@ func (b *builder) serviceAccounts() {
 		}
 
 		if len(sa.NamespaceRules) > 0 {
-			roleName := rbaccontract.AccountRoleName(b.in.Module, sa.Path, sa.Name)
+			roleName, bindingName := sa.NamespaceRoleNames(b.in.Module)
 			b.add(path, Object{Kind: "Role", Name: roleName, Namespace: b.in.Namespace, Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann), Rules: policyRules(sa.NamespaceRules)})
-			b.add(path, Object{Kind: "RoleBinding", Name: roleName, Namespace: b.in.Namespace, Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann), RoleRefKind: "Role", RoleRefName: roleName, Subjects: subject})
+			b.add(path, Object{Kind: "RoleBinding", Name: bindingName, Namespace: b.in.Namespace, Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann), RoleRefKind: "Role", RoleRefName: roleName, Subjects: subject})
 		}
 
 		for _, extra := range sa.ExtraClusterRoles {
