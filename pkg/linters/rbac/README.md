@@ -1452,10 +1452,12 @@ serviceAccounts:
         verbs: [get, list, watch]
       - nonResourceURLs: [/metrics]
         verbs: [get]
-    namespaceRules:                 # Role <name> in the module namespace + RoleBinding
-      - apiGroups: [coordination.k8s.io]
+    namespaceRules:                 # Role + RoleBinding in the module namespace: the account's name at the
+      - apiGroups: [coordination.k8s.io]  # root, its directories joined by colons under a path (cainjector)
         resources: [leases]
         verbs: [get, list, watch, create, update, patch]
+    roleName: cainjector-leader-election          # optional: the name the Role already has, kept
+    roleBindingName: cainjector-leader-election-binding  # optional; the RoleBinding takes the Role's name without it
     bindClusterRoles:                         # ClusterRoleBinding to an existing ClusterRole:
       - d8:rbac-proxy                         # d8:<module>:<name>:rbac-proxy (the role without d8:, : as -)
       - name: system:auth-delegator           # bindingName: the name the binding already has, kept
@@ -1515,7 +1517,7 @@ Format rules the loader enforces:
 - `prometheusAccess` is one entry written as a mapping (the form of the first declarations) or a list of entries; a list of one entry is written back as the mapping. Each entry names at least one workload and produces a Role and a RoleBinding to the scraper in the module namespace: `access-to-<module>` in `templates/rbac-to-us.yaml` without `path` and `name`, `access-to-<module>-<name>` there with `name`, `access-to-<path, / as ->-<name>` in `templates/<path>/rbac-to-us.yaml` with both -- the names `access[]` gets, which the placement rule wants. A `path` needs a `name`, and two entries of one `path` and `name` are an error. `when` gates the RoleBinding of the Prometheus scraper (typically `.Values.global.enabledModules | has "prometheus"`); the Role stays unconditional.
 - `bindRoles[].bindingName` names the RoleBinding; without it the binding gets the name the placement rule wants (`d8:<module>:<account>:<role>` in `default` and `kube-system`, `<module>:<account>:<role>` in a namespace of the platform). It is a role name like the others (no `/`, `%` or whitespace); the placement rule judges it in the render, as any binding.
 - A `bindClusterRoles` entry is the name of the ClusterRole, or a mapping of `name` and `bindingName` when the binding keeps a name of its own; without `bindingName` the ClusterRoleBinding is `d8:<module>:<account>:<role>` (the role's name without `d8:`, colons as dashes), and an entry without it is written back as the name alone.
-- The other name fields work the same way, one per kind of object, each optional: `bindClusterRoles[].bindingName` names the ClusterRoleBinding, `access[].roleName` names the ClusterRole (`clusterRules`) or the Role (`namespaceRules`) instead of `d8:<module>:<name>` or the `access-to-...` name, and `access[].bindingName` the binding instead of the role's name; `prometheusAccess[].bindingName` names the RoleBinding instead of the Role's name. They carry the names objects had before the declaration; the bootstrap writes one where the placement rule accepts the name, or refuses the derived name as well (see the bootstrap below).
+- The other name fields work the same way, one per kind of object, each optional: `bindClusterRoles[].bindingName` names the ClusterRoleBinding, `serviceAccounts[].roleName` the Role of `namespaceRules` instead of the account's name or its directories and `roleBindingName` its RoleBinding instead of the Role's name, `access[].roleName` names the ClusterRole (`clusterRules`) or the Role (`namespaceRules`) instead of `d8:<module>:<name>` or the `access-to-...` name, and `access[].bindingName` the binding instead of the role's name; `prometheusAccess[].bindingName` names the RoleBinding instead of the Role's name. They carry the names objects had before the declaration; the bootstrap writes one where the placement rule accepts the name, or refuses the derived name as well (see the bootstrap below). A name field of an object the entry does not produce (`roleName` of an account without `namespaceRules`) is an error.
 - Levels: `namespace` -- `viewer`, `user`, `manager`, `admin`, `superadmin`; `system` -- `viewer`, `manager`, `superadmin`; `legacy` -- `User`, `PrivilegedUser`, `Editor`, `Admin`, `ClusterEditor`, `ClusterAdmin`, `SuperAdmin`.
 - `namespace` levels are allowed only for `Namespaced` resources; a `Namespaced` resource at a `system` level needs a `reason`.
 - A `system` level never writes a namespaced resource through which a write grants the identity of a ServiceAccount of the module's namespace -- `pods`, `replicationcontrollers`, `podtemplates`, `secrets`, `serviceaccounts`, the `apps` and `batch` workloads, `roles`, `rolebindings` -- and never touches `pods/exec`, `pods/attach`, `pods/portforward`, `pods/ephemeralcontainers` or `serviceaccounts/token` at all, whatever the `reason`: the role model writes into the namespaces of the platform at the `superadmin` level only, so the holders of a subsystem `manager` must not reach the ServiceAccounts of the module through its capability. Read verbs on the resources stay allowed; grant the writes at a `namespace` level instead.
@@ -1534,7 +1536,7 @@ What the declaration produces (level `viewer` -> capability `view`, `manager` ->
 | `resources[].namespace.<level or action>` | `templates/rbacv2/use/<action>.yaml` | ClusterRole `d8:namespace-capability:<module>:<action>` |
 | `resources[].system.<level or action>` | `templates/rbacv2/manage/<action>.yaml` | ClusterRole `d8:system-capability:<module>:<action>`; aggregates into every subsystem module.yaml declares; `view` and `edit` are always produced for a module with a subsystem in module.yaml, with the rule on the module's own ModuleConfig -- without one a system capability would aggregate into no role |
 | `resources[].legacy.<Level>` | `templates/user-authz-cluster-roles.yaml` | ClusterRole `d8:user-authz:<module>:<kebab-level>` with the `user-authz.deckhouse.io/access-level` annotation |
-| `serviceAccounts[]` | `templates/[<path>/]rbac-for-us.yaml` | ServiceAccount, ClusterRole/ClusterRoleBinding `d8:<module>:<name>`, Role/RoleBinding `<name>`, the extra bindings |
+| `serviceAccounts[]` | `templates/[<path>/]rbac-for-us.yaml` | ServiceAccount, ClusterRole/ClusterRoleBinding `d8:<module>:<name>`, Role/RoleBinding `<name>` at the root and `<a>:<b>` for `path: a/b` (`<module>:<a>:<b>` for an account named `<module>-<a>-<b>`), or `roleName`/`roleBindingName`, the extra bindings |
 | `access[]` with `clusterRules` | `templates/rbac-for-us.yaml` | ClusterRole/ClusterRoleBinding `d8:<module>:<name>` |
 | `prometheusAccess[]`, `access[]` with `namespaceRules` | `templates/[<path>/]rbac-to-us.yaml` | Role/RoleBinding `access-to-<module>[-<name>]`; with `path` `access-to-<path, / as ->-<name>`, as the placement rule wants; a `prometheusAccess` entry without `path` and `name` is `access-to-<module>`. A name that already starts with that prefix (`access-to-<module>` itself at the root) is the object's name as it is: the prefix is never written twice |
 
@@ -1702,7 +1704,9 @@ directory it renders from: `templates/<dir>/rbac-for-us.yaml`, or another templa
 when the account is named after the directory as the placement rule wants (`<dir>`, or `<module>-<dir>`
 in a namespace of the platform) and the module lives outside `default` and `kube-system`; an account
 of any other template goes to `templates/rbac-for-us.yaml`, and a note names the file the fix writes
-it to.
+it to. A Role of the module and its RoleBinding that both live in an `rbac-to-us.yaml` are an `access`
+entry whoever they bind, the module's own account included: access to the module stays in that file
+under its names rather than move to the account's `rbac-for-us.yaml`.
 
 The render only holds what rendered for the linter's values, so the importer also reads the template
 text around each object, with `text/template/parse`. An object wrapped in `{{ if X }}` gets `when: X`
@@ -1731,7 +1735,8 @@ rename. A RoleBinding named otherwise than its Role keeps its name as the entry'
 any name below.
 The bootstrap describes what exists and renames nothing it can keep: an object keeps the name it has,
 through the name field of its kind (`bindRoles[].bindingName`, `bindClusterRoles[].bindingName`,
-`access[].roleName` and `bindingName`, `prometheusAccess[].bindingName`),
+`serviceAccounts[].roleName` and `roleBindingName`, `access[].roleName` and `bindingName`,
+`prometheusAccess[].bindingName`),
 when the placement rule -- with its `exclude-rules.placement` -- accepts the name in the file the
 declaration writes the object to, or refuses the name the declaration would give it as well (a binding
 in the namespace of another module: a rename would gain nothing, and a note says so). Where the rule

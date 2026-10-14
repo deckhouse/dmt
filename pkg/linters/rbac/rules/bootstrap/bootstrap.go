@@ -863,11 +863,24 @@ func (b *builder) serviceAccounts() {
 				continue
 			}
 
+			// A Role of the module and its binding in rbac-to-us.yaml grant access to the module, to its
+			// own account as to anyone: an access entry keeps both in that file under their names
+			// (registry-packages-proxy's access-to-registry-packages-proxy-from-http), where the
+			// account's namespaceRules would move them to its rbac-for-us.yaml.
+			if b.accessToUs(rb) {
+				continue
+			}
+
 			// A Role another binding also uses is not the account's own (finding 53).
 			if role, ok := b.role(b.ns(rb), rb.RoleRef.Name); ok && !b.isUsed(role) && b.ns(rb) == b.in.Namespace && e.NamespaceRules == nil && rb.RoleRef.Kind == "Role" && len(b.roleBindingsOf(b.ns(rb), role.Name)) == 1 {
 				e.NamespaceRules = policyRules(role.Rules)
-				b.rename("Role", role.Name, rbaccontract.AccountRoleName(b.in.Module, e.Path, sa.Name))
-				b.rename("RoleBinding", rb.Name, rbaccontract.AccountRoleName(b.in.Module, e.Path, sa.Name))
+
+				derived, _ := e.NamespaceRoleNames(b.in.Module)
+				e.RoleName = b.keptName(accountFile(e.Path), "Role", b.in.Namespace, role.Name, derived)
+
+				_, derived = e.NamespaceRoleNames(b.in.Module)
+				e.RoleBindingName = b.keptName(accountFile(e.Path), "RoleBinding", b.in.Namespace, rb.Name, derived)
+
 				keep(role)
 				b.markAccount(role)
 			} else if rb.RoleRef.Kind != "Role" {
@@ -952,6 +965,24 @@ func (b *builder) serviceAccounts() {
 
 		b.decl.ServiceAccounts = append(b.decl.ServiceAccounts, e)
 	}
+}
+
+// accessToUs reports whether a RoleBinding and the Role of the module namespace it binds both live in
+// an rbac-to-us.yaml: access to the module, which otherBindings makes an access entry of whoever the
+// subject is.
+func (b *builder) accessToUs(rb Object) bool {
+	if rb.RoleRef.Kind != "Role" || b.ns(rb) != b.in.Namespace || !isRBACToUs(rb.Path) {
+		return false
+	}
+
+	role, ok := b.role(b.in.Namespace, rb.RoleRef.Name)
+
+	return ok && isRBACToUs(role.Path)
+}
+
+// isRBACToUs reports whether the template is templates/rbac-to-us.yaml or the one of a component.
+func isRBACToUs(path string) bool {
+	return path == "templates/rbac-to-us.yaml" || componentOf(path, "rbac-to-us.yaml") != ""
 }
 
 // otherBindings turns bindings to subjects other than the module's accounts into access entries

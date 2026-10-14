@@ -385,7 +385,9 @@ func TestBuild_AccessObjectNames(t *testing.T) {
 }
 
 // An account's objects take the name fields of their kind as they are and the derived names without
-// them: a bindClusterRoles entry its bindingName, else d8:<module>:<account>:<role without d8:>.
+// them: the Role of namespaceRules roleName, else the account's name for its directory, and its binding
+// roleBindingName, else the Role's; a bindClusterRoles entry its bindingName, else
+// d8:<module>:<account>:<role without d8:>.
 func TestBuild_AccountObjectNames(t *testing.T) {
 	model, err := Build(observerInput(t))
 	require.NoError(t, err)
@@ -406,8 +408,8 @@ func TestBuild_AccountObjectNames(t *testing.T) {
 
 	assert.Equal(t, []string{
 		"d8-observer/ServiceAccount/controller",
-		"d8-observer/Role/controller",
-		"d8-observer/RoleBinding/controller -> controller",
+		"d8-observer/Role/controller-leader-election-role",
+		"d8-observer/RoleBinding/controller-leader-election-rolebinding -> controller-leader-election-role",
 		"ClusterRoleBinding/d8:observer:controller:rbac-proxy -> d8:rbac-proxy",
 		"ClusterRoleBinding/d8:observer:controller:auth-delegator -> system:auth-delegator",
 		"d8-log-shipper/RoleBinding/d8:observer:controller:log-shipper-secrets -> d8:observer:controller:log-shipper-secrets",
