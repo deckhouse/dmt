@@ -384,6 +384,37 @@ func TestBuild_AccessObjectNames(t *testing.T) {
 	}, refs("templates/dex/rbac-to-us.yaml"))
 }
 
+// An account's objects take the name fields of their kind as they are and the derived names without
+// them: a bindClusterRoles entry its bindingName, else d8:<module>:<account>:<role without d8:>.
+func TestBuild_AccountObjectNames(t *testing.T) {
+	model, err := Build(observerInput(t))
+	require.NoError(t, err)
+
+	f := model.File("templates/controller/rbac-for-us.yaml")
+	require.NotNil(t, f)
+
+	refs := make([]string, 0, len(f.Objects))
+
+	for _, o := range f.Objects {
+		id := o.Identity()
+		if o.RoleRefName != "" {
+			id += " -> " + o.RoleRefName
+		}
+
+		refs = append(refs, id)
+	}
+
+	assert.Equal(t, []string{
+		"d8-observer/ServiceAccount/controller",
+		"d8-observer/Role/controller",
+		"d8-observer/RoleBinding/controller -> controller",
+		"ClusterRoleBinding/d8:observer:controller:rbac-proxy -> d8:rbac-proxy",
+		"ClusterRoleBinding/d8:observer:controller:auth-delegator -> system:auth-delegator",
+		"d8-log-shipper/RoleBinding/d8:observer:controller:log-shipper-secrets -> d8:observer:controller:log-shipper-secrets",
+		"kube-system/RoleBinding/d8:observer:controller:extension-apiserver-authentication-reader -> extension-apiserver-authentication-reader",
+	}, refs)
+}
+
 // The first declarations wrote prometheusAccess as one mapping (modules/101-cert-manager/rbac.yaml in
 // deckhouse): it reads as a list of one entry and produces the objects it always did.
 func TestBuild_PrometheusAccessMappingForm(t *testing.T) {
@@ -694,7 +725,7 @@ func TestBuild_RefusesNamesCollidingAcrossFiles(t *testing.T) {
 func TestBuild_RefusesDuplicateGeneratedNames(t *testing.T) {
 	decl := &rbacyaml.Declaration{APIVersion: rbacyaml.APIVersionV1Alpha1,
 		Resources:       []rbacyaml.Resource{{Group: "x.io", Resource: "things", Scope: "Cluster", System: map[string][]string{"viewer": {"get"}}}},
-		ServiceAccounts: []rbacyaml.ServiceAccount{{Name: "worker", BindClusterRoles: []string{"d8:a:b", "d8:a-b"}}},
+		ServiceAccounts: []rbacyaml.ServiceAccount{{Name: "worker", BindClusterRoles: []rbacyaml.ClusterRoleRef{{Name: "d8:a:b"}, {Name: "d8:a-b"}}}},
 	}
 
 	_, err := Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Decl: decl})

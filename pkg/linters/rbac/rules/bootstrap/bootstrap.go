@@ -838,13 +838,15 @@ func (b *builder) serviceAccounts() {
 
 				e.ExtraClusterRoles = append(e.ExtraClusterRoles, extra)
 				b.rename("ClusterRoleBinding", crb.Name, extra.FullName(b.in.Module, sa.Name))
-			case slices.Contains(e.BindClusterRoles, crb.RoleRef.Name):
+			case slices.ContainsFunc(e.BindClusterRoles, func(r rbacyaml.ClusterRoleRef) bool { return r.Name == crb.RoleRef.Name }):
 				// A second binding of the same account to the same role grants nothing more, and the
-				// generator names one binding per role: it folds into the first.
-				b.note("ClusterRoleBinding %s binds %s to %s again; it folds into %s", crb.Name, sa.Name, crb.RoleRef.Name, clusterName+":"+rbaccontract.BindingSuffix(crb.RoleRef.Name))
+				// generator writes one binding per role: it folds into the first.
+				first := e.BindClusterRoles[slices.IndexFunc(e.BindClusterRoles, func(r rbacyaml.ClusterRoleRef) bool { return r.Name == crb.RoleRef.Name })]
+				b.note("ClusterRoleBinding %s binds %s to %s again; it folds into %s", crb.Name, sa.Name, crb.RoleRef.Name, first.BindingNameOf(b.in.Module, sa.Name))
 			default:
-				e.BindClusterRoles = append(e.BindClusterRoles, crb.RoleRef.Name)
-				b.rename("ClusterRoleBinding", crb.Name, clusterName+":"+rbaccontract.BindingSuffix(crb.RoleRef.Name))
+				ref := rbacyaml.ClusterRoleRef{Name: crb.RoleRef.Name}
+				ref.BindingName = b.keptName(accountFile(e.Path), "ClusterRoleBinding", "", crb.Name, ref.BindingNameOf(b.in.Module, sa.Name))
+				e.BindClusterRoles = append(e.BindClusterRoles, ref)
 			}
 
 			if exclusive {

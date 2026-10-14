@@ -505,8 +505,8 @@ func (b *builder) serviceAccounts() {
 
 		for _, bound := range sa.BindClusterRoles {
 			b.add(path, Object{
-				Kind: "ClusterRoleBinding", Name: clusterName + ":" + rbaccontract.BindingSuffix(bound), Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann),
-				RoleRefKind: "ClusterRole", RoleRefName: bound, Subjects: subject,
+				Kind: "ClusterRoleBinding", Name: bound.BindingNameOf(b.in.Module, sa.Name), Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann),
+				RoleRefKind: "ClusterRole", RoleRefName: bound.Name, Subjects: subject,
 			})
 		}
 

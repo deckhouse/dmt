@@ -202,6 +202,15 @@ func TestParse_RejectsWhatTheFormatDoesNotKnow(t *testing.T) {
 			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\nprometheusAccess:\n  deployments: {a: b}\n",
 			wantErr: "cannot unmarshal !!map into []string",
 		},
+		// a bindClusterRoles entry in the mapping form is read by an unmarshaller of its own too.
+		"unknown key in a bindClusterRoles mapping": {
+			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\nserviceAccounts:\n  - name: a\n    bindClusterRoles:\n      - name: d8:rbac-proxy\n        binding: b\n",
+			wantErr: "line 6: field binding not found in type rbacyaml.ClusterRoleRef",
+		},
+		"a bindClusterRoles entry is a list": {
+			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\nserviceAccounts:\n  - name: a\n    bindClusterRoles:\n      - [d8:rbac-proxy]\n",
+			wantErr: "an entry of bindClusterRoles is the name of a ClusterRole or a mapping of name and bindingName",
+		},
 		"unknown key in a bindRoles entry": {
 			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\nserviceAccounts:\n  - name: a\n    bindRoles: [{namespace: n, name: r, binding: b}]\n",
 			wantErr: "field binding not found",
@@ -805,6 +814,14 @@ func TestValidate_NamesPathsAndConditions(t *testing.T) {
 			yaml:    "prometheusAccess:\n  - {deployments: [a]}\n  - {name: metrics}\n",
 			wantErr: `prometheusAccess[1]: names no workload`,
 		},
+		"a bindClusterRoles binding name with a slash": {
+			yaml:    "serviceAccounts:\n  - {name: a, bindClusterRoles: [d8:rbac-proxy, {name: system:auth-delegator, bindingName: a/b}]}\n",
+			wantErr: `serviceAccounts[0] (a).bindClusterRoles[1].bindingName: "a/b" is not a valid role name`,
+		},
+		"a bindClusterRoles mapping without a name": {
+			yaml:    "serviceAccounts:\n  - {name: a, bindClusterRoles: [{bindingName: d8:m:a:x}]}\n",
+			wantErr: `serviceAccounts[0] (a).bindClusterRoles[0]: empty name`,
+		},
 		"a scrape access binding name with a slash": {
 			yaml:    "prometheusAccess:\n  name: m\n  bindingName: a/b\n  deployments: [dex]\n",
 			wantErr: `prometheusAccess.bindingName: "a/b" is not a valid role name`,
@@ -874,6 +891,34 @@ func TestPrometheusAccess_Forms(t *testing.T) {
 }
 
 // A trailing --- holds no document; a second document is refused.
+// A bindClusterRoles entry is the role's name, as the first declarations write it, or a mapping that
+// names the binding too; one without a binding name is written back as the name.
+func TestClusterRoleRef_Forms(t *testing.T) {
+	const head = "apiVersion: rbac.deckhouse.io/v1alpha1\n"
+
+	decl, err := Parse([]byte(head + "serviceAccounts:\n  - name: a\n    bindClusterRoles:\n      - d8:rbac-proxy\n      - name: system:auth-delegator\n        bindingName: d8:m:auth-delegator\n      - {name: system:node-proxier}\n"))
+	require.NoError(t, err)
+	assert.Equal(t, []ClusterRoleRef{
+		{Name: "d8:rbac-proxy"},
+		{Name: "system:auth-delegator", BindingName: "d8:m:auth-delegator"},
+		{Name: "system:node-proxier"},
+	}, decl.ServiceAccounts[0].BindClusterRoles)
+	assert.Empty(t, Validate(decl, nil))
+
+	refs := decl.ServiceAccounts[0].BindClusterRoles
+	assert.Equal(t, "d8:m:a:rbac-proxy", refs[0].BindingNameOf("m", "a"), "the derived name")
+	assert.Equal(t, "d8:m:auth-delegator", refs[1].BindingNameOf("m", "a"), "the binding name as it is")
+	assert.Equal(t, "d8:m:a:system-node-proxier", refs[2].BindingNameOf("m", "a"))
+
+	out, err := yaml.Marshal(&Declaration{APIVersion: APIVersionV1Alpha1, ServiceAccounts: decl.ServiceAccounts})
+	require.NoError(t, err)
+	assert.Equal(t, head+"serviceAccounts:\n    - name: a\n      bindClusterRoles:\n        - d8:rbac-proxy\n        - name: system:auth-delegator\n          bindingName: d8:m:auth-delegator\n        - system:node-proxier\n", string(out))
+
+	again, err := Parse(out)
+	require.NoError(t, err)
+	assert.Equal(t, decl.ServiceAccounts, again.ServiceAccounts)
+}
+
 func TestParse_TrailingSeparator(t *testing.T) {
 	_, err := Parse([]byte("apiVersion: rbac.deckhouse.io/v1alpha1\n---\n"))
 	require.NoError(t, err)

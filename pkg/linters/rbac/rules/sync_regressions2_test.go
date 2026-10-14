@@ -52,7 +52,7 @@ func TestSyncRegression_NestedNamesPassPlacement(t *testing.T) {
 
 	decl := &rbacyaml.Declaration{APIVersion: rbacyaml.APIVersionV1Alpha1,
 		ServiceAccounts: []rbacyaml.ServiceAccount{
-			{Name: "webhook-tls", Path: "webhook/tls", ClusterRules: nodes, NamespaceRules: get, BindClusterRoles: []string{"d8:rbac-proxy"},
+			{Name: "webhook-tls", Path: "webhook/tls", ClusterRules: nodes, NamespaceRules: get, BindClusterRoles: []rbacyaml.ClusterRoleRef{{Name: "d8:rbac-proxy"}},
 				BindRoles: []rbacyaml.RoleRef{{Namespace: "kube-system", Name: "extension-apiserver-authentication-reader"}}},
 			{Name: "cainjector", Path: "cainjector", NamespaceRules: get},
 			{Name: syncModule, ClusterRules: nodes, NamespaceRules: get},
@@ -512,7 +512,7 @@ func TestSyncRegression_GeneratedNamesPassPlacement(t *testing.T) {
 
 	decl := &rbacyaml.Declaration{APIVersion: rbacyaml.APIVersionV1Alpha1,
 		ServiceAccounts: []rbacyaml.ServiceAccount{
-			{Name: "webhook", Path: "webhook", ClusterRules: nodes, NamespaceRules: get, BindClusterRoles: []string{"d8:rbac-proxy"},
+			{Name: "webhook", Path: "webhook", ClusterRules: nodes, NamespaceRules: get, BindClusterRoles: []rbacyaml.ClusterRoleRef{{Name: "d8:rbac-proxy"}},
 				BindRoles: []rbacyaml.RoleRef{{Namespace: "kube-system", Name: "extension-apiserver-authentication-reader"}}},
 			{Name: syncModule, ClusterRules: nodes, NamespaceRules: get},
 		},
