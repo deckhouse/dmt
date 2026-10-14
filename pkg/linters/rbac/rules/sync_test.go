@@ -400,7 +400,7 @@ func TestSync_BootstrapProposesTheModuleYAMLSubsystems(t *testing.T) {
 // A rename the bootstrap notes in a template the next fix leaves as it is does not happen with that
 // fix, so the note says the object keeps its name until the case on that file is closed; the same
 // rename in a template the fix rewrites is promised as before (dry run on security-events-manager,
-// 2026-10-09).
+// 2026-10-09). The scrape Role is named so that no prometheusAccess entry keeps its name.
 func TestSync_BootstrapRenameNoteFollowsTheFix(t *testing.T) {
 	const rel = "templates/rbac-to-us.yaml"
 
@@ -410,16 +410,16 @@ func TestSync_BootstrapRenameNoteFollowsTheFix(t *testing.T) {
 	}{
 		"the fix rewrites the file": {
 			want: []string{
-				"# - Role access-to-cert-manager-metrics will be named access-to-cert-manager by --fix",
-				"# - RoleBinding access-to-cert-manager-metrics will be named access-to-cert-manager by --fix",
+				"# - Role access-to-cert-managers will be named access-to-cert-manager by --fix",
+				"# - RoleBinding access-to-cert-managers will be named access-to-cert-manager by --fix",
 			},
 			notWant: []string{"keeps its name"},
 		},
 		"the fix leaves the file as it is": {
 			unreadable: true,
 			want: []string{
-				"# - Role access-to-cert-manager-metrics keeps its name for now: the declaration names it access-to-cert-manager, but --fix leaves " + rel + " as it is until what \"dmt lint\" reports on that file is resolved",
-				"# - RoleBinding access-to-cert-manager-metrics keeps its name for now: the declaration names it access-to-cert-manager, but --fix leaves " + rel + " as it is",
+				"# - Role access-to-cert-managers keeps its name for now: the declaration names it access-to-cert-manager, but --fix leaves " + rel + " as it is until what \"dmt lint\" reports on that file is resolved",
+				"# - RoleBinding access-to-cert-managers keeps its name for now: the declaration names it access-to-cert-manager, but --fix leaves " + rel + " as it is",
 			},
 			notWant: []string{"will be named access-to-cert-manager by --fix"},
 		},
@@ -438,7 +438,7 @@ func TestSync_BootstrapRenameNoteFollowsTheFix(t *testing.T) {
 			content, err := os.ReadFile(full)
 			require.NoError(t, err)
 
-			text := strings.ReplaceAll(string(content), "name: access-to-cert-manager\n", "name: access-to-cert-manager-metrics\n")
+			text := strings.ReplaceAll(string(content), "name: access-to-cert-manager\n", "name: access-to-cert-managers\n")
 			if tc.unreadable {
 				text += "---\n{{ include \"extra-access\" . }}\n"
 			}
@@ -447,11 +447,11 @@ func TestSync_BootstrapRenameNoteFollowsTheFix(t *testing.T) {
 
 			store := renderedFrom(t, model, func(o *generate.Object) bool {
 				if o.Name == "access-to-cert-manager" {
-					o.Name = "access-to-cert-manager-metrics"
+					o.Name = "access-to-cert-managers"
 				}
 
 				if o.RoleRefName == "access-to-cert-manager" {
-					o.RoleRefName = "access-to-cert-manager-metrics"
+					o.RoleRefName = "access-to-cert-managers"
 				}
 
 				return true

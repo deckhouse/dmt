@@ -22,8 +22,12 @@ limitations under the License.
 package rbacyaml
 
 import (
+	"fmt"
+	"reflect"
 	"slices"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbaccontract"
 )
@@ -68,7 +72,7 @@ type Declaration struct {
 
 	ServiceAccounts []ServiceAccount `yaml:"serviceAccounts,omitempty"`
 
-	PrometheusAccess *PrometheusAccess `yaml:"prometheusAccess,omitempty"`
+	PrometheusAccess PrometheusAccessList `yaml:"prometheusAccess,omitempty"`
 
 	Access []Access `yaml:"access,omitempty"`
 }
@@ -241,8 +245,17 @@ type RoleRef struct {
 }
 
 // PrometheusAccess declares the workloads whose metrics Prometheus scrapes; the generator
-// produces the access-to-<module> Role and RoleBinding in the module namespace.
+// produces a Role and a RoleBinding in the module namespace: access-to-<module> in
+// templates/rbac-to-us.yaml, or with Path and Name the name access[] gets
+// (rbaccontract.AccessRoleName) in templates/[<path>/]rbac-to-us.yaml.
 type PrometheusAccess struct {
+	// Path is the component directory under templates/ whose rbac-to-us.yaml holds the objects;
+	// empty means the module root file. A path needs a Name: the placement rule wants
+	// access-to-<directory>-<name> there.
+	Path string `yaml:"path,omitempty"`
+	// Name names the objects access-to-<module>-<name> at the root, access-to-<path with dashes>-<name>
+	// under Path; empty means access-to-<module>.
+	Name         string   `yaml:"name,omitempty"`
 	Deployments  []string `yaml:"deployments,omitempty"`
 	DaemonSets   []string `yaml:"daemonsets,omitempty"`
 	StatefulSets []string `yaml:"statefulsets,omitempty"`
@@ -253,6 +266,116 @@ type PrometheusAccess struct {
 	// Labels and Annotations go on the Role and the RoleBinding.
 	Labels      map[string]string `yaml:"labels,omitempty"`
 	Annotations map[string]string `yaml:"annotations,omitempty"`
+}
+
+// RoleName is the name of the entry's Role and RoleBinding.
+func (p PrometheusAccess) RoleName(module string) string {
+	if p.Path == "" && p.Name == "" {
+		return "access-to-" + module
+	}
+
+	return rbaccontract.AccessRoleName(module, p.Path, p.Name)
+}
+
+// File is the template the entry's objects go to, relative to the module root.
+func (p PrometheusAccess) File() string {
+	if p.Path == "" {
+		return "templates/rbac-to-us.yaml"
+	}
+
+	return "templates/" + p.Path + "/rbac-to-us.yaml"
+}
+
+// PrometheusAccessList is the prometheusAccess section: one entry written as a mapping, the form
+// of the first declarations, or a list of entries. A list of one entry is written back as the
+// mapping.
+type PrometheusAccessList []PrometheusAccess
+
+// prometheusAccessKeys are the keys of an entry, for the unknown-key check the decoder does not do
+// below a custom unmarshaller.
+var prometheusAccessKeys = yamlKeys(reflect.TypeFor[PrometheusAccess]())
+
+// UnmarshalYAML reads either form. Unknown keys are refused as the strict decoder refuses them
+// elsewhere in the file: a node decoded by hand does not inherit its strictness.
+func (l *PrometheusAccessList) UnmarshalYAML(node *yaml.Node) error {
+	var items []*yaml.Node
+
+	switch node.Kind {
+	case yaml.MappingNode:
+		items = []*yaml.Node{node}
+	case yaml.SequenceNode:
+		items = node.Content
+	default:
+		return &yaml.TypeError{Errors: []string{fmt.Sprintf("line %d: prometheusAccess is an entry (a mapping) or a list of entries", node.Line)}}
+	}
+
+	out := make(PrometheusAccessList, 0, len(items))
+
+	var unknown []string
+
+	for _, item := range items {
+		if item.Kind != yaml.MappingNode {
+			return &yaml.TypeError{Errors: []string{fmt.Sprintf("line %d: an entry of prometheusAccess is a mapping", item.Line)}}
+		}
+
+		for i := 0; i+1 < len(item.Content); i += 2 {
+			if key := item.Content[i]; !slices.Contains(prometheusAccessKeys, key.Value) {
+				unknown = append(unknown, fmt.Sprintf("line %d: field %s not found in type rbacyaml.PrometheusAccess", key.Line, key.Value))
+			}
+		}
+
+		var entry PrometheusAccess
+		if err := item.Decode(&entry); err != nil {
+			return err
+		}
+
+		out = append(out, entry)
+	}
+
+	if len(unknown) > 0 {
+		return &yaml.TypeError{Errors: unknown}
+	}
+
+	*l = out
+
+	return nil
+}
+
+// Sorted returns the entries in the order of their files and names: the root entry of
+// access-to-<module> first.
+func (l PrometheusAccessList) Sorted() PrometheusAccessList {
+	out := slices.Clone(l)
+	slices.SortStableFunc(out, func(a, b PrometheusAccess) int {
+		if c := strings.Compare(a.Path, b.Path); c != 0 {
+			return c
+		}
+
+		return strings.Compare(a.Name, b.Name)
+	})
+
+	return out
+}
+
+// MarshalYAML writes one entry as the mapping and several as a list.
+func (l PrometheusAccessList) MarshalYAML() (any, error) {
+	if len(l) == 1 {
+		return l[0], nil
+	}
+
+	return []PrometheusAccess(l), nil
+}
+
+// yamlKeys lists the keys of a struct type as rbac.yaml spells them.
+func yamlKeys(t reflect.Type) []string {
+	out := make([]string, 0, t.NumField())
+
+	for i := range t.NumField() {
+		if name := yamlName(t.Field(i)); t.Field(i).IsExported() && name != "-" {
+			out = append(out, name)
+		}
+	}
+
+	return out
 }
 
 // Access grants arbitrary subjects rights on the module. ClusterRules produce a ClusterRole and

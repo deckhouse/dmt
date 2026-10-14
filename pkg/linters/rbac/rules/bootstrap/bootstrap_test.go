@@ -20,6 +20,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -161,8 +162,8 @@ func TestBuild_RoundTripOnTheCertManagerFixture(t *testing.T) {
 	}
 
 	assert.Len(t, got.Decl.Access, len(want.Access))
-	require.NotNil(t, got.Decl.PrometheusAccess)
-	assert.ElementsMatch(t, want.PrometheusAccess.Deployments, got.Decl.PrometheusAccess.Deployments)
+	require.Len(t, got.Decl.PrometheusAccess, 1)
+	assert.ElementsMatch(t, want.PrometheusAccess[0].Deployments, got.Decl.PrometheusAccess[0].Deployments)
 
 	// nothing to rename: the generator's names come back as themselves
 	for _, n := range got.Notes {
@@ -855,8 +856,111 @@ func TestBuild_ScrapeRoleThatGrantsMoreIsNotNarrowed(t *testing.T) {
 	role := Object{Kind: "Role", Name: "access-to-m", Path: "templates/rbac-to-us.yaml", Located: true,
 		Rules: []rbacv1.PolicyRule{{APIGroups: []string{"apps"}, Resources: []string{"deployments/prometheus-metrics"}, ResourceNames: []string{"m"}, Verbs: []string{"get"}}}}
 	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{role, binding}})
-	require.NotNil(t, got.Decl.PrometheusAccess)
-	assert.Equal(t, []string{"m"}, got.Decl.PrometheusAccess.Deployments)
+	require.Len(t, got.Decl.PrometheusAccess, 1)
+	assert.Equal(t, []string{"m"}, got.Decl.PrometheusAccess[0].Deployments)
+}
+
+// Each scrape Role becomes a prometheusAccess entry that keeps its name and its component directory,
+// so the first --fix renames and moves nothing (pilots, 2026-10-14: user-authn's
+// access-to-dex-prometheus-metrics in templates/dex/, security-events-manager's
+// access-to-security-events-manager-metrics). A name no entry can express, or a binding named otherwise
+// than its Role, folds into access-to-<module> at the root as before, and a note says why.
+func TestBuild_ScrapeRolesKeepTheirNames(t *testing.T) {
+	scraper := []rbacv1.Subject{{Kind: "User", Name: "d8-monitoring:scraper"}, {Kind: "ServiceAccount", Name: "prometheus", Namespace: "d8-monitoring"}}
+	gate := `.Values.global.enabledModules | has "prometheus"`
+
+	scrape := func(role, binding, path, workload string, when string) []Object {
+		return []Object{
+			{Kind: "Role", Name: role, Namespace: "d8-m", Path: path, Located: true,
+				Rules: []rbacv1.PolicyRule{{APIGroups: []string{"apps"}, Resources: []string{"deployments/prometheus-metrics"}, ResourceNames: []string{workload}, Verbs: []string{"get"}}}},
+			{Kind: "RoleBinding", Name: binding, Namespace: "d8-m", Path: path, Located: true, When: when,
+				RoleRef: rbacv1.RoleRef{Kind: "Role", Name: role}, Subjects: scraper},
+		}
+	}
+
+	objects := slices.Concat(
+		scrape("access-to-m", "access-to-m", "templates/rbac-to-us.yaml", "m", gate),
+		scrape("access-to-m-metrics", "access-to-m-metrics", "templates/rbac-to-us.yaml", "agent", ""),
+		scrape("access-to-dex-prometheus-metrics", "access-to-dex-prometheus-metrics", "templates/dex/rbac-to-us.yaml", "dex", gate),
+		scrape("access-to-node-role", "access-to-node-role", "templates/node/prometheus.yaml", "node", gate),
+		scrape("access-to-m-web", "access-to-m-web", "templates/web/rbac-to-us.yaml", "web", gate),
+		scrape("access-to-ms", "access-to-ms", "templates/rbac-to-us.yaml", "ms", gate),
+		scrape("access-to-m-x", "access-to-m-y", "templates/rbac-to-us.yaml", "x", gate),
+	)
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: objects})
+	require.Empty(t, got.Unmanaged)
+
+	type entry struct{ path, name, role, file, when string }
+
+	entries := make([]entry, 0, len(got.Decl.PrometheusAccess))
+	for _, pa := range got.Decl.PrometheusAccess {
+		entries = append(entries, entry{pa.Path, pa.Name, pa.RoleName("m"), pa.File(), pa.When})
+	}
+
+	assert.Equal(t, []entry{
+		// access-to-m, and the two names no entry expresses, fold into it.
+		{"", "", "access-to-m", "templates/rbac-to-us.yaml", gate},
+		{"", "metrics", "access-to-m-metrics", "templates/rbac-to-us.yaml", ""},
+		// access-to-m-web of templates/web/ is not a name the placement rule wants there; at the root it is.
+		{"", "web", "access-to-m-web", "templates/rbac-to-us.yaml", gate},
+		{"dex", "prometheus-metrics", "access-to-dex-prometheus-metrics", "templates/dex/rbac-to-us.yaml", gate},
+		{"node", "role", "access-to-node-role", "templates/node/rbac-to-us.yaml", gate},
+	}, entries)
+	assert.Equal(t, []string{"m", "ms", "x"}, got.Decl.PrometheusAccess[0].Deployments)
+
+	notes := strings.Join(got.Notes, "\n")
+	for _, kept := range []string{"access-to-m-metrics", "access-to-dex-prometheus-metrics", "access-to-node-role", "access-to-m-web"} {
+		assert.NotContains(t, notes, "Role "+kept+" will be named", "%s keeps its name", kept)
+	}
+
+	assert.Contains(t, notes, "Role access-to-ms keeps no name of its own in prometheusAccess: the placement rule names a scrape Role access-to-m[-<name>] in templates/rbac-to-us.yaml; it folds into access-to-m in templates/rbac-to-us.yaml")
+	assert.Contains(t, notes, "Role access-to-ms will be named access-to-m by --fix")
+	assert.Contains(t, notes, "Role access-to-m-x keeps no name of its own in prometheusAccess: its RoleBinding is named access-to-m-y, and an entry names both alike")
+	assert.Contains(t, notes, "RoleBinding access-to-m-y will be named access-to-m by --fix")
+	assert.Contains(t, notes, "several Prometheus access Roles fold into one prometheusAccess (Role access-to-m)")
+	assert.Contains(t, notes, "Role access-to-node-role lives in templates/node/prometheus.yaml; prometheusAccess keeps it in templates/node/rbac-to-us.yaml and --fix will write it there")
+	assert.Contains(t, notes, "Role access-to-m-web lives in templates/web/rbac-to-us.yaml; prometheusAccess keeps it in templates/rbac-to-us.yaml and --fix will write it there")
+	assert.NotContains(t, notes, "Role access-to-dex-prometheus-metrics lives in", "it stays where it is")
+
+	// The written declaration validates, and the generator writes the kept names back.
+	content, err := Marshal(got)
+	require.NoError(t, err)
+
+	decl, err := rbacyaml.Parse(content)
+	require.NoError(t, err)
+	require.Empty(t, rbacyaml.Validate(decl, nil))
+
+	model, err := generate.Build(generate.Input{Module: "m", Namespace: "d8-m", Decl: decl})
+	require.NoError(t, err)
+
+	for _, kept := range []string{"access-to-m-metrics", "access-to-dex-prometheus-metrics", "access-to-node-role", "access-to-m-web"} {
+		found := false
+
+		for _, f := range model.Files {
+			for _, o := range f.Objects {
+				found = found || o.Identity() == "d8-m/Role/"+kept
+			}
+		}
+
+		assert.True(t, found, "the generator writes %s", kept)
+	}
+}
+
+// One scrape Role writes the mapping form, as the first declarations did.
+func TestBuild_OneScrapeRoleWritesTheMapping(t *testing.T) {
+	scraper := []rbacv1.Subject{{Kind: "User", Name: "d8-monitoring:scraper"}}
+	metrics := []rbacv1.PolicyRule{{APIGroups: []string{"apps"}, Resources: []string{"deployments/prometheus-metrics"}, ResourceNames: []string{"dex"}, Verbs: []string{"get"}}}
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{
+		{Kind: "Role", Name: "access-to-dex-prometheus-metrics", Namespace: "d8-m", Path: "templates/dex/rbac-to-us.yaml", Located: true, Rules: metrics},
+		{Kind: "RoleBinding", Name: "access-to-dex-prometheus-metrics", Namespace: "d8-m", Path: "templates/dex/rbac-to-us.yaml", Located: true,
+			RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "access-to-dex-prometheus-metrics"}, Subjects: scraper},
+	}})
+
+	content, err := Marshal(got)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "prometheusAccess:\n  path: dex\n  name: prometheus-metrics\n  deployments:\n    - dex\n")
 }
 
 // An object is left hand-written once, with one reason, however many passes would name it.

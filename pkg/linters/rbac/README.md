@@ -1463,11 +1463,18 @@ serviceAccounts:
       - namespace: kube-system
         name: extension-apiserver-authentication-reader
 
-# Metrics access -> templates/rbac-to-us.yaml (Role/RoleBinding access-to-<module>); `when` gates the
-# RoleBinding to the scraper only, the Role is unconditional, as the modules write it today
+# Metrics access -> Role/RoleBinding in the module namespace; `when` gates the RoleBinding to the
+# scraper only, the Role is unconditional, as the modules write it today. One entry as a mapping, or a
+# list of entries; an entry without path and name is access-to-<module> in templates/rbac-to-us.yaml.
 prometheusAccess:
-  deployments: [cert-manager]
-  when: .Values.global.enabledModules | has "prometheus"
+  - deployments: [cert-manager]
+    when: .Values.global.enabledModules | has "prometheus"
+  - name: metrics                   # access-to-<module>-metrics in templates/rbac-to-us.yaml
+    daemonsets: [agent]
+  - path: webhook                   # access-to-webhook-prometheus-metrics in templates/webhook/rbac-to-us.yaml
+    name: prometheus-metrics        # (a path needs a name: access-to-<path, / as ->-<name>)
+    deployments: [webhook]
+    labels: {app: webhook}          # labels and annotations go on the Role and the RoleBinding
 
 # Arbitrary subjects: clusterRules -> templates/[<path>/]rbac-for-us.yaml, namespaceRules -> templates/[<path>/]rbac-to-us.yaml
 access:
@@ -1489,7 +1496,7 @@ Format rules the loader enforces:
 - Verbs are listed explicitly (`get`, `list`, `watch`, `create`, `update`, `patch`, `delete`, `deletecollection`); there are no aliases, and `*` is refused at every level (the `contract` rule reports `*` verbs and `apiGroups: ["*"]` in a rendered capability, too). `group: "*"` is refused; a group is a lowercase DNS name and a resource a lowercase plural with an optional `/<subresource>`, where `*` and `*/<subresource>` are the only wildcards.
 - No value holds `{{` or `}}`: `--fix` writes the values into Helm templates as they are, and a `when` is the condition only.
 - `legacy.SuperAdmin` validates but is a warning: user-authz aggregates custom legacy roles for `User` through `ClusterAdmin` only.
-- `prometheusAccess.when` gates the RoleBinding of the Prometheus scraper (typically `.Values.global.enabledModules | has "prometheus"`); the Role stays unconditional.
+- `prometheusAccess` is one entry written as a mapping (the form of the first declarations) or a list of entries; a list of one entry is written back as the mapping. Each entry names at least one workload and produces a Role and a RoleBinding to the scraper in the module namespace: `access-to-<module>` in `templates/rbac-to-us.yaml` without `path` and `name`, `access-to-<module>-<name>` there with `name`, `access-to-<path, / as ->-<name>` in `templates/<path>/rbac-to-us.yaml` with both -- the names `access[]` gets, which the placement rule wants. A `path` needs a `name`, and two entries of one `path` and `name` are an error. `when` gates the RoleBinding of the Prometheus scraper (typically `.Values.global.enabledModules | has "prometheus"`); the Role stays unconditional.
 - Levels: `namespace` -- `viewer`, `user`, `manager`, `admin`, `superadmin`; `system` -- `viewer`, `manager`, `superadmin`; `legacy` -- `User`, `PrivilegedUser`, `Editor`, `Admin`, `ClusterEditor`, `ClusterAdmin`, `SuperAdmin`.
 - `namespace` levels are allowed only for `Namespaced` resources; a `Namespaced` resource at a `system` level needs a `reason`.
 - A `system` level never writes a namespaced resource through which a write grants the identity of a ServiceAccount of the module's namespace -- `pods`, `replicationcontrollers`, `podtemplates`, `secrets`, `serviceaccounts`, the `apps` and `batch` workloads, `roles`, `rolebindings` -- and never touches `pods/exec`, `pods/attach`, `pods/portforward`, `pods/ephemeralcontainers` or `serviceaccounts/token` at all, whatever the `reason`: the role model writes into the namespaces of the platform at the `superadmin` level only, so the holders of a subsystem `manager` must not reach the ServiceAccounts of the module through its capability. Read verbs on the resources stay allowed; grant the writes at a `namespace` level instead.
@@ -1510,7 +1517,7 @@ What the declaration produces (level `viewer` -> capability `view`, `manager` ->
 | `resources[].legacy.<Level>` | `templates/user-authz-cluster-roles.yaml` | ClusterRole `d8:user-authz:<module>:<kebab-level>` with the `user-authz.deckhouse.io/access-level` annotation |
 | `serviceAccounts[]` | `templates/[<path>/]rbac-for-us.yaml` | ServiceAccount, ClusterRole/ClusterRoleBinding `d8:<module>:<name>`, Role/RoleBinding `<name>`, the extra bindings |
 | `access[]` with `clusterRules` | `templates/rbac-for-us.yaml` | ClusterRole/ClusterRoleBinding `d8:<module>:<name>` |
-| `prometheusAccess`, `access[]` with `namespaceRules` | `templates/[<path>/]rbac-to-us.yaml` | Role/RoleBinding `access-to-<module>[-<name>]`; with `path` `access-to-<path, / as ->-<name>`, as the placement rule wants |
+| `prometheusAccess[]`, `access[]` with `namespaceRules` | `templates/[<path>/]rbac-to-us.yaml` | Role/RoleBinding `access-to-<module>[-<name>]`; with `path` `access-to-<path, / as ->-<name>`, as the placement rule wants; a `prometheusAccess` entry without `path` and `name` is `access-to-<module>` |
 
 A system capability gets the `rbac.deckhouse.io/namespace` label of the module namespace unless that
 namespace is `default`: user-authz projects the module's use roles into it by the label, and
@@ -1686,7 +1693,13 @@ document with a computed name as the kind and the pattern of its name -- so it i
 silence. A block inside an object -- a rule under its own `{{ if }}` -- is noted. The Prometheus
 scrape binding keeps its gate as `prometheusAccess.when`; a scrape Role becomes `prometheusAccess` only
 when it grants exactly what that writes -- `get` on `apps` `deployments|daemonsets|statefulsets/prometheus-metrics`
-of named workloads -- and is an `access` entry or stays hand-written otherwise, rather than be narrowed. Under
+of named workloads -- and is an `access` entry or stays hand-written otherwise, rather than be narrowed.
+Each scrape Role gets an entry of its own that keeps its name: `path` is the component directory of its
+template when the name is `access-to-<directory>-<name>`, else the root with `access-to-<module>-<name>`
+or `access-to-<module>`. A Role of `templates/<dir>/<file>` keeps its directory and moves to its
+`rbac-to-us.yaml`, and a note says so. A name no entry can express (one the placement rule does not
+want, `access-to-<module>s`) or a RoleBinding named otherwise than its Role folds into
+`access-to-<module>` at the root, as several Roles of that name do, with a note on why and the rename. Under
 `--matrix` an object the variants render with different rules gets the union and a note, as one a block
 varies. A note names the labels and annotations of a
 legacy role, and the annotations of a capability, the fix would drop; the labels of a capability go into its
