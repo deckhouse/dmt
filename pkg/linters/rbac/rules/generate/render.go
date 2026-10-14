@@ -46,7 +46,7 @@ func RenderFile(f File) string {
 		}
 
 		b.WriteString("---\n")
-		renderObject(&b, o)
+		renderObject(&b, o, f.ChartNamespace)
 	}
 
 	if open != "" {
@@ -56,7 +56,16 @@ func RenderFile(f File) string {
 	return b.String()
 }
 
-func renderObject(b *strings.Builder, o Object) {
+// renderObject writes one object; the namespace chartNamespace is written as ChartNamespaceText.
+func renderObject(b *strings.Builder, o Object, chartNamespace string) {
+	namespace := func(ns string) string {
+		if chartNamespace != "" && ns == chartNamespace {
+			return ChartNamespaceText
+		}
+
+		return yamlScalar(ns)
+	}
+
 	apiVersion := "rbac.authorization.k8s.io/v1"
 	if o.Kind == "ServiceAccount" {
 		apiVersion = "v1"
@@ -68,7 +77,7 @@ func renderObject(b *strings.Builder, o Object) {
 	b.WriteString("  name: " + yamlScalar(o.Name) + "\n")
 
 	if o.Namespace != "" {
-		b.WriteString("  namespace: " + yamlScalar(o.Namespace) + "\n")
+		b.WriteString("  namespace: " + namespace(o.Namespace) + "\n")
 	}
 
 	b.WriteString("  " + labelsInclude(o.Labels) + "\n")
@@ -95,7 +104,7 @@ func renderObject(b *strings.Builder, o Object) {
 		for _, s := range o.Subjects {
 			switch s.Kind {
 			case "ServiceAccount":
-				b.WriteString("- kind: ServiceAccount\n  name: " + yamlScalar(s.Name) + "\n  namespace: " + yamlScalar(s.Namespace) + "\n")
+				b.WriteString("- kind: ServiceAccount\n  name: " + yamlScalar(s.Name) + "\n  namespace: " + namespace(s.Namespace) + "\n")
 			default:
 				b.WriteString("- apiGroup: rbac.authorization.k8s.io\n  kind: " + s.Kind + "\n  name: " + yamlScalar(s.Name) + "\n")
 			}

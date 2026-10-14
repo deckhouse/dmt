@@ -51,7 +51,7 @@ func certManagerInput(t *testing.T) Input {
 		"acme.cert-manager.io/challenges":     rbacyaml.ScopeNamespaced,
 	}))
 
-	return Input{Module: "cert-manager", Namespace: "d8-cert-manager", Subsystems: []string{"security"}, Decl: decl}
+	return Input{Module: "cert-manager", Namespace: "d8-cert-manager", ChartName: "cert-manager", Subsystems: []string{"security"}, Decl: decl}
 }
 
 func TestBuild_CertManagerModel(t *testing.T) {
@@ -183,7 +183,7 @@ func observerInput(t *testing.T) Input {
 	require.NoError(t, err)
 	require.Empty(t, rbacyaml.Validate(decl, nil))
 
-	return Input{Module: "observer", Namespace: "d8-observer", Decl: decl}
+	return Input{Module: "observer", Namespace: "d8-observer", ChartName: "observer", Decl: decl}
 }
 
 func TestRender_GoldenAndIdempotent(t *testing.T) {
@@ -229,6 +229,54 @@ func TestRender_GoldenAndIdempotent(t *testing.T) {
 				return err
 			}))
 			assert.Empty(t, stale, "golden files the generator does not write")
+		})
+	}
+}
+
+// The module namespace is written as d8-{{ $.Chart.Name }}, as the hand-written templates write it,
+// when the chart is named after the module and the module lives in d8-<module>: in metadata.namespace
+// and in a ServiceAccount subject. Every other namespace, and every namespace of a chart named
+// otherwise, is written as it is.
+func TestRender_ChartNamespace(t *testing.T) {
+	render := func(t *testing.T, in Input) string {
+		t.Helper()
+
+		model, err := Build(in)
+		require.NoError(t, err)
+
+		var all strings.Builder
+		for _, f := range Render(model) {
+			all.WriteString(f.Content)
+		}
+
+		return all.String()
+	}
+
+	t.Run("the chart is named after the module", func(t *testing.T) {
+		text := render(t, observerInput(t))
+
+		assert.NotContains(t, text, "d8-observer", "the module namespace is never written literally")
+		assert.Contains(t, text, "  name: controller\n  namespace: d8-{{ $.Chart.Name }}\n", "the account")
+		assert.Contains(t, text, "- kind: ServiceAccount\n  name: controller\n  namespace: d8-{{ $.Chart.Name }}\n", "the account as a subject")
+		assert.Contains(t, text, "- kind: ServiceAccount\n  name: reader\n  namespace: d8-{{ $.Chart.Name }}\n", "an access subject of the module namespace")
+		assert.Contains(t, text, "  namespace: d8-log-shipper\n", "a namespace of the platform stays literal")
+		assert.Contains(t, text, "  namespace: kube-system\n")
+		assert.Contains(t, text, "- kind: ServiceAccount\n  name: grafana\n  namespace: d8-monitoring\n")
+		assert.Contains(t, text, "- kind: ServiceAccount\n  name: prometheus\n  namespace: d8-monitoring\n")
+	})
+
+	for name, tweak := range map[string]func(in *Input){
+		"the chart is named otherwise":          func(in *Input) { in.ChartName = "observer-chart" },
+		"the chart name is not known":           func(in *Input) { in.ChartName = "" },
+		"the module lives in another namespace": func(in *Input) { in.Namespace = "d8-system" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			in := observerInput(t)
+			tweak(&in)
+
+			text := render(t, in)
+			assert.NotContains(t, text, "{{ $.Chart.Name }}")
+			assert.Contains(t, text, "  namespace: "+in.Namespace+"\n")
 		})
 	}
 }
@@ -297,7 +345,7 @@ func TestBuild_PrometheusAccessMappingForm(t *testing.T) {
 
 	assert.Equal(t, mapping, list)
 
-	model, err := Build(Input{Module: "cert-manager", Namespace: "d8-cert-manager", Decl: mapping})
+	model, err := Build(Input{Module: "cert-manager", Namespace: "d8-cert-manager", ChartName: "cert-manager", Decl: mapping})
 	require.NoError(t, err)
 
 	f := model.File("templates/rbac-to-us.yaml")

@@ -1527,6 +1527,14 @@ A system capability gets the `rbac.deckhouse.io/namespace` label of the module n
 namespace is `default`: user-authz projects the module's use roles into it by the label, and
 `kube-system` is a module namespace as any `d8-*` one.
 
+The templates write the module namespace as `d8-{{ $.Chart.Name }}`, as the hand-written ones do,
+when the module lives in `d8-<module>` and its chart is named after the module (`.Chart.Name` renders
+the name of `Chart.yaml`, or the module name for a module without one, in dmt as in Deckhouse): in
+`metadata.namespace` and in the namespace of a ServiceAccount subject. Every other namespace --
+`d8-system`, `d8-monitoring`, `kube-system`, the namespace of another module -- and the namespace of a
+module whose `Chart.yaml` names the chart otherwise are written as they are, and so is the value of
+the `rbac.deckhouse.io/namespace` label.
+
 The developer's loop is: edit `rbac.yaml` -> `dmt lint --linter rbac --fix` -> `dmt lint`. `--fix` does not
 re-lint: the second `dmt lint` shows the state after the fixes.
 

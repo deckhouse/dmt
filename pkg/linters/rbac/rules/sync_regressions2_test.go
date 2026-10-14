@@ -64,7 +64,7 @@ func TestSyncRegression_NestedNamesPassPlacement(t *testing.T) {
 	}
 	require.Empty(t, rbacyaml.Validate(decl, nil))
 
-	model, err := generate.Build(generate.Input{Module: syncModule, Namespace: "d8-cert-manager", Subsystems: []string{"security"}, Decl: decl})
+	model, err := generate.Build(generate.Input{Module: syncModule, Namespace: "d8-cert-manager", ChartName: syncModule, Subsystems: []string{"security"}, Decl: decl})
 	require.NoError(t, err)
 
 	store := renderedFrom(t, model, nil)
@@ -523,7 +523,7 @@ func TestSyncRegression_GeneratedNamesPassPlacement(t *testing.T) {
 	}
 	require.Empty(t, rbacyaml.Validate(decl, nil))
 
-	model, err := generate.Build(generate.Input{Module: syncModule, Namespace: "d8-cert-manager", Subsystems: []string{"security"}, Decl: decl})
+	model, err := generate.Build(generate.Input{Module: syncModule, Namespace: "d8-cert-manager", ChartName: syncModule, Subsystems: []string{"security"}, Decl: decl})
 	require.NoError(t, err)
 
 	store := renderedFrom(t, model, nil)
