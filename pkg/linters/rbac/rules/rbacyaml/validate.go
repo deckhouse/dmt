@@ -343,7 +343,7 @@ func grantsIdentityAtSystemLevel(r *Resource) bool {
 // when none does.
 func identityVerbsOf(r *Resource) string {
 	if identitySubresources[r.Group+"/"+r.Resource] {
-		verbs := []string{}
+		verbs := make([]string, 0, len(r.System))
 		for _, levelVerbs := range r.System {
 			verbs = append(verbs, levelVerbs...)
 		}
