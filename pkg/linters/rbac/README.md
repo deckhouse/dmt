@@ -1663,7 +1663,12 @@ says so, and says to move the Role out when it sits in a template the declaratio
 carries no `scope`: the CRD states it; an external resource whose scope is not known gets
 `scope: "TODO: Namespaced or Cluster (Cluster drops the namespace levels)"`. A grant limited to `resourceNames` is never widened to every
 object: it is left out and named in a note. A role granting `*` verbs or API groups, which the format
-refuses, is listed as hand-written with the reason.
+refuses, is listed as hand-written with the reason. An account gets the `path` of the component
+directory it renders from: `templates/<dir>/rbac-for-us.yaml`, or another template of `templates/<dir>/`
+when the account is named after the directory as the placement rule wants (`<dir>`, or `<module>-<dir>`
+in a namespace of the platform) and the module lives outside `default` and `kube-system`; an account
+of any other template goes to `templates/rbac-for-us.yaml`, and a note names the file the fix writes
+it to.
 
 The render only holds what rendered for the linter's values, so the importer also reads the template
 text around each object, with `text/template/parse`. An object wrapped in `{{ if X }}` gets `when: X`
