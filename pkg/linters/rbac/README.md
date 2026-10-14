@@ -1731,7 +1731,7 @@ controller ClusterRoles with arbitrary names, objects with Helm-computed names).
 5. A label or an annotation of a legacy role or a capability that the format has no field for -- a label on a legacy role, `helm.sh/resource-policy` on a capability, another `rbac.deckhouse.io/*` label -- is a divergence, and the file gets no fix while it is there: the rewrite would drop it.
 6. A binding's `roleRef` and subjects match.
 7. Every rendered legacy role and module capability is produced by the declaration.
-8. A file the declaration produces that does not exist while an object it holds is absent from the render is a divergence, whether or not the object is under `when`: the render cannot tell a false condition from a template nobody wrote, the file system can.
+8. A file the declaration produces that does not exist while an object it holds is absent from the render is a divergence, whether or not the object is under `when`: the render cannot tell a false condition from a template nobody wrote, the file system can. An object `exclude-rules.sync` names does not count (see below).
 9. An object the declaration produces that renders from another template than the one the declaration puts it in is a divergence of both files.
 
 The render is judged, not the text: a file whose text differs from what the fix would write while its
@@ -1763,9 +1763,17 @@ finding names the case and what closes it -- when the file holds:
 - both role models behind the version gate (`rbacv2_new_scheme`, or a `deckhouseVersion` test with an `else` branch that the declaration does not produce): a rewrite would drop the legacy branch;
 - the legacy RBACv2 scheme only: a rewrite would serve the new model only, so the finding carries no fix (migrate with `rbacv2-migrate-module.sh`, or delete the file and run `--fix`);
 - a condition (`{{ if }}`, `{{ else }}`) the declaration does not write: what it gates may not be in this render, and the rewrite would drop it or grant it unconditionally. Declare it as `when`, or, when the declaration dropped the `when` on purpose, delete it from the template -- the rewrite cannot tell the two apart;
-- an object `exclude-rules.sync` keeps out of the comparison, which the declaration produces: the rewrite would write it from the declaration over what the template holds;
 - a label or an annotation of a legacy role or a capability the format has no field for, and the `imagePullSecrets` or `secrets` of a ServiceAccount: the rewrite would drop them. `imagePullSecrets` belong in the pod spec of the workloads that run as the account; the bootstrap declares such an account and notes that its file waits for that move;
 - a template that is a symbolic link: the rewrite would replace the link with a file.
+
+An object `exclude-rules.sync` names is neither compared nor written. A file the declaration puts
+only such objects in is no finding, whether it exists or not, and `--fix` leaves it alone: a module
+that does not ship the `view` and `edit` system capabilities the declaration always produces for its
+`module.yaml` subsystems excludes both. A file the declaration puts an excluded object in beside
+others is compared on the others, and its finding carries no fix whether the file holds the excluded
+object or not: the rewrite writes every object the declaration puts in the file, so it would write
+the excluded one from the declaration, over what the template holds if it holds it. Lift the
+exclusion, or bring the file in line by hand.
 
 The text is the same in every render variant, so every variant reaches the same answer; under
 `--matrix` a variant whose render shows such a case keeps the fix of every other variant off the file.
