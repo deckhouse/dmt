@@ -107,6 +107,17 @@ func (r *SyncRule) placementAccepts(path, kind, name, namespace string) bool {
 	return rolePlacementFinding(r.module.GetName(), r.module.GetNamespace(), path, kind, name, namespace) == ""
 }
 
+// chartName is what {{ .Chart.Name }} renders to in the module's chart: the name in its Chart.yaml,
+// or the module name dmt gives a chart without one, as Deckhouse does. "" when no chart is loaded:
+// the generator then writes every namespace literally.
+func chartName(m pkg.Module) string {
+	if c := m.GetChart(); c != nil && c.Metadata != nil {
+		return c.Metadata.Name
+	}
+
+	return ""
+}
+
 // moduleMetadata is the part of module.yaml the generator reads.
 type moduleMetadata struct {
 	Subsystems []string `json:"subsystems"`
@@ -201,6 +212,7 @@ func (r *SyncRule) Check(_ context.Context) {
 	model, err := generate.Build(generate.Input{
 		Module:     r.module.GetName(),
 		Namespace:  r.module.GetNamespace(),
+		ChartName:  chartName(r.module),
 		Subsystems: subsystems,
 		Decl:       decl,
 	})
@@ -307,7 +319,9 @@ func (r *SyncRule) compareRender(run *syncRun) map[string][]string {
 
 		held := conditionsByDocument(text.content)
 
-		for id, want := range conditionsByDocument(generate.RenderFile(file)) {
+		// The generator writes the module namespace as d8-{{ $.Chart.Name }}; the text is read as the
+		// templates are, with the chart name in place.
+		for id, want := range conditionsByDocument(withChartName(generate.RenderFile(file), r.module.GetName())) {
 			have, inText := held[id]
 			if !inText || !r.Enabled(kindOfIdentity(id), nameOfIdentity(id)) {
 				continue
@@ -1576,6 +1590,7 @@ func (r *SyncRule) leftAsIs(modulePath string, renders []renderSnapshot, subsyst
 	model, err := generate.Build(generate.Input{
 		Module:     r.module.GetName(),
 		Namespace:  r.module.GetNamespace(),
+		ChartName:  chartName(r.module),
 		Subsystems: subsystems,
 		Decl:       decl,
 	})
