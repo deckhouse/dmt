@@ -139,6 +139,26 @@ func TestAccountForeignBindingName(t *testing.T) {
 	}
 }
 
+// An access name that already carries the prefix of its file is not prefixed again (openvpn's
+// access-to-openvpn in deckhouse main became access-to-openvpn-access-to-openvpn).
+func TestAccessRoleName(t *testing.T) {
+	for _, tc := range []struct {
+		path, name, want string
+	}{
+		{"", "auth", "access-to-m-auth"},
+		{"", "access-to-m", "access-to-m"},
+		{"", "access-to-m-auth", "access-to-m-auth"},
+		{"", "access-to-ms", "access-to-m-access-to-ms"},
+		{"dex", "reader", "access-to-dex-reader"},
+		{"dex", "access-to-dex-reader", "access-to-dex-reader"},
+		{"dex", "access-to-dex", "access-to-dex-access-to-dex"},
+		{"a/b", "x", "access-to-a-b-x"},
+		{"a/b", "access-to-a-b-x", "access-to-a-b-x"},
+	} {
+		assert.Equal(t, tc.want, AccessRoleName("m", tc.path, tc.name), "path %q, name %q", tc.path, tc.name)
+	}
+}
+
 func TestVerbsAndKinds(t *testing.T) {
 	assert.Equal(t, append(append([]string{}, ResourceVerbs...), "*"), Verbs)
 	assert.True(t, IsLegacyKind(KindLegacyUse))

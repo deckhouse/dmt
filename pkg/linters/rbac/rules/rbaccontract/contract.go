@@ -252,13 +252,20 @@ func IsLegacyKind(kind string) bool {
 
 // AccessRoleName is the Role and RoleBinding name of a namespace access entry. The placement rule
 // wants access-to-<module>-... in templates/rbac-to-us.yaml and access-to-<directory>-... in
-// templates/<directory>/rbac-to-us.yaml.
+// templates/<directory>/rbac-to-us.yaml. A name that already carries the prefix is the object's name
+// as it is -- access-to-<module> itself at the root, the placement rule's own prefix --, so the
+// prefix is never written twice (access-to-openvpn is not access-to-openvpn-access-to-openvpn).
 func AccessRoleName(module, path, name string) string {
-	if path == "" {
-		return "access-to-" + module + "-" + name
+	prefix := "access-to-" + module
+	if path != "" {
+		prefix = "access-to-" + strings.ReplaceAll(path, "/", "-")
 	}
 
-	return "access-to-" + strings.ReplaceAll(path, "/", "-") + "-" + name
+	if strings.HasPrefix(name, prefix+"-") || (path == "" && name == prefix) {
+		return name
+	}
+
+	return prefix + "-" + name
 }
 
 // DeckhouseNamespaces are the namespaces the placement rule treats as the platform's own: an
