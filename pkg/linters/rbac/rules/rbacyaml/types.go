@@ -393,8 +393,13 @@ func yamlKeys(t reflect.Type) []string {
 // access-to-<path with dashes>-<name> in templates/<path>/rbac-to-us.yaml. Exactly one of the
 // two must be set: the placement rule keeps cluster-scoped objects out of rbac-to-us.yaml.
 type Access struct {
-	Name     string    `yaml:"name"`
-	Subjects []Subject `yaml:"subjects"`
+	Name string `yaml:"name"`
+	// RoleName names the ClusterRole or the Role instead of the name derived from Name, and
+	// BindingName the binding instead of the role's name: the names the objects had before the
+	// declaration, which the bootstrap keeps where the placement rule accepts them.
+	RoleName    string    `yaml:"roleName,omitempty"`
+	BindingName string    `yaml:"bindingName,omitempty"`
+	Subjects    []Subject `yaml:"subjects"`
 	// Path is the component directory under templates/ whose rbac-for-us.yaml (clusterRules) or
 	// rbac-to-us.yaml (namespaceRules) holds the objects; empty means the module root files.
 	Path string `yaml:"path,omitempty"`
@@ -405,6 +410,25 @@ type Access struct {
 	Annotations    map[string]string `yaml:"annotations,omitempty"`
 	ClusterRules   []PolicyRule      `yaml:"clusterRules,omitempty"`
 	NamespaceRules []PolicyRule      `yaml:"namespaceRules,omitempty"`
+}
+
+// ObjectNames returns the role and binding names of the entry: RoleName, else d8:<module>:<name> for
+// cluster rules and rbaccontract.AccessRoleName for namespace rules; BindingName, else the role's.
+func (a Access) ObjectNames(module string) (string, string) {
+	role := a.RoleName
+	if role == "" {
+		role = rbaccontract.AccessRoleName(module, a.Path, a.Name)
+		if len(a.ClusterRules) > 0 {
+			role = "d8:" + module + ":" + a.Name
+		}
+	}
+
+	binding := a.BindingName
+	if binding == "" {
+		binding = role
+	}
+
+	return role, binding
 }
 
 // Subject is an RBAC subject; Namespace is required for a ServiceAccount.

@@ -1491,6 +1491,15 @@ access:
       - apiGroups: [cert-manager.io]
         resources: [clusterissuers]
         verbs: [get, list, watch, create, update, patch, delete]
+  - name: reader                                # ClusterRole d8:cert-manager:reader
+    bindingName: d8:cert-manager:reader:system-authenticated  # optional; the binding takes the role's name without it
+    subjects:                                   # (roleName likewise names the role)
+      - kind: Group
+        name: system:authenticated
+    clusterRules:
+      - apiGroups: [cert-manager.io]
+        resources: [clusterissuers]
+        verbs: [list]
 ```
 
 Format rules the loader enforces:
@@ -1501,6 +1510,7 @@ Format rules the loader enforces:
 - `legacy.SuperAdmin` validates but is a warning: user-authz aggregates custom legacy roles for `User` through `ClusterAdmin` only.
 - `prometheusAccess` is one entry written as a mapping (the form of the first declarations) or a list of entries; a list of one entry is written back as the mapping. Each entry names at least one workload and produces a Role and a RoleBinding to the scraper in the module namespace: `access-to-<module>` in `templates/rbac-to-us.yaml` without `path` and `name`, `access-to-<module>-<name>` there with `name`, `access-to-<path, / as ->-<name>` in `templates/<path>/rbac-to-us.yaml` with both -- the names `access[]` gets, which the placement rule wants. A `path` needs a `name`, and two entries of one `path` and `name` are an error. `when` gates the RoleBinding of the Prometheus scraper (typically `.Values.global.enabledModules | has "prometheus"`); the Role stays unconditional.
 - `bindRoles[].bindingName` names the RoleBinding; without it the binding gets the name the placement rule wants (`d8:<module>:<account>:<role>` in `default` and `kube-system`, `<module>:<account>:<role>` in a namespace of the platform). It is a role name like the others (no `/`, `%` or whitespace); the placement rule judges it in the render, as any binding.
+- The other name fields work the same way, one per kind of object, each optional: `access[].roleName` names the ClusterRole (`clusterRules`) or the Role (`namespaceRules`) instead of `d8:<module>:<name>` or the `access-to-...` name, and `access[].bindingName` the binding instead of the role's name. They carry the names objects had before the declaration; the bootstrap writes them only where the placement rule accepts the name.
 - Levels: `namespace` -- `viewer`, `user`, `manager`, `admin`, `superadmin`; `system` -- `viewer`, `manager`, `superadmin`; `legacy` -- `User`, `PrivilegedUser`, `Editor`, `Admin`, `ClusterEditor`, `ClusterAdmin`, `SuperAdmin`.
 - `namespace` levels are allowed only for `Namespaced` resources; a `Namespaced` resource at a `system` level needs a `reason`.
 - A `system` level never writes a namespaced resource through which a write grants the identity of a ServiceAccount of the module's namespace -- `pods`, `replicationcontrollers`, `podtemplates`, `secrets`, `serviceaccounts`, the `apps` and `batch` workloads, `roles`, `rolebindings` -- and never touches `pods/exec`, `pods/attach`, `pods/portforward`, `pods/ephemeralcontainers` or `serviceaccounts/token` at all, whatever the `reason`: the role model writes into the namespaces of the platform at the `superadmin` level only, so the holders of a subsystem `manager` must not reach the ServiceAccounts of the module through its capability. Read verbs on the resources stay allowed; grant the writes at a `namespace` level instead.
@@ -1712,11 +1722,12 @@ or `access-to-<module>`. A Role of `templates/<dir>/<file>` keeps its directory 
 `rbac-to-us.yaml`, and a note says so. A name no entry can express (one the placement rule does not
 want, `access-to-<module>s`) or a RoleBinding named otherwise than its Role folds into
 `access-to-<module>` at the root, as several Roles of that name do, with a note on why and the rename.
-An account's RoleBinding to a Role of another namespace (`bindRoles`) keeps the name it has, as
-`bindingName`, when the placement rule -- with its `exclude-rules.placement` -- accepts it in the file
-the declaration writes it to, or refuses the name it wants there as well (a binding in the namespace of
-another module: a rename would gain nothing, and a note says so); otherwise the note names the name
-`--fix` gives it. Under
+The bootstrap describes what exists and renames nothing it can keep: an object keeps the name it has,
+through the name field of its kind (`bindRoles[].bindingName`, `access[].roleName` and `bindingName`),
+when the placement rule -- with its `exclude-rules.placement` -- accepts the name in the file the
+declaration writes the object to, or refuses the name the declaration would give it as well (a binding
+in the namespace of another module: a rename would gain nothing, and a note says so). Where the rule
+refuses the name and accepts the derived one, `--fix` renames the object and the note says why. Under
 `--matrix` an object the variants render with different rules gets the union and a note, as one a block
 varies. A note names the labels and annotations of a
 legacy role, and the annotations of a capability, the fix would drop; the labels of a capability go into its

@@ -38,7 +38,7 @@ subjects:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: access-to-dex-reader
+  name: access-to-dex-configmap-reader
   namespace: d8-{{ $.Chart.Name }}
   {{- include "helm_lib_module_labels" (list .) | nindent 2 }}
 rules:
@@ -54,13 +54,13 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: access-to-dex-reader
+  name: access-to-dex-configmap-reader-binding
   namespace: d8-{{ $.Chart.Name }}
   {{- include "helm_lib_module_labels" (list .) | nindent 2 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: access-to-dex-reader
+  name: access-to-dex-configmap-reader
 subjects:
 - kind: ServiceAccount
   name: reader

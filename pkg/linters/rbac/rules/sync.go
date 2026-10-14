@@ -92,19 +92,23 @@ func (r *SyncRule) WithPlacementExcludes(excludeRules []pkg.KindRuleExclude) *Sy
 	return r
 }
 
-// placementAccepts reports whether the placement rule passes a Role or a RoleBinding of the module
-// named name in namespace that renders from the template path: its exclusions exempt it, or the
-// rule finds nothing. The bootstrap asks before it keeps a name the module already has.
+// placementAccepts reports whether the placement rule passes a role or a binding of the module named
+// name (in namespace, for a Role or a RoleBinding) that renders from the template path: its exclusions
+// exempt it, or the rule finds nothing. The bootstrap asks before it keeps a name the module already
+// has.
 func (r *SyncRule) placementAccepts(path, kind, name, namespace string) bool {
-	if kind != "Role" && kind != "RoleBinding" {
-		return false
-	}
-
 	if !r.placementExcludes.Enabled(kind, name) {
 		return true
 	}
 
-	return rolePlacementFinding(r.module.GetName(), r.module.GetNamespace(), path, kind, name, namespace) == ""
+	switch kind {
+	case "Role", "RoleBinding":
+		return rolePlacementFinding(r.module.GetName(), r.module.GetNamespace(), path, kind, name, namespace) == ""
+	case "ClusterRole", "ClusterRoleBinding":
+		return clusterRolePlacementFinding(r.module.GetName(), path, kind, name) == ""
+	}
+
+	return false
 }
 
 // chartName is what {{ .Chart.Name }} renders to in the module's chart: the name in its Chart.yaml,

@@ -191,17 +191,24 @@ func objectRBACPlacementServiceAccount(m pkg.Module, object storage.StoreObject,
 }
 
 func objectRBACPlacementClusterRole(m pkg.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	objectName := object.Unstructured.GetName()
-	objectKind := object.Unstructured.GetKind()
 	shortPath := object.ShortPath()
 	errorList = errorList.WithFilePath(shortPath)
 
-	name := "d8:" + m.GetName()
+	if finding := clusterRolePlacementFinding(m.GetName(), shortPath, object.Unstructured.GetKind(), object.Unstructured.GetName()); finding != "" {
+		errorList.Errorf("%s", finding)
+	}
+}
+
+// clusterRolePlacementFinding is what the placement rule says about a ClusterRole or a
+// ClusterRoleBinding of the module named objectName that renders from shortPath, or "" when it
+// accepts the object.
+func clusterRolePlacementFinding(module, shortPath, objectKind, objectName string) string {
+	name := "d8:" + module
 
 	switch {
 	case shortPath == RootRBACForUsPath:
 		if !strings.HasPrefix(objectName, name) {
-			errorList.Errorf("Name of %s in %q should start with %q", objectKind, RootRBACForUsPath, name)
+			return fmt.Sprintf("Name of %s in %q should start with %q", objectKind, RootRBACForUsPath, name)
 		}
 
 	case strings.HasSuffix(shortPath, "rbac-for-us.yaml"):
@@ -212,12 +219,14 @@ func objectRBACPlacementClusterRole(m pkg.Module, object storage.StoreObject, er
 
 		n := name + ":" + strings.Join(parts, ":")
 		if !strings.HasPrefix(objectName, name) {
-			errorList.Errorf("Name of %s should start with %q", objectKind, n)
+			return fmt.Sprintf("Name of %s should start with %q", objectKind, n)
 		}
 
 	default:
-		errorList.Errorf("%s should be in %q or %q or \"*/rbac-for-us.yaml\"", objectKind, UserAuthzClusterRolePath, RootRBACForUsPath)
+		return fmt.Sprintf("%s should be in %q or %q or \"*/rbac-for-us.yaml\"", objectKind, UserAuthzClusterRolePath, RootRBACForUsPath)
 	}
+
+	return ""
 }
 
 func objectRBACPlacementRole(m pkg.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {

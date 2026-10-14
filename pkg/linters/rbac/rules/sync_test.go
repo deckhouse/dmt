@@ -2046,9 +2046,8 @@ func TestSync_RewriteWritesTheChartNamespace(t *testing.T) {
 	}
 }
 
-// The bootstrap keeps the name of a RoleBinding to a Role of another namespace where the placement
-// rule accepts it -- with its exclusions -- in the file the declaration writes it to
-// (security-events-manager, 2026-10-14).
+// The bootstrap keeps the name of a role or a binding where the placement rule accepts it -- with its
+// exclusions -- in the file the declaration writes it to (security-events-manager, 2026-10-14).
 func TestSync_PlacementAccepts(t *testing.T) {
 	m := mocks.NewModuleMock(minimock.NewController(t))
 	m.GetNameMock.Optional().Return("m")
@@ -2071,7 +2070,11 @@ func TestSync_PlacementAccepts(t *testing.T) {
 		{plain, path, "RoleBinding", "d8:m:controller:reader", "kube-system", true},
 		{plain, "templates/rbac-to-us.yaml", "Role", "access-to-m-metrics", "d8-m", true},
 		{plain, "templates/dex/rbac-to-us.yaml", "Role", "access-to-m-metrics", "d8-m", false},
-		{plain, path, "ClusterRole", "d8:m:controller", "", false},
+		{plain, path, "ClusterRole", "d8:m:controller", "", true},
+		{plain, path, "ClusterRoleBinding", "d8:m:controller:system-authenticated", "", true},
+		{plain, path, "ClusterRoleBinding", "controller", "", false},
+		{plain, "templates/controller/rbac.yaml", "ClusterRole", "d8:m:controller", "", false},
+		{plain, path, "ServiceAccount", "controller", "d8-m", false},
 	} {
 		assert.Equal(t, tc.want, tc.rule.placementAccepts(tc.path, tc.kind, tc.name, tc.namespace), "%s %s/%s in %s", tc.kind, tc.namespace, tc.name, tc.path)
 	}
