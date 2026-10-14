@@ -11,6 +11,9 @@ serviceAccounts:
       - apiGroups: [coordination.k8s.io]
         resources: [leases]
         verbs: [get, create, update]
+    # the names the module gave the Role and its RoleBinding
+    roleName: controller-leader-election-role
+    roleBindingName: controller-leader-election-rolebinding
     bindClusterRoles:
       # the name the placement rule wants: d8:<module>:<account>:<role without d8:, colons as dashes>
       - d8:rbac-proxy

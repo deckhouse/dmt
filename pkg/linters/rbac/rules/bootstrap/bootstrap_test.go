@@ -1109,7 +1109,9 @@ func TestBuild_AccessNamedAfterTheModuleKeepsItsName(t *testing.T) {
 // d8:<module>; Roles and bindings of rbac-to-us.yaml start with access-to-<module> at the root and
 // access-to-<directory>- in a component directory, in the module namespace; those of a component's
 // rbac-for-us.yaml start with its directories joined by colons there, or with d8:<module>:<directories>
-// in kube-system.
+// in kube-system; those of the root rbac-for-us.yaml start with d8:<module> in default and kube-system,
+// and take any other name in a namespace of the platform only (the rule refuses a Role there in the
+// module's own namespace whatever its name).
 func placementOf(module, namespace string) func(path, kind, name, ns string) bool {
 	return func(path, kind, name, ns string) bool {
 		dir := strings.TrimSuffix(strings.TrimPrefix(path, "templates/"), "/"+filepath.Base(path))
@@ -1124,8 +1126,10 @@ func placementOf(module, namespace string) func(path, kind, name, ns string) boo
 			return ns == namespace && strings.HasPrefix(name, "access-to-"+module)
 		case strings.HasSuffix(path, "rbac-to-us.yaml"):
 			return ns == namespace && strings.HasPrefix(name, "access-to-"+strings.ReplaceAll(dir, "/", "-")+"-")
+		case dir == "" && strings.HasPrefix(name, "d8:"+module):
+			return ns == "default" || ns == "kube-system"
 		case dir == "":
-			return false
+			return rbaccontract.IsDeckhouseNamespace(ns)
 		case strings.HasPrefix(name, strings.ReplaceAll(dir, "/", ":")):
 			return ns == namespace
 		default:
@@ -1144,6 +1148,10 @@ func TestPlacementOf(t *testing.T) {
 	assert.True(t, accepts("templates/a/b/rbac-for-us.yaml", "Role", "a:b:leader", "d8-m"))
 	assert.True(t, accepts("templates/a/rbac-for-us.yaml", "RoleBinding", "d8:m:a:reader", "kube-system"))
 	assert.False(t, accepts("templates/a/rbac-for-us.yaml", "RoleBinding", "d8:m:a:reader", "d8-other"))
+	assert.False(t, accepts("templates/rbac-for-us.yaml", "Role", "m", "d8-m"), "no Role of the root file in the module's own namespace")
+	assert.True(t, accepts("templates/rbac-for-us.yaml", "Role", "d8:m:leader", "kube-system"))
+	assert.True(t, accepts("templates/rbac-for-us.yaml", "Role", "leader", "d8-system"))
+	assert.False(t, accepts("templates/rbac-for-us.yaml", "Role", "d8:m:leader", "d8-system"))
 }
 
 // access[] keeps the names its ClusterRole, Role and bindings have where the placement rule accepts
@@ -1284,6 +1292,118 @@ func TestBuild_BindClusterRolesKeepTheirBindingNames(t *testing.T) {
 		{Name: "d8:rbac-proxy", BindingName: "d8:kube-proxy-metrics-rbac"},
 	}, got.Decl.ServiceAccounts[0].BindClusterRoles)
 	assert.NotContains(t, strings.Join(got.Notes, "\n"), "will be named")
+}
+
+// The Role of an account's namespaceRules and its RoleBinding keep their names as roleName and
+// roleBindingName where the placement rule accepts them (deckhouse main: the leader-election Roles of
+// the cloud providers, cloud-provider-vcd's capcd-controller-manager-leader-election with its
+// ...-role-binding, kube-proxy's d8:kube-proxy in kube-system); where the rule refuses the name, --fix
+// renames the object and the note says why. A Role and binding of the module in rbac-to-us.yaml that
+// bind the account are an access entry, which keeps them in that file under their names
+// (registry-packages-proxy's access-to-registry-packages-proxy-from-http).
+func TestBuild_AccountRoleKeepsItsNames(t *testing.T) {
+	leases := []rbacv1.PolicyRule{{APIGroups: []string{"coordination.k8s.io"}, Resources: []string{"leases"}, Verbs: []string{"get", "update"}}}
+	labels := map[string]string{"module": "m"}
+	objectsOf := func(ns, account, path, role, binding string) []Object {
+		return []Object{
+			{Kind: "ServiceAccount", Name: account, Namespace: ns, Path: path, Labels: labels, Located: true},
+			{Kind: "Role", Name: role, Namespace: ns, Path: path, Labels: labels, Rules: leases, Located: true},
+			{Kind: "RoleBinding", Name: binding, Namespace: ns, Path: path, Labels: labels, Located: true,
+				RoleRef: rbacv1.RoleRef{Kind: "Role", Name: role}, Subjects: []rbacv1.Subject{{Kind: "ServiceAccount", Name: account, Namespace: ns}}},
+		}
+	}
+
+	for name, tc := range map[string]struct {
+		module, namespace     string
+		objects               []Object
+		wantRole, wantBinding string
+		roleName, roleBinding string
+		note                  string
+	}{
+		"a component's Role and binding of one name": {
+			module: "m", namespace: "d8-m",
+			objects:  objectsOf("d8-m", "capdvp", "templates/capdvp/rbac-for-us.yaml", "capdvp-leader-election-role", "capdvp-leader-election-role"),
+			roleName: "capdvp-leader-election-role", wantRole: "capdvp-leader-election-role", wantBinding: "capdvp-leader-election-role",
+		},
+		"a component's Role and binding of two names": {
+			module: "m", namespace: "d8-m",
+			objects:  objectsOf("d8-m", "capcd", "templates/capcd/rbac-for-us.yaml", "capcd-leader-election", "capcd-leader-election-role-binding"),
+			roleName: "capcd-leader-election", roleBinding: "capcd-leader-election-role-binding",
+			wantRole: "capcd-leader-election", wantBinding: "capcd-leader-election-role-binding",
+		},
+		"the root account of a module in kube-system": {
+			module: "kube-proxy", namespace: "kube-system",
+			objects:  objectsOf("kube-system", "d8-kube-proxy", "templates/rbac-for-us.yaml", "d8:kube-proxy", "d8:kube-proxy"),
+			roleName: "d8:kube-proxy", wantRole: "d8:kube-proxy", wantBinding: "d8:kube-proxy",
+		},
+		"a name the placement rule refuses": {
+			module: "m", namespace: "d8-m",
+			objects:  objectsOf("d8-m", "caps", "templates/caps/rbac-for-us.yaml", "d8:m:caps-leader-election-role", "d8:m:caps-leader-election-role"),
+			wantRole: "caps", wantBinding: "caps",
+			note: "Role d8:m:caps-leader-election-role will be named caps by --fix: the placement rule refuses d8:m:caps-leader-election-role in templates/caps/rbac-for-us.yaml",
+		},
+		"a name the placement rule refuses, and the derived one too": {
+			module: "m", namespace: "d8-m",
+			objects:  objectsOf("d8-m", "m", "templates/rbac-for-us.yaml", "m-leader-election", "m-leader-election"),
+			roleName: "m-leader-election", wantRole: "m-leader-election", wantBinding: "m-leader-election",
+			note: "Role m-leader-election keeps its name: the placement rule refuses it in templates/rbac-for-us.yaml, and the name the declaration would give it (m) as well",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := Build(Input{Module: tc.module, Namespace: tc.namespace, Objects: tc.objects, PlacementAccepts: placementOf(tc.module, tc.namespace)})
+			require.Empty(t, got.Unmanaged)
+			require.Len(t, got.Decl.ServiceAccounts, 1)
+
+			sa := got.Decl.ServiceAccounts[0]
+			assert.Equal(t, tc.roleName, sa.RoleName)
+			assert.Equal(t, tc.roleBinding, sa.RoleBindingName)
+
+			notes := strings.Join(got.Notes, "\n")
+			if tc.note != "" {
+				assert.Contains(t, notes, tc.note)
+			}
+
+			if !strings.Contains(tc.note, "will be named") {
+				assert.NotContains(t, notes, "will be named")
+			}
+
+			// The written declaration validates, and the generator writes the names back.
+			content, err := Marshal(got)
+			require.NoError(t, err)
+
+			decl, err := rbacyaml.Parse(content)
+			require.NoError(t, err)
+			require.Empty(t, rbacyaml.Validate(decl, nil))
+
+			model, err := generate.Build(generate.Input{Module: tc.module, Namespace: tc.namespace, Decl: decl})
+			require.NoError(t, err)
+
+			refs := map[string]string{}
+
+			for _, f := range model.Files {
+				for _, o := range f.Objects {
+					refs[o.Identity()] = o.RoleRefName
+				}
+			}
+
+			assert.Contains(t, refs, tc.namespace+"/Role/"+tc.wantRole)
+			assert.Equal(t, tc.wantRole, refs[tc.namespace+"/RoleBinding/"+tc.wantBinding])
+		})
+	}
+
+	t.Run("a Role and binding of rbac-to-us.yaml are an access entry", func(t *testing.T) {
+		objects := objectsOf("d8-m", "m", "templates/rbac-for-us.yaml", "access-to-m-from-http", "access-to-m-from-http")
+		objects[1].Path, objects[2].Path = "templates/rbac-to-us.yaml", "templates/rbac-to-us.yaml"
+
+		got := Build(Input{Module: "m", Namespace: "d8-m", Objects: objects, PlacementAccepts: placementOf("m", "d8-m")})
+		require.Empty(t, got.Unmanaged)
+		require.Len(t, got.Decl.ServiceAccounts, 1)
+		assert.Empty(t, got.Decl.ServiceAccounts[0].NamespaceRules)
+		require.Len(t, got.Decl.Access, 1)
+		assert.Equal(t, rbacyaml.Access{Name: "from-http", Subjects: []rbacyaml.Subject{{Kind: "ServiceAccount", Name: "m", Namespace: "d8-m"}},
+			NamespaceRules: []rbacyaml.PolicyRule{{APIGroups: []string{"coordination.k8s.io"}, Resources: []string{"leases"}, Verbs: []string{"get", "update"}}}}, got.Decl.Access[0])
+		assert.NotContains(t, strings.Join(got.Notes, "\n"), "will be named")
+	})
 }
 
 // An object is left hand-written once, with one reason, however many passes would name it.
