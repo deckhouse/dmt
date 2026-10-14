@@ -29,6 +29,7 @@ import (
 	"strings"
 
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbaccontract"
 	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbacyaml"
@@ -655,6 +656,39 @@ func subjectsAreOnly(o Object, saName, saNS string) bool {
 
 var pathRe = regexp.MustCompile(`^templates/(?:(.*)/)?rbac-for-us\.yaml$`)
 
+// componentDir is the path of an account that renders from another template than rbac-for-us.yaml:
+// the component directory of templates/<dir>/<file>, as for templates/<dir>/rbac-for-us.yaml, so its
+// objects stay in their directory. The placement rule names an account of a directory after it only
+// in rbac-for-us.yaml, and the generator refuses a path the account is not named after (or one of a
+// module in default or kube-system), which would refuse the whole declaration: such an account, and
+// one at the root of templates/, goes to templates/rbac-for-us.yaml.
+func (b *builder) componentDir(sa Object) string {
+	rest, ok := strings.CutPrefix(sa.Path, "templates/")
+	if !ok || b.in.Namespace == "default" || b.in.Namespace == "kube-system" {
+		return ""
+	}
+
+	slash := strings.LastIndex(rest, "/")
+	if slash <= 0 {
+		return ""
+	}
+
+	dir := rest[:slash]
+
+	for _, segment := range strings.Split(dir, "/") {
+		if len(validation.IsDNS1123Label(segment)) > 0 {
+			return ""
+		}
+	}
+
+	named := strings.ReplaceAll(dir, "/", "-")
+	if sa.Name == named || (sa.Name == b.in.Module+"-"+named && rbaccontract.IsDeckhouseNamespace(b.in.Namespace)) {
+		return dir
+	}
+
+	return ""
+}
+
 func (b *builder) serviceAccounts() {
 	for _, sa := range b.byKind("ServiceAccount") {
 		if b.isUsed(sa) {
@@ -682,7 +716,14 @@ func (b *builder) serviceAccounts() {
 				continue
 			}
 		} else {
-			b.note("ServiceAccount %s lives in %s; the declaration keeps accounts in templates/[<path>/]rbac-for-us.yaml and --fix will write it to templates/rbac-for-us.yaml", sa.Name, sa.Path)
+			e.Path = b.componentDir(sa)
+
+			target := "templates/rbac-for-us.yaml"
+			if e.Path != "" {
+				target = "templates/" + e.Path + "/rbac-for-us.yaml"
+			}
+
+			b.note("ServiceAccount %s lives in %s; the declaration keeps accounts in templates/[<path>/]rbac-for-us.yaml and --fix will write it to %s", sa.Name, sa.Path, target)
 		}
 
 		e.Labels = copyLabels(sa.Labels)

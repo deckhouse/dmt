@@ -393,6 +393,53 @@ func TestBuild_AHandWrittenRoleOfBindRolesSaysWhy(t *testing.T) {
 	}
 }
 
+// An account whose objects render from another template of a component directory than its
+// rbac-for-us.yaml keeps the directory as its path, as one in templates/<dir>/rbac-for-us.yaml does:
+// the fix then writes it beside the template it came from rather than into the root file (pilot on
+// user-authn, 2026-10-14: templates/user-api/rbac.yaml). A path the generator would refuse -- an
+// account not named after the directory, a module in kube-system -- leaves it at the root.
+func TestBuild_AccountPathFromItsComponentDirectory(t *testing.T) {
+	labels := map[string]string{"module": "m"}
+
+	for name, tc := range map[string]struct {
+		namespace, account, path string
+		expected                 string
+	}{
+		"a component file other than rbac-for-us.yaml":     {namespace: "d8-m", account: "user-api", path: "templates/user-api/rbac.yaml", expected: "user-api"},
+		"a nested component directory":                     {namespace: "d8-m", account: "a-b", path: "templates/a/b/sa.yaml", expected: "a/b"},
+		"the module name in front in a platform namespace": {namespace: "d8-system", account: "m-user-api", path: "templates/user-api/rbac.yaml", expected: "user-api"},
+		"rbac-for-us.yaml of the directory, as before":     {namespace: "d8-m", account: "user-api", path: "templates/user-api/rbac-for-us.yaml", expected: "user-api"},
+		"an account not named after its directory":         {namespace: "d8-m", account: "api", path: "templates/user-api/rbac.yaml", expected: ""},
+		"the module name in front outside the platform":    {namespace: "d8-m", account: "m-user-api", path: "templates/user-api/rbac.yaml", expected: ""},
+		"a module in kube-system":                          {namespace: "kube-system", account: "user-api", path: "templates/user-api/rbac.yaml", expected: ""},
+		"a directory that is no DNS label":                 {namespace: "d8-m", account: "a.b", path: "templates/a.b/rbac.yaml", expected: ""},
+		"a template at the root":                           {namespace: "d8-m", account: "user-api", path: "templates/rbac.yaml", expected: ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			rules := []rbacv1.PolicyRule{{APIGroups: []string{"deckhouse.io"}, Resources: []string{"useroperations"}, Verbs: []string{"create"}}}
+			got := Build(Input{Module: "m", Namespace: tc.namespace, Objects: []Object{
+				{Kind: "ServiceAccount", Name: tc.account, Namespace: tc.namespace, Path: tc.path, Labels: labels},
+				{Kind: "ClusterRole", Name: "d8:m:" + tc.account, Path: tc.path, Labels: labels, Rules: rules},
+				{Kind: "ClusterRoleBinding", Name: "d8:m:" + tc.account, Path: tc.path, Labels: labels,
+					RoleRef:  rbacv1.RoleRef{Kind: "ClusterRole", Name: "d8:m:" + tc.account},
+					Subjects: []rbacv1.Subject{{Kind: "ServiceAccount", Name: tc.account, Namespace: tc.namespace}}},
+			}})
+
+			require.Len(t, got.Decl.ServiceAccounts, 1, "unmanaged: %v", got.Unmanaged)
+			assert.Equal(t, tc.expected, got.Decl.ServiceAccounts[0].Path)
+
+			target := "templates/rbac-for-us.yaml"
+			if tc.expected != "" {
+				target = "templates/" + tc.expected + "/rbac-for-us.yaml"
+			}
+
+			if !strings.HasSuffix(tc.path, "/rbac-for-us.yaml") {
+				assert.Contains(t, strings.Join(got.Notes, "\n"), "ServiceAccount "+tc.account+" lives in "+tc.path+"; the declaration keeps accounts in templates/[<path>/]rbac-for-us.yaml and --fix will write it to "+target)
+			}
+		})
+	}
+}
+
 // A role granting "*" verbs or API groups stays out of the declaration with a note, instead of
 // being written in a shape the validation refuses (review of #479, finding 21); a grant on every
 // ModuleConfig is an ordinary system entry (review of #479, reply to finding 13d).
