@@ -185,7 +185,7 @@ func (r *SyncRule) Check(_ context.Context) {
 
 	run := r.newSyncRun(modulePath, model, renderOf(r.module.GetStorage()))
 	divergences := r.compareRender(run)
-	compareFiles(run, divergences)
+	r.compareFiles(run, divergences)
 	r.report(run, divergences)
 }
 
@@ -347,8 +347,9 @@ func (r *SyncRule) compareRender(run *syncRun) map[string][]string {
 // compareFiles reports a file the declaration produces that does not exist while an object it
 // holds is absent from the render: the render cannot tell a conditional object whose condition is
 // false from one whose template was never written, but the file system can (D4 covers the render,
-// not the file).
-func compareFiles(run *syncRun, divergences map[string][]string) {
+// not the file). An object exclude-rules.sync names is not compared, here either: a file that would
+// hold only such objects is no divergence.
+func (r *SyncRule) compareFiles(run *syncRun, divergences map[string][]string) {
 	for _, file := range run.model.Files {
 		_, err := os.Stat(filepath.Join(run.modulePath, file.Path))
 
@@ -356,7 +357,7 @@ func compareFiles(run *syncRun, divergences map[string][]string) {
 		case err == nil:
 		case !stderrors.Is(err, os.ErrNotExist):
 			divergences[file.Path] = append(divergences[file.Path], fmt.Sprintf("the file cannot be read: %v", err))
-		case hasAbsentObject(file, run.actual):
+		case hasAbsentObject(r.enabledObjects(file), run.actual):
 			divergences[file.Path] = append(divergences[file.Path],
 				"the file does not exist, and objects the declaration puts in it are absent from the render (objects under `when` included: no template produces them)")
 		}
@@ -544,7 +545,9 @@ func (r *SyncRule) unfixable(run *syncRun, file generate.File) []string {
 
 // heldObjects lists the objects the declaration produces in the file that a rewrite would change
 // beyond what sync compares: one exclude-rules.sync keeps out of the comparison, metadata of a legacy
-// role or a capability the format has no field for, and the secrets of a ServiceAccount.
+// role or a capability the format has no field for, and the secrets of a ServiceAccount. The rewrite
+// writes every object the declaration puts in the file, so an excluded one keeps the fix off the
+// file whether the file holds it or not: --fix never writes an object the exclusion names.
 func (r *SyncRule) heldObjects(run *syncRun, file generate.File) []string {
 	var out []string
 
@@ -560,6 +563,8 @@ func (r *SyncRule) heldObjects(run *syncRun, file generate.File) []string {
 		if !r.Enabled(o.Kind, o.Name) {
 			if rendered || inText[id] {
 				out = append(out, id+" is excluded from sync (exclude-rules.sync), and a rewrite would write it from the declaration over what the template holds -- lift the exclusion, or move the object to another template")
+			} else {
+				out = append(out, id+" is excluded from sync (exclude-rules.sync), and a rewrite would write it from the declaration with the rest of the file -- lift the exclusion, or bring the other objects of the file in line by hand")
 			}
 
 			continue
