@@ -158,6 +158,7 @@ type TemplatesLinterRules struct {
 	HTTPSCertificateReuseRule          RuleConfig
 	ListenerSetRedirectRule            RuleConfig
 	HTTPRouteRedirectRule              RuleConfig
+	MonitorSourceLabelRule             RuleConfig
 }
 
 type PrometheusRuleSettings struct {
@@ -187,6 +188,7 @@ type TemplatesExcludeRules struct {
 	HTTPSCertificateReuse          PathRuleExclude
 	ListenerSetRedirect            ListenerSetRedirectExcludeList
 	HTTPRouteRedirect              HTTPRouteRedirectExcludeList
+	MonitorSourceLabel             KindRuleExcludeList
 }
 
 type ListenerSetRedirectExcludeList []ListenerSetRedirectExclude
