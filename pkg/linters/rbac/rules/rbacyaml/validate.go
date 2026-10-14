@@ -686,13 +686,17 @@ func validateServiceAccounts(accounts []ServiceAccount, report reporter) {
 			}
 		}
 
-		for j, name := range sa.BindClusterRoles {
-			if name == "" {
+		for j, ref := range sa.BindClusterRoles {
+			if ref.Name == "" {
 				report("%s.bindClusterRoles[%d]: empty name", where, j)
 				continue
 			}
 
-			validateRoleName(name, fmt.Sprintf("%s.bindClusterRoles[%d]", where, j), report)
+			validateRoleName(ref.Name, fmt.Sprintf("%s.bindClusterRoles[%d]", where, j), report)
+
+			if ref.BindingName != "" {
+				validateRoleName(ref.BindingName, fmt.Sprintf("%s.bindClusterRoles[%d].bindingName", where, j), report)
+			}
 		}
 	}
 }

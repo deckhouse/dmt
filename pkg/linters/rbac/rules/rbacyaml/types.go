@@ -197,7 +197,7 @@ type ServiceAccount struct {
 	Labels           map[string]string `yaml:"labels,omitempty"`
 	ClusterRules     []PolicyRule      `yaml:"clusterRules,omitempty"`
 	NamespaceRules   []PolicyRule      `yaml:"namespaceRules,omitempty"`
-	BindClusterRoles []string          `yaml:"bindClusterRoles,omitempty"`
+	BindClusterRoles []ClusterRoleRef  `yaml:"bindClusterRoles,omitempty"`
 	BindRoles        []RoleRef         `yaml:"bindRoles,omitempty"`
 
 	// ExtraClusterRoles are further ClusterRoles that live in the account's rbac-for-us.yaml:
@@ -236,6 +236,82 @@ func (r ExtraClusterRole) FullName(module, account string) string {
 	}
 
 	return "d8:" + module + ":" + account + ":" + r.Name
+}
+
+// ClusterRoleRef names an existing ClusterRole to bind a ServiceAccount to. It is written as the role's
+// name, or as a mapping when it names the binding too.
+type ClusterRoleRef struct {
+	Name string `yaml:"name"`
+	// BindingName is the name of the ClusterRoleBinding; empty means d8:<module>:<account>:<role>
+	// (BindingNameOf). The bootstrap sets it when the module's binding already has another name the
+	// placement rule accepts, so the first --fix renames nothing.
+	BindingName string `yaml:"bindingName,omitempty"`
+}
+
+// BindingNameOf is the name of the account's ClusterRoleBinding to the role: BindingName, else
+// d8:<module>:<account>:<the role's name without d8:, colons as dashes>.
+func (r ClusterRoleRef) BindingNameOf(module, account string) string {
+	if r.BindingName != "" {
+		return r.BindingName
+	}
+
+	return "d8:" + module + ":" + account + ":" + rbaccontract.BindingSuffix(r.Name)
+}
+
+// clusterRoleRefKeys are the keys of the mapping form, for the unknown-key check.
+var clusterRoleRefKeys = yamlKeys(reflect.TypeFor[ClusterRoleRef]())
+
+// UnmarshalYAML reads the role's name or the mapping. Unknown keys of the mapping are refused, as the
+// strict decoder refuses them elsewhere in the file.
+func (r *ClusterRoleRef) UnmarshalYAML(node *yaml.Node) error {
+	switch {
+	case node.Kind == yaml.ScalarNode && node.ShortTag() == "!!null":
+		*r = ClusterRoleRef{}
+
+		return nil
+	case node.Kind == yaml.ScalarNode:
+		*r = ClusterRoleRef{Name: node.Value}
+
+		return nil
+	case node.Kind == yaml.MappingNode:
+	default:
+		return &yaml.TypeError{Errors: []string{fmt.Sprintf("line %d: an entry of bindClusterRoles is the name of a ClusterRole or a mapping of name and bindingName", node.Line)}}
+	}
+
+	var unknown []string
+
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		if key := node.Content[i]; !slices.Contains(clusterRoleRefKeys, key.Value) {
+			unknown = append(unknown, fmt.Sprintf("line %d: field %s not found in type rbacyaml.ClusterRoleRef", key.Line, key.Value))
+		}
+	}
+
+	if len(unknown) > 0 {
+		return &yaml.TypeError{Errors: unknown}
+	}
+
+	// The plain type has no UnmarshalYAML: decoding into it does not come back here.
+	type plain ClusterRoleRef
+
+	var out plain
+	if err := node.Decode(&out); err != nil {
+		return err
+	}
+
+	*r = ClusterRoleRef(out)
+
+	return nil
+}
+
+// MarshalYAML writes the role's name alone when the binding takes the derived name.
+func (r ClusterRoleRef) MarshalYAML() (any, error) {
+	if r.BindingName == "" {
+		return r.Name, nil
+	}
+
+	type plain ClusterRoleRef
+
+	return plain(r), nil
 }
 
 // RoleRef names an existing Role in a foreign namespace to bind a ServiceAccount to.

@@ -1,6 +1,7 @@
 # A module that keeps the names its objects had before the declaration: scrape access in a component
 # directory and at the root under a name of its own, beside the access-to-<module> of the first
-# declarations; a binding in a namespace of the platform under the name the module gave it.
+# declarations; bindings of an account under the names the module gave them, one in a namespace of the
+# platform.
 apiVersion: rbac.deckhouse.io/v1alpha1
 serviceAccounts:
   - name: controller
@@ -10,6 +11,12 @@ serviceAccounts:
       - apiGroups: [coordination.k8s.io]
         resources: [leases]
         verbs: [get, create, update]
+    bindClusterRoles:
+      # the name the placement rule wants: d8:<module>:<account>:<role without d8:, colons as dashes>
+      - d8:rbac-proxy
+      # the name the module gave the binding
+      - name: system:auth-delegator
+        bindingName: d8:observer:controller:auth-delegator
     bindRoles:
       # the name the module gave the binding, which the placement rule accepts with an exclusion
       - namespace: d8-log-shipper

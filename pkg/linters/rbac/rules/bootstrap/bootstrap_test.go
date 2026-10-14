@@ -486,7 +486,7 @@ func TestBuild_AggregatedRoleOfAnAccountStaysHandWritten(t *testing.T) {
 
 	require.Len(t, got.Decl.ServiceAccounts, 1)
 	assert.Empty(t, got.Decl.ServiceAccounts[0].ExtraClusterRoles)
-	assert.Equal(t, []string{"d8:m:capi:aggregated"}, got.Decl.ServiceAccounts[0].BindClusterRoles)
+	assert.Equal(t, []rbacyaml.ClusterRoleRef{{Name: "d8:m:capi:aggregated"}}, got.Decl.ServiceAccounts[0].BindClusterRoles)
 	assert.Contains(t, strings.Join(got.Unmanaged, "\n"), "ClusterRole/d8:m:capi:aggregated")
 	assert.Empty(t, rbacyaml.Validate(got.Decl, nil), "the written declaration validates")
 }
@@ -506,7 +506,7 @@ func TestBuild_RepeatedBindingOfAnAccountFolds(t *testing.T) {
 	}})
 
 	require.Len(t, got.Decl.ServiceAccounts, 1)
-	assert.Equal(t, []string{"d8:rbac-proxy"}, got.Decl.ServiceAccounts[0].BindClusterRoles)
+	assert.Equal(t, []rbacyaml.ClusterRoleRef{{Name: "d8:rbac-proxy"}}, got.Decl.ServiceAccounts[0].BindClusterRoles)
 	assert.Regexp(t, `ClusterRoleBinding d8:m:autoscaler(-mcm)?:rbac-proxy binds autoscaler to d8:rbac-proxy again; it folds into d8:m:autoscaler:rbac-proxy`, strings.Join(got.Notes, "\n"))
 	assert.Empty(t, rbacyaml.Validate(got.Decl, nil))
 }
@@ -597,7 +597,7 @@ func TestBuild_LibraryAndEmptyRolesAreSetAside(t *testing.T) {
 
 	require.Len(t, got.Decl.ServiceAccounts, 1)
 	assert.Empty(t, got.Decl.ServiceAccounts[0].ExtraClusterRoles, "no entry without rules")
-	assert.Equal(t, []string{"d8:m:m:iop:istiod-1x25"}, got.Decl.ServiceAccounts[0].BindClusterRoles)
+	assert.Equal(t, []rbacyaml.ClusterRoleRef{{Name: "d8:m:m:iop:istiod-1x25"}}, got.Decl.ServiceAccounts[0].BindClusterRoles)
 	assert.Empty(t, rbacyaml.Validate(got.Decl, rbacyaml.CRDScopes{"x.io/things": "Namespaced"}))
 }
 
@@ -1210,6 +1210,80 @@ func TestBuild_AccessKeepsTheNamesThePlacementRuleAccepts(t *testing.T) {
 	for _, a := range got.Decl.Access {
 		assert.Empty(t, a.RoleName+a.BindingName, a.Name)
 	}
+}
+
+// An account's ClusterRoleBinding to a role it does not own keeps its name as the bindClusterRoles
+// entry's bindingName where the placement rule accepts it (deckhouse main: kube-dns's
+// d8:kube-dns:coredns:rbac-proxy, kube-proxy's d8:kube-proxy-metrics-rbac); where the rule refuses the
+// name, --fix renames the binding and the note says why.
+func TestBuild_BindClusterRolesKeepTheirBindingNames(t *testing.T) {
+	const path = "templates/controller/rbac-for-us.yaml"
+
+	labels := map[string]string{"module": "m"}
+	account := []rbacv1.Subject{{Kind: "ServiceAccount", Name: "controller", Namespace: "d8-m"}}
+	binding := func(name, role string) Object {
+		return Object{Kind: "ClusterRoleBinding", Name: name, Path: path, Labels: labels, Located: true,
+			RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: role}, Subjects: account}
+	}
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", PlacementAccepts: placementOf("m", "d8-m"), Objects: []Object{
+		{Kind: "ServiceAccount", Name: "controller", Namespace: "d8-m", Path: path, Labels: labels, Located: true},
+		binding("d8:m:controller:d8-rbac-proxy", "d8:rbac-proxy"),
+		binding("controller:auth-delegator", "system:auth-delegator"),
+		binding("d8:m:controller:system-node-proxier", "system:node-proxier"),
+	}})
+
+	require.Empty(t, got.Unmanaged)
+	require.Len(t, got.Decl.ServiceAccounts, 1)
+	assert.Equal(t, []rbacyaml.ClusterRoleRef{
+		{Name: "system:auth-delegator"},
+		{Name: "d8:rbac-proxy", BindingName: "d8:m:controller:d8-rbac-proxy"},
+		{Name: "system:node-proxier"},
+	}, got.Decl.ServiceAccounts[0].BindClusterRoles)
+
+	notes := strings.Join(got.Notes, "\n")
+	assert.Contains(t, notes, "ClusterRoleBinding controller:auth-delegator will be named d8:m:controller:system-auth-delegator by --fix: the placement rule refuses controller:auth-delegator in "+path)
+	assert.NotContains(t, notes, "d8-rbac-proxy will be named")
+	assert.NotContains(t, notes, "system-node-proxier will be named")
+
+	// The written declaration validates, and the generator writes the kept name back.
+	content, err := Marshal(got)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "    bindClusterRoles:\n      - system:auth-delegator\n      - name: d8:rbac-proxy\n        bindingName: d8:m:controller:d8-rbac-proxy\n      - system:node-proxier\n")
+
+	decl, err := rbacyaml.Parse(content)
+	require.NoError(t, err)
+	require.Empty(t, rbacyaml.Validate(decl, nil))
+
+	model, err := generate.Build(generate.Input{Module: "m", Namespace: "d8-m", Decl: decl})
+	require.NoError(t, err)
+
+	ids := map[string]string{}
+	for _, o := range model.File(path).Objects {
+		ids[o.Identity()] = o.RoleRefName
+	}
+
+	assert.Equal(t, "d8:rbac-proxy", ids["ClusterRoleBinding/d8:m:controller:d8-rbac-proxy"])
+	assert.Equal(t, "system:auth-delegator", ids["ClusterRoleBinding/d8:m:controller:system-auth-delegator"])
+	assert.Equal(t, "system:node-proxier", ids["ClusterRoleBinding/d8:m:controller:system-node-proxier"])
+
+	// kube-proxy in deckhouse main: the account of the root file in kube-system, two bindings named after
+	// the module only, which the placement rule accepts there.
+	root := []rbacv1.Subject{{Kind: "ServiceAccount", Name: "d8-kube-proxy", Namespace: "kube-system"}}
+	got = Build(Input{Module: "kube-proxy", Namespace: "kube-system", PlacementAccepts: placementOf("kube-proxy", "kube-system"), Objects: []Object{
+		{Kind: "ServiceAccount", Name: "d8-kube-proxy", Namespace: "kube-system", Path: "templates/rbac-for-us.yaml", Labels: labels, Located: true},
+		{Kind: "ClusterRoleBinding", Name: "d8:kube-proxy", Path: "templates/rbac-for-us.yaml", Labels: labels, Located: true,
+			RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: "system:node-proxier"}, Subjects: root},
+		{Kind: "ClusterRoleBinding", Name: "d8:kube-proxy-metrics-rbac", Path: "templates/rbac-for-us.yaml", Labels: labels, Located: true,
+			RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: "d8:rbac-proxy"}, Subjects: root},
+	}})
+
+	require.Len(t, got.Decl.ServiceAccounts, 1)
+	assert.Equal(t, []rbacyaml.ClusterRoleRef{
+		{Name: "system:node-proxier", BindingName: "d8:kube-proxy"},
+		{Name: "d8:rbac-proxy", BindingName: "d8:kube-proxy-metrics-rbac"},
+	}, got.Decl.ServiceAccounts[0].BindClusterRoles)
+	assert.NotContains(t, strings.Join(got.Notes, "\n"), "will be named")
 }
 
 // An object is left hand-written once, with one reason, however many passes would name it.
