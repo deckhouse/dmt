@@ -1,6 +1,6 @@
 # A module that keeps the names its objects had before the declaration: scrape access in a component
 # directory and at the root under a name of its own, beside the access-to-<module> of the first
-# declarations.
+# declarations; a binding in a namespace of the platform under the name the module gave it.
 apiVersion: rbac.deckhouse.io/v1alpha1
 serviceAccounts:
   - name: controller
@@ -11,6 +11,11 @@ serviceAccounts:
         resources: [leases]
         verbs: [get, create, update]
     bindRoles:
+      # the name the module gave the binding, which the placement rule accepts with an exclusion
+      - namespace: d8-log-shipper
+        name: d8:observer:controller:log-shipper-secrets
+        bindingName: d8:observer:controller:log-shipper-secrets
+      # the name the placement rule wants
       - namespace: kube-system
         name: extension-apiserver-authentication-reader
 prometheusAccess:

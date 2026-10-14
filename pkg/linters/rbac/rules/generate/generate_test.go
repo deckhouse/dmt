@@ -308,6 +308,29 @@ func TestBuild_PrometheusAccessMappingForm(t *testing.T) {
 	assert.Equal(t, `.Values.global.enabledModules | has "prometheus"`, f.Objects[1].When)
 }
 
+// A bindRoles entry with a binding name gets the binding under that name; without one, the name the
+// placement rule wants.
+func TestBuild_BindRolesBindingName(t *testing.T) {
+	model, err := Build(observerInput(t))
+	require.NoError(t, err)
+
+	f := model.File("templates/controller/rbac-for-us.yaml")
+	require.NotNil(t, f)
+
+	var bindings []string
+
+	for _, o := range f.Objects {
+		if o.Kind == "RoleBinding" && o.Namespace != "d8-observer" {
+			bindings = append(bindings, o.Identity()+" -> "+o.RoleRefName)
+		}
+	}
+
+	assert.Equal(t, []string{
+		"d8-log-shipper/RoleBinding/d8:observer:controller:log-shipper-secrets -> d8:observer:controller:log-shipper-secrets",
+		"kube-system/RoleBinding/d8:observer:controller:extension-apiserver-authentication-reader -> extension-apiserver-authentication-reader",
+	}, bindings)
+}
+
 // extraClusterRoles land in the account's file, bound unless said otherwise; the account's
 // automountServiceAccountToken follows the declaration and defaults to false.
 func TestBuild_ExtraClusterRolesAndAutomount(t *testing.T) {
