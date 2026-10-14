@@ -1064,6 +1064,32 @@ func TestBuild_ForeignBindingKeepsItsName(t *testing.T) {
 		"only a name other than the derived one is asked about, in the file the declaration writes it to")
 }
 
+// An access Role named exactly access-to-<module> keeps its name: the entry is named after it, and the
+// generator does not write the prefix twice (deckhouse main: openvpn's access-to-openvpn became
+// access-to-openvpn-access-to-openvpn).
+func TestBuild_AccessNamedAfterTheModuleKeepsItsName(t *testing.T) {
+	rules := []rbacv1.PolicyRule{{APIGroups: []string{"apps"}, Resources: []string{"deployments/http"}, ResourceNames: []string{"m"}, Verbs: []string{"get"}}}
+	subjects := []rbacv1.Subject{{Kind: "ServiceAccount", Name: "ingress", Namespace: "d8-ingress"}}
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: []Object{
+		{Kind: "Role", Name: "access-to-m", Namespace: "d8-m", Path: "templates/rbac-to-us.yaml", Located: true, Rules: rules},
+		{Kind: "RoleBinding", Name: "access-to-m", Namespace: "d8-m", Path: "templates/rbac-to-us.yaml", Located: true,
+			RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "access-to-m"}, Subjects: subjects},
+	}})
+
+	require.Len(t, got.Decl.Access, 1)
+	assert.Equal(t, "access-to-m", got.Decl.Access[0].Name)
+	assert.NotContains(t, strings.Join(got.Notes, "\n"), "will be named")
+
+	model, err := generate.Build(generate.Input{Module: "m", Namespace: "d8-m", Decl: got.Decl})
+	require.NoError(t, err)
+
+	f := model.File("templates/rbac-to-us.yaml")
+	require.NotNil(t, f)
+	assert.Equal(t, "d8-m/Role/access-to-m", f.Objects[0].Identity())
+	assert.Equal(t, "d8-m/RoleBinding/access-to-m", f.Objects[1].Identity())
+}
+
 // An object is left hand-written once, with one reason, however many passes would name it.
 func TestBuild_UnmanagedOnce(t *testing.T) {
 	objects := []Object{
