@@ -192,11 +192,15 @@ type PolicyRule struct {
 type ServiceAccount struct {
 	Name string `yaml:"name"`
 	// Path is the component directory under templates/; empty means the module root file.
-	Path           string            `yaml:"path,omitempty"`
-	When           string            `yaml:"when,omitempty"`
-	Labels         map[string]string `yaml:"labels,omitempty"`
-	ClusterRules   []PolicyRule      `yaml:"clusterRules,omitempty"`
-	NamespaceRules []PolicyRule      `yaml:"namespaceRules,omitempty"`
+	Path         string            `yaml:"path,omitempty"`
+	When         string            `yaml:"when,omitempty"`
+	Labels       map[string]string `yaml:"labels,omitempty"`
+	ClusterRules []PolicyRule      `yaml:"clusterRules,omitempty"`
+	// ClusterRoleBindingName names the ClusterRoleBinding of ClusterRules instead of the ClusterRole's
+	// name, d8:<module>:<name>: the name the binding had before the declaration, which the bootstrap
+	// keeps where the placement rule accepts it.
+	ClusterRoleBindingName string       `yaml:"clusterRoleBindingName,omitempty"`
+	NamespaceRules         []PolicyRule `yaml:"namespaceRules,omitempty"`
 	// RoleName names the Role of NamespaceRules instead of rbaccontract.AccountRoleName, and
 	// RoleBindingName its RoleBinding instead of the Role's name: the names the objects had before the
 	// declaration, which the bootstrap keeps where the placement rule accepts them.
@@ -222,6 +226,19 @@ type ServiceAccount struct {
 	AutomountToken *bool `yaml:"automountServiceAccountToken,omitempty"`
 }
 
+// ClusterRoleNames returns the names of the ClusterRole of ClusterRules, d8:<module>:<name>, and of its
+// ClusterRoleBinding: ClusterRoleBindingName, else the ClusterRole's.
+func (sa ServiceAccount) ClusterRoleNames(module string) (string, string) {
+	role := "d8:" + module + ":" + sa.Name
+
+	binding := sa.ClusterRoleBindingName
+	if binding == "" {
+		binding = role
+	}
+
+	return role, binding
+}
+
 // NamespaceRoleNames returns the names of the Role of NamespaceRules and of its RoleBinding: RoleName,
 // else the name the placement rule wants (rbaccontract.AccountRoleName); RoleBindingName, else the
 // Role's.
@@ -240,15 +257,28 @@ func (sa ServiceAccount) NamespaceRoleNames(module string) (string, string) {
 }
 
 // ExtraClusterRole is one more ClusterRole in a ServiceAccount's file. Bind unset or true also
-// produces the ClusterRoleBinding of the same name to the account; false leaves the role unbound.
+// produces the ClusterRoleBinding to the account, of the same name or BindingName; false leaves the
+// role unbound.
 type ExtraClusterRole struct {
-	Name  string       `yaml:"name"`
-	Rules []PolicyRule `yaml:"rules"`
-	Bind  *bool        `yaml:"bind,omitempty"`
+	Name string `yaml:"name"`
+	// BindingName names the ClusterRoleBinding instead of the role's full name: the name the binding had
+	// before the declaration, which the bootstrap keeps where the placement rule accepts it.
+	BindingName string       `yaml:"bindingName,omitempty"`
+	Rules       []PolicyRule `yaml:"rules"`
+	Bind        *bool        `yaml:"bind,omitempty"`
 }
 
 // IsBound reports whether the role is bound to its account (the default).
 func (r ExtraClusterRole) IsBound() bool { return r.Bind == nil || *r.Bind }
+
+// BindingNameOf is the name of the role's ClusterRoleBinding: BindingName, else the role's full name.
+func (r ExtraClusterRole) BindingNameOf(module, account string) string {
+	if r.BindingName != "" {
+		return r.BindingName
+	}
+
+	return r.FullName(module, account)
+}
 
 // FullName returns the ClusterRole name: the given one when it already starts with d8:, else
 // d8:<module>:<account>:<name>.

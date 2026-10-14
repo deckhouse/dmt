@@ -828,16 +828,15 @@ func (b *builder) serviceAccounts() {
 			switch {
 			case exclusive && cr.Name == clusterName && e.ClusterRules == nil:
 				e.ClusterRules = policyRules(cr.Rules)
-
-				b.rename("ClusterRoleBinding", crb.Name, clusterName)
+				e.ClusterRoleBindingName = b.keptName(accountFile(e.Path), "ClusterRoleBinding", "", crb.Name, clusterName)
 			case exclusive:
 				extra := rbacyaml.ExtraClusterRole{Name: strings.TrimPrefix(cr.Name, clusterName+":"), Rules: policyRules(cr.Rules)}
 				if !strings.HasPrefix(cr.Name, clusterName+":") && !strings.HasPrefix(cr.Name, "d8:") {
 					b.rename("ClusterRole", cr.Name, extra.FullName(b.in.Module, sa.Name))
 				}
 
+				extra.BindingName = b.keptName(accountFile(e.Path), "ClusterRoleBinding", "", crb.Name, extra.FullName(b.in.Module, sa.Name))
 				e.ExtraClusterRoles = append(e.ExtraClusterRoles, extra)
-				b.rename("ClusterRoleBinding", crb.Name, extra.FullName(b.in.Module, sa.Name))
 			case slices.ContainsFunc(e.BindClusterRoles, func(r rbacyaml.ClusterRoleRef) bool { return r.Name == crb.RoleRef.Name }):
 				// A second binding of the same account to the same role grants nothing more, and the
 				// generator writes one binding per role: it folds into the first.

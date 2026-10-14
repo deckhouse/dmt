@@ -644,6 +644,7 @@ func validateServiceAccounts(accounts []ServiceAccount, report reporter) {
 		validatePolicyRules(sa.ClusterRules, where+".clusterRules", report)
 		validatePolicyRules(sa.NamespaceRules, where+".namespaceRules", report)
 
+		validateAccountNameField(sa.ClusterRoleBindingName, where+".clusterRoleBindingName", len(sa.ClusterRules) > 0, "the ClusterRoleBinding of clusterRules, and the account has no clusterRules", report)
 		validateAccountNameField(sa.RoleName, where+".roleName", len(sa.NamespaceRules) > 0, "the Role of namespaceRules, and the account has no namespaceRules", report)
 		validateAccountNameField(sa.RoleBindingName, where+".roleBindingName", len(sa.NamespaceRules) > 0, "the RoleBinding of namespaceRules, and the account has no namespaceRules", report)
 
@@ -668,6 +669,8 @@ func validateServiceAccounts(accounts []ServiceAccount, report reporter) {
 			if len(extra.Rules) == 0 {
 				report("%s (%s): rules is required", ewhere, extra.Name)
 			}
+
+			validateAccountNameField(extra.BindingName, fmt.Sprintf("%s (%s).bindingName", ewhere, extra.Name), extra.IsBound(), "the ClusterRoleBinding of the role, and bind: false writes none", report)
 
 			validatePolicyRules(extra.Rules, ewhere+".rules", report)
 		}
