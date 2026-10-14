@@ -308,13 +308,15 @@ func TestBuild_PrometheusAccessEntries(t *testing.T) {
 		"d8-observer/RoleBinding/access-to-observer@" + gate,
 		"d8-observer/Role/access-to-observer-metrics@",
 		"d8-observer/RoleBinding/access-to-observer-metrics@",
+		"d8-observer/Role/access-to-observer-http@",
+		"d8-observer/RoleBinding/access-to-observer-http@",
 	}, ids("templates/rbac-to-us.yaml"))
 
 	assert.Equal(t, []string{
 		"d8-observer/Role/access-to-dex-prometheus-metrics@",
 		"d8-observer/RoleBinding/access-to-dex-prometheus-metrics@(" + gate + ")",
-		"d8-observer/Role/access-to-dex-reader@",
-		"d8-observer/RoleBinding/access-to-dex-reader@",
+		"d8-observer/Role/access-to-dex-configmap-reader@",
+		"d8-observer/RoleBinding/access-to-dex-configmap-reader-binding@",
 	}, ids("templates/dex/rbac-to-us.yaml"), "the scrape access comes before the access entries of the file")
 
 	metrics := model.File("templates/rbac-to-us.yaml").Objects[2]
@@ -330,6 +332,50 @@ func TestBuild_PrometheusAccessEntries(t *testing.T) {
 	reversed, err := Build(in)
 	require.NoError(t, err)
 	assert.Equal(t, Render(model), Render(reversed))
+}
+
+// access[] objects take roleName and bindingName as they are, the binding the role's name by default,
+// and a name that already carries the prefix of its file is not prefixed again.
+func TestBuild_AccessObjectNames(t *testing.T) {
+	model, err := Build(observerInput(t))
+	require.NoError(t, err)
+
+	refs := func(path string) []string {
+		f := model.File(path)
+		require.NotNil(t, f, path)
+
+		out := make([]string, 0, len(f.Objects))
+
+		for _, o := range f.Objects {
+			if strings.Contains(o.Name, "prometheus") || o.Kind == "ServiceAccount" || o.Name == "access-to-observer-metrics" || f.Path == "templates/controller/rbac-for-us.yaml" {
+				continue
+			}
+
+			id := o.Identity()
+			if o.RoleRefName != "" {
+				id += " -> " + o.RoleRefName
+			}
+
+			out = append(out, id)
+		}
+
+		return out
+	}
+
+	assert.Equal(t, []string{
+		"d8-observer/Role/access-to-observer",
+		"d8-observer/RoleBinding/access-to-observer -> access-to-observer",
+		"d8-observer/Role/access-to-observer-http",
+		"d8-observer/RoleBinding/access-to-observer-http -> access-to-observer-http",
+	}, refs("templates/rbac-to-us.yaml"), "the scrape access comes first; the access name is not prefixed again")
+	assert.Equal(t, []string{
+		"ClusterRole/d8:observer:accessible-namespaces-reader",
+		"ClusterRoleBinding/d8:observer:accessible-namespaces-reader:system-authenticated -> d8:observer:accessible-namespaces-reader",
+	}, refs("templates/rbac-for-us.yaml"))
+	assert.Equal(t, []string{
+		"d8-observer/Role/access-to-dex-configmap-reader",
+		"d8-observer/RoleBinding/access-to-dex-configmap-reader-binding -> access-to-dex-configmap-reader",
+	}, refs("templates/dex/rbac-to-us.yaml"))
 }
 
 // The first declarations wrote prometheusAccess as one mapping (modules/101-cert-manager/rbac.yaml in

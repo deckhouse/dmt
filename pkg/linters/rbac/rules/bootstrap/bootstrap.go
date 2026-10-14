@@ -209,16 +209,69 @@ func (b *builder) ns(o Object) string {
 }
 
 func (b *builder) rename(kind, from, to string) {
+	b.renameBecause(kind, from, to, "")
+}
+
+// renameBecause notes a rename with the reason the object cannot keep its name, when there is one.
+func (b *builder) renameBecause(kind, from, to, why string) {
 	if from == to {
 		return
 	}
 
+	if why != "" {
+		why = ": " + why
+	}
+
 	if path, ok := b.in.LeftAsIs[b.producedID(kind, to)]; ok {
-		b.note("%s %s keeps its name for now: the declaration names it %s, but --fix leaves %s as it is until what \"dmt lint\" reports on that file is resolved", kind, from, to, path)
+		b.note("%s %s keeps its name for now: the declaration names it %s, but --fix leaves %s as it is until what \"dmt lint\" reports on that file is resolved%s", kind, from, to, path, why)
 		return
 	}
 
-	b.note("%s %s will be named %s by --fix", kind, from, to)
+	b.note("%s %s will be named %s by --fix%s", kind, from, to, why)
+}
+
+// keptName is the name field of an object the declaration writes into file that is named name today
+// and that the declaration would name derived: "" for the derived name, or name. The object keeps its
+// name where the placement rule, with its exclusions, accepts it in that file, or refuses the derived
+// name as well -- a rename would gain nothing, and a note says so. Otherwise --fix renames it, and the
+// note says why. namespace is the object's, "" for a cluster-scoped one; outside the module namespace
+// the notes name the object namespace/name.
+func (b *builder) keptName(file, kind, namespace, name, derived string) string {
+	if name == derived {
+		return ""
+	}
+
+	shown := func(n string) string {
+		if namespace != "" && namespace != b.in.Namespace {
+			return namespace + "/" + n
+		}
+
+		return n
+	}
+
+	switch {
+	case b.placementAccepts(file, kind, name, namespace):
+		return name
+	case b.in.PlacementAccepts == nil:
+		b.rename(kind, shown(name), shown(derived))
+	case !b.placementAccepts(file, kind, derived, namespace):
+		b.note("%s %s keeps its name: the placement rule refuses it in %s, and the name the declaration would give it (%s) as well -- exclude it from the placement rule, or rename it in the template as the rule wants", kind, shown(name), file, derived)
+
+		return name
+	default:
+		b.renameBecause(kind, shown(name), shown(derived), "the placement rule refuses "+name+" in "+file)
+	}
+
+	return ""
+}
+
+// accountFile is the template the declaration writes an account's objects to.
+func accountFile(path string) string {
+	if path == "" {
+		return "templates/rbac-for-us.yaml"
+	}
+
+	return "templates/" + path + "/rbac-for-us.yaml"
 }
 
 // AccountFieldAdvice says how a ServiceAccount loses a field the declaration cannot carry while its
@@ -923,11 +976,17 @@ func (b *builder) otherBindings() {
 			continue
 		}
 
-		name := strings.TrimPrefix(cr.Name, "d8:"+b.in.Module+":")
-		b.decl.Access = append(b.decl.Access, rbacyaml.Access{Name: name, Path: componentOf(cr.Path, "rbac-for-us.yaml"), When: accessWhen(cr, crb),
-			Labels: b.sharedLabels(cr, crb), Annotations: b.sharedAnnotations(cr, crb), Subjects: subjects(crb.Subjects), ClusterRules: policyRules(cr.Rules)})
-		b.rename("ClusterRoleBinding", crb.Name, "d8:"+b.in.Module+":"+name)
-		b.rename("ClusterRole", cr.Name, "d8:"+b.in.Module+":"+name)
+		entry := rbacyaml.Access{Name: strings.TrimPrefix(cr.Name, "d8:"+b.in.Module+":"), Path: componentOf(cr.Path, "rbac-for-us.yaml"), When: accessWhen(cr, crb),
+			Labels: b.sharedLabels(cr, crb), Annotations: b.sharedAnnotations(cr, crb), Subjects: subjects(crb.Subjects), ClusterRules: policyRules(cr.Rules)}
+		file := accountFile(entry.Path)
+
+		role, _ := entry.ObjectNames(b.in.Module)
+		entry.RoleName = b.keptName(file, "ClusterRole", "", cr.Name, role)
+
+		role, _ = entry.ObjectNames(b.in.Module)
+		entry.BindingName = b.keptName(file, "ClusterRoleBinding", "", crb.Name, role)
+
+		b.decl.Access = append(b.decl.Access, entry)
 		b.mark(cr)
 		b.mark(crb)
 	}
@@ -953,7 +1012,7 @@ func (b *builder) otherBindings() {
 		}
 
 		path := componentOf(role.Path, "rbac-to-us.yaml")
-		name := rb.Name
+		name := role.Name
 
 		// The entry name is what follows the placement prefix: access-to-<directory>- in a
 		// component file, access-to-<module>- (with or without the directory) at the root.
@@ -968,10 +1027,21 @@ func (b *builder) otherBindings() {
 			}
 		}
 
-		b.decl.Access = append(b.decl.Access, rbacyaml.Access{Name: name, Path: path, When: accessWhen(role, rb),
-			Labels: b.sharedLabels(role, rb), Annotations: b.sharedAnnotations(role, rb), Subjects: subjects(rb.Subjects), NamespaceRules: policyRules(role.Rules)})
-		b.rename("Role", role.Name, rbaccontract.AccessRoleName(b.in.Module, path, name))
-		b.rename("RoleBinding", rb.Name, rbaccontract.AccessRoleName(b.in.Module, path, name))
+		entry := rbacyaml.Access{Name: name, Path: path, When: accessWhen(role, rb),
+			Labels: b.sharedLabels(role, rb), Annotations: b.sharedAnnotations(role, rb), Subjects: subjects(rb.Subjects), NamespaceRules: policyRules(role.Rules)}
+
+		file := "templates/rbac-to-us.yaml"
+		if path != "" {
+			file = "templates/" + path + "/rbac-to-us.yaml"
+		}
+
+		derived, _ := entry.ObjectNames(b.in.Module)
+		entry.RoleName = b.keptName(file, "Role", b.in.Namespace, role.Name, derived)
+
+		derived, _ = entry.ObjectNames(b.in.Module)
+		entry.BindingName = b.keptName(file, "RoleBinding", b.in.Namespace, rb.Name, derived)
+
+		b.decl.Access = append(b.decl.Access, entry)
 		b.mark(role)
 		b.mark(rb)
 	}
@@ -1145,30 +1215,12 @@ func templateDir(path string) string {
 	return dir
 }
 
-// foreignBinding is the bindRoles entry of an account's RoleBinding to a Role of another namespace.
-// The binding keeps the name it has when the placement rule, with its exclusions, accepts it in the
-// file the declaration writes it to, or accepts the name it wants for the binding no better: a rename
-// would gain nothing. Otherwise --fix gives it the name the rule wants.
+// foreignBinding is the bindRoles entry of an account's RoleBinding to a Role of another namespace;
+// the binding keeps its name as keptName says.
 func (b *builder) foreignBinding(rb Object, path, account string) rbacyaml.RoleRef {
 	ref := rbacyaml.RoleRef{Namespace: b.ns(rb), Name: rb.RoleRef.Name}
 	derived := rbaccontract.AccountForeignBindingName(b.in.Module, path, account, ref.Namespace, ref.Name)
-
-	file := "templates/rbac-for-us.yaml"
-	if path != "" {
-		file = "templates/" + path + "/rbac-for-us.yaml"
-	}
-
-	switch {
-	case rb.Name == derived:
-	case b.placementAccepts(file, "RoleBinding", rb.Name, ref.Namespace):
-		ref.BindingName = rb.Name
-	case b.in.PlacementAccepts != nil && !b.placementAccepts(file, "RoleBinding", derived, ref.Namespace):
-		ref.BindingName = rb.Name
-
-		b.note("RoleBinding %s/%s keeps its name: the placement rule refuses it in %s, and the name the declaration would give it (%s) as well -- exclude the binding from placement, or bind a Role of a namespace the rule allows", ref.Namespace, rb.Name, file, derived)
-	default:
-		b.rename("RoleBinding", ref.Namespace+"/"+rb.Name, ref.Namespace+"/"+derived)
-	}
+	ref.BindingName = b.keptName(accountFile(path), "RoleBinding", ref.Namespace, rb.Name, derived)
 
 	return ref
 }

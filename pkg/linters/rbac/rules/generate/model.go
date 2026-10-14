@@ -544,17 +544,16 @@ func (b *builder) access() {
 			dir = "templates/" + a.Path + "/"
 		}
 
+		role, binding := a.ObjectNames(b.in.Module)
+
 		if len(a.ClusterRules) > 0 {
-			name := "d8:" + b.in.Module + ":" + a.Name
-			b.add(dir+"rbac-for-us.yaml", Object{Kind: "ClusterRole", Name: name, Class: ClassDeclared, When: a.When, Labels: copyMap(a.Labels), Annotations: copyMap(a.Annotations), Rules: policyRules(a.ClusterRules)})
-			b.add(dir+"rbac-for-us.yaml", Object{Kind: "ClusterRoleBinding", Name: name, Class: ClassDeclared, When: a.When, Labels: copyMap(a.Labels), Annotations: copyMap(a.Annotations), RoleRefKind: "ClusterRole", RoleRefName: name, Subjects: subjects})
+			b.add(dir+"rbac-for-us.yaml", Object{Kind: "ClusterRole", Name: role, Class: ClassDeclared, When: a.When, Labels: copyMap(a.Labels), Annotations: copyMap(a.Annotations), Rules: policyRules(a.ClusterRules)})
+			b.add(dir+"rbac-for-us.yaml", Object{Kind: "ClusterRoleBinding", Name: binding, Class: ClassDeclared, When: a.When, Labels: copyMap(a.Labels), Annotations: copyMap(a.Annotations), RoleRefKind: "ClusterRole", RoleRefName: role, Subjects: subjects})
 		}
 
 		if len(a.NamespaceRules) > 0 {
-			name := rbaccontract.AccessRoleName(b.in.Module, a.Path, a.Name)
-
-			b.add(dir+"rbac-to-us.yaml", Object{Kind: "Role", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, When: a.When, Labels: copyMap(a.Labels), Annotations: copyMap(a.Annotations), Rules: policyRules(a.NamespaceRules)})
-			b.add(dir+"rbac-to-us.yaml", Object{Kind: "RoleBinding", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, When: a.When, Labels: copyMap(a.Labels), Annotations: copyMap(a.Annotations), RoleRefKind: "Role", RoleRefName: name, Subjects: subjects})
+			b.add(dir+"rbac-to-us.yaml", Object{Kind: "Role", Name: role, Namespace: b.in.Namespace, Class: ClassDeclared, When: a.When, Labels: copyMap(a.Labels), Annotations: copyMap(a.Annotations), Rules: policyRules(a.NamespaceRules)})
+			b.add(dir+"rbac-to-us.yaml", Object{Kind: "RoleBinding", Name: binding, Namespace: b.in.Namespace, Class: ClassDeclared, When: a.When, Labels: copyMap(a.Labels), Annotations: copyMap(a.Annotations), RoleRefKind: "Role", RoleRefName: role, Subjects: subjects})
 		}
 	}
 }

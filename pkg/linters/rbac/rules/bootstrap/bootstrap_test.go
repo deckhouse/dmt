@@ -1090,6 +1090,114 @@ func TestBuild_AccessNamedAfterTheModuleKeepsItsName(t *testing.T) {
 	assert.Equal(t, "d8-m/RoleBinding/access-to-m", f.Objects[1].Identity())
 }
 
+// placementOf answers for the bootstrap as the placement rule of dmt does for the files the
+// declaration writes, in short: ClusterRoles and their bindings in rbac-for-us.yaml start with
+// d8:<module>; Roles and bindings of rbac-to-us.yaml start with access-to-<module> at the root and
+// access-to-<directory>- in a component directory, in the module namespace; those of a component's
+// rbac-for-us.yaml start with its directories joined by colons there, or with d8:<module>:<directories>
+// in kube-system.
+func placementOf(module, namespace string) func(path, kind, name, ns string) bool {
+	return func(path, kind, name, ns string) bool {
+		dir := strings.TrimSuffix(strings.TrimPrefix(path, "templates/"), "/"+filepath.Base(path))
+		if dir == filepath.Base(path) {
+			dir = ""
+		}
+
+		switch {
+		case kind == "ClusterRole" || kind == "ClusterRoleBinding":
+			return strings.HasSuffix(path, "rbac-for-us.yaml") && strings.HasPrefix(name, "d8:"+module)
+		case strings.HasSuffix(path, "rbac-to-us.yaml") && dir == "":
+			return ns == namespace && strings.HasPrefix(name, "access-to-"+module)
+		case strings.HasSuffix(path, "rbac-to-us.yaml"):
+			return ns == namespace && strings.HasPrefix(name, "access-to-"+strings.ReplaceAll(dir, "/", "-")+"-")
+		case dir == "":
+			return false
+		case strings.HasPrefix(name, strings.ReplaceAll(dir, "/", ":")):
+			return ns == namespace
+		default:
+			return ns == "kube-system" && strings.HasPrefix(name, "d8:"+module+":"+strings.ReplaceAll(dir, "/", ":"))
+		}
+	}
+}
+
+func TestPlacementOf(t *testing.T) {
+	accepts := placementOf("m", "d8-m")
+	assert.True(t, accepts("templates/rbac-for-us.yaml", "ClusterRoleBinding", "d8:m:reader:system-authenticated", ""))
+	assert.False(t, accepts("templates/rbac-for-us.yaml", "ClusterRole", "reader", ""))
+	assert.True(t, accepts("templates/rbac-to-us.yaml", "Role", "access-to-m", "d8-m"))
+	assert.False(t, accepts("templates/rbac-to-us.yaml", "Role", "bashible", "d8-m"))
+	assert.True(t, accepts("templates/dex/rbac-to-us.yaml", "RoleBinding", "access-to-dex-x", "d8-m"))
+	assert.True(t, accepts("templates/a/b/rbac-for-us.yaml", "Role", "a:b:leader", "d8-m"))
+	assert.True(t, accepts("templates/a/rbac-for-us.yaml", "RoleBinding", "d8:m:a:reader", "kube-system"))
+	assert.False(t, accepts("templates/a/rbac-for-us.yaml", "RoleBinding", "d8:m:a:reader", "d8-other"))
+}
+
+// access[] keeps the names its ClusterRole, Role and bindings have where the placement rule accepts
+// them, as roleName and bindingName (deckhouse main: user-authz's ...:system-authenticated bindings);
+// where the rule refuses the name, --fix renames the object and the note says why.
+func TestBuild_AccessKeepsTheNamesThePlacementRuleAccepts(t *testing.T) {
+	group := []rbacv1.Subject{{Kind: "Group", Name: "system:authenticated"}}
+	rules := []rbacv1.PolicyRule{{APIGroups: []string{""}, Resources: []string{"namespaces"}, Verbs: []string{"list"}}}
+	labels := map[string]string{"module": "m"}
+
+	objects := []Object{
+		{Kind: "ClusterRole", Name: "d8:m:reader", Path: "templates/rbac-for-us.yaml", Labels: labels, Rules: rules, Located: true},
+		{Kind: "ClusterRoleBinding", Name: "d8:m:reader:system-authenticated", Path: "templates/rbac-for-us.yaml", Labels: labels, Located: true,
+			RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: "d8:m:reader"}, Subjects: group},
+		{Kind: "ClusterRole", Name: "lister", Path: "templates/rbac-for-us.yaml", Labels: labels, Rules: rules, Located: true},
+		{Kind: "ClusterRoleBinding", Name: "lister", Path: "templates/rbac-for-us.yaml", Labels: labels, Located: true,
+			RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: "lister"}, Subjects: group},
+		{Kind: "Role", Name: "access-to-m-http", Namespace: "d8-m", Path: "templates/rbac-to-us.yaml", Labels: labels, Rules: rules, Located: true},
+		{Kind: "RoleBinding", Name: "access-to-m-http-binding", Namespace: "d8-m", Path: "templates/rbac-to-us.yaml", Labels: labels, Located: true,
+			RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "access-to-m-http"}, Subjects: group},
+		{Kind: "Role", Name: "bashible", Namespace: "d8-m", Path: "templates/rbac-to-us.yaml", Labels: labels, Rules: rules, Located: true},
+		{Kind: "RoleBinding", Name: "bashible", Namespace: "d8-m", Path: "templates/rbac-to-us.yaml", Labels: labels, Located: true,
+			RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "bashible"}, Subjects: group},
+	}
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: objects, PlacementAccepts: placementOf("m", "d8-m")})
+	require.Empty(t, got.Unmanaged)
+
+	byName := map[string]rbacyaml.Access{}
+	for _, a := range got.Decl.Access {
+		byName[a.Name] = a
+	}
+
+	assert.Equal(t, [2]string{"", "d8:m:reader:system-authenticated"}, [2]string{byName["reader"].RoleName, byName["reader"].BindingName})
+	assert.Equal(t, [2]string{"", "access-to-m-http-binding"}, [2]string{byName["http"].RoleName, byName["http"].BindingName}, "the entry is named after the Role")
+	assert.Equal(t, [2]string{"", ""}, [2]string{byName["lister"].RoleName, byName["lister"].BindingName})
+	assert.Equal(t, [2]string{"", ""}, [2]string{byName["bashible"].RoleName, byName["bashible"].BindingName})
+
+	notes := strings.Join(got.Notes, "\n")
+	assert.Contains(t, notes, "ClusterRole lister will be named d8:m:lister by --fix: the placement rule refuses lister in templates/rbac-for-us.yaml")
+	assert.Contains(t, notes, "ClusterRoleBinding lister will be named d8:m:lister by --fix: the placement rule refuses lister in templates/rbac-for-us.yaml")
+	assert.Contains(t, notes, "Role bashible will be named access-to-m-bashible by --fix: the placement rule refuses bashible in templates/rbac-to-us.yaml")
+	assert.NotContains(t, notes, "reader will be named")
+	assert.NotContains(t, notes, "http will be named")
+	assert.NotContains(t, notes, "http-binding will be named")
+
+	model, err := generate.Build(generate.Input{Module: "m", Namespace: "d8-m", Decl: got.Decl})
+	require.NoError(t, err)
+
+	ids := map[string]string{}
+
+	for _, f := range model.Files {
+		for _, o := range f.Objects {
+			ids[o.Identity()] = o.RoleRefName
+		}
+	}
+
+	assert.Equal(t, "d8:m:reader", ids["ClusterRoleBinding/d8:m:reader:system-authenticated"])
+	assert.Equal(t, "access-to-m-http", ids["d8-m/RoleBinding/access-to-m-http-binding"])
+	assert.Contains(t, ids, "d8-m/Role/access-to-m-http")
+
+	// Without the placement rule's answer every name is derived, as before.
+	got = Build(Input{Module: "m", Namespace: "d8-m", Objects: objects})
+	for _, a := range got.Decl.Access {
+		assert.Empty(t, a.RoleName+a.BindingName, a.Name)
+	}
+}
+
 // An object is left hand-written once, with one reason, however many passes would name it.
 func TestBuild_UnmanagedOnce(t *testing.T) {
 	objects := []Object{
