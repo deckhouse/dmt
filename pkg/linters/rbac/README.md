@@ -1521,7 +1521,7 @@ What the declaration produces (level `viewer` -> capability `view`, `manager` ->
 | `resources[].legacy.<Level>` | `templates/user-authz-cluster-roles.yaml` | ClusterRole `d8:user-authz:<module>:<kebab-level>` with the `user-authz.deckhouse.io/access-level` annotation |
 | `serviceAccounts[]` | `templates/[<path>/]rbac-for-us.yaml` | ServiceAccount, ClusterRole/ClusterRoleBinding `d8:<module>:<name>`, Role/RoleBinding `<name>`, the extra bindings |
 | `access[]` with `clusterRules` | `templates/rbac-for-us.yaml` | ClusterRole/ClusterRoleBinding `d8:<module>:<name>` |
-| `prometheusAccess[]`, `access[]` with `namespaceRules` | `templates/[<path>/]rbac-to-us.yaml` | Role/RoleBinding `access-to-<module>[-<name>]`; with `path` `access-to-<path, / as ->-<name>`, as the placement rule wants; a `prometheusAccess` entry without `path` and `name` is `access-to-<module>` |
+| `prometheusAccess[]`, `access[]` with `namespaceRules` | `templates/[<path>/]rbac-to-us.yaml` | Role/RoleBinding `access-to-<module>[-<name>]`; with `path` `access-to-<path, / as ->-<name>`, as the placement rule wants; a `prometheusAccess` entry without `path` and `name` is `access-to-<module>`. A name that already starts with that prefix (`access-to-<module>` itself at the root) is the object's name as it is: the prefix is never written twice |
 
 A system capability gets the `rbac.deckhouse.io/namespace` label of the module namespace unless that
 namespace is `default`: user-authz projects the module's use roles into it by the label, and
