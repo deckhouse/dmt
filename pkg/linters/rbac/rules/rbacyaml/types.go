@@ -264,7 +264,10 @@ type PrometheusAccess struct {
 	Path string `yaml:"path,omitempty"`
 	// Name names the objects access-to-<module>-<name> at the root, access-to-<path with dashes>-<name>
 	// under Path; empty means access-to-<module>.
-	Name         string   `yaml:"name,omitempty"`
+	Name string `yaml:"name,omitempty"`
+	// BindingName names the RoleBinding instead of the Role's name: the name a binding had beside its
+	// Role before the declaration, which the bootstrap keeps where the placement rule accepts it.
+	BindingName  string   `yaml:"bindingName,omitempty"`
 	Deployments  []string `yaml:"deployments,omitempty"`
 	DaemonSets   []string `yaml:"daemonsets,omitempty"`
 	StatefulSets []string `yaml:"statefulsets,omitempty"`
@@ -284,6 +287,15 @@ func (p PrometheusAccess) RoleName(module string) string {
 	}
 
 	return rbaccontract.AccessRoleName(module, p.Path, p.Name)
+}
+
+// BindingNameOf is the name of the entry's RoleBinding: BindingName, else the Role's name.
+func (p PrometheusAccess) BindingNameOf(module string) string {
+	if p.BindingName != "" {
+		return p.BindingName
+	}
+
+	return p.RoleName(module)
 }
 
 // File is the template the entry's objects go to, relative to the module root.

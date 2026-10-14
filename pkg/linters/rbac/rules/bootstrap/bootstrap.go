@@ -1081,7 +1081,7 @@ func (b *builder) prometheus(role, rb Object) bool {
 		}
 	}
 
-	place, why := b.prometheusPlace(role, rb)
+	place, why := b.prometheusPlace(role)
 	if why != "" {
 		b.note("Role %s keeps no name of its own in prometheusAccess: %s; it folds into access-to-%s in templates/rbac-to-us.yaml", role.Name, why, b.in.Module)
 	}
@@ -1090,8 +1090,18 @@ func (b *builder) prometheus(role, rb Object) bool {
 		return pa.Path == place.Path && pa.Name == place.Name
 	})
 
+	// A binding keeps its name beside a Role that keeps its own; one that folds with its Role takes the
+	// entry's.
+	bindingKept := false
+
 	if i < 0 {
 		place.When, place.Labels, place.Annotations = rb.When, b.sharedLabels(role, rb), b.sharedAnnotations(role, rb)
+
+		if why == "" {
+			place.BindingName = b.keptName(place.File(), "RoleBinding", b.in.Namespace, rb.Name, place.RoleName(b.in.Module))
+			bindingKept = true
+		}
+
 		b.decl.PrometheusAccess = append(b.decl.PrometheusAccess, place)
 		i = len(b.decl.PrometheusAccess) - 1
 
@@ -1130,9 +1140,11 @@ func (b *builder) prometheus(role, rb Object) bool {
 	sort.Strings(pa.DaemonSets)
 	sort.Strings(pa.StatefulSets)
 
-	name := pa.RoleName(b.in.Module)
-	b.rename("Role", role.Name, name)
-	b.rename("RoleBinding", rb.Name, name)
+	b.rename("Role", role.Name, pa.RoleName(b.in.Module))
+
+	if !bindingKept {
+		b.rename("RoleBinding", rb.Name, pa.BindingNameOf(b.in.Module))
+	}
 
 	for _, o := range []Object{role, rb} {
 		if o.Path != "" && o.Path != pa.File() {
@@ -1149,13 +1161,9 @@ func (b *builder) prometheus(role, rb Object) bool {
 // prometheusPlace returns the prometheusAccess entry that keeps the scrape Role's name: path and name
 // for access-to-<directory>-<name> of templates/<directory>/, name for access-to-<module>-<name>, neither
 // for access-to-<module>. The directory is the one of the Role's template, else the root. A name no
-// entry can express, or a binding named otherwise than its Role, gets the entry of access-to-<module>
-// and the reason.
-func (b *builder) prometheusPlace(role, rb Object) (rbacyaml.PrometheusAccess, string) {
-	if rb.Name != role.Name {
-		return rbacyaml.PrometheusAccess{}, fmt.Sprintf("its RoleBinding is named %s, and an entry names both alike", rb.Name)
-	}
-
+// entry can express -- one the placement rule refuses -- gets the entry of access-to-<module> and the
+// reason. The binding's name is the caller's: an entry carries it apart.
+func (b *builder) prometheusPlace(role Object) (rbacyaml.PrometheusAccess, string) {
 	candidates := []string{""}
 	if dir := templateDir(role.Path); dir != "" {
 		candidates = []string{dir, ""}

@@ -799,6 +799,10 @@ func validatePrometheusAccess(entries PrometheusAccessList, report reporter) {
 
 		validateComponentPath(pa.Path, where, report)
 
+		if pa.BindingName != "" {
+			validateRoleName(pa.BindingName, where+".bindingName", report)
+		}
+
 		if pa.Name != "" {
 			validateRoleName(pa.Name, where+".name", report)
 		} else if pa.Path != "" {

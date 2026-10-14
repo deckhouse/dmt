@@ -24,6 +24,11 @@ prometheusAccess:
   - name: metrics
     daemonsets: [agent]
     statefulsets: [store]
+  # the binding keeps the name it had beside its Role
+  - path: cloud-data-discoverer
+    name: role
+    bindingName: access-to-cloud-data-discoverer-binding
+    deployments: [cloud-data-discoverer]
   - path: dex
     name: prometheus-metrics
     deployments: [dex]
