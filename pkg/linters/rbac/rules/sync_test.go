@@ -1562,6 +1562,78 @@ func TestSync_TemplateNothingRenderedFromIsNotReported(t *testing.T) {
 	assert.Contains(t, strings.Join(texts(runSync(t, modulePath, store)), "\n"), "is declared but absent from the render")
 }
 
+// An object under `when` that no template holds is absent whatever the values: the render cannot
+// tell it from a condition that is false, the text can (pilot on user-authn, 2026-10-14: an account
+// whose existing file was emptied was lost in silence). The fix writes it back.
+func TestSync_ConditionalObjectNoTemplateHoldsIsReported(t *testing.T) {
+	const rel = "templates/cainjector/rbac-for-us.yaml"
+
+	t.Run("an emptied file", func(t *testing.T) {
+		resetFixState()
+		t.Cleanup(resetFixState)
+
+		modulePath := syncModuleDir(t)
+		model := syncModel(t, modulePath)
+		writeGenerated(t, modulePath, model)
+
+		file := model.File(rel)
+		require.NotNil(t, file)
+		require.NoError(t, os.WriteFile(filepath.Join(modulePath, rel), nil, 0o600))
+
+		// Nothing of the account renders, whether its condition holds or not.
+		store := renderedFrom(t, model, func(o *generate.Object) bool { return o.When == "" })
+
+		errorList := runSync(t, modulePath, store)
+		got := texts(errorList)
+		require.Len(t, got, 1, "got: %v", got)
+		assert.Contains(t, got[0], rel+" does not match rbac.yaml: ")
+
+		for _, o := range file.Objects {
+			assert.Contains(t, got[0], o.Identity()+" is declared but absent from the render and held by no template, so its `when` does not excuse it")
+		}
+
+		assert.Contains(t, got[0], "Run `dmt lint --linter rbac --fix` to rewrite the file from the declaration")
+
+		for _, fix := range errorList.GetFixes() {
+			fix()
+		}
+
+		for _, e := range errorList.GetErrors() {
+			require.NoError(t, e.FixError)
+		}
+
+		written, err := os.ReadFile(filepath.Join(modulePath, rel))
+		require.NoError(t, err)
+		assert.Equal(t, generate.RenderFile(*file), string(written))
+
+		// With the text back and the condition still false, nothing is reported.
+		resetFixState()
+		assert.Empty(t, texts(runSync(t, modulePath, store)))
+	})
+
+	t.Run("a document written by hand still holds it", func(t *testing.T) {
+		resetFixState()
+		t.Cleanup(resetFixState)
+
+		modulePath := syncModuleDir(t)
+		model := syncModel(t, modulePath)
+		writeGenerated(t, modulePath, model)
+
+		// An action the generator does not write makes the account's document unreadable to the
+		// lint's own reader; the template parser still reads its kind and name.
+		path := filepath.Join(modulePath, rel)
+		text, err := os.ReadFile(path)
+		require.NoError(t, err)
+
+		const account = "kind: ServiceAccount\nmetadata:\n  name: cainjector\n"
+		require.Contains(t, string(text), account)
+		require.NoError(t, os.WriteFile(path, []byte(strings.Replace(string(text), account, account+"  annotations: {{ toYaml .Values.certManager.annotations | nindent 4 }}\n", 1)), 0o600))
+
+		got := strings.Join(texts(runSync(t, modulePath, renderedFrom(t, model, func(o *generate.Object) bool { return o.When == "" }))), "\n")
+		assert.NotContains(t, got, "held by no template")
+	})
+}
+
 // A module.yaml that does not parse stops the rule instead of rewriting without subsystems; the
 // module linter reports it, and --fix leaves the module alone.
 func TestSync_BrokenModuleYAMLStops(t *testing.T) {
