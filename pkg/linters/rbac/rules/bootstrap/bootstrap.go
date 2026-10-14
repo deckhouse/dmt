@@ -87,6 +87,11 @@ type Input struct {
 	// Unrendered are the RBAC objects the template text holds that no render showed: under a
 	// condition false for the linter's values. The declaration does not hold them.
 	Unrendered []string
+	// PlacementAccepts reports whether the placement rule, with its exclusions, accepts an object of
+	// the kind and name in the namespace when it renders from the template path. A RoleBinding of
+	// bindRoles keeps the name the module gave it where the rule accepts it. Nil accepts none: every
+	// such binding gets the name the rule wants.
+	PlacementAccepts func(path, kind, name, namespace string) bool
 	// LeftAsIs maps an object the declaration produces (its generated identity: Kind/name, or
 	// namespace/Kind/name) to the template the fix of the templates leaves as it is, because the
 	// lint finds a case there the declaration does not close. A rename in such a file waits for
@@ -815,11 +820,10 @@ func (b *builder) serviceAccounts() {
 				// into one to a Role of that name would bind nothing (Kubernetes accepts a binding to a
 				// Role that does not exist).
 				b.unmanage(rb, "a RoleBinding to the ClusterRole "+rb.RoleRef.Name+", which bindRoles cannot express")
-			} else if ref := (rbacyaml.RoleRef{Namespace: b.ns(rb), Name: rb.RoleRef.Name}); slices.Contains(e.BindRoles, ref) {
-				b.note("RoleBinding %s/%s binds %s to the Role %s again; it folds into one", b.ns(rb), rb.Name, sa.Name, rb.RoleRef.Name)
+			} else if ns := b.ns(rb); slices.ContainsFunc(e.BindRoles, func(r rbacyaml.RoleRef) bool { return r.Refers(ns, rb.RoleRef.Name) }) {
+				b.note("RoleBinding %s/%s binds %s to the Role %s again; it folds into one", ns, rb.Name, sa.Name, rb.RoleRef.Name)
 			} else {
-				e.BindRoles = append(e.BindRoles, rbacyaml.RoleRef{Namespace: b.ns(rb), Name: rb.RoleRef.Name})
-				b.rename("RoleBinding", b.ns(rb)+"/"+rb.Name, b.ns(rb)+"/"+rbaccontract.AccountForeignBindingName(b.in.Module, e.Path, sa.Name, b.ns(rb), rb.RoleRef.Name))
+				e.BindRoles = append(e.BindRoles, b.foreignBinding(rb, e.Path, sa.Name))
 			}
 
 			if rb.RoleRef.Kind == "Role" {
@@ -1141,6 +1145,41 @@ func templateDir(path string) string {
 	return dir
 }
 
+// foreignBinding is the bindRoles entry of an account's RoleBinding to a Role of another namespace.
+// The binding keeps the name it has when the placement rule, with its exclusions, accepts it in the
+// file the declaration writes it to, or accepts the name it wants for the binding no better: a rename
+// would gain nothing. Otherwise --fix gives it the name the rule wants.
+func (b *builder) foreignBinding(rb Object, path, account string) rbacyaml.RoleRef {
+	ref := rbacyaml.RoleRef{Namespace: b.ns(rb), Name: rb.RoleRef.Name}
+	derived := rbaccontract.AccountForeignBindingName(b.in.Module, path, account, ref.Namespace, ref.Name)
+
+	file := "templates/rbac-for-us.yaml"
+	if path != "" {
+		file = "templates/" + path + "/rbac-for-us.yaml"
+	}
+
+	switch {
+	case rb.Name == derived:
+	case b.placementAccepts(file, "RoleBinding", rb.Name, ref.Namespace):
+		ref.BindingName = rb.Name
+	case b.in.PlacementAccepts != nil && !b.placementAccepts(file, "RoleBinding", derived, ref.Namespace):
+		ref.BindingName = rb.Name
+
+		b.note("RoleBinding %s/%s keeps its name: the placement rule refuses it in %s, and the name the declaration would give it (%s) as well -- exclude the binding from placement, or bind a Role of a namespace the rule allows", ref.Namespace, rb.Name, file, derived)
+	default:
+		b.rename("RoleBinding", ref.Namespace+"/"+rb.Name, ref.Namespace+"/"+derived)
+	}
+
+	return ref
+}
+
+// placementAccepts asks the placement rule, with its exclusions, about an object the declaration
+// would write under a name the module already has. Without the question answered every name is
+// derived, as the placement rule wants it.
+func (b *builder) placementAccepts(path, kind, name, namespace string) bool {
+	return b.in.PlacementAccepts != nil && b.in.PlacementAccepts(path, kind, name, namespace)
+}
+
 func (b *builder) leftovers() {
 	for _, o := range b.in.Objects {
 		if b.isUsed(o) {
@@ -1167,7 +1206,7 @@ func (b *builder) unboundRoleWhy(o Object) string {
 	var accounts []string
 
 	for _, sa := range b.decl.ServiceAccounts {
-		if slices.Contains(sa.BindRoles, ref) {
+		if slices.ContainsFunc(sa.BindRoles, func(r rbacyaml.RoleRef) bool { return r.Refers(ref.Namespace, ref.Name) }) {
 			accounts = append(accounts, sa.Name)
 		}
 	}

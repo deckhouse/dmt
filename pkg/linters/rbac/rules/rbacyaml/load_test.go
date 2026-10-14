@@ -202,6 +202,10 @@ func TestParse_RejectsWhatTheFormatDoesNotKnow(t *testing.T) {
 			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\nprometheusAccess:\n  deployments: {a: b}\n",
 			wantErr: "cannot unmarshal !!map into []string",
 		},
+		"unknown key in a bindRoles entry": {
+			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\nserviceAccounts:\n  - name: a\n    bindRoles: [{namespace: n, name: r, binding: b}]\n",
+			wantErr: "field binding not found",
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := Parse([]byte(tc.yaml))
@@ -800,6 +804,10 @@ func TestValidate_NamesPathsAndConditions(t *testing.T) {
 		"an entry of a list names no workload": {
 			yaml:    "prometheusAccess:\n  - {deployments: [a]}\n  - {name: metrics}\n",
 			wantErr: `prometheusAccess[1]: names no workload`,
+		},
+		"a binding name with a space": {
+			yaml:    "serviceAccounts:\n  - {name: a, bindRoles: [{namespace: n, name: r, bindingName: a b}]}\n",
+			wantErr: `serviceAccounts[0] (a).bindRoles[0].bindingName: "a b" is not a valid role name`,
 		},
 		"when over two lines": {
 			yaml:    "resources:\n  - group: x.io\n    resource: things\n    scope: Namespaced\n    when: |\n      .Values.a\n    namespace: {viewer: [get]}\n",

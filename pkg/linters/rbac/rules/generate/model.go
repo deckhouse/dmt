@@ -494,8 +494,13 @@ func (b *builder) serviceAccounts() {
 		}
 
 		for _, ref := range sa.BindRoles {
+			name := ref.BindingName
+			if name == "" {
+				name = rbaccontract.AccountForeignBindingName(b.in.Module, sa.Path, sa.Name, ref.Namespace, ref.Name)
+			}
+
 			b.add(path, Object{
-				Kind: "RoleBinding", Name: rbaccontract.AccountForeignBindingName(b.in.Module, sa.Path, sa.Name, ref.Namespace, ref.Name), Namespace: ref.Namespace, Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann),
+				Kind: "RoleBinding", Name: name, Namespace: ref.Namespace, Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann),
 				RoleRefKind: "Role", RoleRefName: ref.Name, Subjects: subject,
 			})
 		}

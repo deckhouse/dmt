@@ -224,130 +224,131 @@ func objectRBACPlacementRole(m pkg.Module, object storage.StoreObject, errorList
 	shortPath := object.ShortPath()
 	errorList = errorList.WithFilePath(shortPath)
 
-	switch {
-	case shortPath == RootRBACForUsPath:
-		handleRootRBACForUs(m, object, errorList)
-
-	case shortPath == RootRBACToUsPath:
-		handleRootRBACToUs(m, object, errorList)
-
-	case strings.HasSuffix(shortPath, "rbac-for-us.yaml"):
-		handleNestedRBACForUs(m, object, errorList)
-
-	case strings.HasSuffix(shortPath, "rbac-to-us.yaml"):
-		handleNestedRBACToUs(m, object, errorList)
-
-	default:
-		msgTemplate := `%s should be in "templates/rbac-for-us.yaml", "templates/rbac-to-us.yaml", ".*/rbac-to-us.yaml" or ".*/rbac-for-us.yaml"`
-		errorList.Errorf(msgTemplate, object.Unstructured.GetKind())
+	if finding := rolePlacementFinding(m.GetName(), m.GetNamespace(), shortPath, object.Unstructured.GetKind(), object.Unstructured.GetName(), object.Unstructured.GetNamespace()); finding != "" {
+		errorList.Errorf("%s", finding)
 	}
 }
 
-// handleRootRBACForUs applies to templates/rbac-for-us.yaml file's objects
-func handleRootRBACForUs(m pkg.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	prefix := "d8:" + m.GetName()
-	objectName := object.Unstructured.GetName()
-	objectKind := object.Unstructured.GetKind()
-	namespace := object.Unstructured.GetNamespace()
+// rolePlacementFinding is what the placement rule says about a Role or a RoleBinding of the module
+// named name in namespace that renders from shortPath, or "" when it accepts the object. The sync rule
+// asks it too, for a name the module already has, before it keeps the name in a first declaration.
+func rolePlacementFinding(module, moduleNamespace, shortPath, kind, name, namespace string) string {
+	switch {
+	case shortPath == RootRBACForUsPath:
+		return rootRBACForUsFinding(module, moduleNamespace, kind, name, namespace)
+
+	case shortPath == RootRBACToUsPath:
+		return rootRBACToUsFinding(module, moduleNamespace, kind, name, namespace)
+
+	case strings.HasSuffix(shortPath, "rbac-for-us.yaml"):
+		return nestedRBACForUsFinding(module, moduleNamespace, shortPath, kind, name, namespace)
+
+	case strings.HasSuffix(shortPath, "rbac-to-us.yaml"):
+		return nestedRBACToUsFinding(module, moduleNamespace, shortPath, kind, name, namespace)
+
+	default:
+		msgTemplate := `%s should be in "templates/rbac-for-us.yaml", "templates/rbac-to-us.yaml", ".*/rbac-to-us.yaml" or ".*/rbac-for-us.yaml"`
+		return fmt.Sprintf(msgTemplate, kind)
+	}
+}
+
+// rootRBACForUsFinding applies to templates/rbac-for-us.yaml file's objects
+func rootRBACForUsFinding(module, moduleNamespace, objectKind, objectName, namespace string) string {
+	prefix := "d8:" + module
 
 	switch {
-	case objectName == m.GetName() && namespace != m.GetNamespace():
+	case objectName == module && namespace != moduleNamespace:
 		if !isDeckhouseSystemNamespace(namespace) {
-			errorList.Errorf("%s in %q should be deployed in namespace \"d8-monitoring\", \"d8-system\" or %q", objectKind, RootRBACForUsPath, m.GetNamespace())
+			return fmt.Sprintf("%s in %q should be deployed in namespace \"d8-monitoring\", \"d8-system\" or %q", objectKind, RootRBACForUsPath, moduleNamespace)
 		}
 
 	case strings.HasPrefix(objectName, prefix):
 		if !isSystemNamespace(namespace) {
-			errorList.Errorf("%s in %q should be deployed in namespace \"default\" or \"kube-system\"", objectKind, RootRBACForUsPath)
+			return fmt.Sprintf("%s in %q should be deployed in namespace \"default\" or \"kube-system\"", objectKind, RootRBACForUsPath)
 		}
 
 	case !strings.HasPrefix(objectName, prefix):
 		if !isDeckhouseSystemNamespace(namespace) {
-			errorList.Errorf("%s in %q should be deployed in namespace %q", objectKind, RootRBACForUsPath, m.GetNamespace())
+			return fmt.Sprintf("%s in %q should be deployed in namespace %q", objectKind, RootRBACForUsPath, moduleNamespace)
 		}
 	}
+
+	return ""
 }
 
-// handleRootRBACToUs applies to templates/rbac-to-us.yaml file's objects
-func handleRootRBACToUs(m pkg.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	prefix := "access-to-" + m.GetName()
-	objectName := object.Unstructured.GetName()
-	objectKind := object.Unstructured.GetKind()
+// rootRBACToUsFinding applies to templates/rbac-to-us.yaml file's objects
+func rootRBACToUsFinding(module, moduleNamespace, objectKind, objectName, namespace string) string {
+	prefix := "access-to-" + module
 
 	if !strings.HasPrefix(objectName, prefix) {
-		errorList.Errorf("%s in %q should start with %q", objectKind, RootRBACToUsPath, prefix)
-		return
+		return fmt.Sprintf("%s in %q should start with %q", objectKind, RootRBACToUsPath, prefix)
 	}
 
-	namespace := object.Unstructured.GetNamespace()
-	if !isDeckhouseSystemNamespace(namespace) && namespace != m.GetNamespace() {
-		errorList.Errorf("%s in %q should be deployed in namespace \"d8-system\", \"d8-monitoring\" or %q", objectKind, RootRBACToUsPath, m.GetNamespace())
+	if !isDeckhouseSystemNamespace(namespace) && namespace != moduleNamespace {
+		return fmt.Sprintf("%s in %q should be deployed in namespace \"d8-system\", \"d8-monitoring\" or %q", objectKind, RootRBACToUsPath, moduleNamespace)
 	}
+
+	return ""
 }
 
-// handleNestedRBACForUs applies to templates/**/rbac-for-us.yaml file's objects
-func handleNestedRBACForUs(m pkg.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	objectName := object.Unstructured.GetName()
-	objectKind := object.Unstructured.GetKind()
-	shortPath := object.ShortPath()
-	namespace := object.Unstructured.GetNamespace()
-
+// nestedRBACForUsFinding applies to templates/**/rbac-for-us.yaml file's objects
+func nestedRBACForUsFinding(module, moduleNamespace, shortPath, objectKind, objectName, namespace string) string {
 	parts := strings.Split(
 		strings.TrimPrefix(strings.TrimSuffix(shortPath, "/rbac-for-us.yaml"), "templates/"),
 		string(os.PathSeparator),
 	)
 
 	localPrefix := strings.Join(parts, ":")
-	globalPrefix := fmt.Sprintf("%s:%s", m.GetName(), strings.Join(parts, ":"))
+	globalPrefix := fmt.Sprintf("%s:%s", module, strings.Join(parts, ":"))
 	systemPrefix := fmt.Sprintf("d8:%s", globalPrefix)
 
 	switch {
 	case strings.HasPrefix(objectName, localPrefix):
-		if namespace != m.GetNamespace() {
-			errorList.Errorf("%s with prefix %q should be deployed in namespace %q", objectKind, localPrefix, m.GetNamespace())
+		if namespace != moduleNamespace {
+			return fmt.Sprintf("%s with prefix %q should be deployed in namespace %q", objectKind, localPrefix, moduleNamespace)
 		}
 
 	case strings.HasPrefix(objectName, globalPrefix):
 		if !isDeckhouseSystemNamespace(namespace) {
-			errorList.Errorf("%s with prefix %q should be deployed in namespace \"d8-system\" or \"d8-monitoring\"", objectKind, globalPrefix)
+			return fmt.Sprintf("%s with prefix %q should be deployed in namespace \"d8-system\" or \"d8-monitoring\"", objectKind, globalPrefix)
 		}
 
 	case strings.HasPrefix(objectName, systemPrefix):
 		if !isSystemNamespace(namespace) {
-			errorList.Errorf("%s with prefix %q should be deployed in namespace \"default\" or \"kube-system\"", objectKind, systemPrefix)
+			return fmt.Sprintf("%s with prefix %q should be deployed in namespace \"default\" or \"kube-system\"", objectKind, systemPrefix)
 		}
 
 	default:
-		errorList.Errorf("%s in %q should start with %q or %q", objectKind, shortPath, localPrefix, globalPrefix)
+		return fmt.Sprintf("%s in %q should start with %q or %q", objectKind, shortPath, localPrefix, globalPrefix)
 	}
+
+	return ""
 }
 
-// handleNestedRBACToUs applies to templates/**/rbac-to-us.yaml file's objects
-func handleNestedRBACToUs(m pkg.Module, object storage.StoreObject, errorList *errors.LintRuleErrorsList) {
-	objectName := object.Unstructured.GetName()
-	objectKind := object.Unstructured.GetKind()
-	shortPath := object.ShortPath()
-	namespace := object.Unstructured.GetNamespace()
+// nestedRBACToUsFinding applies to templates/**/rbac-to-us.yaml file's objects
+func nestedRBACToUsFinding(module, moduleNamespace, shortPath, objectKind, objectName, namespace string) string {
 	parts := strings.Split(
 		strings.TrimPrefix(strings.TrimSuffix(shortPath, "/rbac-to-us.yaml"), "templates/"),
 		string(os.PathSeparator),
 	)
 
 	localPrefix := fmt.Sprintf("access-to-%s-", strings.Join(parts, "-"))
-	globalPrefix := fmt.Sprintf("access-to-%s-%s-", m.GetName(), strings.Join(parts, "-"))
+	globalPrefix := fmt.Sprintf("access-to-%s-%s-", module, strings.Join(parts, "-"))
 
 	switch {
 	case strings.HasPrefix(objectName, localPrefix):
-		if namespace != m.GetNamespace() {
-			errorList.Errorf("%s with prefix %q should be deployed in namespace %q", objectKind, globalPrefix, m.GetNamespace())
+		if namespace != moduleNamespace {
+			return fmt.Sprintf("%s with prefix %q should be deployed in namespace %q", objectKind, globalPrefix, moduleNamespace)
 		}
 
 	case strings.HasPrefix(objectName, globalPrefix):
 		if !isDeckhouseSystemNamespace(namespace) {
-			errorList.Errorf("%s with prefix %q should be deployed in namespace \"d8-system\" or \"d8-monitoring\"", objectKind, globalPrefix)
+			return fmt.Sprintf("%s with prefix %q should be deployed in namespace \"d8-system\" or \"d8-monitoring\"", objectKind, globalPrefix)
 		}
 
 	default:
-		errorList.Errorf("%s should start with %q or %q", objectKind, localPrefix, globalPrefix)
+		return fmt.Sprintf("%s should start with %q or %q", objectKind, localPrefix, globalPrefix)
 	}
+
+	return ""
 }

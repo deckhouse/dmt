@@ -963,6 +963,107 @@ func TestBuild_OneScrapeRoleWritesTheMapping(t *testing.T) {
 	assert.Contains(t, string(content), "prometheusAccess:\n  path: dex\n  name: prometheus-metrics\n  deployments:\n    - dex\n")
 }
 
+// An account's RoleBinding to a Role of another namespace keeps the name the module gave it when the
+// placement rule, with its exclusions, accepts it in the file the declaration writes it to
+// (security-events-manager, 2026-10-14: d8:security-events-manager:controller:log-shipper-secrets in
+// d8-log-shipper, excluded from placement). Otherwise --fix gives it the name the rule wants.
+func TestBuild_ForeignBindingKeepsItsName(t *testing.T) {
+	const path = "templates/controller/rbac-for-us.yaml"
+
+	labels := map[string]string{"module": "m"}
+	objects := []Object{
+		{Kind: "ServiceAccount", Name: "controller", Path: path, Labels: labels},
+		{Kind: "RoleBinding", Name: "d8:m:controller:log-shipper-secrets", Namespace: "d8-log-shipper", Path: path, Labels: labels,
+			RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "d8:m:controller:log-shipper-secrets"}, Subjects: []rbacv1.Subject{{Kind: "ServiceAccount", Name: "controller", Namespace: "d8-m"}}},
+		{Kind: "RoleBinding", Name: "d8:m:controller:extension-apiserver-authentication-reader", Namespace: "kube-system", Path: path, Labels: labels,
+			RoleRef: rbacv1.RoleRef{Kind: "Role", Name: "extension-apiserver-authentication-reader"}, Subjects: []rbacv1.Subject{{Kind: "ServiceAccount", Name: "controller", Namespace: "d8-m"}}},
+	}
+
+	var asked []string
+
+	accepts := func(path, kind, name, namespace string) bool {
+		asked = append(asked, strings.Join([]string{path, kind, namespace, name}, " "))
+		return name == "d8:m:controller:log-shipper-secrets"
+	}
+
+	for name, tc := range map[string]struct {
+		accepts func(path, kind, name, namespace string) bool
+		want    []rbacyaml.RoleRef
+		note    string
+	}{
+		"the placement rule accepts the name": {
+			accepts: accepts,
+			want: []rbacyaml.RoleRef{
+				{Namespace: "d8-log-shipper", Name: "d8:m:controller:log-shipper-secrets", BindingName: "d8:m:controller:log-shipper-secrets"},
+				{Namespace: "kube-system", Name: "extension-apiserver-authentication-reader"},
+			},
+		},
+		"the placement rule refuses the name and accepts the derived one": {
+			accepts: func(_, _, name, _ string) bool { return name == "m:controller:log-shipper-secrets" },
+			want: []rbacyaml.RoleRef{
+				{Namespace: "d8-log-shipper", Name: "d8:m:controller:log-shipper-secrets"},
+				{Namespace: "kube-system", Name: "extension-apiserver-authentication-reader"},
+			},
+			note: "RoleBinding d8-log-shipper/d8:m:controller:log-shipper-secrets will be named d8-log-shipper/m:controller:log-shipper-secrets by --fix",
+		},
+		// terraform-manager, 2026-10-14: a binding in the namespace of another module, which the rule
+		// refuses under either name -- a rename would gain nothing.
+		"the placement rule refuses both names": {
+			accepts: func(string, string, string, string) bool { return false },
+			want: []rbacyaml.RoleRef{
+				{Namespace: "d8-log-shipper", Name: "d8:m:controller:log-shipper-secrets", BindingName: "d8:m:controller:log-shipper-secrets"},
+				{Namespace: "kube-system", Name: "extension-apiserver-authentication-reader"},
+			},
+		},
+		"nobody asks the placement rule": {
+			want: []rbacyaml.RoleRef{
+				{Namespace: "d8-log-shipper", Name: "d8:m:controller:log-shipper-secrets"},
+				{Namespace: "kube-system", Name: "extension-apiserver-authentication-reader"},
+			},
+			note: "RoleBinding d8-log-shipper/d8:m:controller:log-shipper-secrets will be named d8-log-shipper/m:controller:log-shipper-secrets by --fix",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			asked = nil
+
+			got := Build(Input{Module: "m", Namespace: "d8-m", Objects: objects, PlacementAccepts: tc.accepts})
+			require.Len(t, got.Decl.ServiceAccounts, 1)
+			assert.Equal(t, "controller", got.Decl.ServiceAccounts[0].Path)
+			assert.ElementsMatch(t, tc.want, got.Decl.ServiceAccounts[0].BindRoles)
+
+			notes := strings.Join(got.Notes, "\n")
+			if tc.note == "" {
+				assert.NotContains(t, notes, "will be named")
+			} else {
+				assert.Contains(t, notes, tc.note)
+			}
+
+			keptRefused := strings.Contains(notes, "RoleBinding d8-log-shipper/d8:m:controller:log-shipper-secrets keeps its name: the placement rule refuses it in "+path+", and the name the declaration would give it (m:controller:log-shipper-secrets) as well")
+			assert.Equal(t, name == "the placement rule refuses both names", keptRefused, "the note on a name the rule refuses either way")
+
+			assert.NotContains(t, notes, "extension-apiserver-authentication-reader will be named", "the binding has the name the rule wants")
+
+			// The generator writes both bindings under the names the module has.
+			model, err := generate.Build(generate.Input{Module: "m", Namespace: "d8-m", Decl: got.Decl})
+			require.NoError(t, err)
+
+			ids := map[string]bool{}
+			for _, o := range model.File(path).Objects {
+				ids[o.Identity()] = true
+			}
+
+			assert.True(t, ids["kube-system/RoleBinding/d8:m:controller:extension-apiserver-authentication-reader"])
+			assert.Equal(t, tc.note == "", ids["d8-log-shipper/RoleBinding/d8:m:controller:log-shipper-secrets"])
+		})
+	}
+
+	asked = nil
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: objects, PlacementAccepts: accepts})
+	require.Len(t, got.Decl.ServiceAccounts, 1)
+	assert.Equal(t, []string{path + " RoleBinding d8-log-shipper d8:m:controller:log-shipper-secrets"}, asked,
+		"only a name other than the derived one is asked about, in the file the declaration writes it to")
+}
+
 // An object is left hand-written once, with one reason, however many passes would name it.
 func TestBuild_UnmanagedOnce(t *testing.T) {
 	objects := []Object{

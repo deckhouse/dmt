@@ -88,7 +88,8 @@ func (l *Rbac) rules() []pkg.Rule {
 	}
 
 	if !ignored(l.cfg.Rules.SyncRule) {
-		out = append(out, rules.NewSyncRule(l.cfg.ExcludeRules.Sync.Get(), m, level(l.cfg.Rules.SyncRule)))
+		out = append(out, rules.NewSyncRule(l.cfg.ExcludeRules.Sync.Get(), m, level(l.cfg.Rules.SyncRule)).
+			WithPlacementExcludes(l.cfg.ExcludeRules.Placement.Get()))
 	}
 
 	return out

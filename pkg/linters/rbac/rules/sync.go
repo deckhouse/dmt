@@ -68,6 +68,10 @@ type SyncRule struct {
 
 	module    pkg.Module
 	errorList *errors.LintRuleErrorsList
+
+	// placementExcludes are the exclude-rules of the placement rule: the bootstrap keeps a name
+	// the module already has where the placement rule, with them, accepts it.
+	placementExcludes pkg.KindRule
 }
 
 var _ pkg.Rule = (*SyncRule)(nil)
@@ -79,6 +83,28 @@ func NewSyncRule(excludeRules []pkg.KindRuleExclude, m pkg.Module, errorList *er
 		module:    m,
 		errorList: errorList.WithRule(SyncRuleName),
 	}
+}
+
+// WithPlacementExcludes gives the rule the exclude-rules of the placement rule; see placementAccepts.
+func (r *SyncRule) WithPlacementExcludes(excludeRules []pkg.KindRuleExclude) *SyncRule {
+	r.placementExcludes = pkg.KindRule{ExcludeRules: excludeRules}
+
+	return r
+}
+
+// placementAccepts reports whether the placement rule passes a Role or a RoleBinding of the module
+// named name in namespace that renders from the template path: its exclusions exempt it, or the
+// rule finds nothing. The bootstrap asks before it keeps a name the module already has.
+func (r *SyncRule) placementAccepts(path, kind, name, namespace string) bool {
+	if kind != "Role" && kind != "RoleBinding" {
+		return false
+	}
+
+	if !r.placementExcludes.Enabled(kind, name) {
+		return true
+	}
+
+	return rolePlacementFinding(r.module.GetName(), r.module.GetNamespace(), path, kind, name, namespace) == ""
 }
 
 // moduleMetadata is the part of module.yaml the generator reads.
@@ -1475,7 +1501,8 @@ func (r *SyncRule) bootstrap(declList *errors.LintRuleErrorsList) {
 	}
 
 	crds, _ := moduleCRDs(modulePath)
-	in := bootstrap.Input{Module: r.module.GetName(), Namespace: r.module.GetNamespace(), Subsystems: knownSubsystems(r.module, meta.Subsystems), CRDs: crdScopes(crds)}
+	in := bootstrap.Input{Module: r.module.GetName(), Namespace: r.module.GetNamespace(), Subsystems: knownSubsystems(r.module, meta.Subsystems), CRDs: crdScopes(crds),
+		PlacementAccepts: r.placementAccepts}
 
 	docs := map[string][]bootstrap.Doc{}
 

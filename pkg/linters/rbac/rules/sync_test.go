@@ -159,6 +159,14 @@ func writeGenerated(t *testing.T, modulePath string, model *generate.Model) {
 func runSync(t *testing.T, modulePath string, store *storage.UnstructuredObjectStore, excludes ...pkg.KindRuleExclude) *errors.LintRuleErrorsList {
 	t.Helper()
 
+	return runSyncOf(t, modulePath, store, nil, excludes...)
+}
+
+// runSyncOf runs the sync rule on the cert-manager module with the exclude-rules of the placement
+// rule and of sync.
+func runSyncOf(t *testing.T, modulePath string, store *storage.UnstructuredObjectStore, placement []pkg.KindRuleExclude, excludes ...pkg.KindRuleExclude) *errors.LintRuleErrorsList {
+	t.Helper()
+
 	m := mocks.NewModuleMock(minimock.NewController(t))
 	m.GetPathMock.Return(modulePath)
 	// The rule stops before reading the module when the declaration is missing or invalid.
@@ -168,7 +176,7 @@ func runSync(t *testing.T, modulePath string, store *storage.UnstructuredObjectS
 	m.GetObjectStoreMock.Optional().Return(store)
 
 	errorList := errors.NewLintRuleErrorsList()
-	NewSyncRule(excludes, m, errorList).Check(context.Background())
+	NewSyncRule(excludes, m, errorList).WithPlacementExcludes(placement).Check(context.Background())
 
 	return errorList
 }
@@ -1991,4 +1999,93 @@ func appendComment(t *testing.T, path string) {
 	content, err := os.ReadFile(path)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(path, append(content, []byte("# stale\n")...), 0o600))
+}
+
+// The bootstrap keeps the name of a RoleBinding to a Role of another namespace where the placement
+// rule accepts it -- with its exclusions -- in the file the declaration writes it to
+// (security-events-manager, 2026-10-14).
+func TestSync_PlacementAccepts(t *testing.T) {
+	m := mocks.NewModuleMock(minimock.NewController(t))
+	m.GetNameMock.Optional().Return("m")
+	m.GetNamespaceMock.Optional().Return("d8-m")
+
+	const path = "templates/controller/rbac-for-us.yaml"
+
+	plain := NewSyncRule(nil, m, errors.NewLintRuleErrorsList())
+	excluded := NewSyncRule(nil, m, errors.NewLintRuleErrorsList()).WithPlacementExcludes([]pkg.KindRuleExclude{{Kind: "RoleBinding", Name: "d8:m:controller:secrets"}})
+
+	for _, tc := range []struct {
+		rule                        *SyncRule
+		path, kind, name, namespace string
+		want                        bool
+	}{
+		{plain, path, "RoleBinding", "m:controller:secrets", "d8-log-shipper", true},
+		{plain, path, "RoleBinding", "d8:m:controller:secrets", "d8-log-shipper", false},
+		{excluded, path, "RoleBinding", "d8:m:controller:secrets", "d8-log-shipper", true},
+		{excluded, path, "Role", "d8:m:controller:secrets", "d8-log-shipper", false},
+		{plain, path, "RoleBinding", "d8:m:controller:reader", "kube-system", true},
+		{plain, "templates/rbac-to-us.yaml", "Role", "access-to-m-metrics", "d8-m", true},
+		{plain, "templates/dex/rbac-to-us.yaml", "Role", "access-to-m-metrics", "d8-m", false},
+		{plain, path, "ClusterRole", "d8:m:controller", "", false},
+	} {
+		assert.Equal(t, tc.want, tc.rule.placementAccepts(tc.path, tc.kind, tc.name, tc.namespace), "%s %s/%s in %s", tc.kind, tc.namespace, tc.name, tc.path)
+	}
+}
+
+// Without rbac.yaml the bootstrap keeps the name a module gave its RoleBinding in a namespace of the
+// platform when exclude-rules.placement exempts it, and the first --fix of the templates renames
+// nothing.
+func TestSync_BootstrapKeepsAnExcludedBindingName(t *testing.T) {
+	const old = "d8:cert-manager:cainjector:extension-apiserver-authentication-reader"
+
+	const renamed = "the declaration names it d8-system/cert-manager:cainjector:extension-apiserver-authentication-reader"
+
+	for name, tc := range map[string]struct {
+		placement     []pkg.KindRuleExclude
+		want, notWant string
+	}{
+		"excluded from placement": {
+			placement: []pkg.KindRuleExclude{{Kind: "RoleBinding", Name: old}},
+			want:      "bindingName: " + old,
+			notWant:   renamed,
+		},
+		"refused by placement": {
+			want:    renamed,
+			notWant: "bindingName:",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			resetFixState()
+			t.Cleanup(resetFixState)
+
+			modulePath := syncModuleDir(t)
+			model := syncModel(t, modulePath)
+			writeGenerated(t, modulePath, model)
+			require.NoError(t, os.Remove(rbacyaml.Path(modulePath)))
+
+			// The binding to the Role of kube-system lives in d8-system under the name of default and
+			// kube-system, which the placement rule refuses there.
+			store := renderedFrom(t, model, func(o *generate.Object) bool {
+				if o.Kind == "RoleBinding" && o.Name == old {
+					o.Namespace = "d8-system"
+				}
+
+				return true
+			})
+
+			errorList := runSyncOf(t, modulePath, store, tc.placement)
+			require.Len(t, errorList.GetFixes(), 1)
+
+			store.Reset()
+
+			for _, fix := range errorList.GetFixes() {
+				fix()
+			}
+
+			written, err := os.ReadFile(rbacyaml.Path(modulePath))
+			require.NoError(t, err)
+			assert.Contains(t, string(written), tc.want)
+			assert.NotContains(t, string(written), tc.notWant)
+		})
+	}
 }
