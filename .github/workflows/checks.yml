@@ -50,7 +50,6 @@ env:
   # https://github.com/actions/setup-go#supported-version-syntax
   GO_VERSION: '1.24'
   SKIP_LABEL: dmtlint-verify-skip
-  DECKHOUSE_REPO: https://github.com/deckhouse/deckhouse.git
   DECKHOUSE_REF: ${{ inputs.deckhouse_branch || 'main' }}
   TEMPLATE_REPO: https://github.com/deckhouse/modules-template.git
   TEMPLATE_REF: ${{ inputs.template_branch || 'main' }}
@@ -125,8 +124,13 @@ jobs:
 
       - name: Clone deckhouse (${{ env.DECKHOUSE_REF }})
         if: steps.skip.outputs.skip != 'true'
+        env:
+          DECKHOUSE_PRIVATE_REPO: ${{ secrets.DECKHOUSE_PRIVATE_REPO }}
+          PRIVATE_REPO_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
         run: |
-          git clone --depth 1 --branch "${DECKHOUSE_REF}" "${DECKHOUSE_REPO}" "${RUNNER_TEMP}/deckhouse-src"
+          git clone --depth 1 --branch "${DECKHOUSE_REF}" \
+            "https://oauth2:${PRIVATE_REPO_TOKEN}@${DECKHOUSE_PRIVATE_REPO#https://}" \
+            "${RUNNER_TEMP}/deckhouse-src"
 
       - name: Prepare /deckhouse
         if: steps.skip.outputs.skip != 'true'
