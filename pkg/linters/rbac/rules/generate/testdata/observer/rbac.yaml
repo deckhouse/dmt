@@ -7,6 +7,12 @@ serviceAccounts:
   - name: controller
     path: controller
     labels: {app: controller}
+    clusterRules:
+      - apiGroups: [""]
+        resources: [nodes]
+        verbs: [get, list, watch]
+    # the name the module gave the ClusterRoleBinding of d8:observer:controller
+    clusterRoleBindingName: d8:observer:controller-binding
     namespaceRules:
       - apiGroups: [coordination.k8s.io]
         resources: [leases]
@@ -20,6 +26,20 @@ serviceAccounts:
       # the name the module gave the binding
       - name: system:auth-delegator
         bindingName: d8:observer:controller:auth-delegator
+    extraClusterRoles:
+      # the name the module gave the binding of d8:observer:controller:manager-role
+      - name: manager-role
+        bindingName: d8:observer:controller:manager-rolebinding
+        rules:
+          - apiGroups: [observer.deckhouse.io]
+            resources: [observations]
+            verbs: [get, list, watch]
+      # the binding takes the role's name
+      - name: reader
+        rules:
+          - apiGroups: [observer.deckhouse.io]
+            resources: [observations/status]
+            verbs: [get]
     bindRoles:
       # the name the module gave the binding, which the placement rule accepts with an exclusion
       - namespace: d8-log-shipper

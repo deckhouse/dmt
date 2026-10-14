@@ -1406,6 +1406,77 @@ func TestBuild_AccountRoleKeepsItsNames(t *testing.T) {
 	})
 }
 
+// The ClusterRoleBinding of an account's own ClusterRole keeps its name as clusterRoleBindingName, and
+// the one of an extra ClusterRole as its bindingName, where the placement rule accepts it (deckhouse
+// main: cloud-provider-vcd's d8:cloud-provider-vcd:capcd-controller-manager-binding, node-manager's
+// ...:capi-controller-manager:manager-rolebinding); where the rule refuses the name, --fix renames the
+// binding and the note says why.
+func TestBuild_AccountClusterRoleBindingsKeepTheirNames(t *testing.T) {
+	const path = "templates/capcd/rbac-for-us.yaml"
+
+	labels := map[string]string{"module": "m"}
+	account := []rbacv1.Subject{{Kind: "ServiceAccount", Name: "capcd", Namespace: "d8-m"}}
+	rules := func(resource string) []rbacv1.PolicyRule {
+		return []rbacv1.PolicyRule{{APIGroups: []string{"infrastructure.cluster.x-k8s.io"}, Resources: []string{resource}, Verbs: []string{"get"}}}
+	}
+	pair := func(role, binding, resource string) []Object {
+		return []Object{
+			{Kind: "ClusterRole", Name: role, Path: path, Labels: labels, Rules: rules(resource), Located: true},
+			{Kind: "ClusterRoleBinding", Name: binding, Path: path, Labels: labels, Located: true,
+				RoleRef: rbacv1.RoleRef{Kind: "ClusterRole", Name: role}, Subjects: account},
+		}
+	}
+
+	objects := slices.Concat(
+		[]Object{{Kind: "ServiceAccount", Name: "capcd", Namespace: "d8-m", Path: path, Labels: labels, Located: true}},
+		pair("d8:m:capcd", "d8:m:capcd-binding", "vcdclusters"),
+		pair("d8:m:capcd:manager-role", "d8:m:capcd:manager-rolebinding", "vcdmachines"),
+		pair("d8:m:capcd:reader", "capcd-reader", "vcdmachinetemplates"),
+		pair("d8:m:capcd:writer", "d8:m:capcd:writer", "vcdclustertemplates"),
+	)
+
+	got := Build(Input{Module: "m", Namespace: "d8-m", Objects: objects, PlacementAccepts: placementOf("m", "d8-m")})
+	require.Empty(t, got.Unmanaged)
+	require.Len(t, got.Decl.ServiceAccounts, 1)
+
+	sa := got.Decl.ServiceAccounts[0]
+	assert.Equal(t, "d8:m:capcd-binding", sa.ClusterRoleBindingName)
+
+	bindings := map[string]string{}
+	for _, extra := range sa.ExtraClusterRoles {
+		bindings[extra.Name] = extra.BindingName
+	}
+
+	assert.Equal(t, map[string]string{"manager-role": "d8:m:capcd:manager-rolebinding", "reader": "", "writer": ""}, bindings)
+
+	notes := strings.Join(got.Notes, "\n")
+	assert.Contains(t, notes, "ClusterRoleBinding capcd-reader will be named d8:m:capcd:reader by --fix: the placement rule refuses capcd-reader in "+path)
+	assert.NotContains(t, notes, "d8:m:capcd-binding will be named")
+	assert.NotContains(t, notes, "manager-rolebinding will be named")
+	assert.NotContains(t, notes, "ClusterRoleBinding d8:m:capcd:writer will be named", "the binding has the name the declaration gives it")
+
+	// The written declaration validates, and the generator writes the kept names back.
+	content, err := Marshal(got)
+	require.NoError(t, err)
+
+	decl, err := rbacyaml.Parse(content)
+	require.NoError(t, err)
+	require.Empty(t, rbacyaml.Validate(decl, nil))
+
+	model, err := generate.Build(generate.Input{Module: "m", Namespace: "d8-m", Decl: decl})
+	require.NoError(t, err)
+
+	refs := map[string]string{}
+	for _, o := range model.File(path).Objects {
+		refs[o.Identity()] = o.RoleRefName
+	}
+
+	assert.Equal(t, "d8:m:capcd", refs["ClusterRoleBinding/d8:m:capcd-binding"])
+	assert.Equal(t, "d8:m:capcd:manager-role", refs["ClusterRoleBinding/d8:m:capcd:manager-rolebinding"])
+	assert.Equal(t, "d8:m:capcd:reader", refs["ClusterRoleBinding/d8:m:capcd:reader"])
+	assert.Equal(t, "d8:m:capcd:writer", refs["ClusterRoleBinding/d8:m:capcd:writer"])
+}
+
 // An object is left hand-written once, with one reason, however many passes would name it.
 func TestBuild_UnmanagedOnce(t *testing.T) {
 	objects := []Object{
