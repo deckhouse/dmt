@@ -272,6 +272,7 @@ func Build(in Input) Result {
 	b.capabilitiesAndLegacy()
 	b.serviceAccounts()
 	b.otherBindings()
+	b.decl.PrometheusAccess = b.decl.PrometheusAccess.Sorted()
 	b.leftovers()
 	b.resources()
 	b.dropped()
@@ -663,22 +664,9 @@ var pathRe = regexp.MustCompile(`^templates/(?:(.*)/)?rbac-for-us\.yaml$`)
 // module in default or kube-system), which would refuse the whole declaration: such an account, and
 // one at the root of templates/, goes to templates/rbac-for-us.yaml.
 func (b *builder) componentDir(sa Object) string {
-	rest, ok := strings.CutPrefix(sa.Path, "templates/")
-	if !ok || b.in.Namespace == "default" || b.in.Namespace == "kube-system" {
+	dir := templateDir(sa.Path)
+	if dir == "" || b.in.Namespace == "default" || b.in.Namespace == "kube-system" {
 		return ""
-	}
-
-	slash := strings.LastIndex(rest, "/")
-	if slash <= 0 {
-		return ""
-	}
-
-	dir := rest[:slash]
-
-	for _, segment := range strings.Split(dir, "/") {
-		if len(validation.IsDNS1123Label(segment)) > 0 {
-			return ""
-		}
 	}
 
 	named := strings.ReplaceAll(dir, "/", "-")
@@ -986,7 +974,9 @@ func (b *builder) otherBindings() {
 }
 
 // prometheus recognizes the scrape access: a Role of <kind>/prometheus-metrics rules bound to the
-// scraper. Several such Roles fold into one prometheusAccess.
+// scraper. Each such Role becomes a prometheusAccess entry with the name and in the component
+// directory it has; one whose name an entry cannot express folds into the entry of
+// access-to-<module> at the root, as do several of that name.
 func (b *builder) prometheus(role, rb Object) bool {
 	scraper := false
 
@@ -1017,9 +1007,19 @@ func (b *builder) prometheus(role, rb Object) bool {
 		}
 	}
 
-	first := b.decl.PrometheusAccess == nil
-	if first {
-		b.decl.PrometheusAccess = &rbacyaml.PrometheusAccess{When: rb.When, Labels: b.sharedLabels(role, rb), Annotations: b.sharedAnnotations(role, rb)}
+	place, why := b.prometheusPlace(role, rb)
+	if why != "" {
+		b.note("Role %s keeps no name of its own in prometheusAccess: %s; it folds into access-to-%s in templates/rbac-to-us.yaml", role.Name, why, b.in.Module)
+	}
+
+	i := slices.IndexFunc(b.decl.PrometheusAccess, func(pa rbacyaml.PrometheusAccess) bool {
+		return pa.Path == place.Path && pa.Name == place.Name
+	})
+
+	if i < 0 {
+		place.When, place.Labels, place.Annotations = rb.When, b.sharedLabels(role, rb), b.sharedAnnotations(role, rb)
+		b.decl.PrometheusAccess = append(b.decl.PrometheusAccess, place)
+		i = len(b.decl.PrometheusAccess) - 1
 
 		if !rb.Located {
 			b.note("prometheusAccess: the template of RoleBinding %s could not be read, so whether it gated the scraper binding is unknown; add `when: .Values.global.enabledModules | has \"prometheus\"` if it did", rb.Name)
@@ -1029,9 +1029,9 @@ func (b *builder) prometheus(role, rb Object) bool {
 		b.note("several Prometheus access Roles fold into one prometheusAccess (Role access-to-%s)", b.in.Module)
 	}
 
-	pa := b.decl.PrometheusAccess
+	pa := &b.decl.PrometheusAccess[i]
 
-	if !first && rb.When != pa.When && !strings.HasPrefix(pa.When, "TODO") {
+	if rb.When != pa.When && !strings.HasPrefix(pa.When, "TODO") {
 		pa.When = fmt.Sprintf("TODO: the scraper bindings render under different conditions (`%s`, `%s`); prometheusAccess has one", orAlways(pa.When), orAlways(rb.When))
 	}
 
@@ -1055,12 +1055,90 @@ func (b *builder) prometheus(role, rb Object) bool {
 	sort.Strings(pa.Deployments)
 	sort.Strings(pa.DaemonSets)
 	sort.Strings(pa.StatefulSets)
-	b.rename("Role", role.Name, "access-to-"+b.in.Module)
-	b.rename("RoleBinding", rb.Name, "access-to-"+b.in.Module)
+
+	name := pa.RoleName(b.in.Module)
+	b.rename("Role", role.Name, name)
+	b.rename("RoleBinding", rb.Name, name)
+
+	for _, o := range []Object{role, rb} {
+		if o.Path != "" && o.Path != pa.File() {
+			b.note("%s %s lives in %s; prometheusAccess keeps it in %s and --fix will write it there", o.Kind, o.Name, o.Path, pa.File())
+		}
+	}
+
 	b.mark(role)
 	b.mark(rb)
 
 	return true
+}
+
+// prometheusPlace returns the prometheusAccess entry that keeps the scrape Role's name: path and name
+// for access-to-<directory>-<name> of templates/<directory>/, name for access-to-<module>-<name>, neither
+// for access-to-<module>. The directory is the one of the Role's template, else the root. A name no
+// entry can express, or a binding named otherwise than its Role, gets the entry of access-to-<module>
+// and the reason.
+func (b *builder) prometheusPlace(role, rb Object) (rbacyaml.PrometheusAccess, string) {
+	if rb.Name != role.Name {
+		return rbacyaml.PrometheusAccess{}, fmt.Sprintf("its RoleBinding is named %s, and an entry names both alike", rb.Name)
+	}
+
+	candidates := []string{""}
+	if dir := templateDir(role.Path); dir != "" {
+		candidates = []string{dir, ""}
+	}
+
+	for _, path := range candidates {
+		if path == "" && role.Name == "access-to-"+b.in.Module {
+			return rbacyaml.PrometheusAccess{}, ""
+		}
+
+		prefix := "access-to-" + b.in.Module + "-"
+		if path != "" {
+			prefix = "access-to-" + strings.ReplaceAll(path, "/", "-") + "-"
+		}
+
+		name, ok := strings.CutPrefix(role.Name, prefix)
+		if !ok || name == "" {
+			continue
+		}
+
+		// The name is the one the placement rule wants in the entry's file, in the module namespace
+		// the entry writes to: nothing else to ask it.
+		if place := (rbacyaml.PrometheusAccess{Path: path, Name: name}); place.RoleName(b.in.Module) == role.Name {
+			return place, ""
+		}
+	}
+
+	if dir := templateDir(role.Path); dir != "" {
+		return rbacyaml.PrometheusAccess{}, fmt.Sprintf("the placement rule names a scrape Role access-to-%s-<name> in templates/%s/rbac-to-us.yaml and access-to-%s[-<name>] in templates/rbac-to-us.yaml", strings.ReplaceAll(dir, "/", "-"), dir, b.in.Module)
+	}
+
+	return rbacyaml.PrometheusAccess{}, fmt.Sprintf("the placement rule names a scrape Role access-to-%s[-<name>] in templates/rbac-to-us.yaml", b.in.Module)
+}
+
+// templateDir returns the component directory of templates/<dir>/<file>: the directories of a
+// template under templates/, when each is a name a declaration path accepts; "" for a template at
+// the root.
+func templateDir(path string) string {
+	rest, ok := strings.CutPrefix(path, "templates/")
+	if !ok {
+		return ""
+	}
+
+	slash := strings.LastIndex(rest, "/")
+	if slash <= 0 {
+		return ""
+	}
+
+	dir := rest[:slash]
+
+	for _, segment := range strings.Split(dir, "/") {
+		if len(validation.IsDNS1123Label(segment)) > 0 {
+			return ""
+		}
+	}
+
+	return dir
 }
 
 func (b *builder) leftovers() {

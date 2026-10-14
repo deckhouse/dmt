@@ -167,8 +167,8 @@ func TestBuild_TemplateConditions(t *testing.T) {
 	assert.Equal(t, "reader", got.Decl.Access[0].Name)
 	assert.True(t, strings.HasPrefix(got.Decl.Access[0].When, "TODO: ClusterRole d8:m:reader renders under `.Values.m.reader`"), got.Decl.Access[0].When)
 
-	require.NotNil(t, got.Decl.PrometheusAccess)
-	assert.Equal(t, gate, got.Decl.PrometheusAccess.When)
+	require.Len(t, got.Decl.PrometheusAccess, 1)
+	assert.Equal(t, gate, got.Decl.PrometheusAccess[0].When)
 	assert.NotContains(t, strings.Join(got.Notes, "\n"), "whether it gated the scraper binding")
 
 	unmanaged := strings.Join(got.Unmanaged, "\n")
