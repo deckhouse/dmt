@@ -319,6 +319,12 @@ func TestBuild_PrometheusAccessEntries(t *testing.T) {
 		"d8-observer/RoleBinding/access-to-dex-configmap-reader-binding@",
 	}, ids("templates/dex/rbac-to-us.yaml"), "the scrape access comes before the access entries of the file")
 
+	assert.Equal(t, []string{
+		"d8-observer/Role/access-to-cloud-data-discoverer-role@",
+		"d8-observer/RoleBinding/access-to-cloud-data-discoverer-binding@",
+	}, ids("templates/cloud-data-discoverer/rbac-to-us.yaml"), "bindingName names the binding")
+	assert.Equal(t, "access-to-cloud-data-discoverer-role", model.File("templates/cloud-data-discoverer/rbac-to-us.yaml").Objects[1].RoleRefName)
+
 	metrics := model.File("templates/rbac-to-us.yaml").Objects[2]
 	assert.Equal(t, []string{"daemonsets/prometheus-metrics", "statefulsets/prometheus-metrics"}, []string{metrics.Rules[0].Resources[0], metrics.Rules[1].Resources[0]})
 

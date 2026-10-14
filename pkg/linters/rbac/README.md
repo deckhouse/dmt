@@ -1476,6 +1476,7 @@ prometheusAccess:
     daemonsets: [agent]
   - path: webhook                   # access-to-webhook-prometheus-metrics in templates/webhook/rbac-to-us.yaml
     name: prometheus-metrics        # (a path needs a name: access-to-<path, / as ->-<name>)
+    bindingName: access-to-webhook-prometheus-metrics-binding   # optional; the binding takes the Role's name without it
     deployments: [webhook]
     labels: {app: webhook}          # labels and annotations go on the Role and the RoleBinding
 
@@ -1510,7 +1511,7 @@ Format rules the loader enforces:
 - `legacy.SuperAdmin` validates but is a warning: user-authz aggregates custom legacy roles for `User` through `ClusterAdmin` only.
 - `prometheusAccess` is one entry written as a mapping (the form of the first declarations) or a list of entries; a list of one entry is written back as the mapping. Each entry names at least one workload and produces a Role and a RoleBinding to the scraper in the module namespace: `access-to-<module>` in `templates/rbac-to-us.yaml` without `path` and `name`, `access-to-<module>-<name>` there with `name`, `access-to-<path, / as ->-<name>` in `templates/<path>/rbac-to-us.yaml` with both -- the names `access[]` gets, which the placement rule wants. A `path` needs a `name`, and two entries of one `path` and `name` are an error. `when` gates the RoleBinding of the Prometheus scraper (typically `.Values.global.enabledModules | has "prometheus"`); the Role stays unconditional.
 - `bindRoles[].bindingName` names the RoleBinding; without it the binding gets the name the placement rule wants (`d8:<module>:<account>:<role>` in `default` and `kube-system`, `<module>:<account>:<role>` in a namespace of the platform). It is a role name like the others (no `/`, `%` or whitespace); the placement rule judges it in the render, as any binding.
-- The other name fields work the same way, one per kind of object, each optional: `access[].roleName` names the ClusterRole (`clusterRules`) or the Role (`namespaceRules`) instead of `d8:<module>:<name>` or the `access-to-...` name, and `access[].bindingName` the binding instead of the role's name. They carry the names objects had before the declaration; the bootstrap writes them only where the placement rule accepts the name.
+- The other name fields work the same way, one per kind of object, each optional: `access[].roleName` names the ClusterRole (`clusterRules`) or the Role (`namespaceRules`) instead of `d8:<module>:<name>` or the `access-to-...` name, and `access[].bindingName` the binding instead of the role's name; `prometheusAccess[].bindingName` names the RoleBinding instead of the Role's name. They carry the names objects had before the declaration; the bootstrap writes one where the placement rule accepts the name, or refuses the derived name as well (see the bootstrap below).
 - Levels: `namespace` -- `viewer`, `user`, `manager`, `admin`, `superadmin`; `system` -- `viewer`, `manager`, `superadmin`; `legacy` -- `User`, `PrivilegedUser`, `Editor`, `Admin`, `ClusterEditor`, `ClusterAdmin`, `SuperAdmin`.
 - `namespace` levels are allowed only for `Namespaced` resources; a `Namespaced` resource at a `system` level needs a `reason`.
 - A `system` level never writes a namespaced resource through which a write grants the identity of a ServiceAccount of the module's namespace -- `pods`, `replicationcontrollers`, `podtemplates`, `secrets`, `serviceaccounts`, the `apps` and `batch` workloads, `roles`, `rolebindings` -- and never touches `pods/exec`, `pods/attach`, `pods/portforward`, `pods/ephemeralcontainers` or `serviceaccounts/token` at all, whatever the `reason`: the role model writes into the namespaces of the platform at the `superadmin` level only, so the holders of a subsystem `manager` must not reach the ServiceAccounts of the module through its capability. Read verbs on the resources stay allowed; grant the writes at a `namespace` level instead.
@@ -1719,11 +1720,14 @@ of named workloads -- and is an `access` entry or stays hand-written otherwise, 
 Each scrape Role gets an entry of its own that keeps its name: `path` is the component directory of its
 template when the name is `access-to-<directory>-<name>`, else the root with `access-to-<module>-<name>`
 or `access-to-<module>`. A Role of `templates/<dir>/<file>` keeps its directory and moves to its
-`rbac-to-us.yaml`, and a note says so. A name no entry can express (one the placement rule does not
-want, `access-to-<module>s`) or a RoleBinding named otherwise than its Role folds into
-`access-to-<module>` at the root, as several Roles of that name do, with a note on why and the rename.
+`rbac-to-us.yaml`, and a note says so. A name no entry can express -- one the placement rule does not
+want there, as vertical-pod-autoscaler's `access-to-vpa-metrics` in `templates/rbac-to-us.yaml` -- folds
+into `access-to-<module>` at the root, as several Roles of that name do, with a note on why and the
+rename. A RoleBinding named otherwise than its Role keeps its name as the entry's `bindingName`, as
+any name below.
 The bootstrap describes what exists and renames nothing it can keep: an object keeps the name it has,
-through the name field of its kind (`bindRoles[].bindingName`, `access[].roleName` and `bindingName`),
+through the name field of its kind (`bindRoles[].bindingName`, `access[].roleName` and `bindingName`,
+`prometheusAccess[].bindingName`),
 when the placement rule -- with its `exclude-rules.placement` -- accepts the name in the file the
 declaration writes the object to, or refuses the name the declaration would give it as well (a binding
 in the namespace of another module: a rename would gain nothing, and a note says so). Where the rule
