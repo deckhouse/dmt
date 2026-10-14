@@ -203,6 +203,9 @@ type syncRun struct {
 	// rendered is the identity of every rendered object; fromFile the rendered objects by template.
 	rendered map[string]struct{}
 	fromFile map[string]map[string]storage.StoreObject
+	// textDocs are the documents of every template as the template parser reads them, by path; read
+	// on first use (heldByText).
+	textDocs map[string][]bootstrap.Doc
 }
 
 // templateText is one template as the lint reads it; err is why it could not be read.
@@ -264,7 +267,7 @@ func (r *SyncRule) compareRender(run *syncRun) map[string][]string {
 
 		// A template that renders the scheme before 1.78 where the declaration produces the new one
 		// is named by the case that keeps its fix off (unfixable).
-		divergences[file.Path] = append(divergences[file.Path], compareFile(r.enabledObjects(run.withoutUnrendered(file)), run.actual, r.module.GetName(), holds)...)
+		divergences[file.Path] = append(divergences[file.Path], run.compareFile(r.enabledObjects(run.withoutUnrendered(file)), r.module.GetName(), holds)...)
 	}
 
 	// A condition the declaration puts an object or a rule under that the template does not hold
@@ -737,6 +740,46 @@ func (run *syncRun) elsewhere(id, path string) string {
 	return ""
 }
 
+// heldByText reports whether a template holds a document of the object by its text: one of its kind,
+// in its namespace when the document names one, under its name or a computed name that can produce
+// it. The template parser reads the kind and the name whatever else the document computes, so a
+// document written by hand counts. In the file the declaration puts the object in, an include of a
+// named template counts too: what it renders is not known. A template that cannot be read may hold
+// it.
+func (run *syncRun) heldByText(o generate.Object, where string) bool {
+	if run.textDocs == nil {
+		run.textDocs = make(map[string][]bootstrap.Doc, len(run.templates))
+
+		for path, text := range run.templates {
+			if text.err == nil {
+				run.textDocs[path] = bootstrap.TemplateDocs(text.content)
+			}
+		}
+	}
+
+	for path, text := range run.templates {
+		if text.err != nil {
+			return true
+		}
+
+		for _, d := range run.textDocs[path] {
+			if d.Library && path == where {
+				return true
+			}
+
+			if d.Kind != o.Kind || (d.Namespace != "" && o.Namespace != "" && d.Namespace != o.Namespace) {
+				continue
+			}
+
+			if d.Name == o.Name || (d.NamePattern != nil && d.NamePattern.MatchString(o.Name)) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 // notProduced names an object a file the declaration writes holds and the declaration does not
 // produce. A Role a produced binding refers to -- bindRoles names a Role and does not write it --
 // cannot be declared, only moved.
@@ -1095,15 +1138,23 @@ func renderedRules(object storage.StoreObject) []rbacv1.PolicyRule {
 }
 
 // compareFile lists the divergences between the objects a declared file holds and the render.
-// holds are the conditions the render shows to hold (holdingConditions).
-func compareFile(file generate.File, actual map[string]managedObject, module string, holds map[string]bool) []string {
+// holds are the conditions the render shows to hold (holdingConditions). An object under a `when`
+// that does not hold is excused while a template holds it by its text: absent from the render and
+// from every template, nothing renders it under any values, and the render cannot tell that from a
+// false condition. A declared file that does not exist says so for all of its objects (compareFiles).
+func (run *syncRun) compareFile(file generate.File, module string, holds map[string]bool) []string {
 	var out []string
 
+	_, exists := run.templates[file.Path]
+
 	for _, expected := range file.Objects {
-		act, ok := actual[expected.Identity()]
+		act, ok := run.actual[expected.Identity()]
 		if !ok {
-			if expected.When == "" || holds[expected.When] {
+			switch {
+			case expected.When == "" || holds[expected.When]:
 				out = append(out, fmt.Sprintf("%s is declared but absent from the render", expected.Identity()))
+			case exists && !run.heldByText(expected, file.Path):
+				out = append(out, fmt.Sprintf("%s is declared but absent from the render and held by no template, so its `when` does not excuse it", expected.Identity()))
 			}
 
 			continue
