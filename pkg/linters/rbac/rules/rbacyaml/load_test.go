@@ -26,6 +26,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
 
 // certManagerCRDs is what the linter sees in modules/101-cert-manager/crds/cert-manager/.
@@ -179,6 +180,27 @@ func TestParse_RejectsWhatTheFormatDoesNotKnow(t *testing.T) {
 		"not a mapping": {
 			yaml:    "- a\n- b\n",
 			wantErr: "parse rbac.yaml",
+		},
+		// prometheusAccess is read by an unmarshaller of its own, which refuses unknown keys too.
+		"unknown key in the prometheusAccess mapping": {
+			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\nprometheusAccess:\n  deployment: [a]\n",
+			wantErr: "line 3: field deployment not found in type rbacyaml.PrometheusAccess",
+		},
+		"unknown key in a prometheusAccess entry": {
+			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\nprometheusAccess:\n  - deployments: [a]\n    pods: [x]\n",
+			wantErr: "line 4: field pods not found in type rbacyaml.PrometheusAccess",
+		},
+		"prometheusAccess is a scalar": {
+			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\nprometheusAccess: yes\n",
+			wantErr: "prometheusAccess is an entry (a mapping) or a list of entries",
+		},
+		"an entry of prometheusAccess is a scalar": {
+			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\nprometheusAccess:\n  - a\n",
+			wantErr: "an entry of prometheusAccess is a mapping",
+		},
+		"a wrong type inside a prometheusAccess entry": {
+			yaml:    "apiVersion: rbac.deckhouse.io/v1alpha1\nprometheusAccess:\n  deployments: {a: b}\n",
+			wantErr: "cannot unmarshal !!map into []string",
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -759,6 +781,26 @@ func TestValidate_NamesPathsAndConditions(t *testing.T) {
 			yaml:    "prometheusAccess:\n  deployments: [\"\"]\n",
 			wantErr: `prometheusAccess.deployments[0]: "" is not a workload name`,
 		},
+		"a scrape access path without a name": {
+			yaml:    "prometheusAccess:\n  - {path: dex, deployments: [dex]}\n",
+			wantErr: `prometheusAccess: path "dex" needs name: the placement rule wants access-to-dex-<name> in templates/dex/rbac-to-us.yaml`,
+		},
+		"a scrape access path with a double slash": {
+			yaml:    "prometheusAccess:\n  path: a//b\n  name: m\n  deployments: [dex]\n",
+			wantErr: `prometheusAccess: path must be a directory under templates/ of lowercase names joined by single slashes (a or a/b), got "a//b"`,
+		},
+		"a scrape access name with a slash": {
+			yaml:    "prometheusAccess:\n  name: a/b\n  deployments: [dex]\n",
+			wantErr: `prometheusAccess.name: "a/b" is not a valid role name`,
+		},
+		"two scrape access entries of one name": {
+			yaml:    "prometheusAccess:\n  - {name: metrics, deployments: [a]}\n  - {deployments: [b]}\n  - {name: metrics, daemonsets: [c]}\n",
+			wantErr: `prometheusAccess[2]: the same path and name as prometheusAccess[0]: both would write one Role and RoleBinding`,
+		},
+		"an entry of a list names no workload": {
+			yaml:    "prometheusAccess:\n  - {deployments: [a]}\n  - {name: metrics}\n",
+			wantErr: `prometheusAccess[1]: names no workload`,
+		},
 		"when over two lines": {
 			yaml:    "resources:\n  - group: x.io\n    resource: things\n    scope: Namespaced\n    when: |\n      .Values.a\n    namespace: {viewer: [get]}\n",
 			wantErr: `spans several lines; write the condition on one line`,
@@ -773,6 +815,42 @@ func TestValidate_NamesPathsAndConditions(t *testing.T) {
 			assert.Contains(t, errs[0].Error(), tc.wantErr)
 		})
 	}
+}
+
+// prometheusAccess reads one entry written as a mapping, the form of the first declarations, and a
+// list of entries; one entry is written back as the mapping, several as the list.
+func TestPrometheusAccess_Forms(t *testing.T) {
+	const head = "apiVersion: rbac.deckhouse.io/v1alpha1\n"
+
+	mapping, err := Parse([]byte(head + "prometheusAccess:\n  deployments: [cert-manager]\n  when: .Values.x\n"))
+	require.NoError(t, err)
+	assert.Equal(t, PrometheusAccessList{{Deployments: []string{"cert-manager"}, When: ".Values.x"}}, mapping.PrometheusAccess)
+
+	list, err := Parse([]byte(head + "prometheusAccess:\n  - path: dex\n    name: prometheus-metrics\n    deployments: [dex]\n  - deployments: [cert-manager]\n"))
+	require.NoError(t, err)
+	require.Len(t, list.PrometheusAccess, 2)
+	assert.Equal(t, "access-to-dex-prometheus-metrics", list.PrometheusAccess[0].RoleName("m"))
+	assert.Equal(t, "templates/dex/rbac-to-us.yaml", list.PrometheusAccess[0].File())
+	assert.Equal(t, "access-to-m", list.PrometheusAccess[1].RoleName("m"))
+	assert.Equal(t, "templates/rbac-to-us.yaml", list.PrometheusAccess[1].File())
+	assert.Equal(t, "access-to-m-metrics", PrometheusAccess{Name: "metrics"}.RoleName("m"))
+	assert.Empty(t, Validate(list, nil))
+
+	one, err := yaml.Marshal(&Declaration{APIVersion: APIVersionV1Alpha1, PrometheusAccess: PrometheusAccessList{{Deployments: []string{"a"}}}})
+	require.NoError(t, err)
+	assert.Equal(t, head+"prometheusAccess:\n    deployments:\n        - a\n", string(one))
+
+	two, err := yaml.Marshal(&Declaration{APIVersion: APIVersionV1Alpha1, PrometheusAccess: list.PrometheusAccess.Sorted()})
+	require.NoError(t, err)
+	assert.Equal(t, head+"prometheusAccess:\n    - deployments:\n        - cert-manager\n    - path: dex\n      name: prometheus-metrics\n      deployments:\n        - dex\n", string(two))
+
+	again, err := Parse(two)
+	require.NoError(t, err)
+	assert.Equal(t, list.PrometheusAccess.Sorted(), again.PrometheusAccess)
+
+	none, err := yaml.Marshal(&Declaration{APIVersion: APIVersionV1Alpha1})
+	require.NoError(t, err)
+	assert.Equal(t, head, string(none), "no entry writes no section")
 }
 
 // A trailing --- holds no document; a second document is refused.

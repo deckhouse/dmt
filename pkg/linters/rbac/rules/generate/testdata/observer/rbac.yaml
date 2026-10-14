@@ -1,0 +1,41 @@
+# A module that keeps the names its objects had before the declaration: scrape access in a component
+# directory and at the root under a name of its own, beside the access-to-<module> of the first
+# declarations.
+apiVersion: rbac.deckhouse.io/v1alpha1
+serviceAccounts:
+  - name: controller
+    path: controller
+    labels: {app: controller}
+    namespaceRules:
+      - apiGroups: [coordination.k8s.io]
+        resources: [leases]
+        verbs: [get, create, update]
+    bindRoles:
+      - namespace: kube-system
+        name: extension-apiserver-authentication-reader
+prometheusAccess:
+  - deployments: [observer]
+    when: .Values.global.enabledModules | has "prometheus"
+  - name: metrics
+    daemonsets: [agent]
+    statefulsets: [store]
+  - path: dex
+    name: prometheus-metrics
+    deployments: [dex]
+    labels: {app: dex}
+    when: (.Values.global.enabledModules | has "prometheus")
+access:
+  - name: reader
+    path: dex
+    subjects:
+      - kind: ServiceAccount
+        name: reader
+        namespace: d8-observer
+      - kind: ServiceAccount
+        name: grafana
+        namespace: d8-monitoring
+    namespaceRules:
+      - apiGroups: [""]
+        resources: [configmaps]
+        resourceNames: [dex]
+        verbs: [get]

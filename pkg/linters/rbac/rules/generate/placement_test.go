@@ -116,7 +116,7 @@ func TestBuild_AccessMetadata(t *testing.T) {
 		Labels: map[string]string{"app": "capi"}, Annotations: map[string]string{"werf.io/deploy-on": "pre-install"},
 		ClusterRules: []rbacyaml.PolicyRule{{APIGroups: []string{""}, Resources: []string{"nodes"}, Verbs: []string{"get"}}},
 	}}
-	decl.PrometheusAccess = &rbacyaml.PrometheusAccess{Deployments: []string{"m"}, Labels: map[string]string{"app": "m"}}
+	decl.PrometheusAccess = rbacyaml.PrometheusAccessList{{Deployments: []string{"m"}, Labels: map[string]string{"app": "m"}}}
 
 	model, err := Build(Input{Module: "m", Namespace: "d8-m", Subsystems: []string{"security"}, Decl: decl})
 	require.NoError(t, err)

@@ -194,24 +194,7 @@ func ValidateFor(d *Declaration, crds CRDScopes, moduleSubsystems []string) []er
 	validateServiceAccounts(d.ServiceAccounts, report)
 	validateAccess(d.Access, report)
 
-	if d.PrometheusAccess != nil {
-		if len(d.PrometheusAccess.Deployments)+len(d.PrometheusAccess.DaemonSets)+len(d.PrometheusAccess.StatefulSets) == 0 {
-			report("prometheusAccess: names no workload; remove the section or list deployments, daemonsets or statefulsets")
-		}
-
-		validateWhen(d.PrometheusAccess.When, "prometheusAccess", report)
-		validateObjectLabels(d.PrometheusAccess.Labels, "prometheusAccess.labels", report)
-
-		for kind, names := range map[string][]string{"deployments": d.PrometheusAccess.Deployments, "daemonsets": d.PrometheusAccess.DaemonSets, "statefulsets": d.PrometheusAccess.StatefulSets} {
-			for j, name := range names {
-				if len(validation.IsDNS1123Subdomain(name)) > 0 {
-					report("prometheusAccess.%s[%d]: %q is not a workload name (a lowercase DNS subdomain)", kind, j, name)
-				}
-			}
-		}
-
-		validateMetadataKeys(d.PrometheusAccess.Annotations, "prometheusAccess.annotations", true, report)
-	}
+	validatePrometheusAccess(d.PrometheusAccess, report)
 
 	// Several checks walk maps; the reader and the e2e expectations get one order.
 	sort.SliceStable(errs, func(i, j int) bool { return errs[i].Error() < errs[j].Error() })
@@ -783,6 +766,51 @@ func validateAccess(access []Access, report reporter) {
 
 		validatePolicyRules(a.ClusterRules, where+".clusterRules", report)
 		validatePolicyRules(a.NamespaceRules, where+".namespaceRules", report)
+	}
+}
+
+// validatePrometheusAccess checks the scrape access entries. A single entry is named prometheusAccess
+// in the messages, as the mapping form writes it; entries of a list by their index.
+func validatePrometheusAccess(entries PrometheusAccessList, report reporter) {
+	// Two entries of one path and name would write one Role twice.
+	seen := make(map[[2]string]int, len(entries))
+
+	for i, pa := range entries {
+		where := "prometheusAccess"
+		if len(entries) > 1 {
+			where = fmt.Sprintf("prometheusAccess[%d]", i)
+		}
+
+		if len(pa.Deployments)+len(pa.DaemonSets)+len(pa.StatefulSets) == 0 {
+			report("%s: names no workload; remove the entry or list deployments, daemonsets or statefulsets", where)
+		}
+
+		validateComponentPath(pa.Path, where, report)
+
+		if pa.Name != "" {
+			validateRoleName(pa.Name, where+".name", report)
+		} else if pa.Path != "" {
+			report("%s: path %q needs name: the placement rule wants access-to-%s-<name> in templates/%s/rbac-to-us.yaml", where, pa.Path, strings.ReplaceAll(pa.Path, "/", "-"), pa.Path)
+		}
+
+		if first, dup := seen[[2]string{pa.Path, pa.Name}]; dup {
+			report("%s: the same path and name as prometheusAccess[%d]: both would write one Role and RoleBinding; merge the workloads into one entry", where, first)
+		} else {
+			seen[[2]string{pa.Path, pa.Name}] = i
+		}
+
+		validateWhen(pa.When, where, report)
+		validateObjectLabels(pa.Labels, where+".labels", report)
+
+		for kind, names := range map[string][]string{"deployments": pa.Deployments, "daemonsets": pa.DaemonSets, "statefulsets": pa.StatefulSets} {
+			for j, name := range names {
+				if len(validation.IsDNS1123Subdomain(name)) > 0 {
+					report("%s.%s[%d]: %q is not a workload name (a lowercase DNS subdomain)", where, kind, j, name)
+				}
+			}
+		}
+
+		validateMetadataKeys(pa.Annotations, where+".annotations", true, report)
 	}
 }
 

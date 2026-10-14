@@ -503,36 +503,10 @@ func (b *builder) serviceAccounts() {
 }
 
 // access produces the Prometheus access and the arbitrary-subject grants: cluster rules go to
-// templates/rbac-for-us.yaml (the placement rule keeps ClusterRoles there), namespace rules and the
-// metrics access to templates/rbac-to-us.yaml.
+// templates/[<path>/]rbac-for-us.yaml (the placement rule keeps ClusterRoles there), namespace rules
+// and the metrics access to templates/[<path>/]rbac-to-us.yaml.
 func (b *builder) access() {
-	if pa := b.in.Decl.PrometheusAccess; pa != nil {
-		var rules []Rule
-
-		for kind, names := range map[string][]string{"deployments": pa.Deployments, "daemonsets": pa.DaemonSets, "statefulsets": pa.StatefulSets} {
-			if len(names) == 0 {
-				continue
-			}
-
-			sorted := append([]string(nil), names...)
-			sort.Strings(sorted)
-
-			rules = append(rules, Rule{PolicyRule: rbacyaml.PolicyRule{
-				APIGroups: []string{"apps"}, Resources: []string{kind + "/prometheus-metrics"}, ResourceNames: sorted, Verbs: []string{"get"},
-			}})
-		}
-
-		rules = sortRules(rules)
-		name := "access-to-" + b.in.Module
-
-		b.add("templates/rbac-to-us.yaml", Object{Kind: "Role", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, Labels: copyMap(pa.Labels), Annotations: copyMap(pa.Annotations), Rules: rules})
-		// The Role is unconditional and only the binding to the scraper is gated: that is how the
-		// modules write it today, and a Role nobody is bound to grants nothing.
-		b.add("templates/rbac-to-us.yaml", Object{
-			Kind: "RoleBinding", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, Labels: copyMap(pa.Labels), Annotations: copyMap(pa.Annotations), RoleRefKind: "Role", RoleRefName: name, When: pa.When,
-			Subjects: []Subject{{Kind: "User", Name: "d8-monitoring:scraper"}, {Kind: "ServiceAccount", Name: "prometheus", Namespace: "d8-monitoring"}},
-		})
-	}
+	b.prometheusAccess()
 
 	grants := append([]rbacyaml.Access(nil), b.in.Decl.Access...)
 	sort.Slice(grants, func(i, j int) bool { return grants[i].Name < grants[j].Name })
@@ -560,6 +534,38 @@ func (b *builder) access() {
 			b.add(dir+"rbac-to-us.yaml", Object{Kind: "Role", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, When: a.When, Labels: copyMap(a.Labels), Annotations: copyMap(a.Annotations), Rules: policyRules(a.NamespaceRules)})
 			b.add(dir+"rbac-to-us.yaml", Object{Kind: "RoleBinding", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, When: a.When, Labels: copyMap(a.Labels), Annotations: copyMap(a.Annotations), RoleRefKind: "Role", RoleRefName: name, Subjects: subjects})
 		}
+	}
+}
+
+// prometheusAccess produces a Role and a RoleBinding to the scraper per entry, in the order of the
+// files and names: the order of the declaration does not change the files.
+func (b *builder) prometheusAccess() {
+	for _, pa := range b.in.Decl.PrometheusAccess.Sorted() {
+		rules := make([]Rule, 0, 3)
+
+		for kind, names := range map[string][]string{"deployments": pa.Deployments, "daemonsets": pa.DaemonSets, "statefulsets": pa.StatefulSets} {
+			if len(names) == 0 {
+				continue
+			}
+
+			sorted := append([]string(nil), names...)
+			sort.Strings(sorted)
+
+			rules = append(rules, Rule{PolicyRule: rbacyaml.PolicyRule{
+				APIGroups: []string{"apps"}, Resources: []string{kind + "/prometheus-metrics"}, ResourceNames: sorted, Verbs: []string{"get"},
+			}})
+		}
+
+		rules = sortRules(rules)
+		name := pa.RoleName(b.in.Module)
+
+		b.add(pa.File(), Object{Kind: "Role", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, Labels: copyMap(pa.Labels), Annotations: copyMap(pa.Annotations), Rules: rules})
+		// The Role is unconditional and only the binding to the scraper is gated: that is how the
+		// modules write it today, and a Role nobody is bound to grants nothing.
+		b.add(pa.File(), Object{
+			Kind: "RoleBinding", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, Labels: copyMap(pa.Labels), Annotations: copyMap(pa.Annotations), RoleRefKind: "Role", RoleRefName: name, When: pa.When,
+			Subjects: []Subject{{Kind: "User", Name: "d8-monitoring:scraper"}, {Kind: "ServiceAccount", Name: "prometheus", Namespace: "d8-monitoring"}},
+		})
 	}
 }
 
