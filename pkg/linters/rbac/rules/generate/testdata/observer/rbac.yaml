@@ -30,8 +30,31 @@ prometheusAccess:
     labels: {app: dex}
     when: (.Values.global.enabledModules | has "prometheus")
 access:
+  # a name that already carries the prefix of its file is the object's name as it is
+  - name: access-to-observer-http
+    subjects:
+      - kind: ServiceAccount
+        name: ingress-nginx
+        namespace: d8-ingress-nginx
+    namespaceRules:
+      - apiGroups: [apps]
+        resources: [deployments/http]
+        resourceNames: [observer]
+        verbs: [get]
+  # the binding keeps the name it had beside its ClusterRole
+  - name: accessible-namespaces-reader
+    bindingName: d8:observer:accessible-namespaces-reader:system-authenticated
+    subjects:
+      - kind: Group
+        name: system:authenticated
+    clusterRules:
+      - apiGroups: [""]
+        resources: [namespaces]
+        verbs: [list]
   - name: reader
     path: dex
+    roleName: access-to-dex-configmap-reader
+    bindingName: access-to-dex-configmap-reader-binding
     subjects:
       - kind: ServiceAccount
         name: reader

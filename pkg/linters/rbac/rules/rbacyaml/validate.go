@@ -711,6 +711,14 @@ func validateAccess(access []Access, report reporter) {
 		// The name is part of the role and binding names, d8:<module>:<name> and access-to-<module>-<name>.
 		validateRoleName(a.Name, where, report)
 
+		if a.RoleName != "" {
+			validateRoleName(a.RoleName, where+".roleName", report)
+		}
+
+		if a.BindingName != "" {
+			validateRoleName(a.BindingName, where+".bindingName", report)
+		}
+
 		if _, dup := names[a.Name]; dup {
 			report("%s: duplicate name", where)
 		}
