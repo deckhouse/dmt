@@ -20,6 +20,7 @@ package static
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"path/filepath"
 
@@ -116,11 +117,11 @@ func (s *Source) Targets(
 	errorList *errors.LintRuleErrorsList,
 	yield func(manager.Target) bool,
 ) error {
+	// Both failures below stop the run before a single module is linted, so they are
+	// returned rather than logged: an empty run must not exit 0 and pass as clean.
 	paths, err := moduleloader.GetModulePaths(s.dir)
 	if err != nil {
-		log.Error("Error getting module paths", log.Err(err))
-
-		return nil
+		return fmt.Errorf("get module paths: %w", err)
 	}
 
 	vals, err := decodeValuesFile(flags.ValuesFile)
@@ -130,9 +131,7 @@ func (s *Source) Targets(
 
 	globalValues, err := values.GetGlobalValues(getRootDirectory(s.dir))
 	if err != nil {
-		log.Error("Failed to get global values", log.Err(err))
-
-		return nil
+		return fmt.Errorf("get global values: %w", err)
 	}
 
 	// Validate every module before rendering any, so the count below is the number
