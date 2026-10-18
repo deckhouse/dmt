@@ -63,6 +63,25 @@ fromImage: scratch
 	assert.Contains(t, errorList.GetErrors()[0].Text, "must not contain underscores")
 	assert.Equal(t, filepath.ToSlash(filepath.Join("images", "test-image", "werf.inc.yaml")),
 		errorList.GetErrors()[0].FilePath, "Expected a relative file path that includes the werf file name")
+
+	// Module whose werf.inc.yaml relies on the canonical per-image context
+	// (Images and Files at the top level) must still be rendered and checked.
+	canonicalDir := t.TempDir()
+	writeImageWerfFile(t, canonicalDir, "test-image", `
+image: {{ .ModuleNamePrefix }}{{ .ImageName }}_bad
+fromImage: {{ index $.Images "builder/src" }}
+{{- if $.Files.Exists "oss.yaml" }}
+{{- end }}
+`)
+
+	errorList = errors.NewLintRuleErrorsList()
+
+	canonicalModule := mocks.NewModuleMock(mc)
+	canonicalModule.GetPathMock.Return(canonicalDir)
+
+	NewWerfRule(canonicalModule, errorList).Check(t.Context())
+	assert.True(t, errorList.ContainsErrors(), "Expected werf.inc.yaml using $.Images and $.Files to be checked")
+	assert.Contains(t, errorList.GetErrors()[0].Text, "must not contain underscores")
 }
 
 func TestCheckUnderscoredImages(t *testing.T) {
