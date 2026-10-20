@@ -95,6 +95,7 @@ func (l *Templates) rules() []pkg.Rule {
 		rules.NewKubeRbacProxyRule(cfg.ExcludeRules.KubeRBACProxy.Get(), m, level(cfg.Rules.KubeRBACProxyRule)),
 		rules.NewServicePortRule(cfg.ExcludeRules.ServicePort.Get(), m, level(cfg.Rules.ServicePortRule)),
 		rules.NewPromtoolRule(cfg, m, level(cfg.Rules.PrometheusRule)),
+		rules.NewSourceLabelRule(cfg, m, level(cfg.Rules.SourceLabelRule)),
 		rules.NewIngressRule(cfg.ExcludeRules.Ingress.Get(), m, level(cfg.Rules.IngressRule)),
 		rules.NewHTTPRouteRule(cfg.ExcludeRules.HTTPRoute.Get(), m, level(cfg.Rules.HTTPRouteRule)),
 		rules.NewClusterDomainRule(m, level(cfg.Rules.ClusterDomainRule)),

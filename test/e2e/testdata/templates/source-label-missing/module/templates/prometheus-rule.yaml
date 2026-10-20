@@ -1,0 +1,14 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: e2e-source-label-rules
+  namespace: e2e-source-label
+spec:
+  groups:
+    - name: e2e.source-label
+      rules:
+        - alert: TestAlertMissingSource
+          expr: up{job="node-exporter"} == 0
+          for: 5m
+          labels:
+            severity_level: "5"

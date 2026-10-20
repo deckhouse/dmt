@@ -1,0 +1,24 @@
+{
+  "title": "E2E Source Label Dashboard",
+  "panels": [
+    {
+      "type": "graph",
+      "title": "CPU Usage",
+      "targets": [
+        {
+          "expr": "rate(container_cpu_usage_seconds_total{namespace=\"default\"}[5m])"
+        }
+      ],
+      "datasource": {"type": "prometheus", "uid": "${ds_prometheus}"}
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "ds_prometheus",
+        "type": "datasource",
+        "query": "prometheus"
+      }
+    ]
+  }
+}

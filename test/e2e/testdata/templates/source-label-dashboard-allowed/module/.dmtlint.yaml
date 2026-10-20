@@ -1,0 +1,5 @@
+linters-settings:
+  templates:
+    source-label:
+      allowed-metrics:
+        - "rabbitmq_*"

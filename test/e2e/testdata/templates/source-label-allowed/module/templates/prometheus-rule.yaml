@@ -1,0 +1,14 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: e2e-source-allowed-rules
+  namespace: e2e-source-allowed
+spec:
+  groups:
+    - name: e2e.source-allowed
+      rules:
+        - alert: TestAllowedMetric
+          expr: rabbitmq_node_mem_used{job="rabbitmq"} > 1000000
+          for: 5m
+          labels:
+            severity_level: "5"

@@ -1,0 +1,9 @@
+description: >
+  A Grafana dashboard with a metric missing d8_source="dkp" selector must be
+  flagged by the source-label rule.
+module: module
+expect:
+  - linter: templates
+    rule: source-label
+    level: error
+    textContains: "metric 'container_cpu_usage_seconds_total' in panel 'CPU Usage' must have d8_source=\"dkp\" selector"
