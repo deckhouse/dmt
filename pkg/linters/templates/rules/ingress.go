@@ -25,6 +25,7 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 
+	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
@@ -56,9 +57,10 @@ var (
 	helmActionRe = regexp.MustCompile(`(?s)\{\{-?\s*(.*?)\s*-?\}\}`)
 
 	// annotationsVersionGuardRe matches the version-check helper call in a Helm
-	// condition. The root context is normally $, but . is accepted as well.
+	// condition. The first list argument is the template context, which may be
+	// $, ., or a variable such as $context.
 	annotationsVersionGuardRe = regexp.MustCompile(
-		`include\s+"` + regexp.QuoteMeta(ingressNginxAnnotationsVersionHelper) + `"\s+\(list\s+(?:\$|\.)\s+"([^"]+)"\s*\)`,
+		`include\s+"` + regexp.QuoteMeta(ingressNginxAnnotationsVersionHelper) + `"\s+\(list\s+\S+\s+"([^"]+)"\s*\)`,
 	)
 
 	minAnnotationsVersion = semver.MustParse(minIngressNginxAnnotationsVersion)
@@ -96,44 +98,94 @@ func NewIngressRule(excludeRules []pkg.KindRuleExclude,
 var _ pkg.Rule = (*IngressRule)(nil)
 
 func (r *IngressRule) Check(_ context.Context) {
-	// Snippet annotations are checked in the raw templates rather than in the
-	// rendered objects: a snippet behind a version conditional may not render
-	// for the values used by dmt, but it still has to be guarded.
-	checkedFiles := make(map[string]struct{})
-
-	for _, object := range r.module.GetStorage() {
-		if object.Unstructured.GetKind() != "Ingress" {
-			continue
-		}
-
-		if !r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {
-			continue
-		}
-
-		if object.AbsPath != "" {
-			checkedFiles[object.AbsPath] = struct{}{}
-		}
+	// Scan the raw templates, not the rendered objects: the values dmt renders
+	// with may evaluate a whole Ingress or an annotation conditional to false,
+	// which would otherwise hide the snippet from the check.
+	templatesPath := filepath.Join(r.module.GetPath(), "templates")
+	if _, err := os.Stat(templatesPath); os.IsNotExist(err) {
+		return
 	}
 
-	for path := range checkedFiles {
-		r.checkSnippetAnnotations(path)
+	files := fsutils.GetFiles(templatesPath, true, fsutils.FilterFileByExtensions(".yaml", ".yml", ".tpl"))
+	ingressKindRe := kindLineRe("Ingress")
+	excludedPaths := excludedIngressPaths(r.module, r.ExcludeRules)
+
+	for _, absPath := range files {
+		if _, excluded := excludedPaths[absPath]; excluded {
+			continue
+		}
+
+		filePath := r.displayPath(absPath)
+		if !r.pathRule.Enabled(filePath) {
+			continue
+		}
+
+		content, err := os.ReadFile(absPath)
+		if err != nil {
+			r.errorList.WithFilePath(filePath).Errorf("Failed to read file: %v", err)
+			continue
+		}
+
+		if !ingressKindRe.Match(content) {
+			continue
+		}
+
+		r.checkSnippetAnnotationsContent(filePath, string(content))
 	}
 }
 
-func (r *IngressRule) checkSnippetAnnotations(absPath string) {
-	filePath := r.displayPath(absPath)
-
-	if !r.pathRule.Enabled(filePath) {
-		return
+// excludedIngressPaths returns the template files whose rendered Ingresses are
+// all covered by the legacy exclude-rules.ingress kind/name list. Files whose
+// Ingresses did not render are still scanned, so value-dependent templates
+// cannot hide their snippets.
+func excludedIngressPaths(m pkg.Module, excludes []pkg.KindRuleExclude) map[string]struct{} {
+	if len(excludes) == 0 {
+		return nil
 	}
 
-	content, err := os.ReadFile(absPath)
-	if err != nil {
-		r.errorList.WithFilePath(filePath).Errorf("Failed to read file: %v", err)
-		return
+	type fileState struct {
+		total    int
+		excluded int
 	}
 
-	r.checkSnippetAnnotationsContent(filePath, string(content))
+	states := make(map[string]*fileState)
+
+	for _, object := range m.GetStorage() {
+		if object.Unstructured.GetKind() != "Ingress" || object.AbsPath == "" {
+			continue
+		}
+
+		state := states[object.AbsPath]
+		if state == nil {
+			state = &fileState{}
+			states[object.AbsPath] = state
+		}
+
+		state.total++
+
+		if kindExcludedFromIngressRule(excludes, object.Unstructured.GetKind(), object.Unstructured.GetName()) {
+			state.excluded++
+		}
+	}
+
+	result := make(map[string]struct{}, len(states))
+	for path, state := range states {
+		if state.total > 0 && state.excluded == state.total {
+			result[path] = struct{}{}
+		}
+	}
+
+	return result
+}
+
+func kindExcludedFromIngressRule(excludes []pkg.KindRuleExclude, kind, name string) bool {
+	for idx := range excludes {
+		if !excludes[idx].Enabled(kind, name) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (r *IngressRule) displayPath(absPath string) string {

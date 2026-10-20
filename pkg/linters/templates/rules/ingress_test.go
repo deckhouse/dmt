@@ -74,6 +74,8 @@ func TestIngressRuleAcceptsGuardedSnippetAnnotations(t *testing.T) {
 		fmt.Sprintf(`{{- if include %q (list $ %q) }}`, ingressNginxAnnotationsVersionHelper, "1.3.0"),
 		fmt.Sprintf(`{{- if include %q (list $ %q) }}`, ingressNginxAnnotationsVersionHelper, "1.4.2"),
 		fmt.Sprintf(`{{- if include %q (list $ %q) }}`, ingressNginxAnnotationsVersionHelper, "v1.3.0"),
+		fmt.Sprintf(`{{- if include %q (list $context %q) }}`, ingressNginxAnnotationsVersionHelper, "1.3.0"),
+		fmt.Sprintf(`{{- if include %q (list .Values %q) }}`, ingressNginxAnnotationsVersionHelper, "1.3.0"),
 		fmt.Sprintf(`{{- if not (include %q (list $ %q)) }}`, ingressNginxAnnotationsVersionHelper, "1.3.0"),
 		fmt.Sprintf(`{{- if and (include %q (list $ %q)) (eq .Values.foo "bar") }}`, ingressNginxAnnotationsVersionHelper, "1.5.0"),
 	}
@@ -109,6 +111,25 @@ func TestIngressRuleAcceptsSnippetInGuardedElseBranch(t *testing.T) {
 		),
 		nil, nil,
 	)
+
+	assert.Empty(t, findings)
+}
+
+func TestIngressRuleAcceptsSnippetInElseBranchWithContextVariable(t *testing.T) {
+	template := `apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+  {{- if include "helm_lib_module_ingress_nginx_annotations_version_ge" (list $context "1.3.0") }}
+    nginx.ingress.kubernetes.io/ingress-nginx-hsts: "true"
+  {{- else }}
+    nginx.ingress.kubernetes.io/configuration-snippet: |-
+      {{- include "helm_lib_module_ingress_configuration_snippet" $ | nindent 6 }}
+  {{- end }}
+  name: test
+`
+
+	findings := runIngressRule(t, "Ingress", template, nil, nil)
 
 	assert.Empty(t, findings)
 }
@@ -256,9 +277,24 @@ func TestIngressRuleSkipsExcludedIngresses(t *testing.T) {
 }
 
 func TestIngressRuleSkipsNonIngressResources(t *testing.T) {
-	content := ingressTemplate(annotationLine(configurationSnippetAnnotation, snippetValue))
+	content := `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+  annotations:
+    ` + configurationSnippetAnnotation + `: "` + snippetValue + `"
+`
 
 	assert.Empty(t, runIngressRule(t, "Deployment", content, nil, nil))
+}
+
+func TestIngressRuleScansIngressThatDidNotRender(t *testing.T) {
+	content := ingressTemplate(annotationLine(configurationSnippetAnnotation, snippetValue))
+
+	findings := runIngressRuleWithoutStorage(t, content)
+
+	require.Len(t, findings, 1)
+	assert.Contains(t, findings[0].Text, configurationSnippetAnnotation)
 }
 
 func ingressTemplate(annotationLines string) string {
@@ -297,12 +333,7 @@ func runIngressRuleConfigured(
 ) []pkg.LinterError {
 	t.Helper()
 
-	moduleDir := t.TempDir()
-	templatesDir := filepath.Join(moduleDir, "templates")
-	require.NoError(t, os.MkdirAll(templatesDir, 0o755))
-
-	templatePath := filepath.Join(templatesDir, "ingress.yaml")
-	require.NoError(t, os.WriteFile(templatePath, []byte(template), 0o644))
+	moduleDir, templatePath := writeIngressTemplate(t, template)
 
 	object := unstructured.Unstructured{}
 	object.SetAPIVersion("networking.k8s.io/v1")
@@ -317,11 +348,39 @@ func runIngressRuleConfigured(
 	}
 
 	module := mocks.NewModuleMock(minimock.NewController(t))
-	module.GetStorageMock.Return(objects)
+	module.GetStorageMock.Optional().Return(objects)
 	module.GetPathMock.Optional().Return(moduleDir)
 
 	errorList := errors.NewLintRuleErrorsList()
 	NewIngressRule(excludeIngresses, excludeFiles, excludeDirectories, module, errorList).Check(t.Context())
 
 	return errorList.GetErrors()
+}
+
+func runIngressRuleWithoutStorage(t *testing.T, template string) []pkg.LinterError {
+	t.Helper()
+
+	moduleDir, _ := writeIngressTemplate(t, template)
+
+	module := mocks.NewModuleMock(minimock.NewController(t))
+	module.GetStorageMock.Optional().Return(map[storage.ResourceIndex]storage.StoreObject{})
+	module.GetPathMock.Optional().Return(moduleDir)
+
+	errorList := errors.NewLintRuleErrorsList()
+	NewIngressRule(nil, nil, nil, module, errorList).Check(t.Context())
+
+	return errorList.GetErrors()
+}
+
+func writeIngressTemplate(t *testing.T, template string) (string, string) {
+	t.Helper()
+
+	moduleDir := t.TempDir()
+	templatesDir := filepath.Join(moduleDir, "templates")
+	require.NoError(t, os.MkdirAll(templatesDir, 0o755))
+
+	templatePath := filepath.Join(templatesDir, "ingress.yaml")
+	require.NoError(t, os.WriteFile(templatePath, []byte(template), 0o644))
+
+	return moduleDir, templatePath
 }
