@@ -4,6 +4,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -59,6 +60,21 @@ func TestLoader_Load_WithConfigFile(t *testing.T) {
 	t.Logf("Loader cfg: %+v", cfg2)
 	assert.Equal(t, "value1", cfg2.Field1)
 	assert.Equal(t, 42, cfg2.Field2)
+}
+
+func TestTemplatesExcludeRulesDecodeIngressSnippetsExclude(t *testing.T) {
+	raw := map[string]any{
+		"ingress-snippets": map[string]any{
+			"files":       []string{"templates/legacy-ingress.yaml"},
+			"directories": []string{"templates/legacy"},
+		},
+	}
+
+	var excludeRules TemplatesExcludeRules
+	require.NoError(t, mapstructure.Decode(raw, &excludeRules))
+
+	require.Equal(t, StringRuleExcludeList{"templates/legacy-ingress.yaml"}, excludeRules.IngressSnippets.Files)
+	require.Equal(t, DirectoryRuleExcludeList{"templates/legacy"}, excludeRules.IngressSnippets.Directories)
 }
 
 func TestLoader_Load_InvalidYaml(t *testing.T) {

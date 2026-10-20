@@ -142,7 +142,7 @@ type TemplatesLinterConfig struct {
 type TemplatesLinterRules struct {
 	VPARule                            RuleConfig `mapstructure:"vpa"`
 	PDBRule                            RuleConfig `mapstructure:"pdb"`
-	IngressRule                        RuleConfig `mapstructure:"ingress"`
+	IngressSnippetsRule                RuleConfig `mapstructure:"ingress-snippets"`
 	HTTPRouteRule                      RuleConfig `mapstructure:"httproute"`
 	PrometheusRule                     RuleConfig `mapstructure:"prometheus-rules"`
 	GrafanaRule                        RuleConfig `mapstructure:"grafana-dashboards"`

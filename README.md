@@ -254,6 +254,12 @@ linters-settings:
         - /host
         - /etc/iscsi
         - /certs
+      # Exclude specific template files or directories from ingress-snippets
+      ingress-snippets:
+        files:
+          - templates/legacy-ingress.yaml
+        directories:
+          - templates/legacy
 
   container:
     impact: error

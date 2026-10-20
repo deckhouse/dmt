@@ -142,7 +142,7 @@ var staticRules = map[string]set.Set{
 		templatesrules.HelmRenderRuleName,
 		templatesrules.IngressEnablementRuleName,
 		templatesrules.ListenerSetRedirectRuleName,
-		templatesrules.IngressRuleName,
+		templatesrules.IngressSnippetsRuleName,
 		templatesrules.KubeRbacProxyRuleName,
 		templatesrules.MountPointsRuleName,
 		templatesrules.OpenAPIValuesQuoteRuleName,

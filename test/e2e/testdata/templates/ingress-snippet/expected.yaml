@@ -1,13 +1,9 @@
 description: >
-  An Ingress with an unsafe configuration-snippet and no HSTS protection must
-  produce a migration error and an HSTS error.
+  An Ingress with an unguarded configuration-snippet must produce a
+  discouraged-annotation error.
 module: module
 expect:
   - linter: templates
-    rule: ingress-rules
+    rule: ingress-snippets
     level: error
-    textContains: "is unsafe and requires manual migration"
-  - linter: templates
-    rule: ingress-rules
-    level: error
-    textContains: "to preserve HSTS"
+    textContains: "is discouraged to use in DKP modules"

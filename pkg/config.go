@@ -135,7 +135,7 @@ type TemplatesLinterConfig struct {
 type TemplatesLinterRules struct {
 	VPARule                            RuleConfig
 	PDBRule                            RuleConfig
-	IngressRule                        RuleConfig
+	IngressSnippetsRule                RuleConfig
 	PrometheusRule                     RuleConfig
 	GrafanaRule                        RuleConfig
 	KubeRBACProxyRule                  RuleConfig
@@ -172,7 +172,7 @@ type TemplatesExcludeRules struct {
 	PDBAbsent                      KindRuleExcludeList
 	ServicePort                    ServicePortExcludeList
 	KubeRBACProxy                  StringRuleExcludeList
-	Ingress                        KindRuleExcludeList
+	IngressSnippets                PathRuleExclude
 	HTTPRoute                      KindRuleExcludeList
 	EnabledModules                 EnabledModulesExcludeRule
 	WebhookConfiguration           KindRuleExcludeList

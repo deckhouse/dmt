@@ -397,7 +397,7 @@ func mapTemplatesRules(linterSettings *pkg.LintersSettings, configSettings *conf
 
 	rules.VPARule.SetLevel(globalRules.VPARule.Impact, fallbackImpact)
 	rules.PDBRule.SetLevel(globalRules.PDBRule.Impact, fallbackImpact)
-	rules.IngressRule.SetLevel(globalRules.IngressRule.Impact, fallbackImpact)
+	rules.IngressSnippetsRule.SetLevel(globalRules.IngressSnippetsRule.Impact, fallbackImpact)
 	rules.HTTPRouteRule.SetLevel(globalRules.HTTPRouteRule.Impact, fallbackImpact)
 	rules.PrometheusRule.SetLevel(globalRules.PrometheusRule.Impact, fallbackImpact)
 	rules.GrafanaRule.SetLevel(globalRules.GrafanaRule.Impact, fallbackImpact)
@@ -552,7 +552,8 @@ func mapTemplatesExclusionsAndSettings(linterSettings *pkg.LintersSettings, conf
 	excludes.PDBAbsent = configExcludes.PDBAbsent.Get()
 	excludes.ServicePort = configExcludes.ServicePort.Get()
 	excludes.KubeRBACProxy = pkg.StringRuleExcludeList(configExcludes.KubeRBACProxy)
-	excludes.Ingress = configExcludes.Ingress.Get()
+	excludes.IngressSnippets.Files = pkg.StringRuleExcludeList(configExcludes.IngressSnippets.Files)
+	excludes.IngressSnippets.Directories = pkg.DirectoryRuleExcludeList(configExcludes.IngressSnippets.Directories)
 	excludes.HTTPRoute = configExcludes.HTTPRoute.Get()
 	excludes.EnabledModules.Files = pkg.StringRuleExcludeList(configExcludes.EnabledModules.Files)
 	excludes.EnabledModules.Directories = pkg.DirectoryRuleExcludeList(configExcludes.EnabledModules.Directories)

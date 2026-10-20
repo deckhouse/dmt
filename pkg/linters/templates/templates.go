@@ -95,7 +95,10 @@ func (l *Templates) rules() []pkg.Rule {
 		rules.NewKubeRbacProxyRule(cfg.ExcludeRules.KubeRBACProxy.Get(), m, level(cfg.Rules.KubeRBACProxyRule)),
 		rules.NewServicePortRule(cfg.ExcludeRules.ServicePort.Get(), m, level(cfg.Rules.ServicePortRule)),
 		rules.NewPromtoolRule(cfg, m, level(cfg.Rules.PrometheusRule)),
-		rules.NewIngressRule(cfg.ExcludeRules.Ingress.Get(), m, level(cfg.Rules.IngressRule)),
+		rules.NewIngressSnippetsRule(
+			cfg.ExcludeRules.IngressSnippets.Files.Get(),
+			cfg.ExcludeRules.IngressSnippets.Directories.Get(),
+			m, level(cfg.Rules.IngressSnippetsRule)),
 		rules.NewHTTPRouteRule(cfg.ExcludeRules.HTTPRoute.Get(), m, level(cfg.Rules.HTTPRouteRule)),
 		rules.NewClusterDomainRule(m, level(cfg.Rules.ClusterDomainRule)),
 		// The werf rule has no rule-level config, so it reports at the linter's level.
