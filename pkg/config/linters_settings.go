@@ -236,7 +236,7 @@ type TemplatesSettings struct {
 type TemplatesLinterRules struct {
 	VPARule                            RuleConfig `mapstructure:"vpa"`
 	PDBRule                            RuleConfig `mapstructure:"pdb"`
-	IngressSnippetsRule                RuleConfig `mapstructure:"ingress-snippets"`
+	IngressRule                        RuleConfig `mapstructure:"ingress"`
 	HTTPRouteRule                      RuleConfig `mapstructure:"httproute"`
 	PrometheusRule                     RuleConfig `mapstructure:"prometheus-rules"`
 	GrafanaRule                        RuleConfig `mapstructure:"grafana-dashboards"`
@@ -266,7 +266,8 @@ type TemplatesExcludeRules struct {
 	PDBAbsent                      KindRuleExcludeList            `mapstructure:"pdb"`
 	ServicePort                    ServicePortExcludeList         `mapstructure:"service-port"`
 	KubeRBACProxy                  StringRuleExcludeList          `mapstructure:"kube-rbac-proxy"`
-	IngressSnippets                PathRuleExclude                `mapstructure:"ingress-snippets"`
+	Ingress                        KindRuleExcludeList            `mapstructure:"ingress"`
+	IngressPaths                   PathRuleExclude                `mapstructure:"ingress-paths"`
 	HTTPRoute                      KindRuleExcludeList            `mapstructure:"httproute"`
 	EnabledModules                 EnabledModulesExcludeRule      `mapstructure:"enabled-modules"`
 	WebhookConfiguration           KindRuleExcludeList            `mapstructure:"webhook-configuration-annotations"`

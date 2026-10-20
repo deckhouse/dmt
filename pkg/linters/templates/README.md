@@ -14,7 +14,7 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [pdb](#pdb) | Validates PodDisruptionBudgets for deployments and statefulsets | ✅ | enabled |
 | [kube-rbac-proxy](#kube-rbac-proxy) | Validates kube-rbac-proxy CA certificates in namespaces | ✅ | enabled |
 | [service-port](#service-port) | Validates services use named target ports | ✅ | enabled |
-| [ingress-snippets](#ingress-snippets) | Requires snippet annotations to be guarded by an ingress-nginx version check | ✅ | enabled |
+| [ingress-rules](#ingress-rules) | Requires snippet annotations to be guarded by an ingress-nginx version check | ✅ | enabled |
 | [httproute-rules](#httproute-rules) | Validates that every Ingress has a companion HTTPRoute backed by a ListenerSet | ✅ | enabled |
 | [prometheus-rules](#prometheus-rules) | Validates Prometheus rules with promtool and proper templates | ✅ | enabled |
 | [alert-grouping-annotations](#alert-grouping-annotations) | Forbids an alert from naming itself as its own `plk_*` group | ✅ | enabled (warn) |
@@ -892,7 +892,7 @@ linters-settings:
 
 ---
 
-### ingress-snippets
+### ingress-rules
 
 **Purpose:** Requires every ingress-nginx snippet annotation to be guarded by
 an ingress-nginx annotations version check.
@@ -1036,17 +1036,21 @@ spec:
 linters-settings:
   templates:
     exclude-rules:
+      # Exclude specific Ingresses by kind and name
+      ingress:
+        - kind: Ingress
+          name: legacy-api
       # Exclude template files and directories from the snippet check
-      ingress-snippets:
+      ingress-paths:
         files:
           - templates/legacy-ingress.yaml
         directories:
           - templates/legacy
 ```
 
-`ingress-snippets.files` matches module-relative file paths exactly, and
-`ingress-snippets.directories` excludes every file under a module-relative
-directory.
+`ingress` matches rendered objects by `kind`/`name`. `ingress-paths.files`
+matches module-relative file paths exactly, and `ingress-paths.directories`
+excludes every file under a module-relative directory.
 
 ---
 
@@ -2383,7 +2387,7 @@ linters-settings:
         impact: warning
       pdb:
         impact: error
-      ingress-snippets:
+      ingress:
         impact: warning
       httproute:
         impact: error
@@ -2430,12 +2434,12 @@ linters-settings:
         - kind: StatefulSet
           name: test-database
       
-      # Ingress snippets exclusions (by template path)
-      ingress-snippets:
-        files:
-          - templates/legacy-ingress.yaml
-        directories:
-          - templates/legacy
+      # Ingress exclusions (by kind and name)
+      ingress:
+        - kind: Ingress
+          name: dashboard
+        - kind: Ingress
+          name: legacy-api
 
       # HTTPRoute exclusions — Ingresses that are not yet required to have a Gateway API companion
       httproute:
@@ -2509,11 +2513,9 @@ linters-settings:
         - kind: Deployment
           name: single-pod-app
       
-      ingress-snippets:
-        files:
-          - templates/legacy-ingress.yaml
-        directories:
-          - templates/legacy
+      ingress:
+        - kind: Ingress
+          name: internal-dashboard
       
       service-port:
         - name: apiserver
@@ -2821,8 +2823,11 @@ their own namespaces, but module templates cannot rely on that.
    linters-settings:
      templates:
        exclude-rules:
-         # Exclude the whole template file/directory from the snippet check
-         ingress-snippets:
+         ingress:
+           - kind: Ingress
+             name: dashboard
+         # Or exclude the whole template file/directory
+         ingress-paths:
            files:
              - templates/dashboard-ingress.yaml
            directories:

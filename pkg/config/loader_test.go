@@ -62,9 +62,12 @@ func TestLoader_Load_WithConfigFile(t *testing.T) {
 	assert.Equal(t, 42, cfg2.Field2)
 }
 
-func TestTemplatesExcludeRulesDecodeIngressSnippetsExclude(t *testing.T) {
+func TestTemplatesExcludeRulesDecodeIngressExcludes(t *testing.T) {
 	raw := map[string]any{
-		"ingress-snippets": map[string]any{
+		"ingress": []map[string]any{
+			{"kind": "Ingress", "name": "legacy"},
+		},
+		"ingress-paths": map[string]any{
 			"files":       []string{"templates/legacy-ingress.yaml"},
 			"directories": []string{"templates/legacy"},
 		},
@@ -73,8 +76,9 @@ func TestTemplatesExcludeRulesDecodeIngressSnippetsExclude(t *testing.T) {
 	var excludeRules TemplatesExcludeRules
 	require.NoError(t, mapstructure.Decode(raw, &excludeRules))
 
-	require.Equal(t, StringRuleExcludeList{"templates/legacy-ingress.yaml"}, excludeRules.IngressSnippets.Files)
-	require.Equal(t, DirectoryRuleExcludeList{"templates/legacy"}, excludeRules.IngressSnippets.Directories)
+	require.Equal(t, KindRuleExcludeList{{Kind: "Ingress", Name: "legacy"}}, excludeRules.Ingress)
+	require.Equal(t, StringRuleExcludeList{"templates/legacy-ingress.yaml"}, excludeRules.IngressPaths.Files)
+	require.Equal(t, DirectoryRuleExcludeList{"templates/legacy"}, excludeRules.IngressPaths.Directories)
 }
 
 func TestLoader_Load_InvalidYaml(t *testing.T) {

@@ -30,8 +30,8 @@ import (
 )
 
 const (
-	IngressSnippetsRuleName = "ingress-snippets"
-	nginxAnnotationPrefix   = "nginx.ingress.kubernetes.io/"
+	IngressRuleName       = "ingress-rules"
+	nginxAnnotationPrefix = "nginx.ingress.kubernetes.io/"
 
 	// ingressNginxAnnotationsVersionHelper is the helm_lib switch that tells
 	// whether the installed ingress-nginx module provides the additional
@@ -64,33 +64,38 @@ var (
 	minAnnotationsVersion = semver.MustParse(minIngressNginxAnnotationsVersion)
 )
 
-type IngressSnippetsRule struct {
+type IngressRule struct {
 	pkg.RuleMeta
-	pkg.PathRule
+	pkg.KindRule
 
+	pathRule  pkg.PathRule
 	module    pkg.Module
 	errorList *errors.LintRuleErrorsList
 }
 
-func NewIngressSnippetsRule(excludeFileRules []pkg.StringRuleExclude,
+func NewIngressRule(excludeRules []pkg.KindRuleExclude,
+	excludeFileRules []pkg.StringRuleExclude,
 	excludeDirectoryRules []pkg.DirectoryRuleExclude,
-	m pkg.Module, errorList *errors.LintRuleErrorsList) *IngressSnippetsRule {
-	return &IngressSnippetsRule{
+	m pkg.Module, errorList *errors.LintRuleErrorsList) *IngressRule {
+	return &IngressRule{
 		RuleMeta: pkg.RuleMeta{
-			Name: IngressSnippetsRuleName,
+			Name: IngressRuleName,
 		},
-		PathRule: pkg.PathRule{
+		KindRule: pkg.KindRule{
+			ExcludeRules: excludeRules,
+		},
+		pathRule: pkg.PathRule{
 			ExcludeStringRules:    excludeFileRules,
 			ExcludeDirectoryRules: excludeDirectoryRules,
 		},
 		module:    m,
-		errorList: errorList.WithRule(IngressSnippetsRuleName),
+		errorList: errorList.WithRule(IngressRuleName),
 	}
 }
 
-var _ pkg.Rule = (*IngressSnippetsRule)(nil)
+var _ pkg.Rule = (*IngressRule)(nil)
 
-func (r *IngressSnippetsRule) Check(_ context.Context) {
+func (r *IngressRule) Check(_ context.Context) {
 	// Snippet annotations are checked in the raw templates rather than in the
 	// rendered objects: a snippet behind a version conditional may not render
 	// for the values used by dmt, but it still has to be guarded.
@@ -98,6 +103,10 @@ func (r *IngressSnippetsRule) Check(_ context.Context) {
 
 	for _, object := range r.module.GetStorage() {
 		if object.Unstructured.GetKind() != "Ingress" {
+			continue
+		}
+
+		if !r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {
 			continue
 		}
 
@@ -111,10 +120,10 @@ func (r *IngressSnippetsRule) Check(_ context.Context) {
 	}
 }
 
-func (r *IngressSnippetsRule) checkSnippetAnnotations(absPath string) {
+func (r *IngressRule) checkSnippetAnnotations(absPath string) {
 	filePath := r.displayPath(absPath)
 
-	if !r.Enabled(filePath) {
+	if !r.pathRule.Enabled(filePath) {
 		return
 	}
 
@@ -127,7 +136,7 @@ func (r *IngressSnippetsRule) checkSnippetAnnotations(absPath string) {
 	r.checkSnippetAnnotationsContent(filePath, string(content))
 }
 
-func (r *IngressSnippetsRule) displayPath(absPath string) string {
+func (r *IngressRule) displayPath(absPath string) string {
 	modulePath := r.module.GetPath()
 	if modulePath == "" {
 		return absPath
@@ -149,7 +158,7 @@ type helmBlock struct {
 	guarded bool
 }
 
-func (r *IngressSnippetsRule) checkSnippetAnnotationsContent(filePath, content string) {
+func (r *IngressRule) checkSnippetAnnotationsContent(filePath, content string) {
 	stack := make([]helmBlock, 0, 8)
 	last := 0
 
@@ -224,7 +233,7 @@ func isAnnotationsVersionGuard(action string) bool {
 	return false
 }
 
-func (r *IngressSnippetsRule) reportUnguardedSnippetAnnotations(filePath, content string, start, end int, guarded bool) {
+func (r *IngressRule) reportUnguardedSnippetAnnotations(filePath, content string, start, end int, guarded bool) {
 	if guarded || start >= end {
 		return
 	}

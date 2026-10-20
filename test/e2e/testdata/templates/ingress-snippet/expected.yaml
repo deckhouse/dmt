@@ -4,6 +4,6 @@ description: >
 module: module
 expect:
   - linter: templates
-    rule: ingress-snippets
+    rule: ingress-rules
     level: error
     textContains: "is discouraged to use in DKP modules"

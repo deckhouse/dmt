@@ -26,14 +26,17 @@ import (
 	"github.com/deckhouse/dmt/pkg/config/global"
 )
 
-// TestRemapIngressSnippetsExcludeRules proves that .dmtlint.yaml
-// ingress-snippets excludes parsed into config.TemplatesExcludeRules reach the
-// file/directory lists the ingress-snippets rule reads.
-func TestRemapIngressSnippetsExcludeRules(t *testing.T) {
+// TestRemapIngressExcludeRules proves that .dmtlint.yaml ingress kind/name and
+// ingress-paths excludes parsed into config.TemplatesExcludeRules reach the
+// lists the ingress rule reads.
+func TestRemapIngressExcludeRules(t *testing.T) {
 	configSettings := &config.LintersSettings{
 		Templates: config.TemplatesSettings{
 			ExcludeRules: config.TemplatesExcludeRules{
-				IngressSnippets: config.PathRuleExclude{
+				Ingress: config.KindRuleExcludeList{
+					{Kind: "Ingress", Name: "legacy"},
+				},
+				IngressPaths: config.PathRuleExclude{
 					Files:       config.StringRuleExcludeList{"templates/legacy-ingress.yaml"},
 					Directories: config.DirectoryRuleExcludeList{"templates/legacy"},
 				},
@@ -43,6 +46,7 @@ func TestRemapIngressSnippetsExcludeRules(t *testing.T) {
 
 	settings := remapLinterSettings(configSettings, &global.Linters{})
 
-	require.Equal(t, pkg.StringRuleExcludeList{"templates/legacy-ingress.yaml"}, settings.Templates.ExcludeRules.IngressSnippets.Files)
-	require.Equal(t, pkg.DirectoryRuleExcludeList{"templates/legacy"}, settings.Templates.ExcludeRules.IngressSnippets.Directories)
+	require.Equal(t, pkg.KindRuleExcludeList{{Kind: "Ingress", Name: "legacy"}}, settings.Templates.ExcludeRules.Ingress)
+	require.Equal(t, pkg.StringRuleExcludeList{"templates/legacy-ingress.yaml"}, settings.Templates.ExcludeRules.IngressPaths.Files)
+	require.Equal(t, pkg.DirectoryRuleExcludeList{"templates/legacy"}, settings.Templates.ExcludeRules.IngressPaths.Directories)
 }

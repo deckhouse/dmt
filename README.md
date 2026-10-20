@@ -254,8 +254,11 @@ linters-settings:
         - /host
         - /etc/iscsi
         - /certs
-      # Exclude specific template files or directories from ingress-snippets
-      ingress-snippets:
+      # Exclude specific Ingresses and template paths from ingress-rules
+      ingress:
+        - kind: Ingress
+          name: legacy-api
+      ingress-paths:
         files:
           - templates/legacy-ingress.yaml
         directories:

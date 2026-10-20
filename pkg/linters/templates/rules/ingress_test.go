@@ -46,10 +46,10 @@ var snippetAnnotations = []string{
 	nginxAnnotationPrefix + "stream-snippet",
 }
 
-func TestIngressSnippetsRuleReportsUnguardedSnippetAnnotations(t *testing.T) {
+func TestIngressRuleReportsUnguardedSnippetAnnotations(t *testing.T) {
 	for _, annotation := range snippetAnnotations {
 		t.Run(annotation, func(t *testing.T) {
-			findings := runIngressSnippetsRule(t,
+			findings := runIngressRule(t,
 				"Ingress",
 				ingressTemplate(annotationLine(annotation, snippetValue)),
 				nil, nil,
@@ -69,7 +69,7 @@ func TestIngressSnippetsRuleReportsUnguardedSnippetAnnotations(t *testing.T) {
 	}
 }
 
-func TestIngressSnippetsRuleAcceptsGuardedSnippetAnnotations(t *testing.T) {
+func TestIngressRuleAcceptsGuardedSnippetAnnotations(t *testing.T) {
 	conditions := []string{
 		fmt.Sprintf(`{{- if include %q (list $ %q) }}`, ingressNginxAnnotationsVersionHelper, "1.3.0"),
 		fmt.Sprintf(`{{- if include %q (list $ %q) }}`, ingressNginxAnnotationsVersionHelper, "1.4.2"),
@@ -80,7 +80,7 @@ func TestIngressSnippetsRuleAcceptsGuardedSnippetAnnotations(t *testing.T) {
 
 	for _, condition := range conditions {
 		t.Run(condition, func(t *testing.T) {
-			findings := runIngressSnippetsRule(t,
+			findings := runIngressRule(t,
 				"Ingress",
 				ingressTemplate(
 					condition+"\n"+
@@ -95,10 +95,10 @@ func TestIngressSnippetsRuleAcceptsGuardedSnippetAnnotations(t *testing.T) {
 	}
 }
 
-func TestIngressSnippetsRuleAcceptsSnippetInGuardedElseBranch(t *testing.T) {
+func TestIngressRuleAcceptsSnippetInGuardedElseBranch(t *testing.T) {
 	condition := fmt.Sprintf(`{{- if include %q (list $ %q) }}`, ingressNginxAnnotationsVersionHelper, "1.3.0")
 
-	findings := runIngressSnippetsRule(t,
+	findings := runIngressRule(t,
 		"Ingress",
 		ingressTemplate(
 			condition+"\n"+
@@ -113,10 +113,10 @@ func TestIngressSnippetsRuleAcceptsSnippetInGuardedElseBranch(t *testing.T) {
 	assert.Empty(t, findings)
 }
 
-func TestIngressSnippetsRuleAcceptsSnippetNestedInGuardedBlock(t *testing.T) {
+func TestIngressRuleAcceptsSnippetNestedInGuardedBlock(t *testing.T) {
 	condition := fmt.Sprintf(`{{- if include %q (list $ %q) }}`, ingressNginxAnnotationsVersionHelper, "1.3.0")
 
-	findings := runIngressSnippetsRule(t,
+	findings := runIngressRule(t,
 		"Ingress",
 		ingressTemplate(
 			condition+"\n"+
@@ -131,12 +131,12 @@ func TestIngressSnippetsRuleAcceptsSnippetNestedInGuardedBlock(t *testing.T) {
 	assert.Empty(t, findings)
 }
 
-func TestIngressSnippetsRuleRejectsInvalidGuardVersions(t *testing.T) {
+func TestIngressRuleRejectsInvalidGuardVersions(t *testing.T) {
 	for _, version := range []string{"1.2.9", "1.3.0-rc.1", "not-a-version"} {
 		t.Run(version, func(t *testing.T) {
 			condition := fmt.Sprintf(`{{- if include %q (list $ %q) }}`, ingressNginxAnnotationsVersionHelper, version)
 
-			findings := runIngressSnippetsRule(t,
+			findings := runIngressRule(t,
 				"Ingress",
 				ingressTemplate(
 					condition+"\n"+
@@ -152,10 +152,10 @@ func TestIngressSnippetsRuleRejectsInvalidGuardVersions(t *testing.T) {
 	}
 }
 
-func TestIngressSnippetsRuleReportsSnippetOutsideGuard(t *testing.T) {
+func TestIngressRuleReportsSnippetOutsideGuard(t *testing.T) {
 	condition := fmt.Sprintf(`{{- if include %q (list $ %q) }}`, ingressNginxAnnotationsVersionHelper, "1.3.0")
 
-	findings := runIngressSnippetsRule(t,
+	findings := runIngressRule(t,
 		"Ingress",
 		ingressTemplate(
 			condition+"\n"+
@@ -169,11 +169,11 @@ func TestIngressSnippetsRuleReportsSnippetOutsideGuard(t *testing.T) {
 	assert.Contains(t, findings[0].Text, "discouraged to use in DKP modules")
 }
 
-func TestIngressSnippetsRuleReportsOnlyUnguardedOccurrences(t *testing.T) {
+func TestIngressRuleReportsOnlyUnguardedOccurrences(t *testing.T) {
 	condition := fmt.Sprintf(`{{- if include %q (list $ %q) }}`, ingressNginxAnnotationsVersionHelper, "1.3.0")
 	serverSnippet := nginxAnnotationPrefix + "server-snippet"
 
-	findings := runIngressSnippetsRule(t,
+	findings := runIngressRule(t,
 		"Ingress",
 		ingressTemplate(
 			condition+"\n"+
@@ -188,8 +188,8 @@ func TestIngressSnippetsRuleReportsOnlyUnguardedOccurrences(t *testing.T) {
 	assert.Contains(t, findings[0].Text, serverSnippet)
 }
 
-func TestIngressSnippetsRuleIgnoresCommentedSnippetAnnotation(t *testing.T) {
-	findings := runIngressSnippetsRule(t,
+func TestIngressRuleIgnoresCommentedSnippetAnnotation(t *testing.T) {
+	findings := runIngressRule(t,
 		"Ingress",
 		ingressTemplate("# "+configurationSnippetAnnotation+": value\n"),
 		nil, nil,
@@ -198,7 +198,7 @@ func TestIngressSnippetsRuleIgnoresCommentedSnippetAnnotation(t *testing.T) {
 	assert.Empty(t, findings)
 }
 
-func TestIngressSnippetsRuleSkipsExcludedFilesAndDirectories(t *testing.T) {
+func TestIngressRuleSkipsExcludedFilesAndDirectories(t *testing.T) {
 	content := ingressTemplate(annotationLine(configurationSnippetAnnotation, snippetValue))
 
 	tests := []struct {
@@ -218,13 +218,13 @@ func TestIngressSnippetsRuleSkipsExcludedFilesAndDirectories(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			findings := runIngressSnippetsRule(t, "Ingress", content, tt.files, tt.directories)
+			findings := runIngressRule(t, "Ingress", content, tt.files, tt.directories)
 			assert.Empty(t, findings)
 		})
 	}
 
 	t.Run("unrelated exclusion does not skip the file", func(t *testing.T) {
-		findings := runIngressSnippetsRule(t, "Ingress", content,
+		findings := runIngressRule(t, "Ingress", content,
 			[]pkg.StringRuleExclude{"templates/other.yaml"},
 			[]pkg.DirectoryRuleExclude{"templates/legacy"},
 		)
@@ -233,10 +233,32 @@ func TestIngressSnippetsRuleSkipsExcludedFilesAndDirectories(t *testing.T) {
 	})
 }
 
-func TestIngressSnippetsRuleSkipsNonIngressResources(t *testing.T) {
+func TestIngressRuleSkipsExcludedIngresses(t *testing.T) {
 	content := ingressTemplate(annotationLine(configurationSnippetAnnotation, snippetValue))
 
-	assert.Empty(t, runIngressSnippetsRule(t, "Deployment", content, nil, nil))
+	t.Run("excluded by kind and name", func(t *testing.T) {
+		findings := runIngressRuleConfigured(t, "Ingress",
+			[]pkg.KindRuleExclude{{Kind: "Ingress", Name: "test"}},
+			content, nil, nil,
+		)
+
+		assert.Empty(t, findings)
+	})
+
+	t.Run("exclusion for another ingress does not skip", func(t *testing.T) {
+		findings := runIngressRuleConfigured(t, "Ingress",
+			[]pkg.KindRuleExclude{{Kind: "Ingress", Name: "other"}},
+			content, nil, nil,
+		)
+
+		require.Len(t, findings, 1)
+	})
+}
+
+func TestIngressRuleSkipsNonIngressResources(t *testing.T) {
+	content := ingressTemplate(annotationLine(configurationSnippetAnnotation, snippetValue))
+
+	assert.Empty(t, runIngressRule(t, "Deployment", content, nil, nil))
 }
 
 func ingressTemplate(annotationLines string) string {
@@ -253,9 +275,22 @@ func annotationLine(annotation, value string) string {
 	return fmt.Sprintf("    %s: %q\n", annotation, value)
 }
 
-func runIngressSnippetsRule(
+func runIngressRule(
 	t *testing.T,
 	kind string,
+	template string,
+	excludeFiles []pkg.StringRuleExclude,
+	excludeDirectories []pkg.DirectoryRuleExclude,
+) []pkg.LinterError {
+	t.Helper()
+
+	return runIngressRuleConfigured(t, kind, nil, template, excludeFiles, excludeDirectories)
+}
+
+func runIngressRuleConfigured(
+	t *testing.T,
+	kind string,
+	excludeIngresses []pkg.KindRuleExclude,
 	template string,
 	excludeFiles []pkg.StringRuleExclude,
 	excludeDirectories []pkg.DirectoryRuleExclude,
@@ -286,7 +321,7 @@ func runIngressSnippetsRule(
 	module.GetPathMock.Optional().Return(moduleDir)
 
 	errorList := errors.NewLintRuleErrorsList()
-	NewIngressSnippetsRule(excludeFiles, excludeDirectories, module, errorList).Check(t.Context())
+	NewIngressRule(excludeIngresses, excludeFiles, excludeDirectories, module, errorList).Check(t.Context())
 
 	return errorList.GetErrors()
 }
