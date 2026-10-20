@@ -102,6 +102,7 @@ func (l *Templates) rules() []pkg.Rule {
 		rules.NewWerfRule(m, errorList),
 		rules.NewRegistryRule(m, level(cfg.Rules.RegistryRule)),
 		rules.NewWebhookConfigurationRule(cfg.ExcludeRules.WebhookConfiguration.Get(), m, level(cfg.Rules.WebhookConfigurationRule)),
+		rules.NewAlertGroupingAnnotationsRule(cfg.ExcludeRules.AlertGroupingAnnotations.Get(), m, level(cfg.Rules.AlertGroupingAnnotationsRule)),
 		rules.NewEnabledModulesRule(
 			cfg.ExcludeRules.EnabledModules.Files.Get(),
 			cfg.ExcludeRules.EnabledModules.Directories.Get(),
@@ -115,6 +116,10 @@ func (l *Templates) rules() []pkg.Rule {
 			cfg.ExcludeRules.DeprecatedHTTPRouteAnnotations.Files.Get(),
 			cfg.ExcludeRules.DeprecatedHTTPRouteAnnotations.Directories.Get(),
 			m, level(cfg.Rules.DeprecatedHTTPRouteAnnotationsRule)),
+		rules.NewDocumentationLinksRule(
+			cfg.ExcludeRules.DocumentationLinks.Files.Get(),
+			cfg.ExcludeRules.DocumentationLinks.Directories.Get(),
+			m, level(cfg.Rules.DocumentationLinksRule)),
 		rules.NewIngressEnablementRule(
 			cfg.ExcludeRules.IngressEnablement.Files.Get(),
 			cfg.ExcludeRules.IngressEnablement.Directories.Get(),

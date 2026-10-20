@@ -1,0 +1,17 @@
+description: >
+  The rule is turned off through impact: ignored in the global section of
+  .dmtlint.yaml: the finding is kept at the ignored level and never reported as
+  a warning or an error.
+module: module
+expect:
+  - linter: templates
+    rule: documentation-links
+    level: ignored
+    count: 1
+expectPass:
+  - linter: templates
+    rule: documentation-links
+    level: warn
+  - linter: templates
+    rule: documentation-links
+    level: error

@@ -17,6 +17,7 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [ingress-rules](#ingress-rules) | Validates Ingress configuration snippets | ✅ | enabled |
 | [httproute-rules](#httproute-rules) | Validates that every Ingress has a companion HTTPRoute backed by a ListenerSet | ✅ | enabled |
 | [prometheus-rules](#prometheus-rules) | Validates Prometheus rules with promtool and proper templates | ✅ | enabled |
+| [alert-grouping-annotations](#alert-grouping-annotations) | Forbids an alert from naming itself as its own `plk_*` group | ✅ | enabled (warn) |
 | [grafana-dashboards](#grafana-dashboards) | Validates Grafana dashboard templates | ✅ | enabled |
 | [cluster-domain](#cluster-domain) | Validates cluster domain configuration is dynamic | ❌ | enabled |
 | [registry](#registry) | Validates registry secret configuration | ❌ | enabled |
@@ -28,6 +29,7 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [openapi-values-quote](#openapi-values-quote) | Requires templates to quote OpenAPI string values that have no `pattern`/`enum`/`format` | ✅ | enabled |
 | [schema-validation](#schema-validation) | Strictly decodes every rendered standard Kubernetes resource against its API type | ✅ | enabled |
 | [deprecated-httproute-annotations](#deprecated-httproute-annotations) | Flags deprecated annotation keys (e.g. `alb.network.deckhouse.io/response-headers-to-add`) | ✅ | enabled |
+| [documentation-links](#documentation-links) | Flags links to the public documentation site (`deckhouse.io`/`deckhouse.ru`) in alerts and dashboards instead of the in-cluster documentation | ✅ | enabled (warn) |
 | [ingress-enablement](#ingress-enablement) | Requires Ingress creation to be gated by `helm_lib_module_ingress_enabled` | ✅ | enabled |
 | [gateway-enablement](#gateway-enablement) | Requires HTTPRoute/ListenerSet creation to be gated by `helm_lib_module_gateway_enabled` | ✅ | enabled |
 | [https-certificate-reuse](#https-certificate-reuse) | Requires a custom certificate to be copied once and reused by Ingress and Gateway API via `helm_lib_module_https_secret_name`'s plain and two-prefix forms | ✅ | enabled |
@@ -1387,6 +1389,95 @@ linters-settings:
 ```
 
 ---
+
+### alert-grouping-annotations
+
+**Purpose:** Forbids an alerting rule from grouping into a group that carries the alert's own name. The alerts processing system treats such a rule as a circular dependency and refuses to create the event at all, so the alert is never delivered.
+
+**Description:**
+
+Alerts declare their grouping through two annotations whose key suffix ties them together and whose value starts with the name of the group:
+
+- `plk_create_group_if_not_exists__<suffix>` — create the group if it does not exist yet;
+- `plk_grouped_by__<suffix>` — put this alert into that group.
+
+The value is a comma-separated list: the first element is the group name (a trigger name), the rest are label matchers. When that first element equals the alert's own name, the alert is asked to be grouped into itself. The processing system rejects it with:
+
+```
+Couldn't create event due to error: Usage of current alert's trigger (D8RegistryNodeForeignRegistryConfig)
+is forbidden in grouping to prevent circular dependencies!
+```
+
+The alert is then dropped rather than delivered, and the rejection is reported as a `BadAnnotations` exception — which is why this is worth catching before the rules ever reach a cluster.
+
+**What it checks:**
+
+1. Every alerting rule (a rule with an `alert` field) found in the module's `monitoring/prometheus-rules` files, and in any rendered `PrometheusRule` object
+2. For each annotation whose key starts with `plk_create_group_if_not_exists__` or `plk_grouped_by__`, the group name — the value up to the first comma, trimmed — must differ from the alert's name
+3. Recording rules are skipped: they have no `alert` field and are never grouped
+4. Group names are compared exactly; a differently-cased name is a genuinely different trigger and is not reported
+
+Both annotations of a broken pair are reported, so a partial fix does not leave one behind unnoticed, and a finding carries the annotation's line number.
+
+Rule files are read as `*.yaml`, `*.yml` and `*.tpl`, matching the `**.{yaml,tpl}` glob `helm_lib_prometheus_rules` uses. Template files are frequently not valid YAML on their own; for those the rule falls back to a line scan that attributes each grouping annotation to the nearest preceding `- alert:` line.
+
+Names built by a template are compared with substitution in mind. `- alert: {{ $controllerKind }}ImageAbsent` is the alert `DeploymentImageAbsent` once rendered for that kind, so a group named `DeploymentImageAbsent` collides with it and is reported, while an unrelated group such as `UnavailableImagesInNamespace` is not. When both the alert and the group are templated they render in the same context, so they are compared as plain text.
+
+The rule reads the source files rather than relying on rendered objects alone, because `helm_lib_prometheus_rules` only emits `PrometheusRule` objects when `global.enabledModules` contains `operator-prometheus-crd`. On a full deckhouse lint that is not the case, no such object exists, and an object-only check would pass while the broken annotations sit in the files. A rule file that does not parse is skipped — that is the promtool check's finding, not this one's. Findings are deduplicated on the alert and annotation, so an alert reached through both paths is reported once.
+
+**Why it matters:**
+
+A self-grouping alert does not degrade gracefully. It is not delivered late or in the wrong group — it is not delivered at all, while the alerting system fills with `BadAnnotations` errors for every evaluation. Because the rules are valid YAML and pass `promtool`, nothing else in the pipeline catches this.
+
+**Default level:**
+
+This rule reports at `warn` by default. Most of what it checks is an exact comparison with no room for a false positive, but not all of it: a templated name is matched by pattern, and an alert behind a conditional is read whether or not it renders, so a finding can name a collision that never happens. A rule carries one impact, and it has to cover the inferred half. Raise it with `impact: error` where the modules use no templated alert names.
+
+**Examples:**
+
+❌ **Incorrect** - the group is named after the alert itself:
+
+```yaml
+- alert: D8RegistryDrainStuck
+  expr: vector(1)
+  annotations:
+    plk_create_group_if_not_exists__d8_registry_drain_stuck: "D8RegistryDrainStuck,tier=cluster,prometheus=deckhouse"
+    plk_grouped_by__d8_registry_drain_stuck: "D8RegistryDrainStuck,tier=cluster,prometheus=deckhouse"
+```
+
+✅ **Correct** - the alert is grouped into a group of its own name space:
+
+```yaml
+- alert: D8RegistryDrainStuck
+  expr: vector(1)
+  annotations:
+    plk_create_group_if_not_exists__d8_registry_alerts: "D8RegistryAlerts,tier=cluster,prometheus=deckhouse"
+    plk_grouped_by__d8_registry_alerts: "D8RegistryAlerts,tier=cluster,prometheus=deckhouse"
+```
+
+**Configuration:**
+
+The severity lives in the `global` section, which is where per-rule `impact` is read from; a module's own `linters-settings` carries the exclusions. Both can sit in the same `.dmtlint.yaml`:
+
+```yaml
+# raise the rule from its warn default once your modules are clean
+global:
+  linters-settings:
+    templates:
+      rules:
+        alert-grouping-annotations:
+          impact: error
+
+# silence individual alerts by name
+linters-settings:
+  templates:
+    exclude-rules:
+      alert-grouping-annotations:
+        - D8RegistryDrainStuck
+        - D8RegistryConfigInvalid
+```
+
+Because the default is pinned to `warn` rather than to the linter's impact, raising `templates.impact` alone does not raise this rule — set its own `impact` as above.
 
 ### grafana-dashboards
 
@@ -3047,6 +3138,113 @@ linters-settings:
           - templates/legacy-ingress.yaml
         directories:
           - templates/vendor/
+```
+
+---
+
+### documentation-links
+
+**Purpose:** Makes documentation links in alerts and dashboards point to the
+in-cluster documentation, so that they work in closed environments where the
+public site is unreachable.
+
+**Description:**
+
+Scans alert and dashboard sources for links to `https://deckhouse.io/...` or
+`https://deckhouse.ru/...` and reports every occurrence with its line number,
+suggesting the `helm_lib_module_documentation_uri` helper from lib-helm. The
+helper renders a link to the in-cluster documentation
+(`<scheme>://documentation.<publicDomain>/<path>`) and falls back to
+`https://deckhouse.io/<path>` when `publicDomainTemplate` is not set.
+
+Findings are reported at the `warn` level by default.
+
+**What it checks:**
+
+1. `monitoring/prometheus-rules/**/*.{yaml,yml,tpl}`
+2. `monitoring/grafana-dashboards/**/*.{json,tpl}`
+3. Files in `templates/` declaring alerts or dashboards: `PrometheusRule`,
+   `CustomPrometheusRules`, `GrafanaDashboardDefinition`, and the
+   `*ObservabilityMetricsRulesGroup` and `*ObservabilityDashboard` resources of
+   the observability module. Logs rules groups are not scanned: they hold
+   recording rules only, without annotations
+4. A link in a branch rendered only when the in-cluster documentation is
+   unavailable is a valid fallback and is not reported. The documentation is
+   unavailable when `.Values.global.modules.publicDomainTemplate` is not set or
+   the `documentation` module is disabled. Files rendered by Helm are parsed
+   with Go's `text/template/parse`, so the rule follows nested blocks and
+   `else if`/`else with` chains, and in conditions `not`, `and`, `or`, `empty`,
+   comparisons with `""` and parentheses:
+
+   ```gotemplate
+   {{ if .Values.global.modules.publicDomainTemplate }}...{{ else }}https://deckhouse.io/...{{ end }}
+   {{ if has "documentation" .Values.global.enabledModules }}...{{ else }}https://deckhouse.io/...{{ end }}
+   {{ if not .Values.global.modules.publicDomainTemplate }}https://deckhouse.io/...{{ end }}
+   ```
+
+   The else branch of a condition combined with an unrelated value, such as
+   `{{ if and .Values.global.modules.publicDomainTemplate .Values.foo }}`, is not
+   a fallback: it is also rendered when the documentation is available.
+   Conditions on template variables (`{{ if $domain }}`) are not followed, and a
+   file that does not parse has no fallbacks
+
+Source files are scanned instead of rendered objects: lib-helm passes only
+`.tpl` files from `monitoring/` through `tpl`, so plain `.yaml` rules and
+`.json` dashboards never reach Helm templating. Such a file has to be renamed
+to `.tpl` before it can use the helper, and the Prometheus/Grafana templates
+already in it have to be escaped, e.g. ``{{`{{ $labels.node }}`}}``.
+
+**Why it matters:**
+
+Clusters in closed environments cannot reach the public documentation site,
+while the in-cluster documentation serves the docs of every enabled module.
+
+**Examples:**
+
+❌ **Incorrect** - Linking to the public site:
+
+```yaml
+# monitoring/prometheus-rules/node.yaml
+- name: node
+  rules:
+    - alert: NodeUnmanaged
+      annotations:
+        description: |
+          The {{ $labels.node }} Node is not managed, see the [instructions](https://deckhouse.io/modules/node-manager/faq.html#how-to-clean-up-a-node-for-adding-to-the-cluster).
+```
+
+**Warning:**
+```
+Link "https://deckhouse.io/modules/node-manager/faq.html#how-to-clean-up-a-node-for-adding-to-the-cluster" points to the public documentation site, which is unreachable from closed environments. Link to the in-cluster documentation instead: {{ include "helm_lib_module_documentation_uri" (list . "/modules/node-manager/faq.html#how-to-clean-up-a-node-for-adding-to-the-cluster") }}. This file is not rendered by Helm: rename it to .tpl and escape the existing Prometheus/Grafana templates, e.g. {{`{{ $labels.node }}`}}
+```
+
+✅ **Correct** - Using the helper in a `.tpl` file:
+
+```yaml
+# monitoring/prometheus-rules/node.tpl
+- name: node
+  rules:
+    - alert: NodeUnmanaged
+      annotations:
+        description: |
+          The {{`{{ $labels.node }}`}} Node is not managed, see the [instructions]({{ include "helm_lib_module_documentation_uri" (list . "/modules/node-manager/faq.html#how-to-clean-up-a-node-for-adding-to-the-cluster") }}).
+```
+
+**Configuration:**
+
+The rule supports excluding specific files and directories (paths are relative
+to the module root):
+
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  templates:
+    exclude-rules:
+      documentation-links:
+        files:
+          - monitoring/prometheus-rules/legacy.yaml
+        directories:
+          - monitoring/grafana-dashboards/vendor/
 ```
 
 ---

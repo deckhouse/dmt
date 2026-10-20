@@ -247,11 +247,13 @@ type TemplatesLinterRules struct {
 	EnabledModulesRule                 RuleConfig `mapstructure:"enabled-modules"`
 	CRDEnabledModulesRule              RuleConfig `mapstructure:"crd-enabled-modules"`
 	WebhookConfigurationRule           RuleConfig `mapstructure:"webhook-configuration-annotations"`
+	AlertGroupingAnnotationsRule       RuleConfig `mapstructure:"alert-grouping-annotations"`
 	MountPointsRule                    RuleConfig `mapstructure:"mount-points"`
 	HelmRenderRule                     RuleConfig `mapstructure:"helm-render"`
 	OpenAPIValuesQuoteRule             RuleConfig `mapstructure:"openapi-values-quote"`
 	SchemaValidationRule               RuleConfig `mapstructure:"schema-validation"`
 	DeprecatedHTTPRouteAnnotationsRule RuleConfig `mapstructure:"deprecated-httproute-annotations"`
+	DocumentationLinksRule             RuleConfig `mapstructure:"documentation-links"`
 	IngressEnablementRule              RuleConfig `mapstructure:"ingress-enablement"`
 	GatewayEnablementRule              RuleConfig `mapstructure:"gateway-enablement"`
 	HTTPSCertificateReuseRule          RuleConfig `mapstructure:"https-certificate-reuse"`
@@ -268,10 +270,12 @@ type TemplatesExcludeRules struct {
 	HTTPRoute                      KindRuleExcludeList            `mapstructure:"httproute"`
 	EnabledModules                 EnabledModulesExcludeRule      `mapstructure:"enabled-modules"`
 	WebhookConfiguration           KindRuleExcludeList            `mapstructure:"webhook-configuration-annotations"`
+	AlertGroupingAnnotations       StringRuleExcludeList          `mapstructure:"alert-grouping-annotations"`
 	MountPoints                    StringRuleExcludeList          `mapstructure:"mount-points"`
 	OpenAPIValuesQuote             StringRuleExcludeList          `mapstructure:"openapi-values-quote"`
 	SchemaValidation               KindRuleExcludeList            `mapstructure:"schema-validation"`
 	DeprecatedHTTPRouteAnnotations PathRuleExclude                `mapstructure:"deprecated-httproute-annotations"`
+	DocumentationLinks             PathRuleExclude                `mapstructure:"documentation-links"`
 	IngressEnablement              PathRuleExclude                `mapstructure:"ingress-enablement"`
 	GatewayEnablement              PathRuleExclude                `mapstructure:"gateway-enablement"`
 	HTTPSCertificateReuse          PathRuleExclude                `mapstructure:"https-certificate-reuse"`

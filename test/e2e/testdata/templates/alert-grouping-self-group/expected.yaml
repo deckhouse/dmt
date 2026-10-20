@@ -1,0 +1,11 @@
+description: >
+  An alert whose plk grouping annotations name the alert itself as the group
+  must be flagged by the alert-grouping-annotations rule — once per annotation,
+  so that neither of the two is silently left behind after a fix.
+module: module
+expect:
+  - linter: templates
+    rule: alert-grouping-annotations
+    level: warn
+    textContains: "is grouped into itself"
+    count: 2

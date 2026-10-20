@@ -1,0 +1,17 @@
+description: >
+  An alert in a plain .yaml rules file that links to the public documentation
+  site must be flagged by the documentation-links rule at the default warn
+  level, with the helper to use instead and a hint to rename the file to .tpl,
+  because lib-helm does not template .yaml rules files.
+module: module
+expect:
+  - linter: templates
+    rule: documentation-links
+    level: warn
+    count: 1
+    textContains: '{{ include "helm_lib_module_documentation_uri" (list . "/modules/e2e/faq.html#anchor") }}'
+  - linter: templates
+    rule: documentation-links
+    level: warn
+    count: 1
+    textContains: "rename it to .tpl"
