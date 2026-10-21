@@ -1,0 +1,247 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: d8hostnetwork
+  labels:
+    heritage: deckhouse
+    module: admission-policy-engine
+    security.deckhouse.io: security-policy
+  annotations:
+    metadata.gatekeeper.sh/title: "Host Networking"
+    metadata.gatekeeper.sh/version: 1.0.0
+    description: >-
+      Controls usage of host network namespace by pod containers. Specific
+      ports must be specified. Corresponds to the `hostNetwork` and
+      `hostPorts` fields in a PodSecurityPolicy. For more information, see
+      https://kubernetes.io/docs/concepts/policy/pod-security-policy/#host-namespaces
+spec:
+  crd:
+    spec:
+      names:
+        kind: D8HostNetwork
+      validation:
+        # Schema for the `parameters` field
+        openAPIV3Schema:
+          type: object
+          description: >-
+            Controls usage of host network namespace by pod containers. Specific
+            ports must be specified. Corresponds to the `hostNetwork` and
+            `hostPorts` fields in a PodSecurityPolicy. For more information, see
+            https://kubernetes.io/docs/concepts/policy/pod-security-policy/#host-namespaces
+          properties:
+            allowHostNetwork:
+              description: "Determines if the policy allows the use of HostNetwork in the pod spec."
+              type: boolean
+            ranges:
+              type: array
+              description: "A list of of hostPort ranges allowed by the rule."
+              items:
+                type: object
+                description: "The range of hostPorts allowed by the rule."
+                properties:
+                  min:
+                    description: "The start of the allowed port range, inclusive."
+                    type: integer
+                  max:
+                    description: "The end of the allowed port range, inclusive."
+                    type: integer
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      code:
+        - engine: Rego
+          source:
+            version: "v1"
+            libs:
+              - |
+                {{- include "constraint-templates.lib.common.container-review" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.range" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.check_range" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.exception.spe" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.message" . | nindent 16 }}
+            rego: |
+              package d8.security_policies
+
+              import data.lib.check_range.check_ports_with_protocol_in_ranges
+              import data.lib.message.violation_message
+              import data.lib.common.input_containers
+              import data.lib.common.object_labels
+              import data.lib.common.object_namespace
+              import data.lib.common.pod_spec
+              import data.lib.exception.allowed_values_or_empty
+              import data.lib.exception.path_value_resolved
+              import data.lib.exception.resolve_spe_from_labels
+              import data.lib.common.review_kind
+
+              # One violation per object, whatever it breaks, so the number of deny messages does
+              # not depend on how many ports a pod opens. The message lists hostNetwork and every
+              # disallowed port; `details` carries the same data:
+              #   hostNetwork: {field, actual, policy_allowed, spe_applied[, spe_allowed]}, only
+              #                when hostNetwork itself is not allowed;
+              #   ports:       [{port, protocol, source, field, actual, policy_allowed, spe_applied,
+              #                spe_allowed}], every disallowed port sorted by port and protocol,
+              #                always present (empty when the ports are fine). `source` is
+              #                `hostPort`, or `containerPort` for a port that binds on the node
+              #                only because the pod uses the host network. `policy_allowed` is the
+              #                ranges actually applied: once an exception names hostPorts
+              #                (`spe_applied: true`) the policy ranges are not consulted, so it is [].
+              violation contains {"msg": msg, "details": details} if {
+                not input.review.operation == "DELETE"
+                host_network := [r.detail |
+                  r := host_network_result(input.review.object, object.get(input.parameters, "allowHostNetwork", false), pod_exception)
+                  not r.allowed
+                ]
+                ports_summary := [object.union(disallowed_ports[0], {"actual": concat(", ", [p.actual | p := disallowed_ports[_]])}) |
+                  count(disallowed_ports) > 0
+                ]
+                parts := array.concat(host_network, ports_summary)
+                count(parts) > 0
+                msg := violation_message_of_parts(parts)
+                details := object.union({"ports": disallowed_ports}, {"hostNetwork": d | d := host_network[_]})
+              }
+
+              # Every part is printed the way violation_message prints a single detail.
+              violation_message_of_parts(parts) := msg if {
+                reason := "The hostNetwork or hostPort are not allowed"
+                context := sprintf("%v: %v", [review_kind, input.review.object.metadata.name])
+                prefix := sprintf("%v, %v | ", [reason, context])
+                segments := [trim_prefix(violation_message(reason, context, d), prefix) | d := parts[_]]
+                msg := concat("", [prefix, concat(" | ", segments)])
+              }
+
+              pod_exception := resolve_spe_from_labels(object_labels, object_namespace)
+
+              # Host ports are checked independently of hostNetwork, so a pod that uses the host
+              # network does not hide its disallowed ports. Each port is checked on its own to
+              # report all of them, not just the first; a port repeated across containers is
+              # reported once.
+              disallowed_ports := [entry[2] | entry := sort(disallowed_port_set)[_]]
+
+              disallowed_port_set contains [port.port, port.protocol, entry] if {
+                port := collect_ports(object.get(pod_spec, "hostNetwork", false))[_]
+                spe_ports_path := ["spec", "network", "hostPorts"]
+                spe_ports_applied := path_value_resolved(pod_exception, spe_ports_path)
+                spe_ports := allowed_values_or_empty(pod_exception, spe_ports_path)
+                checked := host_port_result([port], spe_ports_applied, spe_ports)
+                not checked.allowed
+                # The lib counts an exception as applied only when it lists ports, but one that names
+                # hostPorts decides on its own even when nothing valid is left in the list: the
+                # policy ranges are then not consulted at all, and `policy_allowed` stays [] to say so.
+                entry := object.union(checked.detail, {"port": port.port, "protocol": port.protocol, "source": port.source, "spe_applied": spe_ports_applied})
+              }
+
+              # Where an exception is in force it decides whether the host network may be used,
+              # including narrowing a constraint that allows it. What it cannot do is turn
+              # `allowedValue: true` into a requirement: comparing the pod against the exception
+              # alone denied a pod that did not use hostNetwork at all, because its `false`
+              # differed from the `true` the exception permitted. Not using a feature is never a
+              # violation of a rule that restricts it.
+              host_network_permitted(actual, _) if {
+                actual == false
+              }
+
+              host_network_permitted(actual, spe_allowed) if {
+                actual == true
+                spe_allowed == true
+              }
+
+              host_network_result(obj, allow_host_network, spe) := result if {
+                spe_path := ["spec", "network", "hostNetwork", "allowedValue"]
+                path_value_resolved(spe, spe_path)
+                actual := object.get(pod_spec, "hostNetwork", false)
+                spe_allowed := object.get(spe, spe_path, false)
+                host_network_permitted(actual, spe_allowed)
+                result := {"allowed": true, "msg": "", "detail": {}}
+              }
+
+              host_network_result(obj, allow_host_network, spe) := result if {
+                spe_path := ["spec", "network", "hostNetwork", "allowedValue"]
+                path_value_resolved(spe, spe_path)
+                actual := object.get(pod_spec, "hostNetwork", false)
+                spe_allowed := object.get(spe, spe_path, false)
+                not host_network_permitted(actual, spe_allowed)
+                result := {
+                  "allowed": false,
+                  "msg": "",
+                  "detail": {
+                    "field": "hostNetwork",
+                    "actual": actual,
+                    "policy_allowed": allow_host_network,
+                    "spe_applied": true,
+                    "spe_allowed": spe_allowed,
+                  },
+                }
+              }
+
+              host_network_result(_, true, spe) := {"allowed": true, "msg": "", "detail": {}} if {
+                not path_value_resolved(spe, ["spec", "network", "hostNetwork", "allowedValue"])
+              }
+
+              host_network_result(obj, false, spe) := result if {
+                not path_value_resolved(spe, ["spec", "network", "hostNetwork", "allowedValue"])
+                actual := object.get(pod_spec, "hostNetwork", false)
+                actual == false
+                result := {"allowed": true, "msg": "", "detail": {}}
+              }
+
+              host_network_result(_, false, spe) := result if {
+                not path_value_resolved(spe, ["spec", "network", "hostNetwork", "allowedValue"])
+                actual := object.get(pod_spec, "hostNetwork", false)
+                actual != false
+                result := {
+                  "allowed": false,
+                  "msg": "",
+                  "detail": {
+                    "field": "hostNetwork",
+                    "actual": actual,
+                    "policy_allowed": false,
+                    "spe_applied": false,
+                  },
+                }
+              }
+
+              # Under hostNetwork every containerPort binds on the node as well, so it is checked
+              # as a host port. A containerPort that some container also declares as a hostPort is
+              # left to that hostPort, so each port has one source.
+              collect_ports(host_network) := array.concat(host_ports, container_ports) if {
+                host_ports := [
+                  {"port": p.hostPort, "protocol": object.get(p, "protocol", "TCP"), "source": "hostPort"} |
+                  p := input_containers[_].ports[_]
+                  object.get(p, "hostPort", null) != null
+                ]
+                container_ports := [port |
+                  host_network
+                  p := input_containers[_].ports[_]
+                  object.get(p, "containerPort", null) != null
+                  port := {"port": p.containerPort, "protocol": object.get(p, "protocol", "TCP"), "source": "containerPort"}
+                  not object.union(port, {"source": "hostPort"}) in host_ports
+                ]
+              }
+
+              # `allowedHostPorts` is optional, and omitting it places no restriction on host ports,
+              # while an empty list forbids every one of them. The check has to stay total either
+              # way: the constraint is also rendered for a policy that only sets `allowHostNetwork`,
+              # and reading an absent `parameters.ranges` left the whole violation rule undefined,
+              # so such a policy silently stopped denying anything at all.
+              host_port_result(_, false, _) := {"allowed": true, "msg": "", "detail": {}} if {
+                not host_port_ranges_configured
+              }
+
+              host_port_result(ports, false, spe_ports) := result if {
+                host_port_ranges_configured
+                result := check_ports_with_protocol_in_ranges(ports, "hostPorts", input.parameters.ranges, spe_ports)
+              }
+
+              # An exception that names host ports governs them on its own, so the policy ranges
+              # give way to it.
+              host_port_result(ports, true, spe_ports) := result if {
+                result := check_ports_with_protocol_in_ranges(ports, "hostPorts", [], spe_ports)
+              }
+
+              host_port_ranges_configured if {
+                object.get(input.parameters, "ranges", null) != null
+              }
+ 

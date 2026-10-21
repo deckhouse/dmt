@@ -1,0 +1,201 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: d8allowedseccompprofiles
+  labels:
+    heritage: deckhouse
+    module: admission-policy-engine
+    security.deckhouse.io: security-policy
+  annotations:
+    metadata.gatekeeper.sh/title: "Seccomp"
+    metadata.gatekeeper.sh/version: 1.0.0
+    description: >-
+      Controls the seccomp profile used by containers. Corresponds to the
+      `seccomp.security.alpha.kubernetes.io/allowedProfileNames` annotation on
+      a PodSecurityPolicy. For more information, see
+      https://kubernetes.io/docs/concepts/policy/pod-security-policy/#seccomp
+spec:
+  crd:
+    spec:
+      names:
+        kind: D8AllowedSeccompProfiles
+      validation:
+        # Schema for the `parameters` field
+        openAPIV3Schema:
+          type: object
+          description: >-
+            Controls the seccomp profile used by containers. Corresponds to the
+            `seccomp.security.alpha.kubernetes.io/allowedProfileNames` annotation on
+            a PodSecurityPolicy. For more information, see
+            https://kubernetes.io/docs/concepts/policy/pod-security-policy/#seccomp
+          properties:
+            allowedProfiles:
+              type: array
+              description: >-
+                An array of allowed profile values for seccomp on Pods/Containers.
+
+                Can use the annotation naming scheme: `runtime/default`, `docker/default`, `unconfined` and/or
+                `localhost/some-profile.json`. The item `localhost/*` will allow any localhost based profile.
+
+                Can also use the securityContext naming scheme: `RuntimeDefault`, `Unconfined`
+                and/or `Localhost`. For securityContext `Localhost`, use the parameter `allowedLocalhostProfiles`
+                to list the allowed profile JSON files.
+
+                The policy code will translate between the two schemes so it is not necessary to use both.
+
+                Putting a `*` in this array allows all Profiles to be used.
+
+                This field is required since with an empty list this policy will block all workloads.
+              items:
+                type: string
+            allowedLocalhostFiles:
+              type: array
+              description: >-
+                When using securityContext naming scheme for seccomp and including `Localhost` this array holds
+                the allowed profile JSON files.
+
+                Putting a `*` in this array will allows all JSON files to be used.
+
+                This field is required to allow `Localhost` in securityContext as with an empty list it will block.
+              items:
+                type: string
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      code:
+        - engine: Rego
+          source:
+            version: "v1"
+            libs:
+              - |
+                {{- include "constraint-templates.lib.common.container-review" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.check_set" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.resolve_value" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.expand_synonyms" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.match" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.exception.spe" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.message" . | nindent 16 }}
+            rego: |
+              package d8.security_policies
+
+              import data.lib.check_set.check_value_in_set_with_wildcards
+              import data.lib.message.violation_message
+              import data.lib.common.input_containers
+              import data.lib.common.pod_spec
+              import data.lib.common.object_labels
+              import data.lib.common.object_namespace
+              import data.lib.common.effective_metadata
+              import data.lib.exception.allowed_values_or_empty
+              import data.lib.exception.resolve_spe_for_container
+              import data.lib.expand_synonyms.expand
+              import data.lib.resolve_value.resolve_from_sources
+
+              container_annotation_key_prefix := "container.seccomp.security.alpha.kubernetes.io/"
+              pod_annotation_key := "seccomp.security.alpha.kubernetes.io/pod"
+
+              naming_translation := {
+                "RuntimeDefault": ["runtime/default", "docker/default"],
+                "Unconfined": ["unconfined"],
+                "Localhost": ["localhost"],
+                "runtime/default": ["RuntimeDefault"],
+                "docker/default": ["RuntimeDefault"],
+                "unconfined": ["Unconfined"],
+                "localhost": ["Localhost"],
+              }
+
+              violation contains {"msg": msg, "details": object.union(result.detail, {"container": container.name, "field": "seccompProfile"})} if {
+                not input.review.operation == "DELETE"
+                not input_wildcard_allowed_profiles
+                container := input_containers[_]
+                sources := [
+                  {"type": "container_field", "path": ["securityContext", "seccompProfile", "type"]},
+                  {"type": "pod_field", "path": ["spec", "securityContext", "seccompProfile", "type"]},
+                  {"type": "annotation", "key": sprintf("%v%v", [container_annotation_key_prefix, container.name])},
+                  {"type": "annotation", "key": pod_annotation_key}
+                ]
+                normalized_obj := {
+                  "metadata": effective_metadata,
+                  "spec": pod_spec,
+                }
+                profile_raw := resolve_from_sources(normalized_obj, container, sources)
+                profile := normalize_seccomp_profile(profile_raw, container, normalized_obj)
+                allowed_base := expand(input.parameters.allowedProfiles, naming_translation)
+                allowed := allowed_with_localhost_files(
+                  normalize_empty_undefined_values(allowed_base),
+                  object.get(input.parameters, "allowedLocalhostFiles", [])
+                )
+                labels := object_labels
+                exception := resolve_spe_for_container(container, labels, object_namespace)
+                spe_allowed_base := allowed_values_or_empty(exception, ["spec", "securityContext", "seccompProfile", "allowedValues"])
+                spe_allowed := normalize_empty_undefined_values(spe_allowed_base)
+                result := check_value_in_set_with_wildcards(
+                  profile,
+                  allowed,
+                  spe_allowed,
+                  {"prefix_wildcard": true, "wildcard": "*"}
+                )
+                not result.allowed
+                msg := violation_message("Seccomp profile is not allowed", sprintf("container: %v", [container.name]), result.detail)
+              }
+
+              # No lenient mode for controllers here, and none is needed: a
+              # container that resolves no seccomp profile from any source makes
+              # `resolve_from_sources` undefined, so the violation rule above
+              # never fires — on a Pod exactly as on a controller. Adding a
+              # controller-only skip would suggest a difference that does not
+              # exist. Making an absent profile a violation is a separate
+              # decision: it would deny every workload in a `restricted`
+              # namespace that omits `seccompProfile`.
+              input_wildcard_allowed_profiles if {
+                input.parameters.allowedProfiles[_] == "*"
+              }
+
+
+              allowed_with_localhost_files(allowed, files) := out if {
+                allows_localhost(allowed)
+                extra := {"localhost/*" | files[_] == "*"} | {sprintf("localhost/%v", [f]) | f := files[_]; f != "*"}
+                out := {v | v := allowed[_]} | extra
+              } else := out if {
+                not allows_localhost(allowed)
+                out := {v | v := allowed[_]}
+              }
+
+              allows_localhost(allowed) if {
+                allowed[_] == "localhost"
+              }
+
+              normalize_seccomp_profile(profile_raw, container, obj) := profile if {
+                profile_raw == null
+                profile := ""
+              } else := profile if {
+                profile_raw == "undefined"
+                profile := ""
+              } else := profile if {
+                profile_raw == "Localhost"
+                profile := resolve_localhost_profile(container, obj)
+              } else := profile if {
+                profile := profile_raw
+              }
+
+              normalize_empty_undefined_values(values) := out if {
+                out := {v | v := values[_]}
+                  | {"" | values[_] == "undefined"}
+                  | {"undefined" | values[_] == ""}
+              }
+
+              resolve_localhost_profile(container, obj) := out if {
+                lp := object.get(container, ["securityContext", "seccompProfile", "localhostProfile"], null)
+                lp != null
+                out := sprintf("localhost/%v", [lp])
+              } else := out if {
+                lp := object.get(obj, ["spec", "securityContext", "seccompProfile", "localhostProfile"], null)
+                lp != null
+                out := sprintf("localhost/%v", [lp])
+              } else := "localhost" if {
+                true
+              }

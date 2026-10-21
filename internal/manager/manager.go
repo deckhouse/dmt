@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	stderrors "errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -417,7 +418,14 @@ func printResult(errs []pkg.LinterError) {
 			fmt.Fprintf(w, "\t%s\t\t%d\n", "LineNumber:", err.LineNumber)
 		}
 
-		if err.FixError != nil {
+		var note errors.FixNote
+
+		switch {
+		case stderrors.As(err.FixError, &note):
+			fmt.Fprintf(w, "\t%s\t\t%s\n", "Autofix:", color.New(color.FgHiCyan).Sprint(
+				// not prepareString: a note may carry YAML, its indentation must survive
+				strings.ReplaceAll(strings.TrimSpace(string(note)), "\n", "\n\t\t\t")))
+		case err.FixError != nil:
 			fmt.Fprintf(w, "\t%s\t\t%s\n", "AutofixError:", color.New(color.FgHiYellow).Sprint(err.FixError.Error()))
 		}
 

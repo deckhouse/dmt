@@ -1,0 +1,70 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: d8privilegedcontainer
+  labels:
+    heritage: deckhouse
+    module: admission-policy-engine
+    security.deckhouse.io: security-policy
+  annotations:
+    metadata.gatekeeper.sh/title: "Privileged Container"
+    metadata.gatekeeper.sh/version: 1.0.0
+    description: >-
+      Controls the ability of any container to enable privileged mode.
+      Corresponds to the `privileged` field in a PodSecurityPolicy. For more
+      information, see
+      https://kubernetes.io/docs/concepts/policy/pod-security-policy/#privileged
+spec:
+  crd:
+    spec:
+      names:
+        kind: D8PrivilegedContainer
+      validation:
+        openAPIV3Schema:
+          type: object
+          description: >-
+            Controls the ability of any container to enable privileged mode.
+            Corresponds to the `privileged` field in a PodSecurityPolicy. For more
+            information, see
+            https://kubernetes.io/docs/concepts/security/pod-security-standards/
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      code:
+        - engine: Rego
+          source:
+            version: "v1"
+            libs:
+              - |
+                {{- include "constraint-templates.lib.common.container-review" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.check_bool" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.exception.spe" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.message" . | nindent 16 }}
+            rego: |
+              package d8.security_policies
+
+              import data.lib.check_bool.check_container_bool
+              import data.lib.common.input_containers
+              import data.lib.common.object_labels
+              import data.lib.common.object_namespace
+              import data.lib.message.violation_message
+
+              violation contains {"msg": msg, "details": object.union(object.remove(result.detail, ["msg", "forbidden", "policy_allows", "spe_allows"]), {"container": c.name})} if {
+                not input.review.operation == "DELETE"
+                c := input_containers[_]
+                result := check_container_bool(
+                  c,
+                  ["securityContext", "privileged"],
+                  "privileged",
+                  false,
+                  false,
+                  ["spec", "securityContext", "privileged", "allowedValue"],
+                  object_labels,
+                  object_namespace
+                )
+                not result.allowed
+                msg := violation_message("Privileged container is not allowed", sprintf("container: %v", [c.name]), result.detail)
+              }
+

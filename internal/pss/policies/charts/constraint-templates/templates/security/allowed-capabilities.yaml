@@ -1,0 +1,99 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: d8allowedcapabilities
+  labels:
+    heritage: deckhouse
+    module: admission-policy-engine
+    security.deckhouse.io: security-policy
+  annotations:
+    metadata.gatekeeper.sh/title: "The allowed capabilities"
+    metadata.gatekeeper.sh/version: 1.0.0
+    description: >-
+      Controls Linux capabilities on containers. Corresponds to the
+      `allowedCapabilities` in a PodSecurityPolicy. For more information, see
+      https://kubernetes.io/docs/concepts/security/pod-security-standards/
+spec:
+  crd:
+    spec:
+      names:
+        kind: D8AllowedCapabilities
+      validation:
+        # Schema for the `parameters` field
+        openAPIV3Schema:
+          type: object
+          description: >-
+            Controls Linux capabilities on containers. Corresponds to the
+            `allowedCapabilities` in a PodSecurityPolicy. For more information, see
+            https://kubernetes.io/docs/concepts/security/pod-security-standards/
+          properties:
+            allowedCapabilities:
+              type: array
+              description: "A list of Linux capabilities that can be added to a container."
+              items:
+                type: string
+            requiredDropCapabilities:
+              type: array
+              description: "A list of Linux capabilities that are required to be dropped from a container."
+              items:
+                type: string
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      code:
+        - engine: Rego
+          source:
+            version: "v1"
+            libs:
+              - |
+                {{- include "constraint-templates.lib.common.container-review" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.check_subset" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.exception.spe" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.set" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.message" . | nindent 16 }}
+            rego: |
+              package d8.security_policies
+
+              import data.lib.check_subset.check_container_subset
+              import data.lib.check_subset.check_container_superset
+              import data.lib.common.input_containers
+              import data.lib.common.object_labels
+              import data.lib.common.object_namespace
+              import data.lib.message.violation_message
+
+              violation contains {"msg": msg, "details": object.union(result.detail, {"container": container.name})} if {
+                not input.review.operation == "DELETE"
+                container := input_containers[_]
+                result := check_container_subset(
+                  container,
+                  ["securityContext", "capabilities", "add"],
+                  "capabilities.add",
+                  input.parameters.allowedCapabilities,
+                  ["spec", "securityContext", "capabilities", "allowedValues", "add"],
+                  object_labels,
+                  object_namespace,
+                  {"case_insensitive": true}
+                )
+                not result.allowed
+                msg := violation_message("container has a disallowed capability", sprintf("container: %v", [container.name]), result.detail)
+              }
+
+              violation contains {"msg": msg, "details": object.union(result.detail, {"container": container.name})} if {
+                not input.review.operation == "DELETE"
+                container := input_containers[_]
+                result := check_container_superset(
+                  container,
+                  ["securityContext", "capabilities", "drop"],
+                  "capabilities.drop",
+                  input.parameters.requiredDropCapabilities,
+                  ["spec", "securityContext", "capabilities", "allowedValues", "drop"],
+                  object_labels,
+                  object_namespace,
+                  {"case_insensitive": true}
+                )
+                not result.allowed
+                msg := violation_message("container is not dropping all required capabilities", sprintf("container: %v", [container.name]), result.detail)
+              }

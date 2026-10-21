@@ -28,7 +28,8 @@ type LinterError struct {
 	Level       Level
 
 	// FixError is set when this finding carried an automatic fix that was run
-	// under --fix but failed. The finding is still reported as unresolved.
+	// under --fix but failed, or did only a part of the job (errors.FixNote).
+	// The finding is still reported as unresolved.
 	FixError error
 }
 
