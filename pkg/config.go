@@ -173,6 +173,7 @@ type TemplatesExcludeRules struct {
 	ServicePort                    ServicePortExcludeList
 	KubeRBACProxy                  StringRuleExcludeList
 	Ingress                        KindRuleExcludeList
+	IngressPaths                   PathRuleExclude
 	HTTPRoute                      KindRuleExcludeList
 	EnabledModules                 EnabledModulesExcludeRule
 	WebhookConfiguration           KindRuleExcludeList

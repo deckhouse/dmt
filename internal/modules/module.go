@@ -572,6 +572,8 @@ func mapTemplatesExclusionsAndSettings(linterSettings *pkg.LintersSettings, conf
 	excludes.ServicePort = configExcludes.ServicePort.Get()
 	excludes.KubeRBACProxy = pkg.StringRuleExcludeList(configExcludes.KubeRBACProxy)
 	excludes.Ingress = configExcludes.Ingress.Get()
+	excludes.IngressPaths.Files = pkg.StringRuleExcludeList(configExcludes.IngressPaths.Files)
+	excludes.IngressPaths.Directories = pkg.DirectoryRuleExcludeList(configExcludes.IngressPaths.Directories)
 	excludes.HTTPRoute = configExcludes.HTTPRoute.Get()
 	excludes.EnabledModules.Files = pkg.StringRuleExcludeList(configExcludes.EnabledModules.Files)
 	excludes.EnabledModules.Directories = pkg.DirectoryRuleExcludeList(configExcludes.EnabledModules.Directories)

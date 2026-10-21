@@ -1,9 +1,9 @@
 description: >
-  An Ingress whose configuration-snippet annotation does not include the
-  required HSTS snippet must be flagged by the ingress-rules rule.
+  An Ingress with an unguarded configuration-snippet must produce a
+  discouraged-annotation error.
 module: module
 expect:
   - linter: templates
     rule: ingress-rules
     level: error
-    textContains: "does not contain required snippet"
+    textContains: "is discouraged to use in DKP modules"

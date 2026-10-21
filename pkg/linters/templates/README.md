@@ -14,7 +14,7 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [pdb](#pdb) | Validates PodDisruptionBudgets for deployments and statefulsets | ✅ | enabled |
 | [kube-rbac-proxy](#kube-rbac-proxy) | Validates kube-rbac-proxy CA certificates in namespaces | ✅ | enabled |
 | [service-port](#service-port) | Validates services use named target ports | ✅ | enabled |
-| [ingress-rules](#ingress-rules) | Validates Ingress configuration snippets | ✅ | enabled |
+| [ingress-rules](#ingress-rules) | Requires snippet annotations to be guarded by an ingress-nginx version check | ✅ | enabled |
 | [httproute-rules](#httproute-rules) | Validates that every Ingress has a companion HTTPRoute backed by a ListenerSet | ✅ | enabled |
 | [prometheus-rules](#prometheus-rules) | Validates Prometheus rules with promtool and proper templates | ✅ | enabled |
 | [alert-grouping-annotations](#alert-grouping-annotations) | Forbids an alert from naming itself as its own `plk_*` group | ✅ | enabled (warn) |
@@ -894,29 +894,54 @@ linters-settings:
 
 ### ingress-rules
 
-**Purpose:** Ensures Ingress resources include required security configuration snippets, specifically the Strict-Transport-Security (HSTS) header for enforcing HTTPS connections.
+**Purpose:** Requires every ingress-nginx snippet annotation to be guarded by
+an ingress-nginx annotations version check.
 
 **Description:**
 
-Validates that Ingress objects with `nginx.ingress.kubernetes.io/configuration-snippet` annotation contain the required HSTS header configuration using the `helm_lib_module_ingress_configuration_snippet` helper.
+Snippet annotations are discouraged to use in DKP modules. They may be used
+only to support legacy ingress-nginx controller versions, or in user namespaces
+when the user explicitly allows them at the controller level. The rule reports
+an error when an Ingress template uses any
+`nginx.ingress.kubernetes.io/*-snippet` annotation without enclosing it in a
+Helm conditional that calls
+`helm_lib_module_ingress_nginx_annotations_version_ge` with version `1.3.0` or
+higher. The helper is available since lib_helm v1.72.30.
+
+The rule does not inspect the snippet directives or suggest replacements for
+them. See the [ingress-nginx FAQ](https://deckhouse.io/modules/ingress-nginx/alpha/faq.html#additional-ingress-annotations)
+for the supported annotations.
 
 **What it checks:**
 
-1. Ingresses with `nginx.ingress.kubernetes.io/configuration-snippet` annotation
-2. Configuration snippet contains `add_header Strict-Transport-Security`
-3. Recommends using `helm_lib_module_ingress_configuration_snippet` helper
+1. Every `nginx.ingress.kubernetes.io/*-snippet` annotation in an Ingress
+template must be enclosed in a Helm conditional using
+`helm_lib_module_ingress_nginx_annotations_version_ge` with a version greater
+than or equal to `1.3.0`, for example:
+
+   ```gotemplate
+   {{- if include "helm_lib_module_ingress_nginx_annotations_version_ge" (list $ "1.3.0") }}
+   ```
+
+   A conditional that uses the helper in a negated form or a snippet placed in
+   its `else` branch is accepted as well.
+2. An unguarded snippet annotation produces an error that points to the
+   replacement documentation.
 
 **Why it matters:**
 
-HSTS (HTTP Strict-Transport-Security):
-- Forces browsers to use HTTPS only
-- Prevents protocol downgrade attacks
-- Protects against man-in-the-middle attacks
-- Required for security compliance
+- Snippet annotations require unsafe ingress-nginx controller options and allow
+  arbitrary NGINX directives.
+- Users may still enable them explicitly for their own namespaces, but module
+  templates must not rely on that.
+- The additional validated annotations replace snippets on controllers that
+  support them.
+- The version check keeps module templates compatible with legacy controllers
+  without weakening them on current ones.
 
 **Examples:**
 
-❌ **Incorrect** - Missing HSTS header:
+❌ **Unguarded snippet:**
 
 ```yaml
 # templates/ingress.yaml
@@ -928,7 +953,7 @@ metadata:
   annotations:
     nginx.ingress.kubernetes.io/configuration-snippet: |
       proxy_set_header X-Custom-Header "value";
-      # ❌ Missing Strict-Transport-Security header
+      # ❌ No version conditional
 spec:
   rules:
     - host: dashboard.example.com
@@ -943,13 +968,9 @@ spec:
                   name: http
 ```
 
-**Error:**
-```
-Error: Ingress annotation "nginx.ingress.kubernetes.io/configuration-snippet" does not contain required snippet "{{ include "helm_lib_module_ingress_configuration_snippet" . | nindent 6 }}".
-Object: dashboard
-```
+This produces an error for the unguarded snippet annotation.
 
-✅ **Correct** - Using Helm library helper:
+⚠️ **Legacy snippet behind the version switch:**
 
 ```yaml
 # templates/ingress.yaml
@@ -959,10 +980,11 @@ metadata:
   name: dashboard
   namespace: d8-my-module
   annotations:
+{{- if include "helm_lib_module_ingress_nginx_annotations_version_ge" (list $ "1.3.0") }}
     nginx.ingress.kubernetes.io/configuration-snippet: |
-{{- include "helm_lib_module_ingress_configuration_snippet" . | nindent 6 }}
       # Additional custom configuration if needed
       proxy_set_header X-Custom-Header "value";
+{{- end }}
 spec:
   rules:
     - host: dashboard.example.com
@@ -977,13 +999,11 @@ spec:
                   name: http
 ```
 
-The helper includes the HSTS header:
+This satisfies the snippet guard. The version can be any value greater than or
+equal to `1.3.0`; the snippet may also live in the `else` branch of the same
+conditional.
 
-```nginx
-add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-```
-
-✅ **Correct** - Ingress without configuration-snippet (not checked):
+✅ **Ingress without snippet annotations:**
 
 ```yaml
 # templates/ingress.yaml
@@ -994,7 +1014,7 @@ metadata:
   namespace: d8-my-module
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    # ✅ No configuration-snippet, so rule doesn't apply
+    # ✅ No snippet annotation, so the rule doesn't apply
 spec:
   rules:
     - host: app.example.com
@@ -1016,12 +1036,21 @@ spec:
 linters-settings:
   templates:
     exclude-rules:
+      # Exclude specific Ingresses by kind and name
       ingress:
         - kind: Ingress
-          name: dashboard  # Exclude specific Ingress
-        - kind: Ingress
           name: legacy-api
+      # Exclude template files and directories from the snippet check
+      ingress-paths:
+        files:
+          - templates/legacy-ingress.yaml
+        directories:
+          - templates/legacy
 ```
+
+`ingress` matches rendered objects by `kind`/`name`. `ingress-paths.files`
+matches module-relative file paths exactly, and `ingress-paths.directories`
+excludes every file under a module-relative directory.
 
 ---
 
@@ -2756,26 +2785,38 @@ Object: namespace = d8-my-module
            - d8-my-module
    ```
 
-### Issue: Ingress missing HSTS configuration
+### Issue: Unguarded Ingress snippet annotation
 
 **Symptom:**
 ```
-Error: Ingress annotation "nginx.ingress.kubernetes.io/configuration-snippet" does not contain required snippet
+Error: Ingress annotation "nginx.ingress.kubernetes.io/configuration-snippet" is discouraged to use in DKP modules: snippet annotations may only be used to support legacy versions of the ingress-nginx controller or in user namespaces when the user explicitly allows them at the controller level.
 ```
 
-**Cause:** Ingress configuration-snippet missing Strict-Transport-Security header.
+**Cause:** The Ingress uses a snippet annotation in a module template without
+a version conditional, so it would also be applied to controllers that support
+the additional validated annotations. Users may enable snippets explicitly in
+their own namespaces, but module templates cannot rely on that.
 
 **Solutions:**
 
-1. **Use Helm helper:**
+1. **Guard the snippet with the ingress-nginx annotations version switch**
+   (requires lib_helm v1.72.30+):
 
    ```yaml
    annotations:
-     nginx.ingress.kubernetes.io/configuration-snippet: |
-{{- include "helm_lib_module_ingress_configuration_snippet" . | nindent 6 }}
+   {{- if include "helm_lib_module_ingress_nginx_annotations_version_ge" (list $ "1.3.0") }}
+       nginx.ingress.kubernetes.io/configuration-snippet: |
+         # legacy directives
+   {{- end }}
    ```
 
-2. **Exclude Ingress:**
+2. **Migrate the snippet directives to the supported annotations or other
+   Kubernetes resources, then remove the snippet annotation.** Guarding the
+   snippet does not replace the discouraged directives. See the
+   [ingress-nginx FAQ](https://deckhouse.io/modules/ingress-nginx/alpha/faq.html#additional-ingress-annotations)
+   for the replacement annotations.
+
+3. **Temporarily exclude the Ingress if no safe migration is available:**
 
    ```yaml
    # .dmtlint.yaml
@@ -2785,6 +2826,12 @@ Error: Ingress annotation "nginx.ingress.kubernetes.io/configuration-snippet" do
          ingress:
            - kind: Ingress
              name: dashboard
+         # Or exclude the whole template file/directory
+         ingress-paths:
+           files:
+             - templates/dashboard-ingress.yaml
+           directories:
+             - templates/legacy
    ```
 
 ### Issue: Ingress requires a matching HTTPRoute

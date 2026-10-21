@@ -270,6 +270,7 @@ type TemplatesExcludeRules struct {
 	ServicePort                    ServicePortExcludeList         `mapstructure:"service-port"`
 	KubeRBACProxy                  StringRuleExcludeList          `mapstructure:"kube-rbac-proxy"`
 	Ingress                        KindRuleExcludeList            `mapstructure:"ingress"`
+	IngressPaths                   PathRuleExclude                `mapstructure:"ingress-paths"`
 	HTTPRoute                      KindRuleExcludeList            `mapstructure:"httproute"`
 	EnabledModules                 EnabledModulesExcludeRule      `mapstructure:"enabled-modules"`
 	WebhookConfiguration           KindRuleExcludeList            `mapstructure:"webhook-configuration-annotations"`
