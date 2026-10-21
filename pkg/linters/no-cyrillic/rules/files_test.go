@@ -69,6 +69,9 @@ func TestFilesRule_CheckFile_SkipPatterns(t *testing.T) {
 		// module.yaml (module definition carries localized descriptions)
 		{name: "module yaml", relPath: "module.yaml", wantSkipped: true},
 
+		// rbac.yaml at the module root (the rbac declaration carries localized capability texts)
+		{name: "rbac yaml", relPath: "rbac.yaml", wantSkipped: true},
+
 		// ru.* prefix (e.g. ru.meta.deckhouse.io/description annotation files)
 		{name: "ru meta prefix", relPath: "ru.meta.deckhouse.io.yaml", wantSkipped: true},
 		{name: "ru dot prefix nested", relPath: "config/ru.description.yaml", wantSkipped: true},
@@ -85,6 +88,7 @@ func TestFilesRule_CheckFile_SkipPatterns(t *testing.T) {
 		{name: "plain json", relPath: "data.json", content: "{\"greeting\": \"Привет\"}\n", wantSkipped: false},
 		{name: "plain go", relPath: "main.go", content: "package main\n// Привет\n", wantSkipped: false},
 		{name: "nested template", relPath: "templates/configmap.yaml", wantSkipped: false},
+		{name: "rbac yaml of a template", relPath: "templates/rbac.yaml", wantSkipped: false},
 		// English doc-ru lookalike that does not match the doc-ru- prefix.
 		{name: "ru in middle of name", relPath: "instructions.yaml", wantSkipped: false},
 	}
