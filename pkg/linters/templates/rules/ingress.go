@@ -18,39 +18,77 @@ package rules
 
 import (
 	"context"
-	"log/slog"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 
-	v1 "k8s.io/api/networking/v1"
-	"k8s.io/apimachinery/pkg/runtime"
+	"github.com/Masterminds/semver/v3"
 
-	"github.com/deckhouse/deckhouse/pkg/log"
-
-	"github.com/deckhouse/dmt/internal/storage"
+	"github.com/deckhouse/dmt/internal/fsutils"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
 const (
-	IngressRuleName = "ingress-rules"
-	snippet         = `{{ include "helm_lib_module_ingress_configuration_snippet" . | nindent 6 }}`
+	IngressRuleName       = "ingress-rules"
+	nginxAnnotationPrefix = "nginx.ingress.kubernetes.io/"
+
+	// ingressNginxAnnotationsVersionHelper is the helm_lib switch that tells
+	// whether the installed ingress-nginx module provides the additional
+	// annotations introduced in v1.3.0. Snippet annotations may only remain in
+	// module templates for controllers that do not have those annotations yet,
+	// so every snippet must be behind a version check.
+	ingressNginxAnnotationsVersionHelper = "helm_lib_module_ingress_nginx_annotations_version_ge"
+	minIngressNginxAnnotationsVersion    = "1.3.0"
+	// ingressNginxAnnotationsVersionLibHelm is the first lib_helm release that ships the helper.
+	ingressNginxAnnotationsVersionLibHelm = "v1.72.30"
+	snippetAnnotationsDocsURL             = "https://deckhouse.io/modules/ingress-nginx/alpha/faq.html#additional-ingress-annotations"
+)
+
+var (
+	// snippetAnnotationRe matches any nginx.ingress.kubernetes.io/*-snippet
+	// annotation key, including configuration, server, auth, modsecurity and
+	// stream snippets.
+	snippetAnnotationRe = regexp.MustCompile(regexp.QuoteMeta(nginxAnnotationPrefix) + `[A-Za-z0-9._-]+-snippet`)
+
+	// helmActionRe matches a whole {{ ... }} Helm action, including actions
+	// spread over multiple lines and both whitespace-trimming variants.
+	helmActionRe = regexp.MustCompile(`(?s)\{\{-?\s*(.*?)\s*-?\}\}`)
+
+	// annotationsVersionGuardRe matches the version-check helper call in a Helm
+	// condition. The first list argument is the template context, which may be
+	// $, ., or a variable such as $context.
+	annotationsVersionGuardRe = regexp.MustCompile(
+		`include\s+"` + regexp.QuoteMeta(ingressNginxAnnotationsVersionHelper) + `"\s+\(list\s+\S+\s+"([^"]+)"\s*\)`,
+	)
+
+	minAnnotationsVersion = semver.MustParse(minIngressNginxAnnotationsVersion)
 )
 
 type IngressRule struct {
 	pkg.RuleMeta
 	pkg.KindRule
 
+	pathRule  pkg.PathRule
 	module    pkg.Module
 	errorList *errors.LintRuleErrorsList
 }
 
-func NewIngressRule(excludeRules []pkg.KindRuleExclude, m pkg.Module, errorList *errors.LintRuleErrorsList) *IngressRule {
+func NewIngressRule(excludeRules []pkg.KindRuleExclude,
+	excludeFileRules []pkg.StringRuleExclude,
+	excludeDirectoryRules []pkg.DirectoryRuleExclude,
+	m pkg.Module, errorList *errors.LintRuleErrorsList) *IngressRule {
 	return &IngressRule{
 		RuleMeta: pkg.RuleMeta{
 			Name: IngressRuleName,
 		},
 		KindRule: pkg.KindRule{
 			ExcludeRules: excludeRules,
+		},
+		pathRule: pkg.PathRule{
+			ExcludeStringRules:    excludeFileRules,
+			ExcludeDirectoryRules: excludeDirectoryRules,
 		},
 		module:    m,
 		errorList: errorList.WithRule(IngressRuleName),
@@ -60,39 +98,220 @@ func NewIngressRule(excludeRules []pkg.KindRuleExclude, m pkg.Module, errorList 
 var _ pkg.Rule = (*IngressRule)(nil)
 
 func (r *IngressRule) Check(_ context.Context) {
-	for _, object := range r.module.GetStorage() {
-		r.checkObject(object)
+	// Scan the raw templates, not the rendered objects: the values dmt renders
+	// with may evaluate a whole Ingress or an annotation conditional to false,
+	// which would otherwise hide the snippet from the check.
+	templatesPath := filepath.Join(r.module.GetPath(), "templates")
+	if _, err := os.Stat(templatesPath); os.IsNotExist(err) {
+		return
+	}
+
+	files := fsutils.GetFiles(templatesPath, true, fsutils.FilterFileByExtensions(".yaml", ".yml", ".tpl"))
+	ingressKindRe := kindLineRe("Ingress")
+	excludedPaths := excludedIngressPaths(r.module, r.ExcludeRules)
+
+	for _, absPath := range files {
+		if _, excluded := excludedPaths[absPath]; excluded {
+			continue
+		}
+
+		filePath := r.displayPath(absPath)
+		if !r.pathRule.Enabled(filePath) {
+			continue
+		}
+
+		content, err := os.ReadFile(absPath)
+		if err != nil {
+			r.errorList.WithFilePath(filePath).Errorf("Failed to read file: %v", err)
+			continue
+		}
+
+		if !ingressKindRe.Match(content) {
+			continue
+		}
+
+		r.checkSnippetAnnotationsContent(filePath, string(content))
 	}
 }
 
-func (r *IngressRule) checkObject(object storage.StoreObject) {
-	errorList := r.errorList.WithFilePath(object.GetPath())
-
-	if object.Unstructured.GetKind() != "Ingress" {
-		return
+// excludedIngressPaths returns the template files whose rendered Ingresses are
+// all covered by the legacy exclude-rules.ingress kind/name list. Files whose
+// Ingresses did not render are still scanned, so value-dependent templates
+// cannot hide their snippets.
+func excludedIngressPaths(m pkg.Module, excludes []pkg.KindRuleExclude) map[string]struct{} {
+	if len(excludes) == 0 {
+		return nil
 	}
 
-	if !r.Enabled(object.Unstructured.GetKind(), object.Unstructured.GetName()) {
-		log.Info("⚠️ Skip Ingress due to exclusion rule", slog.String("name", object.Unstructured.GetName()))
-		return
+	type fileState struct {
+		total    int
+		excluded int
 	}
 
-	converter := runtime.DefaultUnstructuredConverter
+	states := make(map[string]*fileState)
 
-	ingress := new(v1.Ingress)
-	if err := converter.FromUnstructured(object.Unstructured.UnstructuredContent(), ingress); err != nil {
-		errorList.WithObjectID(object.Unstructured.GetName()).
-			Errorf("Cannot convert object to %s: %v", object.Unstructured.GetKind(), err)
-
-		return
-	}
-
-	for key, value := range ingress.GetAnnotations() {
-		if key == "nginx.ingress.kubernetes.io/configuration-snippet" {
-			if !strings.Contains(value, "add_header Strict-Transport-Security") {
-				errorList.WithObjectID(object.Unstructured.GetName()).
-					Errorf("Ingress annotation %q does not contain required snippet %q.", key, snippet)
-			}
+	for _, object := range m.GetStorage() {
+		if object.Unstructured.GetKind() != "Ingress" || object.AbsPath == "" {
+			continue
 		}
+
+		state := states[object.AbsPath]
+		if state == nil {
+			state = &fileState{}
+			states[object.AbsPath] = state
+		}
+
+		state.total++
+
+		if kindExcludedFromIngressRule(excludes, object.Unstructured.GetKind(), object.Unstructured.GetName()) {
+			state.excluded++
+		}
+	}
+
+	result := make(map[string]struct{}, len(states))
+	for path, state := range states {
+		if state.total > 0 && state.excluded == state.total {
+			result[path] = struct{}{}
+		}
+	}
+
+	return result
+}
+
+func kindExcludedFromIngressRule(excludes []pkg.KindRuleExclude, kind, name string) bool {
+	for idx := range excludes {
+		if !excludes[idx].Enabled(kind, name) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (r *IngressRule) displayPath(absPath string) string {
+	modulePath := r.module.GetPath()
+	if modulePath == "" {
+		return absPath
+	}
+
+	relPath, err := filepath.Rel(modulePath, absPath)
+	if err != nil {
+		return absPath
+	}
+
+	return relPath
+}
+
+// helmBlock is one open Helm control-flow block. guarded reports whether the
+// block is nested inside (or is itself) an if whose condition checks the
+// ingress-nginx annotations version.
+type helmBlock struct {
+	kind    string
+	guarded bool
+}
+
+func (r *IngressRule) checkSnippetAnnotationsContent(filePath, content string) {
+	stack := make([]helmBlock, 0, 8)
+	last := 0
+
+	for _, match := range helmActionRe.FindAllStringSubmatchIndex(content, -1) {
+		r.reportUnguardedSnippetAnnotations(filePath, content, last, match[0], activeGuard(stack))
+
+		action := content[match[2]:match[3]]
+		updateHelmStack(&stack, action)
+
+		last = match[1]
+	}
+
+	r.reportUnguardedSnippetAnnotations(filePath, content, last, len(content), activeGuard(stack))
+}
+
+func activeGuard(stack []helmBlock) bool {
+	if len(stack) == 0 {
+		return false
+	}
+
+	return stack[len(stack)-1].guarded
+}
+
+func updateHelmStack(stack *[]helmBlock, action string) {
+	action = strings.TrimSpace(strings.Trim(action, "-"))
+	if action == "" {
+		return
+	}
+
+	fields := strings.Fields(action)
+	if len(fields) == 0 {
+		return
+	}
+
+	keyword := fields[0]
+
+	switch keyword {
+	case "if":
+		*stack = append(*stack, helmBlock{
+			kind:    keyword,
+			guarded: activeGuard(*stack) || isAnnotationsVersionGuard(action),
+		})
+	case "with", "range", "define", "block":
+		*stack = append(*stack, helmBlock{
+			kind:    keyword,
+			guarded: activeGuard(*stack),
+		})
+	case "else":
+		if len(*stack) == 0 || (*stack)[len(*stack)-1].kind != "if" {
+			return
+		}
+
+		// A snippet in the else branch is the common legacy path: render the
+		// snippet only when the additional annotations are not available.
+		top := &(*stack)[len(*stack)-1]
+		top.guarded = top.guarded || isAnnotationsVersionGuard(action)
+	case "end":
+		if len(*stack) > 0 {
+			*stack = (*stack)[:len(*stack)-1]
+		}
+	}
+}
+
+func isAnnotationsVersionGuard(action string) bool {
+	for _, match := range annotationsVersionGuardRe.FindAllStringSubmatch(action, -1) {
+		version, err := semver.NewVersion(match[1])
+		if err == nil && !version.LessThan(minAnnotationsVersion) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (r *IngressRule) reportUnguardedSnippetAnnotations(filePath, content string, start, end int, guarded bool) {
+	if guarded || start >= end {
+		return
+	}
+
+	segment := content[start:end]
+
+	for _, loc := range snippetAnnotationRe.FindAllStringIndex(segment, -1) {
+		lineStart := strings.LastIndex(segment[:loc[0]], "\n") + 1
+		if strings.HasPrefix(strings.TrimSpace(segment[lineStart:]), "#") {
+			continue
+		}
+
+		annotation := segment[loc[0]:loc[1]]
+		line := strings.Count(content[:start+loc[0]], "\n") + 1
+
+		r.errorList.WithFilePath(filePath).
+			WithLineNumber(line).
+			WithValue(annotation).
+			Errorf("Ingress annotation %q is discouraged to use in DKP modules: snippet annotations may only be "+
+				"used to support legacy versions of the ingress-nginx controller or in user namespaces when the "+
+				"user explicitly allows them at the controller level. Enclose it in a Helm conditional "+
+				"for %q with version %q or higher (requires lib_helm %s+), for example "+
+				"{{- if include %q (list $ %q) }} ... {{- end }}, and migrate the directives to the supported "+
+				"annotations: %s",
+				annotation, ingressNginxAnnotationsVersionHelper, minIngressNginxAnnotationsVersion,
+				ingressNginxAnnotationsVersionLibHelm, ingressNginxAnnotationsVersionHelper,
+				minIngressNginxAnnotationsVersion, snippetAnnotationsDocsURL)
 	}
 }

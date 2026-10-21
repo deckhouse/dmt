@@ -75,6 +75,9 @@ type ContainerExcludeRules struct {
 
 	Description StringRuleExcludeList `mapstructure:"description"`
 	MountPoints StringRuleExcludeList `mapstructure:"mount-points"`
+
+	// SecurityPolicyException names, in any namespace
+	SecurityPolicyExceptionUnused StringRuleExcludeList `mapstructure:"security-policy-exception-unused"`
 }
 
 type HooksSettings struct {
@@ -267,6 +270,7 @@ type TemplatesExcludeRules struct {
 	ServicePort                    ServicePortExcludeList         `mapstructure:"service-port"`
 	KubeRBACProxy                  StringRuleExcludeList          `mapstructure:"kube-rbac-proxy"`
 	Ingress                        KindRuleExcludeList            `mapstructure:"ingress"`
+	IngressPaths                   PathRuleExclude                `mapstructure:"ingress-paths"`
 	HTTPRoute                      KindRuleExcludeList            `mapstructure:"httproute"`
 	EnabledModules                 EnabledModulesExcludeRule      `mapstructure:"enabled-modules"`
 	WebhookConfiguration           KindRuleExcludeList            `mapstructure:"webhook-configuration-annotations"`

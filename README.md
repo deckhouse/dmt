@@ -254,6 +254,15 @@ linters-settings:
         - /host
         - /etc/iscsi
         - /certs
+      # Exclude specific Ingresses and template paths from ingress-rules
+      ingress:
+        - kind: Ingress
+          name: legacy-api
+      ingress-paths:
+        files:
+          - templates/legacy-ingress.yaml
+        directories:
+          - templates/legacy
 
   container:
     impact: error
