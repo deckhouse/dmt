@@ -84,7 +84,7 @@ func GetModuleImagesWerfFiles(moduleDir string) ([]ModuleImageWerfFile, error) {
 			// Best-effort: the inc file may rely on build context that is only
 			// available to the full werf pipeline. Skip it instead of producing
 			// a false positive.
-			log.Debug("skipping werf.inc.yaml that cannot be rendered in isolation",
+			log.Warn("skipping werf.inc.yaml that cannot be rendered in isolation",
 				slog.String("path", incPath),
 				slog.String("error", err.Error()),
 			)
@@ -119,13 +119,20 @@ func renderWerfIncFile(moduleDir, imageName, content string) (string, error) {
 		return "", err
 	}
 
+	files := NewFiles(filepath.Join(moduleDir, werfFileName), moduleDir)
+
 	root := map[string]any{
-		"Files": NewFiles(filepath.Join(moduleDir, werfFileName), moduleDir),
+		"Files": files,
 		"Env":   cmp.Or(os.Getenv("WERF_ENV"), "EE"),
 	}
 
+	// The canonical .werf/images.yaml passes Images and Files to every image.
+	// Images holds base image digests from base_images.yml, which is fetched in
+	// CI only, so an empty map lets `index $.Images "..."` render instead of failing.
 	ctx := map[string]any{
 		"Root":             root,
+		"Images":           map[string]any{},
+		"Files":            files,
 		"ImageName":        imageName,
 		"ImagePath":        filepath.ToSlash(filepath.Join("/", imagesDirName, imageName)),
 		"ModuleNamePrefix": "",
