@@ -1,0 +1,452 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: d8allowedusers
+  labels:
+    heritage: deckhouse
+    module: admission-policy-engine
+    security.deckhouse.io: security-policy
+  annotations:
+    metadata.gatekeeper.sh/title: "Allowed Users"
+    metadata.gatekeeper.sh/version: 1.0.0
+    description: >-
+      Controls the user and group IDs of the container and some volumes.
+      Corresponds to the `runAsUser`, `runAsGroup`, `supplementalGroups`, and
+      `fsGroup` fields in a PodSecurityPolicy. For more information, see
+      https://kubernetes.io/docs/concepts/policy/pod-security-policy/#users-and-groups
+spec:
+  crd:
+    spec:
+      names:
+        kind: D8AllowedUsers
+      validation:
+        openAPIV3Schema:
+          type: object
+          description: >-
+            Controls the user and group IDs of the container and some volumes.
+            Corresponds to the `runAsUser`, `runAsGroup`, `supplementalGroups`, and
+            `fsGroup` fields in a PodSecurityPolicy. For more information, see
+            https://kubernetes.io/docs/concepts/policy/pod-security-policy/#users-and-groups
+          properties:
+            runAsUser:
+              type: object
+              description: "Controls which user ID values are allowed in a Pod or container-level SecurityContext."
+              properties:
+                rule:
+                  type: string
+                  description: "A strategy for applying the runAsUser restriction."
+                  enum:
+                    - MustRunAs
+                    - MustRunAsNonRoot
+                    - RunAsAny
+                ranges:
+                  type: array
+                  description: "A list of user ID ranges affected by the rule."
+                  items:
+                    type: object
+                    description: "The range of user IDs affected by the rule."
+                    properties:
+                      min:
+                        type: integer
+                        description: "The minimum user ID in the range, inclusive."
+                      max:
+                        type: integer
+                        description: "The maximum user ID in the range, inclusive."
+            runAsGroup:
+              type: object
+              description: "Controls which group ID values are allowed in a Pod or container-level SecurityContext."
+              properties:
+                rule:
+                  type: string
+                  description: "A strategy for applying the runAsGroup restriction."
+                  enum:
+                    - MustRunAs
+                    - MayRunAs
+                    - RunAsAny
+                ranges:
+                  type: array
+                  description: "A list of group ID ranges affected by the rule."
+                  items:
+                    type: object
+                    description: "The range of group IDs affected by the rule."
+                    properties:
+                      min:
+                        type: integer
+                        description: "The minimum group ID in the range, inclusive."
+                      max:
+                        type: integer
+                        description: "The maximum group ID in the range, inclusive."
+            supplementalGroups:
+              type: object
+              description: "Controls the supplementalGroups values that are allowed in a Pod or container-level SecurityContext."
+              properties:
+                rule:
+                  type: string
+                  description: "A strategy for applying the supplementalGroups restriction."
+                  enum:
+                    - MustRunAs
+                    - MayRunAs
+                    - RunAsAny
+                ranges:
+                  type: array
+                  description: "A list of group ID ranges affected by the rule."
+                  items:
+                    type: object
+                    description: "The range of group IDs affected by the rule."
+                    properties:
+                      min:
+                        type: integer
+                        description: "The minimum group ID in the range, inclusive."
+                      max:
+                        type: integer
+                        description: "The maximum group ID in the range, inclusive."
+            fsGroup:
+              type: object
+              description: "Controls the fsGroup values that are allowed in a Pod or container-level SecurityContext."
+              properties:
+                rule:
+                  type: string
+                  description: "A strategy for applying the fsGroup restriction."
+                  enum:
+                    - MustRunAs
+                    - MayRunAs
+                    - RunAsAny
+                ranges:
+                  type: array
+                  description: "A list of group ID ranges affected by the rule."
+                  items:
+                    type: object
+                    description: "The range of group IDs affected by the rule."
+                    properties:
+                      min:
+                        type: integer
+                        description: "The minimum group ID in the range, inclusive."
+                      max:
+                        type: integer
+                        description: "The maximum group ID in the range, inclusive."
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      code:
+        - engine: Rego
+          source:
+            version: "v1"
+            libs:
+              - |
+                {{- include "constraint-templates.lib.common.container-review" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.check_range" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.range" . | nindent 16 }}
+              - |
+                {{- include "constraint-templates.lib.exception.spe" . | nindent 16 }}
+            rego: |
+              package d8.security_policies
+
+              import data.lib.check_range.check_container_in_range
+              import data.lib.exception.allowed_values_or_empty
+              import data.lib.exception.path_value_resolved
+              import data.lib.exception.resolve_spe_for_container
+              import data.lib.exception.resolve_spe_from_labels
+              import data.lib.common.pod_spec
+              import data.lib.common.input_containers
+              import data.lib.common.object_labels
+              import data.lib.common.object_namespace
+              import data.lib.common.is_controller
+              import data.lib.range.is_in_any_range
+
+              # get_*_violation return {"msg", "details"}. The details carry the same data the
+              # message prints and must never be more granular than it: these are functions,
+              # so two different outputs for the same arguments are a runtime conflict.
+              violation contains {"msg": v.msg, "details": v.details} if {
+                not input.review.operation == "DELETE"
+                fields := ["runAsUser", "runAsGroup", "supplementalGroups", "fsGroup"]
+                field := fields[_]
+                container := input_containers[_]
+                v := get_type_violation(field, container)
+              }
+
+              get_type_violation(field, container) := v if {
+                field == "runAsUser"
+                params := input.parameters[field]
+                v := get_user_violation(params, container)
+              }
+
+              get_type_violation(field, container) := v if {
+                field != "runAsUser"
+                params := input.parameters[field]
+                v := get_group_violation(field, params, container)
+              }
+
+              # RunAsUser
+              get_user_violation(params, container) := v if {
+                rule := params.rule
+                provided_user := get_field_value("runAsUser", container, pod_spec)
+                not accept_users(rule, provided_user)
+                allowed_by_policy := sprintf("Allowed runAsUser: %v", [params])
+                actual_value := sprintf("Actual runAsUser: %v", [provided_user])
+                labels := object_labels
+                namespace := object_namespace
+                spe := resolve_spe_for_container(container, labels, namespace)
+                run_as_non_root := get_field_value_or_default("runAsNonRoot", container, pod_spec, false)
+                not allow_user_by_spe(rule, provided_user, run_as_non_root, spe)
+                spe_ctx := run_as_user_spe_ctx(spe, provided_user, params)
+                msg := build_user_violation_message(container.name, actual_value, allowed_by_policy, spe_ctx)
+                v := {"msg": msg, "details": user_violation_details(container, provided_user, params, spe)}
+              }
+
+              get_user_violation(params, container) := v if {
+                not get_field_value("runAsUser", container, pod_spec)
+                params.rule == "MustRunAs"
+                # Absent on a controller: a mutator may still set it before the
+                # Pod is created, so do not deny the controller here. Only
+                # runAsUser is inspected — under MustRunAs a runAsNonRoot the
+                # container happens to set does not satisfy the rule, so it must
+                # not decide whether this branch is lenient.
+                not controller_absent_field("runAsUser", container)
+                allowed_by_policy := sprintf("Allowed runAsUser: %v", [params])
+                actual_value := "Actual runAsUser: not set"
+                labels := object_labels
+                namespace := object_namespace
+                spe := resolve_spe_for_container(container, labels, namespace)
+                spe_ctx := run_as_user_spe_ctx(spe, "not set", params)
+                msg := build_user_violation_message(container.name, actual_value, allowed_by_policy, spe_ctx)
+                v := {"msg": msg, "details": user_violation_details(container, null, params, spe)}
+              }
+
+              get_user_violation(params, container) := v if {
+                params.rule == "MustRunAsNonRoot"
+                not get_field_value("runAsUser", container, pod_spec)
+                not get_field_value("runAsNonRoot", container, pod_spec)
+                # Absent on a controller: a mutator may still set either field
+                # before the Pod is created, so do not deny the controller here.
+                not controller_absent_run_as_user(container)
+                allowed_by_policy := sprintf("Allowed runAsUser: %v", [params])
+                # Setting runAsNonRoot: true clears this violation too, so the message and the
+                # details carry its value as well: false when set so, null ("not set") when absent.
+                run_as_non_root := get_field_value_or_default("runAsNonRoot", container, pod_spec, null)
+                actual_value := sprintf("Actual runAsUser: not set, runAsNonRoot: %v", [value_or_not_set(run_as_non_root)])
+                labels := object_labels
+                namespace := object_namespace
+                spe := resolve_spe_for_container(container, labels, namespace)
+                spe_ctx := run_as_user_spe_ctx(spe, "not set", params)
+                msg := build_user_violation_message(container.name, actual_value, allowed_by_policy, spe_ctx)
+                details := object.union(user_violation_details(container, null, params, spe), {"runAsNonRoot": run_as_non_root})
+                v := {"msg": msg, "details": details}
+              }
+
+              value_or_not_set(null) := "not set"
+
+              value_or_not_set(value) := value if value != null
+
+              build_user_violation_message(container_name, actual_value, allowed_by_policy, "") := msg if {
+                msg := sprintf("Container %v is attempting to run as disallowed user. | %v | %v", [container_name, actual_value, allowed_by_policy])
+              }
+
+              build_user_violation_message(container_name, actual_value, allowed_by_policy, spe_ctx) := msg if {
+                spe_ctx != ""
+                msg := sprintf("Container %v is attempting to run as disallowed user. | %v | %v | %v", [container_name, actual_value, allowed_by_policy, spe_ctx])
+              }
+
+              run_as_user_spe_ctx(spe, actual, params) := out if {
+                user_path := ["spec", "securityContext", "runAsUser", "allowedValues"]
+                non_root_path := ["spec", "securityContext", "runAsNonRoot", "allowedValue"]
+                has_run_as_user_spe_ctx(spe, user_path, non_root_path)
+                spe_user := allowed_values_or_empty(spe, user_path)
+                spe_non_root := allowed_values_or_empty(spe, non_root_path)
+                out := sprintf("forbidden: %v; policy allows: %v; SPE allows runAsUser: %v; SPE allows runAsNonRoot: %v", [actual, params, spe_user, spe_non_root])
+              } else := "" if {
+                true
+              }
+
+              # `actual: null` stands for "not set" in the message.
+              user_violation_details(container, actual, params, spe) := out if {
+                user_path := ["spec", "securityContext", "runAsUser", "allowedValues"]
+                non_root_path := ["spec", "securityContext", "runAsNonRoot", "allowedValue"]
+                has_run_as_user_spe_ctx(spe, user_path, non_root_path)
+                out := {
+                  "container": container.name,
+                  "field": "runAsUser",
+                  "actual": actual,
+                  "policy_allowed": params,
+                  "spe_applied": true,
+                  "spe_allowed": {
+                    "runAsUser": allowed_values_or_empty(spe, user_path),
+                    "runAsNonRoot": allowed_values_or_empty(spe, non_root_path),
+                  },
+                }
+              } else := {
+                "container": container.name,
+                "field": "runAsUser",
+                "actual": actual,
+                "policy_allowed": params,
+                "spe_applied": false,
+              }
+
+              has_run_as_user_spe_ctx(spe, user_path, _) if {
+                path_value_resolved(spe, user_path)
+              }
+
+              has_run_as_user_spe_ctx(spe, _, non_root_path) if {
+                path_value_resolved(spe, non_root_path)
+              }
+
+              accept_users("RunAsAny", _) := true
+
+              allow_user_by_spe("MustRunAsNonRoot", provided_user, run_as_non_root, spe) if {
+                user_path := ["spec", "securityContext", "runAsUser", "allowedValues"]
+                non_root_path := ["spec", "securityContext", "runAsNonRoot", "allowedValue"]
+                path_value_resolved(spe, user_path)
+                path_value_resolved(spe, non_root_path)
+                spe_user := allowed_values_or_empty(spe, user_path)
+                spe_non_root := allowed_values_or_empty(spe, non_root_path)
+                provided_user in spe_user
+                run_as_non_root in spe_non_root
+              }
+
+              allow_user_by_spe(rule, provided_user, _, spe) if {
+                rule != "MustRunAsNonRoot"
+                user_path := ["spec", "securityContext", "runAsUser", "allowedValues"]
+                path_value_resolved(spe, user_path)
+                spe_user := allowed_values_or_empty(spe, user_path)
+                provided_user in spe_user
+              }
+
+              accept_users("MustRunAsNonRoot", provided_user) := res if res := provided_user != 0
+
+              accept_users("MustRunAs", provided_user) := res if {
+                ranges := input.parameters.runAsUser.ranges
+                res := is_in_range(provided_user, ranges)
+              }
+
+              # Group Options
+              get_group_violation(field, params, container) := v if {
+                rule := params.rule
+                provided_value := get_field_value(field, container, pod_spec)
+                not is_array(provided_value)
+                not accept_value(rule, provided_value, params.ranges)
+                allowed_by_policy := sprintf("Allowed %v: %v", [field, params])
+                actual_value := sprintf("Actual %v: %v", [field, provided_value])
+                msg := sprintf("Container %v is attempting to run as disallowed %v. | %v | %v", [container.name, field, actual_value, allowed_by_policy])
+                v := {"msg": msg, "details": group_violation_details(container, field, provided_value, params)}
+              }
+
+              # SupplementalGroups is array value
+              get_group_violation(field, params, container) := v if {
+                rule := params.rule
+                array_value := get_field_value(field, container, pod_spec)
+                is_array(array_value)
+                provided_value := array_value[_]
+                not accept_value(rule, provided_value, params.ranges)
+                allowed_by_policy := sprintf("Allowed %v: %v", [field, params])
+                actual_value := sprintf("Actual %v: %v", [field, array_value])
+                msg := sprintf("Container %v is attempting to run as disallowed %v. | %v | %v", [container.name, field, actual_value, allowed_by_policy])
+                v := {"msg": msg, "details": group_violation_details(container, field, array_value, params)}
+              }
+
+              get_group_violation(field, params, container) := v if {
+                not get_field_value(field, container, pod_spec)
+                params.rule == "MustRunAs"
+                # Absent on a controller: a mutator may still set it before the
+                # Pod is created, so do not deny the controller here.
+                not controller_absent_field(field, container)
+                allowed_by_policy := sprintf("Allowed %v: %v", [field, params])
+                actual_value := sprintf("Actual %v: not set", [field])
+                msg := sprintf("Container %v is attempting to run as disallowed %v. | %v | %v", [container.name, field, actual_value, allowed_by_policy])
+                v := {"msg": msg, "details": group_violation_details(container, field, null, params)}
+              }
+
+              group_violation_details(container, field, actual, params) := {
+                "container": container.name,
+                "field": field,
+                "actual": actual,
+                "policy_allowed": params,
+                "spe_applied": false,
+              }
+
+              accept_value("RunAsAny", _, _) := true
+
+              accept_value("MayRunAs", provided_value, ranges) := res if res := is_in_range(provided_value, ranges)
+
+              accept_value("MustRunAs", provided_value, ranges) := res if res := is_in_range(provided_value, ranges)
+
+              # If container level is provided, that takes precedence
+              get_field_value(field, container, _) := out if {
+                container_value := get_seccontext_field(field, container)
+                out := container_value
+              }
+
+              # If no container level exists, use pod level
+              get_field_value(field, container, pod_spec) := out if {
+                not has_seccontext_field(field, container)
+                pod_value := get_seccontext_field(field, pod_spec)
+                out := pod_value
+              }
+
+              is_in_range(val, ranges) := res if {
+                res := is_in_any_range(val, ranges)
+              }
+
+              has_seccontext_field(field, obj) if {
+                get_seccontext_field(field, obj)
+              }
+
+              has_seccontext_field(field, obj) if {
+                get_seccontext_field(field, obj) == false
+              }
+
+              get_seccontext_field(field, obj) := out if {
+                out = obj.securityContext[field]
+              }
+
+              get_field_value_or_default(field, container, pod_spec, default_val) := out if {
+                has_seccontext_field(field, container)
+                sec_ctx := object.get(container, "securityContext", {})
+                out := object.get(sec_ctx, field, default_val)
+              } else := out if {
+                not has_seccontext_field(field, container)
+                pod_ctx := object.get(pod_spec, "securityContext", {})
+                out := object.get(pod_ctx, field, default_val)
+              }
+
+              # Lenient mode for controllers.
+              #
+              # A controller is reviewed before any mutation, so a field that is
+              # absent from its pod template may still be present on the Pod the
+              # controller creates. Note what does and does not fill it in:
+              # PodSecurity admission only validates and never mutates, so it is
+              # NOT a source of injected values. The sources that are: a
+              # Gatekeeper `Assign` mutator matching Pods, and any third-party
+              # mutating webhook. Denying the controller for an absent field
+              # would therefore reject workloads whose Pods end up compliant.
+              #
+              # Both helpers take the container under review, so leniency is
+              # decided per container. A pod-wide decision would let one
+              # container that sets runAsUser make every other container in the
+              # same template fail for not setting it.
+              # MustRunAsNonRoot is satisfied by either field, so both must be absent
+              # before the branch below is treated leniently.
+              controller_absent_run_as_user(container) if {
+                is_controller
+                not seccontext_field_present("runAsUser", container)
+                not seccontext_field_present("runAsNonRoot", container)
+              }
+
+              # Single-field variant, used by the MustRunAs branch and by the group
+              # fields (runAsGroup, fsGroup, supplementalGroups).
+              controller_absent_field(field, container) if {
+                is_controller
+                not seccontext_field_present(field, container)
+              }
+
+
+              # True when the field is set either on this container or on the pod
+              # template, which is the precedence get_field_value applies.
+              seccontext_field_present(field, container) if {
+                has_seccontext_field(field, container)
+              }
+
+              seccontext_field_present(field, _) if {
+                has_seccontext_field(field, pod_spec)
+              }
+
+
