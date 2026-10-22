@@ -12,3 +12,10 @@ D8PrivilegedContainer is called without parameters, hence the len check.
 - kind: {{ index . 1 }}
   parameters: {{ if gt (len .) 3 }}{{ index . 3 | toJson }}{{ else }}{}{{ end }}
 {{- end }}
+{{- /*
+Replaces ape.only_ready_constraints: in the cluster it drops constraints whose template is not
+ready yet; dmt checks against all of them, so the rendered pairs pass through as is.
+*/ -}}
+{{- define "ape.only_ready_constraints" }}
+{{- index . 1 }}
+{{- end }}
