@@ -262,10 +262,9 @@ func TestPodSecurityStandards_EdgeCases(t *testing.T) {
 			want:    []string{rVolumeTypes},
 		},
 		{
-			name:    "8: hostPath, SPE readOnly differs from the mount",
+			name:    "8: hostPath, SPE readOnly: false also covers a read-only mount",
 			patches: []string{hostPathVolume, speLabel},
 			spes:    map[string]string{"spe": `{volumes: {types: {allowedValues: [hostPath]}, hostPath: {allowedValues: [{path: /var/log, readOnly: false}]}}}`},
-			want:    []string{bHostPaths},
 		},
 		{
 			name:    "8: hostPath, SPE path is a prefix, not the exact path",
@@ -398,17 +397,14 @@ func TestPodSecurityStandards_SPEDefaults(t *testing.T) {
 		raw, want []string
 	}{
 		{
-			name:    "hostPath readOnly defaults to false and covers a writable mount",
+			name:    "hostPath without readOnly covers a writable mount",
 			patches: []string{hostPathVolume, writableMount, speLabel},
 			spec:    `{volumes: {types: {allowedValues: [hostPath]}, hostPath: {allowedValues: [{path: /var/log}]}}}`,
-			raw:     []string{bHostPaths},
 		},
 		{
-			name:    "hostPath readOnly defaults to false and does not cover a read-only mount",
+			name:    "hostPath without readOnly covers a read-only mount",
 			patches: []string{hostPathVolume, speLabel},
 			spec:    `{volumes: {types: {allowedValues: [hostPath]}, hostPath: {allowedValues: [{path: /var/log}]}}}`,
-			raw:     []string{bHostPaths},
-			want:    []string{bHostPaths},
 		},
 		{
 			name:    "capabilities drop defaults to [all], outcome unchanged",

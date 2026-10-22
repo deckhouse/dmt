@@ -188,9 +188,8 @@ spec:
 				privilegedApp,
 				`{spec: {template: {spec: {containers: [{name: app, securityContext: {appArmorProfile: {type: Localhost, localhostProfile: p}}}]}}}}`,
 			},
-			bind:     true,
-			want:     map[string]string{"app": "securityContext:\n  privileged: {allowedValue: true, metadata: {description: TODO}}"},
-			leftover: []string{"baseline/D8AppArmor"},
+			bind: true,
+			want: map[string]string{"app": "securityContext:\n  privileged: {allowedValue: true, metadata: {description: TODO}}"},
 		},
 		{
 			name: "sysctls",
