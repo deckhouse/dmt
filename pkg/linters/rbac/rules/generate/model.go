@@ -1,0 +1,688 @@
+/*
+Copyright 2026 Flant JSC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package generate turns a module RBAC declaration (rbac.yaml) into the RBAC objects the module
+// ships and into the Helm templates that produce them. The model is built first and the text is
+// rendered from it, so that the sync rule compares the rendered chart against the very objects the
+// generator would write.
+//
+// What is produced follows the ADR "Единый rbac.yaml модуля", "Что генерируется": one file per
+// capability under templates/rbacv2/{use,manage}/, the legacy roles in
+// templates/user-authz-cluster-roles.yaml, the ServiceAccount rights in templates/[<path>/]rbac-for-us.yaml
+// and the external access in templates/rbac-to-us.yaml.
+package generate
+
+import (
+	"errors"
+	"fmt"
+	"maps"
+	"slices"
+	"sort"
+	"strings"
+
+	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbaccontract"
+	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbacyaml"
+)
+
+// Input is everything the generator needs besides the declaration: the module identity from
+// module.yaml. Subsystems are module.yaml's, and the system capabilities aggregate into them only.
+type Input struct {
+	Module    string
+	Namespace string
+	// ChartName is what {{ .Chart.Name }} renders to in the module's chart. When it is the module
+	// name and the module lives in d8-<module>, the templates write that namespace as
+	// d8-{{ $.Chart.Name }}, as the hand-written ones do; empty or another name writes it literally.
+	ChartName  string
+	Subsystems []string
+	Decl       *rbacyaml.Declaration
+}
+
+// Class is one of the three classes of objects the sync rule owns (ADR, "Область ответственности sync").
+type Class string
+
+const (
+	// ClassLegacy is a legacy (user-authz v1) ClusterRole, recognized by its access-level annotation.
+	ClassLegacy Class = "legacy"
+	// ClassCapability is an RBACv2 capability of the module, recognized by kind: capability and the
+	// module label.
+	ClassCapability Class = "capability"
+	// ClassDeclared is an object whose name the generator builds from serviceAccounts, access and
+	// prometheusAccess; it is owned only when declared.
+	ClassDeclared Class = "declared"
+)
+
+// Rule is one PolicyRule of an object, with the condition it is rendered under ("" for always).
+type Rule struct {
+	rbacyaml.PolicyRule
+	When string
+}
+
+// Subject is an RBAC subject of a binding.
+type Subject struct {
+	Kind      string
+	Name      string
+	Namespace string
+}
+
+// Object is one RBAC object the generator produces.
+type Object struct {
+	Kind      string
+	Name      string
+	Namespace string
+	Class     Class
+
+	// When is the condition the whole object is rendered under ("" for always).
+	When string
+
+	// Labels are the labels the generator sets besides the module labels helm_lib_module_labels adds
+	// (heritage, module). For capabilities these carry the contract: kind, scope, marker, aggregation.
+	Labels map[string]string
+	// Annotations are the localized texts of a capability or the access level of a legacy role.
+	Annotations map[string]string
+
+	Rules []Rule
+
+	// Binding fields.
+	RoleRefKind string
+	RoleRefName string
+	Subjects    []Subject
+
+	// ServiceAccount fields.
+	AutomountToken *bool
+}
+
+// Identity returns Kind/Name or Namespace/Kind/Name, matching storage.ResourceIndex.AsString.
+func (o Object) Identity() string {
+	if o.Namespace == "" {
+		return o.Kind + "/" + o.Name
+	}
+
+	return o.Namespace + "/" + o.Kind + "/" + o.Name
+}
+
+// File is one generated template with its objects in order.
+type File struct {
+	// Path is relative to the module root.
+	Path    string
+	Objects []Object
+	// ChartNamespace is the namespace the file writes as d8-{{ $.Chart.Name }} (ChartNamespaceText),
+	// in metadata.namespace and in the namespace of a ServiceAccount subject: d8-<module> when the
+	// chart is named after the module. Empty writes every namespace literally.
+	ChartNamespace string
+}
+
+// ChartNamespaceText is how the templates write the module namespace d8-<module>.
+const ChartNamespaceText = "d8-{{ $.Chart.Name }}"
+
+// Model is the full set of generated files, sorted by path.
+type Model struct {
+	Files []File
+}
+
+// File returns the file at path, or nil.
+func (m *Model) File(path string) *File {
+	for i := range m.Files {
+		if m.Files[i].Path == path {
+			return &m.Files[i]
+		}
+	}
+
+	return nil
+}
+
+// Build derives the object model from the declaration. The declaration must have passed
+// rbacyaml.Validate: Build trusts it.
+func Build(in Input) (*Model, error) {
+	if in.Decl == nil {
+		return nil, errors.New("no declaration")
+	}
+
+	if in.Module == "" {
+		return nil, errors.New("the module name is required")
+	}
+
+	if err := checkAgainstModule(in); err != nil {
+		return nil, err
+	}
+
+	b := &builder{in: in, files: map[string]*File{}}
+
+	b.capabilities()
+	b.legacyRoles()
+	b.serviceAccounts()
+	b.access()
+
+	chartNamespace := ""
+	if in.ChartName == in.Module && in.Namespace == "d8-"+in.Module {
+		chartNamespace = in.Namespace
+	}
+
+	model := &Model{Files: make([]File, 0, len(b.files))}
+	for _, f := range b.files {
+		for i := range f.Objects {
+			liftRuleConditions(&f.Objects[i])
+		}
+
+		f.ChartNamespace = chartNamespace
+		model.Files = append(model.Files, *f)
+	}
+
+	sort.Slice(model.Files, func(i, j int) bool { return model.Files[i].Path < model.Files[j].Path })
+
+	// A marker past 63 characters fails the contract: a long module name, or a long action of its own.
+	// Helm refuses two objects of one name in a release, whichever templates they come from: a
+	// ServiceAccount and an access entry of the same name, an extra role with an absolute name
+	// equal to another account's role.
+	seen := map[string]string{}
+
+	for _, f := range model.Files {
+		for _, o := range f.Objects {
+			if where, dup := seen[o.Identity()]; dup {
+				if where == f.Path {
+					return nil, fmt.Errorf("%s would hold two objects named %s: two declared roles or bindings map to the same name", f.Path, o.Identity())
+				}
+
+				return nil, fmt.Errorf("%s and %s would both hold %s: two declared entries map to the same name", where, f.Path, o.Identity())
+			}
+
+			seen[o.Identity()] = f.Path
+		}
+	}
+
+	for _, f := range model.Files {
+		for _, o := range f.Objects {
+			if marker := o.Labels[rbaccontract.LabelCapability]; len(marker) > 63 {
+				return nil, fmt.Errorf("capability marker %q is %d characters, a label value holds 63: the module name and the action together are too long for %s", marker, len(marker), o.Name)
+			}
+		}
+	}
+
+	return model, nil
+}
+
+// checkAgainstModule refuses what the declaration alone cannot know is wrong: it needs the module's
+// metadata, and the objects it would produce would fail the platform's other rules.
+func checkAgainstModule(in Input) error {
+	systemLevels := false
+
+	for _, r := range in.Decl.Resources {
+		if len(r.System) > 0 {
+			systemLevels = true
+		}
+	}
+
+	if systemLevels && len(in.Subsystems) == 0 {
+		return errors.New("system levels are declared but the module aggregates into no subsystem: module.yaml declares none, so declare the module's subsystems in module.yaml")
+	}
+
+	for _, sa := range in.Decl.ServiceAccounts {
+		if sa.Path == "" {
+			continue
+		}
+
+		// The placement rule names the account of templates/<a>/<b>/rbac-for-us.yaml after its
+		// directories joined with dashes; with the module name in front only in a namespace of the
+		// platform (d8-system, d8-monitoring, ...).
+		dir := strings.ReplaceAll(sa.Path, "/", "-")
+
+		// In default and kube-system the placement rule wants the account named d8-<module>-<dir>,
+		// which the generator does not write (README, limits; review of #479, finding 43).
+		if in.Namespace == "default" || in.Namespace == "kube-system" {
+			return fmt.Errorf("serviceAccounts[%s].path %q: in %s the placement rule wants the account named %q, which the declaration does not accept yet (a known limitation); keep the account hand-written", sa.Name, sa.Path, in.Namespace, "d8-"+in.Module+"-"+dir)
+		}
+
+		switch {
+		case sa.Name == dir:
+		case sa.Name == in.Module+"-"+dir && rbaccontract.IsDeckhouseNamespace(in.Namespace):
+		case sa.Name == in.Module+"-"+dir:
+			return fmt.Errorf("serviceAccounts[%s].path %q: the placement rule allows the module name in front of the directory only in a namespace of the platform (d8-system, d8-monitoring, ...); in %s name the account %q", sa.Name, sa.Path, in.Namespace, dir)
+		default:
+			return fmt.Errorf("serviceAccounts[%s].path %q: the placement rule wants the account named %q after its directory; rename the account or move it to the module root", sa.Name, sa.Path, dir)
+		}
+	}
+
+	return nil
+}
+
+type builder struct {
+	in    Input
+	files map[string]*File
+}
+
+func (b *builder) add(path string, obj Object) {
+	f, ok := b.files[path]
+	if !ok {
+		f = &File{Path: path}
+		b.files[path] = f
+	}
+
+	f.Objects = append(f.Objects, obj)
+}
+
+func (b *builder) subsystems() []string {
+	out := append([]string(nil), b.in.Subsystems...)
+	sort.Strings(out)
+
+	return out
+}
+
+// capabilities produces one namespace capability per namespace level or action in use and the
+// system capabilities: view and edit always (every module gets access to its own ModuleConfig) when
+// the module has a subsystem, the other levels and actions when a resource names them.
+func (b *builder) capabilities() {
+	namespaceGrants := map[string][]Rule{}
+	systemGrants := map[string][]Rule{}
+
+	for _, res := range b.in.Decl.Resources {
+		for key, verbs := range res.Namespace {
+			action := rbacyaml.ActionOf(rbaccontract.LineageNamespace, key)
+			namespaceGrants[action] = append(namespaceGrants[action], resourceRule(res, verbs))
+		}
+
+		for key, verbs := range res.System {
+			action := rbacyaml.ActionOf(rbaccontract.LineageSystem, key)
+			systemGrants[action] = append(systemGrants[action], resourceRule(res, verbs))
+		}
+	}
+
+	for _, action := range grantOrder(rbaccontract.NamespaceLevels, namespaceGrants) {
+		rules, ok := namespaceGrants[action]
+		if !ok {
+			continue
+		}
+
+		level := b.level(rbaccontract.LineageNamespace, action)
+		b.add("templates/rbacv2/use/"+action+".yaml", Object{
+			Kind:  "ClusterRole",
+			Name:  rbaccontract.NamespaceCapabilityPrefix + b.in.Module + ":" + action,
+			Class: ClassCapability,
+			Labels: b.withModuleLabels(rbaccontract.LineageNamespace, action, map[string]string{
+				rbaccontract.LabelKind:       rbaccontract.KindCapability,
+				rbaccontract.LabelScope:      rbaccontract.LineageNamespace,
+				rbaccontract.LabelCapability: rbaccontract.LineageNamespace + "-capability." + b.in.Module + "." + action,
+				rbaccontract.AggregationLabelPrefix + rbaccontract.LineageNamespace + rbaccontract.AggregationLabelSuffix: level,
+			}),
+			Annotations: b.texts(rbaccontract.LineageNamespace, action),
+			Rules:       sortRules(rules),
+		})
+	}
+
+	// A system capability aggregates into the module's subsystems; without one it would aggregate
+	// into no role, and the contract refuses that (checkAgainstModule refuses system levels there).
+	if len(b.subsystems()) == 0 {
+		return
+	}
+
+	for _, action := range grantOrder(rbaccontract.SystemLevels, systemGrants) {
+		level := b.level(rbaccontract.LineageSystem, action)
+		rules := systemGrants[action]
+
+		switch action {
+		case "view":
+			rules = append(rules, moduleConfigRule(b.in.Module, []string{"get", "list", "watch"}))
+		case "edit":
+			rules = append(rules, moduleConfigRule(b.in.Module, []string{"create", "update", "patch", "delete"}))
+		default:
+			if len(rules) == 0 {
+				continue
+			}
+		}
+
+		labels := map[string]string{
+			rbaccontract.LabelKind:       rbaccontract.KindCapability,
+			rbaccontract.LabelScope:      rbaccontract.LineageSystem,
+			rbaccontract.LabelCapability: rbaccontract.LineageSystem + "-capability." + b.in.Module + "." + action,
+		}
+
+		for _, subsystem := range b.subsystems() {
+			labels[rbaccontract.AggregationLabelPrefix+subsystem+rbaccontract.AggregationLabelSuffix] = level
+		}
+
+		// The user-authz controller projects the module's use-role RoleBindings into this namespace;
+		// every module namespace gets it -- kube-system included -- but default, which the
+		// secret-copier module fills with copies and which is nobody's to administer.
+		if b.in.Namespace != "" && b.in.Namespace != "default" {
+			labels[rbaccontract.LabelNamespace] = b.in.Namespace
+		}
+
+		b.add("templates/rbacv2/manage/"+action+".yaml", Object{
+			Kind:        "ClusterRole",
+			Name:        rbaccontract.SystemCapabilityPrefix + b.in.Module + ":" + action,
+			Class:       ClassCapability,
+			Labels:      b.withModuleLabels(rbaccontract.LineageSystem, action, labels),
+			Annotations: b.texts(rbaccontract.LineageSystem, action),
+			Rules:       sortRules(rules),
+		})
+	}
+}
+
+// grantOrder returns the actions of the levels in the ladder's order, then the actions of their own
+// in granted, sorted.
+func grantOrder(levels []string, granted map[string][]Rule) []string {
+	out := make([]string, 0, len(levels)+len(granted))
+	for _, level := range levels {
+		out = append(out, rbaccontract.CapabilityAction(level))
+	}
+
+	own := make([]string, 0, len(granted))
+
+	for action := range granted {
+		if !slices.Contains(out, action) {
+			own = append(own, action)
+		}
+	}
+
+	sort.Strings(own)
+
+	return append(out, own...)
+}
+
+// level returns the level a capability aggregates into: the one its action is named after, or the
+// one the declaration gives an action of its own.
+func (b *builder) level(lineage, action string) string {
+	if c, ok := b.in.Decl.Capabilities[lineage+"."+action]; ok && c.Level != "" {
+		return c.Level
+	}
+
+	return rbaccontract.LevelOfAction(action)
+}
+
+// withModuleLabels adds the labels the declaration gives the capability; Validate made sure none
+// of them is one the role model writes.
+func (b *builder) withModuleLabels(lineage, action string, labels map[string]string) map[string]string {
+	maps.Copy(labels, b.in.Decl.Capabilities[lineage+"."+action].Labels)
+
+	return labels
+}
+
+// texts returns the four localized annotations of a capability: the platform convention for
+// view/edit, the declaration's capabilities entry otherwise (Validate made sure it exists).
+func (b *builder) texts(lineage, action string) map[string]string {
+	var title, description rbaccontract.Text
+
+	if conventional, ok := rbaccontract.ConventionalTexts[lineage+"."+action]; ok {
+		title = rbaccontract.Text{EN: fmt.Sprintf(conventional.Title.EN, b.in.Module), RU: fmt.Sprintf(conventional.Title.RU, b.in.Module)}
+		description = rbaccontract.Text{EN: fmt.Sprintf(conventional.Description.EN, b.in.Module), RU: fmt.Sprintf(conventional.Description.RU, b.in.Module)}
+	} else if custom, ok := b.in.Decl.Capabilities[lineage+"."+action]; ok {
+		title = rbaccontract.Text{EN: custom.Title.EN, RU: custom.Title.RU}
+		description = rbaccontract.Text{EN: custom.Description.EN, RU: custom.Description.RU}
+	}
+
+	return map[string]string{
+		rbaccontract.AnnotationTitleEN:       title.EN,
+		rbaccontract.AnnotationTitleRU:       title.RU,
+		rbaccontract.AnnotationDescriptionEN: description.EN,
+		rbaccontract.AnnotationDescriptionRU: description.RU,
+	}
+}
+
+// legacyRoles produces one legacy ClusterRole per access level in use, in the enum order.
+func (b *builder) legacyRoles() {
+	byLevel := map[string][]Rule{}
+
+	for _, res := range b.in.Decl.Resources {
+		for level, verbs := range res.Legacy {
+			byLevel[level] = append(byLevel[level], resourceRule(res, verbs))
+		}
+	}
+
+	for _, level := range rbaccontract.LegacyLevels {
+		rules, ok := byLevel[level]
+		if !ok {
+			continue
+		}
+
+		b.add("templates/user-authz-cluster-roles.yaml", Object{
+			Kind:        "ClusterRole",
+			Name:        rbaccontract.LegacyRolePrefix + b.in.Module + ":" + rbaccontract.LegacyKebab(level),
+			Class:       ClassLegacy,
+			Annotations: map[string]string{rbaccontract.AccessLevelAnnotation: level},
+			Rules:       sortRules(rules),
+		})
+	}
+}
+
+// serviceAccounts produces the ServiceAccount, its ClusterRole/ClusterRoleBinding, Role/RoleBinding
+// and the extra bindings, into templates/[<path>/]rbac-for-us.yaml.
+func (b *builder) serviceAccounts() {
+	accounts := append([]rbacyaml.ServiceAccount(nil), b.in.Decl.ServiceAccounts...)
+	sort.Slice(accounts, func(i, j int) bool { return accounts[i].Name < accounts[j].Name })
+
+	for _, sa := range accounts {
+		path := "templates/rbac-for-us.yaml"
+		if sa.Path != "" {
+			path = "templates/" + sa.Path + "/rbac-for-us.yaml"
+		}
+
+		labels := map[string]string{}
+		for k, v := range sa.Labels {
+			labels[k] = v
+		}
+
+		automount := sa.AutomountToken != nil && *sa.AutomountToken
+		b.add(path, Object{
+			Kind: "ServiceAccount", Name: sa.Name, Namespace: b.in.Namespace, Class: ClassDeclared,
+			When: sa.When, Labels: labels, Annotations: copyMap(sa.Annotations), AutomountToken: &automount,
+		})
+
+		ann := sa.RBACAnnotations
+
+		subject := []Subject{{Kind: "ServiceAccount", Name: sa.Name, Namespace: b.in.Namespace}}
+
+		if len(sa.ClusterRules) > 0 {
+			clusterName, bindingName := sa.ClusterRoleNames(b.in.Module)
+			b.add(path, Object{Kind: "ClusterRole", Name: clusterName, Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann), Rules: policyRules(sa.ClusterRules)})
+			b.add(path, Object{Kind: "ClusterRoleBinding", Name: bindingName, Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann), RoleRefKind: "ClusterRole", RoleRefName: clusterName, Subjects: subject})
+		}
+
+		if len(sa.NamespaceRules) > 0 {
+			roleName, bindingName := sa.NamespaceRoleNames(b.in.Module)
+			b.add(path, Object{Kind: "Role", Name: roleName, Namespace: b.in.Namespace, Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann), Rules: policyRules(sa.NamespaceRules)})
+			b.add(path, Object{Kind: "RoleBinding", Name: bindingName, Namespace: b.in.Namespace, Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann), RoleRefKind: "Role", RoleRefName: roleName, Subjects: subject})
+		}
+
+		for _, extra := range sa.ExtraClusterRoles {
+			extraName := extra.FullName(b.in.Module, sa.Name)
+			b.add(path, Object{Kind: "ClusterRole", Name: extraName, Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann), Rules: policyRules(extra.Rules)})
+
+			if extra.IsBound() {
+				b.add(path, Object{Kind: "ClusterRoleBinding", Name: extra.BindingNameOf(b.in.Module, sa.Name), Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann), RoleRefKind: "ClusterRole", RoleRefName: extraName, Subjects: subject})
+			}
+		}
+
+		for _, bound := range sa.BindClusterRoles {
+			b.add(path, Object{
+				Kind: "ClusterRoleBinding", Name: bound.BindingNameOf(b.in.Module, sa.Name), Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann),
+				RoleRefKind: "ClusterRole", RoleRefName: bound.Name, Subjects: subject,
+			})
+		}
+
+		for _, ref := range sa.BindRoles {
+			name := ref.BindingName
+			if name == "" {
+				name = rbaccontract.AccountForeignBindingName(b.in.Module, sa.Path, sa.Name, ref.Namespace, ref.Name)
+			}
+
+			b.add(path, Object{
+				Kind: "RoleBinding", Name: name, Namespace: ref.Namespace, Class: ClassDeclared, When: sa.When, Labels: labels, Annotations: copyMap(ann),
+				RoleRefKind: "Role", RoleRefName: ref.Name, Subjects: subject,
+			})
+		}
+	}
+}
+
+// access produces the Prometheus access and the arbitrary-subject grants: cluster rules go to
+// templates/[<path>/]rbac-for-us.yaml (the placement rule keeps ClusterRoles there), namespace rules
+// and the metrics access to templates/[<path>/]rbac-to-us.yaml.
+func (b *builder) access() {
+	b.prometheusAccess()
+
+	grants := append([]rbacyaml.Access(nil), b.in.Decl.Access...)
+	sort.Slice(grants, func(i, j int) bool { return grants[i].Name < grants[j].Name })
+
+	for _, a := range grants {
+		subjects := make([]Subject, 0, len(a.Subjects))
+		for _, s := range a.Subjects {
+			subjects = append(subjects, Subject{Kind: s.Kind, Name: s.Name, Namespace: s.Namespace})
+		}
+
+		dir := "templates/"
+		if a.Path != "" {
+			dir = "templates/" + a.Path + "/"
+		}
+
+		role, binding := a.ObjectNames(b.in.Module)
+
+		if len(a.ClusterRules) > 0 {
+			b.add(dir+"rbac-for-us.yaml", Object{Kind: "ClusterRole", Name: role, Class: ClassDeclared, When: a.When, Labels: copyMap(a.Labels), Annotations: copyMap(a.Annotations), Rules: policyRules(a.ClusterRules)})
+			b.add(dir+"rbac-for-us.yaml", Object{Kind: "ClusterRoleBinding", Name: binding, Class: ClassDeclared, When: a.When, Labels: copyMap(a.Labels), Annotations: copyMap(a.Annotations), RoleRefKind: "ClusterRole", RoleRefName: role, Subjects: subjects})
+		}
+
+		if len(a.NamespaceRules) > 0 {
+			b.add(dir+"rbac-to-us.yaml", Object{Kind: "Role", Name: role, Namespace: b.in.Namespace, Class: ClassDeclared, When: a.When, Labels: copyMap(a.Labels), Annotations: copyMap(a.Annotations), Rules: policyRules(a.NamespaceRules)})
+			b.add(dir+"rbac-to-us.yaml", Object{Kind: "RoleBinding", Name: binding, Namespace: b.in.Namespace, Class: ClassDeclared, When: a.When, Labels: copyMap(a.Labels), Annotations: copyMap(a.Annotations), RoleRefKind: "Role", RoleRefName: role, Subjects: subjects})
+		}
+	}
+}
+
+// prometheusAccess produces a Role and a RoleBinding to the scraper per entry, in the order of the
+// files and names: the order of the declaration does not change the files.
+func (b *builder) prometheusAccess() {
+	for _, pa := range b.in.Decl.PrometheusAccess.Sorted() {
+		rules := make([]Rule, 0, 3)
+
+		for kind, names := range map[string][]string{"deployments": pa.Deployments, "daemonsets": pa.DaemonSets, "statefulsets": pa.StatefulSets} {
+			if len(names) == 0 {
+				continue
+			}
+
+			sorted := append([]string(nil), names...)
+			sort.Strings(sorted)
+
+			rules = append(rules, Rule{PolicyRule: rbacyaml.PolicyRule{
+				APIGroups: []string{"apps"}, Resources: []string{kind + "/prometheus-metrics"}, ResourceNames: sorted, Verbs: []string{"get"},
+			}})
+		}
+
+		rules = sortRules(rules)
+		name := pa.RoleName(b.in.Module)
+
+		b.add(pa.File(), Object{Kind: "Role", Name: name, Namespace: b.in.Namespace, Class: ClassDeclared, Labels: copyMap(pa.Labels), Annotations: copyMap(pa.Annotations), Rules: rules})
+		// The Role is unconditional and only the binding to the scraper is gated: that is how the
+		// modules write it today, and a Role nobody is bound to grants nothing.
+		b.add(pa.File(), Object{
+			Kind: "RoleBinding", Name: pa.BindingNameOf(b.in.Module), Namespace: b.in.Namespace, Class: ClassDeclared, Labels: copyMap(pa.Labels), Annotations: copyMap(pa.Annotations), RoleRefKind: "Role", RoleRefName: name, When: pa.When,
+			Subjects: []Subject{{Kind: "User", Name: "d8-monitoring:scraper"}, {Kind: "ServiceAccount", Name: "prometheus", Namespace: "d8-monitoring"}},
+		})
+	}
+}
+
+func resourceRule(res rbacyaml.Resource, verbs []string) Rule {
+	sorted := append([]string(nil), verbs...)
+	sort.Strings(sorted)
+
+	return Rule{PolicyRule: rbacyaml.PolicyRule{APIGroups: []string{res.Group}, Resources: []string{res.Resource}, Verbs: sorted}, When: res.When}
+}
+
+func moduleConfigRule(module string, verbs []string) Rule {
+	sorted := append([]string(nil), verbs...)
+	sort.Strings(sorted)
+
+	return Rule{PolicyRule: rbacyaml.PolicyRule{APIGroups: []string{"deckhouse.io"}, Resources: []string{"moduleconfigs"}, ResourceNames: []string{module}, Verbs: sorted}}
+}
+
+// policyRules copies raw rules as they are; their condition is the object's, not their own.
+func policyRules(rules []rbacyaml.PolicyRule) []Rule {
+	out := make([]Rule, 0, len(rules))
+	for _, r := range rules {
+		out = append(out, Rule{PolicyRule: r})
+	}
+
+	return out
+}
+
+// sortRules orders rules by group, then resource: the order of a generated file never depends on the
+// order of the declaration. The ModuleConfig rule sorts with the rest (deckhouse.io).
+func sortRules(rules []Rule) []Rule {
+	out := append([]Rule(nil), rules...)
+	sort.SliceStable(out, func(i, j int) bool {
+		gi, gj := strings.Join(out[i].APIGroups, ","), strings.Join(out[j].APIGroups, ",")
+		if gi != gj {
+			return gi < gj
+		}
+
+		ri, rj := strings.Join(out[i].Resources, ","), strings.Join(out[j].Resources, ",")
+		if ri != rj {
+			return ri < rj
+		}
+
+		return strings.Join(out[i].NonResourceURLs, ",") < strings.Join(out[j].NonResourceURLs, ",")
+	})
+
+	return out
+}
+
+// liftRuleConditions moves the conditions of a role whose every rule is conditional onto the role
+// itself, so that the role is not rendered with an empty rules list when none of them holds
+// (ADR: a ClusterRole without rules is not generated). One shared condition is lifted as it is
+// and leaves the rules; different ones become an `or` of them, and each rule keeps its own.
+func liftRuleConditions(o *Object) {
+	if (o.Kind != "ClusterRole" && o.Kind != "Role") || len(o.Rules) == 0 {
+		return
+	}
+
+	var conditions []string
+
+	for _, r := range o.Rules {
+		if r.When == "" {
+			return
+		}
+
+		if !slices.Contains(conditions, r.When) {
+			conditions = append(conditions, r.When)
+		}
+	}
+
+	lifted := conditions[0]
+
+	if len(conditions) == 1 {
+		for i := range o.Rules {
+			o.Rules[i].When = ""
+		}
+	} else {
+		parts := make([]string, 0, len(conditions))
+		for _, c := range conditions {
+			parts = append(parts, "("+c+")")
+		}
+
+		lifted = "or " + strings.Join(parts, " ")
+	}
+
+	if o.When != "" {
+		lifted = "and (" + o.When + ") (" + lifted + ")"
+	}
+
+	o.When = lifted
+}
+
+// copyMap returns a copy of m, nil for an empty one.
+func copyMap(m map[string]string) map[string]string {
+	if len(m) == 0 {
+		return nil
+	}
+
+	return maps.Clone(m)
+}

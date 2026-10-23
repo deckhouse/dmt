@@ -1,0 +1,561 @@
+/*
+Copyright 2026 Flant JSC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Regression probes from the fourth review of deckhouse/dmt#479: each reproduces a way a --fix could
+// lose, duplicate or misreport an object.
+package rules
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v3"
+
+	"github.com/deckhouse/dmt/pkg"
+	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/bootstrap"
+	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/generate"
+	"github.com/deckhouse/dmt/pkg/linters/rbac/rules/rbacyaml"
+)
+
+// P1: a hand-added object that textDocuments cannot see keeps the fix off a file that diverges.
+func TestSyncRegression_TextDocumentsBlindSpots(t *testing.T) {
+	const rel = "templates/cainjector/rbac-for-us.yaml"
+
+	const cm = "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cainjector-extra\n  namespace: d8-cert-manager\n"
+
+	for name, mutate := range map[string]func(string) string{
+		"control: plain ConfigMap document (refused today)": func(s string) string {
+			return strings.Replace(s, "{{- end }}\n", "---\n"+cm+"{{- end }}\n", 1)
+		},
+		"document is an include": func(s string) string {
+			return strings.Replace(s, "{{- end }}\n", "---\n{{ include \"cainjector-extra\" . }}\n{{- end }}\n", 1)
+		},
+		"kind line carries a comment": func(s string) string {
+			return strings.Replace(s, "{{- end }}\n", "---\n"+strings.Replace(cm, "kind: ConfigMap\n", "kind: ConfigMap # hand-added\n", 1)+"{{- end }}\n", 1)
+		},
+		"separator carries a comment": func(s string) string {
+			return strings.Replace(s, "{{- end }}\n", "--- # hand-added\n"+cm+"{{- end }}\n", 1)
+		},
+		"object before the first separator": func(s string) string {
+			return strings.Replace(s, "{{- if .Values.certManager.internal.enableCAInjector }}\n", "{{- if .Values.certManager.internal.enableCAInjector }}\n"+cm, 1)
+		},
+		"sound: range with templated name": func(s string) string {
+			return strings.Replace(s, "{{- end }}\n", "{{- range .Values.x }}\n---\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cainjector-extra-{{ . }}\n{{- end }}\n{{- end }}\n", 1)
+		},
+		"sound: no metadata.name, no namespace, quoted": func(s string) string {
+			return strings.Replace(s, "{{- end }}\n", "---\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  labels: {x: cainjector-extra}\n---\nkind: Role\nmetadata:\n  name: 'cainjector'\n{{- end }}\n", 1)
+		},
+		"CRLF line endings": func(s string) string {
+			s = strings.Replace(s, "{{- end }}\n", "---\n"+cm+"{{- end }}\n", 1)
+			return strings.ReplaceAll(s, "\n", "\r\n")
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			resetFixState()
+			t.Cleanup(resetFixState)
+
+			modulePath := syncModuleDir(t)
+			model := syncModel(t, modulePath)
+			writeGenerated(t, modulePath, model)
+
+			fullPath := filepath.Join(modulePath, rel)
+			content, err := os.ReadFile(fullPath)
+			require.NoError(t, err)
+			require.NoError(t, os.WriteFile(fullPath, []byte(mutate(string(content))), 0o600))
+
+			// The account renders and diverges, so the file would get the fix if nothing kept it off.
+			list := runSync(t, modulePath, renderedFrom(t, model, dropRule("d8:cert-manager:cainjector")))
+			assert.Contains(t, strings.Join(texts(list), "\n"), "The autofix leaves the file as it is")
+			assert.Empty(t, list.GetFixes(), "the hand-added object must survive --fix")
+
+			after, err := os.ReadFile(fullPath)
+			require.NoError(t, err)
+			assert.Contains(t, string(after), "cainjector-extra")
+		})
+	}
+}
+
+// P6: a capability file the declaration drops is a lint finding: the capabilities it renders are
+// named, and the autofix deletes no file.
+func TestSyncRegression_DroppedCapabilityFileIsALintFinding(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	const rel = "templates/rbacv2/use/admin.yaml"
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+
+	store := renderedFrom(t, model, nil)
+
+	decl, err := rbacyaml.Load(modulePath)
+	require.NoError(t, err)
+
+	for i := range decl.Resources {
+		if decl.Resources[i].Resource == "issuers" {
+			delete(decl.Resources[i].Namespace, "admin")
+		}
+	}
+
+	delete(decl.Capabilities, "namespace.admin")
+
+	raw, err := yaml.Marshal(decl)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(rbacyaml.Path(modulePath), raw, 0o600))
+	require.Nil(t, syncModel(t, modulePath).File(rel), "the declaration no longer produces the file")
+
+	list := runSync(t, modulePath, store)
+	joined := strings.Join(texts(list), "\n")
+	require.Contains(t, joined, rel+" does not match rbac.yaml")
+	assert.Contains(t, joined, "is in the render but rbac.yaml does not produce it")
+	assertLintOnly(t, list, modulePath)
+}
+
+// P7: a `when` on deckhouseVersion that the declaration drops is not taken for the version gate.
+func TestSyncRegression_DroppedVersionWhenLooksLikeAGate(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+
+	decl, err := rbacyaml.Load(modulePath)
+	require.NoError(t, err)
+
+	decl.Resources[0].When = `semverCompare ">= 1.80" .Values.global.deckhouseVersion`
+	raw, err := yaml.Marshal(decl)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(rbacyaml.Path(modulePath), raw, 0o600))
+
+	writeGenerated(t, modulePath, syncModel(t, modulePath))
+
+	decl.Resources[0].When = ""
+	raw, err = yaml.Marshal(decl)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(rbacyaml.Path(modulePath), raw, 0o600))
+
+	model := syncModel(t, modulePath)
+
+	// The file diverges, so it would get the fix if nothing kept it off.
+	list := runSync(t, modulePath, renderedFrom(t, model, dropRule("d8:namespace-capability:cert-manager:view")))
+	joined := strings.Join(texts(list), "\n")
+
+	// A condition the declaration no longer writes is not the version gate; the fix cannot tell it
+	// from one written by hand, so the finding names it and carries no fix.
+	assert.NotContains(t, joined, "both role models behind the version gate", "the file never had a gate")
+	assert.Contains(t, joined, `the template holds {{ if semverCompare ">= 1.80" .Values.global.deckhouseVersion }}, which rbac.yaml does not write`)
+	assert.Empty(t, list.GetFixes())
+}
+
+// P8: a legacy role excluded from sync (exclude-rules.sync) is not dropped by a rewrite without a
+// word: it keeps the file as it is.
+func TestSyncRegression_ExcludedLegacyRoleIsKept(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	const rel = "templates/user-authz-cluster-roles.yaml"
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+
+	fullPath := filepath.Join(modulePath, rel)
+
+	extra := generate.Object{Kind: "ClusterRole", Name: "d8:user-authz:cert-manager:kept-by-hand", Class: generate.ClassLegacy,
+		Annotations: map[string]string{"user-authz.deckhouse.io/access-level": "User"},
+		Rules:       []generate.Rule{{PolicyRule: rbacyaml.PolicyRule{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"get"}}}}}
+
+	content, err := os.ReadFile(fullPath)
+	require.NoError(t, err)
+
+	doc := "---\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: d8:user-authz:cert-manager:kept-by-hand\n  annotations:\n    user-authz.deckhouse.io/access-level: \"User\"\nrules:\n- apiGroups: [\"\"]\n  resources: [pods]\n  verbs: [get]\n"
+	require.NoError(t, os.WriteFile(fullPath, append(content, []byte(doc)...), 0o600))
+
+	// Another role of the file diverges, so the file would get the fix if nothing kept it off.
+	store := renderedFrom(t, model, dropRule("d8:user-authz:cert-manager:user"))
+	putObject(t, store, rel, extra)
+
+	list := runSync(t, modulePath, store, pkg.KindRuleExclude{Kind: "ClusterRole", Name: extra.Name})
+	assert.Contains(t, strings.Join(texts(list), "\n"), "ClusterRole/"+extra.Name+", which rbac.yaml does not produce")
+	assert.Empty(t, list.GetFixes())
+
+	after, err := os.ReadFile(fullPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(after), "kept-by-hand", "an object excluded from sync is dropped by the fix without a word")
+}
+
+// P9: a rewrite that changes rights in ways other than "is in the render but not declared" is
+// logged as a removal too: on a --fix run the fixed finding is not printed, so the log is the trace.
+func TestSyncRegression_RightsChangesMissingFromRemovalLog(t *testing.T) {
+	for name, tc := range map[string]struct {
+		rel   string
+		tweak func(o *generate.Object) bool
+		want  string
+	}{
+		"automount token taken away": {
+			rel:  "templates/cainjector/rbac-for-us.yaml",
+			want: "automountServiceAccountToken is true in the render",
+			tweak: func(o *generate.Object) bool {
+				if o.Kind == "ServiceAccount" && o.Name == "cainjector" {
+					yes := true
+					o.AutomountToken = &yes
+				}
+
+				return true
+			},
+		},
+		"legacy access level lowered": {
+			rel:  "templates/user-authz-cluster-roles.yaml",
+			want: "the user-authz.deckhouse.io/access-level annotation is",
+			tweak: func(o *generate.Object) bool {
+				if o.Name == "d8:user-authz:cert-manager:user" {
+					o.Annotations = map[string]string{"user-authz.deckhouse.io/access-level": "Admin"}
+				}
+
+				return true
+			},
+		},
+		"binding repointed": {
+			rel:  "templates/rbac-for-us.yaml",
+			want: "ClusterRoleBinding/d8:cert-manager:admin-kubeconfig binds",
+			tweak: func(o *generate.Object) bool {
+				if o.Kind == "ClusterRoleBinding" && o.Name == "d8:cert-manager:admin-kubeconfig" {
+					o.RoleRefName = "cluster-admin"
+				}
+
+				return true
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			resetFixState()
+			t.Cleanup(resetFixState)
+
+			modulePath := syncModuleDir(t)
+			model := syncModel(t, modulePath)
+			writeGenerated(t, modulePath, model)
+
+			fullPath := filepath.Join(modulePath, tc.rel)
+
+			list := runSync(t, modulePath, renderedFrom(t, model, tc.tweak))
+			require.Len(t, list.GetFixes(), 1, "findings: %s", strings.Join(texts(list), "\n"))
+
+			_, removed := splitChanges(recordedChanges(fullPath))
+			assert.Contains(t, strings.Join(removed, "\n"), tc.want, "the rights change is among the removals the fix logs")
+		})
+	}
+}
+
+// An old copy that keeps rendering beside the object that replaced it is reported in its own file:
+// the Prometheus Role bootstrap folds into access-to-<module> stays in the nested template
+// otherwise, and the grant outlives its removal from the declaration.
+func TestSyncRegression_ReplacedCopyIsReported(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+
+	store := renderedFrom(t, model, nil)
+
+	for _, o := range model.File("templates/rbac-to-us.yaml").Objects {
+		old := o
+		old.Name = "access-to-cert-manager-prometheus-metrics"
+
+		if old.Kind == "RoleBinding" {
+			old.RoleRefName = "access-to-cert-manager-prometheus-metrics"
+		}
+
+		putObject(t, store, "templates/cert-manager/rbac-to-us.yaml", old)
+	}
+
+	got := strings.Join(texts(runSync(t, modulePath, store)), "\n")
+	assert.Contains(t, got, "templates/cert-manager/rbac-to-us.yaml does not match rbac.yaml: d8-cert-manager/Role/access-to-cert-manager-prometheus-metrics grants what d8-cert-manager/Role/access-to-cert-manager grants, and both render")
+	assert.Contains(t, got, "d8-cert-manager/RoleBinding/access-to-cert-manager-prometheus-metrics binds access-to-cert-manager-prometheus-metrics, the old copy of d8-cert-manager/Role/access-to-cert-manager")
+}
+
+// An annotation on an object the declaration writes whole is compared: a resource policy the
+// declaration does not carry would be dropped by the next regeneration (regression hunt, B7).
+func TestSyncRegression_AnnotationsAreCompared(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+
+	errorList := runSync(t, modulePath, renderedFrom(t, model, func(o *generate.Object) bool {
+		if o.Kind == "ServiceAccount" && o.Name == "cainjector" {
+			o.Annotations = map[string]string{"helm.sh/resource-policy": "keep"}
+		}
+
+		return true
+	}))
+
+	assert.Contains(t, strings.Join(texts(errorList), "\n"), "ServiceAccount/cainjector: annotation helm.sh/resource-policy is in the render but not declared")
+}
+
+// Bootstrap reads the conditions from the template text: an account under {{ if }} keeps its
+// `when` (regression hunt, B1).
+func TestSyncRegression_BootstrapKeepsTheTemplateCondition(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+	require.NoError(t, os.Remove(rbacyaml.Path(modulePath)))
+
+	errorList := runSync(t, modulePath, renderedFrom(t, model, nil))
+	for _, fix := range errorList.GetFixes() {
+		fix()
+	}
+
+	written, err := rbacyaml.Load(modulePath)
+	require.NoError(t, err)
+	require.Len(t, written.ServiceAccounts, 1)
+	assert.Equal(t, ".Values.certManager.internal.enableCAInjector", written.ServiceAccounts[0].When)
+}
+
+// An object under a condition false for the linter's values is in no render; the text shows it,
+// and the declaration header names it, rather than the regeneration dropping it (regression hunt,
+// B1).
+func TestSyncRegression_BootstrapNamesWhatDidNotRender(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+	require.NoError(t, os.Remove(rbacyaml.Path(modulePath)))
+
+	errorList := runSync(t, modulePath, renderedFrom(t, model, func(o *generate.Object) bool { return o.When == "" }))
+	for _, fix := range errorList.GetFixes() {
+		fix()
+	}
+
+	for _, e := range errorList.GetErrors() {
+		require.NoError(t, e.FixError)
+	}
+
+	content, err := os.ReadFile(rbacyaml.Path(modulePath))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "ServiceAccount/cainjector (templates/cainjector/rbac-for-us.yaml, under `.Values.certManager.internal.enableCAInjector`) is in the templates but did not render")
+}
+
+// An include inside an object's document, after its kind line, is someone else's too: the fix
+// neither deletes the file (the account dropped) nor regenerates it without the include (nothing
+// changed) (review of #479, finding 31).
+func TestSyncRegression_IncludeInsideTheDocument(t *testing.T) {
+	const rel = "templates/cainjector/rbac-for-us.yaml"
+
+	inject := func(t *testing.T, modulePath string) string {
+		t.Helper()
+
+		fullPath := filepath.Join(modulePath, rel)
+		content, err := os.ReadFile(fullPath)
+		require.NoError(t, err)
+
+		i := strings.LastIndex(string(content), "{{- end }}\n")
+		require.GreaterOrEqual(t, i, 0)
+
+		patched := string(content[:i]) + "{{- if .Values.handExtra }}\n{{ include \"cainjector-extra\" . }}\n{{- end }}\n" + string(content[i:])
+		require.NoError(t, os.WriteFile(fullPath, []byte(patched), 0o600))
+
+		return patched
+	}
+
+	t.Run("the account dropped: the file is not deleted", func(t *testing.T) {
+		resetFixState()
+		t.Cleanup(resetFixState)
+
+		modulePath := syncModuleDir(t)
+		model := syncModel(t, modulePath)
+		writeGenerated(t, modulePath, model)
+		inject(t, modulePath)
+
+		decl, err := rbacyaml.Load(modulePath)
+		require.NoError(t, err)
+
+		decl.ServiceAccounts = nil
+		raw, err := yaml.Marshal(decl)
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(rbacyaml.Path(modulePath), raw, 0o600))
+
+		list := runSync(t, modulePath, renderedFrom(t, model, nil))
+		for _, fix := range list.GetFixes() {
+			fix()
+		}
+
+		_, err = os.Stat(filepath.Join(modulePath, rel))
+		assert.NoError(t, err, "a file holding a hand-added include must not be deleted")
+	})
+
+	t.Run("a divergence: the include is not dropped", func(t *testing.T) {
+		resetFixState()
+		t.Cleanup(resetFixState)
+
+		modulePath := syncModuleDir(t)
+		model := syncModel(t, modulePath)
+		writeGenerated(t, modulePath, model)
+		patched := inject(t, modulePath)
+
+		list := runSync(t, modulePath, renderedFrom(t, model, dropRule("d8:cert-manager:cainjector")))
+		assert.Empty(t, list.GetFixes(), "the file holds an include, so it gets no fix")
+
+		got, err := os.ReadFile(filepath.Join(modulePath, rel))
+		require.NoError(t, err)
+		assert.Equal(t, patched, string(got))
+	})
+}
+
+// The generator's labels line is recognized only in the shapes the generator writes: an include
+// or labels from the values appended to it are someone else's (review of #479, finding 31).
+func TestLabelsLineRe(t *testing.T) {
+	for line, want := range map[string]bool{
+		`  {{- include "helm_lib_module_labels" (list .) | nindent 2 }}`:                                      true,
+		`  {{- include "helm_lib_module_labels" (list . (dict "app" "cainjector")) | nindent 2 }}`:            true,
+		`  {{- include "helm_lib_module_labels" (list . (dict "a" "x \" y" "b" "z")) | nindent 2 }}`:          true,
+		`  {{- include "helm_lib_module_labels" (list .) | nindent 2 }}{{ include "x" . | nindent 2 }}`:       false,
+		`  {{- include "helm_lib_module_labels" (list . .Values.m.labels) | nindent 2 }}`:                     false,
+		`  {{- include "helm_lib_module_labels" (list . (dict "app" .Values.m.app)) | nindent 2 }}`:           false,
+		`  {{- include "helm_lib_module_labels" (list . (dict "app" "a")) | nindent 2 }} {{ include "x" . }}`: false,
+	} {
+		assert.Equal(t, want, labelsLineRe.MatchString(line), line)
+	}
+}
+
+// An include appended to the generator's labels line is not dropped by a regeneration.
+func TestSyncRegression_IncludeOnTheLabelsLine(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	const rel = "templates/cainjector/rbac-for-us.yaml"
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+
+	fullPath := filepath.Join(modulePath, rel)
+	content, err := os.ReadFile(fullPath)
+	require.NoError(t, err)
+
+	patched := strings.Replace(string(content), "| nindent 2 }}\n", "| nindent 2 }}{{ include \"extra-labels\" . | nindent 2 }}\n", 1)
+	require.NotEqual(t, string(content), patched)
+	require.NoError(t, os.WriteFile(fullPath, []byte(patched), 0o600))
+
+	list := runSync(t, modulePath, renderedFrom(t, model, dropRule("d8:cert-manager:cainjector")))
+	assert.Empty(t, list.GetFixes(), "the labels line holds an include the declaration does not write, so the file gets no fix")
+
+	got, err := os.ReadFile(fullPath)
+	require.NoError(t, err)
+	assert.Equal(t, patched, string(got))
+}
+
+// A template that renders a library's objects marks its other objects: the render tells, so a
+// define holding an include marks nothing (review of #479, finding 50).
+func TestMarkLibraryFiles(t *testing.T) {
+	objects := []bootstrap.Object{
+		{Kind: "ServiceAccount", Name: "csi", Path: "templates/csi/rbac-for-us.yaml", Library: true},
+		{Kind: "ClusterRole", Name: "d8:m:csi", Path: "templates/csi/rbac-for-us.yaml"},
+		{Kind: "ClusterRole", Name: "user-authz:m:user", Path: "templates/user-authz-cluster-roles.yaml"},
+	}
+
+	markLibraryFiles(objects)
+
+	assert.True(t, objects[0].LibraryFile)
+	assert.True(t, objects[1].LibraryFile)
+	assert.False(t, objects[2].LibraryFile)
+}
+
+// A `when` excuses an absent object only while its condition is false: when the account under the
+// same `when` rendered, its missing ClusterRole and binding are drift (review of #479, finding 47).
+func TestSyncRegression_WhenDoesNotExcuseAbsentSiblings(t *testing.T) {
+	resetFixState()
+	t.Cleanup(resetFixState)
+
+	modulePath := syncModuleDir(t)
+	model := syncModel(t, modulePath)
+	writeGenerated(t, modulePath, model)
+
+	store := renderedFrom(t, model, func(o *generate.Object) bool {
+		return o.When == "" || o.Kind == "ServiceAccount"
+	})
+
+	got := strings.Join(texts(runSync(t, modulePath, store)), "\n")
+	assert.Contains(t, got, "ClusterRole/d8:cert-manager:cainjector is declared but absent from the render")
+
+	// With the condition false for the whole file, nothing is reported.
+	resetFixState()
+
+	got = strings.Join(texts(runSync(t, modulePath, renderedFrom(t, model, func(o *generate.Object) bool { return o.When == "" }))), "\n")
+	assert.NotContains(t, got, "cainjector is declared but absent")
+}
+
+// A document with a computed name that no render showed is listed as the template writes it; one
+// whose name a rendered object matches is not (review of #479, finding 34).
+func TestUnrenderedObjects_ComputedNames(t *testing.T) {
+	modulePath := writeModule(t, map[string]string{
+		"templates/cleaner/rbac-for-us.yaml": `{{- if has "cni-cilium" .Values.global.enabledModules }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: d8:{{ .Chart.Name }}:stale-dns-connections-cleaner
+rules: []
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: stale-dns-connections-cleaner
+{{- end }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Chart.Name }}
+`,
+	})
+
+	got := strings.Join(unrenderedObjects(modulePath, []bootstrap.Object{{Kind: "ServiceAccount", Name: "node-local-dns", Path: "templates/cleaner/rbac-for-us.yaml"}}), "\n")
+	assert.Contains(t, got, "a ClusterRole with the computed name d8:{{ .Chart.Name }}:stale-dns-connections-cleaner (templates/cleaner/rbac-for-us.yaml, under `has \"cni-cilium\" .Values.global.enabledModules`)")
+	assert.Contains(t, got, "ServiceAccount/stale-dns-connections-cleaner (templates/cleaner/rbac-for-us.yaml")
+	assert.NotContains(t, got, "computed name {{ .Chart.Name }} ", "the rendered account matches it")
+
+	// An object of another template is not the document's, whatever its name (review of #480).
+	got = strings.Join(unrenderedObjects(modulePath, []bootstrap.Object{{Kind: "ServiceAccount", Name: "node-local-dns", Path: "templates/other/rbac-for-us.yaml"}}), "\n")
+	assert.Contains(t, got, "a ServiceAccount with the computed name {{ .Chart.Name }} (templates/cleaner/rbac-for-us.yaml")
+}
+
+// A `when` may call a helper (include "<chart>.<helper>" .): the condition line --fix writes is
+// readable, while one that aborts the render is not the declaration's.
+func TestTextDocuments_ConditionLines(t *testing.T) {
+	doc := "---\napiVersion: v1\nkind: ServiceAccount\nmetadata:\n  name: a\n  namespace: d8-m\n{{- end }}\n"
+
+	withInclude := textDocuments("{{- if include \"cert_manager.yandex_dns_configured\" . }}\n" + doc)
+	require.Len(t, withInclude, 1)
+	assert.False(t, withInclude[0].unreadable, "the condition --fix writes for such a when")
+	assert.Equal(t, "d8-m/ServiceAccount/a", withInclude[0].id)
+
+	withRequired := textDocuments("{{- if required \"x is required\" .Values.x }}\n" + doc)
+	require.Len(t, withRequired, 2)
+	assert.True(t, withRequired[0].unreadable, "an abort of the render is not the declaration's")
+}
