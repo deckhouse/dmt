@@ -30,7 +30,7 @@ type Linters struct {
 	Module        ModuleLinterConfig        `mapstructure:"module"`
 	NoCyrillic    LinterConfig              `mapstructure:"no-cyrillic"`
 	OpenAPI       OpenAPILinterConfig       `mapstructure:"openapi"`
-	Rbac          LinterConfig              `mapstructure:"rbac"`
+	Rbac          RBACLinterConfig          `mapstructure:"rbac"`
 	Templates     TemplatesLinterConfig     `mapstructure:"templates"`
 	Documentation DocumentationLinterConfig `mapstructure:"documentation"`
 }
@@ -73,6 +73,21 @@ type ContainerRules struct {
 	SPEDescriptionRule           RuleConfig `mapstructure:"security-policy-exception-description"`
 	SPEUnusedRule                RuleConfig `mapstructure:"security-policy-exception-unused"`
 	SPESchemaRule                RuleConfig `mapstructure:"security-policy-exception-schema"`
+}
+
+// RBACLinterConfig carries the linter-level impact of rbac and the per-rule impacts of the rules
+// added for the module RBAC declaration. The four original rules (user-authz, binding-subject,
+// placement, wildcards) have never had per-rule levels and keep the linter's: wiring them up
+// would change the severity of existing findings.
+type RBACLinterConfig struct {
+	LinterConfig `mapstructure:",squash"`
+	Rules        RBACRules `mapstructure:"rules"`
+}
+
+type RBACRules struct {
+	CoverageRule RuleConfig `mapstructure:"coverage"`
+	SyncRule     RuleConfig `mapstructure:"sync"`
+	ContractRule RuleConfig `mapstructure:"contract"`
 }
 
 type ImagesLinterConfig struct {

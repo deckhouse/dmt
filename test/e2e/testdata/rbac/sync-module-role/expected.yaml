@@ -1,0 +1,18 @@
+description: >
+  A role of the module outside the role model aggregates capabilities by a label of the module:
+  rbac.yaml gives the capabilities the label, one of them with an action of its own and the level
+  it aggregates into, and the old name of the role stays as an alias in templates/rbacv2-compat/.
+  The templates written from the declaration render what it says, and the role and the alias pass
+  the placement and contract rules.
+module: module
+expectPass:
+  # the module must render: a render failure would otherwise pass every expectPass trivially
+  - linter: manager
+  - linter: rbac
+    rule: sync
+  - linter: rbac
+    rule: placement
+  - linter: rbac
+    rule: contract
+  - linter: rbac
+    rule: coverage

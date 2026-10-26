@@ -1,0 +1,104 @@
+# A module that keeps the names its objects had before the declaration: scrape access in a component
+# directory and at the root under a name of its own, beside the access-to-<module> of the first
+# declarations; bindings of an account under the names the module gave them, one in a namespace of the
+# platform.
+apiVersion: rbac.deckhouse.io/v1alpha1
+serviceAccounts:
+  - name: controller
+    path: controller
+    labels: {app: controller}
+    clusterRules:
+      - apiGroups: [""]
+        resources: [nodes]
+        verbs: [get, list, watch]
+    # the name the module gave the ClusterRoleBinding of d8:observer:controller
+    clusterRoleBindingName: d8:observer:controller-binding
+    namespaceRules:
+      - apiGroups: [coordination.k8s.io]
+        resources: [leases]
+        verbs: [get, create, update]
+    # the names the module gave the Role and its RoleBinding
+    roleName: controller-leader-election-role
+    roleBindingName: controller-leader-election-rolebinding
+    bindClusterRoles:
+      # the name the placement rule wants: d8:<module>:<account>:<role without d8:, colons as dashes>
+      - d8:rbac-proxy
+      # the name the module gave the binding
+      - name: system:auth-delegator
+        bindingName: d8:observer:controller:auth-delegator
+    extraClusterRoles:
+      # the name the module gave the binding of d8:observer:controller:manager-role
+      - name: manager-role
+        bindingName: d8:observer:controller:manager-rolebinding
+        rules:
+          - apiGroups: [observer.deckhouse.io]
+            resources: [observations]
+            verbs: [get, list, watch]
+      # the binding takes the role's name
+      - name: reader
+        rules:
+          - apiGroups: [observer.deckhouse.io]
+            resources: [observations/status]
+            verbs: [get]
+    bindRoles:
+      # the name the module gave the binding, which the placement rule accepts with an exclusion
+      - namespace: d8-log-shipper
+        name: d8:observer:controller:log-shipper-secrets
+        bindingName: d8:observer:controller:log-shipper-secrets
+      # the name the placement rule wants
+      - namespace: kube-system
+        name: extension-apiserver-authentication-reader
+prometheusAccess:
+  - deployments: [observer]
+    when: .Values.global.enabledModules | has "prometheus"
+  - name: metrics
+    daemonsets: [agent]
+    statefulsets: [store]
+  # the binding keeps the name it had beside its Role
+  - path: cloud-data-discoverer
+    name: role
+    bindingName: access-to-cloud-data-discoverer-binding
+    deployments: [cloud-data-discoverer]
+  - path: dex
+    name: prometheus-metrics
+    deployments: [dex]
+    labels: {app: dex}
+    when: (.Values.global.enabledModules | has "prometheus")
+access:
+  # a name that already carries the prefix of its file is the object's name as it is
+  - name: access-to-observer-http
+    subjects:
+      - kind: ServiceAccount
+        name: ingress-nginx
+        namespace: d8-ingress-nginx
+    namespaceRules:
+      - apiGroups: [apps]
+        resources: [deployments/http]
+        resourceNames: [observer]
+        verbs: [get]
+  # the binding keeps the name it had beside its ClusterRole
+  - name: accessible-namespaces-reader
+    bindingName: d8:observer:accessible-namespaces-reader:system-authenticated
+    subjects:
+      - kind: Group
+        name: system:authenticated
+    clusterRules:
+      - apiGroups: [""]
+        resources: [namespaces]
+        verbs: [list]
+  - name: reader
+    path: dex
+    roleName: access-to-dex-configmap-reader
+    bindingName: access-to-dex-configmap-reader-binding
+    subjects:
+      - kind: ServiceAccount
+        name: reader
+        namespace: d8-observer
+      - kind: ServiceAccount
+        name: grafana
+        namespace: d8-monitoring
+    namespaceRules:
+      - apiGroups: [""]
+        resources: [configmaps]
+        resourceNames: [dex]
+        verbs: [get]

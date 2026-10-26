@@ -1,0 +1,69 @@
+{{- if eq (include "e2e-rbac.rbacv2_new_scheme" .) "true" }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    heritage: deckhouse
+    module: e2e-rbac
+    rbac.deckhouse.io/aggregate-to-security-as: viewer
+    rbac.deckhouse.io/namespace: d8-e2e-rbac
+    rbac.deckhouse.io/kind: capability
+    rbac.deckhouse.io/capability: "system-capability.e2e-rbac.view"
+    rbac.deckhouse.io/scope: system
+  name: d8:system-capability:e2e-rbac:view
+  annotations:
+    en.meta.deckhouse.io/title: "Module e2e-rbac: view configuration"
+    ru.meta.deckhouse.io/title: "Модуль e2e-rbac: просмотр конфигурации"
+    en.meta.deckhouse.io/description: "Read-only access to the e2e-rbac module configuration."
+    ru.meta.deckhouse.io/description: "Доступ только на чтение к конфигурации модуля e2e-rbac."
+rules:
+- apiGroups:
+  - e2e.deckhouse.io
+  resources:
+  - daemons
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - deckhouse.io
+  resourceNames:
+  - e2e-rbac
+  resources:
+  - moduleconfigs
+  verbs:
+  - get
+  - list
+  - watch
+{{- else }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    heritage: deckhouse
+    module: e2e-rbac
+    rbac.deckhouse.io/aggregate-to-security-as: viewer
+    rbac.deckhouse.io/level: module
+    rbac.deckhouse.io/namespace: d8-e2e-rbac
+    rbac.deckhouse.io/kind: manage
+  name: d8:manage:permission:module:e2e-rbac:view
+rules:
+- apiGroups:
+  - e2e.deckhouse.io
+  resources:
+  - daemons
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - deckhouse.io
+  resourceNames:
+  - e2e-rbac
+  resources:
+  - moduleconfigs
+  verbs:
+  - get
+  - list
+  - watch
+{{- end }}

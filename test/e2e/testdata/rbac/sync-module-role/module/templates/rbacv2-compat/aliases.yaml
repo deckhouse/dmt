@@ -1,0 +1,14 @@
+---
+# The old name of the role, kept as the platform keeps its renamed roles: an empty ClusterRole
+# with the selector of the new one.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: d8:use:capability:module:cert-manager:renewer
+  {{- include "helm_lib_module_labels" (list . (dict "rbac.deckhouse.io/deprecated" "true")) | nindent 2 }}
+  annotations:
+    rbac.deckhouse.io/deprecated-replaced-by: d8:cert-manager:renewer
+aggregationRule:
+  clusterRoleSelectors:
+    - matchLabels:
+        cert-manager.deckhouse.io/aggregate-to-renewer: "true"
