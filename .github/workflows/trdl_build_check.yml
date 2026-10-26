@@ -1,0 +1,33 @@
+name: Trdl build check
+
+# Reproduces the trdl server release build (trdl.yaml) on PRs that can break
+# it, so a broken release is caught before a tag is pushed - e.g. go.mod
+# requiring a newer Go than the trdl docker_image ships (golang images set
+# GOTOOLCHAIN=local, so the build fails instead of downloading a toolchain).
+#
+# Also runs weekly and on manual dispatch: the build fetches gox@latest and Go
+# modules at build time, so it can break without a change in this repository.
+on:
+  pull_request:
+    paths:
+      - trdl.yaml
+      - go.mod
+      - go.sum
+      - scripts/ci/build_release.sh
+      - .github/workflows/trdl_build_check.yml
+      - .github/scripts/trdl-build-check.sh
+  schedule:
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Reproduce trdl release build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reproduce trdl build
+        run: bash .github/scripts/trdl-build-check.sh
