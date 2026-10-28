@@ -30,6 +30,8 @@ import (
 	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/engine"
 	"sigs.k8s.io/yaml"
+
+	"github.com/deckhouse/dmt/internal/fsutils"
 )
 
 const (
@@ -46,10 +48,10 @@ var policies embed.FS
 var stub []byte
 
 const (
-	ctChartDir     = "policies/charts/constraint-templates"
-	paramsDir      = "policies/templates/policies/pod-security-standards"
-	paramsChart    = "pss"
-	constraintFile = "constraint.yaml"
+	ctChartDir  = "policies/charts/constraint-templates"
+	paramsDir   = "policies/templates/policies"
+	paramsChart = "pss"
+	paramsFile  = "pod-security-standards.yaml"
 )
 
 // Check is one PSS constraint: kind with its parameters and the rego of its ConstraintTemplate.
@@ -200,18 +202,50 @@ type kindParams struct {
 	Parameters map[string]any `json:"parameters"`
 }
 
-// renderParams renders both constraint.yaml with the stub instead of the original _helpers.tpl.
+type constraint struct {
+	APIVersion string `json:"apiVersion"`
+	Kind       string `json:"kind"`
+	Metadata   struct {
+		Name string `json:"name"`
+	} `json:"metadata"`
+	Spec struct {
+		Parameters map[string]any `json:"parameters"`
+	} `json:"spec"`
+}
+
+// systemConstraintName is the constraint of a standard for the d8-* and kube-* namespaces, the ones dmt checks.
+func systemConstraintName(std string) string {
+	return fmt.Sprintf("d8-pod-security-%s-system", std)
+}
+
+// renderParams renders pod-security-standards.yaml with the stub in place of the helpers that are not synced,
+// and takes the kind and parameters of every constraint of the system namespaces.
+// The other files of the directory only provide defines, so they are added as partials.
 func renderParams() (map[string][]kindParams, error) {
 	c := newChart(paramsChart)
 	c.Templates = append(c.Templates, &chart.File{Name: "templates/_dmt_pss_stub.tpl", Data: stub})
 
-	for _, std := range []string{Baseline, Restricted} {
-		data, err := policies.ReadFile(path.Join(paramsDir, std, constraintFile))
-		if err != nil {
-			return nil, fmt.Errorf("pss: read %s params: %w", std, err)
+	entries, err := policies.ReadDir(paramsDir)
+	if err != nil {
+		return nil, fmt.Errorf("pss: read params: %w", err)
+	}
+
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
 		}
 
-		c.Templates = append(c.Templates, &chart.File{Name: path.Join("templates", std, constraintFile), Data: data})
+		data, err := policies.ReadFile(path.Join(paramsDir, e.Name()))
+		if err != nil {
+			return nil, fmt.Errorf("pss: read params: %w", err)
+		}
+
+		name := e.Name()
+		if name != paramsFile && !strings.HasPrefix(name, "_") {
+			name = "_" + name
+		}
+
+		c.Templates = append(c.Templates, &chart.File{Name: path.Join("templates", name), Data: data})
 	}
 
 	// Empty podSecurityStandards (no knownRanges) is the cluster default and gives D8HostNetwork `ranges: []`.
@@ -219,6 +253,7 @@ func renderParams() (map[string][]kindParams, error) {
 		"admissionPolicyEngine": map[string]any{
 			"podSecurityStandards": map[string]any{},
 			"internal": map[string]any{
+				"bootstrapped":         true,
 				"podSecurityStandards": map[string]any{"enforcementActions": []any{"deny"}},
 			},
 		},
@@ -229,19 +264,42 @@ func renderParams() (map[string][]kindParams, error) {
 		return nil, fmt.Errorf("pss: render params: %w", err)
 	}
 
+	names := make(map[string]string)
+	for _, std := range []string{Baseline, Restricted} {
+		names[systemConstraintName(std)] = std
+	}
+
 	res := make(map[string][]kindParams)
 
-	for _, std := range []string{Baseline, Restricted} {
-		var list []kindParams
-		if err := yaml.Unmarshal([]byte(out[path.Join(paramsChart, "templates", std, constraintFile)]), &list); err != nil {
-			return nil, fmt.Errorf("pss: parse %s params: %w", std, err)
+	for _, doc := range fsutils.SplitManifests(out[path.Join(paramsChart, "templates", paramsFile)]) {
+		var obj constraint
+		if err := yaml.Unmarshal([]byte(doc), &obj); err != nil {
+			return nil, fmt.Errorf("pss: parse params: %w", err)
 		}
 
-		if len(list) == 0 {
+		std, ok := names[obj.Metadata.Name]
+		if !ok || !strings.HasPrefix(obj.APIVersion, "constraints.gatekeeper.sh/") {
+			continue
+		}
+
+		for _, p := range res[std] {
+			if p.Kind == obj.Kind {
+				return nil, fmt.Errorf("pss: %s: duplicate constraint of kind %q", obj.Metadata.Name, obj.Kind)
+			}
+		}
+
+		params := obj.Spec.Parameters
+		if params == nil {
+			params = map[string]any{}
+		}
+
+		res[std] = append(res[std], kindParams{Kind: obj.Kind, Parameters: params})
+	}
+
+	for _, std := range []string{Baseline, Restricted} {
+		if len(res[std]) == 0 {
 			return nil, fmt.Errorf("pss: no %s checks rendered", std)
 		}
-
-		res[std] = list
 	}
 
 	return res, nil

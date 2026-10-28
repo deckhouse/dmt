@@ -5,7 +5,8 @@
 #
 # Usage:
 # - check_hostpath_allowed(volume, allowed_paths, containers, spe_allowed_paths)
-# allowed_paths/spe_allowed_paths items: {pathPrefix|path, readOnly}
+# allowed_paths items: {pathPrefix, readOnly}
+# spe_allowed_paths items: {path, readOnly, pathType}
 # Returns: {"allowed": bool, "msg": string, "detail": object}
 # =============================================================================
 package lib.check_path
@@ -65,8 +66,22 @@ writeable_input_volume_mounts(volume_name, containers) if {
 # read-only in every container.
 input_hostpath_allowed_exact(allowedPaths, volume, containers) if {
   allowedHostPath := allowedPaths[_]
-  allowedHostPath.path == volume.hostPath.path
+  spe_path_matches(allowedHostPath, volume.hostPath.path)
   volume_mount_readonly_allowed(object.get(allowedHostPath, "readOnly", false), volume.name, containers)
+}
+
+# pathType follows the Ingress path types. Exact, the CRD default, allows only
+# the exact path. Prefix also allows every path nested under it, compared
+# segment by segment: /var/lib allows /var/lib/docker but not /var/libvirt.
+# Any other value matches nothing.
+spe_path_matches(allowedHostPath, path) if {
+  object.get(allowedHostPath, "pathType", "Exact") == "Exact"
+  allowedHostPath.path == path
+}
+
+spe_path_matches(allowedHostPath, path) if {
+  allowedHostPath.pathType == "Prefix"
+  path_matches(allowedHostPath.path, path)
 }
 
 volume_mount_readonly_allowed(false, volume_name, containers)

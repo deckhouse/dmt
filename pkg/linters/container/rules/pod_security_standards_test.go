@@ -238,7 +238,8 @@ func TestPodSecurityStandards_EdgeCases(t *testing.T) {
 			spes:    map[string]string{"spe": `{securityContext: {capabilities: {allowedValues: {add: [NET_ADMIN], drop: [ALL]}}}}`},
 		},
 
-		// 8. hostPath: exact path, strict readOnly match, both volumes.types and volumes.hostPath.
+		// 8. hostPath: path by pathType (Exact by default, Prefix by path components), strict readOnly match,
+		// both volumes.types and volumes.hostPath.
 		{
 			name:    "8: hostPath",
 			patches: []string{hostPathVolume},
@@ -267,10 +268,35 @@ func TestPodSecurityStandards_EdgeCases(t *testing.T) {
 			spes:    map[string]string{"spe": `{volumes: {types: {allowedValues: [hostPath]}, hostPath: {allowedValues: [{path: /var/log, readOnly: false}]}}}`},
 		},
 		{
-			name:    "8: hostPath, SPE path is a prefix, not the exact path",
+			name:    "8: hostPath, SPE path without pathType is exact, a parent path does not cover",
 			patches: []string{hostPathVolume, speLabel},
 			spes:    map[string]string{"spe": `{volumes: {types: {allowedValues: [hostPath]}, hostPath: {allowedValues: [{path: /var, readOnly: true}]}}}`},
 			want:    []string{bHostPaths},
+		},
+		{
+			name:    "8: hostPath, SPE pathType Exact, a parent path does not cover",
+			patches: []string{hostPathVolume, speLabel},
+			spes:    map[string]string{"spe": `{volumes: {types: {allowedValues: [hostPath]}, hostPath: {allowedValues: [{path: /var, pathType: Exact, readOnly: true}]}}}`},
+			want:    []string{bHostPaths},
+		},
+		{
+			name:    "8: hostPath, SPE pathType Exact, the exact path covers",
+			patches: []string{hostPathVolume, speLabel},
+			spes:    map[string]string{"spe": `{volumes: {types: {allowedValues: [hostPath]}, hostPath: {allowedValues: [{path: /var/log, pathType: Exact, readOnly: true}]}}}`},
+		},
+		{
+			name:    "8: hostPath, SPE pathType Prefix covers a nested path",
+			patches: []string{hostPathVolume, speLabel},
+			spes:    map[string]string{"spe": `{volumes: {types: {allowedValues: [hostPath]}, hostPath: {allowedValues: [{path: /var, pathType: Prefix, readOnly: true}]}}}`},
+		},
+		{
+			name: "8: hostPath, SPE pathType Prefix does not cover a sibling with the same leading characters",
+			patches: []string{
+				hostPathVolume, speLabel,
+				`{spec: {template: {spec: {volumes: [{name: logs, hostPath: {path: /var/libvirt}}]}}}}`,
+			},
+			spes: map[string]string{"spe": `{volumes: {types: {allowedValues: [hostPath]}, hostPath: {allowedValues: [{path: /var/lib, pathType: Prefix, readOnly: true}]}}}`},
+			want: []string{bHostPaths},
 		},
 
 		// 9. seccomp: container field, then pod field, then annotations; RuntimeDefault == runtime/default.

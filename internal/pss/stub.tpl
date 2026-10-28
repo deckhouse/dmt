@@ -1,20 +1,21 @@
 {{- /*
-Replaces pod_security_standard_* defines from admission-policy-engine templates/_helpers.tpl:
-instead of a constraint, emit a "kind + parameters" pair.
-Bound to the call signature (list $context "<Kind>" $enforcementAction [$parameters]).
-D8PrivilegedContainer is called without parameters, hence the len check.
+Replaces the helpers templates/policies/ takes from admission-policy-engine templates/_helpers.tpl
+and from helm_lib, neither of which is synced. They shape the selectors and labels of a constraint;
+dmt reads only its kind and parameters.
 */ -}}
-{{- define "pod_security_standard_baseline" }}
-- kind: {{ index . 1 }}
-  parameters: {{ if gt (len .) 3 }}{{ index . 3 | toJson }}{{ else }}{}{{ end }}
+{{- define "system_namespaces" }}
+- "d8-*"
+- "kube-*"
 {{- end }}
-{{- define "pod_security_standard_restricted" }}
-- kind: {{ index . 1 }}
-  parameters: {{ if gt (len .) 3 }}{{ index . 3 | toJson }}{{ else }}{}{{ end }}
+{{- define "system_namespaces_action" -}}
+warn
+{{- end }}
+{{- define "helm_lib_module_labels" -}}
+labels: {{ index . 1 | toJson }}
 {{- end }}
 {{- /*
 Replaces ape.only_ready_constraints: in the cluster it drops constraints whose template is not
-ready yet; dmt checks against all of them, so the rendered pairs pass through as is.
+ready yet; dmt checks against all of them, so the rendered constraints pass through as is.
 */ -}}
 {{- define "ape.only_ready_constraints" }}
 {{- index . 1 }}
