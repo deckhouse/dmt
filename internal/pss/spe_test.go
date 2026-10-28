@@ -120,7 +120,7 @@ spec:
   securityContext:
     capabilities: {allowedValues: {}}
   volumes:
-    hostPath: {allowedValues: [{path: /var/log}, {path: /etc, readOnly: true}]}
+    hostPath: {allowedValues: [{path: /var/log}, {path: /etc, readOnly: true}, {path: /var/lib, pathType: Prefix}]}
 `), &obj))
 
 	orig, err := jsonCopy(obj)
@@ -136,8 +136,9 @@ spec:
 		},
 		"volumes": map[string]any{
 			"hostPath": map[string]any{"allowedValues": []any{
-				map[string]any{"path": "/var/log", "readOnly": false},
-				map[string]any{"path": "/etc", "readOnly": true},
+				map[string]any{"path": "/var/log", "pathType": "Exact", "readOnly": false},
+				map[string]any{"path": "/etc", "pathType": "Exact", "readOnly": true},
+				map[string]any{"path": "/var/lib", "pathType": "Prefix", "readOnly": false},
 			}},
 		},
 	}, got["spec"])
@@ -156,6 +157,13 @@ volumes:
   hostPath: {allowedValues: [{path: /var/log}]}
 network:
   hostPorts: [{port: 53, protocol: UDP}]`},
+		"hostPath pathType Prefix": {
+			spec: `{volumes: {hostPath: {allowedValues: [{path: /var/lib, pathType: Prefix}]}}}`,
+		},
+		"hostPath pathType unknown": {
+			spec: `{volumes: {hostPath: {allowedValues: [{path: /var/lib, pathType: Glob}]}}}`,
+			want: []string{`spec.volumes.hostPath.allowedValues[0].pathType: Unsupported value: "Glob": supported values: "Exact", "Prefix"`},
+		},
 		"sysctls as strings": {
 			spec: `{securityContext: {sysctls: {allowedValues: [net.ipv4.ip_forward=1]}}}`,
 			want: []string{`spec.securityContext.sysctls.allowedValues[0]: Invalid value: "string": spec.securityContext.sysctls.allowedValues[0] in body must be of type object: "string"`},
