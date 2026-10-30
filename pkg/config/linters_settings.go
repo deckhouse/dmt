@@ -266,6 +266,7 @@ type TemplatesLinterRules struct {
 	HTTPSCertificateReuseRule          RuleConfig `mapstructure:"https-certificate-reuse"`
 	ListenerSetRedirectRule            RuleConfig `mapstructure:"listenerset-redirect"`
 	HTTPRouteRedirectRule              RuleConfig `mapstructure:"httproute-redirect"`
+	CertificateGatewayIssuerRule       RuleConfig `mapstructure:"certificate-gateway-issuer"`
 }
 
 type TemplatesExcludeRules struct {
@@ -276,6 +277,7 @@ type TemplatesExcludeRules struct {
 	Ingress                        KindRuleExcludeList            `mapstructure:"ingress"`
 	IngressPaths                   PathRuleExclude                `mapstructure:"ingress-paths"`
 	HTTPRoute                      KindRuleExcludeList            `mapstructure:"httproute"`
+	CertificateGatewayIssuer       KindRuleExcludeList            `mapstructure:"certificate-gateway-issuer"`
 	EnabledModules                 EnabledModulesExcludeRule      `mapstructure:"enabled-modules"`
 	WebhookConfiguration           KindRuleExcludeList            `mapstructure:"webhook-configuration-annotations"`
 	AlertGroupingAnnotations       StringRuleExcludeList          `mapstructure:"alert-grouping-annotations"`
