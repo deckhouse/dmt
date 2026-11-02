@@ -294,3 +294,25 @@ func TestSecurityPolicyExceptionSchemaRule(t *testing.T) {
 		prefix + `spec.securityContext.appArmorProfile.allowedValues[0]: Invalid value: "default": spec.securityContext.appArmorProfile.allowedValues[0] in body should match '^(runtime\/default|unconfined|localhost\/.+)$'`,
 	}, texts)
 }
+
+func TestSecurityPolicyExceptionSchemaRule_HostPathPathType(t *testing.T) {
+	objects := []storage.StoreObject{
+		speObject(t, "prefix", "d8-test", `{volumes: {hostPath: {allowedValues: [{path: /var/lib, pathType: Prefix}]}}}`),
+		speObject(t, "exact", "d8-test", `{volumes: {hostPath: {allowedValues: [{path: /var/lib, pathType: Exact, readOnly: true}]}}}`),
+		speObject(t, "bad", "d8-test", `{volumes: {hostPath: {allowedValues: [{path: /var/lib, pathType: Glob}]}}}`),
+	}
+
+	errs := runRule(t, objects, func(m pkg.Module, l *errors.LintRuleErrorsList) pkg.Rule {
+		return NewSecurityPolicyExceptionSchemaRule(m, l)
+	})
+
+	texts := make([]string, 0, len(errs))
+	for _, e := range errs {
+		texts = append(texts, e.Text)
+	}
+
+	assert.Equal(t, []string{
+		"SecurityPolicyException d8-test/bad does not match the CRD schema: " +
+			`spec.volumes.hostPath.allowedValues[0].pathType: Unsupported value: "Glob": supported values: "Exact", "Prefix"`,
+	}, texts)
+}

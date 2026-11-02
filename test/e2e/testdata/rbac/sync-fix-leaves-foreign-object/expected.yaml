@@ -1,0 +1,14 @@
+description: >
+  A capability file the declaration produces lost a verb and also holds a ConfigMap written by
+  hand: sync reports the divergence and names the ConfigMap as the case that keeps the file as it
+  is; --fix attaches no fix to it and fails no fix, so the file and the finding stay.
+kind: fix
+module: module
+expect:
+  - linter: rbac
+    rule: sync
+    textContains: "templates/rbacv2/use/admin.yaml does not match rbac.yaml: ClusterRole/d8:namespace-capability:cert-manager:admin: patch cert-manager.io/issuers is declared but absent from the render. The autofix leaves the file as it is: d8-cert-manager/ConfigMap/hand-made, which rbac.yaml does not produce -- declare it in rbac.yaml or move it to another template"
+    count: 1
+expectPass:
+  # the module must render: a render failure would otherwise pass every expectPass trivially
+  - linter: manager

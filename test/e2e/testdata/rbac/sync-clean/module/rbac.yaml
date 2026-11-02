@@ -1,0 +1,96 @@
+apiVersion: rbac.deckhouse.io/v1alpha1
+resources:
+  - group: cert-manager.io
+    resource: certificates
+    namespace:
+      viewer: [get, list, watch]
+      manager: [create, update, patch, delete, deletecollection]
+    legacy:
+      User: [get, list, watch]
+      Editor: [create, update, patch, delete, deletecollection]
+  - group: cert-manager.io
+    resource: certificaterequests
+    namespace:
+      viewer: [get, list, watch]
+      manager: [delete, deletecollection]
+    legacy:
+      User: [get, list, watch]
+      Admin: [delete, deletecollection]
+  - group: cert-manager.io
+    resource: issuers
+    namespace:
+      viewer: [get, list, watch]
+      admin: [create, update, patch, delete]
+    legacy:
+      User: [get, list, watch]
+      Admin: [create, update, patch, delete]
+  - group: cert-manager.io
+    resource: clusterissuers
+    system:
+      viewer: [get, list, watch]
+      manager: [create, update, patch, delete, deletecollection]
+    legacy:
+      User: [get, list, watch]
+      ClusterEditor: [create, update, patch, delete, deletecollection]
+  - group: acme.cert-manager.io
+    resource: orders
+    namespace:
+      viewer: [get, list, watch]
+    legacy:
+      User: [get, list, watch]
+  - group: acme.cert-manager.io
+    resource: challenges
+    when: .Values.certManager.internal.acmeEnabled
+    namespace:
+      viewer: [get, list, watch]
+capabilities:
+  namespace.admin:
+    title:
+      en: "Module cert-manager: admin"
+      ru: "Модуль cert-manager: администрирование"
+    description:
+      en: "Manage cert-manager Issuers in a namespace."
+      ru: "Управление Issuer модуля cert-manager в пространстве имён."
+serviceAccounts:
+  - name: cainjector
+    path: cainjector
+    when: .Values.certManager.internal.enableCAInjector
+    labels: {app: cainjector}
+    clusterRules:
+      - apiGroups: [cert-manager.io]
+        resources: [certificates]
+        verbs: [get, list, watch]
+      - apiGroups: [""]
+        resources: [secrets]
+        verbs: [get, list, watch]
+      - nonResourceURLs: [/metrics]
+        verbs: [get]
+    namespaceRules:
+      - apiGroups: [coordination.k8s.io]
+        resources: [leases]
+        verbs: [get, list, watch, create, update, patch]
+    bindClusterRoles: [d8:rbac-proxy]
+    bindRoles:
+      - namespace: kube-system
+        name: extension-apiserver-authentication-reader
+prometheusAccess:
+  deployments: [cert-manager, cainjector]
+access:
+  - name: admin-kubeconfig
+    subjects:
+      - kind: Group
+        name: kubeadm:cluster-admins
+    clusterRules:
+      - apiGroups: [cert-manager.io]
+        resources: [clusterissuers]
+        verbs: [get, list, watch, create, update, patch, delete]
+  - name: auth
+    subjects:
+      - kind: ServiceAccount
+        name: ingress-nginx
+        namespace: d8-ingress-nginx
+    namespaceRules:
+      - apiGroups: [apps]
+        resources: [deployments/http]
+        resourceNames: [cert-manager]
+        verbs: [get]

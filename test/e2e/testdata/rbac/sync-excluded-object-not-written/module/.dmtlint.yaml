@@ -1,0 +1,10 @@
+linters-settings:
+  rbac:
+    exclude-rules:
+      sync:
+        # The module ships neither system capability the declaration produces for its module.yaml
+        # subsystems: their files do not exist, and sync neither reports nor writes them.
+        - kind: ClusterRole
+          name: d8:system-capability:cert-manager:view
+        - kind: ClusterRole
+          name: d8:system-capability:cert-manager:edit

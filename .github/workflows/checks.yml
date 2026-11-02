@@ -48,7 +48,7 @@ permissions:
 
 env:
   # https://github.com/actions/setup-go#supported-version-syntax
-  GO_VERSION: '1.24'
+  GO_VERSION: '1.27'
   SKIP_LABEL: dmtlint-verify-skip
   DECKHOUSE_REF: ${{ inputs.deckhouse_branch || 'main' }}
   TEMPLATE_REPO: https://github.com/deckhouse/modules-template.git
@@ -79,7 +79,7 @@ jobs:
       - name: lint
         uses: golangci/golangci-lint-action@v8
         with:
-          version: v2.8.0
+          version: v2.15.0
 
   tests:
     needs: golangci-lint

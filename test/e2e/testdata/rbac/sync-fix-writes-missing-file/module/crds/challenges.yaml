@@ -1,0 +1,9 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: challenges.acme.cert-manager.io
+spec:
+  group: acme.cert-manager.io
+  names: {plural: challenges, kind: X}
+  scope: Namespaced
+  versions: []

@@ -69,6 +69,9 @@ func TestFilesRule_CheckFile_SkipPatterns(t *testing.T) {
 		// module.yaml (module definition carries localized descriptions)
 		{name: "module yaml", relPath: "module.yaml", wantSkipped: true},
 
+		// rbac.yaml at the module root (the rbac declaration carries localized capability texts)
+		{name: "rbac yaml", relPath: "rbac.yaml", wantSkipped: true},
+
 		// ru.* prefix (e.g. ru.meta.deckhouse.io/description annotation files)
 		{name: "ru meta prefix", relPath: "ru.meta.deckhouse.io.yaml", wantSkipped: true},
 		{name: "ru dot prefix nested", relPath: "config/ru.description.yaml", wantSkipped: true},
@@ -85,6 +88,7 @@ func TestFilesRule_CheckFile_SkipPatterns(t *testing.T) {
 		{name: "plain json", relPath: "data.json", content: "{\"greeting\": \"Привет\"}\n", wantSkipped: false},
 		{name: "plain go", relPath: "main.go", content: "package main\n// Привет\n", wantSkipped: false},
 		{name: "nested template", relPath: "templates/configmap.yaml", wantSkipped: false},
+		{name: "rbac yaml of a template", relPath: "templates/rbac.yaml", wantSkipped: false},
 		// English doc-ru lookalike that does not match the doc-ru- prefix.
 		{name: "ru in middle of name", relPath: "instructions.yaml", wantSkipped: false},
 	}
@@ -428,5 +432,111 @@ func TestFilesRule_CheckFile_directory_exclude_trailing_slash(t *testing.T) {
 
 	if errs := errorList.GetErrors(); len(errs) > 0 {
 		t.Errorf("expected file under excluded directory (with trailing slash) to be skipped, got %d errors", len(errs))
+	}
+}
+
+// The Russian title and description the RBACv2 role model requires on every role and capability are
+// product text, not a source comment: those lines are not judged, everything else in the file still is.
+func TestFilesRule_CheckFile_LocalizedRBACAnnotationsAreNotJudged(t *testing.T) {
+	const capability = `apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: d8:namespace-capability:x:view
+  annotations:
+    en.meta.deckhouse.io/title: "Module x: view"
+    ru.meta.deckhouse.io/title: "Модуль x: просмотр"
+    en.meta.deckhouse.io/description: "Read-only access to x resources in a namespace."
+    ru.meta.deckhouse.io/description: "Доступ только на чтение к ресурсам модуля x в пространстве имён."
+`
+
+	run := func(t *testing.T, content string) []string {
+		t.Helper()
+
+		mockModule := mocks.NewModuleMock(minimock.NewController(t))
+		tempDir := t.TempDir()
+		mockModule.GetPathMock.Return(tempDir)
+
+		path := filepath.Join(tempDir, "templates", "rbacv2", "use", "view.yaml")
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		errorList := errors.NewLintRuleErrorsList()
+		NewFilesRule(nil, nil, mockModule, errorList).checkFile(path)
+
+		errs := errorList.GetErrors()
+
+		out := make([]string, 0, len(errs))
+		for _, e := range errs {
+			out = append(out, e.Text)
+		}
+
+		return out
+	}
+
+	if got := run(t, capability); len(got) != 0 {
+		t.Errorf("the localized annotations must not be reported, got %v", got)
+	}
+
+	if got := run(t, capability+"# Комментарий на русском\n"); len(got) != 1 {
+		t.Errorf("Cyrillic outside the annotations is still reported, got %v", got)
+	}
+
+	// A block scalar value is part of the annotation (review of #479, finding 13h).
+	block := capability + "    ru.meta.deckhouse.io/description: >-\n      Длинное описание\n      на две строки.\n  labels:\n    x: y\n"
+	if got := run(t, block); len(got) != 0 {
+		t.Errorf("a block scalar annotation must not be reported, got %v", got)
+	}
+
+	// Only a key counts: the name in a comment next to Russian text does not exempt the line.
+	if got := run(t, capability+"  # Ошибка доступа -- ru.meta.deckhouse.io/title\n"); len(got) != 1 {
+		t.Errorf("a line merely mentioning the key is still judged, got %v", got)
+	}
+}
+
+// Outside YAML templates the key name exempts nothing (review of #479, finding 13h).
+func TestFilesRule_CheckFile_LocalizedKeyInGoIsJudged(t *testing.T) {
+	mockModule := mocks.NewModuleMock(minimock.NewController(t))
+	tempDir := t.TempDir()
+	mockModule.GetPathMock.Return(tempDir)
+
+	path := filepath.Join(tempDir, "hooks", "x.go")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(path, []byte("package hooks\n\n// ru.meta.deckhouse.io/title: Ошибка доступа\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	errorList := errors.NewLintRuleErrorsList()
+	NewFilesRule(nil, nil, mockModule, errorList).checkFile(path)
+
+	if errs := errorList.GetErrors(); len(errs) != 1 {
+		t.Errorf("Cyrillic in a Go file is reported whatever key it follows, got %v", errs)
+	}
+}
+
+// rbac.yaml holds the ru titles and descriptions the rbac declaration requires for capabilities
+// outside the view/edit convention: it is documentation of the module, like module.yaml, not source.
+func TestFilesRule_CheckFile_SkipRBACDeclaration(t *testing.T) {
+	mockModule := mocks.NewModuleMock(minimock.NewController(t))
+	tempDir := t.TempDir()
+	mockModule.GetPathMock.Return(tempDir)
+
+	path := filepath.Join(tempDir, "rbac.yaml")
+	if err := os.WriteFile(path, []byte("capabilities:\n  namespace.admin:\n    title:\n      ru: \"Модуль x: администрирование\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	errorList := errors.NewLintRuleErrorsList()
+	NewFilesRule(nil, nil, mockModule, errorList).checkFile(path)
+
+	if errs := errorList.GetErrors(); len(errs) != 0 {
+		t.Errorf("rbac.yaml must not be judged, got %v", errs)
 	}
 }

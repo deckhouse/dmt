@@ -1,0 +1,182 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: controller
+  namespace: d8-{{ $.Chart.Name }}
+  {{- include "helm_lib_module_labels" (list . (dict "app" "controller")) | nindent 2 }}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: d8:observer:controller
+  {{- include "helm_lib_module_labels" (list . (dict "app" "controller")) | nindent 2 }}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: d8:observer:controller-binding
+  {{- include "helm_lib_module_labels" (list . (dict "app" "controller")) | nindent 2 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: d8:observer:controller
+subjects:
+- kind: ServiceAccount
+  name: controller
+  namespace: d8-{{ $.Chart.Name }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: controller-leader-election-role
+  namespace: d8-{{ $.Chart.Name }}
+  {{- include "helm_lib_module_labels" (list . (dict "app" "controller")) | nindent 2 }}
+rules:
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - create
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: controller-leader-election-rolebinding
+  namespace: d8-{{ $.Chart.Name }}
+  {{- include "helm_lib_module_labels" (list . (dict "app" "controller")) | nindent 2 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: controller-leader-election-role
+subjects:
+- kind: ServiceAccount
+  name: controller
+  namespace: d8-{{ $.Chart.Name }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: d8:observer:controller:manager-role
+  {{- include "helm_lib_module_labels" (list . (dict "app" "controller")) | nindent 2 }}
+rules:
+- apiGroups:
+  - observer.deckhouse.io
+  resources:
+  - observations
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: d8:observer:controller:manager-rolebinding
+  {{- include "helm_lib_module_labels" (list . (dict "app" "controller")) | nindent 2 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: d8:observer:controller:manager-role
+subjects:
+- kind: ServiceAccount
+  name: controller
+  namespace: d8-{{ $.Chart.Name }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: d8:observer:controller:reader
+  {{- include "helm_lib_module_labels" (list . (dict "app" "controller")) | nindent 2 }}
+rules:
+- apiGroups:
+  - observer.deckhouse.io
+  resources:
+  - observations/status
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: d8:observer:controller:reader
+  {{- include "helm_lib_module_labels" (list . (dict "app" "controller")) | nindent 2 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: d8:observer:controller:reader
+subjects:
+- kind: ServiceAccount
+  name: controller
+  namespace: d8-{{ $.Chart.Name }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: d8:observer:controller:rbac-proxy
+  {{- include "helm_lib_module_labels" (list . (dict "app" "controller")) | nindent 2 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: d8:rbac-proxy
+subjects:
+- kind: ServiceAccount
+  name: controller
+  namespace: d8-{{ $.Chart.Name }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: d8:observer:controller:auth-delegator
+  {{- include "helm_lib_module_labels" (list . (dict "app" "controller")) | nindent 2 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+- kind: ServiceAccount
+  name: controller
+  namespace: d8-{{ $.Chart.Name }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: d8:observer:controller:log-shipper-secrets
+  namespace: d8-log-shipper
+  {{- include "helm_lib_module_labels" (list . (dict "app" "controller")) | nindent 2 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: d8:observer:controller:log-shipper-secrets
+subjects:
+- kind: ServiceAccount
+  name: controller
+  namespace: d8-{{ $.Chart.Name }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: d8:observer:controller:extension-apiserver-authentication-reader
+  namespace: kube-system
+  {{- include "helm_lib_module_labels" (list . (dict "app" "controller")) | nindent 2 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: extension-apiserver-authentication-reader
+subjects:
+- kind: ServiceAccount
+  name: controller
+  namespace: d8-{{ $.Chart.Name }}

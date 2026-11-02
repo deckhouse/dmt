@@ -1,0 +1,17 @@
+description: >
+  The cainjector account is declared under `when`, and its existing template was emptied by hand:
+  nothing renders the account, whatever the values, and no template holds it. The `when` does not
+  excuse it: sync reports every object of the account in the file's finding, which carries the fix.
+module: module
+expectPass:
+  # the module must render: a render failure would otherwise pass every expectPass trivially
+  - linter: manager
+expect:
+  - linter: rbac
+    rule: sync
+    textContains: "d8-cert-manager/ServiceAccount/cainjector is declared but absent from the render and held by no template"
+    count: 1
+  - linter: rbac
+    rule: sync
+    textContains: "templates/cainjector/rbac-for-us.yaml does not match rbac.yaml"
+    count: 1

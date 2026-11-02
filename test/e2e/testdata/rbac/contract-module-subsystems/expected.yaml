@@ -1,0 +1,16 @@
+description: >
+  A system capability aggregates into the cluster and network subsystems while module.yaml declares
+  network only. The rbac contract rule reports the difference on module.yaml, as the platform test
+  TestRBACv2ModuleSubsystemsValidation does, and names the subsystem to declare there.
+module: module
+expect:
+  - linter: rbac
+    rule: contract
+    level: warn
+    textContains: "module.yaml subsystems: declares [network], but the system capabilities aggregate into [cluster, network]"
+    count: 1
+  - linter: rbac
+    rule: contract
+    level: warn
+    textContains: "declare cluster in module.yaml subsystems"
+    count: 1

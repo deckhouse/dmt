@@ -14,6 +14,9 @@ Proper RBAC configuration is critical for Kubernetes security, ensuring least-pr
 | [binding-subject](#binding-subject) | Validates RoleBinding/ClusterRoleBinding subjects reference existing ServiceAccounts | ✅ | enabled |
 | [placement](#placement) | Validates RBAC resource placement and naming conventions | ✅ | enabled |
 | [wildcards](#wildcards) | Validates Roles/ClusterRoles don't use wildcard permissions | ✅ | enabled |
+| [contract](#contract) | Holds the module's RBACv2 roles and capabilities to the platform's label and naming contract | ✅ | enabled |
+| [coverage](#coverage) | Requires a decision in `rbac.yaml` on the user access to every CRD the module ships | ✅ | enabled when `rbac.yaml` exists |
+| [sync](#sync) | Compares the rendered RBAC objects with `rbac.yaml` in both directions; `--fix` rewrites the templates from `rbac.yaml`, and writes the first `rbac.yaml` from the render of a module that has none | ✅ | enabled; silent for a module that renders no RBAC object and has no `rbac.yaml` |
 
 "Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
@@ -1013,7 +1016,7 @@ You can also place a `.dmtlint.yaml` configuration file directly in your module 
 # modules/my-module/.dmtlint.yaml
 linters-settings:
   rbac:
-    impact: warning  # More lenient for this specific module
+    impact: warn  # More lenient for this specific module; ignored silences every rbac rule the root does not set
     exclude-rules:
       binding-subject:
         - legacy-sa
@@ -1340,3 +1343,556 @@ Error: User-authz access ClusterRoles should have annotation "user-authz.deckhou
      annotations:
        user-authz.deckhouse.io/access-level: Editor
    ```
+
+---
+
+## The module RBAC declaration: `rbac.yaml`
+
+The three rules below work with one file, `modules/<module>/rbac.yaml`: the single machine-readable
+source of the RBAC a module ships. It describes, per resource, the access every role model grants
+(the RBACv2 namespace and system lineages, and the legacy user-authz access levels), the rights of the
+module's ServiceAccounts, and the access other components get to the module. The templates under
+`templates/rbacv2/`, `templates/user-authz-cluster-roles.yaml`, `templates/**/rbac-for-us.yaml` and
+`templates/rbac-to-us.yaml` are **written** from it by `dmt lint --linter rbac --fix`.
+
+```yaml
+# modules/<module>/rbac.yaml
+apiVersion: rbac.deckhouse.io/v1alpha1
+
+# No subsystems here: the system capabilities aggregate into the `subsystems` of module.yaml, which
+# testing/rbacv2 in deckhouse holds equal to the lineages they carry. A `subsystems:` key an earlier dmt
+# wrote still parses and is a finding of sync that names what to declare in module.yaml.
+
+resources:
+  # A resource the module ships a CRD for: group and resource are enough, the scope comes from the CRD.
+  - group: cert-manager.io
+    resource: certificates
+    namespace:                      # RBACv2 namespace lineage; only for Namespaced resources
+      viewer: [get, list, watch]
+      manager: [create, update, patch, delete, deletecollection]
+    legacy:                         # user-authz v1; never derived from the RBACv2 levels
+      User: [get, list, watch]
+      Editor: [create, update, patch, delete, deletecollection]
+
+  # A cluster-scoped resource goes to the system lineage; a Namespaced one may too, with a reason.
+  - group: cert-manager.io
+    resource: clusterissuers
+    system:
+      viewer: [get, list, watch]
+      manager: [create, update, patch, delete, deletecollection]
+    legacy:
+      ClusterEditor: [create, update, patch, delete, deletecollection]
+
+  # A resource the module ships no CRD for: declare the scope; its existence is not checked.
+  - group: trivy.deckhouse.io
+    resource: vulnerabilityreports
+    scope: Namespaced
+    namespace:
+      viewer: [get, list, watch]
+
+  # A whole group whose resources are created at runtime: "*" with a reason.
+  - group: constraints.gatekeeper.sh
+    resource: "*"
+    scope: Cluster
+    reason: one CRD per ConstraintTemplate is created at runtime; the names are not known statically
+    system:
+      viewer: [get, list, watch]
+
+  # A deliberate denial: the reason is for the reader. It excludes namespace, system and legacy.
+  - group: deckhouse.io
+    resource: registryscantargets
+    noAccess: internal resource, managed by the controller
+
+  # A conditional grant: `when` is a Helm expression, rendered as {{- if <when> }} around the rule.
+  - group: deckhouse.io
+    resource: bars
+    when: .Values.foo.barEnabled
+    namespace:
+      viewer: [get, list, watch]
+
+  # A capability with an action of its own: the key is the action, and capabilities gives it the
+  # level it aggregates into (here d8:namespace-capability:cert-manager:renew_certificates, into
+  # the namespace admin level).
+  - group: cert-manager.io
+    resource: certificates/status
+    namespace:
+      renew_certificates: [update, patch]
+
+# Capabilities beyond what a level says, keyed <lineage>.<action>: the localized texts of every
+# capability outside the view/edit convention (theirs come from the platform), the level of an action
+# of its own, and labels of the module -- a label a role of the module outside the role model
+# aggregates by (rbac.deckhouse.io/ is dmt's).
+capabilities:
+  namespace.admin:
+    title: {en: "Module cert-manager: admin", ru: "Модуль cert-manager: администрирование"}
+    description: {en: "Manage cert-manager Issuers in a namespace.", ru: "Управление Issuer модуля cert-manager в пространстве имён."}
+  namespace.renew_certificates:
+    level: admin
+    labels: {cert-manager.deckhouse.io/aggregate-to-renewer: "true"}
+    title: {en: "Module cert-manager: renew certificates", ru: "Модуль cert-manager: перевыпуск сертификатов"}
+    description: {en: "Renew cert-manager Certificates in a namespace.", ru: "Перевыпуск Certificate модуля cert-manager в пространстве имён."}
+  namespace.view:
+    labels: {cert-manager.deckhouse.io/aggregate-to-renewer: "true"}   # view and edit take labels only
+
+# ServiceAccount rights -> templates/[<path>/]rbac-for-us.yaml. Only declared accounts are managed.
+# automountServiceAccountToken defaults to false; extraClusterRoles are further ClusterRoles in the
+# account's file, d8:<module>:<account>:<name> (or exactly the name when it starts with d8:), bound
+# to the account unless bind: false -- roles split by concern, or roles shipped for others to bind;
+# an extra role's bindingName names its ClusterRoleBinding, which takes the role's name without it.
+serviceAccounts:
+  - name: cainjector
+    path: cainjector                # templates/cainjector/rbac-for-us.yaml; omitted -> templates/rbac-for-us.yaml
+                                    # a nested path a/b names the account a-b or <module>-a-b (placement rule)
+    when: .Values.certManager.internal.enableCAInjector
+    labels: {app: cainjector}
+    annotations: {helm.sh/resource-policy: keep}    # on the ServiceAccount
+    rbacAnnotations: {werf.io/deploy-on: pre-install} # on every role and binding of the account
+    clusterRules:                   # ClusterRole d8:<module>:<name> + ClusterRoleBinding
+      - apiGroups: [cert-manager.io]
+        resources: [certificates]
+        verbs: [get, list, watch]
+      - nonResourceURLs: [/metrics]
+        verbs: [get]
+    clusterRoleBindingName: d8:cert-manager:cainjector-binding   # optional; the binding takes the role's name without it
+    namespaceRules:                 # Role + RoleBinding in the module namespace: the account's name at the
+      - apiGroups: [coordination.k8s.io]  # root, its directories joined by colons under a path (cainjector)
+        resources: [leases]
+        verbs: [get, list, watch, create, update, patch]
+    roleName: cainjector-leader-election          # optional: the name the Role already has, kept
+    roleBindingName: cainjector-leader-election-binding  # optional; the RoleBinding takes the Role's name without it
+    bindClusterRoles:                         # ClusterRoleBinding to an existing ClusterRole:
+      - d8:rbac-proxy                         # d8:<module>:<name>:rbac-proxy (the role without d8:, : as -)
+      - name: system:auth-delegator           # bindingName: the name the binding already has, kept
+        bindingName: d8:cert-manager:cainjector:auth-delegator   # instead of the derived one
+    bindRoles:                                # RoleBinding to an existing Role in a foreign namespace:
+                                              # d8:<module>:<name>:<role> in default/kube-system,
+                                              # <module>:<name>:<role> in a namespace of the platform
+      - namespace: kube-system
+        name: extension-apiserver-authentication-reader
+      - namespace: d8-log-shipper             # bindingName: the name the binding already has, kept
+        name: d8:cert-manager:cainjector:secrets  # instead of the derived one (bootstrap writes it)
+        bindingName: d8:cert-manager:cainjector:secrets
+
+# Metrics access -> Role/RoleBinding in the module namespace; `when` gates the RoleBinding to the
+# scraper only, the Role is unconditional, as the modules write it today. One entry as a mapping, or a
+# list of entries; an entry without path and name is access-to-<module> in templates/rbac-to-us.yaml.
+prometheusAccess:
+  - deployments: [cert-manager]
+    when: .Values.global.enabledModules | has "prometheus"
+  - name: metrics                   # access-to-<module>-metrics in templates/rbac-to-us.yaml
+    daemonsets: [agent]
+  - path: webhook                   # access-to-webhook-prometheus-metrics in templates/webhook/rbac-to-us.yaml
+    name: prometheus-metrics        # (a path needs a name: access-to-<path, / as ->-<name>)
+    bindingName: access-to-webhook-prometheus-metrics-binding   # optional; the binding takes the Role's name without it
+    deployments: [webhook]
+    labels: {app: webhook}          # labels and annotations go on the Role and the RoleBinding
+
+# Arbitrary subjects: clusterRules -> templates/[<path>/]rbac-for-us.yaml, namespaceRules -> templates/[<path>/]rbac-to-us.yaml
+access:
+  - name: admin-kubeconfig
+    when: .Values.certManager.adminKubeconfig   # optional; wraps the role and the binding, as for an account
+    labels: {app: cert-manager}                 # optional, on the role and the binding; annotations likewise
+    subjects:
+      - kind: Group
+        name: kubeadm:cluster-admins
+    clusterRules:
+      - apiGroups: [cert-manager.io]
+        resources: [clusterissuers]
+        verbs: [get, list, watch, create, update, patch, delete]
+  - name: reader                                # ClusterRole d8:cert-manager:reader
+    bindingName: d8:cert-manager:reader:system-authenticated  # optional; the binding takes the role's name without it
+    subjects:                                   # (roleName likewise names the role)
+      - kind: Group
+        name: system:authenticated
+    clusterRules:
+      - apiGroups: [cert-manager.io]
+        resources: [clusterissuers]
+        verbs: [list]
+```
+
+Format rules the loader enforces:
+
+- `apiVersion` is required and must be `rbac.deckhouse.io/v1alpha1`; unknown keys anywhere are an error.
+- Verbs are listed explicitly (`get`, `list`, `watch`, `create`, `update`, `patch`, `delete`, `deletecollection`); there are no aliases, and `*` is refused at every level (the `contract` rule reports `*` verbs and `apiGroups: ["*"]` in a rendered capability, too). `group: "*"` is refused; a group is a lowercase DNS name and a resource a lowercase plural with an optional `/<subresource>`, where `*` and `*/<subresource>` are the only wildcards.
+- No value holds `{{` or `}}`: `--fix` writes the values into Helm templates as they are, and a `when` is the condition only.
+- `legacy.SuperAdmin` validates but is a warning: user-authz aggregates custom legacy roles for `User` through `ClusterAdmin` only.
+- `prometheusAccess` is one entry written as a mapping (the form of the first declarations) or a list of entries; a list of one entry is written back as the mapping. Each entry names at least one workload and produces a Role and a RoleBinding to the scraper in the module namespace: `access-to-<module>` in `templates/rbac-to-us.yaml` without `path` and `name`, `access-to-<module>-<name>` there with `name`, `access-to-<path, / as ->-<name>` in `templates/<path>/rbac-to-us.yaml` with both -- the names `access[]` gets, which the placement rule wants. A `path` needs a `name`, and two entries of one `path` and `name` are an error. `when` gates the RoleBinding of the Prometheus scraper (typically `.Values.global.enabledModules | has "prometheus"`); the Role stays unconditional.
+- `bindRoles[].bindingName` names the RoleBinding; without it the binding gets the name the placement rule wants (`d8:<module>:<account>:<role>` in `default` and `kube-system`, `<module>:<account>:<role>` in a namespace of the platform). It is a role name like the others (no `/`, `%` or whitespace); the placement rule judges it in the render, as any binding.
+- A `bindClusterRoles` entry is the name of the ClusterRole, or a mapping of `name` and `bindingName` when the binding keeps a name of its own; without `bindingName` the ClusterRoleBinding is `d8:<module>:<account>:<role>` (the role's name without `d8:`, colons as dashes), and an entry without it is written back as the name alone.
+- The other name fields work the same way, one per kind of object, each optional: `bindClusterRoles[].bindingName` names the ClusterRoleBinding, `serviceAccounts[].clusterRoleBindingName` the ClusterRoleBinding of `clusterRules` and `extraClusterRoles[].bindingName` the one of an extra role instead of the role's name, `serviceAccounts[].roleName` the Role of `namespaceRules` instead of the account's name or its directories and `roleBindingName` its RoleBinding instead of the Role's name, `access[].roleName` names the ClusterRole (`clusterRules`) or the Role (`namespaceRules`) instead of `d8:<module>:<name>` or the `access-to-...` name, and `access[].bindingName` the binding instead of the role's name; `prometheusAccess[].bindingName` names the RoleBinding instead of the Role's name. They carry the names objects had before the declaration; the bootstrap writes one where the placement rule accepts the name, or refuses the derived name as well (see the bootstrap below). A name field of an object the entry does not produce (`roleName` of an account without `namespaceRules`, `bindingName` of an extra role with `bind: false`) is an error.
+- Levels: `namespace` -- `viewer`, `user`, `manager`, `admin`, `superadmin`; `system` -- `viewer`, `manager`, `superadmin`; `legacy` -- `User`, `PrivilegedUser`, `Editor`, `Admin`, `ClusterEditor`, `ClusterAdmin`, `SuperAdmin`.
+- `namespace` levels are allowed only for `Namespaced` resources; a `Namespaced` resource at a `system` level needs a `reason`.
+- A `system` level never writes a namespaced resource through which a write grants the identity of a ServiceAccount of the module's namespace -- `pods`, `replicationcontrollers`, `podtemplates`, `secrets`, `serviceaccounts`, the `apps` and `batch` workloads, `roles`, `rolebindings` -- and never touches `pods/exec`, `pods/attach`, `pods/portforward`, `pods/ephemeralcontainers` or `serviceaccounts/token` at all, whatever the `reason`: the role model writes into the namespaces of the platform at the `superadmin` level only, so the holders of a subsystem `manager` must not reach the ServiceAccounts of the module through its capability. Read verbs on the resources stay allowed; grant the writes at a `namespace` level instead.
+- `scope` is required for a resource the module ships no CRD for, and must agree with the CRD when the module ships one, or with Kubernetes for a built-in resource (`nodes` is `Cluster`). `resource: "*"` and `resource: "*/<subresource>"` are allowed only for a group without CRDs in the module and need a `reason`. A resource is a lowercase plural without dots.
+- `noAccess` is a non-empty reason and excludes the levels. `noAccess: "TODO"` is the stub the coverage autofix writes; it is not a decision. Any `noAccess`, `reason` or `scope` value that starts with `TODO` is an open decision, a lint finding with nothing to fix: `coverage` reports `noAccess` and `reason`, the validation of `sync` reports `scope` (nothing is compared or written until the scope is decided).
+- A key of `namespace` or `system` is a level of the lineage or the action of a capability that `capabilities.<lineage>.<action>` gives a `level`. An action of its own is lowercase letters, digits and `_` starting with a letter (`access_terminal`), and never `viewer` or `manager`; the capability of a level takes no `level`.
+- A capability outside the view/edit convention (`admin`, `user`, `superadmin`, an action of its own) needs `capabilities.<lineage>.<action>` texts in both languages; an entry for a capability no resource entry grants is an error (a typo in the key, or a removed entry). `system.view` and `system.edit` are always produced and may carry labels without a grant.
+- `capabilities.<key>.labels` are labels of the module: valid keys and values, none under `rbac.deckhouse.io/`, and not `heritage` or `module`. A label in the render that the declaration does not carry is a divergence: the rewrite writes the declared labels only.
+- A ServiceAccount name is a DNS subdomain; label and annotation keys are qualified names, label values valid label values, and `rbac.deckhouse.io/*` and `meta.helm.sh/*` annotations, `heritage` and `module` labels are not the declaration's. A rule holds no empty verb, resource, resource name or URL. The names the rewrite builds bindings and subjects from are held to what Kubernetes accepts: role names (`access[].name`, `extraClusterRoles`, `bindClusterRoles`, `bindRoles[].name`, and every name field) have no `/`, `%` or whitespace, a namespace is a DNS label, a ServiceAccount subject and a scraped workload a DNS subdomain; a component `path` is a clean relative path of DNS labels, and a `when` one line.
+- Messages name a resource entry by its index in the file as written (`resources[3]`), although the entries are compared in sorted order.
+
+What the declaration produces (level `viewer` -> capability `view`, `manager` -> `edit`, the rest as they are; an action of its own names its capability and aggregates into the level `capabilities` gives it):
+
+| Section | File | Objects |
+|---|---|---|
+| `resources[].namespace.<level or action>` | `templates/rbacv2/use/<action>.yaml` | ClusterRole `d8:namespace-capability:<module>:<action>` |
+| `resources[].system.<level or action>` | `templates/rbacv2/manage/<action>.yaml` | ClusterRole `d8:system-capability:<module>:<action>`; aggregates into every subsystem module.yaml declares; `view` and `edit` are always produced for a module with a subsystem in module.yaml, with the rule on the module's own ModuleConfig -- without one a system capability would aggregate into no role |
+| `resources[].legacy.<Level>` | `templates/user-authz-cluster-roles.yaml` | ClusterRole `d8:user-authz:<module>:<kebab-level>` with the `user-authz.deckhouse.io/access-level` annotation |
+| `serviceAccounts[]` | `templates/[<path>/]rbac-for-us.yaml` | ServiceAccount, ClusterRole/ClusterRoleBinding `d8:<module>:<name>` (the binding `clusterRoleBindingName` when set), Role/RoleBinding `<name>` at the root and `<a>:<b>` for `path: a/b` (`<module>:<a>:<b>` for an account named `<module>-<a>-<b>`), or `roleName`/`roleBindingName`, the extra bindings |
+| `access[]` with `clusterRules` | `templates/rbac-for-us.yaml` | ClusterRole/ClusterRoleBinding `d8:<module>:<name>` |
+| `prometheusAccess[]`, `access[]` with `namespaceRules` | `templates/[<path>/]rbac-to-us.yaml` | Role/RoleBinding `access-to-<module>[-<name>]`; with `path` `access-to-<path, / as ->-<name>`, as the placement rule wants; a `prometheusAccess` entry without `path` and `name` is `access-to-<module>`. A name that already starts with that prefix (`access-to-<module>` itself at the root) is the object's name as it is: the prefix is never written twice |
+
+A system capability gets the `rbac.deckhouse.io/namespace` label of the module namespace unless that
+namespace is `default`: user-authz projects the module's use roles into it by the label, and
+`kube-system` is a module namespace as any `d8-*` one.
+
+The templates write the module namespace as `d8-{{ $.Chart.Name }}`, as the hand-written ones do,
+when the module lives in `d8-<module>` and its chart is named after the module (`.Chart.Name` renders
+the name of `Chart.yaml`, or the module name for a module without one, in dmt as in Deckhouse): in
+`metadata.namespace` and in the namespace of a ServiceAccount subject. Every other namespace --
+`d8-system`, `d8-monitoring`, `kube-system`, the namespace of another module -- and the namespace of a
+module whose `Chart.yaml` names the chart otherwise are written as they are, and so is the value of
+the `rbac.deckhouse.io/namespace` label.
+
+The developer's loop is: edit `rbac.yaml` -> `dmt lint --linter rbac --fix` -> `dmt lint`. `--fix` does not
+re-lint: the second `dmt lint` shows the state after the fixes.
+
+---
+
+### contract
+
+**Purpose:** Holds the RBACv2 roles and capabilities a module renders under `templates/rbacv2/` to the
+platform's label and naming contract, so that a module outside the platform repository is checked
+the same way the platform's own test (`testing/rbacv2`) checks in-tree modules. Role aggregation
+relies on labels the API server cannot validate; a divergent module silently breaks it. One
+extension is for modules outside the deckhouse tree only: a subsystem of the module's own (item 5).
+
+The standalone helper role `d8:dict`, which the `handle_dict_bindings` hook binds, is not an RBACv2
+role or capability and is exempt from the naming and label checks.
+
+**Description:**
+
+Works on the rendered ClusterRoles from `templates/rbacv2/` (the compatibility aliases under
+`templates/rbacv2-compat/` are outside the contract by design). Needs no `rbac.yaml`.
+
+**What it checks:**
+
+1. The name starts with `d8:`; the four `en|ru.meta.deckhouse.io/title|description` annotations are present; the `module` label is the module's name (the platform test cannot know the module; dmt does).
+2. `rbac.deckhouse.io/kind` is `role` or `capability`; `rbac.deckhouse.io/scope` is `system`, `subsystem`, `namespace` or `project`.
+3. A role: its name matches the pattern of its scope, it defines no `rules`, its `aggregationRule` selects only by `aggregate-to-<lineage>-as` labels with a known lineage and a level of that lineage; system/subsystem roles carry `rbac.deckhouse.io/use-role` with a valid level, and every selector of theirs leaves out `rbac.deckhouse.io/kind: use` with a `NotIn` expression: a use capability of the scheme before DKP 1.78 gives rules in a namespace, and a role bound cluster-wide that took it by its aggregation label would give them in every namespace.
+4. A capability: its name starts with the prefix of its scope, it defines `rules` and no `aggregationRule`, carries at least one `aggregate-to-<lineage>-as` label and a valid `rbac.deckhouse.io/capability` marker (a label value, at most 63 characters). A system capability carries no `aggregate-to-namespace-as` and no `aggregate-to-project-as` label: one finding per capability, "remove the label" (item 6 says why).
+5. Aggregation labels target a known lineage (`system`, `namespace`, `project`, a subsystem the platform ships, or a subsystem of the module's own that its `module.yaml` declares and its render holds `d8:subsystem:<name>:<level>` roles for) with a level that lineage has. The platform ships `iam`, `security`, `cluster`, `delivery`, `network`, `storage`, `observability` and `managed-services`. The `deckhouse`, `infrastructure` and `kubernetes` subsystems of the scheme before DKP 1.78 are in `cluster` and its `networking` is `network`, so an aggregation into one of them is to an unknown lineage. A module's own subsystem has the levels of every subsystem, and its roles pass the same checks as the platform's; another module's own subsystem is unknown.
+   A subsystem of the module's own is accepted only for a module outside the deckhouse tree: `testing/rbacv2` in deckhouse keeps the closed list of the eight for in-tree modules, both in `module.yaml` and in the `d8:subsystem:<name>:<level>` roles, so an in-tree module with one is green here and red there.
+   A `module.yaml` subsystem that is neither the platform's nor backed by such a role is a finding of its own, so a typo there does not silence the check, and the system capabilities `sync` generates do not aggregate into it. One of the four legacy ids is such a finding even when the render holds a `d8:subsystem:<name>:<level>` role for it, and that finding and the unknown-lineage one name the subsystem of the role model that replaced it.
+6. The `subsystems` of `module.yaml` are exactly the lineages the module's system capabilities (`rbac.deckhouse.io/kind: capability`, `rbac.deckhouse.io/scope: system`) carry in their `aggregate-to-<lineage>-as` labels, the `system` lineage left out -- the check of `TestRBACv2ModuleSubsystemsValidation` in `testing/rbacv2`: the documentation and the console read `module.yaml`, the aggregation controller reads the labels. A lineage `module.yaml` does not declare is reported with "declare it in `module.yaml` subsystems"; a subsystem no system capability aggregates into, with "aggregate the system capabilities into it or remove it from `module.yaml`" (with `rbac.yaml`, `--fix` writes `view` and `edit` into every `module.yaml` subsystem). A module that renders no system capability is not judged; the platform test skips a module without `templates/rbacv2/manage/`, and it selects by that directory rather than by the labels (see the limits). A subsystem of the module's own (item 5) is compared as any other. Left out of the comparison is only what has a finding of its own: a `module.yaml` subsystem item 5 reports; a lineage that is no subsystem of either, a legacy one among them (item 5, unknown lineage); and the `namespace` and `project` lineages (item 4): the platform test takes every lineage of a system capability but `system` for a `module.yaml` subsystem, and these two are none, so a system capability that carries one fails there whatever `module.yaml` declares.
+7. `rbac.deckhouse.io/delegatable` appears only on namespace/project roles.
+8. An object of the RBACv2 scheme before DKP 1.78 (`rbac.deckhouse.io/kind: use` or `manage`, names `d8:use:capability:module:<m>:*` / `d8:manage:permission:module:<m>:*`) gets one finding -- migrate with `rbacv2-migrate-module.sh` from `modules/140-user-authz/docs/internal/` of the deckhouse repository, or describe the module in `rbac.yaml` and run `--fix` -- instead of failing every check above. A legacy object rendered from a template that carries the script's version gate (`include "<module>.rbacv2_new_scheme"`) is not reported: the module serves both models on purpose.
+9. **Warning:** a cluster-scoped resource inside a namespace capability. Such a capability is bound through a RoleBinding, where the rule grants nothing. The scope comes from the module's CRDs or from its `rbac.yaml`; a resource the run knows nothing about is not judged.
+
+What deliberately stays in the platform test: the levels of sensitive capabilities and the closure of
+aggregation across two modules, and the global uniqueness of the capability marker -- a rule sees one module.
+
+**Example finding:**
+
+```
+Error: capability "d8:namespace-capability:my-module:view" must carry the rbac.deckhouse.io/capability label
+Error: module.yaml subsystems: declares [security], but the system capabilities aggregate into [network, security]; the two must be the same set, as testing/rbacv2 in deckhouse requires (the documentation and the console read module.yaml, the aggregation controller the labels): declare network in module.yaml subsystems
+Warning: capability "d8:namespace-capability:my-module:view" grants my.io/globals, a cluster-scoped resource, in a namespace capability: bound through a RoleBinding the rule grants nothing; move it to a system capability
+```
+
+**Configuration:**
+```yaml
+# root .dmtlint.yaml
+global:
+  linters-settings:
+    rbac:
+      rules:
+        contract: {impact: error}  # the level of this rule alone; unset it starts at warn, and the four original rules keep the linter level
+
+# module .dmtlint.yaml -- global: is read from the root only, as for every dmt setting. Linting one
+# module directory (dmt lint modules/<m>) makes its own .dmtlint.yaml the root.
+linters-settings:
+  rbac:
+    exclude-rules:
+      contract:
+        - kind: ClusterRole
+          name: d8:namespace-capability:my-module:legacy
+```
+
+---
+
+### coverage
+
+**Purpose:** Every CRD a module ships gets a decision on the user access to it, written down in
+`rbac.yaml`: the levels of either role model, or `noAccess` with the reason. Today 66 of 181 CRDs in
+the platform are named in no user rule of their module, and nowhere is it recorded whether that is
+deliberate.
+
+**Description:**
+
+Runs only when the module has an `rbac.yaml`. Reads the CRDs under `crds/` at any depth (selected by
+`kind: CustomResourceDefinition`, so `crds/vendor/` counts and `images/**/testdata/crds/` does not).
+
+**What it checks:**
+
+1. Every CRD (`spec.group` / `spec.names.plural`) has an entry in `resources` that grants levels or denies access with a reason -- **error**, with an autofix.
+2. An entry left as `noAccess: "TODO"` -- **error**, no autofix: a decision is needed.
+3. An entry naming a group the module ships CRDs for, but a resource none of them spells, one or two letters away from one that is -- **warning** (a likely misspelling). A resource further away is another module's CRD in a shared group (`deckhouse.io`). Whole-group (`"*"`) and subresource (`/`) entries are exempt.
+4. A `noAccess` entry of a group the module ships no CRD for, without a `scope` -- **warning**: a removed CRD is indistinguishable from an external resource nobody grants. Add `scope` to say the resource is external, or drop the entry if its CRD is gone.
+
+**Autofix:** appends an undecided stub for each CRD without an entry --
+
+```yaml
+  - group: deckhouse.io
+    resource: foopolicies
+    noAccess: "TODO"
+```
+
+-- and the fix succeeds. The stub is not a decision: the lint that follows `--fix` reports it as
+finding 2. Existing entries and comments stay; the file is written back through the YAML encoder, which
+chooses its own blank lines, indentation and quoting. A second `--fix` changes nothing, and a symbolic
+link gets no stub (the write would replace the link).
+The rule does not create `rbac.yaml`: a module without the file is a `sync` finding, and `--fix` of
+that rule writes the first declaration from the render (see [sync](#sync)).
+
+**Example finding:**
+
+```
+Error: CRD deckhouse.io/foopolicies (crds/foopolicies.yaml) has no entry in rbac.yaml: decide the user access to it -- namespace, system or legacy levels, or noAccess with the reason; `dmt lint --linter rbac --fix` adds an undecided stub
+```
+
+**Configuration:**
+```yaml
+# root .dmtlint.yaml
+global:
+  linters-settings:
+    rbac:
+      rules:
+        coverage: {impact: warn}
+
+# module .dmtlint.yaml
+linters-settings:
+  rbac:
+    exclude-rules:
+      coverage:
+        - deckhouse.io/internalthings   # "group/resource" of a CRD the declaration deliberately leaves out
+```
+
+---
+
+### sync
+
+**Purpose:** The rendered RBAC objects and `rbac.yaml` say the same thing, in both directions, so that
+a reviewer reads one file to know what the module grants, and a change to the platform's contract is
+one `--fix` rather than a hand edit of every template.
+
+**Description:**
+
+Without `rbac.yaml` the rule reports the declaration missing, and `--fix` writes it from the RBAC
+objects the module renders today: the declaration a person would have transcribed from the templates,
+with a `TODO` wherever a decision is still theirs (a resource without a CRD whose scope the linter
+cannot know, a CRD nobody grants, a namespaced resource granted cluster-wide) and a note on top for
+every object `--fix` will name differently or the format cannot describe. A rename in a template the
+next `--fix` leaves as it is (the lint finds a case there the declaration does not close) is noted as
+waiting for that case: the object keeps its name until the file can be rewritten. The case is judged
+as the lint of every render variant will judge it once the file is written. A Role an account binds
+with `bindRoles` stays hand-written, since the declaration names it without writing it; the note
+says so, and says to move the Role out when it sits in a template the declaration writes. An entry whose CRD is in `crds/`
+carries no `scope`: the CRD states it; an external resource whose scope is not known gets
+`scope: "TODO: Namespaced or Cluster (Cluster drops the namespace levels)"`. A grant limited to `resourceNames` is never widened to every
+object: it is left out and named in a note. A role granting `*` verbs or API groups, which the format
+refuses, is listed as hand-written with the reason. An account gets the `path` of the component
+directory it renders from: `templates/<dir>/rbac-for-us.yaml`, or another template of `templates/<dir>/`
+when the account is named after the directory as the placement rule wants (`<dir>`, or `<module>-<dir>`
+in a namespace of the platform) and the module lives outside `default` and `kube-system`; an account
+of any other template goes to `templates/rbac-for-us.yaml`, and a note names the file the fix writes
+it to. A Role of the module and its RoleBinding that both live in an `rbac-to-us.yaml` are an `access`
+entry whoever they bind, the module's own account included: access to the module stays in that file
+under its names rather than move to the account's `rbac-for-us.yaml`.
+
+The render only holds what rendered for the linter's values, so the importer also reads the template
+text around each object, with `text/template/parse`. An object wrapped in `{{ if X }}` gets `when: X`
+(an `{{ else }}` branch `not (X)`, nested blocks an `and`); a condition that uses a template variable
+becomes a `TODO`, and so does an account or access entry whose role and binding render under
+different conditions. An object inside `{{ range }}`, `{{ with }}` or `{{ define }}`, one rendered by
+an include of a named template (`helm_lib_*`), one written in two branches of a block inside one
+document or as a named and a computed name in two branches, and a role without rules stay
+hand-written; a legacy role
+or a capability a library renders is imported all the same, since sync owns those whatever renders
+them. A legacy role or a capability under a condition gets a `TODO` reason: `resources[]` have no
+`when`, so the rewritten role would render for every value. An object the text holds under a
+condition false for these values is in no render: a note on top of the written file names it -- a
+document with a computed name as the kind and the pattern of its name -- so it is not left out in
+silence. A block inside an object -- a rule under its own `{{ if }}` -- is noted. The Prometheus
+scrape binding keeps its gate as `prometheusAccess.when`; a scrape Role becomes `prometheusAccess` only
+when it grants exactly what that writes -- `get` on `apps` `deployments|daemonsets|statefulsets/prometheus-metrics`
+of named workloads -- and is an `access` entry or stays hand-written otherwise, rather than be narrowed.
+Each scrape Role gets an entry of its own that keeps its name: `path` is the component directory of its
+template when the name is `access-to-<directory>-<name>`, else the root with `access-to-<module>-<name>`
+or `access-to-<module>`. A Role of `templates/<dir>/<file>` keeps its directory and moves to its
+`rbac-to-us.yaml`, and a note says so. A name no entry can express -- one the placement rule does not
+want there, as vertical-pod-autoscaler's `access-to-vpa-metrics` in `templates/rbac-to-us.yaml` -- folds
+into `access-to-<module>` at the root, as several Roles of that name do, with a note on why and the
+rename. A RoleBinding named otherwise than its Role keeps its name as the entry's `bindingName`, as
+any name below.
+The bootstrap describes what exists and renames nothing it can keep: an object keeps the name it has,
+through the name field of its kind (`bindRoles[].bindingName`, `bindClusterRoles[].bindingName`,
+`serviceAccounts[].clusterRoleBindingName`, `roleName` and `roleBindingName`,
+`extraClusterRoles[].bindingName`, `access[].roleName` and `bindingName`, `prometheusAccess[].bindingName`),
+when the placement rule -- with its `exclude-rules.placement` -- accepts the name in the file the
+declaration writes the object to, or refuses the name the declaration would give it as well (a binding
+in the namespace of another module: a rename would gain nothing, and a note says so). Where the rule
+refuses the name and accepts the derived one, `--fix` renames the object and the note says why. An
+`access` entry writes namespace access to `rbac-to-us.yaml` and cluster access to `rbac-for-us.yaml`,
+whatever template its role came from; a note names such a move: under the name it has the object is
+moved by hand, since `--fix` moves no object between templates, and under a new name `--fix` writes the
+new one and the lint then asks to delete the old one. Under
+`--matrix` an object the variants render with different rules gets the union and a note, as one a block
+varies. A note names the labels and annotations of a
+legacy role, and the annotations of a capability, the fix would drop; the labels of a capability go into its
+`capabilities` entry, with the level a capability with an action of its own aggregates into. Under `--matrix` an object only some variants
+rendered whose condition the text did not give stays hand-written where the declaration has no `when`
+for it (access entries, the scrape access), an account with such objects gets a `TODO` `when`, and a
+legacy role or a capability a `TODO` reason on the resources it grants. An object of the module in a
+file that also holds a document a helm_lib include renders stays hand-written: the fix writes the
+whole file.
+
+The declaration sets no subsystems: its system capabilities aggregate into the `subsystems` of
+`module.yaml`. When the system capabilities the module renders aggregate into other subsystems, a
+note on top of the written file proposes the `module.yaml` change (the subsystems to declare there,
+and those to remove if the module is not part of them), and `contract` reports the difference until
+`module.yaml` and the templates agree. Declare them before the `--fix` of the templates: the
+templates follow `module.yaml`, so a subsystem only the templates carry would be dropped from them.
+
+The fix writes the file and succeeds. Every `TODO` in it and everything the linter refuses in it are
+lint findings of the run that follows `--fix`: a `TODO` in `noAccess` or `reason` is reported by
+`coverage`, one in a `scope` or a `when` by the validation of `sync`. A written file that does not parse would be a bug of dmt; it is
+written all the same, and the lint that follows reports the line. Nothing is written into an edition
+overlay. Review the file, resolve the TODOs, then run `--fix` again to bring the templates in line with
+it. From then on `rbac.yaml` is the source.
+
+With `rbac.yaml` the rule first validates the declaration; a declaration with errors is reported and
+nothing else is compared or written. A `subsystems:` key, which an earlier dmt wrote when the
+templates aggregated into other subsystems than `module.yaml` declares, is such an error: the
+finding names the subsystems to declare in `module.yaml` and asks to remove the key, and until then
+`--fix` does not change the aggregation of the system capabilities behind that decision. Then builds
+the objects the declaration produces and compares them with the render.
+
+`sync` owns exactly three classes of rendered objects:
+
+1. legacy roles -- ClusterRoles with the `user-authz.deckhouse.io/access-level` annotation;
+2. the module's own RBACv2 capabilities -- ClusterRoles named `d8:namespace-capability:<module>:<action>` or `d8:system-capability:<module>:<action>` with `rbac.deckhouse.io/kind: capability` and `module: <module>`. Capabilities of the project lineage and platform-wide ones named after a lineage rather than the module (user-authz, multitenancy-manager) are not the declaration's: the format has no place for them, so they stay hand-written;
+3. declared objects -- those whose names the declaration builds from `serviceAccounts`, `access` and `prometheusAccess`.
+
+Everything else in the render is unmanaged: not written, not reported (`include "helm_lib_csi_controller_rbac"`,
+controller ClusterRoles with arbitrary names, objects with Helm-computed names).
+
+**What it checks:**
+
+1. The conditions the declaration writes around each object and its rules are the ones the template holds around them, both ways. The text is read, not the render, so every render variant agrees: a condition the declaration writes that the template lacks is a divergence the fix writes, and one the template holds that the declaration does not write is a divergence without a fix (see the cases below).
+2. Every declared object is in the render, and every rule of it: rules are compared as `(apiGroup, resource, resourceName, verb)` tuples, in both directions. An object or a rule under a `when` is excused while the condition is false in this render; when anything the declaration writes under the same `when` renders, in any file, the condition holds, and an absent one is a divergence -- a grant newly declared under a condition that already holds is written by `--fix`. An object under a `when` is excused only while a template holds it by its text (a document of its kind under its name or a computed name that can produce it, or, in the file the declaration puts it in, an include of a named template): absent from the render and from every template, nothing renders it whatever the values, so it is a divergence, and the fix writes it back into its file. A rule without `when` hidden behind a hand-written `{{ if }}` is a divergence.
+3. The labels and annotations of an object written from `serviceAccounts`, `access` or `prometheusAccess` match the declaration's (`labels`, `annotations`, `rbacAnnotations`): a `helm.sh/resource-policy: keep` or an aggregation label the declaration does not carry would be lost by the next `--fix`. `heritage` and `module` (written by `helm_lib_module_labels`), Helm's `meta.helm.sh/*` and dmt's `rbac.deckhouse.io/*` annotations are not compared. A ServiceAccount subject without a namespace is read in the namespace of its RoleBinding, as Kubernetes does.
+4. A capability's aggregation edges (`aggregate-to-<lineage>-as`) match in both directions: rules may agree while a lineage is lost. Its `rbac.deckhouse.io/capability` marker, `module` and `rbac.deckhouse.io/namespace` labels are what `--fix` writes, and so are its labels of the module (`capabilities.<key>.labels`), since a role of the module outside the role model that selects the capability by one loses the capability when a rewrite drops the label, and its four localized texts.
+5. A label or an annotation of a legacy role or a capability that the format has no field for -- a label on a legacy role, `helm.sh/resource-policy` on a capability, another `rbac.deckhouse.io/*` label -- is a divergence, and the file gets no fix while it is there: the rewrite would drop it.
+6. A binding's `roleRef` and subjects match.
+7. Every rendered legacy role and module capability is produced by the declaration.
+8. A file the declaration produces that does not exist while an object it holds is absent from the render is a divergence, whether or not the object is under `when`: the render cannot tell a false condition from a template nobody wrote, the file system can. An object `exclude-rules.sync` names does not count (see below).
+9. An object the declaration produces that renders from another template than the one the declaration puts it in is a divergence of both files.
+
+The render is judged, not the text: a file whose text differs from what the fix would write while its
+render agrees is not a divergence, and a rule under a `when` false for these values is checked where it
+renders (`--matrix`, `--values-file`). A template nothing rendered from -- the render skipped it, and
+the `manager` warning "failed to render and was skipped" says so, or every object in it is under a
+condition false for these values -- is not reported for the objects its text holds.
+
+Findings are one per template file. A declaration
+that does not parse or validate, one the rule cannot turn into objects (an account named against the
+placement rule) and a declaration in an edition overlay stop the rule: they are lint findings without a
+fix. A `module.yaml` that does not parse stops the rule as well; the `module` linter reports it, as the
+`openapi` linter reports a CRD document that does not parse, which the rules judge as an external
+resource until it does.
+
+**Autofix:** rewrites a file the declaration produces from `rbac.yaml`, and creates a missing one. The
+declaration is the source of truth: a right it no longer names leaves the template, and so does a
+legacy role or a module capability it no longer produces (sync owns them by class); the finding that
+led there listed it, and the autofix logs what it removed and what it added, so a `--fix` run without a
+preceding `dmt lint` does not remove rights in silence. A second `--fix` without changes to
+`rbac.yaml` changes nothing.
+
+Before a finding gets the fix, the lint reads the file's text and its render. It gets none -- the
+finding names the case and what closes it -- when the file holds:
+
+- an object the declaration does not produce -- a controller ClusterRole beside a declared ServiceAccount, a hand-written binding, a ConfigMap or a Secret: the rewrite writes the whole file and it would vanish. Declare it (`extraClusterRoles`, `access` with `path`) or move it to another template; a Role `bindRoles` names cannot be declared, only moved. An object the declaration produces under another name -- a binding with the same roleRef and subjects, a role with the same rules and no aggregationRule, while the new name is not rendered yet, carrying no label or annotation the new one would not -- is a rename, not someone else's;
+- an object the declaration puts in another file, or one this file should hold that renders from, or is written in, another template: the fix does not move objects between files, and writing it here would render it twice. Move it;
+- a document the linter cannot read: an include, a `range`, a computed name, a `fail` or `required` guard -- anything the declaration does not write. The finding quotes the first such action. `{{ .Chart.Name }}` and `{{ $.Chart.Name }}` are read as the module name, as Helm renders them, so a namespace written as `d8-{{ .Chart.Name }}` is the module's own;
+- both role models behind the version gate (`rbacv2_new_scheme`, or a `deckhouseVersion` test with an `else` branch that the declaration does not produce): a rewrite would drop the legacy branch;
+- the legacy RBACv2 scheme only: a rewrite would serve the new model only, so the finding carries no fix (migrate with `rbacv2-migrate-module.sh`, or delete the file and run `--fix`);
+- a condition (`{{ if }}`, `{{ else }}`) the declaration does not write: what it gates may not be in this render, and the rewrite would drop it or grant it unconditionally. Declare it as `when`, or, when the declaration dropped the `when` on purpose, delete it from the template -- the rewrite cannot tell the two apart;
+- a label or an annotation of a legacy role or a capability the format has no field for, and the `imagePullSecrets` or `secrets` of a ServiceAccount: the rewrite would drop them. `imagePullSecrets` belong in the pod spec of the workloads that run as the account; the bootstrap declares such an account and notes that its file waits for that move;
+- a template that is a symbolic link: the rewrite would replace the link with a file.
+
+An object `exclude-rules.sync` names is neither compared nor written. A file the declaration puts
+only such objects in is no finding, whether it exists or not, and `--fix` leaves it alone: a module
+that does not ship the `view` and `edit` system capabilities the declaration always produces for its
+`module.yaml` subsystems excludes both. A file the declaration puts an excluded object in beside
+others is compared on the others, and its finding carries no fix whether the file holds the excluded
+object or not: the rewrite writes every object the declaration puts in the file, so it would write
+the excluded one from the declaration, over what the template holds if it holds it. Lift the
+exclusion, or bring the file in line by hand.
+
+The text is the same in every render variant, so every variant reaches the same answer; under
+`--matrix` a variant whose render shows such a case keeps the fix of every other variant off the file.
+
+A template the declaration produces nothing for -- every namespace level dropped, the `legacy` section
+gone -- is a finding without a fix: declare what it renders, or delete it. The autofix deletes no file.
+
+**Example finding:**
+
+```
+Error: templates/rbacv2/use/edit.yaml does not match rbac.yaml: ClusterRole/d8:namespace-capability:my-module:edit: get ""/secrets is in the render but not declared. Run `dmt lint --linter rbac --fix` to rewrite the file from the declaration
+```
+
+**Configuration:**
+```yaml
+# root .dmtlint.yaml
+global:
+  linters-settings:
+    rbac:
+      rules:
+        sync: {impact: warn}
+
+# module .dmtlint.yaml
+linters-settings:
+  rbac:
+    exclude-rules:
+      sync:
+        - kind: ClusterRole
+          name: d8:user-authz:my-module:super-admin
+```
+
+**Levels:** `contract`, `coverage` and `sync` start at `warn` wherever nothing sets them: they are new
+to every tree. A tree raises them to `error` in its root `.dmtlint.yaml`
+(`global.linters-settings.rbac.rules.<rule>.impact`) once its modules are clean. Per-rule levels are
+read from the root only, as for every dmt linter, and a module cannot lower them. A rule the root
+leaves unset falls back to the linter's `impact` below `warn`: `impact: ignored` on `rbac` in a module's
+`.dmtlint.yaml` silences it there. A level dmt does not know is read as `error`, as for every linter.
+
+**Limits worth knowing:**
+
+- A conditional rule is checked only where it renders: with the default values, `dmt lint --values-file` or `dmt lint --matrix`.
+- Under `--matrix` a file can get two findings that disagree. dmt lints the render variants one after another and a rule reports on each as it goes; it has no point after the last variant of a module where the rule could revise what it already reported. So a variant that sees nothing against the rewrite reports the file with the fix ("Run `dmt lint --linter rbac --fix`"), and a later variant that finds a case reports it without one ("The autofix leaves the file as it is"). The fix sees every variant's answer and leaves the file alone; dmt still counts the first finding as fixed, and the second one stays and names the case. The cases come from the template text, the same in every variant, so this takes a case only the render of some values shows.
+- The cloud-data-discoverer account of the cloud providers (and csi-vsphere) keeps its own Role `d8:<module>:cloud-data-discoverer:secret-reader` in `kube-system`, in the account's `rbac-for-us.yaml`. The format cannot declare a Role in another namespace, so the file holds an object the declaration does not produce and its finding carries no fix; the account stays hand-written until the format can say it.
+- An account of a component directory in `default` or `kube-system` cannot be declared yet: the placement rule wants it named `d8-<module>-<dir>` there, and the declaration accepts `<dir>` and, in a namespace of the platform, `<module>-<dir>` only. Bootstrap names the problem in the written file; the account stays hand-written until the two rules agree (control-plane-manager, vertical-pod-autoscaler).
+- **The three states a module can be in when the new `dmt` first runs.** *Only the legacy scheme* (an external module not yet migrated): `contract` reports one "migrate" finding per object; with an `rbac.yaml`, `sync` reports the declared objects as absent and names the cause -- the template renders the legacy scheme -- and the finding carries no fix: rewriting the file would serve the new model only. *Only the 1.78 scheme*: the ordinary case described above. *Both schemes behind the version gate* (`rbacv2-migrate-module.sh` without `--replace`): the linter's values answer the gate with the 1.78 model, so `contract` and `sync` see exactly the new objects and the legacy branch is neither judged nor "extra"; a gated file gets no fix -- rewriting it would drop the legacy branch -- and the finding says so. The legacy branch itself is exercised with `dmt lint --values-file` setting `global.deckhouseVersion` below 1.78; `--matrix` varies module values only, not the platform version.
+- A `dmt lint --values-file` run with `global.deckhouseVersion` below the version gate renders none of the `d8:subsystem:<name>:*` roles a module ships behind the gate. `contract` then reports the `module.yaml` subsystem as unrendered. The finding is false and comes from that manual run only; the default render and `--matrix` answer the gate with the new model.
+- A subsystem of the module's own is accepted only for a module outside the deckhouse tree. `testing/rbacv2` in deckhouse keeps the closed list of the eight DKP subsystems for in-tree modules, in `module.yaml` and in the `d8:subsystem:<name>:<level>` roles, so `contract` is green and the platform test red for an in-tree module with one.
+- The `module.yaml` subsystems check (`contract`, item 6) reads the system capabilities a render holds, while the platform test reads the template files. A variant of `--matrix` or a `--values-file` run that leaves out a system capability under a condition, the only one that aggregates into a subsystem, reports that subsystem as declared and carried by none. The default render does not, and neither does a module whose templates `rbac.yaml` writes: `view` and `edit` aggregate into every `module.yaml` subsystem unconditionally. The two also select differently: the platform test takes every file of `templates/rbacv2/manage/`, whatever kind or scope it renders, and `contract` takes the system capabilities wherever under `templates/rbacv2/` they render. So a namespace capability placed in `manage/` passes `contract` and fails the platform test, and a system capability placed elsewhere is judged here and not there; keep system capabilities in `manage/` and namespace capabilities in `use/`, as the generator does.
+- The declaration is one per module and describes the union of editions. Linting a single edition directory shows the edition-only objects as absent; lint the merged tree as CI does. An `rbac.yaml` inside an edition overlay (`ee/be/modules`, `ee/se-plus/modules`, ..., and `ee/modules` for a module that also exists in `modules/`) is an error: CI merges the overlays over `modules/` before linting, so a copy there would shadow the base one or go unseen. A module that has no base elsewhere -- EE-only in `ee/modules/<module>`, or living in one edition directory only such as `ee/be/modules/350-node-local-dns` -- has its base there.
+- `sync` refuses what the declaration alone cannot know is wrong: system levels on a module whose `module.yaml` names no `subsystems` (declare them in `module.yaml`); an account in a component directory named unlike it (the placement rule wants `<dir>`, with `/` as `-` for a nested directory, or `<module>-<dir>` in a namespace of the platform such as `d8-system`). The objects of an account at `a/b` follow the placement rule too: its Role and RoleBinding are `a:b`, its bindings in other namespaces `d8:<module>:a:b:<role>` in `default` and `kube-system` and `<module>:a:b:<role>` in a namespace of the platform (a role already named under either prefix gives the binding the rest of its name, so the module and the account are not named twice); a capability marker past 63 characters (a module name of 32 characters and up with a `superadmin` level).
+- Built-in Kubernetes resources (`""`/configmaps, `apps`/deployments, `rbac.authorization.k8s.io`/clusterroles, ...) need no `scope`: the validator knows them. Anything else without a CRD in the module declares its scope.
+- An `rbac.yaml` of the earlier, never consumed shape (no `apiVersion`) is named for what it is: delete it and run `--fix` to write the declaration from the render.
+- Under `--matrix` the first declaration is written from the union of every variant's render; objects rendered only under values other than the defaults are still invisible to a default run, so lint with `--values-file` before the first `--fix` of the templates if the module has such templates.
+- A rule at `impact: ignored` is not run, so `--fix` never rewrites files on behalf of findings nobody sees.
+- A `when` condition must parse as a Helm expression (sprig and Helm functions are known); whether it holds under the linter's value stubs is decided by the render -- a condition that breaks the render is reported by the `helm-render` rule, and the module is not linted further.
+- `dmt lint remote` does not run these rules: a published image carries no chart to render.
+

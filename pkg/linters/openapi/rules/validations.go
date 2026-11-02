@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/google/cel-go/cel"
+	"cel.dev/cel-go/cel"
 	"sigs.k8s.io/yaml"
 
 	"github.com/deckhouse/dmt/internal/fsutils"

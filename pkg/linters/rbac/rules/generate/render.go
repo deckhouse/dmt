@@ -1,0 +1,199 @@
+/*
+Copyright 2026 Flant JSC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package generate
+
+import (
+	"maps"
+	"regexp"
+	"slices"
+	"strconv"
+	"strings"
+)
+
+// RenderFile renders one file: each object as its own YAML document, wrapped in
+// {{- if <when> }} when the object is conditional.
+func RenderFile(f File) string {
+	var b strings.Builder
+
+	// Consecutive objects under the same condition share one {{- if }} block.
+	open := ""
+
+	for _, o := range f.Objects {
+		if o.When != open {
+			if open != "" {
+				b.WriteString("{{- end }}\n")
+			}
+
+			if o.When != "" {
+				b.WriteString("{{- if " + o.When + " }}\n")
+			}
+
+			open = o.When
+		}
+
+		b.WriteString("---\n")
+		renderObject(&b, o, f.ChartNamespace)
+	}
+
+	if open != "" {
+		b.WriteString("{{- end }}\n")
+	}
+
+	return b.String()
+}
+
+// renderObject writes one object; the namespace chartNamespace is written as ChartNamespaceText.
+func renderObject(b *strings.Builder, o Object, chartNamespace string) {
+	namespace := func(ns string) string {
+		if chartNamespace != "" && ns == chartNamespace {
+			return ChartNamespaceText
+		}
+
+		return yamlScalar(ns)
+	}
+
+	apiVersion := "rbac.authorization.k8s.io/v1"
+	if o.Kind == "ServiceAccount" {
+		apiVersion = "v1"
+	}
+
+	b.WriteString("apiVersion: " + apiVersion + "\n")
+	b.WriteString("kind: " + o.Kind + "\n")
+	b.WriteString("metadata:\n")
+	b.WriteString("  name: " + yamlScalar(o.Name) + "\n")
+
+	if o.Namespace != "" {
+		b.WriteString("  namespace: " + namespace(o.Namespace) + "\n")
+	}
+
+	b.WriteString("  " + labelsInclude(o.Labels) + "\n")
+
+	if len(o.Annotations) > 0 {
+		b.WriteString("  annotations:\n")
+
+		for _, key := range slices.Sorted(maps.Keys(o.Annotations)) {
+			b.WriteString("    " + key + ": " + strconv.Quote(o.Annotations[key]) + "\n")
+		}
+	}
+
+	switch o.Kind {
+	case "ServiceAccount":
+		if o.AutomountToken != nil {
+			b.WriteString("automountServiceAccountToken: " + strconv.FormatBool(*o.AutomountToken) + "\n")
+		}
+	case "ClusterRole", "Role":
+		renderRules(b, o.Rules)
+	case "ClusterRoleBinding", "RoleBinding":
+		b.WriteString("roleRef:\n  apiGroup: rbac.authorization.k8s.io\n  kind: " + o.RoleRefKind + "\n  name: " + yamlScalar(o.RoleRefName) + "\n")
+		b.WriteString("subjects:\n")
+
+		for _, s := range o.Subjects {
+			switch s.Kind {
+			case "ServiceAccount":
+				b.WriteString("- kind: ServiceAccount\n  name: " + yamlScalar(s.Name) + "\n  namespace: " + namespace(s.Namespace) + "\n")
+			default:
+				b.WriteString("- apiGroup: rbac.authorization.k8s.io\n  kind: " + s.Kind + "\n  name: " + yamlScalar(s.Name) + "\n")
+			}
+		}
+	}
+}
+
+// labelsInclude renders the helm_lib_module_labels call that adds the module labels (heritage,
+// module) and the labels the generator sets, keys sorted.
+func labelsInclude(labels map[string]string) string {
+	if len(labels) == 0 {
+		return `{{- include "helm_lib_module_labels" (list .) | nindent 2 }}`
+	}
+
+	pairs := make([]string, 0, len(labels))
+	for _, key := range slices.Sorted(maps.Keys(labels)) {
+		pairs = append(pairs, strconv.Quote(key)+" "+strconv.Quote(labels[key]))
+	}
+
+	return `{{- include "helm_lib_module_labels" (list . (dict ` + strings.Join(pairs, " ") + `)) | nindent 2 }}`
+}
+
+func renderRules(b *strings.Builder, rules []Rule) {
+	if len(rules) == 0 {
+		b.WriteString("rules: []\n")
+		return
+	}
+
+	b.WriteString("rules:\n")
+
+	for _, r := range rules {
+		if r.When != "" {
+			b.WriteString("{{- if " + r.When + " }}\n")
+		}
+
+		first := true
+		item := func(key string, values []string) {
+			if len(values) == 0 {
+				return
+			}
+
+			indent := "  "
+			if first {
+				indent = "- "
+				first = false
+			}
+
+			b.WriteString(indent + key + ":\n")
+
+			for _, v := range values {
+				b.WriteString("  - " + yamlScalar(v) + "\n")
+			}
+		}
+
+		if len(r.NonResourceURLs) > 0 {
+			item("nonResourceURLs", r.NonResourceURLs)
+		} else {
+			item("apiGroups", r.APIGroups)
+			item("resources", r.Resources)
+			item("resourceNames", r.ResourceNames)
+		}
+
+		item("verbs", r.Verbs)
+
+		if r.When != "" {
+			b.WriteString("{{- end }}\n")
+		}
+	}
+}
+
+// yamlScalar quotes the values YAML would otherwise misread: the empty core API group, the
+// wildcard, anything starting with an indicator character, and anything with a ": " or " #" inside.
+func yamlScalar(v string) string {
+	if plainScalarRe.MatchString(v) && !yaml11Reserved[strings.ToLower(v)] {
+		return v
+	}
+
+	return strconv.Quote(v)
+}
+
+// plainScalarRe is the shape a value may take unquoted: a letter, underscore or slash, then the
+// characters of a Kubernetes name, URL path or API group. Anything else -- an empty string, a
+// leading indicator (a leading `*` is an alias, so the wildcard `*` itself is quoted), a space or a
+// digit first, a trailing colon -- is quoted.
+var plainScalarRe = regexp.MustCompile(`^[A-Za-z_/][A-Za-z0-9._/:*-]*[A-Za-z0-9_/*]$|^[A-Za-z_]$`)
+
+// yaml11Reserved lists the words Helm's YAML 1.1 reader turns into booleans or null; "no" as a
+// resource name would render as false.
+var yaml11Reserved = map[string]bool{
+	"y": true, "yes": true, "n": true, "no": true, "true": true, "false": true,
+	"on": true, "off": true, "null": true, "~": true,
+}

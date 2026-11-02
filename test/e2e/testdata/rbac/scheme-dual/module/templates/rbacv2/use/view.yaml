@@ -1,0 +1,46 @@
+{{- if eq (include "e2e-rbac.rbacv2_new_scheme" .) "true" }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    heritage: deckhouse
+    module: e2e-rbac
+    rbac.deckhouse.io/aggregate-to-namespace-as: viewer
+    rbac.deckhouse.io/kind: capability
+    rbac.deckhouse.io/capability: "namespace-capability.e2e-rbac.view"
+    rbac.deckhouse.io/scope: namespace
+  name: d8:namespace-capability:e2e-rbac:view
+  annotations:
+    en.meta.deckhouse.io/title: "Module e2e-rbac: view"
+    ru.meta.deckhouse.io/title: "Модуль e2e-rbac: просмотр"
+    en.meta.deckhouse.io/description: "Read-only access to e2e-rbac resources in a namespace."
+    ru.meta.deckhouse.io/description: "Доступ только на чтение к ресурсам модуля e2e-rbac в пространстве имён."
+rules:
+- apiGroups:
+  - e2e.deckhouse.io
+  resources:
+  - widgets
+  verbs:
+  - get
+  - list
+  - watch
+{{- else }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    heritage: deckhouse
+    module: e2e-rbac
+    rbac.deckhouse.io/aggregate-to-kubernetes-as: viewer
+    rbac.deckhouse.io/kind: use
+  name: d8:use:capability:module:e2e-rbac:view
+rules:
+- apiGroups:
+  - e2e.deckhouse.io
+  resources:
+  - widgets
+  verbs:
+  - get
+  - list
+  - watch
+{{- end }}

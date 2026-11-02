@@ -1,0 +1,7 @@
+description: >
+  A module without rbac.yaml gets the contract check only: coverage stays silent even though the
+  module ships CRDs (spec 005 R22, US-F1).
+module: module
+expectPass:
+  - linter: rbac
+    rule: coverage

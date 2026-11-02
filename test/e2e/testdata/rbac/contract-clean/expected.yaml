@@ -1,0 +1,7 @@
+description: >
+  Two well-formed RBACv2 capabilities (namespace and system lineage) under templates/rbacv2/
+  pass the rbac contract rule; the rule needs no rbac.yaml.
+module: module
+expectPass:
+  - linter: rbac
+    rule: contract
