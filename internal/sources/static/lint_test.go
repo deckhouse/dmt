@@ -1,11 +1,43 @@
 package static
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"helm.sh/helm/v3/pkg/chartutil"
+
+	"github.com/deckhouse/dmt/internal/manager"
+	"github.com/deckhouse/dmt/pkg/errors"
 )
+
+// TestTargetsFailsWhenGlobalValuesAreUnreadable reproduces deckhouse linted outside
+// /deckhouse: the $ref in global-hooks/openapi/values.yaml points at a file that is
+// not there, no module can be built, and the run must fail instead of passing empty.
+func TestTargetsFailsWhenGlobalValuesAreUnreadable(t *testing.T) {
+	root := t.TempDir()
+	openapi := filepath.Join(root, "global-hooks", "openapi")
+	require.NoError(t, os.MkdirAll(openapi, 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "modules"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(openapi, "config-values.yaml"), []byte("type: object\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(openapi, "values.yaml"), []byte(`type: object
+properties:
+  clusterConfiguration:
+    $ref: '/nonexistent/candi/openapi/cluster_configuration.yaml#/apiVersions/0/openAPISpec'
+`), 0o644))
+
+	err := NewSource(root).Targets(t.Context(), nil, errors.NewLintRuleErrorsList(), func(manager.Target) bool {
+		t.Fatal("no module may be linted without global values")
+
+		return false
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "get global values")
+	assert.Contains(t, err.Error(), "cluster_configuration.yaml")
+}
 
 // TestMergeValuesLeavesBaseAlone is the guard for the invariant every matrix render
 // depends on: the --values-file tree is shared by all of them, so a variant that
