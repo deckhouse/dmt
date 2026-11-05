@@ -1,0 +1,19 @@
+description: >
+  RBAC kept at the module root must be checked by the placement rule:
+  "templates/rbac-for-us.yaml" and "templates/rbac-to-us.yaml" share a prefix
+  with the RBAC v2 directory "templates/rbac", and used to be skipped along
+  with it. Objects under "templates/rbac/" itself must still be skipped.
+module: module
+expect:
+  - linter: rbac
+    rule: placement
+    level: error
+    textContains: 'Name of ServiceAccount in "templates/rbac-for-us.yaml" should be equal to Chart Name (e2e-rbac-root)'
+  - linter: rbac
+    rule: placement
+    level: error
+    textContains: 'RoleBinding in "templates/rbac-to-us.yaml" should start with "access-to-e2e-rbac-root"'
+expectAbsent:
+  - linter: rbac
+    rule: placement
+    textContains: 'ServiceAccount should be in "templates/rbac-for-us.yaml"'
