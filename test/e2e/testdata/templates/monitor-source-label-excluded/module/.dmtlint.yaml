@@ -1,0 +1,8 @@
+linters-settings:
+  templates:
+    exclude-rules:
+      monitor-source-label:
+        - kind: PodMonitor
+          name: e2e-monitor-source-label-excluded
+        - kind: PrometheusRule
+          name: e2e-monitor-source-label-excluded
