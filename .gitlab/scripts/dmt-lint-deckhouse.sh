@@ -34,8 +34,8 @@
 # OpenAPI schemas contain absolute $ref paths like
 # /deckhouse/candi/openapi/cluster_configuration.yaml, so the prepared tree must
 # live at /deckhouse for them to resolve — exactly as in deckhouse's own CI
-# (tools/dmt-lint.sh copies the sources to /deckhouse). WORK_DIR must already
-# exist and be writable by the current user (the workflow creates it).
+# (tools/dmt-lint.sh copies the sources to /deckhouse). WORK_DIR must be
+# writable: CI runs this script as root in a container (see .gitlab-ci.yml).
 
 set -euo pipefail
 

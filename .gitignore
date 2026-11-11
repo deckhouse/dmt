@@ -31,4 +31,5 @@ Thumbs.db
 # Ignore log files
 *.log
 logs/
-*.tmp
+*.tmp# CI tools (.gitlab-ci.yml)
+.tools/
