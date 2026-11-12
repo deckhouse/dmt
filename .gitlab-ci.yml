@@ -1,6 +1,6 @@
 # dmt CI. Ported from GitHub Actions, the same way as deckhouse-cli.
 # GitHub is a push mirror of this project (Settings -> Repository -> Mirroring repositories):
-# same commits and tags. GitHub releases are still made, by release:github.
+# same commits and tags. Releases are not mirrored: release:gitlab and release:github make them.
 #
 # CI/CD variables (Settings -> CI/CD -> Variables):
 #   TRDL_VAULT_ADDR         trdl server (protected, masked)
@@ -27,6 +27,7 @@ variables:
   GO_VERSION: "1.27.4"
   GOLANGCI_LINT_VERSION: "2.15.0"
   GORELEASER_VERSION: "2.19.0"
+  GH_VERSION: "2.102.0"
   # bash and GNU grep for dmt-lint-deckhouse.sh
   LINT_IMAGE: debian:bookworm-slim@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc
   # The Run pipeline form (Build -> Pipelines -> Run pipeline), as the GitHub workflow_dispatch inputs.
@@ -141,29 +142,94 @@ trdl-build-check:
 
 # --- Release tags -------------------------------------------------------------
 
-# tools/install.sh downloads dmt from GitHub releases: keep the goreleaser asset names.
-release:github:
+# goreleaser only builds (.goreleaser.yml keeps the asset names); release:gitlab and
+# release:github publish, as in deckhouse-cli.
+release:build:
   extends: [.go, .on_release_tag]
+  stage: build
+  interruptible: false
+  variables:
+    GORELEASER_CURRENT_TAG: $CI_COMMIT_TAG
+  script:
+    - curl -fsSL "https://github.com/goreleaser/goreleaser/releases/download/v${GORELEASER_VERSION}/goreleaser_Linux_x86_64.tar.gz" | tar -xz -C .tools/bin goreleaser
+    - goreleaser release --clean --skip=publish --timeout=90m
+  artifacts:
+    paths:
+      - dist/*.tar.gz
+      - dist/*-checksums.txt
+    expire_in: 1 week
+
+# A GitLab release only holds links, and job artifacts expire,
+# so the files go to the project's generic package registry.
+release:gitlab:
+  extends: .on_release_tag
   stage: deploy
+  needs: ["release:build"]
   interruptible: false
   variables:
     GIT_DEPTH: "0"
-  # GH_TOKEN: project CI/CD variable (protected, masked and hidden)
   script:
-    - curl -fsSL "https://github.com/goreleaser/goreleaser/releases/download/v${GORELEASER_VERSION}/goreleaser_Linux_x86_64.tar.gz" | tar -xz -C .tools/bin goreleaser
+    - |
+      api="$CI_API_V4_URL/projects/$CI_PROJECT_ID"
+      if curl -sSf -o /dev/null -H "JOB-TOKEN: $CI_JOB_TOKEN" "$api/releases/$CI_COMMIT_TAG"; then
+        echo "GitLab release $CI_COMMIT_TAG already exists"
+        exit 0
+      fi
+      git fetch --tags --quiet origin
+      prev="$(git describe --tags --abbrev=0 --match 'v[0-9]*' "${CI_COMMIT_TAG}^" 2>/dev/null || true)"
+      changes="$(git log --no-merges --format='* %s' ${prev:+"${prev}.."}"$CI_COMMIT_TAG")"
+      links='[]'
+      for f in dist/*.tar.gz dist/*-checksums.txt; do
+        name="$(basename "$f")"
+        url="$api/packages/generic/dmt/$CI_COMMIT_TAG/$name"
+        curl -sS --fail-with-body -H "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file "$f" "$url"
+        links="$(jq -c --arg name "$name" --arg url "$url" '. + [{name: $name, url: $url, link_type: "package"}]' <<<"$links")"
+      done
+      jq -n --arg tag "$CI_COMMIT_TAG" --arg desc "$changes" --argjson links "$links" \
+          '{tag_name: $tag, name: $tag, description: $desc, assets: {links: $links}}' \
+        | curl -sS --fail-with-body -H "JOB-TOKEN: $CI_JOB_TOKEN" -H "Content-Type: application/json" \
+            --data @- "$api/releases"
+
+# tools/install.sh downloads dmt from here: keep the asset names.
+# Runs last, once trdl:release has passed: publishes only what trdl accepted the signature for.
+release:github:
+  extends: .on_release_tag
+  stage: deploy
+  needs: ["release:build", "trdl:release"]
+  interruptible: false
+  variables:
+    GIT_DEPTH: "0"
+    GH_REPO: deckhouse/dmt
+  # GH_TOKEN: project CI/CD variable (protected, masked and hidden)
+  before_script:
+    - mkdir -p .tools/bin && export PATH="$PWD/.tools/bin:$PATH"
+    - curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz" | tar -xz -C .tools/bin --strip-components=2 "gh_${GH_VERSION}_linux_amd64/bin/gh"
+  script:
     - |
       # The push mirror brings the tag to GitHub right after it is pushed here.
       for i in $(seq 30); do
         # For an annotated tag, the ^{} line (last) holds its commit.
-        sha="$(git ls-remote https://github.com/deckhouse/dmt.git "refs/tags/$CI_COMMIT_TAG" "refs/tags/$CI_COMMIT_TAG^{}" | tail -n1 | cut -f1)"
+        sha="$(git ls-remote "https://github.com/$GH_REPO.git" "refs/tags/$CI_COMMIT_TAG" "refs/tags/$CI_COMMIT_TAG^{}" | tail -n1 | cut -f1)"
         [ -n "$sha" ] && break
         echo "Waiting for the mirror to push $CI_COMMIT_TAG to GitHub ($i/30)..."
         sleep 60
       done
       [ "$sha" = "$CI_COMMIT_SHA" ] || { echo "GitHub $CI_COMMIT_TAG is at '$sha', expected $CI_COMMIT_SHA: check the mirror" >&2; exit 1; }
-    # The changelog starts at the previous tag; a tag pipeline fetches only its own.
-    - git fetch --tags --quiet origin
-    - GITHUB_TOKEN="$GH_TOKEN" goreleaser release --clean --timeout=90m
+    - |
+      # Same layout as GitHub's generated notes, without service commits and links to internal MRs.
+      git fetch --tags --quiet origin
+      prev="$(git describe --tags --abbrev=0 --match 'v[0-9]*' "${CI_COMMIT_TAG}^" 2>/dev/null || true)"
+      NOTES="## What's Changed"$'\n'"$(git log --no-merges --format='* %s' ${prev:+"${prev}.."}"$CI_COMMIT_TAG" \
+        | grep -v -E '^\* (Signed release channels|bump channel)' | sed -E 's/ \(![0-9]+\)$//')" || true
+      if [ -n "$prev" ]; then
+        NOTES+=$'\n\n'"**Full Changelog**: https://github.com/$GH_REPO/compare/$prev...$CI_COMMIT_TAG"
+      fi
+    - |
+      # GitHub makes every new release Latest; a patch to an older line must not take it.
+      newest="$(git tag -l --sort=v:refname 'v[0-9]*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | tail -n1)"
+      latest=false; [ "$CI_COMMIT_TAG" = "$newest" ] && latest=true
+      gh release create "$CI_COMMIT_TAG" --verify-tag --latest="$latest" --title "$CI_COMMIT_TAG" --notes "$NOTES" dist/*.tar.gz dist/*-checksums.txt \
+        || gh release upload "$CI_COMMIT_TAG" --clobber dist/*.tar.gz dist/*-checksums.txt
 
 # --- trdl ---------------------------------------------------------------------
 
