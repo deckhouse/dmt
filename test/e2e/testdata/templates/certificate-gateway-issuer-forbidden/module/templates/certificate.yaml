@@ -1,4 +1,8 @@
-{{- $moduleGateway := dict "name" "test-gateway" }}
+{{- /* The gateway is never configured with the e2e values, so this Certificate is
+       not rendered: the rule must still flag it by scanning the raw template. */}}
+{{- $moduleGateway := dict }}
+{{- if $moduleGateway }}
+---
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -11,3 +15,4 @@ spec:
     kind: ClusterIssuer
   dnsNames:
   - example.com
+{{- end }}

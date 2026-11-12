@@ -19,32 +19,26 @@ package rules
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/gojuno/minimock/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/deckhouse/dmt/internal/mocks"
-	"github.com/deckhouse/dmt/internal/storage"
 	"github.com/deckhouse/dmt/pkg"
 	"github.com/deckhouse/dmt/pkg/errors"
 )
 
-func TestCertificateGatewayIssuerRule_ValidateCertificateGatewayIssuer(t *testing.T) {
+func TestFindHardcodedLetsencryptIssuers(t *testing.T) {
 	tests := []struct {
-		name           string
-		templateFiles  map[string]string
-		storageObjects map[storage.ResourceIndex]storage.StoreObject
-		excludeRules   []pkg.KindRuleExclude
-		expectedErrors []string
+		name     string
+		content  string
+		expected []issuerFinding
 	}{
 		{
-			name: "should detect forbidden printf issuer in Certificate",
-			templateFiles: map[string]string{
-				"templates/certificate.yaml": `
+			name: "printf letsencrypt-gateway issuer",
+			content: `{{- $moduleGateway := dict "name" "main" }}
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -54,28 +48,168 @@ spec:
     name: {{ printf "letsencrypt-gateway-%s" $moduleGateway.name }}
     kind: ClusterIssuer
 `,
-			},
-			storageObjects: map[storage.ResourceIndex]storage.StoreObject{
-				{
-					Kind: "Certificate",
-					Name: "gateway-cert",
-				}: {
-					AbsPath: "templates/certificate.yaml",
-					Unstructured: unstructured.Unstructured{Object: map[string]any{
-						"kind": "Certificate",
-						"metadata": map[string]any{
-							"name": "gateway-cert",
-						},
-					}},
-				},
-			},
-			expectedErrors: []string{certificateGatewayIssuerMessage},
+			expected: []issuerFinding{{
+				certificateName: "gateway-cert",
+				line:            8,
+				value:           `{{ printf "letsencrypt-gateway-%s" $moduleGateway.name }}`,
+			}},
 		},
 		{
-			name: "should accept recommended include helper",
-			templateFiles: map[string]string{
-				"templates/certificate.yaml": `
+			name: "hardcoded issuer under a helm conditional is still detected",
+			content: `{{- $moduleGateway := dict }}
+{{- include "helm_lib_module_gateway" (list . $moduleGateway) }}
+{{- if and $moduleGateway (eq (include "helm_lib_module_https_mode" .) "CertManager") }}
+---
 apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gateway-cert
+spec:
+  issuerRef:
+    name: {{ printf "letsencrypt-gateway-%s" $moduleGateway.name }}
+    kind: ClusterIssuer
+{{- end }}
+`,
+			expected: []issuerFinding{{
+				certificateName: "gateway-cert",
+				line:            11,
+				value:           `{{ printf "letsencrypt-gateway-%s" $moduleGateway.name }}`,
+			}},
+		},
+		{
+			name: "plain letsencrypt issuer",
+			content: `apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ingress-cert
+spec:
+  issuerRef:
+    name: letsencrypt
+    kind: ClusterIssuer
+`,
+			expected: []issuerFinding{{certificateName: "ingress-cert", line: 7, value: "letsencrypt"}},
+		},
+		{
+			name: "letsencrypt-gateway prefix concatenated with a template",
+			content: `apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: "gateway-cert"
+spec:
+  issuerRef:
+    kind: ClusterIssuer
+    name: "letsencrypt-gateway-{{ $moduleGateway.name }}" # gateway issuer
+`,
+			expected: []issuerFinding{{
+				certificateName: "gateway-cert",
+				line:            8,
+				value:           `"letsencrypt-gateway-{{ $moduleGateway.name }}"`,
+			}},
+		},
+		{
+			name: "inline issuerRef",
+			content: `apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: inline-cert
+spec:
+  issuerRef: {name: letsencrypt-staging, kind: ClusterIssuer}
+`,
+			expected: []issuerFinding{{
+				certificateName: "inline-cert",
+				line:            6,
+				value:           "{name: letsencrypt-staging, kind: ClusterIssuer}",
+			}},
+		},
+		{
+			name: "variable assigned a letsencrypt literal",
+			content: `{{- $issuerName := printf "letsencrypt-gateway-%s" $moduleGateway.name }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gateway-cert
+spec:
+  issuerRef:
+    name: {{ $issuerName }}
+    kind: ClusterIssuer
+`,
+			expected: []issuerFinding{{
+				certificateName: "gateway-cert",
+				line:            9,
+				value:           `$issuerName := printf "letsencrypt-gateway-%s" $moduleGateway.name`,
+			}},
+		},
+		{
+			name: "letsencrypt literal reached through a chain of variables",
+			content: `{{- $base := "letsencrypt" }}
+{{- $issuerName := printf "%s-gateway-%s" $base $moduleGateway.name }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gateway-cert
+spec:
+  issuerRef:
+    name: {{ $issuerName | quote }}
+    kind: ClusterIssuer
+`,
+			expected: []issuerFinding{{certificateName: "gateway-cert", line: 9, value: `$base := "letsencrypt"`}},
+		},
+		{
+			name: "every branch of a conditional issuerRef name is checked",
+			content: `apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gateway-cert
+spec:
+  issuerRef:
+  {{- if .Values.module.gateway }}
+    name: {{ printf "letsencrypt-gateway-%s" .Values.module.gateway }}
+  {{- else }}
+    name: {{ include "helm_lib_module_https_cert_manager_cluster_issuer_name" . }}
+  {{- end }}
+    kind: ClusterIssuer
+`,
+			expected: []issuerFinding{{
+				certificateName: "gateway-cert",
+				line:            8,
+				value:           `{{ printf "letsencrypt-gateway-%s" .Values.module.gateway }}`,
+			}},
+		},
+		{
+			name: "only the offending Certificate of a multi-document file is reported",
+			content: `{{- if (include "helm_lib_module_ingress_enabled" .) }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ingress-cert
+spec:
+  issuerRef:
+    name: {{ include "helm_lib_module_https_cert_manager_cluster_issuer_name" . }}
+    kind: ClusterIssuer
+{{- end }}
+{{- if (include "helm_lib_module_gateway_enabled" .) }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gateway-cert
+spec:
+  issuerRef:
+    name: {{ printf "letsencrypt-gateway-%s" $moduleGateway.name }}
+    kind: ClusterIssuer
+{{- end }}
+`,
+			expected: []issuerFinding{{
+				certificateName: "gateway-cert",
+				line:            20,
+				value:           `{{ printf "letsencrypt-gateway-%s" $moduleGateway.name }}`,
+			}},
+		},
+		{
+			name: "gateway api helper",
+			content: `apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: gateway-cert
@@ -84,27 +218,37 @@ spec:
     name: {{ include "helm_lib_module_https_cert_manager_cluster_issuer_name_for_gateway_api" . }}
     kind: ClusterIssuer
 `,
-			},
-			storageObjects: map[storage.ResourceIndex]storage.StoreObject{
-				{
-					Kind: "Certificate",
-					Name: "gateway-cert",
-				}: {
-					AbsPath: "templates/certificate.yaml",
-					Unstructured: unstructured.Unstructured{Object: map[string]any{
-						"kind": "Certificate",
-						"metadata": map[string]any{
-							"name": "gateway-cert",
-						},
-					}},
-				},
-			},
-			expectedErrors: []string{},
 		},
 		{
-			name: "should ignore printf outside Certificate objects",
-			templateFiles: map[string]string{
-				"templates/configmap.yaml": `
+			name: "conditional letsencrypt gateway suffix",
+			content: `{{- $moduleGateway := dict }}
+{{- include "helm_lib_module_gateway" (list . $moduleGateway) }}
+{{- if and (eq (include "helm_lib_module_gateway_enabled" .) "true") (eq (include "helm_lib_module_https_mode" .) "CertManager") }}
+{{- $issuerName := include "helm_lib_module_https_cert_manager_cluster_issuer_name" . }}
+{{- if or (eq $issuerName "letsencrypt") (eq $issuerName "letsencrypt-staging") }}
+  {{- $issuerName = printf "%s-gateway-%s" $issuerName $moduleGateway.name }}
+{{- end }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gateway-cert
+spec:
+  issuerRef:
+    name: {{ $issuerName }}
+    kind: ClusterIssuer
+{{- end }}
+`,
+		},
+		{
+			name: "letsencrypt outside Certificate objects",
+			content: `apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: test
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -112,14 +256,33 @@ metadata:
 data:
   issuer: {{ printf "letsencrypt-gateway-%s" $moduleGateway.name }}
 `,
-			},
-			storageObjects: map[storage.ResourceIndex]storage.StoreObject{},
-			expectedErrors: []string{},
 		},
 		{
-			name: "should skip excluded certificate",
-			templateFiles: map[string]string{
-				"templates/certificate.yaml": `
+			name: "letsencrypt only in comments",
+			content: `{{- /* issuerRef.name used to be printf "letsencrypt-gateway-%s" */ -}}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gateway-cert
+spec:
+  issuerRef:
+    # name: letsencrypt
+    name: {{ include "helm_lib_module_https_cert_manager_cluster_issuer_name_for_gateway_api" . }} # not letsencrypt
+    kind: ClusterIssuer
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, findHardcodedLetsencryptIssuers(tt.content))
+		})
+	}
+}
+
+func TestCertificateGatewayIssuerRule_Check(t *testing.T) {
+	const forbidden = `{{- $moduleGateway := dict }}
+{{- if $moduleGateway }}
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -128,41 +291,41 @@ spec:
   issuerRef:
     name: {{ printf "letsencrypt-gateway-%s" $moduleGateway.name }}
     kind: ClusterIssuer
-`,
+{{- end }}
+`
+
+	tests := []struct {
+		name          string
+		templateFiles map[string]string
+		excludeRules  []pkg.KindRuleExclude
+		expectedFiles []string
+	}{
+		{
+			name: "reports hardcoded issuer in a template that is not rendered",
+			templateFiles: map[string]string{
+				"templates/gateway/certificate.yaml": forbidden,
+				"templates/_helpers.tpl":             `{{- define "noop" }}{{- end }}`,
 			},
-			storageObjects: map[storage.ResourceIndex]storage.StoreObject{
-				{
-					Kind: "Certificate",
-					Name: "gateway-cert",
-				}: {
-					AbsPath: "templates/certificate.yaml",
-					Unstructured: unstructured.Unstructured{Object: map[string]any{
-						"kind": "Certificate",
-						"metadata": map[string]any{
-							"name": "gateway-cert",
-						},
-					}},
-				},
+			expectedFiles: []string{"templates/gateway/certificate.yaml"},
+		},
+		{
+			name: "skips excluded certificate",
+			templateFiles: map[string]string{
+				"templates/certificate.yaml": forbidden,
 			},
-			excludeRules: []pkg.KindRuleExclude{
-				{
-					Kind: "Certificate",
-					Name: "gateway-cert",
-				},
-			},
-			expectedErrors: []string{},
+			excludeRules:  []pkg.KindRuleExclude{{Kind: "Certificate", Name: "gateway-cert"}},
+			expectedFiles: nil,
+		},
+		{
+			name:          "module without templates",
+			templateFiles: map[string]string{"openapi/values.yaml": forbidden},
+			expectedFiles: nil,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tempDir, err := os.MkdirTemp("", "certificate-gateway-issuer-test")
-			require.NoError(t, err)
-
-			defer os.RemoveAll(tempDir)
-
-			modulePath := filepath.Join(tempDir, "module")
-			require.NoError(t, os.MkdirAll(modulePath, 0o755))
+			modulePath := t.TempDir()
 
 			for filePath, content := range tt.templateFiles {
 				fullPath := filepath.Join(modulePath, filePath)
@@ -172,39 +335,22 @@ spec:
 
 			mc := minimock.NewController(t)
 			mockModule := mocks.NewModuleMock(mc)
-
-			objects := make(map[storage.ResourceIndex]storage.StoreObject, len(tt.storageObjects))
-			for index, object := range tt.storageObjects {
-				object.AbsPath = filepath.Join(modulePath, object.AbsPath)
-				objects[index] = object
-			}
-
-			mockModule.GetStorageMock.Return(objects)
+			mockModule.GetPathMock.Return(modulePath)
 
 			errorList := errors.NewLintRuleErrorsList()
 			NewCertificateGatewayIssuerRule(tt.excludeRules, mockModule, errorList).Check(t.Context())
 
 			errs := errorList.GetErrors()
-			require.Len(t, errs, len(tt.expectedErrors))
+			require.Len(t, errs, len(tt.expectedFiles))
 
-			for i, expectedError := range tt.expectedErrors {
-				assert.Contains(t, errs[i].Text, expectedError)
+			for i, expectedFile := range tt.expectedFiles {
+				assert.Equal(t, expectedFile, errs[i].FilePath)
+				assert.Equal(t, CertificateGatewayIssuerRuleName, errs[i].RuleID)
+				assert.Equal(t, "kind = Certificate ; name = gateway-cert", errs[i].ObjectID)
+				assert.Equal(t, 9, errs[i].LineNumber)
+				assert.Contains(t, errs[i].Text, "pinned to the letsencrypt ClusterIssuer")
+				assert.Contains(t, errs[i].Text, gatewayAPIClusterIssuerHelper)
 			}
 		})
 	}
-}
-
-func TestContainsForbiddenGatewayIssuer(t *testing.T) {
-	assert.True(t, containsForbiddenGatewayIssuer(strings.TrimSpace(`
-kind: Certificate
-spec:
-  issuerRef:
-    name: {{ printf "letsencrypt-gateway-%s" $moduleGateway.name }}
-`)))
-	assert.False(t, containsForbiddenGatewayIssuer(strings.TrimSpace(`
-kind: Certificate
-spec:
-  issuerRef:
-    name: {{ include "helm_lib_module_https_cert_manager_cluster_issuer_name_for_gateway_api" . }}
-`)))
 }

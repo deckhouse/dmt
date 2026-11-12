@@ -1,6 +1,7 @@
 description: >
-  A Certificate that uses the recommended Gateway API ClusterIssuer include
-  helper must not be flagged by certificate-gateway-issuer.
+  Certificates that take the issuer from the Gateway API helper, or that add
+  the -gateway-<name> suffix only when the configured issuer is letsencrypt,
+  must not be flagged by certificate-gateway-issuer.
 module: module
 expectPass:
   - linter: templates

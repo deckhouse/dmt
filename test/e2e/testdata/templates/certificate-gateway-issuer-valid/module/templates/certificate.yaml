@@ -10,3 +10,23 @@ spec:
     kind: ClusterIssuer
   dnsNames:
   - example.com
+{{- $moduleGateway := dict }}
+{{- if $moduleGateway }}
+{{- $issuerName := include "helm_lib_module_https_cert_manager_cluster_issuer_name" . }}
+{{- if or (eq $issuerName "letsencrypt") (eq $issuerName "letsencrypt-staging") }}
+  {{- $issuerName = printf "%s-gateway-%s" $issuerName $moduleGateway.name }}
+{{- end }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gateway-cert-conditional
+  namespace: e2e-certificate-gateway-issuer-valid
+spec:
+  secretName: gateway-cert-conditional-tls
+  issuerRef:
+    name: {{ $issuerName }}
+    kind: ClusterIssuer
+  dnsNames:
+  - example.com
+{{- end }}
