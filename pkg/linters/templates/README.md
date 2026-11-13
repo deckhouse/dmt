@@ -2276,15 +2276,19 @@ spec:
 
 **Error:**
 ```
-Certificate issuerRef.name is pinned to the letsencrypt ClusterIssuer, so the ClusterIssuer configured in https.certManager.clusterIssuerName (globally or for the module) is never used: for Gateway API use {{ include "helm_lib_module_https_cert_manager_cluster_issuer_name_for_gateway_api" . }} (requires lib_helm v1.72.10+), or take {{ include "helm_lib_module_https_cert_manager_cluster_issuer_name" . }} and add the "-gateway-<gateway name>" suffix only inside {{- if or (eq $issuerName "letsencrypt") (eq $issuerName "letsencrypt-staging") }}; for Ingress use {{ include "helm_lib_module_https_cert_manager_cluster_issuer_name" . }}
+Certificate issuerRef.name is pinned to the letsencrypt ClusterIssuer, so the ClusterIssuer configured in https.certManager.clusterIssuerName (globally or for the module) is never used: for Gateway API use {{ include "helm_lib_module_https_cert_manager_cluster_issuer_name_for_gateway_api" . }} (requires lib_helm v1.72.10+), or take {{ include "helm_lib_module_https_cert_manager_cluster_issuer_name" . }} and add the "-gateway-<gateway name>" suffix only inside {{- if or (eq $issuerName "letsencrypt") (eq $issuerName "letsencrypt-staging") }}; for Ingress use {{ include "helm_lib_module_https_cert_manager_cluster_issuer_name" . }}. Both helpers fail to render unless the https mode is CertManager, so keep the Certificate under {{- if eq (include "helm_lib_module_https_mode" .) "CertManager" }}
 ```
 
 The same error is reported for `name: letsencrypt`, `name: letsencrypt-gateway-{{ $moduleGateway.name }}`, or `name: {{ $issuerName }}` after `{{- $issuerName := printf "letsencrypt-gateway-%s" $moduleGateway.name }}`.
+
+Both helpers below read `https.certManager.clusterIssuerName` and fail to render (`nil pointer evaluating interface {}.clusterIssuerName`) when the https mode is `Disabled`, `CustomCertificate` or `OnlyInURI`, so the Certificate must stay under the `CertManager` mode check.
 
 ✅ **Correct** - Use the lib_helm helper (lib_helm v1.72.10+):
 
 ```yaml
 # templates/certificate.yaml
+{{- if and (eq (include "helm_lib_module_gateway_enabled" .) "true") (eq (include "helm_lib_module_https_mode" .) "CertManager") }}
+---
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -2293,6 +2297,7 @@ spec:
   issuerRef:
     name: {{ include "helm_lib_module_https_cert_manager_cluster_issuer_name_for_gateway_api" . }}
     kind: ClusterIssuer
+{{- end }}
 ```
 
 ✅ **Correct** - Add the Gateway API suffix only to the built-in letsencrypt issuers:
@@ -2321,10 +2326,27 @@ spec:
 ✅ **Correct** - Ingress Certificates take the configured issuer as is:
 
 ```yaml
+# templates/certificate.yaml
+{{- if and (eq (include "helm_lib_module_ingress_enabled" .) "true") (eq (include "helm_lib_module_https_mode" .) "CertManager") }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ingress-cert
+spec:
   issuerRef:
     name: {{ include "helm_lib_module_https_cert_manager_cluster_issuer_name" . }}
     kind: ClusterIssuer
+{{- end }}
 ```
+
+With a gateway `main` configured, the forms above resolve the issuer as follows (rendered with lib_helm 1.72.34):
+
+| `clusterIssuerName` | Gateway API helper / conditional suffix | Ingress helper | Hardcoded `printf "letsencrypt-gateway-%s"` |
+|---|---|---|---|
+| `letsencrypt` | `letsencrypt-gateway-main` | `letsencrypt` | `letsencrypt-gateway-main` |
+| `letsencrypt-staging` | `letsencrypt-staging-gateway-main` | `letsencrypt-staging` | `letsencrypt-gateway-main` ❌ |
+| `corp-ca` (or a module-level override) | `corp-ca` | `corp-ca` | `letsencrypt-gateway-main` ❌ |
 
 **Configuration:**
 

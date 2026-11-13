@@ -46,7 +46,9 @@ const (
 		"(requires lib_helm " + gatewayAPIClusterIssuerHelperLibHelm + "+), or take " +
 		"{{ include \"" + clusterIssuerHelper + "\" . }} and add the \"-gateway-<gateway name>\" suffix only " +
 		"inside {{- if or (eq $issuerName \"letsencrypt\") (eq $issuerName \"letsencrypt-staging\") }}; " +
-		"for Ingress use {{ include \"" + clusterIssuerHelper + "\" . }}"
+		"for Ingress use {{ include \"" + clusterIssuerHelper + "\" . }}. Both helpers fail to render unless " +
+		"the https mode is CertManager, so keep the Certificate under " +
+		"{{- if eq (include \"helm_lib_module_https_mode\" .) \"CertManager\" }}"
 )
 
 var (
