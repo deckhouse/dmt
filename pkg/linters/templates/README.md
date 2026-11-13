@@ -35,6 +35,7 @@ Proper template validation prevents runtime issues, ensures applications are pro
 | [https-certificate-reuse](#https-certificate-reuse) | Requires a custom certificate to be copied once and reused by Ingress and Gateway API via `helm_lib_module_https_secret_name`'s plain and two-prefix forms | ✅ | enabled |
 | [listenerset-redirect](#listenerset-redirect) | Requires every ListenerSet host served over HTTPS to also have an HTTP (port 80) listener for the HTTP→HTTPS redirect | ✅ | enabled |
 | [httproute-redirect](#httproute-redirect) | Requires every ListenerSet HTTP (port 80) redirect section to be backed by an HTTPRoute that redirects it to HTTPS | ✅ | enabled |
+| [certificate-gateway-issuer](#certificate-gateway-issuer) | Forbids Certificates from pinning `issuerRef.name` to a letsencrypt ClusterIssuer (raw template scan, so conditional Certificates are checked too) | ✅ | enabled |
 
 "Configurable" means that this rule can be configured using the `.dmtlint.yaml` file, including customizing the rule's parameters and/or disabling the rule.
 
@@ -2226,10 +2227,142 @@ linters-settings:
 ```
 
 **When to exclude:** Pods managed outside Helm (operators, mutating webhooks, static pods, bashible) have `volumeMounts` that are not present in Helm templates. Directories from `mount-points.yaml` for these containers will produce false positives — exclude them with the corresponding paths.
+
+---
+
+### certificate-gateway-issuer
+
+**Purpose:** Ensures Certificates never pin `issuerRef.name` to a letsencrypt ClusterIssuer, so the issuer configured in `https.certManager.clusterIssuerName` (globally or for the module) is the one actually used.
+
+**Description:**
+
+A hardcoded issuer such as `{{ printf "letsencrypt-gateway-%s" $moduleGateway.name }}` or `letsencrypt` locks the module to letsencrypt: a cluster that configures another ClusterIssuer (a DNS-01 one, a corporate CA, etc.) still gets letsencrypt certificates. Only the built-in letsencrypt issuers need the `-gateway-<gateway name>` suffix for Gateway API, so the suffix must be added conditionally — which is what the lib_helm helper does.
+
+The rule scans the raw text of the templates rather than the rendered manifests: Certificates are usually wrapped in Helm conditionals (HTTPS mode, Ingress or Gateway API enabled) that the default lint values do not satisfy, so most of them never reach the rendered output.
+
+**What it checks:**
+
+1. Template files under `templates/` (`.yaml`, `.yml`, `.tpl`), including Certificates under Helm conditionals and in `define` blocks
+2. Every YAML document with `kind: Certificate`
+3. Every `issuerRef.name` value (all branches of a conditional inside `issuerRef`, and an inline `issuerRef: {...}`) must not contain `letsencrypt`
+4. A value that uses a template variable (`{{ $issuerName }}`) is resolved through the variable's assignments earlier in the same file, following variable-to-variable assignments; an assignment with a `letsencrypt` literal on its right-hand side is reported. Comparisons such as `eq $issuerName "letsencrypt"` are not assignments and are allowed
+5. Helm comments (`{{/* ... */}}`) and YAML comments are ignored
+
+**Why it matters:**
+
+Hardcoded letsencrypt issuer names:
+- Ignore the ClusterIssuer configured by the cluster administrator
+- Break modules in clusters without internet access or with a custom CA
+- Bypass the shared lib_helm naming convention for Gateway API ClusterIssuers
+
+**Examples:**
+
+❌ **Incorrect** - Hardcoded letsencrypt issuer (flagged even though the Certificate is under a conditional):
+
+```yaml
+# templates/certificate.yaml
+{{- if (include "helm_lib_module_gateway_enabled" .) }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gateway-cert
+spec:
+  issuerRef:
+    name: {{ printf "letsencrypt-gateway-%s" $moduleGateway.name }}
+    kind: ClusterIssuer
+{{- end }}
 ```
+
+**Error:**
+```
+Certificate issuerRef.name is pinned to the letsencrypt ClusterIssuer, so the ClusterIssuer configured in https.certManager.clusterIssuerName (globally or for the module) is never used: for Gateway API use {{ include "helm_lib_module_https_cert_manager_cluster_issuer_name_for_gateway_api" . }} (requires lib_helm v1.72.10+), or take {{ include "helm_lib_module_https_cert_manager_cluster_issuer_name" . }} and add the "-gateway-<gateway name>" suffix only inside {{- if or (eq $issuerName "letsencrypt") (eq $issuerName "letsencrypt-staging") }}; for Ingress use {{ include "helm_lib_module_https_cert_manager_cluster_issuer_name" . }}. Both helpers fail to render unless the https mode is CertManager, so keep the Certificate under {{- if eq (include "helm_lib_module_https_mode" .) "CertManager" }}
+```
+
+The same error is reported for `name: letsencrypt`, `name: letsencrypt-gateway-{{ $moduleGateway.name }}`, or `name: {{ $issuerName }}` after `{{- $issuerName := printf "letsencrypt-gateway-%s" $moduleGateway.name }}`.
+
+Both helpers below read `https.certManager.clusterIssuerName` and fail to render (`nil pointer evaluating interface {}.clusterIssuerName`) when the https mode is `Disabled`, `CustomCertificate` or `OnlyInURI`, so the Certificate must stay under the `CertManager` mode check.
+
+✅ **Correct** - Use the lib_helm helper (lib_helm v1.72.10+):
+
+```yaml
+# templates/certificate.yaml
+{{- if and (eq (include "helm_lib_module_gateway_enabled" .) "true") (eq (include "helm_lib_module_https_mode" .) "CertManager") }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gateway-cert
+spec:
+  issuerRef:
+    name: {{ include "helm_lib_module_https_cert_manager_cluster_issuer_name_for_gateway_api" . }}
+    kind: ClusterIssuer
+{{- end }}
+```
+
+✅ **Correct** - Add the Gateway API suffix only to the built-in letsencrypt issuers:
+
+```yaml
+# templates/certificate.yaml
+{{- $moduleGateway := dict }}
+{{- include "helm_lib_module_gateway" (list . $moduleGateway) }}
+{{- if and (eq (include "helm_lib_module_gateway_enabled" .) "true") (eq (include "helm_lib_module_https_mode" .) "CertManager") }}
+{{- $issuerName := include "helm_lib_module_https_cert_manager_cluster_issuer_name" . }}
+{{- if or (eq $issuerName "letsencrypt") (eq $issuerName "letsencrypt-staging") }}
+  {{- $issuerName = printf "%s-gateway-%s" $issuerName $moduleGateway.name }}
+{{- end }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gateway-cert
+spec:
+  issuerRef:
+    name: {{ $issuerName }}
+    kind: ClusterIssuer
+{{- end }}
+```
+
+✅ **Correct** - Ingress Certificates take the configured issuer as is:
+
+```yaml
+# templates/certificate.yaml
+{{- if and (eq (include "helm_lib_module_ingress_enabled" .) "true") (eq (include "helm_lib_module_https_mode" .) "CertManager") }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ingress-cert
+spec:
+  issuerRef:
+    name: {{ include "helm_lib_module_https_cert_manager_cluster_issuer_name" . }}
+    kind: ClusterIssuer
+{{- end }}
+```
+
+With a gateway `main` configured, the forms above resolve the issuer as follows (rendered with lib_helm 1.72.34):
+
+| `clusterIssuerName` | Gateway API helper / conditional suffix | Ingress helper | Hardcoded `printf "letsencrypt-gateway-%s"` |
+|---|---|---|---|
+| `letsencrypt` | `letsencrypt-gateway-main` | `letsencrypt` | `letsencrypt-gateway-main` |
+| `letsencrypt-staging` | `letsencrypt-staging-gateway-main` | `letsencrypt-staging` | `letsencrypt-gateway-main` ❌ |
+| `corp-ca` (or a module-level override) | `corp-ca` | `corp-ca` | `letsencrypt-gateway-main` ❌ |
 
 **Configuration:**
 
+```yaml
+# .dmtlint.yaml
+linters-settings:
+  templates:
+    exclude-rules:
+      certificate-gateway-issuer:
+        - kind: Certificate
+          name: gateway-cert
+```
+
+`name` is the Certificate's `metadata.name` exactly as written in the template, e.g. `{{ .Chart.Name }}-gateway-cert` for a templated name.
+
+---
 
 ### openapi-values-quote
 
@@ -2372,6 +2505,11 @@ linters-settings:
     
     prometheus-rules:
       disable: true
+
+    exclude-rules:
+      certificate-gateway-issuer:
+        - kind: Certificate
+          name: gateway-cert
 ```
 
 ### Per-Rule Impact Levels
@@ -2409,6 +2547,8 @@ linters-settings:
         impact: error
       openapi-values-quote:
         impact: error
+      certificate-gateway-issuer:
+        impact: warning
 ```
 
 ### Rule-Level Exclusions
@@ -2447,6 +2587,11 @@ linters-settings:
           name: legacy-webhook
         - kind: Ingress
           name: internal-only
+
+      # Certificate Gateway issuer exclusions (by kind and name)
+      certificate-gateway-issuer:
+        - kind: Certificate
+          name: legacy-gateway-cert
 
       # Service port exclusions (by service name and port name)
       service-port:
@@ -2516,6 +2661,10 @@ linters-settings:
       ingress:
         - kind: Ingress
           name: internal-dashboard
+
+      certificate-gateway-issuer:
+        - kind: Certificate
+          name: internal-dashboard-cert
       
       service-port:
         - name: apiserver

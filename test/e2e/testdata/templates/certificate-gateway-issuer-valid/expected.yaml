@@ -1,0 +1,8 @@
+description: >
+  Certificates that take the issuer from the Gateway API helper, or that add
+  the -gateway-<name> suffix only when the configured issuer is letsencrypt,
+  must not be flagged by certificate-gateway-issuer.
+module: module
+expectPass:
+  - linter: templates
+    rule: certificate-gateway-issuer

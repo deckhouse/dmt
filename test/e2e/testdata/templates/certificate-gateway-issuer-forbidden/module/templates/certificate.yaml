@@ -1,0 +1,18 @@
+{{- /* The gateway is never configured with the e2e values, so this Certificate is
+       not rendered: the rule must still flag it by scanning the raw template. */}}
+{{- $moduleGateway := dict }}
+{{- if $moduleGateway }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gateway-cert
+  namespace: e2e-certificate-gateway-issuer-forbidden
+spec:
+  secretName: gateway-cert-tls
+  issuerRef:
+    name: {{ printf "letsencrypt-gateway-%s" $moduleGateway.name }}
+    kind: ClusterIssuer
+  dnsNames:
+  - example.com
+{{- end }}
