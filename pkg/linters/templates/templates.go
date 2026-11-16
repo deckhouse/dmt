@@ -101,6 +101,7 @@ func (l *Templates) rules() []pkg.Rule {
 			cfg.ExcludeRules.IngressPaths.Directories.Get(),
 			m, level(cfg.Rules.IngressRule)),
 		rules.NewHTTPRouteRule(cfg.ExcludeRules.HTTPRoute.Get(), m, level(cfg.Rules.HTTPRouteRule)),
+		rules.NewCertificateGatewayIssuerRule(cfg.ExcludeRules.CertificateGatewayIssuer.Get(), m, level(cfg.Rules.CertificateGatewayIssuerRule)),
 		rules.NewClusterDomainRule(m, level(cfg.Rules.ClusterDomainRule)),
 		// The werf rule has no rule-level config, so it reports at the linter's level.
 		rules.NewWerfRule(m, errorList),

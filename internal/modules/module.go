@@ -469,6 +469,7 @@ func mapTemplatesRules(linterSettings *pkg.LintersSettings, configSettings *conf
 	rules.HTTPSCertificateReuseRule.SetLevel(globalRules.HTTPSCertificateReuseRule.Impact, fallbackImpact)
 	rules.ListenerSetRedirectRule.SetLevel(globalRules.ListenerSetRedirectRule.Impact, fallbackImpact)
 	rules.HTTPRouteRedirectRule.SetLevel(globalRules.HTTPRouteRedirectRule.Impact, fallbackImpact)
+	rules.CertificateGatewayIssuerRule.SetLevel(globalRules.CertificateGatewayIssuerRule.Impact, fallbackImpact)
 }
 
 // mapOpenAPIRules configures OpenAPI linter rules
@@ -600,6 +601,7 @@ func mapTemplatesExclusionsAndSettings(linterSettings *pkg.LintersSettings, conf
 	excludes.IngressPaths.Files = pkg.StringRuleExcludeList(configExcludes.IngressPaths.Files)
 	excludes.IngressPaths.Directories = pkg.DirectoryRuleExcludeList(configExcludes.IngressPaths.Directories)
 	excludes.HTTPRoute = configExcludes.HTTPRoute.Get()
+	excludes.CertificateGatewayIssuer = configExcludes.CertificateGatewayIssuer.Get()
 	excludes.EnabledModules.Files = pkg.StringRuleExcludeList(configExcludes.EnabledModules.Files)
 	excludes.EnabledModules.Directories = pkg.DirectoryRuleExcludeList(configExcludes.EnabledModules.Directories)
 	excludes.WebhookConfiguration = configExcludes.WebhookConfiguration.Get()
